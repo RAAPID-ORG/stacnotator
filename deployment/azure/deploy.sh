@@ -251,14 +251,12 @@ deploy_backend() {
 # no automatic rollback, so the deploy records the instant before the image swap:
 # Flexible Server point-in-time restore can wind the database back to any second
 # within its retention window, and this is the second to ask for.
+# Records the instant, nothing more. Deliberately does not suggest a restore: winding
+# the database back to this point discards every write since, so it is a human
+# judgement call made with the deploy log in hand, not an action to offer inline.
+# See "Migration safety" in README.md.
 print_restore_point() {
-    echo -e "${BLUE}Pre-migration restore point: ${PRE_MIGRATION_UTC:-not reached}${NC}"
-    if [ -n "${POSTGRES_SERVER:-}" ]; then
-        echo -e "${YELLOW}  az postgres flexible-server restore --resource-group $RESOURCE_GROUP \\"
-        echo -e "    --name <new-server-name> --source-server $POSTGRES_SERVER \\"
-        echo -e "    --restore-time $PRE_MIGRATION_UTC${NC}"
-        echo -e "${YELLOW}  Restore creates a NEW server; repoint DBHOST at it rather than restoring in place.${NC}"
-    fi
+    echo -e "${BLUE}Pre-migration restore point (UTC): ${PRE_MIGRATION_UTC:-not reached}${NC}"
     return 0
 }
 
@@ -274,9 +272,10 @@ wait_for_backend_health() {
         case "$health" in
         Healthy) return 0 ;;
         Unhealthy)
+            # A failed migration rolls back its own transaction and the previous
+            # revision keeps serving, so this path needs no data recovery.
             echo -e "${RED}Revision unhealthy. Likely a failed startup migration; the previous revision still serves traffic.${NC}" >&2
             echo -e "${YELLOW}  az containerapp logs show -n $APP_BACKEND -g $RESOURCE_GROUP --revision $revision --tail 200${NC}" >&2
-            print_restore_point >&2
             return 1
             ;;
         esac

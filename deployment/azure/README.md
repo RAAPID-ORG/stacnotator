@@ -256,17 +256,27 @@ The script will:
 4. Upload the frontend bundle to the Static Web App.
 5. Poll the new backend revision until `healthState=Healthy`.
 
-**Migration safety.** Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD, before gunicorn), not from this script. A migration that *fails* exits non-zero: the revision stays unhealthy and Container Apps keeps the previous revision serving 100% of traffic, so that case rolls back on its own.
+**Migration safety.** Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD, before gunicorn), not from this script.
 
-A migration that *succeeds but is wrong* has no automatic rollback. For that case the deploy prints the UTC instant captured immediately before the image swap, on success and on failure. Both servers run General Purpose SKUs with point-in-time restore across the configured backup retention window, so that timestamp is the exact `--restore-time` to pass:
+A migration that *fails* needs no intervention. Alembic runs it inside a transaction, so it rolls itself back; the revision stays unhealthy and Container Apps keeps the previous revision serving 100% of traffic. Read the logs and ship a fix.
+
+A migration that *succeeds but is wrong* is the hard case, and nothing here recovers it automatically. The deploy records one thing: the UTC instant immediately before the image swap, printed on success and on health-gate timeout. That is the point-in-time restore target if you ever need it.
+
+Reach for a restore last, not first. Winding the database back to that instant **discards every write since**, so a bad migration noticed two days later costs two days of annotation work. In rough order of preference:
+
+1. **Forward fix.** A corrective migration that repairs the damage in place. Loses nothing. Almost always the right answer when the damage is structural or affects a bounded set of rows.
+2. **Restore beside, copy across.** Restore to a new server at the recorded instant and pull the specific pre-migration rows out of it, leaving live traffic untouched. Slower, but loses nothing.
+3. **Full rollback.** Repoint the app at the restored server and accept the loss of everything written since. Only when the damage is broad enough that the interim data is not worth saving.
+
+For 2 and 3, restore always creates a **new** server; there is no in-place option:
 
 ```bash
 az postgres flexible-server restore --resource-group <rg> \
   --name <new-server-name> --source-server <source-server> \
-  --restore-time <printed-timestamp>
+  --restore-time <recorded-timestamp>
 ```
 
-Restore always creates a **new** server. Recovery means repointing `DBHOST` at it, not restoring in place.
+Retention comes from `postgres_backup_retention_days` in the `raapid-infra` Terraform, so the recorded instant is only restorable inside that window.
 
 **Image tagging**: defaults to git commit SHA. Override with `IMAGE_TAG` env var.
 
