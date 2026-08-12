@@ -34,6 +34,7 @@ import { SlicePicker } from './header/SlicePicker';
 import { VectorLayerControls } from './header/VectorLayerControls';
 import { ViewControls } from './header/ViewControls';
 import { hotkeyTip, mainMapBindings } from './hotkeys';
+import { TimelineSidebar } from './TimelineSidebar';
 import { usePreloading } from './usePreloading';
 
 export interface MainMapProps {
@@ -192,15 +193,18 @@ export function MainMapBody({ ctx }: MainMapProps) {
   };
 
   return (
-    <div ref={containerRef} className="relative h-full w-full">
-      <MapView
-        camera={mainCamera}
-        layers={layers}
-        interactions={interactions}
-        onClick={onMapClick}
-        onTileStats={handleTileStats}
-      />
-      <CustomMapLegend catalog={catalog} />
+    <div className="flex h-full w-full">
+      <TimelineSidebar ctx={ctx} />
+      <div ref={containerRef} className="relative h-full min-w-0 flex-1">
+        <MapView
+          camera={mainCamera}
+          layers={layers}
+          interactions={interactions}
+          onClick={onMapClick}
+          onTileStats={handleTileStats}
+        />
+        <CustomMapLegend catalog={catalog} />
+      </div>
     </div>
   );
 }

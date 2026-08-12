@@ -2,6 +2,7 @@ import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
 import type { TaskStatus } from '~/features/annotation/core/apiTypes';
 import { computeTaskProgress, UNASSIGNED, type TaskFilter } from '~/features/annotation/core/tasks';
 import { useSessionStore } from '~/features/annotation/stores';
+import { IconFlag } from '~/shared/ui/Icons';
 
 export interface TaskFilterPanelProps {
   tasks: AnnotationTaskOut[];
@@ -233,7 +234,7 @@ export function TaskFilterPanel({
                 <button
                   type="button"
                   onClick={() => onTaskFilterChange({ selectedConfidences: [] })}
-                  className={`px-2 py-0.5 text-[11px] rounded ${taskFilter.selectedConfidences.length === 0 ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                  className={`px-2 py-0.5 text-[11px] rounded transition-colors ${taskFilter.selectedConfidences.length === 0 ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
                 >
                   Any
                 </button>
@@ -247,7 +248,7 @@ export function TaskFilterPanel({
                         : [...taskFilter.selectedConfidences, c];
                       onTaskFilterChange({ selectedConfidences: next });
                     }}
-                    className={`w-7 py-0.5 text-[11px] rounded tabular-nums ${taskFilter.selectedConfidences.includes(c) ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                    className={`w-7 py-0.5 text-[11px] rounded tabular-nums transition-colors ${taskFilter.selectedConfidences.includes(c) ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
                   >
                     {c}
                   </button>
@@ -261,7 +262,7 @@ export function TaskFilterPanel({
                     onTaskFilterChange({ selectedConfidences: next });
                   }}
                   title="Tasks whose annotations have no confidence rating, or no annotations"
-                  className={`px-2 py-0.5 text-[11px] rounded ${taskFilter.selectedConfidences.includes(0) ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                  className={`px-2 py-0.5 text-[11px] rounded transition-colors ${taskFilter.selectedConfidences.includes(0) ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
                 >
                   None
                 </button>
@@ -273,8 +274,9 @@ export function TaskFilterPanel({
               onClick={() => onTaskFilterChange({ flaggedOnly: !taskFilter.flaggedOnly })}
               aria-pressed={taskFilter.flaggedOnly}
               title="Show only tasks with at least one flagged annotation"
-              className={`flex items-center gap-1.5 px-2 py-1 text-[11px] rounded border w-full ${taskFilter.flaggedOnly ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'}`}
+              className={`flex items-center gap-1.5 px-2 py-1 text-[11px] rounded border w-full transition-colors ${taskFilter.flaggedOnly ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'}`}
             >
+              <IconFlag className="w-3.5 h-3.5" />
               <span>Flagged only</span>
             </button>
           </div>

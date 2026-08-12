@@ -1,6 +1,6 @@
 import { collectionsInView, type Catalog } from '~/features/annotation/core/catalog';
 import { useImageryStore, usePrefsStore, useSessionStore } from '~/features/annotation/stores';
-import { HeaderSelect } from './HeaderSelect';
+import { HeaderSelect } from '../../../shared/HeaderSelect';
 
 export interface CollectionPickerProps {
   catalog: Catalog;

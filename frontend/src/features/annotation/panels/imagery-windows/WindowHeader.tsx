@@ -2,6 +2,7 @@ import type { ImageryCollectionOut } from '~/api/client';
 import { emptyKey, slicePickerIndices } from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
 import type { ComposeCtx } from '../../composition';
+import { HeaderSelect } from '../../shared/HeaderSelect';
 import { selectWindowSlice, useWindowSlice, windowAddress } from './WindowPanel';
 
 export interface WindowHeaderProps {
@@ -32,26 +33,22 @@ export function WindowHeader({ ctx, collection }: WindowHeaderProps) {
         {collection.name}
       </span>
       {indices.length > 1 && address && (
-        <select
-          value={address.sliceIndex}
-          title="Select time slice"
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onChange={(e) =>
-            selectWindowSlice(catalog, imagery, collection.id, Number(e.target.value))
-          }
-          className="h-5 max-w-[7rem] rounded border border-neutral-200 bg-white text-[10px] text-neutral-700"
-        >
-          {indices.map((index) => {
-            const isEmpty = !!imagery.empties[emptyKey(collection.id, index)];
-            return (
-              <option key={index} value={index}>
-                {sliceLabel(collection, index)}
-                {isEmpty ? ' (no data)' : ''}
-              </option>
-            );
-          })}
-        </select>
+        <span onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <HeaderSelect
+            compact
+            value={address.sliceIndex}
+            title="Select time slice"
+            options={indices.map((index) => {
+              const isEmpty = !!imagery.empties[emptyKey(collection.id, index)];
+              return {
+                value: index,
+                label: `${sliceLabel(collection, index)}${isEmpty ? ' (no data)' : ''}`,
+                dimmed: isEmpty,
+              };
+            })}
+            onChange={(value) => selectWindowSlice(catalog, imagery, collection.id, Number(value))}
+          />
+        </span>
       )}
     </div>
   );

@@ -263,3 +263,64 @@ export const IconExternalLink = ({ className = 'w-4 h-4' }: IconProps) => (
     <path d="M12 4h4v4M16 4l-6.5 6.5" />
   </svg>
 );
+
+export const IconImage = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" />
+    <circle cx="7" cy="8" r="1.25" />
+    <path d="M3 15l4-4 2.5 2.5L13 9l4 4" />
+  </svg>
+);
+
+export const IconTaskList = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <rect x="4" y="3" width="12" height="14" rx="1.5" />
+    <path d="M4 6.5h12M7 9.5h6M7 12.5h6" />
+  </svg>
+);
+
+export const IconList = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M7 5h10M7 10h10M7 15h10M3.5 5h.01M3.5 10h.01M3.5 15h.01" />
+  </svg>
+);
+
+export const IconDownload = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M10 3v9M6.5 8.5L10 12l3.5-3.5" />
+    <path d="M3.5 13v2a1.5 1.5 0 001.5 1.5h10a1.5 1.5 0 001.5-1.5v-2" />
+  </svg>
+);
+
+export const IconFullscreen = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M3 7.5V3h4.5M12.5 3H17v4.5M17 12.5V17h-4.5M7.5 17H3v-4.5" />
+  </svg>
+);
+
+export const IconFullscreenExit = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M7.5 3v4.5H3M12.5 3v4.5H17M12.5 17v-4.5H17M7.5 17v-4.5H3" />
+  </svg>
+);
+
+export const IconQuestion = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <circle cx="10" cy="10" r="8" />
+    <path d="M7.75 7.75a2.25 2.25 0 114 1.5c-.7.8-1.75 1.15-1.75 2.25M10 14.5h.01" />
+  </svg>
+);
+
+export const IconBook = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M2 3.5h4.5A2.5 2.5 0 019 6v10.5a2 2 0 00-2-1.5H2v-11z" />
+    <path d="M18 3.5h-4.5A2.5 2.5 0 0011 6v10.5a2 2 0 012-1.5h5v-11z" />
+  </svg>
+);
+
+export const IconKeyboard = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <rect x="2" y="5" width="16" height="11" rx="2" />
+    <path d="M5 8.5h2M9 8.5h2M13 8.5h2M5 11.5h2M9 11.5h2M13 11.5h2M7 14h6" />
+  </svg>
+);

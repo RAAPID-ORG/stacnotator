@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { exportAnnotations, exportAnnotationsGeojson } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
+import { Dropdown } from '~/shared/ui/motion';
+import { IconChevronDown, IconDownload } from '~/shared/ui/Icons';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
   exportRows,
@@ -94,15 +96,17 @@ export function ExportMenu({
         type="button"
         onClick={() => setOpen((o) => !o)}
         disabled={exporting !== null}
-        className={`flex items-center gap-1 px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${open ? 'bg-neutral-100' : ''} ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
         title="Export annotations"
         data-testid="export-menu-trigger"
       >
-        {exporting ? 'Exporting…' : 'Export'}
+        <IconDownload className="w-4 h-4" />
+        <span className="hidden desktop:inline">{exporting ? 'Exporting…' : 'Export'}</span>
+        <IconChevronDown className="hidden desktop:block w-3 h-3" />
       </button>
-      {open && (
+      <Dropdown open={open} className="absolute top-full left-0 mt-1 z-20 origin-top-left">
         <div
-          className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[240px]"
+          className="bg-white border border-neutral-200 rounded-lg shadow-lg min-w-[240px]"
           data-testid="export-menu"
         >
           {isTaskMode && (
@@ -148,7 +152,7 @@ export function ExportMenu({
             <div className="text-[10px] text-neutral-500">Tabular export (.csv)</div>
           </button>
         </div>
-      )}
+      </Dropdown>
     </div>
   );
 }

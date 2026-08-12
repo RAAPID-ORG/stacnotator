@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { CampaignOutFull } from '~/api/client';
+import { Dropdown } from '~/shared/ui/motion';
+import { IconBook, IconClose } from '~/shared/ui/Icons';
 import { useHotkeys, type Binding } from '~/features/annotation/engine/hotkeys';
 
 export function GuidePanel({ campaign }: { campaign: CampaignOutFull }) {
@@ -22,11 +24,11 @@ export function GuidePanel({ campaign }: { campaign: CampaignOutFull }) {
         title="Campaign guide (G)"
         data-testid="guide-toggle"
       >
-        Guide
+        <IconBook className="w-5 h-5" />
       </button>
-      {open && (
+      <Dropdown open={open} className="absolute top-full right-0 mt-1 z-20 origin-top-right">
         <div
-          className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 w-[420px] max-h-[70vh] flex flex-col"
+          className="bg-white border border-neutral-200 rounded-lg shadow-lg w-[420px] max-h-[70vh] flex flex-col"
           data-testid="guide-panel"
         >
           <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-neutral-100">
@@ -37,8 +39,9 @@ export function GuidePanel({ campaign }: { campaign: CampaignOutFull }) {
               type="button"
               onClick={() => setOpen(false)}
               className="text-neutral-400 hover:text-neutral-600"
+              title="Close"
             >
-              Close
+              <IconClose className="w-3.5 h-3.5" />
             </button>
           </div>
           <div className="overflow-y-auto px-4 py-3">
@@ -49,7 +52,7 @@ export function GuidePanel({ campaign }: { campaign: CampaignOutFull }) {
             </div>
           </div>
         </div>
-      )}
+      </Dropdown>
     </div>
   );
 }

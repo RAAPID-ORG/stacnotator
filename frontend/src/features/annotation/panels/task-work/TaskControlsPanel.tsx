@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { AnnotationTaskOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
+import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { useLayoutStore } from '~/shared/stores/layout.store';
+import { LABEL_FIELD_INDEX } from '~/features/annotation/core/annotation';
 import { useSessionStore, useWorkStore } from '~/features/annotation/stores';
 import type { ComposeCtx } from '../../composition';
 import { FormFields } from '../../shared/FormFields';
-import { ClaimBadge } from './ClaimBadge';
 import { resolveConfirm, setSkipConfirmDisabled, useConfirmDialogState } from './confirmBus';
 import {
   DEFAULT_CONFIDENCE,
@@ -46,12 +47,21 @@ export interface TaskControlsPanelProps {
   ctx: ComposeCtx;
 }
 
+const sectionHeaderClass = 'text-[11px] font-medium text-neutral-500 uppercase tracking-wider';
+
+const textareaClass =
+  'w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors';
+
+const navButtonClass =
+  'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer';
+
 export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
   const { visibleTasks, currentIndex, currentUserId, loaded, isSubmitting, knnValidationEnabled } =
     useTaskListState();
   const isReviewMode = useSessionStore((s) => s.isReviewMode);
   const confirmDialog = useConfirmDialogState();
   const showAlert = useLayoutStore((s) => s.showAlert);
+  const [gotoValue, setGotoValue] = useState('');
   const task = visibleTasks[currentIndex] ?? null;
 
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
@@ -72,10 +82,11 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
   const fields = ctx.campaign.settings.form_fields ?? [];
   const isAuthoritativeReviewer = ctx.campaign.viewer_is_authoritative_reviewer ?? false;
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- reload the form and re-center the map whenever the current task identity or user changes, not on every keystroke against it
   useEffect(() => {
     loadTaskIntoForm(task, currentUserId);
+    setGotoValue(task ? String(task.annotation_number) : '');
     syncMapFocus(ctx.catalog);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload the form and re-center the map whenever the current task identity or user changes, not on every keystroke against it
   }, [task?.id, currentUserId]);
 
   useClaims({
@@ -121,6 +132,15 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
         ? 'Update'
         : 'Submit';
 
+  const goToTyped = () => {
+    const num = parseInt(gotoValue, 10);
+    if (Number.isNaN(num) || num < 1) return;
+    if (!goToAnnotationNumber(num, ctx.catalog)) {
+      showAlert(`Point #${num} is not in the current filter`, 'error');
+    }
+  };
+  const showGoButton = gotoValue !== String(task.annotation_number);
+
   return (
     <div className="w-full h-full bg-white overflow-y-auto">
       <ConfirmDialog
@@ -141,26 +161,12 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
       <div className="flex flex-wrap">
         {isReviewMode && <ReviewList task={task} currentUserId={currentUserId} labels={labels} />}
 
-        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-              Label
-            </span>
-            <div className="flex items-center gap-2">
-              <ClaimBadge task={task} currentUserId={currentUserId} now={Date.now()} />
-              <label
-                className="flex items-center gap-1 text-[10px] text-neutral-500 cursor-pointer select-none"
-                title="Validate against prior labels using embedding similarity (kNN)"
-              >
-                <input
-                  type="checkbox"
-                  checked={knnValidationEnabled}
-                  onChange={(e) => setKnnValidationEnabled(e.target.checked)}
-                />
-                Validate
-              </label>
-            </div>
-          </div>
+        <div
+          className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem] ${
+            activeFieldIndex === LABEL_FIELD_INDEX ? 'ring-2 ring-brand-500/40 rounded' : ''
+          }`}
+        >
+          <span className={sectionHeaderClass}>Label</span>
           <LabelGrid
             labels={labels}
             selectedId={selectedLabelId}
@@ -186,41 +192,57 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
             placeholder="Add a comment…"
             rows={3}
             maxLength={5000}
-            className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md disabled:opacity-60"
+            className={textareaClass}
           />
         </div>
 
         <div className="flex flex-col gap-2 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
-          <div className="flex justify-between items-center">
-            <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-              Confidence
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                aria-pressed={flagged}
-                disabled={isBusy}
-                title="Flag for reviewer attention"
-                onClick={() => setFlagged(!flagged)}
-                className={flagged ? 'text-rose-600' : 'text-neutral-400'}
-              >
-                Flag
-              </button>
-              <span className="text-xs font-semibold tabular-nums">
-                {confidence ?? DEFAULT_CONFIDENCE}/5
-              </span>
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between items-center">
+              <span className={sectionHeaderClass}>Confidence</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-pressed={flagged}
+                  disabled={isBusy}
+                  title={
+                    flagged
+                      ? 'Flagged for reviewer attention. Click or press F to unflag.'
+                      : "Flag this annotation for reviewer attention. Useful when you're unsure about the label and want a reviewer to take a second look. Press F to toggle."
+                  }
+                  onClick={() => setFlagged(!flagged)}
+                  className={`inline-flex items-center justify-center w-5 h-5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    flagged
+                      ? 'text-rose-600 bg-rose-50 hover:bg-rose-100'
+                      : 'text-neutral-400 hover:text-rose-600 hover:bg-neutral-100'
+                  }`}
+                >
+                  <IconFlag className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-xs text-brand-700 font-semibold tabular-nums">
+                  {confidence ?? DEFAULT_CONFIDENCE}/5
+                </span>
+              </div>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="1"
+              value={confidence ?? DEFAULT_CONFIDENCE}
+              onChange={(e) => setConfidence(Number(e.target.value))}
+              disabled={isBusy}
+              className="w-full h-2 bg-neutral-200 rounded-full appearance-none cursor-pointer accent-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <div className="flex justify-between text-[10px] text-neutral-400 px-0.5 tabular-nums">
+              <span>1</span>
+              <span>2</span>
+              <span>3</span>
+              <span>4</span>
+              <span>5</span>
             </div>
           </div>
-          <input
-            type="range"
-            min="1"
-            max="5"
-            step="1"
-            value={confidence ?? DEFAULT_CONFIDENCE}
-            onChange={(e) => setConfidence(Number(e.target.value))}
-            disabled={isBusy}
-            className="w-full"
-          />
+
           {flagged && (
             <textarea
               value={flagComment}
@@ -229,7 +251,7 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
               placeholder="Why are you flagging this? (optional)"
               rows={2}
               maxLength={5000}
-              className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md disabled:opacity-60"
+              className={textareaClass}
             />
           )}
 
@@ -250,12 +272,29 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
             </p>
           )}
 
+          <label
+            className="flex items-center gap-1.5 cursor-pointer select-none"
+            title="Validate against prior labels using embedding similarity (kNN)"
+          >
+            <span className="relative">
+              <input
+                type="checkbox"
+                checked={knnValidationEnabled}
+                onChange={(e) => setKnnValidationEnabled(e.target.checked)}
+                className="sr-only peer"
+              />
+              <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
+              <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
+            </span>
+            <span className="text-[10px] text-neutral-600">Validate</span>
+          </label>
+
           <div className="flex gap-1.5">
             <button
               type="button"
               disabled={isSubmitDisabled}
               onClick={() => void submitAnnotation(ctx)}
-              className="flex-1 h-8 px-3 text-xs font-medium bg-brand-600 text-white rounded-md disabled:bg-neutral-300"
+              className="flex-1 inline-flex items-center justify-center h-8 px-3 text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 rounded-md shadow-sm transition-colors disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed"
             >
               {submitLabel}
             </button>
@@ -264,9 +303,9 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
               disabled={isSkipDisabled}
               title={!isAssignedToTask ? 'You are not assigned to this task' : undefined}
               onClick={() => void skipCurrent(ctx)}
-              className="h-8 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md disabled:opacity-40"
+              className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isBusy ? 'Submitting…' : 'Skip'}
+              Skip
             </button>
           </div>
 
@@ -275,7 +314,12 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
               type="button"
               disabled={isSubmitDisabled}
               onClick={() => void submitAuthoritative(ctx)}
-              className="w-full h-8 px-3 text-xs font-medium border border-amber-500 text-amber-700 rounded-md disabled:opacity-40"
+              title={
+                isAssignedToTask
+                  ? 'Submit as authoritative: overrides any other annotators on this task and marks it completed, even if their labels disagree.'
+                  : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
+              }
+              className="w-full inline-flex items-center justify-center h-8 px-3 text-xs font-medium border border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isBusy ? 'Submitting…' : 'Submit authoritative'}
             </button>
@@ -284,38 +328,54 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
 
         <div className="flex flex-col gap-2 p-3 border-b border-neutral-100 flex-1 min-w-[10rem]">
           <div className="flex items-center gap-1.5">
-            <label className="text-[11px] font-medium text-neutral-500">Point</label>
+            <label className={sectionHeaderClass}>Point</label>
             <input
               type="number"
-              defaultValue={task.annotation_number}
+              value={gotoValue}
+              onChange={(e) => setGotoValue(e.target.value)}
               min="1"
               max={visibleTasks.length}
               disabled={isBusy}
               onKeyDown={(e) => {
                 if (e.key !== 'Enter') return;
-                const num = parseInt(e.currentTarget.value, 10);
-                if (!Number.isNaN(num)) goToAnnotationNumber(num, ctx.catalog);
+                e.preventDefault();
+                e.stopPropagation();
+                goToTyped();
+                e.currentTarget.blur();
               }}
-              className="w-14 px-2 py-1 text-center text-xs border border-neutral-300 rounded tabular-nums"
+              className="w-14 px-2 py-1 text-center text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 disabled:opacity-50 tabular-nums"
               title="Press Enter to go"
             />
+            {showGoButton && (
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={goToTyped}
+                title="Go to annotation"
+                className="px-2 py-1 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Go
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               disabled={isBusy}
               onClick={() => previous(ctx.catalog)}
-              className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded"
+              className={navButtonClass}
             >
+              <IconChevronLeft className="w-3 h-3" />
               Prev
             </button>
             <button
               type="button"
               disabled={isBusy}
               onClick={() => next(ctx.catalog)}
-              className="flex-1 px-2 py-1.5 text-xs border border-neutral-200 rounded"
+              className={navButtonClass}
             >
               Next
+              <IconChevronRight className="w-3 h-3" />
             </button>
           </div>
         </div>

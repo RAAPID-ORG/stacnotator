@@ -53,9 +53,7 @@ afterEach(() => {
 });
 
 function renderSwitch(campaign: CampaignOutFull) {
-  return render(
-    <ModeSwitch campaign={campaign} hasTasks policy={POLICY} onTaskFilterChange={() => {}} />
-  );
+  return render(<ModeSwitch campaign={campaign} hasTasks policy={POLICY} />);
 }
 
 /** The click starts an async close and the mode change lands after it, so

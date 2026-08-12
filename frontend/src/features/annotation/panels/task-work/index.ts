@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import type { Feature } from '../../composition';
+import { CurrentTaskClaimBadge } from './ClaimBadge';
 import { TaskControlsPanel } from './TaskControlsPanel';
 import { taskWorkHotkeys } from './hotkeys';
 
@@ -12,6 +13,7 @@ export const taskWorkFeature: Feature = {
           {
             id: TASK_CONTROLS_PANEL_ID,
             title: 'Task',
+            header: createElement(CurrentTaskClaimBadge),
             body: createElement(TaskControlsPanel, { ctx }),
           },
         ]
@@ -25,7 +27,7 @@ export const taskWorkFeature: Feature = {
 export { TaskControlsPanel } from './TaskControlsPanel';
 export { LabelGrid, type LabelGridProps } from './LabelGrid';
 export { ReviewList, type ReviewListProps } from './ReviewList';
-export { ClaimBadge, type ClaimBadgeProps } from './ClaimBadge';
+export { ClaimBadge, CurrentTaskClaimBadge, type ClaimBadgeProps } from './ClaimBadge';
 export {
   useClaims,
   claimTask,

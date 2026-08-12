@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { makeCampaign } from '~/features/annotation/core/catalog/testHelpers';
@@ -33,7 +33,7 @@ describe('GuidePanel', () => {
     expect(screen.getByText('Label the fields.')).toBeTruthy();
 
     await user.keyboard('g');
-    expect(screen.queryByTestId('guide-panel')).toBeNull();
+    await waitFor(() => expect(screen.queryByTestId('guide-panel')).toBeNull());
   });
 
   it('publishes the binding to the shared help table', () => {

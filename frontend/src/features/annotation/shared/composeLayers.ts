@@ -6,6 +6,7 @@ import {
 } from '~/features/annotation/core/annotation';
 import {
   applyRenderOverride,
+  basemapAttribution,
   emptyKey,
   layerSpecFor,
   resolveBasemapUrl,
@@ -182,7 +183,7 @@ export function composeLayers(ctx: ComposeCtx, state: ComposeState): LayerSpec[]
         url: resolveBasemapUrl(catalog.campaignId, basemap),
         auth: 'none',
         maxZoom: basemap.max_native_zoom ?? undefined,
-        attribution: basemap.name,
+        attribution: basemapAttribution(basemap.url),
       });
     }
     // No address at all means the view has no imagery to navigate (or the

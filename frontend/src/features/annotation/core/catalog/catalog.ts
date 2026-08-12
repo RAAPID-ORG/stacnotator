@@ -109,8 +109,21 @@ export function resolveBasemapUrl(
 // Layer spec assembly
 // ---------------------------------------------------------------------------
 
-/** Structural equivalent of `platform/map/types.ts`'s `RasterLayerSpec`.
- *  shaped like this is assignable where a RasterLayerSpec is expected. */
+/** Credit line for the basemap providers we ship, keyed off the tile URL.
+ *  A provider we do not recognise gets none rather than a made-up one. */
+export function basemapAttribution(url: string): string | undefined {
+  const u = url.toLowerCase();
+  if (u.includes('carto'))
+    return '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  if (u.includes('opentopomap'))
+    return '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>) &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  if (u.includes('arcgisonline') || u.includes('esri'))
+    return '&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Sources: Esri, Maxar, Earthstar Geographics';
+  if (u.includes('openstreetmap'))
+    return '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+  return undefined;
+}
+
 export interface RasterLayerLike {
   kind: 'raster';
   id: string;

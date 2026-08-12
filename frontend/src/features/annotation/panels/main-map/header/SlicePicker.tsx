@@ -1,7 +1,7 @@
 import type { ImagerySliceOut } from '~/api/client';
 import { emptyKey, slicePickerIndices, type Catalog } from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
-import { HeaderSelect } from './HeaderSelect';
+import { HeaderSelect } from '../../../shared/HeaderSelect';
 
 const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',

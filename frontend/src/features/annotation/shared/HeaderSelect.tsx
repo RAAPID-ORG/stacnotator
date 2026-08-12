@@ -23,6 +23,9 @@ export interface HeaderSelectProps {
   onMarkOption?: (value: string | number) => void;
   markActiveTitle?: string;
   markInactiveTitle?: string;
+  /** Imagery windows are small and sit on a dark header. */
+  compact?: boolean;
+  dark?: boolean;
 }
 
 function Star({ filled }: { filled: boolean }) {
@@ -52,6 +55,8 @@ export function HeaderSelect({
   onMarkOption,
   markActiveTitle,
   markInactiveTitle,
+  compact,
+  dark,
 }: HeaderSelectProps) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -98,11 +103,17 @@ export function HeaderSelect({
           cancelClose();
           setOpen((o) => !o);
         }}
-        className="h-6 px-1.5 flex items-center gap-1.5 rounded-md text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 cursor-pointer"
+        className={`${compact ? 'h-5' : 'h-6'} px-1.5 flex items-center rounded-md font-medium cursor-pointer ${
+          compact ? 'text-[10px] gap-1' : 'text-[11px] gap-1.5'
+        } ${
+          dark
+            ? 'text-white/80 hover:bg-white/15 hover:text-white'
+            : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700'
+        } transition-colors`}
       >
         {icon && <span className="shrink-0 opacity-40 flex items-center">{icon}</span>}
         <span className="truncate max-w-[11rem]">{selected?.label ?? ''}</span>
-        <IconChevronDown className="w-2 h-2 shrink-0 opacity-40" />
+        <IconChevronDown className={`w-2 h-2 shrink-0 ${dark ? 'opacity-50' : 'opacity-40'}`} />
       </button>
 
       {open &&

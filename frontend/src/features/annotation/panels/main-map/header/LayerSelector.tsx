@@ -4,7 +4,7 @@ import {
   type SliceAddress,
 } from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
-import { HeaderSelect, type HeaderSelectOption } from './HeaderSelect';
+import { HeaderSelect, type HeaderSelectOption } from '../../../shared/HeaderSelect';
 
 const BASEMAP_PREFIX = 'basemap-';
 

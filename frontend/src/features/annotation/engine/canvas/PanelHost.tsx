@@ -52,7 +52,11 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
         className={`${PANEL_DRAG_HANDLE_CLASS} card-header flex items-center gap-2 ${editing ? 'editable' : ''} ${panel.headerClassName ?? ''}`}
         onClick={panel.onHeaderClick}
       >
-        {panel.title && <span className="min-w-0 flex-1 truncate">{panel.title}</span>}
+        {panel.title && (
+          <span className="min-w-0 flex-1 truncate text-[11px] font-medium tracking-wider text-neutral-500 uppercase">
+            {panel.title}
+          </span>
+        )}
         {panel.header}
         {editing && canHide && (
           <button

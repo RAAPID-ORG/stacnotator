@@ -1,6 +1,7 @@
 import { isAudienceMember, type PolicyContext } from '~/features/annotation/core/annotation';
 import { useSessionStore, useWorkStore, type WorkMode } from '~/features/annotation/stores';
 import { useLayoutStore } from '~/shared/stores/layout.store';
+import { IconEye } from '~/shared/ui/Icons';
 import type { CampaignOutFull } from '~/api/client';
 import type { TaskFilter } from '~/features/annotation/core/tasks';
 import { bumpAnnotationVersion } from '../../shared/annotationVersion';
@@ -9,15 +10,16 @@ export interface ModeSwitchProps {
   campaign: CampaignOutFull;
   hasTasks: boolean;
   policy: PolicyContext;
+}
+
+export interface ReviewToggleProps {
   /** Widens the task filter on entering review mode. */
   onTaskFilterChange: (patch: Partial<TaskFilter>) => void;
 }
 
-export function ModeSwitch({ campaign, hasTasks, policy, onTaskFilterChange }: ModeSwitchProps) {
+export function ModeSwitch({ campaign, hasTasks, policy }: ModeSwitchProps) {
   const workMode = useSessionStore((s) => s.workMode);
-  const isReviewMode = useSessionStore((s) => s.isReviewMode);
   const setWorkMode = useSessionStore((s) => s.setWorkMode);
-  const setReviewMode = useSessionStore((s) => s.setReviewMode);
   const showAlert = useLayoutStore((s) => s.showAlert);
 
   const exploreAllowed = isAudienceMember(campaign.settings.labelling_policy.explore, policy);
@@ -47,6 +49,52 @@ export function ModeSwitch({ campaign, hasTasks, policy, onTaskFilterChange }: M
     setWorkMode(mode);
   };
 
+  return (
+    <div
+      className="flex items-center bg-neutral-100 rounded-md p-0.5"
+      title="Work style"
+      data-testid="work-mode-switch"
+    >
+      <button
+        type="button"
+        onClick={() => void switchMode('tasks')}
+        disabled={!hasTasks}
+        title={!hasTasks ? 'This campaign has no tasks yet' : undefined}
+        className={`px-2 py-0.5 text-xs rounded transition-colors ${
+          workMode === 'tasks'
+            ? 'bg-white text-neutral-900 shadow-sm'
+            : hasTasks
+              ? 'text-neutral-500 hover:text-neutral-800'
+              : 'text-neutral-300 cursor-not-allowed'
+        }`}
+      >
+        Tasks
+      </button>
+      <button
+        type="button"
+        onClick={() => void switchMode('explore')}
+        disabled={!exploreAllowed}
+        title={
+          !exploreAllowed ? 'Explore labelling is not enabled for you in this campaign' : undefined
+        }
+        className={`px-2 py-0.5 text-xs rounded transition-colors ${
+          workMode === 'explore'
+            ? 'bg-white text-neutral-900 shadow-sm'
+            : exploreAllowed
+              ? 'text-neutral-500 hover:text-neutral-800'
+              : 'text-neutral-300 cursor-not-allowed'
+        }`}
+      >
+        Explore
+      </button>
+    </div>
+  );
+}
+
+export function ReviewToggle({ onTaskFilterChange }: ReviewToggleProps) {
+  const isReviewMode = useSessionStore((s) => s.isReviewMode);
+  const setReviewMode = useSessionStore((s) => s.setReviewMode);
+
   const toggleReview = () => {
     const turningOn = !isReviewMode;
     setReviewMode(turningOn);
@@ -66,64 +114,19 @@ export function ModeSwitch({ campaign, hasTasks, policy, onTaskFilterChange }: M
   };
 
   return (
-    <div className="flex items-center gap-1">
-      <div
-        className="flex items-center bg-neutral-100 rounded-md p-0.5"
-        title="Work style"
-        data-testid="work-mode-switch"
-      >
-        <button
-          type="button"
-          onClick={() => void switchMode('tasks')}
-          disabled={!hasTasks}
-          title={!hasTasks ? 'This campaign has no tasks yet' : undefined}
-          className={`px-2 py-0.5 text-xs rounded transition-colors ${
-            workMode === 'tasks'
-              ? 'bg-white text-neutral-900 shadow-sm'
-              : hasTasks
-                ? 'text-neutral-500 hover:text-neutral-800'
-                : 'text-neutral-300 cursor-not-allowed'
-          }`}
-        >
-          Tasks
-        </button>
-        <button
-          type="button"
-          onClick={() => void switchMode('explore')}
-          disabled={!exploreAllowed}
-          title={
-            !exploreAllowed
-              ? 'Explore labelling is not enabled for you in this campaign'
-              : undefined
-          }
-          className={`px-2 py-0.5 text-xs rounded transition-colors ${
-            workMode === 'explore'
-              ? 'bg-white text-neutral-900 shadow-sm'
-              : exploreAllowed
-                ? 'text-neutral-500 hover:text-neutral-800'
-                : 'text-neutral-300 cursor-not-allowed'
-          }`}
-        >
-          Explore
-        </button>
-      </div>
-
-      {workMode === 'tasks' && (
-        <button
-          type="button"
-          onClick={toggleReview}
-          title={isReviewMode ? 'Exit review mode' : 'Enter review mode'}
-          data-testid="review-toggle"
-          data-tour="review-toggle"
-          className={`px-2 py-1 text-sm rounded transition-colors ${
-            isReviewMode
-              ? 'bg-amber-50 text-amber-700 font-medium'
-              : 'text-neutral-700 hover:bg-neutral-50'
-          }`}
-        >
-          Review{isReviewMode ? ' ✓' : ''}
-        </button>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={toggleReview}
+      title={isReviewMode ? 'Exit review mode' : 'Enter review mode'}
+      data-testid="review-toggle"
+      className={`flex items-center gap-1.5 px-2 desktop:px-3 py-1.5 text-sm transition-colors ${
+        isReviewMode
+          ? 'bg-amber-50 text-amber-700 font-medium'
+          : 'text-neutral-700 hover:bg-neutral-50'
+      }`}
+    >
+      <IconEye className={`w-4 h-4 ${isReviewMode ? 'text-amber-600' : 'text-neutral-500'}`} />
+      <span className="hidden desktop:inline">Review{isReviewMode ? ' ✓' : ''}</span>
+    </button>
   );
 }
