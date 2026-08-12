@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
-import { IconChevronDown } from '~/shared/ui/Icons';
+import { IconChevronDownFilled } from '~/shared/ui/Icons';
 import { mainLayoutChanged, type WorkspaceLayout } from '~/features/annotation/core/workspace';
 
 export interface SaveDialogsProps {
@@ -56,7 +56,7 @@ export function SaveDialogs({
         data-testid="save-menu-trigger"
       >
         Save
-        <IconChevronDown className="w-3 h-3" />
+        <IconChevronDownFilled className="w-3 h-3" />
       </button>
       {menuOpen && (
         <div

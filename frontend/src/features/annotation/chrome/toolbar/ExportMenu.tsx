@@ -3,7 +3,7 @@ import { exportAnnotations, exportAnnotationsGeojson } from '~/api/client';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Dropdown } from '~/shared/ui/motion';
-import { IconChevronDown, IconDownload } from '~/shared/ui/Icons';
+import { IconChevronDownFilled, IconDownloadFilled } from '~/shared/ui/Icons';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
   exportRows,
@@ -104,9 +104,9 @@ export function ExportMenu({
         title="Export annotations"
         data-testid="export-menu-trigger"
       >
-        <IconDownload className="w-4 h-4" />
+        <IconDownloadFilled className="w-4 h-4" />
         <span className="hidden desktop:inline">{exporting ? 'Exporting…' : 'Export'}</span>
-        <IconChevronDown className="hidden desktop:block w-3 h-3" />
+        <IconChevronDownFilled className="hidden desktop:block w-3 h-3" />
       </button>
       <Dropdown open={open} className="absolute top-full left-0 mt-1 z-20 origin-top-left">
         <div

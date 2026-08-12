@@ -4,14 +4,14 @@ import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Dropdown } from '~/shared/ui/motion';
 import {
-  IconChevronDown,
-  IconFullscreen,
-  IconFullscreenExit,
-  IconGear,
-  IconImage,
-  IconList,
+  IconChevronDownFilled,
+  IconFullscreenExitFilled,
+  IconFullscreenFilled,
+  IconGearFilled,
+  IconImageFilled,
+  IconMenuFilled,
   IconQuestion,
-  IconTaskList,
+  IconTaskListFilled,
 } from '~/shared/ui/Icons';
 import type { PolicyContext } from '~/features/annotation/core/annotation';
 import type { Catalog } from '~/features/annotation/core/catalog';
@@ -61,9 +61,9 @@ function ViewPicker({ campaign, catalog }: { campaign: CampaignOutFull; catalog:
         title={selected ? `View: ${selected.name}` : 'Switch View (u)'}
         data-testid="view-picker-trigger"
       >
-        <IconImage className="w-5 h-5" />
+        <IconImageFilled className="w-5 h-5" />
         <span className="hidden desktop:inline">{selected ? selected.name : 'Select View'}</span>
-        <IconChevronDown className="hidden desktop:block w-4 h-4" />
+        <IconChevronDownFilled className="hidden desktop:block w-4 h-4" />
       </button>
       <Dropdown
         open={open}
@@ -138,9 +138,9 @@ export function Toolbar({
               title="Filter visible tasks"
               data-testid="task-filter-trigger"
             >
-              <IconTaskList className="w-5 h-5" />
+              <IconTaskListFilled className="w-5 h-5" />
               <span className="hidden desktop:inline">Filter Tasks</span>
-              <IconChevronDown className="hidden desktop:block w-4 h-4" />
+              <IconChevronDownFilled className="hidden desktop:block w-4 h-4" />
             </button>
             <Dropdown
               open={taskFilterOpen}
@@ -172,7 +172,7 @@ export function Toolbar({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
               title={workMode === 'tasks' ? 'Go to Tasks page' : 'Go to Annotations page'}
             >
-              <IconList className="w-4 h-4" />
+              <IconMenuFilled className="w-4 h-4" />
               {workMode !== 'tasks' && <span>Annotations</span>}
             </button>
           )}
@@ -185,7 +185,7 @@ export function Toolbar({
             className="flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
             title="Campaign Settings"
           >
-            <IconGear className="w-5 h-5" />
+            <IconGearFilled className="w-5 h-5" />
             <span className="hidden desktop:inline">Settings</span>
           </button>
         )}
@@ -208,9 +208,9 @@ export function Toolbar({
           title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         >
           {isFullscreen ? (
-            <IconFullscreenExit className="w-5 h-5" />
+            <IconFullscreenExitFilled className="w-5 h-5" />
           ) : (
-            <IconFullscreen className="w-5 h-5" />
+            <IconFullscreenFilled className="w-5 h-5" />
           )}
         </button>
 

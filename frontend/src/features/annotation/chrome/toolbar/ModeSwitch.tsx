@@ -1,7 +1,7 @@
 import { isAudienceMember, type PolicyContext } from '~/features/annotation/core/annotation';
 import { useSessionStore, useWorkStore, type WorkMode } from '~/features/annotation/stores';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { IconEye } from '~/shared/ui/Icons';
+import { IconEyeFilled } from '~/shared/ui/Icons';
 import type { CampaignOutFull } from '~/api/client';
 import type { TaskFilter } from '~/features/annotation/core/tasks';
 import { bumpAnnotationVersion } from '../../shared/annotationVersion';
@@ -125,7 +125,9 @@ export function ReviewToggle({ onTaskFilterChange }: ReviewToggleProps) {
           : 'text-neutral-700 hover:bg-neutral-50'
       }`}
     >
-      <IconEye className={`w-4 h-4 ${isReviewMode ? 'text-amber-600' : 'text-neutral-500'}`} />
+      <IconEyeFilled
+        className={`w-4 h-4 ${isReviewMode ? 'text-amber-600' : 'text-neutral-500'}`}
+      />
       <span className="hidden desktop:inline">Review{isReviewMode ? ' ✓' : ''}</span>
     </button>
   );

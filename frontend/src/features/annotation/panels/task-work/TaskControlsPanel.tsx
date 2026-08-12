@@ -3,10 +3,10 @@ import type { AnnotationTaskOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { LABEL_FIELD_INDEX } from '~/features/annotation/core/annotation';
+import { isLabelGroupActive } from '~/features/annotation/core/annotation';
 import { useSessionStore, useWorkStore } from '~/features/annotation/stores';
 import type { ComposeCtx } from '../../composition';
-import { FormFields } from '../../shared/FormFields';
+import { activeGroupClass, FormFields } from '../../shared/FormFields';
 import { resolveConfirm, setSkipConfirmDisabled, useConfirmDialogState } from './confirmBus';
 import {
   DEFAULT_CONFIDENCE,
@@ -47,7 +47,10 @@ export interface TaskControlsPanelProps {
   ctx: ComposeCtx;
 }
 
-const sectionHeaderClass = 'text-[11px] font-medium text-neutral-500 uppercase tracking-wider';
+const sectionHeaderClass = (active = false) =>
+  `text-[11px] font-medium uppercase tracking-wider ${
+    active ? 'text-brand-700' : 'text-neutral-500'
+  }`;
 
 const textareaClass =
   'w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors';
@@ -80,6 +83,7 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
 
   const labels = ctx.campaign.settings.labels;
   const fields = ctx.campaign.settings.form_fields ?? [];
+  const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
   const isAuthoritativeReviewer = ctx.campaign.viewer_is_authoritative_reviewer ?? false;
 
   useEffect(() => {
@@ -163,10 +167,10 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
 
         <div
           className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem] ${
-            activeFieldIndex === LABEL_FIELD_INDEX ? 'ring-2 ring-brand-500/40 rounded' : ''
+            labelGroupActive ? activeGroupClass : ''
           }`}
         >
-          <span className={sectionHeaderClass}>Label</span>
+          <span className={sectionHeaderClass(labelGroupActive)}>Label</span>
           <LabelGrid
             labels={labels}
             selectedId={selectedLabelId}
@@ -199,7 +203,7 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
         <div className="flex flex-col gap-2 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
           <div className="flex flex-col gap-1">
             <div className="flex justify-between items-center">
-              <span className={sectionHeaderClass}>Confidence</span>
+              <span className={sectionHeaderClass()}>Confidence</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -328,7 +332,7 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
 
         <div className="flex flex-col gap-2 p-3 border-b border-neutral-100 flex-1 min-w-[10rem]">
           <div className="flex items-center gap-1.5">
-            <label className={sectionHeaderClass}>Point</label>
+            <label className={sectionHeaderClass()}>Point</label>
             <input
               type="number"
               value={gotoValue}

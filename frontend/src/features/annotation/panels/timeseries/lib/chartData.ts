@@ -1,14 +1,5 @@
-import type { Chart as ChartJS, ChartType, Plugin } from 'chart.js';
+import type { Chart as ChartJS, Plugin } from 'chart.js';
 import type { TimeSeriesData } from './cache';
-
-// Registers the sliceMarker plugin's runtime config (chart.options.plugins.
-// sliceMarker) with chart.js's own option types, the same way its built-in
-// plugins are typed - so Chart.tsx can set it without a cast.
-declare module 'chart.js' {
-  interface PluginOptionsByType<TType extends ChartType> {
-    sliceMarker?: { marker: SliceMarker | null };
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Label / date formatting
@@ -174,17 +165,62 @@ export interface SliceMarker {
   endIdx: number;
 }
 
+/** The label index range covered by a slice's date range. When no label falls
+ *  inside it, the single label nearest the range's centre, so the marker still
+ *  points at where the slice sits. */
+export function sliceMarkerFor(
+  labels: string[],
+  startDate: string | null | undefined,
+  endDate: string | null | undefined
+): SliceMarker | null {
+  if (!startDate || !endDate || labels.length === 0) return null;
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
+
+  let startIdx = -1;
+  let endIdx = -1;
+  for (let i = 0; i < labels.length; i++) {
+    const time = parseSeriesDate(labels[i]);
+    if (time >= start && time <= end) {
+      if (startIdx === -1) startIdx = i;
+      endIdx = i;
+    }
+  }
+  if (startIdx !== -1) return { startIdx, endIdx };
+
+  const centre = (start + end) / 2;
+  let nearest = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < labels.length; i++) {
+    const dist = Math.abs(parseSeriesDate(labels[i]) - centre);
+    if (dist < bestDist) {
+      bestDist = dist;
+      nearest = i;
+    }
+  }
+  return { startIdx: nearest, endIdx: nearest };
+}
+
+const markerByChart = new WeakMap<ChartJS<'line'>, SliceMarker>();
+
+/** Moves the marker on a live chart. The marker is plugin state rather than
+ *  chart data, so a move repaints the existing elements instead of running an
+ *  update pass over every dataset. */
+export function setSliceMarker(chart: ChartJS<'line'>, marker: SliceMarker | null): void {
+  const current = markerByChart.get(chart) ?? null;
+  if (current?.startIdx === marker?.startIdx && current?.endIdx === marker?.endIdx) return;
+  if (marker) markerByChart.set(chart, marker);
+  else markerByChart.delete(chart);
+  chart.render();
+}
+
 /** Subtle band + edge lines behind the chart data, showing which x-axis
- *  range corresponds to the slice currently shown on the map. Reads its
- *  marker from `chart.options.plugins.sliceMarker`, which Chart.tsx updates
- *  whenever the active slice or the chart's own labels change. */
+ *  range corresponds to the slice currently shown on the map. */
 export const sliceMarkerPlugin: Plugin<'line'> = {
   id: 'sliceMarker',
   afterDatasetsDraw(chart) {
-    // chart.js types every options field as deep-partial (for merging), which
-    // would make startIdx/endIdx optional too even though the runtime value
-    // Chart.tsx assigns is always a complete SliceMarker.
-    const marker = chart.options.plugins?.sliceMarker?.marker as SliceMarker | null | undefined;
+    const marker = markerByChart.get(chart);
     if (!marker) return;
     const xScale = chart.scales.x;
     if (!xScale) return;

@@ -26,6 +26,14 @@ export function cycleFieldIndex(
   return current - 1;
 }
 
+/** Whether the label picker is the group digits and Enter currently land on -
+ * true for LABEL_FIELD_INDEX and for the null entry state alike, so the panel
+ * marks it from the moment it opens. With no custom fields there is nothing to
+ * cycle between and nothing to mark. */
+export function isLabelGroupActive(activeIndex: number | null, fieldCount: number): boolean {
+  return fieldCount > 0 && (activeIndex === null || activeIndex === LABEL_FIELD_INDEX);
+}
+
 type OptionFormField = Extract<FormField, { type: 'category' | 'multicategory' }>;
 
 function digitTargetsOption(field: FormField): field is OptionFormField {

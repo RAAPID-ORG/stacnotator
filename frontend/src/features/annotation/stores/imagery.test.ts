@@ -5,6 +5,7 @@ import {
   makeCollection,
   makeSlice,
   makeSource,
+  makeTileUrl,
   makeViz,
 } from '~/features/annotation/core/catalog/testHelpers';
 import { useImageryStore } from './imagery';
@@ -73,6 +74,91 @@ describe('setActiveCollection', () => {
     expect(s.overlay).toEqual({ id: 5, visible: true });
     expect(s.vector).toEqual({ id: 9, visible: false });
     expect(s.empties).toEqual({ '20:0': true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setActiveCollection: per-source visualization memory. False Color is
+// published on Jan and Mar, but not on Feb - Feb proves the fallback.
+// ---------------------------------------------------------------------------
+
+const sourceMV = makeSource({
+  id: 2,
+  name: 'S2',
+  visualizations: [
+    makeViz({ id: 21, name: 'True Color' }),
+    makeViz({ id: 22, name: 'False Color' }),
+  ],
+  collections: [
+    makeCollection({
+      id: 210,
+      name: 'Jan',
+      slices: [
+        makeSlice({
+          id: 2100,
+          name: 's0',
+          tile_urls: [
+            makeTileUrl({ visualization_name: 'True Color' }),
+            makeTileUrl({ visualization_name: 'False Color' }),
+          ],
+        }),
+      ],
+    }),
+    makeCollection({
+      id: 220,
+      name: 'Feb',
+      slices: [
+        makeSlice({
+          id: 2200,
+          name: 's0',
+          tile_urls: [makeTileUrl({ visualization_name: 'True Color' })],
+        }),
+      ],
+    }),
+    makeCollection({
+      id: 230,
+      name: 'Mar',
+      slices: [
+        makeSlice({
+          id: 2300,
+          name: 's0',
+          tile_urls: [
+            makeTileUrl({ visualization_name: 'True Color' }),
+            makeTileUrl({ visualization_name: 'False Color' }),
+          ],
+        }),
+      ],
+    }),
+  ],
+});
+const campaignMV = makeCampaign({ imagery_sources: [sourceMV] });
+const catMV = buildCatalog(campaignMV);
+
+describe('setActiveCollection: per-source visualization memory', () => {
+  it('keeps the current visualization when switching to a collection in the same source', () => {
+    useImageryStore
+      .getState()
+      .setAddress({ sourceId: 2, collectionId: 210, sliceIndex: 0, vizId: '22' });
+    useImageryStore.getState().setActiveCollection(catMV, 230);
+    expect(useImageryStore.getState().address).toEqual({
+      sourceId: 2,
+      collectionId: 230,
+      sliceIndex: 0,
+      vizId: '22',
+    });
+  });
+
+  it("falls back to the source's first visualization when the remembered one is not published on the target's cover slice", () => {
+    useImageryStore
+      .getState()
+      .setAddress({ sourceId: 2, collectionId: 210, sliceIndex: 0, vizId: '22' });
+    useImageryStore.getState().setActiveCollection(catMV, 220);
+    expect(useImageryStore.getState().address).toEqual({
+      sourceId: 2,
+      collectionId: 220,
+      sliceIndex: 0,
+      vizId: '21',
+    });
   });
 });
 

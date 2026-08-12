@@ -3,6 +3,7 @@ import type { ImageryViewOut } from '~/api/client';
 import {
   cycleSource,
   cycleViz,
+  jumpToCollection,
   markEmpty as markEmptyKey,
   restoreSnapshot,
   snapshotForView,
@@ -127,8 +128,8 @@ export const useImageryStore = create<ImageryState>((set) => ({
     }),
 
   setActiveCollection: (cat, collectionId) =>
-    set(() => ({
-      address: restoreSnapshot(cat, undefined, collectionId).address,
+    set((s) => ({
+      address: collectionId != null ? jumpToCollection(cat, collectionId, s.address) : null,
       showBasemap: false,
     })),
 

@@ -5,6 +5,7 @@ import {
   applyFieldDigit,
   cycleFieldIndex,
   handleFormFieldKey,
+  isLabelGroupActive,
   LABEL_FIELD_INDEX,
 } from './formFieldNav';
 import type { FormValues } from './formValues';
@@ -86,6 +87,26 @@ describe('cycleFieldIndex', () => {
     expect(cycleFieldIndex(null, 1, -1)).toBe(0);
     expect(cycleFieldIndex(0, 1, -1)).toBe(LABEL_FIELD_INDEX);
     expect(cycleFieldIndex(LABEL_FIELD_INDEX, 1, -1)).toBe(0);
+  });
+});
+
+describe('isLabelGroupActive', () => {
+  it('marks the label group on entry, before any Tab has moved the index', () => {
+    expect(isLabelGroupActive(null, 3)).toBe(true);
+  });
+
+  it('marks the label group once Tab wraps back onto it', () => {
+    expect(isLabelGroupActive(LABEL_FIELD_INDEX, 3)).toBe(true);
+  });
+
+  it('does not mark it while a custom field holds the digits', () => {
+    expect(isLabelGroupActive(0, 3)).toBe(false);
+    expect(isLabelGroupActive(2, 3)).toBe(false);
+  });
+
+  it('marks nothing when there are no custom fields to cycle through', () => {
+    expect(isLabelGroupActive(null, 0)).toBe(false);
+    expect(isLabelGroupActive(LABEL_FIELD_INDEX, 0)).toBe(false);
   });
 });
 

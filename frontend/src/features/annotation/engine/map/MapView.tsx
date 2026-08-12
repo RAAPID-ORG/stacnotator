@@ -10,19 +10,11 @@ import { platformModifierKeyOnly } from 'ol/events/condition';
 import { toLonLat } from 'ol/proj';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import type BaseLayer from 'ol/layer/Base';
 import type { FeatureLike } from 'ol/Feature';
 import type MapBrowserEvent from 'ol/MapBrowserEvent';
 import type { CameraController } from './camera';
-import { reconcile, type MountedLayer } from './reconcile';
-import {
-  LAYER_ID_PROP,
-  createLayer,
-  destroyLayer,
-  featurePropsOf,
-  layerFeatureId,
-  updateLayer,
-} from './olLayerFactory';
+import { applyLayerOps, reconcile, type MountedLayer } from './reconcile';
+import { LAYER_ID_PROP, destroyLayer, featurePropsOf, layerFeatureId } from './olLayerFactory';
 import { attachInteractions, geoOfFeature, type SketchLayer } from './interactions/attach';
 import type { InteractionSpec } from './interactions/types';
 import type { LayerId, LayerSpec, LonLat, TileStats } from './types';
@@ -105,7 +97,7 @@ export function MapView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<OLMap | null>(null);
   const sketchLayerRef = useRef<SketchLayer | null>(null);
-  const mountedRef = useRef<Map<LayerId, MountedLayer & { layer: BaseLayer }>>(undefined);
+  const mountedRef = useRef<Map<LayerId, MountedLayer>>(undefined);
   const mounted = (mountedRef.current ??= new Map());
   const hoverRef = useRef<FeatureHit | null>(null);
 
@@ -217,24 +209,7 @@ export function MapView({
         handlers.current.onTileStats?.(layerId, stats),
     };
 
-    for (const op of reconcile(mounted, layers)) {
-      if (op.type === 'remove') {
-        const entry = mounted.get(op.id);
-        if (!entry) continue;
-        map.removeLayer(entry.layer);
-        destroyLayer(entry.layer);
-        mounted.delete(op.id);
-      } else if (op.type === 'add') {
-        const layer = createLayer(op.spec, ctx);
-        map.addLayer(layer);
-        mounted.set(op.spec.id, { spec: op.spec, layer });
-      } else {
-        const entry = mounted.get(op.id);
-        if (!entry) continue;
-        updateLayer(entry.layer, op.spec, op.changed, ctx);
-        entry.spec = op.spec;
-      }
-    }
+    applyLayerOps(map, mounted, reconcile(mounted, layers), ctx);
   }, [layers]);
 
   useEffect(() => {

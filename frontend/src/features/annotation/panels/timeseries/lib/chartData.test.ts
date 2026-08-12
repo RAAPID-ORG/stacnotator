@@ -4,6 +4,7 @@ import {
   formatDateForTooltip,
   parseSeriesDate,
   getOptimalMonthLabels,
+  sliceMarkerFor,
 } from './chartData';
 import type { TimeSeriesData } from './cache';
 
@@ -56,6 +57,34 @@ describe('parseSeriesDate', () => {
 
   it('parses ISO dates', () => {
     expect(parseSeriesDate('2025-01-15')).toBe(new Date('2025-01-15').getTime());
+  });
+});
+
+describe('sliceMarkerFor', () => {
+  const labels = ['20240101', '20240201', '20240301', '20240401'];
+
+  it('spans every label inside the slice', () => {
+    expect(sliceMarkerFor(labels, '2024-02-01', '2024-03-31')).toEqual({
+      startIdx: 1,
+      endIdx: 2,
+    });
+  });
+
+  it('snaps to the nearest label when the slice covers none', () => {
+    expect(sliceMarkerFor(labels, '2024-03-10', '2024-03-20')).toEqual({
+      startIdx: 2,
+      endIdx: 2,
+    });
+  });
+
+  it('tracks the slice as it moves along the axis', () => {
+    expect(sliceMarkerFor(labels, '2024-01-01', '2024-01-31')?.startIdx).toBe(0);
+    expect(sliceMarkerFor(labels, '2024-04-01', '2024-04-30')?.startIdx).toBe(3);
+  });
+
+  it('returns nothing without a date range or labels', () => {
+    expect(sliceMarkerFor(labels, null, '2024-01-31')).toBeNull();
+    expect(sliceMarkerFor([], '2024-01-01', '2024-01-31')).toBeNull();
   });
 });
 

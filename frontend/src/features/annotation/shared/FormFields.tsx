@@ -15,6 +15,10 @@ export interface FormFieldsProps {
   disabled?: boolean;
 }
 
+/** Marks the group that digit keys and Enter are aimed at - the label picker or
+ *  one custom field. Shared so every group in the panel reads the same. */
+export const activeGroupClass = 'ring-2 ring-brand-600 rounded bg-brand-50/50';
+
 const optionButtonClass = (selected: boolean, disabled: boolean) =>
   `w-40 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex justify-between items-center ${
     selected
@@ -57,9 +61,13 @@ function applyDateRangeSide(
   return setFieldValue(values, field.id, { start, end });
 }
 
-function FieldHeader({ field }: { field: FormField }) {
+function FieldHeader({ field, active }: { field: FormField; active: boolean }) {
   return (
-    <div className="flex items-center gap-1 text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+    <div
+      className={`flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider ${
+        active ? 'text-brand-700' : 'text-neutral-500'
+      }`}
+    >
       <span>{field.title}</span>
       {field.required && <span className="text-red-500">*</span>}
       {field.description && (
@@ -354,10 +362,10 @@ export function FormFields({
           key={field.id}
           data-form-field-id={field.id}
           className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem] ${
-            activeFieldIndex === index ? 'ring-2 ring-brand-500/40 rounded' : ''
+            activeFieldIndex === index ? activeGroupClass : ''
           }`}
         >
-          <FieldHeader field={field} />
+          <FieldHeader field={field} active={activeFieldIndex === index} />
           <FieldInput field={field} values={values} onChange={onChange} disabled={disabled} />
         </div>
       ))}

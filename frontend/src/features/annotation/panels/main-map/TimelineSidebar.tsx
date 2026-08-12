@@ -25,6 +25,28 @@ export function TimelineSidebar({ ctx }: { ctx: ComposeCtx }) {
   );
   const range = useMemo(() => timelineRange(collections), [collections]);
 
+  // The ticks don't move while scrubbing, and the scrub tooltip re-renders on
+  // every pointer move - holding them as one memoized element keeps those
+  // renders off the rail itself.
+  const ticks = useMemo(
+    () =>
+      collections.map((collection) => {
+        const height = `${100 / collections.length}%`;
+        return (
+          <div
+            key={collection.id}
+            data-collection-id={collection.id}
+            className="relative flex items-center justify-center"
+            style={{ height, minHeight: height }}
+            title={collection.name}
+          >
+            <div className="h-px w-3 bg-neutral-200" />
+          </div>
+        );
+      }),
+    [collections]
+  );
+
   /** Selects the collection under the pointer. Reads the active collection
    *  back off the store rather than closing over it: re-selecting the one
    *  already showing would restart its tile loads on every pointer move. */
@@ -118,20 +140,7 @@ export function TimelineSidebar({ ctx }: { ctx: ComposeCtx }) {
             >
               <div className="pointer-events-none absolute bottom-0 left-1/2 top-0 w-px -translate-x-px bg-neutral-200" />
 
-              {collections.map((collection) => {
-                const height = `${100 / collections.length}%`;
-                return (
-                  <div
-                    key={collection.id}
-                    data-collection-id={collection.id}
-                    className="relative flex items-center justify-center"
-                    style={{ height, minHeight: height }}
-                    title={collection.name}
-                  >
-                    <div className="h-px w-3 bg-neutral-200" />
-                  </div>
-                );
-              })}
+              {ticks}
 
               {activeCollection && (
                 <div

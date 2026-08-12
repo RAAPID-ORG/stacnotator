@@ -18,7 +18,13 @@ const toLatLon = (point: LonLat | null | undefined): LatLon | null =>
   point ? { lat: point[1], lon: point[0] } : null;
 
 export function TimeseriesPanel({ ctx, window: tsWindow }: TimeseriesPanelProps) {
-  const ids = useMemo(() => tsWindow.series.map((ts) => ts.id), [tsWindow.series]);
+  // Panel composition rebuilds the window (and with it this array) whenever
+  // the page recomposes, e.g. on every collection change. Keying on the
+  // series' contents instead keeps the fetch and the chart's datasets put.
+  const seriesKey = tsWindow.series.map((ts) => `${ts.id}:${ts.name}`).join('|');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const series = useMemo(() => tsWindow.series, [seriesKey]);
+  const ids = useMemo(() => series.map((ts) => ts.id), [series]);
   const isOpenMode = ctx.mode === 'explore';
 
   const focus = useMapFocus();
@@ -163,7 +169,7 @@ export function TimeseriesPanel({ ctx, window: tsWindow }: TimeseriesPanelProps)
       >
         <Chart
           ctx={ctx}
-          series={tsWindow.series}
+          series={series}
           data={data}
           probeData={probeData}
           isOpenMode={isOpenMode}

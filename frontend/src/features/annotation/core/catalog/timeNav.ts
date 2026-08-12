@@ -16,6 +16,60 @@ function coverIndex(collection: Pick<ImageryCollectionOut, 'cover_slice_index'>)
   return collection.cover_slice_index ?? 0;
 }
 
+interface VizSource {
+  visualizations: { id: number; name: string }[];
+}
+
+interface VizSlice {
+  tile_urls: { visualization_name: string }[];
+}
+
+/** The visualization to land on: `preferredVizId` when it is still published
+ *  (has a tile_url) on the target slice, else the source's first
+ *  visualization. Carries the annotator's chosen visualization across
+ *  date/collection navigation without leaving a dangling reference to one a
+ *  slice can't actually render. */
+function resolveVizId(
+  source: VizSource,
+  slice: VizSlice | undefined,
+  preferredVizId: string
+): string {
+  const preferred = source.visualizations.find((v) => String(v.id) === preferredVizId);
+  const published =
+    !!preferred && !!slice?.tile_urls.some((t) => t.visualization_name === preferred.name);
+  return published ? preferredVizId : String(source.visualizations[0]?.id ?? '');
+}
+
+function landOn(
+  cat: Catalog,
+  sourceId: number,
+  collectionId: number,
+  sliceIndex: number,
+  preferredVizId: string
+): SliceAddress {
+  const source = cat.sources.get(sourceId);
+  const slice = cat.collections.get(collectionId)?.slices[sliceIndex];
+  const vizId = source ? resolveVizId(source, slice, preferredVizId) : preferredVizId;
+  return { sourceId, collectionId, sliceIndex, vizId };
+}
+
+/** Address for jumping straight to a collection (timeline scrub, collection
+ *  picker): lands on its cover slice, carrying the current visualization
+ *  forward when the jump stays within the source it came from and that
+ *  visualization is still published on the landing slice - resets to the
+ *  target source's first visualization otherwise. */
+export function jumpToCollection(
+  cat: Catalog,
+  collectionId: number,
+  current: SliceAddress | null
+): SliceAddress | null {
+  const collection = cat.collections.get(collectionId);
+  const sourceId = cat.sourceIdByCollectionId.get(collectionId);
+  if (!collection || sourceId === undefined) return null;
+  const preferredVizId = current && current.sourceId === sourceId ? current.vizId : '';
+  return landOn(cat, sourceId, collectionId, coverIndex(collection), preferredVizId);
+}
+
 /** All slice indices, for the listing/dropdown (includes the dedicated cover). */
 export function slicePickerIndices(collection: Pick<ImageryCollectionOut, 'slices'>): number[] {
   return collection.slices.map((_, i) => i);
@@ -84,7 +138,7 @@ export function stepCollection(
 ): SliceAddress | null {
   const target = neighborCollection(cat, addr, dir);
   if (!target) return null;
-  return { ...addr, collectionId: target.id, sliceIndex: coverIndex(target) };
+  return landOn(cat, addr.sourceId, target.id, coverIndex(target), addr.vizId);
 }
 
 /** Next/prev non-empty regular slice within the current collection; at a
@@ -107,9 +161,9 @@ export function stepSlice(
       ? nav.find((i) => i > addr.sliceIndex)
       : [...nav].reverse().find((i) => i < addr.sliceIndex);
 
-  if (next !== undefined) return { ...addr, sliceIndex: next };
+  if (next !== undefined) return landOn(cat, addr.sourceId, addr.collectionId, next, addr.vizId);
 
   const target = neighborCollection(cat, addr, dir);
   if (!target) return null;
-  return { ...addr, collectionId: target.id, sliceIndex: landingIndex(target, empties, dir) };
+  return landOn(cat, addr.sourceId, target.id, landingIndex(target, empties, dir), addr.vizId);
 }

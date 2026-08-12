@@ -30,8 +30,9 @@ import {
   getOptimalMonthLabels,
   parseSeriesDate,
   referenceLinePlugin,
+  setSliceMarker,
+  sliceMarkerFor,
   sliceMarkerPlugin,
-  type SliceMarker,
 } from './lib/chartData';
 import { savitzkyGolay } from './lib/smoothing';
 import { OptionsPopover, type SmoothingOptions } from './OptionsPopover';
@@ -206,48 +207,24 @@ export function Chart({ ctx, series, data, probeData, isOpenMode }: ChartProps) 
   }, [series, data, probeData, removeCloudy, showDots, smoothEnabled, smoothing, hiddenDatasets]);
 
   // Resolve the slice currently shown on the map so its date range can be
-  // highlighted on the chart.
+  // highlighted on the chart. Selecting the slice itself, rather than the
+  // address it lives at, keeps a re-address that lands on the same slice from
+  // re-rendering the chart.
   const catalog = ctx.catalog;
-  const imageryAddress = useImageryStore((s) => s.address);
   const setImageryAddress = useImageryStore((s) => s.setAddress);
+  const activeSlice = useImageryStore((s) =>
+    s.address
+      ? (catalog.collections.get(s.address.collectionId)?.slices[s.address.sliceIndex] ?? null)
+      : null
+  );
 
-  const activeSlice = useMemo(() => {
-    if (!imageryAddress) return null;
-    const collection = catalog.collections.get(imageryAddress.collectionId);
-    return collection?.slices[imageryAddress.sliceIndex] ?? null;
-  }, [catalog, imageryAddress]);
+  const sliceMarker = useMemo(
+    () => sliceMarkerFor(chartData.labels, activeSlice?.start_date, activeSlice?.end_date),
+    [chartData.labels, activeSlice]
+  );
 
-  const sliceMarker = useMemo<SliceMarker | null>(() => {
-    if (!activeSlice?.start_date || !activeSlice?.end_date || !chartData.labels.length) return null;
-    const sliceStart = new Date(activeSlice.start_date).getTime();
-    const sliceEnd = new Date(activeSlice.end_date).getTime();
-    const labels = chartData.labels;
-
-    let startIdx = -1;
-    let endIdx = -1;
-    for (let i = 0; i < labels.length; i++) {
-      const t = parseSeriesDate(labels[i]);
-      if (t >= sliceStart && t <= sliceEnd) {
-        if (startIdx === -1) startIdx = i;
-        endIdx = i;
-      }
-    }
-    if (startIdx !== -1) return { startIdx, endIdx };
-
-    // No labels strictly inside the slice - snap to the nearest single label.
-    let nearest = 0;
-    let bestDist = Infinity;
-    const center = (sliceStart + sliceEnd) / 2;
-    for (let i = 0; i < labels.length; i++) {
-      const d = Math.abs(parseSeriesDate(labels[i]) - center);
-      if (d < bestDist) {
-        bestDist = d;
-        nearest = i;
-      }
-    }
-    return { startIdx: nearest, endIdx: nearest };
-  }, [activeSlice, chartData.labels]);
-
+  // Reads the address off the store rather than closing over it, so a slice
+  // change leaves the chart's options - and with them its datasets - alone.
   const handleChartClick = useCallback(
     (event: ChartEvent, _elements: ActiveElement[], chart: ChartJS<'line'>) => {
       const labels = chartData.labels;
@@ -260,10 +237,10 @@ export function Chart({ ctx, series, data, probeData, isOpenMode }: ChartProps) 
       const clickedTime = parseSeriesDate(labels[labelIdx]);
       if (Number.isNaN(clickedTime)) return;
 
-      const target = nearestSlice(catalog, clickedTime, imageryAddress);
+      const target = nearestSlice(catalog, clickedTime, useImageryStore.getState().address);
       if (target) setImageryAddress(target);
     },
-    [chartData.labels, catalog, imageryAddress, setImageryAddress]
+    [chartData.labels, catalog, setImageryAddress]
   );
 
   const handleResetZoom = useCallback(() => chartRef.current?.resetZoom(), []);
@@ -350,17 +327,19 @@ export function Chart({ ctx, series, data, probeData, isOpenMode }: ChartProps) 
     };
   }, []);
 
-  // Push every subsequent data/options/marker change into the live instance.
+  // Push every subsequent data/options change into the live instance.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
     chart.data = { labels: chartData.labels, datasets: chartData.datasets };
-    chart.options = {
-      ...chartOptions,
-      plugins: { ...chartOptions.plugins, sliceMarker: { marker: sliceMarker } },
-    };
+    chart.options = chartOptions;
     chart.update();
-  }, [chartData, chartOptions, sliceMarker]);
+  }, [chartData, chartOptions]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (chart) setSliceMarker(chart, sliceMarker);
+  }, [sliceMarker]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { reconcile } from './reconcile';
+import type BaseLayer from 'ol/layer/Base';
+import TileLayer from 'ol/layer/Tile';
+import { applyLayerOps, reconcile, type LayerHost, type MountedLayer } from './reconcile';
 import type {
   FeatureLayerSpec,
   LayerId,
@@ -31,8 +33,11 @@ const features = (over: Partial<FeatureLayerSpec> = {}): FeatureLayerSpec => ({
   ...over,
 });
 
-const mounted = (...specs: LayerSpec[]): ReadonlyMap<LayerId, { spec: LayerSpec }> =>
-  new Map(specs.map((spec) => [spec.id, { spec }]));
+const mounted = (...specs: LayerSpec[]) =>
+  new Map(specs.map((spec) => [spec.id, { spec, retained: false }]));
+
+const retained = (...specs: LayerSpec[]) =>
+  new Map(specs.map((spec) => [spec.id, { spec, retained: true }]));
 
 describe('reconcile', () => {
   it('adds layers that are not mounted yet', () => {
@@ -40,8 +45,9 @@ describe('reconcile', () => {
     expect(reconcile(mounted(), [spec])).toEqual([{ type: 'add', spec }]);
   });
 
-  it('removes layers that are gone from the next specs', () => {
-    expect(reconcile(mounted(raster()), [])).toEqual([{ type: 'remove', id: 'imagery' }]);
+  it('removes layers whose tiles are not worth keeping', () => {
+    expect(reconcile(mounted(features()), [])).toEqual([{ type: 'remove', id: 'draft' }]);
+    expect(reconcile(mounted(vectorTiles()), [])).toEqual([{ type: 'remove', id: 'annotations' }]);
   });
 
   it('emits nothing for stable specs', () => {
@@ -135,13 +141,154 @@ describe('reconcile', () => {
     ]);
   });
 
-  it('handles several layers at once, removes before adds', () => {
+  it('handles several layers at once, incoming before outgoing', () => {
     const keep = vectorTiles();
     const added = features();
     const ops = reconcile(mounted(raster(), keep), [keep, added]);
     expect(ops).toEqual([
-      { type: 'remove', id: 'imagery' },
       { type: 'add', spec: added },
+      { type: 'retain', id: 'imagery' },
     ]);
+  });
+});
+
+describe('reconcile retention', () => {
+  it('retains a raster that leaves the visible set', () => {
+    expect(reconcile(mounted(raster()), [])).toEqual([{ type: 'retain', id: 'imagery' }]);
+  });
+
+  it('leaves an already retained raster alone', () => {
+    expect(reconcile(retained(raster()), [])).toEqual([]);
+  });
+
+  it('restores a retained raster instead of adding a second one', () => {
+    const spec = raster();
+    expect(reconcile(retained(spec), [spec])).toEqual([
+      { type: 'restore', id: 'imagery', spec, changed: [] },
+    ]);
+  });
+
+  it('carries spec changes into the restore', () => {
+    const before = raster({ opacity: 1 });
+    const after = raster({ opacity: 0.5 });
+    expect(reconcile(retained(before), [after])).toEqual([
+      { type: 'restore', id: 'imagery', spec: after, changed: ['opacity'] },
+    ]);
+  });
+
+  it('rebuilds a retained id that comes back as another kind', () => {
+    const after = features({ id: 'imagery' });
+    expect(reconcile(retained(raster()), [after])).toEqual([
+      { type: 'remove', id: 'imagery' },
+      { type: 'add', spec: after },
+    ]);
+  });
+
+  it('evicts the least recently shown layers past the bound', () => {
+    const current = new Map([
+      ['a', { spec: raster({ id: 'a' }), retained: true }],
+      ['b', { spec: raster({ id: 'b' }), retained: true }],
+      ['c', { spec: raster({ id: 'c' }), retained: false }],
+    ]);
+    expect(reconcile(current, [], 2)).toEqual([
+      { type: 'retain', id: 'c' },
+      { type: 'remove', id: 'a' },
+    ]);
+  });
+});
+
+const testHost = () => {
+  const layers: BaseLayer[] = [];
+  return {
+    layers,
+    addLayer(layer: BaseLayer) {
+      layers.push(layer);
+    },
+    removeLayer(layer: BaseLayer) {
+      layers.splice(layers.indexOf(layer), 1);
+    },
+  };
+};
+
+const sync = (
+  host: LayerHost,
+  registry: Map<LayerId, MountedLayer>,
+  specs: LayerSpec[],
+  retainLimit?: number
+) => applyLayerOps(host, registry, reconcile(registry, specs, retainLimit), {});
+
+const sourceOf = (layer: BaseLayer | undefined) =>
+  layer instanceof TileLayer ? layer.getSource() : null;
+
+describe('applyLayerOps', () => {
+  it('keeps a retiring raster on the host, hidden and loaded', () => {
+    const host = testHost();
+    const registry = new Map<LayerId, MountedLayer>();
+    sync(host, registry, [raster()]);
+    const layer = registry.get('imagery')?.layer;
+
+    sync(host, registry, []);
+
+    expect(host.layers).toEqual([layer]);
+    expect(registry.get('imagery')?.retained).toBe(true);
+    expect(layer?.getVisible()).toBe(false);
+    expect(sourceOf(layer)).not.toBeNull();
+  });
+
+  it('reuses the same layer and source when a spec comes back', () => {
+    const host = testHost();
+    const registry = new Map<LayerId, MountedLayer>();
+    sync(host, registry, [raster({ id: 'a' })]);
+    const layer = registry.get('a')?.layer;
+    const source = sourceOf(layer);
+
+    sync(host, registry, [raster({ id: 'b' })]);
+    sync(host, registry, [raster({ id: 'a' })]);
+
+    expect(registry.get('a')?.layer).toBe(layer);
+    expect(sourceOf(registry.get('a')?.layer)).toBe(source);
+    expect(layer?.getVisible()).toBe(true);
+    expect(registry.get('b')?.retained).toBe(true);
+    expect(host.layers).toHaveLength(2);
+  });
+
+  it('rebuilds the source only when the spec asks for other tiles', () => {
+    const host = testHost();
+    const registry = new Map<LayerId, MountedLayer>();
+    sync(host, registry, [raster({ opacity: 1 })]);
+    const source = sourceOf(registry.get('imagery')?.layer);
+
+    sync(host, registry, []);
+    sync(host, registry, [raster({ opacity: 0.5 })]);
+    expect(sourceOf(registry.get('imagery')?.layer)).toBe(source);
+
+    sync(host, registry, []);
+    sync(host, registry, [raster({ url: 'https://other/{z}/{x}/{y}.png' })]);
+    expect(sourceOf(registry.get('imagery')?.layer)).not.toBe(source);
+  });
+
+  it('destroys the least recently shown layer past the bound', () => {
+    const host = testHost();
+    const registry = new Map<LayerId, MountedLayer>();
+    sync(host, registry, [raster({ id: 'a' })], 2);
+    const first = registry.get('a')?.layer;
+    for (const id of ['b', 'c', 'd']) sync(host, registry, [raster({ id })], 2);
+
+    expect([...registry.keys()].sort()).toEqual(['b', 'c', 'd']);
+    expect(host.layers).toHaveLength(3);
+    expect(sourceOf(first)).toBeNull();
+  });
+
+  it('never evicts a layer that is coming back into view', () => {
+    const host = testHost();
+    const registry = new Map<LayerId, MountedLayer>();
+    sync(host, registry, [raster({ id: 'a' })], 1);
+    const layer = registry.get('a')?.layer;
+
+    sync(host, registry, [raster({ id: 'b' })], 1);
+    sync(host, registry, [raster({ id: 'a' })], 1);
+
+    expect(registry.get('a')?.layer).toBe(layer);
+    expect(registry.has('b')).toBe(true);
   });
 });

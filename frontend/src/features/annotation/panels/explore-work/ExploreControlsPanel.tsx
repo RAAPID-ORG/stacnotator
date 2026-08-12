@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import {
   extendedLabels,
+  isLabelGroupActive,
   resolveLabelStyle,
   type ExtendedLabel,
   type GeometryType,
@@ -11,7 +12,7 @@ import { getHelp } from '~/features/annotation/engine/hotkeys';
 import type { ComposeCtx } from '../../composition';
 import { bumpAnnotationVersion } from '../../shared/annotationVersion';
 import { fitAnnotations } from '../../shared/cameras';
-import { FormFields } from '../../shared/FormFields';
+import { activeGroupClass, FormFields } from '../../shared/FormFields';
 import { LabelChips } from '../../shared/LabelChips';
 import { selectLabel, selectTool, useActiveTool, type ActiveTool } from '../../shared/toolState';
 import { DraftCatalog } from './DraftCatalog';
@@ -135,6 +136,7 @@ export function ExploreControlsPanel({ ctx }: ExploreControlsPanelProps) {
 
   const labels = extendedLabels(ctx.campaign);
   const fields = ctx.campaign.settings.form_fields ?? [];
+  const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
   const selectedLabel = labels.find((l) => l.id === selectedLabelId) ?? null;
   const draftLabel =
     draft.phase === 'idle' ? null : (labels.find((l) => l.id === draft.labelId) ?? null);
@@ -247,8 +249,18 @@ export function ExploreControlsPanel({ ctx }: ExploreControlsPanelProps) {
         ) : (
           (tool === 'annotate' || tool === 'labelVector') && (
             <>
-              <div className="flex flex-col gap-1.5 w-full">
-                <span className="font-semibold text-neutral-700 text-xs tracking-wide">Labels</span>
+              <div
+                className={`flex flex-col gap-1.5 w-full ${
+                  labelGroupActive ? activeGroupClass : ''
+                }`}
+              >
+                <span
+                  className={`font-semibold text-xs tracking-wide ${
+                    labelGroupActive ? 'text-brand-700' : 'text-neutral-700'
+                  }`}
+                >
+                  Labels
+                </span>
                 {labels.length === 0 ? (
                   <p className="text-xs text-neutral-500 italic">No labels defined</p>
                 ) : (
@@ -268,7 +280,7 @@ export function ExploreControlsPanel({ ctx }: ExploreControlsPanelProps) {
                         className={`flex-shrink-0 px-1.5 py-1 rounded border text-[11px] transition-colors cursor-pointer ${
                           styleEditorLabelId === label.id
                             ? 'bg-brand-50 text-brand-700 border-brand-600'
-                            : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:bg-neutral-100'
+                            : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700'
                         }`}
                       >
                         ✎
