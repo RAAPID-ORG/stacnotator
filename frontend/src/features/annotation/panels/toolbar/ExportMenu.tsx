@@ -1,0 +1,154 @@
+import { useEffect, useState } from 'react';
+import { exportAnnotations, exportAnnotationsGeojson } from '~/api/client';
+import { useLayoutStore } from '~/shared/stores/layout.store';
+import { handleError } from '~/shared/utils/errorHandler';
+import {
+  exportRows,
+  resolveExportFilename,
+  parseExportErrorDetail,
+  type ExportFormat,
+} from '~/features/annotation/core/tasks';
+
+export interface ExportMenuProps {
+  campaignId: number;
+  campaignName: string;
+  isTaskMode: boolean;
+  hasConflicts: boolean;
+}
+
+function isBlob(body: unknown): body is Blob {
+  return body instanceof Blob;
+}
+
+function hasStringDetail(error: unknown): error is { detail: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'detail' in error &&
+    typeof error.detail === 'string'
+  );
+}
+
+/** A failed export never reaches `data`: the client puts the body in `error`,
+ *  already JSON-parsed when it was JSON. */
+function exportErrorDetail(error: unknown): string | null {
+  if (typeof error === 'string') return parseExportErrorDetail(error);
+  return hasStringDetail(error) ? error.detail : null;
+}
+
+/** Triggers a browser download for a blob response. */
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
+export function ExportMenu({
+  campaignId,
+  campaignName,
+  isTaskMode,
+  hasConflicts,
+}: ExportMenuProps) {
+  const [open, setOpen] = useState(false);
+  const [mergeOnAgreement, setMergeOnAgreement] = useState(false);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const showAlert = useLayoutStore((s) => s.showAlert);
+
+  useEffect(() => {
+    if (hasConflicts && mergeOnAgreement) setMergeOnAgreement(false);
+  }, [hasConflicts, mergeOnAgreement]);
+
+  const handleExport = async (format: ExportFormat) => {
+    setOpen(false);
+    setExporting(format);
+    try {
+      const request = exportRows(campaignId, format, mergeOnAgreement);
+      const fetcher = format === 'geojson' ? exportAnnotationsGeojson : exportAnnotations;
+      const result = await fetcher(request);
+      const body = isBlob(result.data) ? result.data : null;
+
+      if (!result.response.ok || !body) {
+        const detail = exportErrorDetail(result.error);
+        throw new Error(detail ?? `Failed to export annotations as ${format.toUpperCase()}`);
+      }
+
+      const contentDisposition = result.response.headers.get('Content-Disposition');
+      const filename = resolveExportFilename(campaignName, format, contentDisposition);
+      downloadBlob(body, filename);
+      showAlert(`Annotations exported as ${format.toUpperCase()}`, 'success');
+    } catch (err) {
+      handleError(err, 'Failed to export annotations');
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={exporting !== null}
+        className={`flex items-center gap-1 px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+        title="Export annotations"
+        data-testid="export-menu-trigger"
+      >
+        {exporting ? 'Exporting…' : 'Export'}
+      </button>
+      {open && (
+        <div
+          className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[240px]"
+          data-testid="export-menu"
+        >
+          {isTaskMode && (
+            <label
+              className={`flex items-start gap-2 px-3 py-2 border-b border-neutral-200 ${hasConflicts ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-neutral-50'}`}
+              title={
+                hasConflicts
+                  ? 'Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.'
+                  : undefined
+              }
+            >
+              <input
+                type="checkbox"
+                checked={mergeOnAgreement}
+                disabled={hasConflicts}
+                onChange={(e) => setMergeOnAgreement(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span className="text-[11px] leading-snug text-neutral-700">
+                <span className="font-medium block">Merge on agreement</span>
+                <span className="text-neutral-500">
+                  {hasConflicts
+                    ? 'Disabled - resolve conflicting tasks first.'
+                    : 'Collapse multi-annotator tasks into one row when all agree.'}
+                </span>
+              </span>
+            </label>
+          )}
+          <button
+            type="button"
+            onClick={() => handleExport('geojson')}
+            className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900"
+          >
+            <div className="font-medium">GeoJSON</div>
+            <div className="text-[10px] text-neutral-500">FeatureCollection (.geojson)</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport('csv')}
+            className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
+          >
+            <div className="font-medium">CSV</div>
+            <div className="text-[10px] text-neutral-500">Tabular export (.csv)</div>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
