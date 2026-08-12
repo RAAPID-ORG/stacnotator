@@ -190,7 +190,7 @@ if az containerapp show --name "$APP_BACKEND" -g "$DEV_RG" &>/dev/null; then
         echo -e "${YELLOW}⚠ No running replica found. Migrations will run on next deploy.${NC}"
     fi
 else
-    echo -e "${YELLOW}⚠ Dev backend not deployed yet. Migrations will run when deploy-app.sh dev runs.${NC}"
+    echo -e "${YELLOW}⚠ Dev backend not deployed yet. Migrations will run when deploy.sh dev runs.${NC}"
 fi
 
 rm -f "$DUMP_FILE"

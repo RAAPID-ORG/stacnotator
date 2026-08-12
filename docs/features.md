@@ -185,7 +185,7 @@ Both run independently with status tracking (`registering` → `ready`/`failed`)
 ## Deployment
 
 - Azure Container Apps (backend, tiler) + Static Web App (frontend)
-- Self-managed via `deploy-app.sh` - creates apps, identities, RBAC, secrets
+- Self-managed via `azure_deploy/deploy.sh` - creates apps, identities, RBAC, secrets
 - PostgreSQL with private endpoint for security
 - Infrastructure shell (RG, KV, ACR, CAE) managed by Terraform
 - Per-project resource group isolation with Contributor RBAC

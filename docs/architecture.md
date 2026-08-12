@@ -25,7 +25,7 @@ For MPC collections with first-valid compositing, the frontend fetches tiles dir
 
 ## Deployment
 
-Infrastructure (networking, Key Vault, ACR, database, Container Apps Environment) should be managed externally (i.e Through Terraform). Application resources (Container Apps, Static Web App, identities, RBAC) are self-managed by the project team via `deploy-app.sh`. See [azure_deploy/README.md](../azure_deploy/README.md) for the deployment workflow.
+Infrastructure (networking, Key Vault, ACR, database, Container Apps Environment) should be managed externally (i.e Through Terraform). Application resources (Container Apps, Static Web App, identities, RBAC) are self-managed by the project team via `azure_deploy/deploy.sh`. See [azure_deploy/README.md](../azure_deploy/README.md) for the deployment workflow.
 
 ## Key Data Flow
 

@@ -1,8 +1,25 @@
 # Deployment Scripts
 
-Scripts for deploying STACNotator to Azure. The deploy script self-manages all application resources (Container Apps, Static Web App, identities, RBAC) within the project's resource group.
+Scripts for deploying STACNotator to Azure. They self-manage all application resources (Container Apps, Static Web App, identities, RBAC) within the project's resource group, so app deploys stay independent of the platform-managed (Terraform) infrastructure.
 
-The same `deploy-app.sh` script runs both from CI (on a self-hosted runner inside our Azure VNet) and manually from a developer laptop on VPN. Application resources are managed by this script rather than Terraform, so app deploys stay independent of the platform-managed (Terraform) infrastructure.
+Two entry points, split by lifecycle:
+
+| Script | When | What |
+|---|---|---|
+| `bootstrap.sh <env>` | Once per environment, and on credential rotation | Upload Firebase + Earth Engine credentials, generate the shared secrets when absent, create the Static Web App, add the tiler workload profile |
+| `deploy.sh <env>` | Every release | Resolve config, build backend + tiler + frontend concurrently, one write per resource, gate on backend health |
+
+`env.sh` is sourced by both and holds the config resolution. It contains no resource group, domain, service account or project id: the repo is public, so identifiers arrive from the environment.
+
+Both scripts run from CI (on a self-hosted runner inside our Azure VNet) and from a developer laptop on VPN.
+
+### How a deploy works
+
+Every value a deploy needs is derived before the first write. A Container App with external ingress is always `<app-name>.<CAE default domain>`, and with `PUBLIC_DOMAIN` set the browser-facing hosts are string construction, so nothing has to be read back mid-deploy. That means each resource is written exactly once and the backend produces a **single revision** per deploy, with one alembic run and one unambiguous health gate.
+
+The backend, tiler and frontend builds are independent and run concurrently; each stage's output is buffered and printed when it is joined, so parallel logs stay readable. The tiler image is tagged with the tiler repo's own commit SHA.
+
+`./azure_deploy/deploy.sh <env> --dry-run` resolves the config, prints every value and every command it would run, and writes nothing.
 
 ## Environments
 
@@ -14,25 +31,27 @@ The same `deploy-app.sh` script runs both from CI (on a self-hosted runner insid
 Backend is pinned to a single replica (MIN=MAX=1) so the alembic migration
 that runs on container startup is serialized by definition. To scale beyond
 1 replica, we'd also need to add a `pg_advisory_lock` around `context.run_migrations()`
-in `backend/alembic/env.py` (see note in that file). The deploy script has
-a `TILER_DEDICATED=true` branch that provisions a D8 dedicated workload
-profile for the tiler - currently disabled in both envs; flip the flag in
-`deploy-app.sh` if you need it for heavy tile load.
+in `backend/alembic/env.py` (see note in that file). Sizing lives in `_resolve_sizing`
+in `env.sh`, next to the connection-budget arithmetic that constrains it. Setting
+`TILER_DEDICATED=true` provisions a D8 dedicated workload profile for the tiler -
+currently off in both envs; turn it on if you need it for heavy tile load.
 
 ## Architecture
 
 | Component | Azure Service | Managed by |
 |-----------|--------------|------------|
-| Backend API | Container App (Consumption) | `deploy-app.sh` |
-| Tiler | Container App (Consumption) | `deploy-app.sh` |
-| Frontend | Azure Static Web App | `deploy-app.sh` |
+| Backend API | Container App (Consumption) | `deploy.sh` |
+| Tiler | Container App (Consumption) | `deploy.sh` |
+| Frontend | Azure Static Web App | `deploy.sh` |
 | Database | PostgreSQL Flexible Server | Terraform |
 | Container Apps Environment | Container Apps Environment | Terraform |
 | Networking, Key Vault, ACR | Various | Terraform |
 
 ## Automated deployments (CI)
 
-`deploy-app.sh` runs from GitHub Actions on a self-hosted runner inside the Azure VNet, authenticating via OIDC (no stored credentials). Both environments are gated by a GitHub Environment with required reviewers, so every deploy waits on a human Approve click.
+`deploy.sh` runs from GitHub Actions on a self-hosted runner inside the Azure VNet, authenticating via OIDC (no stored credentials). Both environments are gated by a GitHub Environment with required reviewers, so every deploy waits on a human Approve click.
+
+Both callers share `.github/workflows/deploy.yml`, a reusable workflow taking the GitHub Environment to use and the argument for `deploy.sh`. All deploy mechanics live there; the callers differ only in which environment they select.
 
 | Environment | Trigger | Workflow | Gate |
 |---|---|---|---|
@@ -51,34 +70,40 @@ The manual CLI path below is the fallback for local deploys and first-time envir
 - **Tiler repo** checked out next to this one (`../stacnotator-tiler`, or set `TILER_REPO_DIR`) - the deploy delegates the tiler build/deploy to its `deployment/deploy-containerapp.sh` and aborts if it's missing
 - **Node.js** installed for building the frontend (images are built server-side via `az acr build`, no local Docker needed)
 
-## First-Time Setup for local deployments (ONE TIME per environment)
+## Run once per environment
 
-Ensure you have deployed the infrastructure on Azure.
+Ensure the infrastructure is deployed on Azure first.
 
 ```bash
-# 1. Create environment config
-cp azure_deploy/.env.deploy.example azure_deploy/.env.deploy.prod
+# 1. Create the local config (laptop deploys only; CI reads GitHub Environments)
 cp azure_deploy/.env.deploy.example azure_deploy/.env.deploy.dev
-# Edit each file with the correct RESOURCE_GROUP and DEPLOY_ENV
+# Fill in RESOURCE_GROUP, PUBLIC_DOMAIN, EE_SERVICE_ACCOUNT, and the credential
+# paths bootstrap.sh uploads (FIREBASE_CREDS, EE_CREDS, FIREBASE_*).
 
-# 2. Fill in credentials in .env.deploy.prod / .env.deploy.dev
-#    (FIREBASE_CREDS, EE_CREDS, FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID)
+# 2. Upload secrets, create the Static Web App, add the workload profile
+make az-bootstrap-dev         # or az-bootstrap-prod
 
-# 3. Upload application secrets to Key Vault
-make az-upload-secrets-prod   # or az-upload-secrets-dev
+# 3. First deploy (creates the Container Apps, runs migrations on startup)
+make az-deploy-dev            # or az-deploy-prod
 
-# 4. Deploy (creates Container Apps, SWA, identities, RBAC, runs migrations)
-make az-deploy-prod           # or az-deploy-dev
-
-# 5. Add your frontend domain to Firebase authorized domains
+# 4. Add the frontend domain to Firebase authorized domains
 # https://console.firebase.google.com/ -> Authentication -> Settings -> Authorized domains
+```
+
+`bootstrap.sh` is idempotent and only generates `tiler-token-secret` and `apikey-encryption-secret` when they are absent, so re-running it is safe.
+
+## Run on every release
+
+```bash
+make az-deploy-dev            # or: ./azure_deploy/deploy.sh dev
+make az-deploy-dev-dry-run    # resolve and print the config, write nothing
 ```
 
 ### Tiler database (pgstac) - one-time per environment
 
 The tiler serves tiles from a **pgstac** catalog and connects as a dedicated, least-privilege
 role - it does **not** use the backend's database user or tables. This must be bootstrapped once
-against the Flexible Server before the tiler can serve, and is **not** done by `deploy-app.sh`
+against the Flexible Server before the tiler can serve, and is **not** done by `deploy.sh`
 (it needs admin DB privileges the running tiler must never hold).
 
 The full, provider-agnostic procedure and rationale live in the tiler repo:
@@ -87,7 +112,7 @@ endpoint - on VPN or the self-hosted CI runner. Exact Azure steps (copy-paste, s
 at the top for your environment):
 
 ```bash
-RG=rg-stacnotator-dev-prod-westeurope        # the env's resource group
+RG=<resource-group>                            # the env's resource group
 PROJECT=stacnotator-dev                        # stacnotator-dev | stacnotator-prod
 
 KV=$(az keyvault list -g "$RG" --query "[0].name" -o tsv)
@@ -111,13 +136,13 @@ pip install "pypgstac[psycopg]==0.9.5"
 PGHOST="$PGHOST_VAL" PGUSER=psqladmin PGPASSWORD="$ADMIN_PW" PGSSLMODE=require \
 TILER_DB_PASSWORD="$TILER_PW" ./scripts/bootstrap-pgstac.sh
 
-# 4. Store the tiler role password in Key Vault. deploy-app.sh wires it into the tiler
+# 4. Store the tiler role password in Key Vault. deploy.sh wires it into the tiler
 #    Container App as the `tiler-db-password` secret (separate from the backend's db-password):
 az keyvault secret set --vault-name "$KV" --name tiler-db-password --value "$TILER_PW"
 ```
 
 The tiler Container App then runs with `PGDATABASE=pgstac`, `PGUSER=tiler_app`,
-`PGSSLMODE=require`, and `PGPASSWORD` from `tiler-db-password` - all set by `deploy-app.sh`.
+`PGSSLMODE=require`, and `PGPASSWORD` from `tiler-db-password` - all set by `deploy.sh`.
 
 Upgrading pgstac later: bump the `pypgstac` pin and re-run `pypgstac migrate` as admin (see the
 tiler doc). The runtime `tiler_app` role is unaffected.
@@ -141,7 +166,7 @@ prod drop the `dev.` and use the prod resources / RG):
 **1. Gather the record values** (resources must already be deployed):
 
 ```bash
-RG=rg-stacnotator-dev-prod-westeurope
+RG=<resource-group>
 az staticwebapp show -n stacnotator-dev-frontend -g "$RG" --query defaultHostname -o tsv          # app.* CNAME target
 az containerapp show -n stacnotator-dev-backend  -g "$RG" --query properties.configuration.ingress.fqdn -o tsv  # api.* CNAME target
 az containerapp show -n stacnotator-dev-tiler    -g "$RG" --query properties.configuration.ingress.fqdn -o tsv  # tiler.* CNAME target
@@ -271,13 +296,14 @@ Safety relies on:
 
 #### One-time setup (do this before the first CI dev deploy)
 
-1. **Configure GitHub Environment secrets on the `dev` Environment** (Settings → Environments → `dev` → Environment secrets). These mirror how the prod deploy reads its secrets from the `production` Environment. (The one exception is `TILER_REPO_TOKEN`, which must be repo-level - see step 2.)
+1. **Configure GitHub Environment secrets on the `dev` Environment** (Settings → Environments → `dev` → Environment secrets). Names are unsuffixed and identical in the `production` Environment, so the shared `deploy.yml` reads the same set for both. (The one exception is `TILER_REPO_TOKEN`, which must be repo-level - see step 2.)
 
    | Secret | Value |
    |---|---|
-   | `AZURE_CLIENT_ID_DEV` | Client ID of `id-cicd-stacnotator-dev-westeurope` (from `az identity show -n id-cicd-stacnotator-dev-westeurope -g <main-platform-rg> --query clientId -o tsv`) |
-   | `AZURE_RESOURCE_GROUP_DEV` | `rg-stacnotator-dev-prod-westeurope` (or whatever the dev RG is named) |
-   | `EE_SERVICE_ACCOUNT_DEV` | Same Earth Engine SA used in `.env.deploy.dev` |
+   | `AZURE_CLIENT_ID` | Client ID of the environment's CI identity (`az identity show -n <ci-identity> -g <main-platform-rg> --query clientId -o tsv`) |
+   | `AZURE_RESOURCE_GROUP` | The environment's resource group name |
+   | `EE_SERVICE_ACCOUNT` | Same Earth Engine SA used in `.env.deploy.<env>` |
+   | `CUSTOM_DOMAINS` | Extra origins appended to `CORS_ORIGINS`. Optional; prod only in practice |
 
    `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` are shared with the prod workflow. Check where they live by opening Settings → Environments → `production` → Environment secrets:
    - If they're listed there, copy them into the `dev` Environment too.
@@ -293,14 +319,15 @@ Safety relies on:
    |---|---|
    | `TILER_REPO_REF` | Git ref of the tiler repo to build/deploy. Defaults to `main` if unset. |
 
-3. **Set the public domain as an Environment variable** - only needed once the custom domains are bound (see [Custom domains](#custom-domains---one-time-per-environment-required-for-hosted-tiler-tiles) above). These are per-environment **variables** (not secrets), set alongside the secrets in each Environment:
+3. **Set the per-environment variables** alongside the secrets in each Environment (Settings → Environments → `<env>` → Environment variables). Like the secrets, the names are unsuffixed and identical in both:
 
-   | Environment | Variable | Value |
-   |---|---|---|
-   | `dev` | `PUBLIC_DOMAIN_DEV` | `dev.stacnotator.io` |
-   | `production` | `PUBLIC_DOMAIN_PROD` | `stacnotator.io` |
+   | Variable | Value |
+   |---|---|
+   | `PUBLIC_DOMAIN` | The environment's parent domain. Only needed once the custom domains are bound (see [Custom domains](#custom-domains---one-time-per-environment-required-for-hosted-tiler-tiles) above) |
+   | `EXTRA_TILERS` | Optional. Additional externally-hosted tilers, inner JSON without outer braces |
+   | `TILER_AZURE_SIGNING` | Optional. `true` to let the tiler read internal-storage COGs via managed identity |
 
-   Until set, deploys use the default Azure hostnames: MPC imagery works, but hosted-tiler tiles 401 in the browser (cross-domain cookie).
+   Until `PUBLIC_DOMAIN` is set, deploys use the default Azure hostnames: MPC imagery works, but hosted-tiler tiles 401 in the browser (cross-domain cookie).
 
 4. **Create the `dev` GitHub Environment** under Settings → Environments → New environment → name it `dev`. The workflow references `environment: dev` (matching how the prod deploy references `environment: production`), so the job will not start until this Environment exists. Configure it as follows:
 
@@ -316,44 +343,51 @@ After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch w
 
 | Script | When | Purpose |
 |--------|------|---------|
-| `deploy-app.sh` | Every deployment | Build, push, create/update apps, migrate, deploy SWA |
-| `upload-secrets.sh` | First time only | Upload Firebase (server + client) + EE credentials, generate tiler auth + API-key encryption secrets in Key Vault |
+| `deploy.sh` | Every release | Resolve config, build all three concurrently, one write per resource, gate on backend health |
+| `bootstrap.sh` | Once per environment | Upload Firebase + EE credentials, generate the shared secrets when absent, create the Static Web App, add the tiler workload profile |
+| `env.sh` | Sourced | Config resolution shared by both; holds no identifiers |
+| `tests/env_test.sh` | CI | Offline check that every host derives correctly, no Azure access needed |
 | `download-prod-db.sh` | As needed | Pull production DB to local development (no env argument, prod-only) |
 | `sync-prod-data-to-dev.sh` | As needed | Sync production DB to dev Azure environment (no env argument) |
 | `dev-restore-backup.sh` | As needed | Restore a SQL dump into the **local** docker dev stack (wipe, restore, migrate, restart); run via `make dev-restore-backup FILE=...` |
-| `grant-admin.sh` | After first deploy | Grant the `admin` role to a user by Firebase UID |
 | `view-logs.sh` | Debugging | Stream real-time logs from Container Apps |
 
 ## Makefile Targets
 
 ```bash
 make az-deploy-prod          # Deploy to production
-make az-deploy-dev           # Deploy to dev (smaller resources)
+make az-deploy-dev           # Deploy to dev
+make az-deploy-dev-dry-run   # Print the resolved dev config, write nothing
+make az-bootstrap-prod       # One-time prod setup
+make az-bootstrap-dev        # One-time dev setup
 make az-sync-prod-to-dev     # Sync prod DB to dev + run migrations
-make az-logs-prod             # View prod backend logs (APP=tiler for tiler)
-make az-logs-dev              # View dev backend logs (APP=tiler for tiler)
-make az-upload-secrets-prod  # Upload secrets to prod KV
-make az-upload-secrets-dev   # Upload secrets to dev KV
+make az-logs-prod            # View prod backend logs (APP=tiler for tiler)
+make az-logs-dev             # View dev backend logs (APP=tiler for tiler)
 ```
 
 ## Environment Configuration
 
-Per-environment config files in `azure_deploy/`:
+Config reaches a deploy from two places, and the environment always wins over the file.
 
-```
-.env.deploy.prod     # DEPLOY_ENV=prod
-.env.deploy.dev      # DEPLOY_ENV=dev
-.env.deploy.example  # Template
-```
+**CI** reads the calling job's GitHub Environment (`dev` or `production`). Names are unsuffixed, so both environments hold the same set and the reusable workflow needs no per-environment branching:
 
-`deploy-app.sh`, `upload-secrets.sh`, `view-logs.sh`, and `grant-admin.sh` take `prod` or `dev` as a positional argument; the matching `.env.deploy.<env>` file and its associated resource group is loaded automatically. The DB scripts hardcode their environments (see the table above).
+| Kind | Names |
+|---|---|
+| Environment secrets | `AZURE_CLIENT_ID`, `AZURE_RESOURCE_GROUP`, `EE_SERVICE_ACCOUNT`, `CUSTOM_DOMAINS` (prod), `TILER_REPO_TOKEN` |
+| Environment variables | `PUBLIC_DOMAIN`, `EXTRA_TILERS`, `TILER_AZURE_SIGNING`, `TILER_REPO_REF` |
+| Repository secrets | `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` |
 
-Optional deploy knobs (in `.env.deploy.<env>` locally, GitHub Actions variables/secrets in CI):
+**Laptop deploys** read `azure_deploy/.env.deploy.<env>` (gitignored; see `.env.deploy.example`). It supplies the same identifiers plus the credential file paths `bootstrap.sh` uploads. It never overrides a variable already present in the environment, so a stray file on a runner cannot influence CI.
 
-- `EXTRA_TILERS` (`EXTRA_TILERS_DEV`/`EXTRA_TILERS_PROD` in CI) - registers additional externally hosted tilers (e.g. a GCP VM tiler) into the backend's `TILERS` registry.
+`deploy.sh`, `bootstrap.sh` and `view-logs.sh` take `prod` or `dev` as a positional argument. The DB scripts hardcode their environments (see the table above).
+
+Optional knobs, in either place:
+
+- `EXTRA_TILERS` - registers additional externally hosted tilers (e.g. a GCP VM tiler) into the backend's `TILERS` registry.
 - `TILER_AZURE_SIGNING` - lets the tiler read internal-storage custom-map COGs via managed identity (passed through as `AZURE_SIGNING_ENABLED`).
-- `CUSTOM_DOMAINS` (`CUSTOM_DOMAINS_PROD` secret in CI) - extra origins appended to `CORS_ORIGINS`.
+- `CUSTOM_DOMAINS` - extra origins appended to `CORS_ORIGINS`.
 - `TILER_NAME` / `TILER_ALLOWS_INGEST` - shared between backend registry and tiler config so `allows_ingest` cannot drift.
+- `TILER_DEDICATED` - put the tiler on a D8 dedicated workload profile (`bootstrap.sh` provisions it).
 
 ## Tiler Authentication
 
@@ -363,17 +397,17 @@ The tiler service requires authentication to prevent unauthorized tile access. T
 2. **Browser** sends the cookie automatically with tile requests (this is why tiler and app must share a registrable domain, see Custom domains above); the backend's tile proxy for API-key providers is authorized off the same cookie
 3. **Tiler** verifies the JWT signature using a shared secret
 
-The shared secret (`tiler-token-secret`) is auto-generated by `upload-secrets.sh` and stored in Key Vault. Both backend and tiler reference it via `keyvaultref:`. No manual secret management is needed - just run `upload-secrets.sh` once per environment.
+The shared secret (`tiler-token-secret`) is auto-generated by `bootstrap.sh` and stored in Key Vault. Both backend and tiler reference it via `keyvaultref:`. No manual secret management is needed - just run `bootstrap.sh` once per environment.
 
 For local development, a default dev secret is used automatically when `TILER_TOKEN_SECRET` is not set.
 
 ## API Key Encryption
 
-Provider API keys are encrypted at rest with AES-256-GCM. The master key (`apikey-encryption-secret`, base64 of 32 bytes) is auto-generated by `upload-secrets.sh` and stored in Key Vault; the backend references it via `keyvaultref:` as `APIKEY_ENCRYPTION_SECRET`.
+Provider API keys are encrypted at rest with AES-256-GCM. The master key (`apikey-encryption-secret`, base64 of 32 bytes) is auto-generated by `bootstrap.sh` and stored in Key Vault; the backend references it via `keyvaultref:` as `APIKEY_ENCRYPTION_SECRET`.
 
-The backend refuses to start when `ENVIRONMENT=production` and this is still the dev default, so a new environment must run `upload-secrets.sh` before `deploy-app.sh`.
+The backend refuses to start when `ENVIRONMENT=production` and this is still the dev default, so a new environment must run `bootstrap.sh` before `deploy.sh`.
 
-Rotating this key makes every already-stored API key undecryptable - `upload-secrets.sh` only generates it when absent. To rotate deliberately, re-enter the provider API keys afterwards.
+Rotating this key makes every already-stored API key undecryptable - `bootstrap.sh` only generates it when absent. To rotate deliberately, re-enter the provider API keys afterwards.
 
 ## Database Access
 

@@ -221,12 +221,12 @@ make pre-commit-install
 
 STACNotator supports multiple deployment options (or maybe only one at the moment):
 
-- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deploy-app.sh`. See `azure_deploy/README.md`.
-   - Deployment: Prod deploys automatically via CI on push to `main` (gated by a `production` GitHub Environment approval); dev deploys via the manual `Deploy Dev` workflow. `deploy-app.sh` can also be run locally from within VPN as a fallback (`make az-deploy-dev`, followed by `make az-sync-prod-to-dev` to fill the dev db with current prod data). We also provide a script to grant admin access to a Firebase user by ID for the initial user after deployment (See `azure_deploy/grant-admin.sh`).
+- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `azure_deploy/deploy.sh`. See `azure_deploy/README.md`.
+   - Deployment: Prod deploys automatically via CI on push to `main` (gated by a `production` GitHub Environment approval); dev deploys via the manual `Deploy Dev` workflow. `deploy.sh` can also be run locally from within VPN as a fallback (`make az-deploy-dev`, followed by `make az-sync-prod-to-dev` to fill the dev db with current prod data).
 
 - **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure and we do not maintain any secure configs for bare metal deployments.
 
-Any production deployment must replace the dev-default secrets: with `ENVIRONMENT=production` the backend refuses to start while `TILER_TOKEN_SECRET` or `APIKEY_ENCRYPTION_SECRET` still hold their dev defaults (on Azure, `upload-secrets.sh` generates both).
+Any production deployment must replace the dev-default secrets: with `ENVIRONMENT=production` the backend refuses to start while `TILER_TOKEN_SECRET` or `APIKEY_ENCRYPTION_SECRET` still hold their dev defaults (on Azure, `bootstrap.sh` generates both).
 
 ## Contributing
 This project welcomes contributions and proposals. Please open up a issue deiscribing your requirements, proposed solutions or  encountered bugs. Check the [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.

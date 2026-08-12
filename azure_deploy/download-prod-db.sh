@@ -64,7 +64,7 @@ if [ -z "$KV_NAME" ]; then
     exit 1
 fi
 
-# Secret names are env-prefixed (matches Terraform / deploy-app.sh / sync-prod-data-to-dev.sh):
+# Secret names are env-prefixed (matches Terraform / env.sh / sync-prod-data-to-dev.sh):
 # e.g. for prod -> stacnotator-prod-postgres-admin-password
 PROJECT_NAME="stacnotator-${DEPLOY_ENV:-prod}"
 

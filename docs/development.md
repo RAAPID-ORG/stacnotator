@@ -57,7 +57,7 @@ Backend tests are split: pure logic lives in DB-free unit tests under `backend/t
 
 ## Deployment
 
-- **Production:** pushing to `main` triggers the `deploy-prod` job in CI, gated by the `production` GitHub Environment (manual approval). It runs `azure_deploy/deploy-app.sh prod` on the self-hosted Azure runner.
+- **Production:** pushing to `main` triggers the `deploy-prod` job in CI, gated by the `production` GitHub Environment (manual approval). It runs `azure_deploy/deploy.sh prod` on the self-hosted Azure runner, via the reusable `.github/workflows/deploy.yml`.
 - **Dev:** run the `Deploy Dev` workflow manually (`workflow_dispatch`); it only runs on `develop` and is gated by the `dev` Environment. Can be run via the GH Action -> workflows page.
 
 See [azure_deploy/README.md](../azure_deploy/README.md) for the full deployment workflow.
