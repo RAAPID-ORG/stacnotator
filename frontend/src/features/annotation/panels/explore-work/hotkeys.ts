@@ -5,6 +5,7 @@ import type { ComposeCtx, HotkeyTable } from '../../composition';
 import { bumpAnnotationVersion } from '../../shared/annotationVersion';
 import { getEditSession, saveAnnotationFlag } from '../../shared/editSession';
 import { selectLabel, selectTool, type ActiveTool } from '../../shared/toolState';
+import { formFieldDigitBindings } from '../task-work/hotkeys';
 
 const TOOL_KEYS: Array<{ key: string; tool: ActiveTool; help: string }> = [
   { key: 'p', tool: 'pan', help: 'Pan tool' },
@@ -21,7 +22,9 @@ function draftIsOpen(): boolean {
 /** Save the open draft (Enter). A failure leaves it parked in the catalog
  *  with its answers, which is where the retry lives. */
 async function commitOpenDraft(ctx: ComposeCtx): Promise<void> {
-  const saved = await useWorkStore.getState().commitDraft(ctx.campaign.id);
+  const saved = await useWorkStore
+    .getState()
+    .commitDraft(ctx.campaign.id, ctx.campaign.settings.form_fields ?? []);
   if (saved) bumpAnnotationVersion();
   else {
     const { showAlert } = useLayoutStore.getState();
@@ -102,5 +105,11 @@ export function exploreWorkBindings(ctx: ComposeCtx): Binding[] {
 
 export function exploreWorkHotkeys(ctx: ComposeCtx): HotkeyTable[] {
   if (ctx.mode !== 'explore') return [];
-  return [{ scope: 'mode', table: exploreWorkBindings(ctx) }];
+  return [
+    { scope: 'mode', table: exploreWorkBindings(ctx) },
+    // The digits alone, not task mode's whole form table: Escape and Enter
+    // belong to the draft here (close it, save it), and the form scope outranks
+    // the mode scope that holds them.
+    { scope: 'form', table: formFieldDigitBindings(ctx) },
+  ];
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildCatalog } from './catalog';
 import { makeCampaign, makeCollection, makeSource, makeVectorLayer, makeViz } from './testHelpers';
-import { cycleSource, cycleViz, toggleCycle } from './cycling';
+import { cycleSource, cycleViz, rememberAddress, toggleCycle } from './cycling';
 
 // ---------------------------------------------------------------------------
 // toggleCycle - merges utils/customMapNav.test.ts + utils/vectorLayerNav.test.ts
@@ -245,6 +245,36 @@ describe('cycleSource', () => {
       {}
     );
     expect(result).toEqual({ kind: 'source', address: addr(2, 200, '20') });
+  });
+});
+
+describe('rememberAddress', () => {
+  it('records the address under its source id', () => {
+    expect(rememberAddress({}, addr(1, 100, '11'))).toEqual({ 1: addr(1, 100, '11') });
+  });
+
+  it('overwrites the previous entry for the same source', () => {
+    const lastBySource = { 1: addr(1, 100, '10') };
+    expect(rememberAddress(lastBySource, addr(1, 101, '11'))).toEqual({ 1: addr(1, 101, '11') });
+  });
+
+  it('leaves other sources untouched', () => {
+    const lastBySource = { 2: addr(2, 200, '20') };
+    expect(rememberAddress(lastBySource, addr(1, 100, '11'))).toEqual({
+      1: addr(1, 100, '11'),
+      2: addr(2, 200, '20'),
+    });
+  });
+
+  it('is a no-op when there is no address (basemap active)', () => {
+    const lastBySource = { 1: addr(1, 100, '10') };
+    expect(rememberAddress(lastBySource, null)).toBe(lastBySource);
+  });
+
+  it('does not mutate the input record', () => {
+    const lastBySource = { 1: addr(1, 100, '10') };
+    rememberAddress(lastBySource, addr(1, 101, '11'));
+    expect(lastBySource).toEqual({ 1: addr(1, 100, '10') });
   });
 });
 

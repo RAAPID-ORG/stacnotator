@@ -139,6 +139,41 @@ export const applyTaskFilter = (
   return { visibleTasks, suggestedIndex };
 };
 
+/**
+ * Widens `filter` as little as it takes for `taskId` to be visible, for a deep
+ * link into a task the seeded filter hides (the annotations page's "View" on a
+ * done task, while the session seeds "my pending work"). Returned unchanged
+ * when the task is already visible, or when no widening reaches it - a link to
+ * a task of another campaign must not blank out the filter.
+ */
+export function widenFilterForTask(
+  allTasks: AnnotationTaskOut[],
+  filter: TaskFilter,
+  currentUserId: string | null | undefined,
+  now: number,
+  taskId: number
+): TaskFilter {
+  const shows = (candidate: TaskFilter): boolean =>
+    applyTaskFilter(allTasks, candidate, currentUserId, now).visibleTasks.some(
+      (task) => task.id === taskId
+    );
+  if (shows(filter)) return filter;
+
+  const allStatuses = [...ALL_TASK_STATUSES];
+  const candidates: TaskFilter[] = [
+    { ...filter, statuses: allStatuses },
+    { ...filter, statuses: allStatuses, assignedTo: [], taskSetId: null },
+    {
+      assignedTo: [],
+      statuses: allStatuses,
+      selectedConfidences: [],
+      flaggedOnly: false,
+      taskSetId: null,
+    },
+  ];
+  return candidates.find(shows) ?? filter;
+}
+
 /** Deep-link inputs for seedFilter: a task set id to try to land on first,
  *  and whether the campaign is public (public campaigns start on the shared
  *  unassigned pool rather than "mine", since there is no meaningful "mine"

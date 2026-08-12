@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { extendedLabels } from '~/features/annotation/core/annotation';
 import { collectionsInView } from '~/features/annotation/core/catalog';
+import { computeTaskProgress } from '~/features/annotation/core/tasks';
+import { useTaskListState } from '~/features/annotation/panels/task-work';
 import {
   useImageryStore,
   usePrefsStore,
@@ -74,6 +76,23 @@ function ProbeToggle({ ctx, title }: { ctx: ComposeCtx; title: string }) {
   );
 }
 
+/** Assignment-scoped "N of M done" - the current filter's assignedTo, which
+ *  defaults to the viewer, so completion follows their own share of the work
+ *  rather than the whole campaign's. */
+function TaskProgressCounter() {
+  const { allTasks, filter } = useTaskListState();
+  const { total, completed } = computeTaskProgress(allTasks, filter.assignedTo);
+
+  return (
+    <div className="flex items-center gap-2 shrink-0">
+      <span className="text-[11px] text-neutral-500">
+        <span className="font-semibold text-neutral-900 tabular-nums">{completed}</span> of{' '}
+        <span className="tabular-nums">{total}</span> done
+      </span>
+    </div>
+  );
+}
+
 export function MainMapHeader({ ctx }: { ctx: ComposeCtx }) {
   const { catalog, mode } = ctx;
   const isTaskMode = mode === 'tasks';
@@ -87,7 +106,7 @@ export function MainMapHeader({ ctx }: { ctx: ComposeCtx }) {
   ).length;
 
   return (
-    <div className="flex min-w-0 items-center gap-1" data-tour="map-controls">
+    <div className="flex min-w-0 flex-1 items-center gap-1" data-tour="map-controls">
       <LayerSelector
         catalog={catalog}
         sourceIds={sourceIds}
@@ -122,6 +141,11 @@ export function MainMapHeader({ ctx }: { ctx: ComposeCtx }) {
         <ProbeToggle ctx={ctx} title={hotkeyTip(bindings, 't')} />
       )}
       {isTaskMode && <PreloadMenu />}
+      {isTaskMode && (
+        <div className="ml-auto">
+          <TaskProgressCounter />
+        </div>
+      )}
     </div>
   );
 }
@@ -235,6 +259,8 @@ export function MainMapBody({ ctx }: MainMapProps) {
         ref={containerRef}
         data-crosshair-lon={focus?.center?.[0]}
         data-crosshair-lat={focus?.center?.[1]}
+        data-probe-lon={probePoint?.[0]}
+        data-probe-lat={probePoint?.[1]}
         className="relative h-full min-w-0 flex-1"
       >
         <MapView

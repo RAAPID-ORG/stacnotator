@@ -6,6 +6,7 @@ import {
   applyTaskFilter,
   nextIndex,
   prevIndex,
+  widenFilterForTask,
   type TaskFilter,
 } from '~/features/annotation/core/tasks';
 import { useImageryStore } from '~/features/annotation/stores';
@@ -109,7 +110,9 @@ export function syncMapFocus(catalog: Catalog): void {
 
 /** Seeds the bus from loadCampaign's result (or a later reload). Applies the
  *  filter to derive visibleTasks/currentIndex - loadCampaign only seeds the
- *  filter itself, matching this module's responsibility for what it selects. */
+ *  filter itself, matching this module's responsibility for what it selects.
+ *  A deep-linked `preferTaskId` the seeded filter hides widens that filter
+ *  rather than landing on someone else's task. */
 export function initTaskList(
   allTasks: AnnotationTaskOut[],
   taskSets: TaskSetOut[],
@@ -118,9 +121,13 @@ export function initTaskList(
   now: number,
   preferTaskId?: number
 ): void {
+  const effectiveFilter =
+    preferTaskId != null
+      ? widenFilterForTask(allTasks, filter, currentUserId, now, preferTaskId)
+      : filter;
   const { visibleTasks, suggestedIndex } = applyTaskFilter(
     allTasks,
-    filter,
+    effectiveFilter,
     currentUserId,
     now,
     preferTaskId
@@ -130,7 +137,7 @@ export function initTaskList(
     taskSets,
     visibleTasks,
     currentIndex: suggestedIndex,
-    filter,
+    filter: effectiveFilter,
     currentUserId,
     loaded: true,
   });

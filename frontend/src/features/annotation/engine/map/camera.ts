@@ -5,10 +5,18 @@ import type { Bbox, CameraSnapshot, CameraState, LonLat } from './types';
 const WGS84 = 'EPSG:4326';
 const MERCATOR = 'EPSG:3857';
 
+interface FitRequest {
+  bbox: Bbox;
+  paddingPx?: number;
+  maxZoom?: number;
+}
+
 export class CameraController {
   private readonly view: View;
   private readonly listeners = new Set<(s: CameraSnapshot) => void>();
   private frame: number | null = null;
+  private attached = false;
+  private pendingFit: FitRequest | null = null;
 
   constructor(initial: CameraState) {
     this.view = new View({
@@ -24,6 +32,23 @@ export class CameraController {
   /** The OL view to mount a map on. MapView is the only intended caller. */
   getView(): View {
     return this.view;
+  }
+
+  /**
+   * Announce that a map with a real viewport now renders this camera. Until
+   * that happens the view still carries OpenLayers' placeholder size, and a
+   * fit computed against it lands nowhere - so `fitBounds` holds its request
+   * and this replays it. Replayed without animation: there was nothing on
+   * screen to animate from. Idempotent; MapView is the only intended caller.
+   */
+  attach(): void {
+    if (this.attached) return;
+    this.attached = true;
+    const pending = this.pendingFit;
+    this.pendingFit = null;
+    if (pending) {
+      this.fitBounds(pending.bbox, { paddingPx: pending.paddingPx, maxZoom: pending.maxZoom });
+    }
   }
 
   getState(): CameraState {
@@ -81,6 +106,10 @@ export class CameraController {
   }
 
   fitBounds(bbox: Bbox, opts?: { paddingPx?: number; maxZoom?: number; animateMs?: number }): void {
+    if (!this.attached) {
+      this.pendingFit = { bbox, paddingPx: opts?.paddingPx, maxZoom: opts?.maxZoom };
+      return;
+    }
     const pad = opts?.paddingPx ?? 0;
     this.view.fit(transformExtent(bbox, WGS84, MERCATOR), {
       padding: [pad, pad, pad, pad],
@@ -112,9 +141,13 @@ export class CameraController {
   }
 
   private scheduleEmit(): void {
-    if (this.frame !== null || this.listeners.size === 0) return;
+    if (this.frame !== null) return;
+    // Scheduled even with nobody listening yet: a move made while a panel is
+    // still mounting (its subscription runs an effect later) must still reach
+    // it, or the panel keeps rendering the position the camera left behind.
     this.frame = requestAnimationFrame(() => {
       this.frame = null;
+      if (this.listeners.size === 0) return;
       const snapshot = this.snapshot();
       for (const listener of this.listeners) listener(snapshot);
     });

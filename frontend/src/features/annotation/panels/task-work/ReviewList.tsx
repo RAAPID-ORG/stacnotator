@@ -106,7 +106,7 @@ function AnnotationCard({
           {resolveDisplayName(row, currentUserId)}
           {isAuthoritative && (
             <span className="ml-1 text-amber-600" title="Authoritative">
-              &#9975;
+              🗲
             </span>
           )}
           {annotation.flagged_for_review && (

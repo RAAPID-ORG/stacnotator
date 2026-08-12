@@ -1,6 +1,8 @@
 import { create } from 'zustand';
+import type { ImageryViewOut } from '~/api/client';
 import type { Catalog } from '~/features/annotation/core/catalog';
 import { useImageryStore } from './imagery';
+import { useWorkspaceStore } from './workspace';
 
 export type WorkMode = 'tasks' | 'explore';
 
@@ -11,7 +13,9 @@ export interface SessionState {
 
   setWorkMode: (mode: WorkMode) => void;
   setReviewMode: (reviewMode: boolean) => void;
-  selectView: (id: number, cat: Catalog, fallbackCollectionId: number | null) => void;
+  /** Make `view` the selected one: its imagery nav state and its canvas
+   *  windows both come with it, so the whole page belongs to one view. */
+  selectView: (view: ImageryViewOut, cat: Catalog, fallbackCollectionId: number | null) => void;
   activateCollection: (collectionId: number, cat: Catalog) => void;
 }
 
@@ -32,10 +36,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   setReviewMode: (reviewMode) => set({ isReviewMode: reviewMode }),
 
-  selectView: (id, cat, fallbackCollectionId) => {
+  selectView: (view, cat, fallbackCollectionId) => {
     const { selectedViewId } = get();
-    useImageryStore.getState().switchView(cat, selectedViewId, id, fallbackCollectionId);
-    set({ selectedViewId: id });
+    useImageryStore.getState().switchView(cat, selectedViewId, view.id, fallbackCollectionId);
+    useWorkspaceStore.getState().loadViewLayout(view);
+    set({ selectedViewId: view.id });
   },
 
   activateCollection: (collectionId, cat) => {

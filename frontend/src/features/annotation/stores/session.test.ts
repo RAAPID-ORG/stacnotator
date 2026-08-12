@@ -5,10 +5,24 @@ import {
   makeCollection,
   makeSlice,
   makeSource,
+  makeView,
   makeViz,
 } from '~/features/annotation/core/catalog/testHelpers';
 import { useImageryStore } from './imagery';
 import { useSessionStore } from './session';
+import { EMPTY_WORKSPACE_LAYOUT, useWorkspaceStore } from './workspace';
+
+const layoutOut = (id: number, collectionIds: number[]) => ({
+  id,
+  user_id: null,
+  layout_data: collectionIds.map((cid, index) => ({
+    i: String(cid),
+    x: index * 10,
+    y: 30,
+    w: 10,
+    h: 9,
+  })),
+});
 
 const source = makeSource({
   id: 1,
@@ -22,6 +36,11 @@ const cat = buildCatalog(makeCampaign({ imagery_sources: [source] }));
 
 beforeEach(() => {
   useSessionStore.setState({ workMode: 'explore', isReviewMode: false, selectedViewId: null });
+  useWorkspaceStore.setState({
+    currentLayout: EMPTY_WORKSPACE_LAYOUT,
+    savedLayout: EMPTY_WORKSPACE_LAYOUT,
+    editing: false,
+  });
   useImageryStore.setState({
     address: null,
     showBasemap: false,
@@ -65,7 +84,7 @@ describe('activateCollection', () => {
 
 describe('selectView', () => {
   it('updates selectedViewId and delegates the snapshot/restore to imagery.switchView', () => {
-    useSessionStore.getState().selectView(1, cat, 10);
+    useSessionStore.getState().selectView(makeView({ id: 1, source_ids: [1] }), cat, 10);
     expect(useSessionStore.getState().selectedViewId).toBe(1);
     expect(useImageryStore.getState().address).toEqual({
       sourceId: 1,
@@ -75,8 +94,29 @@ describe('selectView', () => {
     });
 
     useImageryStore.setState({ showBasemap: true });
-    useSessionStore.getState().selectView(2, cat, null);
+    useSessionStore.getState().selectView(makeView({ id: 2 }), cat, null);
     expect(useSessionStore.getState().selectedViewId).toBe(2);
     expect(useImageryStore.getState().viewSnapshots[1]?.showBasemap).toBe(true);
+  });
+
+  it('brings the selected view its own canvas windows', () => {
+    const first = makeView({
+      id: 1,
+      source_ids: [1],
+      default_canvas_layout: layoutOut(1, [10]),
+    });
+    const second = makeView({ id: 2, default_canvas_layout: layoutOut(2, [20, 30]) });
+
+    useSessionStore.getState().selectView(first, cat, 10);
+    expect(Object.keys(useWorkspaceStore.getState().currentLayout.view.windows)).toEqual(['10']);
+
+    useSessionStore.getState().selectView(second, cat, null);
+    expect(Object.keys(useWorkspaceStore.getState().currentLayout.view.windows)).toEqual([
+      '20',
+      '30',
+    ]);
+
+    useSessionStore.getState().selectView(first, cat, 10);
+    expect(Object.keys(useWorkspaceStore.getState().currentLayout.view.windows)).toEqual(['10']);
   });
 });

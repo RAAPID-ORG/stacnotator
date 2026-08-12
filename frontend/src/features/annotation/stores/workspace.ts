@@ -1,9 +1,13 @@
 import { create } from 'zustand';
+import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
 import {
   defaultWindowItem,
+  fromGridLayout,
   hideAll,
   hideWindow as hideWindowLayout,
   showWindow as showWindowLayout,
+  type LayoutItem,
+  type ViewLayout,
   type WorkspaceLayout,
 } from '~/features/annotation/core/workspace';
 
@@ -23,6 +27,40 @@ export const EMPTY_WORKSPACE_LAYOUT: WorkspaceLayout = {
   view: { windows: {} },
 };
 
+/** The windows a view carries: the personal layout the user saved for it if
+ *  there is one, else the campaign's default for that view. */
+export function viewWindows(view: ImageryViewOut | null): ViewLayout {
+  const items =
+    view?.personal_canvas_layout?.layout_data ?? view?.default_canvas_layout?.layout_data;
+  return fromGridLayout(items ?? [], EMPTY_WORKSPACE_LAYOUT).view;
+}
+
+/** The one 60-column grid the canvas renders: the campaign's page chrome plus
+ *  the selected view's windows. Chrome is campaign-wide, windows belong to the
+ *  view, so switching view swaps only the second half. */
+export function layoutForView(
+  campaign: CampaignOutFull,
+  view: ImageryViewOut | null
+): WorkspaceLayout {
+  const chrome =
+    campaign.personal_main_canvas_layout?.layout_data ??
+    campaign.default_main_canvas_layout?.layout_data ??
+    [];
+  return { main: fromGridLayout(chrome, EMPTY_WORKSPACE_LAYOUT).main, view: viewWindows(view) };
+}
+
+/**
+ * Whether a grid change accounts for every panel on the canvas. The grid
+ * reports the items it rendered, so a change that arrives while the canvas is
+ * between panel sets - the moment a view switch swaps every window - reports
+ * the gap as deletions. Writing that back would erase the layout of the view
+ * being left, so such a change is not the user's and must be dropped.
+ */
+export function coversPanels(change: LayoutItem[], panelIds: string[]): boolean {
+  const changed = new Set(change.map((item) => item.i));
+  return panelIds.every((id) => changed.has(id));
+}
+
 export interface WorkspaceState {
   currentLayout: WorkspaceLayout;
   savedLayout: WorkspaceLayout;
@@ -30,6 +68,10 @@ export interface WorkspaceState {
   newWindowSize: { perRow: number; rows: number };
 
   setLayout: (layout: WorkspaceLayout) => void;
+  /** Swap the canvas over to another view's windows, keeping the page chrome
+   *  where it currently sits. Both layouts move together: the incoming windows
+   *  are what "cancel" reverts to for the rest of this view's visit. */
+  loadViewLayout: (view: ImageryViewOut | null) => void;
   showWindow: (collectionId: number) => void;
   hideWindow: (collectionId: number) => void;
   hideAllWindows: () => void;
@@ -50,6 +92,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   newWindowSize: { perRow: 6, rows: 9 },
 
   setLayout: (layout) => set({ currentLayout: layout }),
+
+  loadViewLayout: (view) =>
+    set((s) => {
+      const windows = viewWindows(view);
+      return {
+        currentLayout: { main: s.currentLayout.main, view: windows },
+        savedLayout: { main: s.savedLayout.main, view: windows },
+      };
+    }),
 
   showWindow: (collectionId) =>
     set((s) => ({

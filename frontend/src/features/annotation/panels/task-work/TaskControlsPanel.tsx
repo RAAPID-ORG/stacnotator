@@ -3,7 +3,11 @@ import type { AnnotationTaskOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { isLabelGroupActive } from '~/features/annotation/core/annotation';
+import {
+  isLabelGroupActive,
+  isRemovingLabel,
+  maySubmitTask,
+} from '~/features/annotation/core/annotation';
 import { useSessionStore, useWorkStore } from '~/features/annotation/stores';
 import type { ComposeCtx } from '../../composition';
 import { activeGroupClass, FormFields } from '../../shared/FormFields';
@@ -117,7 +121,6 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
 
   const userAnnotation = task.annotations.find((a) => a.created_by_user_id === currentUserId);
   const hasExistingLabel = userAnnotation?.label_id != null;
-  const isRemovingLabel = hasExistingLabel && selectedLabelId === null;
   const { mayLabel, countsTowardCompletion, isAssignedToTask } = taskLabellingPolicy(
     ctx,
     task,
@@ -126,11 +129,13 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
   const taskHasAssignments = (task.assignments?.length ?? 0) > 0;
 
   const isBusy = isSubmitting;
-  const isSubmitDisabled = isBusy || !mayLabel || (selectedLabelId === null && !isRemovingLabel);
+  const readiness = { selectedLabelId, hasExistingLabel, mayLabel, isSubmitting: isBusy };
+  const removingLabel = isRemovingLabel(readiness);
+  const isSubmitDisabled = !maySubmitTask(readiness);
   const isSkipDisabled = isBusy || !isAssignedToTask;
   const submitLabel = isBusy
     ? 'Submitting…'
-    : isRemovingLabel
+    : removingLabel
       ? 'Remove Label'
       : hasExistingLabel
         ? 'Update'

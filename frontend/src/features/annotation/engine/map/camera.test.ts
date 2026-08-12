@@ -89,9 +89,16 @@ describe('lonLatFromContainerPixel', () => {
   });
 });
 
+/** A camera only fits once a map with a real viewport renders it. */
+const attachedCamera = (state: { center: [number, number]; zoom: number }) => {
+  const camera = createCamera(state);
+  camera.attach();
+  return camera;
+};
+
 describe('fitBounds', () => {
   it('centres on the bbox', () => {
-    const camera = createCamera({ center: [0, 0], zoom: 2 });
+    const camera = attachedCamera({ center: [0, 0], zoom: 2 });
     camera.fitBounds([10, 40, 20, 50]);
     const { center } = camera.getState();
     expect(center[0]).toBeCloseTo(15, 6);
@@ -100,17 +107,68 @@ describe('fitBounds', () => {
   });
 
   it('never zooms past maxZoom on a tiny bbox', () => {
-    const camera = createCamera({ center: [0, 0], zoom: 2 });
+    const camera = attachedCamera({ center: [0, 0], zoom: 2 });
     camera.fitBounds([9.999, 49.999, 10.001, 50.001], { maxZoom: 12 });
     expect(camera.getState().zoom).toBeCloseTo(12, 6);
   });
 
   it('zooms out further with padding', () => {
-    const tight = createCamera({ center: [0, 0], zoom: 2 });
+    const tight = attachedCamera({ center: [0, 0], zoom: 2 });
     tight.fitBounds([10, 40, 20, 50]);
-    const padded = createCamera({ center: [0, 0], zoom: 2 });
+    const padded = attachedCamera({ center: [0, 0], zoom: 2 });
     padded.fitBounds([10, 40, 20, 50], { paddingPx: 20 });
     expect(padded.getState().zoom).toBeLessThan(tight.getState().zoom);
+  });
+});
+
+describe('a fit requested before a map attaches', () => {
+  it('is held, then carried out on attach', () => {
+    const camera = createCamera({ center: [0, 0], zoom: 2 });
+    camera.fitBounds([10, 40, 20, 50]);
+    expect(camera.getState().center[0]).toBeCloseTo(0, 6);
+
+    camera.attach();
+    const { center } = camera.getState();
+    expect(center[0]).toBeCloseTo(15, 6);
+    expect(center[1]).toBeGreaterThan(44);
+    expect(center[1]).toBeLessThan(46);
+  });
+
+  it('keeps its padding and maxZoom', () => {
+    const camera = createCamera({ center: [0, 0], zoom: 2 });
+    camera.fitBounds([9.999, 49.999, 10.001, 50.001], { maxZoom: 12 });
+    camera.attach();
+    expect(camera.getState().zoom).toBeCloseTo(12, 6);
+  });
+
+  it('is replaced by a later request, and only the last one lands', () => {
+    const camera = createCamera({ center: [0, 0], zoom: 2 });
+    camera.fitBounds([10, 40, 20, 50]);
+    camera.fitBounds([-30, -10, -20, 0]);
+    camera.attach();
+    expect(camera.getState().center[0]).toBeCloseTo(-25, 6);
+  });
+
+  it('reaches a listener that only subscribes once the map is up', async () => {
+    const camera = createCamera({ center: [0, 0], zoom: 2 });
+    camera.fitBounds([10, 40, 20, 50]);
+    camera.attach();
+
+    const seen: CameraSnapshot[] = [];
+    camera.onChange((s) => seen.push(s));
+    await nextFrame();
+    await nextFrame();
+    expect(seen).toHaveLength(1);
+    expect(seen[0].center[0]).toBeCloseTo(15, 6);
+  });
+
+  it('does not re-run on a second attach', () => {
+    const camera = createCamera({ center: [0, 0], zoom: 2 });
+    camera.fitBounds([10, 40, 20, 50]);
+    camera.attach();
+    camera.moveTo({ center: [0, 0], zoom: 2 });
+    camera.attach();
+    expect(camera.getState().center[0]).toBeCloseTo(0, 6);
   });
 });
 

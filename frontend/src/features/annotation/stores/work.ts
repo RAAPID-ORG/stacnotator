@@ -10,6 +10,7 @@ import {
   edit as editDraftMachine,
   geometryToWkt,
   idleDraft,
+  validateForm,
   type DraftState,
 } from '~/features/annotation/core/annotation';
 
@@ -70,9 +71,11 @@ export interface WorkState {
   editDraftGeometry: (geometry: GeoJSON.Geometry) => void;
   /** Commit the open draft. No-op (returns false) outside the 'draft' phase -
    *  including a second call made while the first is still 'committing',
-   *  which is how concurrent commits are ignored. On failure, reverts to
-   *  'draft' with the same labelId/geometry so the caller can retry. */
-  commitDraft: (campaignId: number) => Promise<boolean>;
+   *  which is how concurrent commits are ignored - and equally when a required
+   *  field is unanswered, so saving cannot store less than closing does. On
+   *  failure, reverts to 'draft' with the same labelId/geometry so the caller
+   *  can retry. */
+  commitDraft: (campaignId: number, fields: FormField[]) => Promise<boolean>;
   /** Resolve an open draft the way leaving the tool / Escape does: save when
    *  every required field is answered, discard otherwise. 'nothing' when
    *  there is nothing open. A failed save reverts to 'draft' (same as
@@ -182,9 +185,10 @@ export const useWorkStore = create<WorkState>((set, get) => {
 
     editDraftGeometry: (geometry) => set((s) => ({ draft: editDraftMachine(s.draft, geometry) })),
 
-    commitDraft: async (campaignId) => {
-      const { draft } = get();
+    commitDraft: async (campaignId, fields) => {
+      const { draft, formValues } = get();
       if (draft.phase !== 'draft') return false; // not open, or already 'committing'
+      if (!validateForm(fields, formValues).ok) return false;
       return commitFrom(campaignId, draft);
     },
 

@@ -426,43 +426,6 @@ input[type='range'] {
   animation: scale-in 0.15s ease-out;
 }
 
-/* Timeseries probe marker - fixed crosshair (no animation) */
-.probe-marker {
-  width: 22px;
-  height: 22px;
-  position: relative;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.5));
-}
-
-/* Vertical line with a center gap */
-.probe-marker::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: rgb(163 136 58);
-  -webkit-mask: linear-gradient(to bottom, black 0 35%, transparent 35% 65%, black 65% 100%);
-  mask: linear-gradient(to bottom, black 0 35%, transparent 35% 65%, black 65% 100%);
-}
-
-/* Horizontal line with a center gap */
-.probe-marker::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 2px;
-  margin-top: -1px;
-  background: rgb(163 136 58);
-  -webkit-mask: linear-gradient(to right, black 0 35%, transparent 35% 65%, black 65% 100%);
-  mask: linear-gradient(to right, black 0 35%, transparent 35% 65%, black 65% 100%);
-}
-
 /* OpenLayers ScaleLine - custom styling */
 .ol-scale-line.ol-unselectable.ol-control {
   position: absolute !important;

@@ -4,7 +4,6 @@ import {
   listTaskSets,
   type AnnotationTaskOut,
   type CampaignOutFull,
-  type CanvasLayoutItem,
   type ImageryViewOut,
   type TaskSetOut,
 } from '~/api/client';
@@ -16,12 +15,12 @@ import {
   type Catalog,
 } from '~/features/annotation/core/catalog';
 import { seedFilter, type TaskFilter } from '~/features/annotation/core/tasks';
-import { fromGridLayout, type WorkspaceLayout } from '~/features/annotation/core/workspace';
+import type { WorkspaceLayout } from '~/features/annotation/core/workspace';
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';
 import { useSessionStore, type WorkMode } from './session';
 import { useWorkStore } from './work';
-import { EMPTY_WORKSPACE_LAYOUT, useWorkspaceStore } from './workspace';
+import { layoutForView, useWorkspaceStore } from './workspace';
 
 export interface LoadCampaignOptions {
   now: number;
@@ -69,21 +68,6 @@ function defaultActiveCollectionId(
   return pool[0]?.id ?? null;
 }
 
-/** The one 60-column grid the canvas renders: page chrome plus the selected
- *  view's windows, merging the personal layout over the default one. */
-function mergedLayoutItems(
-  campaign: CampaignOutFull,
-  view: ImageryViewOut | null
-): CanvasLayoutItem[] {
-  const main =
-    campaign.personal_main_canvas_layout?.layout_data ??
-    campaign.default_main_canvas_layout?.layout_data ??
-    [];
-  const viewItems =
-    view?.personal_canvas_layout?.layout_data ?? view?.default_canvas_layout?.layout_data ?? [];
-  return [...main, ...viewItems];
-}
-
 export async function loadCampaign(
   campaignId: number,
   options: LoadCampaignOptions
@@ -129,7 +113,7 @@ export async function loadCampaign(
     selectedViewId,
   });
 
-  const layout = fromGridLayout(mergedLayoutItems(campaign, view), EMPTY_WORKSPACE_LAYOUT);
+  const layout = layoutForView(campaign, view);
   useWorkspaceStore.setState({ currentLayout: layout, savedLayout: layout, editing: false });
 
   const pinned =

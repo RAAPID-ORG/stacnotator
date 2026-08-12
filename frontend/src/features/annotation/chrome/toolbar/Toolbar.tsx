@@ -75,11 +75,7 @@ function ViewPicker({ campaign, catalog }: { campaign: CampaignOutFull; catalog:
             type="button"
             onClick={() => {
               setOpen(false);
-              selectView(
-                view.id,
-                catalog,
-                fallbackCollectionFor(catalog, view.id, view.source_ids)
-              );
+              selectView(view, catalog, fallbackCollectionFor(catalog, view.id, view.source_ids));
             }}
             className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 transition-colors ${
               selectedViewId === view.id

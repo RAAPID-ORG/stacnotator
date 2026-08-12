@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { AnnotationTaskAssignmentOut, AnnotationTaskOut } from '~/api/client';
-import { applyTaskFilter, computeTaskProgress, seedFilter, type TaskFilter } from './filter';
+import {
+  applyTaskFilter,
+  computeTaskProgress,
+  seedFilter,
+  widenFilterForTask,
+  type TaskFilter,
+} from './filter';
 import { UNASSIGNED } from './claims';
 import { makeTask, makeTaskSet } from '../catalog/testHelpers';
 
@@ -327,5 +333,52 @@ describe('seedFilter - 5-level fallback chain', () => {
     const filter = seedFilter(tasks, taskSets, USER, NOW, { taskSetId: 999 });
     expect(filter.taskSetId).toBeNull();
     expect(filter.assignedTo).toEqual([USER]);
+  });
+});
+
+describe('widenFilterForTask', () => {
+  const visible = (tasks: AnnotationTaskOut[], filter: TaskFilter) =>
+    applyTaskFilter(tasks, filter, USER, NOW).visibleTasks.map((t) => t.id);
+
+  it('leaves a filter that already shows the task untouched', () => {
+    const tasks = [task(1, [{ user_id: USER, status: 'pending', claimed_at: null }])];
+    expect(widenFilterForTask(tasks, mineFilter, USER, NOW, 1)).toBe(mineFilter);
+  });
+
+  // The annotations page's "View" on a done task, opened in a session seeded
+  // on "my pending work": without widening the link lands on task 1 instead.
+  it('widens the statuses to reach a done task of the same user', () => {
+    const tasks = [
+      task(1, [{ user_id: USER, status: 'pending', claimed_at: null }]),
+      task(2, [{ user_id: USER, status: 'done', claimed_at: null }], 'done'),
+    ];
+    const widened = widenFilterForTask(tasks, mineFilter, USER, NOW, 2);
+    expect(widened.assignedTo).toEqual([USER]);
+    expect(widened.statuses).toEqual(expect.arrayContaining(['pending', 'done']));
+    expect(visible(tasks, widened)).toContain(2);
+  });
+
+  it('drops the user scoping for a task assigned to somebody else', () => {
+    const tasks = [
+      task(1, [{ user_id: USER, status: 'pending', claimed_at: null }]),
+      task(2, [{ user_id: OTHER, status: 'done', claimed_at: null }], 'done'),
+    ];
+    const widened = widenFilterForTask(tasks, mineFilter, USER, NOW, 2);
+    expect(widened.assignedTo).toEqual([]);
+    expect(visible(tasks, widened)).toContain(2);
+  });
+
+  it('drops a confidence/flag narrowing when nothing else reaches the task', () => {
+    const tasks = [task(1, [{ user_id: USER, status: 'done', claimed_at: null }], 'done')];
+    const narrow: TaskFilter = { ...mineFilter, flaggedOnly: true, selectedConfidences: [5] };
+    const widened = widenFilterForTask(tasks, narrow, USER, NOW, 1);
+    expect(widened.flaggedOnly).toBe(false);
+    expect(widened.selectedConfidences).toEqual([]);
+    expect(visible(tasks, widened)).toEqual([1]);
+  });
+
+  it('returns the filter unchanged for a task that is not in the list at all', () => {
+    const tasks = [task(1, [{ user_id: USER, status: 'pending', claimed_at: null }])];
+    expect(widenFilterForTask(tasks, mineFilter, USER, NOW, 404)).toBe(mineFilter);
   });
 });

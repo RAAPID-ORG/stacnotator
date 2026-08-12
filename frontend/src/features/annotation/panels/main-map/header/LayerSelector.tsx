@@ -5,6 +5,7 @@ import {
 } from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
 import { HeaderSelect, type HeaderSelectOption } from '../../../shared/HeaderSelect';
+import { rememberLastAddress } from '../hotkeys';
 
 const BASEMAP_PREFIX = 'basemap-';
 
@@ -63,6 +64,7 @@ export function LayerSelector({ catalog, sourceIds, title }: LayerSelectorProps)
 
   const handleChange = (next: string | number) => {
     const key = String(next);
+    rememberLastAddress(address);
     if (key.startsWith(BASEMAP_PREFIX)) {
       setSelectedBasemapId(key);
       setShowBasemap(true);

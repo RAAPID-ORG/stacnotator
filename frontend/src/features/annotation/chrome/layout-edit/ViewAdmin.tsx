@@ -95,7 +95,7 @@ export function ViewAdmin({ campaign, onCampaignChange }: ViewAdminProps) {
       if (!replacement) return;
       const catalog = buildCatalog(campaign);
       selectView(
-        replacement.id,
+        replacement,
         catalog,
         fallbackCollectionFor(catalog, replacement.id, replacement.source_ids)
       );

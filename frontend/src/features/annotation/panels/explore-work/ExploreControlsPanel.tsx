@@ -163,7 +163,7 @@ export function ExploreControlsPanel({ ctx }: ExploreControlsPanelProps) {
   }, [draft.phase]);
 
   const saveDraft = async () => {
-    const saved = await useWorkStore.getState().commitDraft(ctx.campaign.id);
+    const saved = await useWorkStore.getState().commitDraft(ctx.campaign.id, fields);
     setSaveError(saved ? null : 'Could not save. Check the required questions, then retry.');
     if (saved) bumpAnnotationVersion();
   };

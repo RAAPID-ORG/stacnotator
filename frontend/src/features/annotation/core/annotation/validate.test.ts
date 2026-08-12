@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TextFormField, NumberFormField } from '~/api/client';
-import { validateForm } from './validate';
+import { isRemovingLabel, maySubmitTask, validateForm, type SubmitReadiness } from './validate';
 
 const REQUIRED_TEXT: TextFormField = {
   id: 1,
@@ -53,5 +53,48 @@ describe('validateForm', () => {
       ok: false,
       missing: ['Notes', 'Description'],
     });
+  });
+});
+
+describe('maySubmitTask', () => {
+  const readiness = (overrides: Partial<SubmitReadiness> = {}): SubmitReadiness => ({
+    selectedLabelId: 1,
+    hasExistingLabel: false,
+    mayLabel: true,
+    isSubmitting: false,
+    ...overrides,
+  });
+
+  it('allows a submission once a label is selected', () => {
+    expect(maySubmitTask(readiness())).toBe(true);
+  });
+
+  // The empty payload is what Skip sends, and Skip has its own assignee check
+  // and confirmation - Enter must not be a back door to it.
+  it('refuses a submission with no label and none to remove', () => {
+    expect(maySubmitTask(readiness({ selectedLabelId: null }))).toBe(false);
+  });
+
+  it('allows the label removal: nothing selected, but one of ours exists', () => {
+    expect(maySubmitTask(readiness({ selectedLabelId: null, hasExistingLabel: true }))).toBe(true);
+  });
+
+  it('refuses while a submission is already in flight', () => {
+    expect(maySubmitTask(readiness({ isSubmitting: true }))).toBe(false);
+  });
+
+  it('refuses when the labelling policy excludes the viewer', () => {
+    expect(maySubmitTask(readiness({ mayLabel: false }))).toBe(false);
+    expect(
+      maySubmitTask(readiness({ mayLabel: false, selectedLabelId: null, hasExistingLabel: true }))
+    ).toBe(false);
+  });
+});
+
+describe('isRemovingLabel', () => {
+  it('is a removal only with nothing selected and a label of ours on the task', () => {
+    expect(isRemovingLabel({ selectedLabelId: null, hasExistingLabel: true })).toBe(true);
+    expect(isRemovingLabel({ selectedLabelId: null, hasExistingLabel: false })).toBe(false);
+    expect(isRemovingLabel({ selectedLabelId: 2, hasExistingLabel: true })).toBe(false);
   });
 });

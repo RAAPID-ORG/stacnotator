@@ -73,6 +73,18 @@ export function cycleSource(
   };
 }
 
+/** Records where a source was last looked at, so cycling (or picking it again
+ *  from a selector) can return to its own collection/visualization instead of
+ *  resetting to the first. The one place both the hotkey path and the layer
+ *  dropdown path write this memory, so they read back the same history. */
+export function rememberAddress(
+  lastBySource: Record<number, SliceAddress>,
+  addr: SliceAddress | null
+): Record<number, SliceAddress> {
+  if (!addr) return lastBySource;
+  return { ...lastBySource, [addr.sourceId]: addr };
+}
+
 /** Advances the visualization within the current source, wrapping around.
  *  Null when there's no current address (basemap active) or the source has
  *  at most one visualization to cycle through. */

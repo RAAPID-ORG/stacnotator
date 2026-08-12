@@ -1,5 +1,6 @@
 import { readyCustomMaps, type Catalog } from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
+import { IconExternalLink } from '~/shared/ui/Icons';
 import { HeaderSelect } from '../../../shared/HeaderSelect';
 
 const OverlayIcon = ({ className }: { className?: string }) => (
@@ -56,6 +57,18 @@ export function CustomMapControls({
         }}
         title="Select overlay map"
       />
+      {active?.mlops_url && (
+        <a
+          href={active.mlops_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="custom-map-mlops-link"
+          title="Open linked experiment"
+          className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+        >
+          <IconExternalLink className="h-3 w-3" />
+        </a>
+      )}
       {active && (
         <button
           type="button"

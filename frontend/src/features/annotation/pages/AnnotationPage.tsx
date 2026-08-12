@@ -18,6 +18,7 @@ import {
   isProxiedTileUrl,
 } from '~/features/annotation/core/catalog';
 import {
+  coversPanels,
   loadCampaign,
   useImageryStore,
   useSessionStore,
@@ -435,8 +436,10 @@ export function AnnotationPage() {
   // Sent-away panels keep their slot in the stored layout (that is where they
   // return to) but are withheld from the grid so it can use the space.
   const canvasLayout = layoutWithoutPopped(gridItems, screens.popped);
+  const canvasPanelIds = panelIds.filter((id) => !screens.popped.has(id));
 
   const handleLayoutChange = (next: LayoutItem[]) => {
+    if (!coversPanels(next, canvasPanelIds)) return;
     const previous = toGridLayout(useWorkspaceStore.getState().currentLayout);
     setLayout(fromGridLayout(mergeLayoutChange(next, previous, screens.popped), currentLayout));
   };
@@ -514,7 +517,7 @@ export function AnnotationPage() {
             .then((res) => {
               if (!res.data) return;
               setCampaign({ ...campaign, imagery_views: [res.data] });
-              useSessionStore.getState().selectView(res.data.id, catalog, null);
+              useSessionStore.getState().selectView(res.data, catalog, null);
               useWorkspaceStore.getState().startEditing();
             })
             .catch((error) => handleError(error, 'Could not create the view'));

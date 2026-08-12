@@ -1,5 +1,6 @@
 import {
   readyCustomMaps,
+  rememberAddress,
   type Catalog,
   type SliceAddress,
 } from '~/features/annotation/core/catalog';
@@ -17,10 +18,17 @@ const AUTONAV_INTERVAL_MS = 500;
 /**
  * Where each source was last looked at, so cycling back to a source returns to
  * its own collection/slice instead of resetting to its first. Domain's
- * cycleSource takes this as a parameter precisely so the caller owns it; the
- * map is that caller.
+ * cycleSource takes this as a parameter precisely so the caller owns it; this
+ * module is that caller. `rememberLastAddress` is the single write path -
+ * the layer dropdown (LayerSelector) calls it too, so both routes into a
+ * source share one memory of where it was left.
  */
-const lastBySource: Record<number, SliceAddress> = {};
+let lastBySource: Record<number, SliceAddress> = {};
+
+/** Shared write path for the per-source visualization memory - see above. */
+export function rememberLastAddress(addr: SliceAddress | null): void {
+  lastBySource = rememberAddress(lastBySource, addr);
+}
 
 let autoNavTimer: ReturnType<typeof setInterval> | null = null;
 let autoNavStop: (() => void) | null = null;
@@ -63,7 +71,7 @@ export function mainMapBindings(ctx: ComposeCtx): Binding[] {
   const cycleSource = (dir: 1 | -1) => {
     if (!view) return;
     const imagery = useImageryStore.getState();
-    if (imagery.address) lastBySource[imagery.address.sourceId] = imagery.address;
+    rememberLastAddress(imagery.address);
     imagery.cycleSourceAction(catalog, view, dir, lastBySource);
   };
 
@@ -72,7 +80,7 @@ export function mainMapBindings(ctx: ComposeCtx): Binding[] {
     const { selectedViewId, selectView } = useSessionStore.getState();
     const index = views.findIndex((v) => v.id === selectedViewId);
     const next = views[(index + 1) % views.length];
-    selectView(next.id, catalog, fallbackCollectionFor(catalog, next.id, next.source_ids));
+    selectView(next, catalog, fallbackCollectionFor(catalog, next.id, next.source_ids));
   };
 
   const overlays = () => readyCustomMaps([...catalog.customMaps.values()]);
@@ -189,7 +197,7 @@ export function stopSliceAutoNav(): void {
  *  address from the last one. */
 export function resetMainMapNav(): void {
   stopAutoNav();
-  for (const key of Object.keys(lastBySource)) delete lastBySource[Number(key)];
+  lastBySource = {};
 }
 
 /** Button tooltip taken from the binding itself, so a control can never

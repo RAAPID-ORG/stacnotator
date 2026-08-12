@@ -18,9 +18,6 @@ export const taskWorkFeature: Feature = {
           },
         ]
       : [],
-  // taskWorkHotkeys decides per scope which tables a mode gets: the 'mode'
-  // table is tasks-only (Explore claims the same keys), the 'form' table
-  // serves both modes' custom fields.
   hotkeys: (ctx) => taskWorkHotkeys(ctx),
 };
 
@@ -39,8 +36,10 @@ export { submitCurrent, type SubmitParams, type SubmitOutcome } from './submit';
 export {
   taskWorkBindings,
   taskFormBindings,
+  formFieldDigitBindings,
   taskWorkHotkeys,
   taskLabellingPolicy,
+  currentSubmitReadiness,
   submitAnnotation,
   skipCurrent,
   submitAuthoritative,

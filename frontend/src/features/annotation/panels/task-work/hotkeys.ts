@@ -1,10 +1,14 @@
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
+import type { FormField } from '~/features/annotation/core/apiTypes';
 import {
   handleFormFieldKey,
   isAudienceMember,
+  maySubmitTask,
+  type FormFieldKeyContext,
   type PolicyContext,
+  type SubmitReadiness,
 } from '~/features/annotation/core/annotation';
 import { useWorkStore } from '~/features/annotation/stores';
 import type { Binding } from '~/features/annotation/engine/hotkeys';
@@ -109,6 +113,21 @@ export function taskLabellingPolicy(
 
 // --- Submit / skip / authoritative --------------------------------------
 
+/** The Submit button's own enabled state, read off the live stores so the
+ *  keyboard path can never diverge from it. */
+export function currentSubmitReadiness(ctx: ComposeCtx): SubmitReadiness {
+  const task = getCurrentTask();
+  const { currentUserId, isSubmitting } = getTaskListState();
+  const { mayLabel } = taskLabellingPolicy(ctx, task, currentUserId);
+  const userAnnotation = task?.annotations.find((a) => a.created_by_user_id === currentUserId);
+  return {
+    selectedLabelId: useWorkStore.getState().selectedLabelId,
+    hasExistingLabel: userAnnotation?.label_id != null,
+    mayLabel,
+    isSubmitting,
+  };
+}
+
 interface RunSubmitOptions {
   labelId: number | null;
   isAuthoritative?: boolean;
@@ -179,16 +198,16 @@ async function guardedSubmit(body: () => Promise<void>): Promise<void> {
 
 /** Submit (or update) the current task's label, with the KNN mismatch
  *  confirm loop folded in - a 'needsConfirm' result re-asks and, on
- *  confirmation, resubmits with the check skipped. Blocked by the
- *  labelling policy (mayLabel) the same way the button's disabled state is. */
+ *  confirmation, resubmits with the check skipped. Gated by exactly the
+ *  predicate behind the button's disabled state. */
 export async function submitAnnotation(ctx: ComposeCtx): Promise<void> {
-  const { currentUserId } = getTaskListState();
-  const { mayLabel } = taskLabellingPolicy(ctx, getCurrentTask(), currentUserId);
-  if (!mayLabel) {
+  const readiness = currentSubmitReadiness(ctx);
+  if (!readiness.mayLabel) {
     const { showAlert } = useLayoutStore.getState();
     showAlert('You are not allowed to label this task in this campaign.', 'error');
     return;
   }
+  if (!maySubmitTask(readiness)) return;
   await guardedSubmit(async () => {
     const work = useWorkStore.getState();
     const first = await runSubmit(ctx, { labelId: work.selectedLabelId });
@@ -227,13 +246,13 @@ export async function skipCurrent(ctx: ComposeCtx): Promise<void> {
 /** Submits as the canonical, authoritative answer - overrides other
  *  annotators and marks the task done regardless of consensus. */
 export async function submitAuthoritative(ctx: ComposeCtx): Promise<void> {
-  const { currentUserId } = getTaskListState();
-  const { mayLabel } = taskLabellingPolicy(ctx, getCurrentTask(), currentUserId);
-  if (!mayLabel) {
+  const readiness = currentSubmitReadiness(ctx);
+  if (!readiness.mayLabel) {
     const { showAlert } = useLayoutStore.getState();
     showAlert('You are not allowed to label this task in this campaign.', 'error');
     return;
   }
+  if (!maySubmitTask(readiness)) return;
   const confirmed = await requestConfirm({
     title: 'Submit as authoritative?',
     description:
@@ -354,7 +373,13 @@ export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
   ];
 }
 
-export function taskFormBindings(ctx: ComposeCtx): Binding[] {
+interface FormKeyHandling {
+  formCtx: () => FormFieldKeyContext;
+  activeField: () => FormField | undefined;
+  runFormKey: (e: KeyboardEvent) => void;
+}
+
+function formKeyHandling(ctx: ComposeCtx): FormKeyHandling {
   const formCtx = () => {
     const work = useWorkStore.getState();
     return {
@@ -392,15 +417,27 @@ export function taskFormBindings(ctx: ComposeCtx): Binding[] {
     }
   };
 
-  const digitBinding = (digit: string): Binding => ({
+  return { formCtx, activeField, runFormKey };
+}
+
+/** Digits answer whichever custom field is active. Both modes register these:
+ *  Explore's questions catalog highlights a field and renders the same digit
+ *  hints, so the keys have to land there too. */
+export function formFieldDigitBindings(ctx: ComposeCtx): Binding[] {
+  const { activeField, runFormKey } = formKeyHandling(ctx);
+  return ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => ({
     key: digit,
     help: 'Answer the focused field',
     when: () => activeField() !== undefined,
     run: runFormKey,
-  });
+  }));
+}
+
+export function taskFormBindings(ctx: ComposeCtx): Binding[] {
+  const { formCtx, activeField, runFormKey } = formKeyHandling(ctx);
 
   return [
-    ...['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digitBinding),
+    ...formFieldDigitBindings(ctx),
     // Tab and Escape are the way back out of a field the previous Enter (or a
     // click) focused, so they have to survive the registry's typing guard -
     // without allowInInput the form scope goes dead the moment it is used.
@@ -445,14 +482,7 @@ export function taskFormBindings(ctx: ComposeCtx): Binding[] {
 
 export function taskWorkHotkeys(ctx: ComposeCtx): HotkeyTable[] {
   return [
-    // The 'mode' table is tasks-only: Explore's own 'mode' table needs the
-    // digits, Enter and E for its tools, and registerBindings rejects a key
-    // already live in a scope whatever the bindings' `when` guards say.
-    // The 'form' table stays registered in both modes - it navigates the very
-    // same work-store formValues/activeFieldIndex, which Explore's questions
-    // catalog and its label-vector form use too, and its keys collide with
-    // nothing in Explore.
-    ...(ctx.mode === 'tasks' ? [{ scope: 'mode' as const, table: taskWorkBindings(ctx) }] : []),
+    { scope: 'mode', table: taskWorkBindings(ctx) },
     { scope: 'form', table: taskFormBindings(ctx) },
   ];
 }

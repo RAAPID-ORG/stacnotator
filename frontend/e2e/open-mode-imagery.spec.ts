@@ -218,7 +218,10 @@ test.describe('Timeseries probe in open mode', () => {
         timeout: 5000,
       })
       .toBe(true);
-    await expect(annotationPage.locator('.probe-marker')).toBeAttached();
+    await expect(annotationPage.locator('[data-probe-lon]')).toHaveAttribute(
+      'data-probe-lon',
+      /-?\d/
+    );
   });
 
   test('an off-centre click probes a different longitude', async ({ annotationPage }) => {

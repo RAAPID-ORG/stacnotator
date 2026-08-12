@@ -57,6 +57,13 @@ interface FeatureHit {
 
 const HIT_TOLERANCE_PX = 4;
 
+/** A camera may only carry out a fit once its map has a real viewport, so the
+ *  attach is tied to the first size the container reports rather than to mount. */
+function attachIfSized(map: OLMap, camera: CameraController): void {
+  const size = map.getSize();
+  if (size && size[0] > 0 && size[1] > 0) camera.attach();
+}
+
 function hitAt(
   map: OLMap,
   pixel: number[]
@@ -103,9 +110,9 @@ export function MapView({
 
   // Handlers change on most renders; the map is built once, so it reads them
   // through a ref instead of being rebuilt.
-  const handlers = useRef({ onClick, onHoverFeature, onTileStats, wheelZoom });
+  const handlers = useRef({ onClick, onHoverFeature, onTileStats, wheelZoom, camera });
   useEffect(() => {
-    handlers.current = { onClick, onHoverFeature, onTileStats, wheelZoom };
+    handlers.current = { onClick, onHoverFeature, onTileStats, wheelZoom, camera };
   });
 
   useEffect(() => {
@@ -170,8 +177,12 @@ export function MapView({
     });
 
     // OL does not re-evaluate tile coverage on a container resize by itself.
-    const observer = new ResizeObserver(() => map.updateSize());
+    const observer = new ResizeObserver(() => {
+      map.updateSize();
+      attachIfSized(map, handlers.current.camera);
+    });
     observer.observe(container);
+    attachIfSized(map, camera);
 
     return () => {
       observer.disconnect();
@@ -215,7 +226,10 @@ export function MapView({
   useEffect(() => {
     const view = camera.getView();
     const map = mapRef.current;
-    if (map && map.getView() !== view) map.setView(view);
+    if (map && map.getView() !== view) {
+      map.setView(view);
+      attachIfSized(map, camera);
+    }
     view.setMinZoom(minZoom ?? 0);
     // Past the basemap's tile limit the tiles just stretch, which beats a hard stop.
     view.setMaxZoom(maxZoom ?? 24);
