@@ -138,15 +138,14 @@ ci_mask "$VITE_FIREBASE_API_KEY" "$VITE_FIREBASE_AUTH_DOMAIN" "$VITE_FIREBASE_PR
 # Stage runner. The builds are independent, so they run concurrently; each stage's
 # output is buffered and printed when it is joined, so parallel logs stay readable.
 STAGE_DIR="$(mktemp -d)"
-
-STAGE_PIDS=()
+declare -A STAGE_PID
 
 # Bailing out on one stage leaves the others running, so stop them before exiting.
 # On the success path every pid is already reaped and kill fails; that must not be
 # allowed to propagate, or set -e aborts the trap and the script exits non-zero.
 cleanup_stages() {
-    if [ ${#STAGE_PIDS[@]} -gt 0 ]; then
-        kill "${STAGE_PIDS[@]}" 2>/dev/null || true
+    if [ ${#STAGE_PID[@]} -gt 0 ]; then
+        kill "${STAGE_PID[@]}" 2>/dev/null || true
     fi
     rm -rf "$STAGE_DIR"
     return 0
@@ -158,14 +157,12 @@ start_stage() {
     shift
     echo -e "${YELLOW}Started: $name${NC}"
     ("$@") >"$STAGE_DIR/$name.log" 2>&1 &
-    echo $! >"$STAGE_DIR/$name.pid"
-    STAGE_PIDS+=("$!")
+    STAGE_PID["$name"]=$!
 }
 
 join_stage() {
-    local name="$1" pid rc=0
-    pid="$(cat "$STAGE_DIR/$name.pid")"
-    wait "$pid" || rc=$?
+    local name="$1" rc=0
+    wait "${STAGE_PID[$name]}" || rc=$?
     echo ""
     echo -e "${BLUE}----- $name -----${NC}"
     cat "$STAGE_DIR/$name.log"
