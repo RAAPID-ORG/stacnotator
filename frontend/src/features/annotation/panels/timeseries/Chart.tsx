@@ -19,6 +19,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
 import { nearestSlice } from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
+import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { IconInfo, IconSliders } from '~/shared/ui/Icons';
 import type { ComposeCtx } from '../../composition';
 import { setProbeMarkerHidden } from '../../shared/interactionSpec';
@@ -83,25 +84,7 @@ export function Chart({ ctx, series, data, probeData, isOpenMode }: ChartProps) 
   const optionsBtnRef = useRef<HTMLButtonElement>(null);
   const optionsPanelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!optionsOpen) return;
-    const doc = optionsBtnRef.current?.ownerDocument ?? document;
-    const onPointerDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (optionsPanelRef.current?.contains(target) || optionsBtnRef.current?.contains(target))
-        return;
-      setOptionsOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOptionsOpen(false);
-    };
-    doc.addEventListener('mousedown', onPointerDown);
-    doc.addEventListener('keydown', onKeyDown);
-    return () => {
-      doc.removeEventListener('mousedown', onPointerDown);
-      doc.removeEventListener('keydown', onKeyDown);
-    };
-  }, [optionsOpen]);
+  useDismissOnOutside([optionsBtnRef, optionsPanelRef], () => setOptionsOpen(false), optionsOpen);
 
   const toggleDataset = useCallback((index: number) => {
     setHiddenDatasets((prev) => {

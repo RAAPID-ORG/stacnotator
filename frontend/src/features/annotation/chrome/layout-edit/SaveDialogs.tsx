@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
+import { IconChevronDown } from '~/shared/ui/Icons';
 import { mainLayoutChanged, type WorkspaceLayout } from '~/features/annotation/core/workspace';
 
 export interface SaveDialogsProps {
@@ -24,6 +26,9 @@ export function SaveDialogs({
 }: SaveDialogsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [pending, setPending] = useState<PendingSave | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useDismissOnOutside(containerRef, () => setMenuOpen(false), menuOpen);
 
   const proceedPastDefaultConfirm = (shouldBeDefault: boolean) => {
     if (mainLayoutChanged(currentLayout, savedLayout) && viewsCount > 1) {
@@ -43,14 +48,15 @@ export function SaveDialogs({
   };
 
   return (
-    <div className="relative" data-testid="save-dialogs">
+    <div ref={containerRef} className="relative" data-testid="save-dialogs">
       <button
         type="button"
         onClick={() => setMenuOpen((open) => !open)}
-        className="px-3 py-1 text-xs font-medium text-brand-800 hover:text-brand-600"
+        className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-brand-800 hover:text-brand-600"
         data-testid="save-menu-trigger"
       >
         Save
+        <IconChevronDown className="w-3 h-3" />
       </button>
       {menuOpen && (
         <div

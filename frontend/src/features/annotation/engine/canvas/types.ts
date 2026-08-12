@@ -26,6 +26,9 @@ export interface PanelDef {
   headerClassName?: string;
   /** Applied to the panel's outer card, e.g. the active-window outline. */
   className?: string;
+  /** Rendered as `data-tour`, the handle the guided tour and the E2E suite
+   *  use to find a panel by what it is rather than by its data-dependent id. */
+  tourId?: string;
   onHeaderClick?: () => void;
   onBodyClick?: () => void;
   body: ReactNode;

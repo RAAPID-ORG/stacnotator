@@ -74,11 +74,16 @@ export function activeFeatures(ctx: ComposeCtx): NamedFeature[] {
 
 export function featuresToPanels(features: NamedFeature[], ctx: ComposeCtx): PanelDef[] {
   return features.flatMap(({ name, feature }) =>
-    (feature.panels?.(ctx) ?? []).map((panel) => ({
-      ...panel,
-      role: panel.role ?? name,
-      id: panel.id === TASK_CONTROLS_PANEL_ID ? CONTROLS_PANEL_ID : panel.id,
-    }))
+    (feature.panels?.(ctx) ?? []).map((panel) => {
+      const id = panel.id === TASK_CONTROLS_PANEL_ID ? CONTROLS_PANEL_ID : panel.id;
+      return {
+        ...panel,
+        role: panel.role ?? name,
+        id,
+        tourId:
+          panel.tourId ?? (id === CONTROLS_PANEL_ID ? CONTROLS_PANEL_ID : (panel.role ?? name)),
+      };
+    })
   );
 }
 

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { exportAnnotations, exportAnnotationsGeojson } from '~/api/client';
+import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Dropdown } from '~/shared/ui/motion';
 import { IconChevronDown, IconDownload } from '~/shared/ui/Icons';
@@ -59,7 +60,10 @@ export function ExportMenu({
   const [open, setOpen] = useState(false);
   const [mergeOnAgreement, setMergeOnAgreement] = useState(false);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const showAlert = useLayoutStore((s) => s.showAlert);
+
+  useDismissOnOutside(containerRef, () => setOpen(false), open);
 
   useEffect(() => {
     if (hasConflicts && mergeOnAgreement) setMergeOnAgreement(false);
@@ -91,7 +95,7 @@ export function ExportMenu({
   };
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

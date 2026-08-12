@@ -6,6 +6,7 @@ import {
   type ImageryViewOut,
 } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
+import { IconLayoutGrid } from '~/shared/ui/Icons';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { useWorkspaceStore } from '~/features/annotation/stores';
@@ -89,6 +90,7 @@ export function EditControls({ campaign, view, isCampaignAdmin }: EditControlsPr
         className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 rounded transition-all"
         data-testid="edit-layout-trigger"
       >
+        <IconLayoutGrid className="w-3.5 h-3.5" />
         Edit Layout
       </button>
     );
@@ -97,7 +99,7 @@ export function EditControls({ campaign, view, isCampaignAdmin }: EditControlsPr
   const hasVisibleWindows = Object.keys(currentLayout.view.windows).length > 0;
 
   return (
-    <div className="flex items-center gap-2 bg-neutral-50 rounded px-2 py-1">
+    <div className="flex items-center gap-1 bg-neutral-50 rounded px-1">
       <SaveDialogs
         currentLayout={currentLayout}
         savedLayout={savedLayout}

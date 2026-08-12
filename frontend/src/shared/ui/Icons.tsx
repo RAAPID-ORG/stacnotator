@@ -151,6 +151,15 @@ export const IconWindow = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconLayoutGrid = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <rect x="2.5" y="2.5" width="6" height="6" rx="1" />
+    <rect x="11.5" y="2.5" width="6" height="6" rx="1" />
+    <rect x="2.5" y="11.5" width="6" height="6" rx="1" />
+    <rect x="11.5" y="11.5" width="6" height="6" rx="1" />
+  </svg>
+);
+
 export const IconSettings = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className} viewBox="0 0 24 24">
     <path d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.049.58.025 1.193-.14 1.743" />

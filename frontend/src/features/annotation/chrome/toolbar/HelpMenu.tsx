@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { Dropdown } from '~/shared/ui/motion';
 import { IconKeyboard } from '~/shared/ui/Icons';
 import { getHelp, keyLabel, type HotkeyScope } from '~/features/annotation/engine/hotkeys';
@@ -14,6 +15,9 @@ const SCOPE_ORDER: HotkeyScope[] = ['drawing', 'form', 'mode', 'global'];
 
 export function HelpMenu() {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useDismissOnOutside(containerRef, () => setOpen(false), open);
 
   const bindings = getHelp();
   const byScope = SCOPE_ORDER.map((scope) => ({
@@ -22,7 +26,7 @@ export function HelpMenu() {
   })).filter((group) => group.rows.length > 0);
 
   return (
-    <div className="relative" data-tour="keyboard-help">
+    <div ref={containerRef} className="relative" data-tour="keyboard-help">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

@@ -1,22 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { CampaignOutFull } from '~/api/client';
+import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { Dropdown } from '~/shared/ui/motion';
 import { IconBook, IconClose } from '~/shared/ui/Icons';
 import { useHotkeys, type Binding } from '~/features/annotation/engine/hotkeys';
 
 export function GuidePanel({ campaign }: { campaign: CampaignOutFull }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const bindings = useMemo<Binding[]>(
     () => [{ key: 'g', help: 'Campaign guide', run: () => setOpen((o) => !o) }],
     []
   );
   useHotkeys('global', bindings, []);
+  useDismissOnOutside(containerRef, () => setOpen(false), open);
 
   return (
-    <div className="relative" data-tour="campaign-guide">
+    <div ref={containerRef} className="relative" data-tour="campaign-guide">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

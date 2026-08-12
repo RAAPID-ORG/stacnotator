@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { CampaignOutFull, ImageryViewOut, AnnotationTaskOut, TaskSetOut } from '~/api/client';
+import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Dropdown } from '~/shared/ui/motion';
 import {
@@ -41,15 +42,18 @@ export interface ToolbarProps {
 
 function ViewPicker({ campaign, catalog }: { campaign: CampaignOutFull; catalog: Catalog }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const selectedViewId = useSessionStore((s) => s.selectedViewId);
   const selectView = useSessionStore((s) => s.selectView);
   const views = campaign.imagery_views;
   const selected = views.find((v: ImageryViewOut) => v.id === selectedViewId);
 
+  useDismissOnOutside(containerRef, () => setOpen(false), open);
+
   if (views.length === 0) return null;
 
   return (
-    <div className="relative" data-tour="imagery-selector">
+    <div ref={containerRef} className="relative" data-tour="imagery-selector">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -107,8 +111,11 @@ export function Toolbar({
   const workMode = useSessionStore((s) => s.workMode);
   const isReviewMode = useSessionStore((s) => s.isReviewMode);
   const [taskFilterOpen, setTaskFilterOpen] = useState(false);
+  const taskFilterRef = useRef<HTMLDivElement>(null);
   const isFullscreen = useLayoutStore((s) => s.isFullscreen);
   const toggleFullscreen = useLayoutStore((s) => s.toggleFullscreen);
+
+  useDismissOnOutside(taskFilterRef, () => setTaskFilterOpen(false), taskFilterOpen);
 
   const hasConflicts = tasks.some((t) => t.task_status === 'conflicting');
 
@@ -123,7 +130,7 @@ export function Toolbar({
         <ViewPicker campaign={campaign} catalog={catalog} />
 
         {workMode === 'tasks' && (
-          <div className="relative" data-tour="task-filter">
+          <div ref={taskFilterRef} className="relative" data-tour="task-filter">
             <button
               type="button"
               onClick={() => setTaskFilterOpen((o) => !o)}
