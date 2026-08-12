@@ -43,6 +43,7 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
+    "@azure/static-web-apps-cli": "2.0.6",
     "@eslint/js": "^9.18.0",
     "@hey-api/openapi-ts": "0.89.2",
     "@playwright/test": "^1.58.2",
