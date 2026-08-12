@@ -11,7 +11,7 @@ import GeoJSONFormat from 'ol/format/GeoJSON';
 import Feature from 'ol/Feature';
 import type { FeatureLike } from 'ol/Feature';
 import { createXYZ } from 'ol/tilegrid';
-import { Circle as CircleStyle, Fill, Stroke, Style, Text } from 'ol/style';
+import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text } from 'ol/style';
 import { PMTilesVectorSource } from 'ol-pmtiles';
 import type {
   FeatureLayerSpec,
@@ -67,13 +67,21 @@ export function toOlStyle(spec: StyleSpec): Style {
         })
       : undefined,
     fill: spec.fill ? new Fill({ color: spec.fill.color }) : undefined,
-    image: spec.circle
-      ? new CircleStyle({
-          radius: spec.circle.radius,
-          stroke: spec.circle.stroke ? new Stroke(spec.circle.stroke) : undefined,
-          fill: spec.circle.fill ? new Fill({ color: spec.circle.fill.color }) : undefined,
+    image: spec.cross
+      ? new RegularShape({
+          points: 4,
+          radius: spec.cross.size / 2,
+          radius2: 0,
+          angle: 0,
+          stroke: new Stroke(spec.cross.stroke),
         })
-      : undefined,
+      : spec.circle
+        ? new CircleStyle({
+            radius: spec.circle.radius,
+            stroke: spec.circle.stroke ? new Stroke(spec.circle.stroke) : undefined,
+            fill: spec.circle.fill ? new Fill({ color: spec.circle.fill.color }) : undefined,
+          })
+        : undefined,
     text: spec.text
       ? new Text({
           text: spec.text.label,

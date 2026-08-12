@@ -75,7 +75,7 @@ const TILE_PROP_ID = 'annotation_id';
 const TILE_PROP_LABEL = 'label_id';
 
 const DEFAULT_CROSSHAIR_COLOR = '#ff0000';
-const CROSSHAIR_RADIUS_PX = 10;
+const CROSSHAIR_SIZE_PX = 20;
 
 export interface AnnotationTileState {
   /** Bumped after every write so the tiles are refetched. */
@@ -162,14 +162,8 @@ function annotationStyle(state: AnnotationTileState): TileStyleFn {
   return fn;
 }
 
-/** Crosshair marker style. The features layer has no line primitive at a
- *  point, so the marker is a hollow ring in the source's crosshair colour -
- *  same job, one fewer DOM layer. */
 function crosshairStyle(color: string): StyleSpec {
-  return {
-    stroke: { color, width: 1.5 },
-    circle: { radius: CROSSHAIR_RADIUS_PX, stroke: { color, width: 1.5 } },
-  };
+  return { cross: { size: CROSSHAIR_SIZE_PX, stroke: { color, width: 1.5 } } };
 }
 
 export function composeLayers(ctx: ComposeCtx, state: ComposeState): LayerSpec[] {

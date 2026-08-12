@@ -44,7 +44,7 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
       ref={ref}
       data-panel-id={panel.id}
       data-panel-role={panel.role}
-      className={`grid-card flex flex-col ${className ?? ''}`}
+      className={`grid-card flex flex-col ${panel.className ?? ''} ${className ?? ''}`}
       style={style}
       {...rest}
     >

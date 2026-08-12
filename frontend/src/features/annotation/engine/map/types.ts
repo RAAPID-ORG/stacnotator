@@ -6,6 +6,8 @@ export interface StyleSpec {
   stroke?: { color: string; width: number; dash?: number[] };
   fill?: { color: string };
   circle?: { radius: number; stroke?: { color: string; width: number }; fill?: { color: string } };
+  /** Two crossing lines spanning `size` pixels, centred on the point. */
+  cross?: { size: number; stroke: { color: string; width: number } };
   text?: { label: string; color: string; haloColor?: string };
 }
 

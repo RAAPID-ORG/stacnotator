@@ -24,6 +24,8 @@ export interface PanelDef {
   header?: ReactNode;
   /** e.g. active highlight. */
   headerClassName?: string;
+  /** Applied to the panel's outer card, e.g. the active-window outline. */
+  className?: string;
   onHeaderClick?: () => void;
   onBodyClick?: () => void;
   body: ReactNode;

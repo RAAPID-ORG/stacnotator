@@ -1,4 +1,5 @@
 import { useEffect, useRef, type WheelEvent } from 'react';
+import 'ol/ol.css';
 import OLMap from 'ol/Map';
 import View from 'ol/View';
 import Attribution from 'ol/control/Attribution';
@@ -125,7 +126,7 @@ export function MapView({
       maxTilesLoading: 64,
       view: camera.getView(),
       controls: [
-        new ScaleLine({ units: 'metric' }),
+        new ScaleLine({ units: 'metric', minWidth: 48 }),
         new Attribution({ collapsible: true, collapsed: attributionCollapsed }),
       ],
       interactions: defaultInteractions({ mouseWheelZoom: false, dragPan: false }).extend([

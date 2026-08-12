@@ -364,9 +364,14 @@ export function AnnotationPage() {
   // currentLayout is a real dependency: the imagery-windows feature composes a
   // panel per collection that has a window in the layout, so hiding or
   // re-adding one changes the panel set without changing ctx.
+  const activeCollectionId = useImageryStore((s) => s.address?.collectionId);
+
   const basePanels = useMemo(
-    () => (ctx ? featuresToPanels(features, ctx) : []),
-    [features, ctx, currentLayout]
+    () =>
+      (ctx ? featuresToPanels(features, ctx) : []).map((panel) =>
+        panel.id === String(activeCollectionId) ? { ...panel, className: 'active-window' } : panel
+      ),
+    [features, ctx, currentLayout, activeCollectionId]
   );
 
   const panels: PanelDef[] = useMemo(
