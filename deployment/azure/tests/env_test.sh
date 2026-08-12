@@ -60,7 +60,12 @@ check "extra tilers appended" "$TILERS_JSON" \
 PUBLIC_DOMAIN=example.org CUSTOM_DOMAINS=https://www.example.org resolve_config prod
 check "prod cors includes custom domains" "$CORS_ORIGINS" \
     "https://app.example.org,https://www.example.org"
-check "prod backend sizing" "$BACKEND_CPU/$BACKEND_POOL_SIZE" "1/15"
+check "prod backend sizing" "$BACKEND_CPU/$BACKEND_POOL_SIZE" "2/10"
+# Peak connections must stay well under what a 2 vCore GP_Standard_D2ds_v5 serves well,
+# which is a much tighter bound than the server's max_connections.
+check "prod peak connection budget" \
+    "$(((BACKEND_POOL_SIZE + BACKEND_MAX_OVERFLOW) * BACKEND_WORKERS + TILER_DB_MAX_CONN * TILER_WORKERS))" \
+    "96"
 
 if resolve_config bogus 2>/dev/null; then
     check "rejects unknown env" accepted rejected

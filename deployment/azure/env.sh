@@ -63,10 +63,13 @@ _discover_resources() {
         [?type=='Microsoft.ContainerRegistry/registries']|[0].name,
         [?type=='Microsoft.KeyVault/vaults']|[0].name,
         [?type=='Microsoft.App/managedEnvironments']|[0].name,
-        [?type=='Microsoft.ManagedIdentity/userAssignedIdentities' && name=='id-${PROJECT_NAME}-apps']|[0].id
+        [?type=='Microsoft.ManagedIdentity/userAssignedIdentities' && name=='id-${PROJECT_NAME}-apps']|[0].id,
+        [?type=='Microsoft.DBforPostgreSQL/flexibleServers']|[0].name
     ]"
     tsv=$(az resource list -g "$RESOURCE_GROUP" --query "$query" -o tsv) || return 1
-    IFS=$'\t' read -r ACR_NAME KV_NAME CAE_NAME IDENTITY_ID <<<"$tsv"
+    IFS=$'\t' read -r ACR_NAME KV_NAME CAE_NAME IDENTITY_ID POSTGRES_SERVER <<<"$tsv"
+    # Only used to print a copy-pasteable restore command, so a miss is not fatal.
+    _require_discovered "$POSTGRES_SERVER" || POSTGRES_SERVER=""
 
     _require_discovered "$ACR_NAME" "container registry" || missing+=("container registry")
     _require_discovered "$KV_NAME" "key vault" || missing+=("key vault")
@@ -98,24 +101,27 @@ _resolve_sizing() {
     # wrapping context.run_migrations() in a pg_advisory_lock first, otherwise
     # concurrent startups race on schema changes.
     #
-    # Connection budget (must fit the Postgres server's max_connections):
+    # Connection budget:
     #   backend = (BACKEND_POOL_SIZE + BACKEND_MAX_OVERFLOW) x BACKEND_WORKERS
     #   tiler   = TILER_DB_MAX_CONN x TILER_WORKERS
+    #
+    # Both environments run GP_Standard_D2ds_v5 (2 vCore / 8 GiB). max_connections is
+    # no longer the binding constraint it was on Burstable - the 2 vCores are. Postgres
+    # serves a few dozen busy connections on two cores well and hundreds of them badly,
+    # so these budgets are deliberately far below what the server would accept.
     if [ "$ENV" = "dev" ]; then
         # Dev is an actively-used deployment, not a scratch environment. BACKEND_MAX
-        # stays 1, so vertical sizing is the only lever. Pools are sized from DB
-        # capacity, not worker count: the pool is the cap on concurrent DB work and
-        # the server is burstable. 10x4 + 2x4 = ~48 against a B_Standard_B2s
-        # (max_connections ~429), so backend CPU is the constraint, not connections.
+        # stays 1, so vertical sizing is the only lever.
+        # Peak 10x4 + 2x4 = 48.
         BACKEND_CPU=2 BACKEND_MEM=4Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=4
         BACKEND_POOL_SIZE=5 BACKEND_MAX_OVERFLOW=5
         TILER_CPU=4 TILER_MEM=8Gi TILER_MIN=1 TILER_MAX=1 TILER_WORKERS=4
         TILER_DB_MAX_CONN=2
     else
-        # 35x4 + 4x4 = ~156, sized from worker count and unreviewed against prod
-        # max_connections. Shrink it or add PgBouncer before prod carries real load.
-        BACKEND_CPU=1 BACKEND_MEM=2Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=4
-        BACKEND_POOL_SIZE=15 BACKEND_MAX_OVERFLOW=20
+        # Peak 20x4 + 4x4 = 96, steady 10x4 = 40. Down from the old 156, which was
+        # sized from worker count rather than from what the DB can usefully serve.
+        BACKEND_CPU=2 BACKEND_MEM=4Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=4
+        BACKEND_POOL_SIZE=10 BACKEND_MAX_OVERFLOW=10
         TILER_CPU=4 TILER_MEM=8Gi TILER_MIN=1 TILER_MAX=1 TILER_WORKERS=4
         TILER_DB_MAX_CONN=4
     fi
@@ -138,6 +144,7 @@ resolve_config() {
     fi
 
     PROJECT_NAME="stacnotator-${ENV}"
+    POSTGRES_SERVER="${POSTGRES_SERVER:-}"
     APP_BACKEND="${PROJECT_NAME}-backend"
     APP_TILER="${PROJECT_NAME}-tiler"
     APP_SWA="${PROJECT_NAME}-frontend"
@@ -221,7 +228,7 @@ _resolve_public_hosts() {
 mask_resolved_config() {
     ci_mask "$RESOURCE_GROUP" "$ACR_NAME" "$ACR_LOGIN_SERVER" "$KV_NAME" "$CAE_NAME" \
         "$CAE_DEFAULT_DOMAIN" "$IDENTITY_ID" "${EE_SERVICE_ACCOUNT:-}" \
-        "${PUBLIC_DOMAIN:-}" "${CUSTOM_DOMAINS:-}"
+        "${PUBLIC_DOMAIN:-}" "${CUSTOM_DOMAINS:-}" "${POSTGRES_SERVER:-}"
 }
 
 print_config() {

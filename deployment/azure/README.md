@@ -250,13 +250,23 @@ make az-deploy-dev
 ```
 
 The script will:
-1. Discover infrastructure (ACR, KV, CAE) from the resource group
-2. Build the backend image server-side (`az acr build`); the tiler is built and deployed by the tiler repo's `deployment/deploy-containerapp.sh` (checkout required, see Prerequisites)
-3. Create or update Container Apps with KV secret refs (no plaintext credentials)
-4. If `TILER_DEDICATED=true`: add a D8 dedicated workload profile for the tiler. Off by default in both envs; the consumption profile handles current load.
-5. Build and deploy frontend to Azure Static Web App
-6. Update CORS and the tiler registry (`TILERS`, `DEFAULT_TILER`, `TILER_COOKIE_DOMAIN`) on the backend
-7. Poll the new backend revision until `healthState=Healthy` (deliberately last, so the gated revision includes the env updates). Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) - a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback). There is no pre-deploy DB backup (on-demand backups are unsupported on the Burstable SKU), so a migration that succeeds but corrupts data has no automated rollback path.
+1. Resolve the full configuration: two `az` calls for the platform resources, everything else derived. `CORS_ORIGINS`, `TILERS`, `DEFAULT_TILER` and `TILER_COOKIE_DOMAIN` are computed here, not applied in a later pass.
+2. Start three concurrent stages: backend image build (`az acr build`), tiler build and deploy (delegated to the tiler repo's `deployment/deploy-containerapp.sh`, checkout required - see Prerequisites), and the frontend `npm ci && npm run build`.
+3. Record the pre-migration UTC restore point, then create or update the backend Container App in a **single** write carrying its complete environment and Key Vault secret refs (no plaintext credentials). One write means one revision, one alembic run.
+4. Upload the frontend bundle to the Static Web App.
+5. Poll the new backend revision until `healthState=Healthy`.
+
+**Migration safety.** Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD, before gunicorn), not from this script. A migration that *fails* exits non-zero: the revision stays unhealthy and Container Apps keeps the previous revision serving 100% of traffic, so that case rolls back on its own.
+
+A migration that *succeeds but is wrong* has no automatic rollback. For that case the deploy prints the UTC instant captured immediately before the image swap, on success and on failure. Both servers run General Purpose SKUs with point-in-time restore across the configured backup retention window, so that timestamp is the exact `--restore-time` to pass:
+
+```bash
+az postgres flexible-server restore --resource-group <rg> \
+  --name <new-server-name> --source-server <source-server> \
+  --restore-time <printed-timestamp>
+```
+
+Restore always creates a **new** server. Recovery means repointing `DBHOST` at it, not restoring in place.
 
 **Image tagging**: defaults to git commit SHA. Override with `IMAGE_TAG` env var.
 

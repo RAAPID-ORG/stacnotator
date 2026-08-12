@@ -247,8 +247,21 @@ deploy_backend() {
 # migration, or unparseable env such as a malformed TILERS, exits non-zero: the
 # revision stays unhealthy and the previous one keeps serving all traffic.
 #
-# TODO: re-introduce a pre-image-swap DB backup once stacnotator-prod moves off
-# Burstable. On-demand backups are unsupported there, so the step would be a no-op.
+# That covers a migration that FAILS. A migration that succeeds and corrupts data has
+# no automatic rollback, so the deploy records the instant before the image swap:
+# Flexible Server point-in-time restore can wind the database back to any second
+# within its retention window, and this is the second to ask for.
+print_restore_point() {
+    echo -e "${BLUE}Pre-migration restore point: ${PRE_MIGRATION_UTC:-not reached}${NC}"
+    if [ -n "${POSTGRES_SERVER:-}" ]; then
+        echo -e "${YELLOW}  az postgres flexible-server restore --resource-group $RESOURCE_GROUP \\"
+        echo -e "    --name <new-server-name> --source-server $POSTGRES_SERVER \\"
+        echo -e "    --restore-time $PRE_MIGRATION_UTC${NC}"
+        echo -e "${YELLOW}  Restore creates a NEW server; repoint DBHOST at it rather than restoring in place.${NC}"
+    fi
+    return 0
+}
+
 wait_for_backend_health() {
     local revision health
     revision=$(az containerapp show -n "$APP_BACKEND" -g "$RESOURCE_GROUP" \
@@ -263,6 +276,7 @@ wait_for_backend_health() {
         Unhealthy)
             echo -e "${RED}Revision unhealthy. Likely a failed startup migration; the previous revision still serves traffic.${NC}" >&2
             echo -e "${YELLOW}  az containerapp logs show -n $APP_BACKEND -g $RESOURCE_GROUP --revision $revision --tail 200${NC}" >&2
+            print_restore_point >&2
             return 1
             ;;
         esac
@@ -271,6 +285,7 @@ wait_for_backend_health() {
 
     echo -e "${RED}Timed out after 5 minutes. The previous revision still serves traffic.${NC}" >&2
     echo -e "${YELLOW}  az containerapp revision list -n $APP_BACKEND -g $RESOURCE_GROUP -o table${NC}" >&2
+    print_restore_point >&2
     return 1
 }
 
@@ -279,6 +294,13 @@ start_stage tiler deploy_tiler
 start_stage build-frontend build_frontend
 
 join_stage build-backend
+
+# Captured immediately before the image swap, because the new container runs
+# `alembic upgrade head` on startup. Anything the migration does to the data happens
+# after this instant, so it is the point-in-time restore target if a migration
+# succeeds but is wrong.
+PRE_MIGRATION_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
 echo -e "${YELLOW}Deploying backend...${NC}"
 deploy_backend
 echo -e "${GREEN}Backend deployed${NC}"
@@ -302,6 +324,7 @@ echo -e "${GREEN}Backend revision healthy (migrations applied on startup)${NC}"
 
 echo ""
 echo -e "${GREEN}Deployment complete${NC}"
+print_restore_point
 echo -e "${BLUE}Frontend:${NC} https://$FRONTEND_HOST"
 echo -e "${BLUE}Backend:${NC}  https://$API_HOST"
 echo -e "${BLUE}Tiler:${NC}    https://$TILER_BROWSER_HOST"
