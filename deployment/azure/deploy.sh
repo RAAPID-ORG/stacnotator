@@ -26,8 +26,8 @@ if [ -n "${2:-}" ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-# shellcheck source=azure_deploy/env.sh
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=deployment/azure/env.sh
 . "$SCRIPT_DIR/env.sh"
 
 if ! az account show &>/dev/null; then
@@ -130,7 +130,7 @@ VITE_FIREBASE_PROJECT_ID=$(az keyvault secret show --vault-name "$KV_NAME" --nam
 if [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
     echo -e "${RED}Could not read Firebase client config from Key Vault '$KV_NAME'.${NC}" >&2
     echo -e "${YELLOW}Allow your IP: az keyvault network-rule add --name $KV_NAME --ip-address \$(curl -s ifconfig.me)/32${NC}" >&2
-    echo -e "${YELLOW}Or upload it:  ./azure_deploy/bootstrap.sh $ENV${NC}" >&2
+    echo -e "${YELLOW}Or upload it:  ./deployment/azure/bootstrap.sh $ENV${NC}" >&2
     exit 1
 fi
 ci_mask "$VITE_FIREBASE_API_KEY" "$VITE_FIREBASE_AUTH_DOMAIN" "$VITE_FIREBASE_PROJECT_ID"

@@ -9,7 +9,7 @@
 #   - Local dev stack running (make dev-up)
 #
 # Usage:
-#   ./azure_deploy/download-prod-db.sh
+#   ./deployment/azure/utils/download-prod-db.sh
 #
 # The script will:
 #   - Look up DB credentials from Azure Key Vault
@@ -20,7 +20,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -f "$SCRIPT_DIR/.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/.env.deploy.prod" && set +a
+[ -f "$SCRIPT_DIR/../.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/../.env.deploy.prod" && set +a
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -102,7 +102,7 @@ echo -e "${GREEN}✓ Credentials obtained${NC}"
 
 # Read local dev credentials from .env
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 if [ -f "$PROJECT_ROOT/.env" ]; then
     set -a

@@ -9,7 +9,7 @@ if [[ "$ENV" != "prod" && "$ENV" != "dev" ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -f "$SCRIPT_DIR/.env.deploy.$ENV" ] && set -a && source "$SCRIPT_DIR/.env.deploy.$ENV" && set +a
+[ -f "$SCRIPT_DIR/../.env.deploy.$ENV" ] && set -a && source "$SCRIPT_DIR/../.env.deploy.$ENV" && set +a
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

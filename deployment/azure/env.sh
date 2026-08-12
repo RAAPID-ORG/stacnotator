@@ -212,7 +212,7 @@ _resolve_public_hosts() {
             return 0
         fi
         echo -e "${RED}Static Web App '$APP_SWA' not found and PUBLIC_DOMAIN is unset.${NC}" >&2
-        echo -e "${RED}Run ./azure_deploy/bootstrap.sh $ENV first.${NC}" >&2
+        echo -e "${RED}Run ./deployment/azure/bootstrap.sh $ENV first.${NC}" >&2
         return 1
     fi
     return 0

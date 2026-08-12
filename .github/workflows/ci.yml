@@ -90,12 +90,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Shellcheck
-        run: shellcheck -x azure_deploy/env.sh azure_deploy/deploy.sh azure_deploy/bootstrap.sh azure_deploy/tests/env_test.sh
+        run: shellcheck -x deployment/azure/env.sh deployment/azure/deploy.sh deployment/azure/bootstrap.sh deployment/azure/tests/env_test.sh
 
       # Guards the assumption the deploy rests on: every host is derivable before
       # anything is written. Needs no Azure access.
       - name: Derivation test
-        run: bash azure_deploy/tests/env_test.sh
+        run: bash deployment/azure/tests/env_test.sh
 
   # Backend: tests in Docker  (develop + main)
   backend-test:

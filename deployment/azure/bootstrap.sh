@@ -12,7 +12,7 @@ set -euo pipefail
 ENV="${1:?Usage: $0 <prod|dev>}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=azure_deploy/env.sh
+# shellcheck source=deployment/azure/env.sh
 . "$SCRIPT_DIR/env.sh"
 
 if ! az account show &>/dev/null; then
@@ -96,5 +96,5 @@ fi
 
 echo ""
 echo -e "${GREEN}Bootstrap complete${NC}"
-echo -e "${BLUE}Next:${NC} ./azure_deploy/deploy.sh $ENV"
+echo -e "${BLUE}Next:${NC} ./deployment/azure/deploy.sh $ENV"
 echo -e "${YELLOW}Remember to add the frontend domain to Firebase authorized domains.${NC}"

@@ -1,6 +1,6 @@
 # Development
 
-How we branch, review, test, and ship STACNotator. For deployment details see [azure_deploy/README.md](../azure_deploy/README.md), for contribution etiquette see [CONTRIBUTING.md](../CONTRIBUTING.md).
+How we branch, review, test, and ship STACNotator. For deployment details see [deployment/azure/README.md](../deployment/azure/README.md), for contribution etiquette see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Branching
 
@@ -13,7 +13,7 @@ Feature work happens on `feature/*`, `fix/*`, `refactor/*`, or `hotfix/*` branch
 ## Pull requests & review
 
 - Open PRs against `develop`.
-- `.github/CODEOWNERS` makes `@rohansaw` the default reviewer. Changes under `/.github/` and `/azure_deploy/` (CI and production-credentialed paths) always require owner review.
+- `.github/CODEOWNERS` makes `@rohansaw` the default reviewer. Changes under `/.github/` and `/deployment/azure/` (CI and production-credentialed paths) always require owner review.
 - Include a short description, add tests where applicable, and keep code mostly self-documenting.
 - PRs are merged with GitHub's "Merge pull request".
 
@@ -57,7 +57,7 @@ Backend tests are split: pure logic lives in DB-free unit tests under `backend/t
 
 ## Deployment
 
-- **Production:** pushing to `main` triggers the `deploy-prod` job in CI, gated by the `production` GitHub Environment (manual approval). It runs `azure_deploy/deploy.sh prod` on the self-hosted Azure runner, via the reusable `.github/workflows/deploy.yml`.
+- **Production:** pushing to `main` triggers the `deploy-prod` job in CI, gated by the `production` GitHub Environment (manual approval). It runs `deployment/azure/deploy.sh prod` on the self-hosted Azure runner, via the reusable `.github/workflows/deploy.yml`.
 - **Dev:** run the `Deploy Dev` workflow manually (`workflow_dispatch`); it only runs on `develop` and is gated by the `dev` Environment. Can be run via the GH Action -> workflows page.
 
-See [azure_deploy/README.md](../azure_deploy/README.md) for the full deployment workflow.
+See [deployment/azure/README.md](../deployment/azure/README.md) for the full deployment workflow.

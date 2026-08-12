@@ -4,4 +4,4 @@
 # CI/CD, workflow, and deploy logic - changes here affect what runs with
 # production credentials. Always require explicit owner review.
 /.github/ @rohansaw
-/azure_deploy/ @rohansaw
+/deployment/azure/ @rohansaw

@@ -97,12 +97,12 @@ The annotation feature is the heart of the app. Two campaign modes drive paralle
 ## Conventions & guardrails
 
 - **Code is mostly self-documenting** — avoid explanatory comments; prefer clear names and low complexity (see `CONTRIBUTING.md`).
-- **Branching**: feature work on `feature/*`|`fix/*`|`refactor/*`|`hotfix/*` → PR into `develop` (the deployed integration branch) → `develop` merged into `main` for production releases. Open PRs against `develop`. `@rohansaw` is the default reviewer (`.github/CODEOWNERS`); `/.github/` and `/azure_deploy/` changes always need owner review. See `docs/development.md`.
-- **Production is Azure** (Container Apps for backend/tiler, Static Web App for frontend; PostgreSQL + Key Vault). Prod deploys via CI on push to `main` (gated by the `production` GitHub Environment); never assume local nginx/CSP behavior matches prod. Deployment scripts in `azure_deploy/`.
+- **Branching**: feature work on `feature/*`|`fix/*`|`refactor/*`|`hotfix/*` → PR into `develop` (the deployed integration branch) → `develop` merged into `main` for production releases. Open PRs against `develop`. `@rohansaw` is the default reviewer (`.github/CODEOWNERS`); `/.github/` and `/deployment/azure/` changes always need owner review. See `docs/development.md`.
+- **Production is Azure** (Container Apps for backend/tiler, Static Web App for frontend; PostgreSQL + Key Vault). Prod deploys via CI on push to `main` (gated by the `production` GitHub Environment); never assume local nginx/CSP behavior matches prod. Deployment scripts in `deployment/azure/`.
 - **Tests**: pure logic → DB-free unit tests in `backend/tests/unit/`; DB-bound code → real Postgres. E2E (Playwright, `frontend/e2e/`) must be deterministic under parallelism — observe via DOM (`data-*`, rendered text) and `waitForResponse`, never via store globals or cache-dependent tile requests. Tests focus on central business-logic, and must test actual units / user flows. We avoid bloating the test suit with unecessary tests
 - Backend lint: ruff (line-length 100, rules `E/W/F/I/UP/B/SIM/T20` — note `T20` forbids leftover `print`s). Frontend: eslint + prettier + strict `tsc`.
 - Install hooks once with `make pre-commit-install`.
 
 ## Further docs
 
-`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `azure_deploy/README.md` (deployment).
+`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `deployment/azure/README.md` (deployment).

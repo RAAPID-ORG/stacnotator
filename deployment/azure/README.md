@@ -19,7 +19,7 @@ Every value a deploy needs is derived before the first write. A Container App wi
 
 The backend, tiler and frontend builds are independent and run concurrently; each stage's output is buffered and printed when it is joined, so parallel logs stay readable. The tiler image is tagged with the tiler repo's own commit SHA.
 
-`./azure_deploy/deploy.sh <env> --dry-run` resolves the config, prints every value and every command it would run, and writes nothing.
+`./deployment/azure/deploy.sh <env> --dry-run` resolves the config, prints every value and every command it would run, and writes nothing.
 
 ## Environments
 
@@ -76,7 +76,7 @@ Ensure the infrastructure is deployed on Azure first.
 
 ```bash
 # 1. Create the local config (laptop deploys only; CI reads GitHub Environments)
-cp azure_deploy/.env.deploy.example azure_deploy/.env.deploy.dev
+cp deployment/azure/.env.deploy.example deployment/azure/.env.deploy.dev
 # Fill in RESOURCE_GROUP, PUBLIC_DOMAIN, EE_SERVICE_ACCOUNT, and the credential
 # paths bootstrap.sh uploads (FIREBASE_CREDS, EE_CREDS, FIREBASE_*).
 
@@ -95,7 +95,7 @@ make az-deploy-dev            # or az-deploy-prod
 ## Run on every release
 
 ```bash
-make az-deploy-dev            # or: ./azure_deploy/deploy.sh dev
+make az-deploy-dev            # or: ./deployment/azure/deploy.sh dev
 make az-deploy-dev-dry-run    # resolve and print the config, write nothing
 ```
 
@@ -377,7 +377,7 @@ Config reaches a deploy from two places, and the environment always wins over th
 | Environment variables | `PUBLIC_DOMAIN`, `EXTRA_TILERS`, `TILER_AZURE_SIGNING`, `TILER_REPO_REF` |
 | Repository secrets | `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` |
 
-**Laptop deploys** read `azure_deploy/.env.deploy.<env>` (gitignored; see `.env.deploy.example`). It supplies the same identifiers plus the credential file paths `bootstrap.sh` uploads. It never overrides a variable already present in the environment, so a stray file on a runner cannot influence CI.
+**Laptop deploys** read `deployment/azure/.env.deploy.<env>` (gitignored; see `.env.deploy.example`). It supplies the same identifiers plus the credential file paths `bootstrap.sh` uploads. It never overrides a variable already present in the environment, so a stray file on a runner cannot influence CI.
 
 `deploy.sh`, `bootstrap.sh` and `view-logs.sh` take `prod` or `dev` as a positional argument. The DB scripts hardcode their environments (see the table above).
 

@@ -62,4 +62,4 @@ jobs:
           PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
           EXTRA_TILERS: ${{ vars.EXTRA_TILERS }}
           TILER_AZURE_SIGNING: ${{ vars.TILER_AZURE_SIGNING }}
-        run: ./azure_deploy/deploy.sh ${{ inputs.deploy-env }}
+        run: ./deployment/azure/deploy.sh ${{ inputs.deploy-env }}

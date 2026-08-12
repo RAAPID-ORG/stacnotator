@@ -30,7 +30,7 @@ export CAE_DEFAULT_DOMAIN="$STUB_DOMAIN"
 export IDENTITY_ID=/subscriptions/x/id-stacnotator-dev-apps
 export SKIP_LOCAL_ENV_FILE=1
 
-# shellcheck source=azure_deploy/env.sh
+# shellcheck source=deployment/azure/env.sh
 . "$SCRIPT_DIR/env.sh"
 
 PUBLIC_DOMAIN=dev.example.org resolve_config dev

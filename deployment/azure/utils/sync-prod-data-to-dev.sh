@@ -35,7 +35,7 @@ fi
 
 # Load prod config
 
-[ -f "$SCRIPT_DIR/.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/.env.deploy.prod" && set +a
+[ -f "$SCRIPT_DIR/../.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/../.env.deploy.prod" && set +a
 PROD_RG="$RESOURCE_GROUP"
 [ -z "$PROD_RG" ] && abort "RESOURCE_GROUP not set. Check .env.deploy.prod"
 
@@ -66,7 +66,7 @@ PROD_PG_DBNAME=${PROD_PG_DBNAME:-stacnotator}
 
 # Load dev config
 
-[ -f "$SCRIPT_DIR/.env.deploy.dev" ] && set -a && source "$SCRIPT_DIR/.env.deploy.dev" && set +a
+[ -f "$SCRIPT_DIR/../.env.deploy.dev" ] && set -a && source "$SCRIPT_DIR/../.env.deploy.dev" && set +a
 DEV_RG="$RESOURCE_GROUP"
 [ -z "$DEV_RG" ] && abort "RESOURCE_GROUP not set. Check .env.deploy.dev"
 

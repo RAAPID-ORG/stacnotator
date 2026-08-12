@@ -123,7 +123,8 @@ stacnotator/
 ├── docker-compose.prod.yml      # Production-like local configuration
 ├── .env.example                 # Configuration template
 ├── Makefile                     # Common commands (dev-* for development)
-├── azure_deploy/                # Azure deployment scripts
+├── deployment/                  # Deployment
+│   └── azure/                   # deploy.sh, bootstrap.sh, utils/ (DB sync, logs)
 ├── backend/                     # FastAPI application
 │   ├── Dockerfile               # Production build
 │   ├── Dockerfile.dev           # Development (with reload)
@@ -221,7 +222,7 @@ make pre-commit-install
 
 STACNotator supports multiple deployment options (or maybe only one at the moment):
 
-- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `azure_deploy/deploy.sh`. See `azure_deploy/README.md`.
+- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deployment/azure/deploy.sh`. See `deployment/azure/README.md`.
    - Deployment: Prod deploys automatically via CI on push to `main` (gated by a `production` GitHub Environment approval); dev deploys via the manual `Deploy Dev` workflow. `deploy.sh` can also be run locally from within VPN as a fallback (`make az-deploy-dev`, followed by `make az-sync-prod-to-dev` to fill the dev db with current prod data).
 
 - **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure and we do not maintain any secure configs for bare metal deployments.

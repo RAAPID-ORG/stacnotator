@@ -146,7 +146,7 @@ there). In the future we might want to switch to asymetric keys.
 2. Register it in the backend via `TILERS` / `EXTRA_TILERS` (+ `DEFAULT_TILER`). Include a
    `stac_url` to make it browsable, e.g.
    `"tiler-gcp":{"url":"https://tiler-gcp.dev.stacnotator.io","stac_url":"https://tiler-gcp.dev.stacnotator.io/stac","allows_ingest":false}`.
-   On Azure this is wired through `azure_deploy/deploy.sh` / GitHub Actions variables.
+   On Azure this is wired through `deployment/azure/deploy.sh` / GitHub Actions variables.
 3. Ingest data; grant the tiler to the relevant organizations if it isn't a default; then pick
    it on a collection (or browse its catalog).
 4. For asset signing, give the tiler read on **only** the data it serves and configure it
