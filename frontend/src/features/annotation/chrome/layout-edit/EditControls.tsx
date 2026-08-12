@@ -79,7 +79,7 @@ export function EditControls({ campaign, view, isCampaignAdmin }: EditControlsPr
       <button
         type="button"
         onClick={startEditing}
-        title="Edit canvas layout and windows"
+        title="Edit canvas layout and panels"
         className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 rounded transition-all"
         data-testid="edit-layout-trigger"
       >

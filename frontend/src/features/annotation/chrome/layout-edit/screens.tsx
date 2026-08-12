@@ -325,7 +325,7 @@ export function RestoreScreensToast({ count, onRestore, onDismiss }: RestoreScre
         type="button"
         onClick={onRestore}
         data-testid="restore-screens"
-        title="Reopen your saved screen windows with their panels"
+        title="Reopen your saved screens with their panels"
         className="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-100"
       >
         <IconExternalLink className="h-3.5 w-3.5 text-brand-600" />

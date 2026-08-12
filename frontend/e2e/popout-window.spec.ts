@@ -10,9 +10,9 @@ import type { Page } from '@playwright/test';
 
 async function enterEditMode(page: Page) {
   await page.locator('button', { hasText: 'Edit Layout' }).click();
-  // The floating hidden-windows panel overlays bottom-right cards in this
-  // viewport; collapse it to its chip so card headers are reachable.
-  await page.locator('[aria-label="Minimize hidden windows panel"]').click();
+  // The floating hidden-panels tray overlays bottom-right panels in this
+  // viewport; collapse it to its chip so panel headers are reachable.
+  await page.locator('[aria-label="Minimize hidden panels"]').click();
 }
 
 async function sendControlsToNewScreen(page: Page) {

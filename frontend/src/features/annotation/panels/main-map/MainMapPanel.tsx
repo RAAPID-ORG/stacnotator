@@ -231,7 +231,12 @@ export function MainMapBody({ ctx }: MainMapProps) {
   return (
     <div className="flex h-full w-full">
       <TimelineSidebar ctx={ctx} />
-      <div ref={containerRef} className="relative h-full min-w-0 flex-1">
+      <div
+        ref={containerRef}
+        data-crosshair-lon={focus?.center?.[0]}
+        data-crosshair-lat={focus?.center?.[1]}
+        className="relative h-full min-w-0 flex-1"
+      >
         <MapView
           camera={mainCamera}
           layers={layers}

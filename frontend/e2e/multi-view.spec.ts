@@ -30,6 +30,17 @@ async function loadMultiView(page: Page, api: ApiCapture): Promise<void> {
 // The view selector sits at data-tour="imagery-selector" in the toolbar.
 const viewSelector = (page: Page) => page.locator('[data-tour="imagery-selector"]');
 
+// One canvas panel per collection window, keyed by collection id.
+const windowPanel = (page: Page, collectionId: number) =>
+  page.locator(`[data-panel-id="${collectionId}"]`);
+
+/** A window's title carries whether its collection is the active one. */
+const windowTitle = (page: Page, collectionId: number) =>
+  windowPanel(page, collectionId).locator('.card-header [data-window-active]');
+
+const layerButton = (page: Page) => page.locator('[data-tour="layer-selector"] button');
+const collectionButton = (page: Page) => page.locator('[data-tour="collection-picker"] button');
+
 // ---------------------------------------------------------------------------
 // Initial view state
 // ---------------------------------------------------------------------------
@@ -46,18 +57,12 @@ test.describe('Initial view state', () => {
   });
 
   test('S2 L2A and NDVI window cards are in DOM in the first view', async ({ annotationPage }) => {
-    await expect(
-      annotationPage.locator(`[data-window-collection-id="${COLLECTION_S2.id}"]`)
-    ).toBeAttached();
-    await expect(
-      annotationPage.locator(`[data-window-collection-id="${COLLECTION_NDVI.id}"]`)
-    ).toBeAttached();
+    await expect(windowPanel(annotationPage, COLLECTION_S2.id)).toBeAttached();
+    await expect(windowPanel(annotationPage, COLLECTION_NDVI.id)).toBeAttached();
   });
 
   test('VHR window card is not in DOM in the first view', async ({ annotationPage }) => {
-    await expect(
-      annotationPage.locator(`[data-window-collection-id="${COLLECTION_VHR.id}"]`)
-    ).not.toBeAttached();
+    await expect(windowPanel(annotationPage, COLLECTION_VHR.id)).not.toBeAttached();
   });
 });
 
@@ -83,18 +88,16 @@ test.describe('View cycling via V key', () => {
       timeout: 3000,
     });
 
-    // Layer selector confirms the VHR source is active
-    await expect(annotationPage.locator('[data-tour="layer-selector"] button')).toContainText(
-      'VHR',
+    // The VHR view holds a single source, so the layer selector shows only the
+    // visualization name; the timeline is scoped to the active source, so its
+    // collection is what proves the source switched.
+    await expect(annotationPage.locator('[data-tour="timeline-sidebar"]')).toContainText(
+      COLLECTION_VHR.name,
       { timeout: 3000 }
     );
     // S2 and NDVI window cards are no longer in the DOM for this view
-    await expect(
-      annotationPage.locator(`[data-window-collection-id="${COLLECTION_S2.id}"]`)
-    ).not.toBeAttached({ timeout: 3000 });
-    await expect(
-      annotationPage.locator(`[data-window-collection-id="${COLLECTION_NDVI.id}"]`)
-    ).not.toBeAttached();
+    await expect(windowPanel(annotationPage, COLLECTION_S2.id)).not.toBeAttached({ timeout: 3000 });
+    await expect(windowPanel(annotationPage, COLLECTION_NDVI.id)).not.toBeAttached();
   });
 
   test('V twice wraps back to the first view', async ({ annotationPage }) => {
@@ -109,9 +112,8 @@ test.describe('View cycling via V key', () => {
       { timeout: 3000 }
     );
 
-    await expect(
-      annotationPage.locator('.grid-card').filter({ hasText: COLLECTION_S2.name }).first()
-    ).toBeAttached({ timeout: 3000 });
+    // A view carries its own window cards, so the S2 view's come back with it.
+    await expect(windowPanel(annotationPage, COLLECTION_S2.id)).toBeAttached({ timeout: 3000 });
   });
 
   test('view switch does not move the crosshair', async ({ annotationPage }) => {
@@ -158,8 +160,8 @@ test.describe('View switching via toolbar dropdown', () => {
     await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
       timeout: 3000,
     });
-    await expect(annotationPage.locator('[data-tour="layer-selector"] button')).toContainText(
-      'VHR',
+    await expect(annotationPage.locator('[data-tour="timeline-sidebar"]')).toContainText(
+      COLLECTION_VHR.name,
       { timeout: 3000 }
     );
   });
@@ -179,9 +181,8 @@ test.describe('View switching via toolbar dropdown', () => {
       'Sentinel-2 View',
       { timeout: 3000 }
     );
-    await expect(
-      annotationPage.locator('.grid-card').filter({ hasText: COLLECTION_S2.name }).first()
-    ).toBeAttached({ timeout: 3000 });
+    // A view carries its own window cards, so the S2 view's come back with it.
+    await expect(windowPanel(annotationPage, COLLECTION_S2.id)).toBeAttached({ timeout: 3000 });
   });
 
   test('dropdown does not move the crosshair', async ({ annotationPage }) => {
@@ -235,26 +236,50 @@ test.describe('Imagery source cycling within a view', () => {
 
   test('Shift+D cycles collections within the current view only', async ({ annotationPage }) => {
     // In Sentinel-2 View: S2 L2A → NDVI (Shift+D)
-    const before = await annotationPage
-      .locator('.active-window .card-header')
-      .getAttribute('title');
+    await expect(collectionButton(annotationPage)).toContainText(COLLECTION_S2.name);
+    await expect(windowTitle(annotationPage, COLLECTION_S2.id)).toHaveAttribute(
+      'data-window-active',
+      'true'
+    );
+
     await annotationPage.keyboard.press('Shift+d');
-    const after = await annotationPage.locator('.active-window .card-header').getAttribute('title');
-    expect(after).not.toBe(before);
-    // Should still be within Sentinel-2 view's collections
-    expect(after).toMatch(/Sentinel-2/);
+
+    await expect(collectionButton(annotationPage)).toContainText(COLLECTION_NDVI.name, {
+      timeout: 3000,
+    });
+    await expect(windowTitle(annotationPage, COLLECTION_NDVI.id)).toHaveAttribute(
+      'data-window-active',
+      'true',
+      { timeout: 3000 }
+    );
+    await expect(windowTitle(annotationPage, COLLECTION_S2.id)).toHaveAttribute(
+      'data-window-active',
+      'false'
+    );
+    // Stepping never leaves the view: VHR's collection has no window here.
+    await expect(windowPanel(annotationPage, COLLECTION_VHR.id)).not.toBeAttached();
   });
 
-  test('switching to VHR View then using layer selector shows VHR source', async ({
+  test('switching to VHR View narrows the layer selector to VHR visualizations', async ({
     annotationPage,
   }) => {
+    // Sentinel-2 View offers both of its source's visualizations.
+    await layerButton(annotationPage).click();
+    const menu = annotationPage.locator('body > div.fixed.shadow-lg');
+    await expect(menu.getByRole('button', { name: 'True Color', exact: true })).toBeVisible();
+    await expect(menu.getByRole('button', { name: 'False Color', exact: true })).toBeVisible();
+    // The trigger toggles; HeaderSelect has no Escape handling.
+    await layerButton(annotationPage).click();
+    await expect(menu).toHaveCount(0);
+
     await annotationPage.keyboard.press('u');
     await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
       timeout: 3000,
     });
-    await expect(annotationPage.locator('[data-tour="layer-selector"] button')).toContainText(
-      'VHR',
-      { timeout: 3000 }
-    );
+
+    // VHR publishes a single visualization, so the selector lists only that one.
+    await layerButton(annotationPage).click();
+    await expect(menu.getByRole('button', { name: 'True Color', exact: true })).toBeVisible();
+    await expect(menu.getByRole('button', { name: 'False Color', exact: true })).toHaveCount(0);
   });
 });

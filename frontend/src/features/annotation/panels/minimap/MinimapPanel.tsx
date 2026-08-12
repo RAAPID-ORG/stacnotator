@@ -96,7 +96,10 @@ export function MinimapHeader({ ctx: _ctx }: { ctx: ComposeCtx }) {
   return (
     <div className="flex w-full min-w-0 items-center gap-2">
       {!expanded && (
-        <span className="truncate text-xs font-medium tabular-nums text-neutral-700">
+        <span
+          data-testid="viewport-center"
+          className="truncate text-xs font-medium tabular-nums text-neutral-700"
+        >
           {center[1].toFixed(5)}, {center[0].toFixed(5)}
         </span>
       )}

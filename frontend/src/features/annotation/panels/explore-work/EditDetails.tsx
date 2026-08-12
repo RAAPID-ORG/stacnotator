@@ -121,7 +121,7 @@ function DetailsForm({ ctx, annotation }: { ctx: ComposeCtx; annotation: Annotat
               e.target.checked ? flagComment || null : null
             )
           }
-          className="w-3.5 h-3.5 rounded border-neutral-300"
+          className="w-3.5 h-3.5 rounded border-neutral-300 text-rose-600 focus:ring-rose-500"
         />
         <span
           className={`text-[11px] ${annotation.flagged_for_review ? 'text-rose-700 font-semibold' : 'text-neutral-600'}`}

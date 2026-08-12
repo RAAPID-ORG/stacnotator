@@ -147,7 +147,7 @@ export function mainMapBindings(ctx: ComposeCtx): Binding[] {
     { key: 'u', help: 'Cycle view', run: cycleView },
     {
       key: 'l',
-      help: 'Toggle view link (sync windows)',
+      help: 'Toggle view link (sync imagery panels)',
       run: () => useImageryStore.getState().toggleViewSync(),
     },
     { key: 'x', help: 'Toggle crosshair', run: () => useImageryStore.getState().toggleCrosshair() },

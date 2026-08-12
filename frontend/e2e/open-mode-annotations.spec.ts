@@ -47,11 +47,10 @@ async function loadOpenMode(
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
   // Map laid out -> minimap reports a centre.
-  await page.waitForFunction(
-    () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
-    undefined,
-    { timeout: 10_000 }
-  );
+  await page
+    .locator('[data-testid="viewport-center"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 10_000 });
   api.clear();
 }
 
@@ -89,10 +88,10 @@ test.describe('Open mode renders', () => {
     await expect(controls(annotationPage)).toBeVisible();
   });
 
-  test('crosshair is present and minimap centre is the bbox centre on load', async ({
-    annotationPage,
-  }) => {
-    await expect(annotationPage.locator('[data-tour="main-map"] svg line').first()).toBeAttached();
+  // No crosshair assertion: the crosshair marks the task point, so Explore
+  // (which has no focus point) deliberately turns it off - see loadCampaign's
+  // `crosshair: workMode === 'tasks'`.
+  test('minimap centre is the bbox centre on load', async ({ annotationPage }) => {
     const c = await getMinimapCenter(annotationPage);
     assertCoordsMatch(c, OPEN_MODE_CENTER, 'initial centre');
   });

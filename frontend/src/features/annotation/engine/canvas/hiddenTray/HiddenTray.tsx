@@ -255,8 +255,8 @@ export function HiddenTray({
             onPointerMove={onPanelResizePointerMove}
             onPointerUp={onPanelResizePointerUp}
             className="absolute top-0 left-0 z-20 h-5 w-5 cursor-nwse-resize"
-            title="Drag to resize panel"
-            aria-label={`Resize ${title.toLowerCase()} panel`}
+            title="Drag to resize"
+            aria-label={`Resize ${title.toLowerCase()}`}
             data-testid="resize-hidden-tray"
           />
 
@@ -265,7 +265,7 @@ export function HiddenTray({
             <button
               type="button"
               onClick={() => setExpanded(false)}
-              aria-label="Minimize panel"
+              aria-label={`Minimize ${title.toLowerCase()}`}
               title="Minimize"
             >
               -

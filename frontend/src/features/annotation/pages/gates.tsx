@@ -99,7 +99,7 @@ export function NoViewsGate({
             <h2 className={heading}>Design the annotation layout</h2>
             <p className={body}>
               {hasSources
-                ? 'Annotators cannot start until this campaign has at least one view. Create the first view - it starts with all imagery sources - then arrange its windows and save the layout as default.'
+                ? 'Annotators cannot start until this campaign has at least one view. Create the first view - it starts with all imagery sources - then arrange its panels and save the layout as default.'
                 : 'This campaign has no imagery sources yet. Add sources in the campaign settings, then come back to design the annotation layout.'}
             </p>
             {hasSources ? (

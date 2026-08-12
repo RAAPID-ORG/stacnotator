@@ -1,14 +1,20 @@
-import { test, expect, waitForNavIdle } from './fixtures/annotator-fixture';
-import type { Page } from '@playwright/test';
+/**
+ * Provider API keys.
+ *
+ * The annotator never holds a provider key: a tile template that still carries
+ * an `{api_key}` placeholder is rewritten to the backend's tile proxy, which
+ * injects the key server-side (`needsKeyProxy` / `resolveBasemapUrl` /
+ * `sliceTileProxyUrl` in src/features/annotation/core/catalog/catalog.ts).
+ * These tests hold that contract: keyed templates leave the browser only as
+ * proxy paths, keyless ones are untouched, and no key or placeholder is ever
+ * put on the wire.
+ */
+import { test, expect } from './fixtures/annotator-fixture';
+import type { Page, Request } from '@playwright/test';
 import { MOCK_CAMPAIGN, COLLECTION_S2, COLLECTION_NDVI, SOURCE } from './fixtures/mock-data';
 
-/** Locate the API keys modal by scoping to the fixed overlay that contains its heading. */
-function apiKeysModal(page: Page) {
-  return page.locator('.fixed').filter({ hasText: 'API Keys Required' });
-}
-
+const CAMPAIGN_ID = 42;
 const KEYED_BASEMAP_ID = 99;
-const KEYED_COLLECTION_ID = COLLECTION_S2.id;
 
 const KEYED_BASEMAP = {
   id: KEYED_BASEMAP_ID,
@@ -36,10 +42,7 @@ const KEYED_COLLECTION = {
 };
 
 const KEYED_SOURCE = { ...SOURCE, collections: [KEYED_COLLECTION, COLLECTION_NDVI] };
-
-function storedApiKeys(keys: Record<string, string>): string {
-  return JSON.stringify({ state: { keys }, version: 0 });
-}
+const KEYED_COVER_SLICE_ID = KEYED_COLLECTION.slices[KEYED_COLLECTION.cover_slice_index].id;
 
 async function reloadWithCampaign(page: Page, campaign: object): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
@@ -51,203 +54,104 @@ async function reloadWithCampaign(page: Page, campaign: object): Promise<void> {
   await page.waitForSelector('[data-tour="controls"]', { timeout: 10_000 });
 }
 
-test.describe('API key prompt', () => {
-  test('no prompt when campaign has no {api_key} placeholder', async ({ annotationPage }) => {
-    await expect(annotationPage.getByText('API Keys Required')).not.toBeVisible();
-  });
+/** Record every outgoing request so leak assertions can look at all of them. */
+function recordRequests(page: Page): string[] {
+  const urls: string[] = [];
+  page.on('request', (req: Request) => urls.push(req.url()));
+  return urls;
+}
 
-  test('prompt shown when a basemap URL contains {api_key} and no value is stored', async ({
+/** Pick a basemap from the main map's layer selector (basemaps are listed
+ *  alongside the imagery visualizations). */
+async function selectLayer(page: Page, name: string): Promise<void> {
+  await page.locator('[data-tour="layer-selector"] button').click();
+  await page.locator('div.rounded-lg.shadow-lg button').filter({ hasText: name }).first().click();
+}
+
+test.describe('Keyed tile templates go through the backend proxy', () => {
+  test('a keyed basemap is requested from the proxy, never from the provider', async ({
     annotationPage,
   }) => {
-    await reloadWithCampaign(annotationPage, { ...MOCK_CAMPAIGN, basemaps: [KEYED_BASEMAP] });
-
-    await expect(annotationPage.getByText('API Keys Required')).toBeVisible({ timeout: 5_000 });
-    await expect(annotationPage.getByPlaceholder('Paste your API key here')).toBeVisible();
-  });
-
-  test('no prompt when {api_key} value is already in localStorage', async ({ annotationPage }) => {
-    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
-      key: 'stacnotator:api-keys',
-      value: storedApiKeys({ 'basemap:99': 'PLtest123' }),
-    });
-
-    await reloadWithCampaign(annotationPage, { ...MOCK_CAMPAIGN, basemaps: [KEYED_BASEMAP] });
-
-    await expect(annotationPage.getByText('API Keys Required')).not.toBeVisible();
-  });
-
-  test('skip dismisses the modal and annotation page remains functional', async ({
-    annotationPage,
-  }) => {
-    await reloadWithCampaign(annotationPage, { ...MOCK_CAMPAIGN, basemaps: [KEYED_BASEMAP] });
-
-    await expect(annotationPage.getByText('API Keys Required')).toBeVisible({ timeout: 5_000 });
-    await apiKeysModal(annotationPage).getByRole('button', { name: 'Skip' }).click();
-    await expect(annotationPage.getByText('API Keys Required')).not.toBeVisible();
-    await expect(annotationPage.locator('[data-tour="controls"]')).toBeVisible();
-  });
-
-  test('save is disabled until the acknowledgment checkbox is ticked', async ({
-    annotationPage,
-  }) => {
-    await reloadWithCampaign(annotationPage, { ...MOCK_CAMPAIGN, basemaps: [KEYED_BASEMAP] });
-
-    await expect(annotationPage.getByText('API Keys Required')).toBeVisible({ timeout: 5_000 });
-    await expect(annotationPage.getByRole('button', { name: 'Save' })).toBeDisabled();
-    await annotationPage.getByRole('checkbox').click();
-    await expect(annotationPage.getByRole('button', { name: 'Save' })).toBeEnabled();
-  });
-
-  test('entering a key and saving dismisses the modal', async ({ annotationPage }) => {
-    await reloadWithCampaign(annotationPage, { ...MOCK_CAMPAIGN, basemaps: [KEYED_BASEMAP] });
-
-    await expect(annotationPage.getByText('API Keys Required')).toBeVisible({ timeout: 5_000 });
-    await annotationPage.getByPlaceholder('Paste your API key here').fill('PLtest123');
-    await annotationPage.getByRole('checkbox').click();
-    await annotationPage.getByRole('button', { name: 'Save' }).click();
-    await expect(annotationPage.getByText('API Keys Required')).not.toBeVisible();
-  });
-});
-
-test.describe('multiple API keys', () => {
-  test('prompt shows one entry per missing key when both basemap and collection require keys', async ({
-    annotationPage,
-  }) => {
-    await reloadWithCampaign(annotationPage, {
-      ...MOCK_CAMPAIGN,
-      basemaps: [KEYED_BASEMAP],
-      imagery_sources: [KEYED_SOURCE],
-    });
-
-    const modal = apiKeysModal(annotationPage);
-    await expect(modal).toBeVisible({ timeout: 5_000 });
-    await expect(modal.getByPlaceholder('Paste your API key here')).toHaveCount(2);
-    await expect(modal.getByText('Planet Basemap')).toBeVisible();
-    await expect(modal.getByText(COLLECTION_S2.name)).toBeVisible();
-  });
-
-  test('prompt shows only the entry whose key is missing when one is already stored', async ({
-    annotationPage,
-  }) => {
-    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
-      key: 'stacnotator:api-keys',
-      value: storedApiKeys({ 'basemap:99': 'PLtest123' }),
-    });
-
-    await reloadWithCampaign(annotationPage, {
-      ...MOCK_CAMPAIGN,
-      basemaps: [KEYED_BASEMAP],
-      imagery_sources: [KEYED_SOURCE],
-    });
-
-    const modal = apiKeysModal(annotationPage);
-    await expect(modal).toBeVisible({ timeout: 5_000 });
-    await expect(modal.getByPlaceholder('Paste your API key here')).toHaveCount(1);
-    await expect(modal.getByText(COLLECTION_S2.name)).toBeVisible();
-    await expect(modal.getByText('Planet Basemap')).not.toBeVisible();
-  });
-
-  test('no prompt when all keys are stored', async ({ annotationPage }) => {
-    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
-      key: 'stacnotator:api-keys',
-      value: storedApiKeys({
-        'basemap:99': 'PLtest123',
-        [`collection:${KEYED_COLLECTION_ID}`]: 'IMGtest456',
-      }),
-    });
-
-    await reloadWithCampaign(annotationPage, {
-      ...MOCK_CAMPAIGN,
-      basemaps: [KEYED_BASEMAP],
-      imagery_sources: [KEYED_SOURCE],
-    });
-
-    await expect(annotationPage.getByText('API Keys Required')).not.toBeVisible();
-  });
-});
-
-test.describe('API key tile substitution', () => {
-  test('basemap tile requests contain the substituted value, not the placeholder', async ({
-    annotationPage,
-  }) => {
-    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
-      key: 'stacnotator:api-keys',
-      value: storedApiKeys({ 'basemap:99': 'PLtest123' }),
-    });
-
-    // Listener must be created before the action that triggers the request.
-    const keyedTileRequest = annotationPage.waitForRequest(
-      (req) => req.url().includes('api_key=PLtest123'),
+    const urls = recordRequests(annotationPage);
+    const proxyTile = annotationPage.waitForRequest(
+      (req) =>
+        req.url().includes(`/api/${CAMPAIGN_ID}/imagery/basemaps/${KEYED_BASEMAP_ID}/tiles/`),
       { timeout: 15_000 }
     );
 
     await reloadWithCampaign(annotationPage, { ...MOCK_CAMPAIGN, basemaps: [KEYED_BASEMAP] });
-    await waitForNavIdle(annotationPage);
-    // Basemap is not active by default - cycle to it so OL requests its tiles.
-    await annotationPage.keyboard.press('i');
+    await selectLayer(annotationPage, KEYED_BASEMAP.name);
 
-    const req = await keyedTileRequest;
-    expect(req.url()).toContain('/planet/');
-    expect(req.url()).toContain('api_key=PLtest123');
-    expect(req.url()).not.toContain('{api_key}');
+    const req = await proxyTile;
     expect(req.url()).not.toContain('{z}');
+    expect(urls.some((url) => url.includes('/planet/'))).toBe(false);
   });
 
-  test('each entry gets only its own key value', async ({ annotationPage }) => {
-    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
-      key: 'stacnotator:api-keys',
-      value: storedApiKeys({
-        'basemap:99': 'PLANET_KEY',
-        [`collection:${KEYED_COLLECTION_ID}`]: 'IMAGERY_KEY',
-      }),
+  test('a keyed imagery slice is requested from the slice proxy', async ({ annotationPage }) => {
+    const urls = recordRequests(annotationPage);
+    const proxyTile = annotationPage.waitForRequest(
+      (req) =>
+        req.url().includes(`/api/${CAMPAIGN_ID}/imagery/slices/${KEYED_COVER_SLICE_ID}/tiles/`),
+      { timeout: 15_000 }
+    );
+
+    await reloadWithCampaign(annotationPage, {
+      ...MOCK_CAMPAIGN,
+      imagery_sources: [KEYED_SOURCE],
     });
 
-    const planetRequest = annotationPage.waitForRequest(
-      (req) => req.url().includes('api_key=PLANET_KEY'),
-      { timeout: 15_000 }
-    );
-    const imageryRequest = annotationPage.waitForRequest(
-      (req) => req.url().includes('api_key=IMAGERY_KEY'),
-      { timeout: 15_000 }
-    );
+    const req = await proxyTile;
+    expect(req.url()).toContain(encodeURIComponent('True Color'));
+    expect(urls.some((url) => url.includes('/keyed-imagery/'))).toBe(false);
+  });
+
+  test('neither the placeholder nor a key value ever reaches the network', async ({
+    annotationPage,
+  }) => {
+    const urls = recordRequests(annotationPage);
 
     await reloadWithCampaign(annotationPage, {
       ...MOCK_CAMPAIGN,
       basemaps: [KEYED_BASEMAP],
       imagery_sources: [KEYED_SOURCE],
     });
-    await waitForNavIdle(annotationPage);
-    // Imagery tiles (IMAGERY_KEY) are requested automatically when the app loads.
-    // Basemap tiles (PLANET_KEY) require activating the basemap layer.
-    await annotationPage.keyboard.press('i');
+    await selectLayer(annotationPage, KEYED_BASEMAP.name);
+    await annotationPage.waitForTimeout(2_000);
 
-    const [planet, imagery] = await Promise.all([planetRequest, imageryRequest]);
-    expect(planet.url()).toContain('/planet/');
-    expect(planet.url()).not.toContain('IMAGERY_KEY');
-    expect(imagery.url()).toContain('/keyed-imagery/');
-    expect(imagery.url()).not.toContain('PLANET_KEY');
+    expect(urls.filter((url) => url.includes('api_key'))).toEqual([]);
   });
+});
 
-  test('keyless tile URLs are not modified when a key is stored', async ({ annotationPage }) => {
-    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
-      key: 'stacnotator:api-keys',
-      value: storedApiKeys({ 'basemap:99': 'PLtest123' }),
-    });
-
-    const publicTileUrls: string[] = [];
-    annotationPage.on('request', (req) => {
-      if (req.url().includes('/osm/')) publicTileUrls.push(req.url());
-    });
+test.describe('Keyless tile templates are left alone', () => {
+  test('a keyless basemap is fetched straight from the provider', async ({ annotationPage }) => {
+    const providerTile = annotationPage.waitForRequest(
+      (req) => req.url().includes('/osm/') && !req.url().includes('/api/'),
+      { timeout: 15_000 }
+    );
 
     await reloadWithCampaign(annotationPage, {
       ...MOCK_CAMPAIGN,
       basemaps: [PUBLIC_BASEMAP, KEYED_BASEMAP],
     });
+    await selectLayer(annotationPage, PUBLIC_BASEMAP.name);
 
-    await annotationPage.waitForTimeout(3_000);
+    const req = await providerTile;
+    expect(req.url()).not.toContain('api_key');
+    expect(req.url()).not.toContain('{z}');
+  });
 
-    for (const url of publicTileUrls) {
-      expect(url).not.toContain('api_key=');
-    }
+  test('a keyless imagery slice is fetched straight from the tiler', async ({
+    annotationPage,
+    api,
+  }) => {
+    const urls = recordRequests(annotationPage);
+    await reloadWithCampaign(annotationPage, MOCK_CAMPAIGN);
+
+    await expect
+      .poll(() => api.requests.some((r) => r.url.includes('/mosaic/search-jan-2024/')), {
+        timeout: 15_000,
+      })
+      .toBe(true);
+    expect(urls.some((url) => url.includes('/imagery/slices/'))).toBe(false);
   });
 });

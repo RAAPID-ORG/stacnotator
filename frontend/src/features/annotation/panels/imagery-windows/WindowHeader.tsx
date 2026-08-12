@@ -28,6 +28,7 @@ export function WindowHeader({ ctx, collection }: WindowHeaderProps) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <span
+        data-window-active={isActive}
         className={`min-w-0 flex-1 truncate text-xs ${isActive ? 'font-semibold text-brand-700' : 'text-neutral-700'}`}
       >
         {collection.name}

@@ -28,10 +28,10 @@ function NewWindowSizeControls() {
   return (
     <div className="space-y-2" data-testid="new-window-size">
       <span className="block text-[11px] font-medium uppercase tracking-wider text-neutral-500">
-        New window size
+        New panel size
       </span>
       <p className="text-[11px] leading-snug text-neutral-400">
-        Sets the width and height a hidden window gets when it's added back to the canvas.
+        Sets the width and height a hidden panel gets when it's added back to the canvas.
       </p>
       <div className="space-y-2">
         <label className="flex items-center gap-2 text-[11px] text-neutral-500">
@@ -46,7 +46,7 @@ function NewWindowSizeControls() {
               setNewWindowSize({ perRow: Number(e.target.value), rows: newWindowSize.rows })
             }
             className="h-1.5 flex-1 cursor-pointer accent-brand-600"
-            aria-label="Windows per row"
+            aria-label="Panels per row"
           />
           <span className="w-4 text-right font-medium tabular-nums text-neutral-700">
             {newWindowSize.perRow}
@@ -64,7 +64,7 @@ function NewWindowSizeControls() {
               setNewWindowSize({ perRow: newWindowSize.perRow, rows: Number(e.target.value) })
             }
             className="h-1.5 flex-1 cursor-pointer accent-brand-600"
-            aria-label="Window height"
+            aria-label="Panel height"
           />
           <span className="w-4 text-right font-medium tabular-nums text-neutral-700">
             {newWindowSize.rows}
@@ -112,7 +112,7 @@ export function TrayContent({ catalog, view, canvasRef }: TrayContentProps) {
   return (
     <HiddenTray
       items={items}
-      title="Hidden windows"
+      title="Hidden panels"
       headerExtra={<NewWindowSizeControls />}
       storageKey="annotation:hiddenTray"
       canvasRef={canvasRef}

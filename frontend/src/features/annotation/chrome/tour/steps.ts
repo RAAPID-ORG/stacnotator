@@ -22,8 +22,8 @@ const imageryWindows = { kind: 'role', name: 'imagery-windows' } as const;
 const timeseries = { kind: 'role', name: 'timeseries' } as const;
 
 const WINDOWS_VS_SLICES = [
-  'A Window is a broad time range (e.g. a year or season). A Slice is a finer subdivision inside that window (e.g. individual months).',
-  'The main map always shows one slice at a time. The smaller imagery panels show the same slice but for different windows so you can compare across time.',
+  'A Collection is a broad time range (e.g. a year or season). A Slice is a finer subdivision inside that collection (e.g. individual months).',
+  'The main map always shows one slice at a time. The smaller imagery panels show the same slice but for different collections so you can compare across time.',
 ];
 
 const ZOOM_AND_PAN: Pick<TourStep, 'body' | 'hint' | 'requiredKeys' | 'placement'> = {
@@ -104,7 +104,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       target: imagerySelector,
       title: 'Canvas Views',
       body: [
-        'Use this dropdown to switch between the different canvas views configured for this campaign. Each view may have its own time-windows, slices, and visualization layers and help you to organize different imagery sources meaningfully.',
+        'Use this dropdown to switch between the different canvas views configured for this campaign. Each view may have its own imagery collections, slices, and visualization layers and help you to organize different imagery sources meaningfully.',
       ],
       placement: 'bottom',
     },
@@ -120,25 +120,25 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
     {
       id: 'main-map',
       target: mainMap,
-      title: 'Main Map Window',
+      title: 'Main Map',
       body: [
-        "This is the primary map view. It shows the selected imagery at the current window & slice. Use your mouse to pan and scroll to zoom, or try the keyboard shortcuts you'll learn next.",
+        "This is the primary map view. It shows the selected imagery at the current collection & slice. Use your mouse to pan and scroll to zoom, or try the keyboard shortcuts you'll learn next.",
       ],
       placement: 'right',
     },
     {
       id: 'collection-picker',
       target: collectionPicker,
-      title: 'Window Picker',
+      title: 'Collection Picker',
       body: [
-        'This picker lists all windows in chronological order, and highlights the active one. A window is a collection of imagery. Pick one to jump straight to it.',
+        'This picker lists all collections in chronological order, and highlights the active one. A collection is a broad time range of imagery. Pick one to jump straight to it.',
       ],
       placement: 'bottom',
     },
     {
       id: 'windows-vs-slices',
       target: collectionPicker,
-      title: 'Windows vs Slices',
+      title: 'Collections vs Slices',
       body: WINDOWS_VS_SLICES,
       placement: 'bottom',
     },
@@ -154,9 +154,9 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
     {
       id: 'practice-windows',
       target: collectionPicker,
-      title: 'Practice: Navigate Windows',
+      title: 'Practice: Navigate Collections',
       body: [
-        'Press {{shift+a}} to go to the previous window and {{shift+d}} to go to the next window. Often you will want to browse imagery in these bigger steps rather than individually by slice, as the first slice (cover slice) is often representative of the whole window. These are also preloaded at your default zoom-level to make your workflow faster. Set the default zoom in campaign settings for the best experience.',
+        'Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection. Often you will want to browse imagery in these bigger steps rather than individually by slice, as the first slice (cover slice) is often representative of the whole collection. These are also preloaded at your default zoom-level to make your workflow faster. Set the default zoom in campaign settings for the best experience.',
       ],
       hint: 'Try pressing Shift+A and then Shift+D to navigate both directions.',
       placement: 'bottom',
@@ -167,7 +167,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       target: collectionPicker,
       title: 'Tip: Hold to Cycle',
       body: [
-        'You can hold {{a}} / {{d}} or {{shift+a}} / {{shift+d}} to smoothly cycle through slices or windows without releasing the key. This is great for spotting changes across time in a flickering animation style.',
+        'You can hold {{a}} / {{d}} or {{shift+a}} / {{shift+d}} to smoothly cycle through slices or collections without releasing the key. This is great for spotting changes across time in a flickering animation style.',
       ],
       hint: 'Try holding Shift+D for a moment to see it in action.',
       placement: 'bottom',
@@ -178,7 +178,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       title: 'Map Controls',
       body: ['These controls in the header bar let you manage the map:'],
       bullets: [
-        { text: 'Layer / Window / Slice selectors - switch imagery directly' },
+        { text: 'Layer / Collection / Slice selectors - switch imagery directly' },
         { text: 'Recenter - snap back to the task location ({{ }})' },
         { text: 'Crosshair - toggle the crosshair overlay ({{x}})' },
         { text: 'Timeseries probe - click the map to inspect the time series of that point' },
@@ -206,9 +206,9 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
     {
       id: 'imagery-windows',
       target: imageryWindows,
-      title: 'Imagery Windows',
+      title: 'Imagery Panels',
       body: [
-        'These smaller panels each show a different window at the same geographic location. Click a panel to make it the active window in the main map.',
+        'These smaller panels each show a different collection at the same geographic location. Click a panel to make it the active collection in the main map.',
         'This lets you quickly compare how a location looks across different time periods.',
       ],
       placement: 'top',
@@ -216,9 +216,9 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
     {
       id: 'view-sync',
       target: mapControls,
-      title: 'Window Sync (View Link)',
+      title: 'Imagery Panel Sync (View Link)',
       body: [
-        'Press {{l}} to toggle view sync. When enabled, all imagery window panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
+        'Press {{l}} to toggle view sync. When enabled, all imagery panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
         'Tip: turning view sync off can noticeably speed up imagery loading, because only the main map needs to fetch new tiles when you navigate. The smaller panels will stay on their current slice until you click them.',
       ],
       placement: 'bottom',
@@ -230,7 +230,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
             target: timeseries,
             title: 'Time Series Chart',
             body: [
-              'The time series chart shows spectral indices (e.g. NDVI) for the task location over time. Vertical bars indicate the currently selected window/slice.',
+              'The time series chart shows spectral indices (e.g. NDVI) for the task location over time. Vertical bars indicate the currently selected collection/slice.',
               'Use the timeseries probe tool in the map controls to click anywhere on the map and see its time series.',
               'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides observations that were flagged as cloud-covered, and Smooth applies a Savitzky-Golay filter to the curve so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
             ],
@@ -333,7 +333,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       cheatSheet: [
         { label: 'Navigate tasks', keys: ['w', 's'] },
         { label: 'Navigate slices', keys: ['a', 'd'] },
-        { label: 'Navigate windows', keys: ['shift+a', 'shift+d'] },
+        { label: 'Navigate collections', keys: ['shift+a', 'shift+d'] },
         { label: 'Zoom in / out', keys: ['alt+arrowup', 'alt+arrowdown'] },
         { label: 'Pan map', keys: ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'] },
         { label: 'Recenter', keys: [' '] },
@@ -369,34 +369,34 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       target: imagerySelector,
       title: 'Canvas View',
       body: [
-        'This dropdown selects the active canvas view. A view is a campaign-level grouping that defines which imagery sources and time-windows are shown together - think of it as a preset for the whole annotation workspace.',
-        'Switching views may change the available windows, slices, imagery sources, and visualization layers all at once.',
+        'This dropdown selects the active canvas view. A view is a campaign-level grouping that defines which imagery sources and collections are shown together - think of it as a preset for the whole annotation workspace.',
+        'Switching views may change the available collections, slices, imagery sources, and visualization layers all at once.',
       ],
       placement: 'bottom',
     },
     {
       id: 'collection-picker',
       target: collectionPicker,
-      title: 'Window Picker',
+      title: 'Collection Picker',
       body: [
-        'This picker lists all windows in chronological order, and highlights the active one. Picking one jumps straight to it - often faster than stepping with {{shift+a}} / {{shift+d}}.',
+        'This picker lists all collections in chronological order, and highlights the active one. Picking one jumps straight to it - often faster than stepping with {{shift+a}} / {{shift+d}}.',
       ],
       placement: 'bottom',
     },
     {
       id: 'windows-vs-slices',
       target: collectionPicker,
-      title: 'Windows & Slices',
+      title: 'Collections & Slices',
       body: WINDOWS_VS_SLICES,
       placement: 'bottom',
     },
     {
       id: 'imagery-windows',
       target: imageryWindows,
-      title: 'Imagery Windows',
+      title: 'Imagery Panels',
       body: [
-        'These smaller panels each show a different window at the same geographic location. Click a panel to make it the active window in the main map.',
-        "This lets you quickly compare how a location looks across different time periods. The main map will update to show that window's imagery at full size.",
+        'These smaller panels each show a different collection at the same geographic location. Click a panel to make it the active collection in the main map.',
+        "This lets you quickly compare how a location looks across different time periods. The main map will update to show that collection's imagery at full size.",
       ],
       placement: 'top',
     },
@@ -412,9 +412,9 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
     {
       id: 'practice-windows',
       target: collectionPicker,
-      title: 'Practice: Navigate Windows',
+      title: 'Practice: Navigate Collections',
       body: [
-        'Press {{shift+a}} to go to the previous window and {{shift+d}} to go to the next window.',
+        'Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection.',
       ],
       hint: 'Try pressing Shift+A and then Shift+D to navigate both directions.',
       placement: 'bottom',
@@ -440,9 +440,9 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
     {
       id: 'view-sync',
       target: mapControls,
-      title: 'Window Sync (View Link)',
+      title: 'Imagery Panel Sync (View Link)',
       body: [
-        'Press {{l}} to toggle view sync. When enabled, all imagery window panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
+        'Press {{l}} to toggle view sync. When enabled, all imagery panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
         'Tip: turning view sync off can noticeably speed up imagery loading, because only the main map needs to fetch new tiles when you navigate.',
       ],
       placement: 'left',
@@ -546,7 +546,7 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
         { label: 'Label vector features', keys: ['b'] },
         ...(hasTimeseries ? [{ label: 'Timeseries tool', keys: ['t'] }] : []),
         { label: 'Navigate slices', keys: ['a', 'd'] },
-        { label: 'Navigate windows', keys: ['shift+a', 'shift+d'] },
+        { label: 'Navigate collections', keys: ['shift+a', 'shift+d'] },
         { label: 'Zoom in / out', keys: ['alt+arrowup', 'alt+arrowdown'] },
         { label: 'Pan map', keys: ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'] },
         { label: 'Fit to annotations', keys: [' '] },

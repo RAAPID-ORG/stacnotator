@@ -596,7 +596,7 @@ export function AnnotationPage() {
             onBounds={(b) => screens.rememberBounds(screen.id, b)}
             onBlocked={() =>
               showAlert(
-                'The browser blocked the screen window. Allow popups for this site and try again.',
+                'The browser blocked the new screen. Allow popups for this site and try again.',
                 'error'
               )
             }

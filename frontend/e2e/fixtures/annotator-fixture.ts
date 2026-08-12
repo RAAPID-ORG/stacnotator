@@ -135,32 +135,38 @@ export async function elevateToAuthoritativeReviewer(page: Page): Promise<void> 
     .waitFor({ state: 'visible', timeout: 5000 });
 }
 
+/** The task controls card. `controls` is the grid key both work modes'
+ *  controls panel resolves to, so this is stable across Task/Explore. */
+export const controlsPanel = (page: Page) => page.locator('[data-panel-id="controls"]');
+
+/** Two painted frames: enough for React to have committed whatever the
+ *  keystroke just dispatched, without guessing at a sleep duration. */
+const nextFrames = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  );
+
 /**
- * Wait for the task store's `isNavigating` flag to clear.
+ * Wait until task navigation has settled.
  *
- * The store sets `isNavigating: true` for ~500ms after every task change
- * (nextTask/previousTask/goToTask/setTaskFilter/submitAnnotation auto-advance)
- * and silently drops `w`/`s`/Enter keypresses while it's true. Waiting on
- * the DOM ("Loading…" button text) is racy: the text can flash by faster than
- * Playwright's polling interval. The store flag is the authoritative signal.
- *
- * Source exposes `__TASK_STORE__` to window in dev/test mode.
+ * Navigation itself is synchronous, so "settled" means no submission is in
+ * flight: the controls re-enable and the submit button drops its busy label.
+ * Observed purely through the DOM - an enabled Point box, or the empty-filter
+ * notice for a filter that matches nothing. The frame wait first gives an
+ * in-flight submission the chance to disable them, so a caller that just
+ * pressed Enter does not read "idle" before the request has even left.
  */
 export async function waitForNavIdle(page: Page, timeout = 5000): Promise<void> {
-  await page.waitForFunction(
-    () => {
-      const store = (
-        window as unknown as {
-          __TASK_STORE__?: { getState: () => { isNavigating: boolean; isSubmitting: boolean } };
-        }
-      ).__TASK_STORE__;
-      if (!store) return false;
-      const s = store.getState();
-      return !s.isNavigating && !s.isSubmitting;
-    },
-    undefined,
-    { timeout }
-  );
+  const controls = controlsPanel(page);
+  await controls.waitFor({ state: 'visible', timeout });
+  await nextFrames(page);
+  const idle = controls
+    .locator('input[type="number"][title="Press Enter to go"]:not([disabled])')
+    .or(controls.getByText('No tasks match the current filter.'));
+  await idle.first().waitFor({ state: 'visible', timeout });
 }
 
 /** Catch-all + tiles + the current user. Registered first so every later route
@@ -285,23 +291,22 @@ async function installOrgProjectMocks(page: Page, api: ApiCapture): Promise<void
 async function installAuthBypass(page: Page): Promise<void> {
   await page.addInitScript(() => {
     // Suppress the first-visit guided tour: tests need the annotation
-    // toolbar reachable without an overlay on top. Seeds the persisted
-    // preferences store (`usePreferencesStore`) so hasSeenTour() returns
-    // true. Key is `${accountId}:${campaignId}` for the test user/campaign.
+    // canvas reachable without an overlay on top. Seeds the persisted
+    // prefs store (`usePrefsStore`) so the tour counts as already seen.
+    // Its scope id is `${accountId}:${campaignId}` for the test user/campaign.
     // This init script re-runs on every reload, so MERGE rather than
     // overwrite - otherwise other persisted preferences a test wrote (e.g.
     // annotation styles) would be wiped on reload.
     try {
-      const key = 'stacnotator:preferences';
+      const key = 'annotation:prefs';
       const existing = JSON.parse(localStorage.getItem(key) || '{}');
       const state = existing.state || {};
-      state.tourSeenByCampaign = {
-        ...(state.tourSeenByCampaign || {}),
-        'test-user-abc-123:42': true,
-      };
+      const seen: string[] = state.toursSeen || [];
+      const scope = 'test-user-abc-123:42';
+      state.toursSeen = seen.includes(scope) ? seen : [...seen, scope];
       localStorage.setItem(
         key,
-        JSON.stringify({ ...existing, state, version: existing.version ?? 1 })
+        JSON.stringify({ ...existing, state, version: existing.version ?? 0 })
       );
     } catch {
       // localStorage unavailable - ignore

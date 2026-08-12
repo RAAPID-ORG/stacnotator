@@ -90,7 +90,7 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
           className="flex min-h-0 w-full flex-1 items-center justify-center"
           data-testid={canHide ? `hide-overlay-${panel.id}` : `edit-placeholder-${panel.id}`}
         >
-          {canHide ? 'Hide window' : (panel.title ?? panel.id)}
+          {canHide ? 'Hide panel' : (panel.title ?? panel.id)}
         </button>
       ) : (
         <div className="panel-body min-h-0 flex-1" onClick={panel.onBodyClick}>
