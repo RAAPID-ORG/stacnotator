@@ -88,11 +88,21 @@ For MPC collections with first-valid compositing, the frontend fetches tiles **d
 
 Feature-sliced under `frontend/src/`:
 - `app/` — `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `AppSidebar.tsx`)
-- `features/<name>/` — `annotation`, `campaigns`, `auth`, `settings`, `home`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`. Custom-layers UI follows the surface split: authoring editors under `campaigns/components/`, runtime controls/hooks under `annotation/components/Map/`
+- `features/<name>/` — `annotation`, `campaigns`, `auth`, `settings`, `home`. Most have `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`; `annotation` is layered instead (below). Custom-layers UI follows the surface split: authoring editors under `campaigns/components/`, runtime controls under the annotation panels that own them
 - `shared/` — cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`), `colormaps/` (tiler colormap definitions + select, used by the campaign editors and the annotation legend)
 - `api/` — generated client (`client/`), `hey-api.ts` config, plus `stacBrowser.ts` and `tilerToken.ts`
 
-The annotation feature is the heart of the app. Two campaign modes drive parallel component sets: **Task Mode** (predefined locations, `ControlsTaskMode`/`TaskModeMap`) and **Open Mode** (free-form, `ControlsOpenMode`/`OpenModeMap`). Maps are OpenLayers (`features/annotation/components/Map/`): `layerManager.ts`, `useSliceLayers.ts`, and tile prefetching (`tilePreloader.ts`, `useTilePreloading.ts`). State is Zustand stores. The whole annotation workflow supports keyboard hotkeys.
+### The annotation feature
+
+The heart of the app, and the one feature sliced by layer rather than by artifact kind. Under `features/annotation/`:
+
+- `core/` — pure TypeScript, no React and no OpenLayers: `catalog/` (sources, collections, slices, views, time navigation), `annotation/` (labels, geometry, form values, validation, styling), `tasks/` (claims, filtering, navigation, review rows), `workspace/` (layout maths).
+- `stores/` — the Zustand stores plus `loadCampaign`, the cross-store bootstrap.
+- `engine/` — app-agnostic and campaign-unaware: `map/` (the only place that imports `ol/*`: a `LayerSpec` union, a reconciler that diffs specs onto real layers, a camera with leader/follower, draw/modify/select interactions, tile QoS), `canvas/` (react-grid-layout panel host, popout screens, hidden tray), `hotkeys/` (a scoped binding registry).
+- `panels/` — one folder per surface (`main-map`, `imagery-windows`, `minimap`, `timeseries`, `task-work`, `explore-work`, `drawing`, `toolbar`, `layout-edit`, `tour`, `mobile`), with `panels/shared/` for state two panels genuinely share.
+- `pages/AnnotationPage.tsx` — the route entry, and the only module the rest of the app may import (enforced by `no-restricted-imports` in `eslint.config.js`; the engine is likewise barred from importing campaign concepts).
+
+Both campaign modes (**Task Mode**, predefined locations; **Open Mode**, free-form) share one map composition path, so there is no forked map or controls implementation. Every binding is declared in a hotkey table with its own help text, which is what drives the shortcut list and the tooltips.
 
 ## Conventions & guardrails
 
