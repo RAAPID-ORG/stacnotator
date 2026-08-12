@@ -295,9 +295,19 @@ export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
   const tasksActive = () => ctx.mode === 'tasks';
   const labels = ctx.campaign.settings.labels;
 
+  // Below 10 labels a single keystroke always resolves the selection, so only
+  // the digits that name a real label are bound; at 10+, two-digit numbers
+  // are reachable and every digit can appear in either position.
+  const labelDigits =
+    labels.length >= 10
+      ? ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+      : Array.from({ length: labels.length }, (_, i) => String(i + 1));
+  const labelHelp =
+    labels.length >= 10 ? 'Select label by number (two digits for 10+)' : 'Select label by number';
+
   const digitBinding = (digit: string): Binding => ({
     key: digit,
-    help: 'Select label by number (two digits for 10+)',
+    help: labelHelp,
     when: tasksActive,
     run: () => handleDigitInput(digit, labels),
   });
@@ -308,13 +318,13 @@ export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
   // the tooltips render.
   const confidenceBinding = (level: 1 | 2 | 3 | 4 | 5): Binding => ({
     key: `shift+${level}`,
-    help: `Set confidence to ${level}`,
+    help: 'Set confidence level',
     when: tasksActive,
     run: () => useWorkStore.getState().setConfidence(level),
   });
 
   return [
-    ...['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digitBinding),
+    ...labelDigits.map(digitBinding),
     ...([1, 2, 3, 4, 5] as const).map(confidenceBinding),
 
     { key: 'w', help: 'Previous task', when: tasksActive, run: () => previous(ctx.catalog) },

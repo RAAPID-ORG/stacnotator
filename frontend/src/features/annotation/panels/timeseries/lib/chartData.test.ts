@@ -4,6 +4,7 @@ import {
   formatDateForTooltip,
   parseSeriesDate,
   getOptimalMonthLabels,
+  setSliceMarker,
   sliceMarkerFor,
 } from './chartData';
 import type { TimeSeriesData } from './cache';
@@ -85,6 +86,29 @@ describe('sliceMarkerFor', () => {
   it('returns nothing without a date range or labels', () => {
     expect(sliceMarkerFor(labels, null, '2024-01-31')).toBeNull();
     expect(sliceMarkerFor([], '2024-01-01', '2024-01-31')).toBeNull();
+  });
+});
+
+describe('setSliceMarker', () => {
+  it('repaints when the marker moves and stays quiet when it does not', () => {
+    let renders = 0;
+    const chart = {
+      render: () => {
+        renders += 1;
+      },
+    };
+
+    setSliceMarker(chart, { startIdx: 1, endIdx: 2 });
+    expect(renders).toBe(1);
+
+    setSliceMarker(chart, { startIdx: 1, endIdx: 2 });
+    expect(renders).toBe(1);
+
+    setSliceMarker(chart, { startIdx: 3, endIdx: 3 });
+    expect(renders).toBe(2);
+
+    setSliceMarker(chart, null);
+    expect(renders).toBe(3);
   });
 });
 

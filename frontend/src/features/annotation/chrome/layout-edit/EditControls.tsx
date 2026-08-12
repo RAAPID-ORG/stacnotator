@@ -19,24 +19,17 @@ export interface EditControlsProps {
   isCampaignAdmin: boolean;
 }
 
-const MIN_PER_ROW = 2;
-const MAX_PER_ROW = 10;
-const MIN_WINDOW_H = 5;
-const MAX_WINDOW_H = 20;
-
 export function EditControls({ campaign, view, isCampaignAdmin }: EditControlsProps) {
   const isMobile = useIsMobile();
   const showAlert = useLayoutStore((s) => s.showAlert);
   const editing = useWorkspaceStore((s) => s.editing);
   const currentLayout = useWorkspaceStore((s) => s.currentLayout);
   const savedLayout = useWorkspaceStore((s) => s.savedLayout);
-  const newWindowSize = useWorkspaceStore((s) => s.newWindowSize);
   const startEditing = useWorkspaceStore((s) => s.startEditing);
   const saveLayout = useWorkspaceStore((s) => s.saveLayout);
   const cancelEditing = useWorkspaceStore((s) => s.cancelEditing);
   const setLayout = useWorkspaceStore((s) => s.setLayout);
   const hideAllWindows = useWorkspaceStore((s) => s.hideAllWindows);
-  const setNewWindowSize = useWorkspaceStore((s) => s.setNewWindowSize);
 
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
@@ -133,43 +126,6 @@ export function EditControls({ campaign, view, isCampaignAdmin }: EditControlsPr
       >
         Hide all
       </button>
-
-      <label className="flex items-center gap-1 text-[11px] text-neutral-500">
-        Per row
-        <input
-          type="range"
-          min={MIN_PER_ROW}
-          max={MAX_PER_ROW}
-          step={1}
-          value={newWindowSize.perRow}
-          onChange={(e) =>
-            setNewWindowSize({ perRow: Number(e.target.value), rows: newWindowSize.rows })
-          }
-          className="h-1.5 w-16 cursor-pointer accent-brand-600"
-          aria-label="Windows per row"
-        />
-        <span className="w-4 text-right font-medium tabular-nums text-neutral-700">
-          {newWindowSize.perRow}
-        </span>
-      </label>
-      <label className="flex items-center gap-1 text-[11px] text-neutral-500">
-        Height
-        <input
-          type="range"
-          min={MIN_WINDOW_H}
-          max={MAX_WINDOW_H}
-          step={1}
-          value={newWindowSize.rows}
-          onChange={(e) =>
-            setNewWindowSize({ perRow: newWindowSize.perRow, rows: Number(e.target.value) })
-          }
-          className="h-1.5 w-16 cursor-pointer accent-brand-600"
-          aria-label="Window height"
-        />
-        <span className="w-4 text-right font-medium tabular-nums text-neutral-700">
-          {newWindowSize.rows}
-        </span>
-      </label>
 
       <ConfirmDialog
         isOpen={resetConfirmOpen}

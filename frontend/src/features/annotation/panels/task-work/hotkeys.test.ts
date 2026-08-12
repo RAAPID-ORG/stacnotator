@@ -114,11 +114,11 @@ describe('taskLabellingPolicy', () => {
 describe('confidence bindings', () => {
   const bindings = () => taskWorkBindings(ctxFor(makeCampaign()));
 
-  it('binds Shift+1..5 to the confidence levels, and says so in the help', () => {
+  it('binds Shift+1..5 to the confidence levels, sharing one help row', () => {
     for (const level of [1, 2, 3, 4, 5] as const) {
       const binding = bindings().find((b) => b.key === `shift+${level}`);
       expect(binding, `shift+${level} is bound`).toBeDefined();
-      expect(binding!.help).toBe(`Set confidence to ${level}`);
+      expect(binding!.help).toBe('Set confidence level');
       expect(keyLabel(binding!.key)).toBe(`Shift+${level}`);
     }
   });

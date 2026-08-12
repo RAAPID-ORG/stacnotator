@@ -6,6 +6,7 @@ import {
 import { useImageryStore, useSessionStore } from '~/features/annotation/stores';
 import { keyLabel, type Binding } from '~/features/annotation/engine/hotkeys';
 import type { ComposeCtx } from '../../composition';
+import { toggleTimeseriesTool } from '../../shared/toolState';
 import { fallbackCollectionFor } from '../../shared/viewSelection';
 import { fitAnnotations, pan, recenter, zoom } from './cameraBus';
 
@@ -78,6 +79,20 @@ export function mainMapBindings(ctx: ComposeCtx): Binding[] {
   const vectorLayers = () => [...catalog.vectorLayers.values()];
   const hasVectorLayers = () => mode === 'explore' && catalog.vectorLayers.size > 0;
 
+  // Explore registers its own 't' in the 'mode' scope alongside the rest of its
+  // tool palette; this one is the Tasks half, and registering both would list
+  // the key twice in the help.
+  const probeTool: Binding[] =
+    mode === 'tasks' && ctx.campaign.time_series.length > 0
+      ? [
+          {
+            key: 't',
+            help: 'Timeseries probe tool - then click the map to probe a point',
+            run: () => toggleTimeseriesTool(ctx),
+          },
+        ]
+      : [];
+
   /** Steps once, then keeps stepping while the key is held. */
   const scrub = (key: string, help: string, step: () => void): Binding => ({
     key,
@@ -126,6 +141,8 @@ export function mainMapBindings(ctx: ComposeCtx): Binding[] {
       when: hasVectorLayers,
       run: () => useImageryStore.getState().vectorAction(vectorLayers(), 'cycle'),
     },
+
+    ...probeTool,
 
     { key: 'u', help: 'Cycle view', run: cycleView },
     {

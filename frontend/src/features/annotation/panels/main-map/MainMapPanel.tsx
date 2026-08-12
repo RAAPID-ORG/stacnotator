@@ -25,6 +25,7 @@ import {
   type ComposeState,
 } from '../../shared/composeLayers';
 import { setProbePoint, useInteractionSpec } from '../../shared/interactionSpec';
+import { getActiveTool, toggleTimeseriesTool, useActiveTool } from '../../shared/toolState';
 import { CollectionPicker } from './header/CollectionPicker';
 import { CustomMapControls } from './header/CustomMapControls';
 import { CustomMapLegend } from './header/CustomMapLegend';
@@ -39,6 +40,38 @@ import { usePreloading } from './usePreloading';
 
 export interface MainMapProps {
   ctx: ComposeCtx;
+}
+
+function ProbeToggle({ ctx, title }: { ctx: ComposeCtx; title: string }) {
+  const active = useActiveTool() === 'timeseries';
+
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={() => toggleTimeseriesTool(ctx)}
+      aria-pressed={active}
+      title={title}
+      data-testid="probe-toggle"
+      className={`flex h-6 w-6 items-center justify-center rounded-md cursor-pointer ${
+        active
+          ? 'bg-brand-600 text-white hover:bg-brand-700'
+          : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'
+      }`}
+    >
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        aria-hidden="true"
+      >
+        <path d="M3 3v18h18M7 16l4-4 4 4 5-6" />
+      </svg>
+    </button>
+  );
 }
 
 export function MainMapHeader({ ctx }: { ctx: ComposeCtx }) {
@@ -85,20 +118,23 @@ export function MainMapHeader({ ctx }: { ctx: ComposeCtx }) {
         showViewSync={windowCount > 1}
         viewSyncTitle={hotkeyTip(bindings, 'l')}
       />
+      {isTaskMode && ctx.campaign.time_series.length > 0 && (
+        <ProbeToggle ctx={ctx} title={hotkeyTip(bindings, 't')} />
+      )}
       {isTaskMode && <PreloadMenu />}
     </div>
   );
 }
 
 /**
- * A click on the task map. Tasks mode ships no drawing tools - the shape is the
- * task's - so the pointer is always the pan tool and a plain click means the one
- * thing left: probe this point's time series, which the charts read back
- * through the shared probe point. Shift belongs to
- * the box gestures, so a click that carries it is not a click.
+ * A click on the task map, which probes that point's time series only while the
+ * probe tool is armed - a bare click has to stay free to mean nothing, or every
+ * attempt to look around moves the marker and refetches. The charts read the
+ * point back through the shared probe point. Shift belongs to the box gestures,
+ * so a click that carries it is not a click.
  */
 export function taskProbeClick(event: MapClickEvent): void {
-  if (event.shiftKey) return;
+  if (event.shiftKey || getActiveTool() !== 'timeseries') return;
   setProbePoint(event.lonLat);
 }
 

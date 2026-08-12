@@ -47,7 +47,9 @@ export function exploreWorkBindings(ctx: ComposeCtx): Binding[] {
 
   // A digit answers the questions catalog while one is open (old
   // useOpenModeKeyboard.ts:116 swallowed it there), so label selection only
-  // takes digits when nothing is waiting to be saved.
+  // takes digits when nothing is waiting to be saved. Explore has no
+  // two-digit buffer, so only the single digits that name a real label (up to
+  // 9) are bound.
   const digitBinding = (digit: string): Binding => ({
     key: digit,
     help: 'Select label by number',
@@ -57,10 +59,11 @@ export function exploreWorkBindings(ctx: ComposeCtx): Binding[] {
       if (label) selectLabel(label.id, ctx);
     },
   });
+  const labelDigits = Array.from({ length: Math.min(labels.length, 9) }, (_, i) => String(i + 1));
 
   return [
     ...TOOL_KEYS.map(toolBinding),
-    ...['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digitBinding),
+    ...labelDigits.map(digitBinding),
     {
       key: 'f',
       help: 'Flag the selected annotation for review',

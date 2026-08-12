@@ -179,12 +179,80 @@ export function registerBindings(scope: HotkeyScope, table: Binding[]): () => vo
   };
 }
 
+interface DigitSpec {
+  modifiers: string[];
+  digit: number;
+}
+
+/** A binding whose base is a bare digit - the sole shape `getHelp()` ever
+ *  collapses into a range row. Everything else renders one row per binding. */
+function parseDigitBinding(binding: Binding): DigitSpec | null {
+  const { base, modifiers } = parseKeySpec(binding.key);
+  if (!DIGIT.test(base)) return null;
+  return { modifiers, digit: Number(base) };
+}
+
+function digitGroupKey(spec: DigitSpec, help: string): string {
+  return `${spec.modifiers.join('+')}|${help}`;
+}
+
+/** Renders the digits a group actually covers, not an idealised 0-9: a
+ *  contiguous run becomes 'first-last', a gappy set stays a literal list so
+ *  the row never implies a key that isn't bound. */
+function formatDigitRange(modifiers: string[], digits: number[]): string {
+  const sorted = [...digits].sort((a, b) => a - b);
+  const prefix = modifiers.length > 0 ? `${modifiers.join('+')}+` : '';
+  const contiguous = sorted[sorted.length - 1] - sorted[0] + 1 === sorted.length;
+  const body = contiguous ? `${sorted[0]}-${sorted[sorted.length - 1]}` : sorted.join(',');
+  return prefix + body;
+}
+
+/** Help rows for the help panel and the guided tour. A run of digit bindings
+ *  that share the same modifiers and the same help text - one label per
+ *  position selector, not one per digit - collapses into a single row
+ *  spanning the digits actually registered, so the range can never drift from
+ *  what the registry will dispatch. */
 export function getHelp(): Array<{ scope: HotkeyScope; key: string; help: string }> {
   const rows: Array<{ scope: HotkeyScope; key: string; help: string }> = [];
+
   for (const reg of registrations) {
+    const groups = new Map<string, { modifiers: string[]; help: string; digits: number[] }>();
     for (const binding of reg.table) {
-      rows.push({ scope: reg.scope, key: binding.key, help: binding.help });
+      const spec = parseDigitBinding(binding);
+      if (!spec) continue;
+      const groupKey = digitGroupKey(spec, binding.help);
+      const group = groups.get(groupKey);
+      if (group) group.digits.push(spec.digit);
+      else
+        groups.set(groupKey, {
+          modifiers: spec.modifiers,
+          help: binding.help,
+          digits: [spec.digit],
+        });
+    }
+
+    const emitted = new Set<string>();
+    for (const binding of reg.table) {
+      const spec = parseDigitBinding(binding);
+      if (!spec) {
+        rows.push({ scope: reg.scope, key: binding.key, help: binding.help });
+        continue;
+      }
+      const groupKey = digitGroupKey(spec, binding.help);
+      const group = groups.get(groupKey)!;
+      if (group.digits.length < 2) {
+        rows.push({ scope: reg.scope, key: binding.key, help: binding.help });
+        continue;
+      }
+      if (emitted.has(groupKey)) continue;
+      emitted.add(groupKey);
+      rows.push({
+        scope: reg.scope,
+        key: formatDigitRange(group.modifiers, group.digits),
+        help: group.help,
+      });
     }
   }
+
   return rows;
 }

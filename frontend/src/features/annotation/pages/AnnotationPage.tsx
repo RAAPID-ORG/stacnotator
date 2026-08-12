@@ -468,7 +468,7 @@ export function AnnotationPage() {
                     screens.returnPanel(panelId);
                   }}
                   title="Return to the main canvas"
-                  data-testid={`return-panel-${panelId}`}
+                  data-testid={`return-${panelId}`}
                   className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 hover:bg-neutral-100"
                 >
                   Return

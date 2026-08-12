@@ -10,10 +10,69 @@ import {
 } from '~/features/annotation/core/workspace';
 import { HiddenTray, type HiddenTrayItem } from '~/features/annotation/engine/canvas';
 
+const MIN_PER_ROW = 2;
+const MAX_PER_ROW = 10;
+const MIN_WINDOW_H = 5;
+const MAX_WINDOW_H = 20;
+
 export interface TrayContentProps {
   catalog: Catalog;
   view: ImageryViewOut | null;
   canvasRef: React.RefObject<HTMLElement | null>;
+}
+
+function NewWindowSizeControls() {
+  const newWindowSize = useWorkspaceStore((s) => s.newWindowSize);
+  const setNewWindowSize = useWorkspaceStore((s) => s.setNewWindowSize);
+
+  return (
+    <div className="space-y-2" data-testid="new-window-size">
+      <span className="block text-[11px] font-medium uppercase tracking-wider text-neutral-500">
+        New window size
+      </span>
+      <p className="text-[11px] leading-snug text-neutral-400">
+        Sets the width and height a hidden window gets when it's added back to the canvas.
+      </p>
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-[11px] text-neutral-500">
+          <span className="w-12 shrink-0">Per row</span>
+          <input
+            type="range"
+            min={MIN_PER_ROW}
+            max={MAX_PER_ROW}
+            step={1}
+            value={newWindowSize.perRow}
+            onChange={(e) =>
+              setNewWindowSize({ perRow: Number(e.target.value), rows: newWindowSize.rows })
+            }
+            className="h-1.5 flex-1 cursor-pointer accent-brand-600"
+            aria-label="Windows per row"
+          />
+          <span className="w-4 text-right font-medium tabular-nums text-neutral-700">
+            {newWindowSize.perRow}
+          </span>
+        </label>
+        <label className="flex items-center gap-2 text-[11px] text-neutral-500">
+          <span className="w-12 shrink-0">Height</span>
+          <input
+            type="range"
+            min={MIN_WINDOW_H}
+            max={MAX_WINDOW_H}
+            step={1}
+            value={newWindowSize.rows}
+            onChange={(e) =>
+              setNewWindowSize({ perRow: newWindowSize.perRow, rows: Number(e.target.value) })
+            }
+            className="h-1.5 flex-1 cursor-pointer accent-brand-600"
+            aria-label="Window height"
+          />
+          <span className="w-4 text-right font-medium tabular-nums text-neutral-700">
+            {newWindowSize.rows}
+          </span>
+        </label>
+      </div>
+    </div>
+  );
 }
 
 export function TrayContent({ catalog, view, canvasRef }: TrayContentProps) {
@@ -54,6 +113,7 @@ export function TrayContent({ catalog, view, canvasRef }: TrayContentProps) {
     <HiddenTray
       items={items}
       title="Hidden windows"
+      headerExtra={<NewWindowSizeControls />}
       storageKey="annotation:hiddenTray"
       canvasRef={canvasRef}
       layout={layout}

@@ -32,7 +32,9 @@ export async function selectTool(tool: ActiveTool, ctx: ComposeCtx): Promise<voi
   const draftWasOpen = useWorkStore.getState().draft.phase === 'draft';
   useToolStore.setState({ tool });
 
-  if (tool === 'pan') useWorkStore.getState().setSelectedLabelId(null);
+  // Dropping the label on pan is Explore's "stop drawing"; in Tasks the
+  // selected label is the answer waiting to be submitted, not a drawing arm.
+  if (tool === 'pan' && ctx.mode === 'explore') useWorkStore.getState().setSelectedLabelId(null);
   if (tool !== 'timeseries') setProbePoint(null);
 
   if (tool !== 'annotate' && draftWasOpen) {
@@ -49,6 +51,15 @@ export async function selectTool(tool: ActiveTool, ctx: ComposeCtx): Promise<voi
       );
     }
   }
+}
+
+/**
+ * Arm or disarm the timeseries probe. Tasks mode has no tool palette to switch
+ * away with - the probe button and its key are the only way back to pan, so
+ * both toggle rather than latch.
+ */
+export function toggleTimeseriesTool(ctx: ComposeCtx): void {
+  void selectTool(getActiveTool() === 'timeseries' ? 'pan' : 'timeseries', ctx);
 }
 
 /**

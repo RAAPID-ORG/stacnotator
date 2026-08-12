@@ -48,6 +48,9 @@ export interface HiddenTrayItem {
 export interface HiddenTrayProps {
   items: HiddenTrayItem[];
   title?: string;
+  /** Rendered above the item list, inside the same scrolling body - e.g. the
+   *  size controls for windows placed back onto the canvas. */
+  headerExtra?: ReactNode;
   /** localStorage key the panel's resized width/height persists under. */
   storageKey: string;
   /** The canvas element items are dropped onto - read live (rect + scroll)
@@ -71,6 +74,7 @@ export interface HiddenTrayProps {
 export function HiddenTray({
   items,
   title = 'Hidden',
+  headerExtra,
   storageKey,
   canvasRef,
   layout,
@@ -268,26 +272,31 @@ export function HiddenTray({
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {items.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-neutral-400">Nothing hidden</p>
-            ) : (
-              <ul className="space-y-0.5">
-                {items.map((item) => (
-                  <li
-                    key={item.id}
-                    onPointerDown={onItemPointerDown(item)}
-                    onPointerMove={onItemPointerMove}
-                    onPointerUp={finishDrag}
-                    onPointerCancel={onItemPointerCancel}
-                    className="cursor-grab select-none rounded-lg px-2.5 py-1.5 transition-colors hover:bg-neutral-50 active:cursor-grabbing"
-                    data-testid={`hidden-tray-item-${item.id}`}
-                  >
-                    {item.content}
-                  </li>
-                ))}
-              </ul>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {headerExtra && (
+              <div className="border-b border-neutral-100 px-3.5 py-3">{headerExtra}</div>
             )}
+            <div className="p-2">
+              {items.length === 0 ? (
+                <p className="px-4 py-6 text-center text-xs text-neutral-400">Nothing hidden</p>
+              ) : (
+                <ul className="space-y-0.5">
+                  {items.map((item) => (
+                    <li
+                      key={item.id}
+                      onPointerDown={onItemPointerDown(item)}
+                      onPointerMove={onItemPointerMove}
+                      onPointerUp={finishDrag}
+                      onPointerCancel={onItemPointerCancel}
+                      className="cursor-grab select-none rounded-lg px-2.5 py-1.5 transition-colors hover:bg-neutral-50 active:cursor-grabbing"
+                      data-testid={`hidden-tray-item-${item.id}`}
+                    >
+                      {item.content}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}

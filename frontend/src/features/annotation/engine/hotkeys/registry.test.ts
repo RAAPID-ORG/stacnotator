@@ -225,6 +225,73 @@ describe('getHelp', () => {
   });
 });
 
+describe('getHelp digit ranges', () => {
+  it('collapses a run of digit bindings sharing help text into one row', () => {
+    register(
+      'mode',
+      ['1', '2', '3', '4', '5'].map((key) => ({
+        key,
+        help: 'Select label by number',
+        run: vi.fn(),
+      }))
+    );
+
+    expect(getHelp()).toEqual([{ scope: 'mode', key: '1-5', help: 'Select label by number' }]);
+  });
+
+  it('reflects the number of keys actually bound, not a fixed 1-9', () => {
+    register(
+      'mode',
+      ['1', '2', '3'].map((key) => ({ key, help: 'Select label by number', run: vi.fn() }))
+    );
+
+    expect(getHelp()).toEqual([{ scope: 'mode', key: '1-3', help: 'Select label by number' }]);
+  });
+
+  it('groups modifier and base together, e.g. shift+1..shift+5 becomes shift+1-5', () => {
+    register(
+      'mode',
+      ([1, 2, 3, 4, 5] as const).map((level) => ({
+        key: `shift+${level}`,
+        help: 'Set confidence level',
+        run: vi.fn(),
+      }))
+    );
+
+    expect(getHelp()).toEqual([{ scope: 'mode', key: 'shift+1-5', help: 'Set confidence level' }]);
+  });
+
+  it('leaves non-digit bindings, and lone digit bindings, as individual rows', () => {
+    register('global', [
+      { key: 'a', help: 'Pan tool', run: vi.fn() },
+      { key: 'r', help: 'Annotate tool', run: vi.fn() },
+      { key: '1', help: 'Select label by number', run: vi.fn() },
+    ]);
+
+    expect(getHelp()).toEqual(
+      expect.arrayContaining([
+        { scope: 'global', key: 'a', help: 'Pan tool' },
+        { scope: 'global', key: 'r', help: 'Annotate tool' },
+        { scope: 'global', key: '1', help: 'Select label by number' },
+      ])
+    );
+  });
+
+  it('does not merge digit bindings that carry different help text', () => {
+    register('form', [
+      { key: '1', help: 'Answer the focused field', run: vi.fn() },
+      { key: '2', help: 'A special second option', run: vi.fn() },
+    ]);
+
+    expect(getHelp()).toEqual(
+      expect.arrayContaining([
+        { scope: 'form', key: '1', help: 'Answer the focused field' },
+        { scope: 'form', key: '2', help: 'A special second option' },
+      ])
+    );
+  });
+});
+
 describe('duplicate keys', () => {
   it('throws when a single table registers the same key twice in one scope', () => {
     expect(() =>

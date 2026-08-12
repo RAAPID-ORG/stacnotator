@@ -1,4 +1,4 @@
-import type { Chart as ChartJS, Plugin } from 'chart.js';
+import type { Plugin } from 'chart.js';
 import type { TimeSeriesData } from './cache';
 
 // ---------------------------------------------------------------------------
@@ -202,12 +202,17 @@ export function sliceMarkerFor(
   return { startIdx: nearest, endIdx: nearest };
 }
 
-const markerByChart = new WeakMap<ChartJS<'line'>, SliceMarker>();
+const markerByChart = new WeakMap<object, SliceMarker>();
+
+/** All of chart.js a marker move needs: repaint the elements already there. */
+interface Repaintable {
+  render: () => void;
+}
 
 /** Moves the marker on a live chart. The marker is plugin state rather than
  *  chart data, so a move repaints the existing elements instead of running an
  *  update pass over every dataset. */
-export function setSliceMarker(chart: ChartJS<'line'>, marker: SliceMarker | null): void {
+export function setSliceMarker(chart: Repaintable, marker: SliceMarker | null): void {
   const current = markerByChart.get(chart) ?? null;
   if (current?.startIdx === marker?.startIdx && current?.endIdx === marker?.endIdx) return;
   if (marker) markerByChart.set(chart, marker);
