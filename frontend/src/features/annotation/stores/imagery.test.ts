@@ -34,6 +34,7 @@ beforeEach(() => {
     showAnnotations: true,
     viewSync: true,
     viewSnapshots: {},
+    emptyScope: null,
   });
 });
 
@@ -48,6 +49,16 @@ describe('setAddress / markEmpty', () => {
       sliceIndex: 0,
       vizId: '1',
     });
+  });
+
+  it('keeps empty results within one task location', () => {
+    useImageryStore.getState().setEmptyScope('task:1');
+    useImageryStore.getState().markEmpty('10:0');
+    useImageryStore.getState().setEmptyScope('task:1');
+    expect(useImageryStore.getState().empties).toEqual({ '10:0': true });
+
+    useImageryStore.getState().setEmptyScope('task:2');
+    expect(useImageryStore.getState().empties).toEqual({});
   });
 
   it('marks a slice empty, no-op when already marked (same reference)', () => {

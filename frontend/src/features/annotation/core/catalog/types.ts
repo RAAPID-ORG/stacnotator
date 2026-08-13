@@ -59,7 +59,8 @@ const SNAPSHOT_FIELD_MAP = {
   overlay: true,
   overlayOpacity: true,
   vector: true,
-  empties: true,
+  // No-data results are scoped to the current task location, not a view.
+  empties: false,
   // App-wide toggles, not per-view state - explicitly excluded, not omitted.
   crosshair: false,
   showAnnotations: false,

@@ -1,13 +1,12 @@
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
-import type { Bbox, TileStats } from '../types';
+import type { Bbox } from '../types';
 import {
   crossOriginForTile,
   ensureSessionFor,
   refreshTilerSession,
   type CrossOrigin,
 } from './loading';
-import { classifyEmpty, emptyTileStats } from './stats';
 
 export interface PreloadJob {
   priority: number;
@@ -68,11 +67,6 @@ interface QueuedTile {
   crossOrigin: CrossOrigin;
 }
 
-interface GroupState {
-  stats: TileStats;
-  emptyFired: boolean;
-}
-
 export class TilePreloader {
   private tileQueue: QueuedTile[] = [];
   private inflight = 0;
@@ -82,7 +76,6 @@ export class TilePreloader {
   private drainTimer: ReturnType<typeof setInterval> | null = null;
   private preloaded = new Set<string>();
   private inflightCancels = new Set<() => void>();
-  private groups = new Map<string, GroupState>();
 
   private readonly maxConcurrent: number;
   private readonly refreshToken: () => Promise<void>;
@@ -90,9 +83,6 @@ export class TilePreloader {
 
   /** Fired when the queue is empty and nothing is in-flight. */
   onIdle?: () => void;
-
-  /** Fired once per group that looks empty; the group is auto-aborted first. */
-  onGroupEmpty?: (groupId: string) => void;
 
   constructor(options: PreloaderOptions = {}) {
     this.maxConcurrent = options.maxConcurrent ?? MAX_CONCURRENT;
@@ -138,20 +128,15 @@ export class TilePreloader {
 
   abort(groupId: string): void {
     this.tileQueue = this.tileQueue.filter((t) => t.groupId !== groupId);
-    this.groups.delete(groupId);
   }
 
   /** Drop every queued tile whose groupId starts with the prefix (e.g. all next-task groups). */
   abortByPrefix(prefix: string): void {
     this.tileQueue = this.tileQueue.filter((t) => !t.groupId.startsWith(prefix));
-    for (const key of this.groups.keys()) {
-      if (key.startsWith(prefix)) this.groups.delete(key);
-    }
   }
 
   clear(): void {
     this.tileQueue = [];
-    this.groups.clear();
     this.generation++;
     // Deliberately do NOT abortInflight() here. See pause() for the full reason:
     // Chromium coalesces same-URL <img> fetches, so aborting a preloader img also
@@ -163,7 +148,6 @@ export class TilePreloader {
 
   clearCache(): void {
     this.preloaded.clear();
-    this.groups.clear();
   }
 
   dispose(): void {
@@ -180,10 +164,6 @@ export class TilePreloader {
 
   private expandAndEnqueue(jobs: PreloadJob[]): void {
     for (const job of jobs) {
-      if (!this.groups.has(job.groupId)) {
-        this.groups.set(job.groupId, { stats: emptyTileStats(), emptyFired: false });
-      }
-
       const crossOrigin = crossOriginForTile(job.urlTemplate, job.tileProvider);
       for (const url of tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom)) {
         if (this.preloaded.has(url)) continue;
@@ -213,7 +193,7 @@ export class TilePreloader {
     const gen = this.generation;
     this.inflight++;
 
-    const done = (ok: boolean, cancelled = false) => {
+    const done = (cancelled = false) => {
       this.inflight = Math.max(0, this.inflight - 1);
 
       if (cancelled || this.disposed || gen !== this.generation) {
@@ -221,8 +201,6 @@ export class TilePreloader {
         this.checkIdle();
         return;
       }
-
-      this.record(tile.groupId, ok);
 
       if (!this.disposed && gen === this.generation) this.drain();
       this.checkIdle();
@@ -242,7 +220,7 @@ export class TilePreloader {
         img.onload = img.onerror = null;
         img.src = '';
         this.inflightCancels.delete(cancel);
-        done(false, true);
+        done(true);
       };
       this.inflightCancels.add(cancel);
 
@@ -250,13 +228,13 @@ export class TilePreloader {
         if (settled) return;
         settled = true;
         this.inflightCancels.delete(cancel);
-        done(true);
+        done();
       };
       img.onerror = () => {
         if (settled) return;
         settled = true;
         this.inflightCancels.delete(cancel);
-        done(false);
+        done();
       };
       img.src = url;
     };
@@ -265,25 +243,12 @@ export class TilePreloader {
     ensureSessionFor(tile.crossOrigin, this.refreshToken)
       .then(() => {
         if (this.disposed || gen !== this.generation) {
-          done(false, true);
+          done(true);
           return;
         }
         startImg(tile.url);
       })
-      .catch(() => done(false));
-  }
-
-  private record(groupId: string, ok: boolean): void {
-    const group = this.groups.get(groupId);
-    if (!group || group.emptyFired) return;
-
-    if (ok) group.stats.successes++;
-    else group.stats.errors++;
-
-    if (!classifyEmpty(group.stats)) return;
-    group.emptyFired = true;
-    this.abort(groupId);
-    this.onGroupEmpty?.(groupId);
+      .catch(() => done());
   }
 
   private abortInflight(): void {

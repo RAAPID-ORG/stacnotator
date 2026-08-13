@@ -19,7 +19,7 @@ import {
   updateLayer,
 } from './olLayerFactory';
 import { setProxiedTileMatcher } from './tileQos/loading';
-import type { FeatureLayerSpec, RasterLayerSpec, TileStats, VectorTileLayerSpec } from './types';
+import type { FeatureLayerSpec, RasterLayerSpec, VectorTileLayerSpec } from './types';
 
 const mercator = getProjection('EPSG:3857')!;
 
@@ -64,28 +64,6 @@ describe('raster layers', () => {
     expect(crossOriginOf(createLayer(spec(), {}))).toBe('anonymous');
   });
 
-  it('reports tile outcomes only when asked to track them', () => {
-    const onTileStats = vi.fn<(id: string, s: TileStats) => void>();
-    const tracked = createLayer(spec({ trackStats: true }), { onTileStats });
-    const untracked = createLayer(spec({ id: 'quiet' }), { onTileStats });
-
-    rasterSourceOf(untracked).dispatchEvent('tileloaderror');
-    expect(onTileStats).not.toHaveBeenCalled();
-
-    rasterSourceOf(tracked).dispatchEvent('tileloaderror');
-    rasterSourceOf(tracked).dispatchEvent('tileloadend');
-    expect(onTileStats).toHaveBeenNthCalledWith(1, 'imagery', {
-      errors: 1,
-      successes: 0,
-      empties: 0,
-    });
-    expect(onTileStats).toHaveBeenNthCalledWith(2, 'imagery', {
-      errors: 1,
-      successes: 1,
-      empties: 0,
-    });
-  });
-
   it('rebuilds the source on a url change and keeps the layer instance', () => {
     const before = spec();
     const layer = createLayer(before, {});
@@ -104,6 +82,13 @@ describe('raster layers', () => {
     expect(grid.getMaxZoom()).toBe(18);
     expect((layer as TileLayer<XYZ>).getPreload()).toBe(2);
     expect((createLayer(spec(), {}) as TileLayer<XYZ>).getPreload()).toBe(0);
+  });
+
+  it('draws cached raster tiles without an alpha fade during a layer switch', () => {
+    const source = rasterSourceOf(createLayer(spec(), {})) as XYZ & {
+      tileOptions: { transition: number };
+    };
+    expect(source.tileOptions.transition).toBe(0);
   });
 
   it('rebuilds the grid for a zoom-limit change and sets preload in place', () => {

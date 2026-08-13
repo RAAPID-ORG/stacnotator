@@ -239,4 +239,28 @@ describe('useEmptyHealing enabled gate', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
   });
+
+  it('does not call a transient server failure no-data', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const args = baseArgs(true);
+
+    const { result } = renderHook(() => useEmptyHealing(args));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(result.current.noImagery).toBe(false);
+    expect(args.markEmpty).not.toHaveBeenCalled();
+  });
+
+  it('calls only an explicit no-content response no-data', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const args = baseArgs(true);
+
+    const { result } = renderHook(() => useEmptyHealing(args));
+
+    await waitFor(() => expect(result.current.noImagery).toBe(true));
+    expect(args.markEmpty).toHaveBeenCalledWith(emptyKey(100, 0));
+  });
 });

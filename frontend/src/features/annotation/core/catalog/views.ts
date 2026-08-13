@@ -1,5 +1,5 @@
 import type { ImageryCollectionOut, ImageryViewOut } from '~/api/client';
-import type { Catalog } from './catalog';
+import { compatibleVizId, type Catalog } from './catalog';
 import {
   SNAPSHOT_FIELDS,
   type ImageryNavState,
@@ -85,7 +85,6 @@ export function restoreSnapshot(
     overlay: { id: null, visible: true },
     overlayOpacity: 1,
     vector: { id: null, visible: true },
-    empties: {},
   };
 }
 
@@ -95,10 +94,11 @@ function defaultAddressForCollection(cat: Catalog, collectionId: number): SliceA
   if (!collection || sourceId === undefined) return null;
   const source = cat.sources.get(sourceId);
   if (!source) return null;
+  const sliceIndex = collection.cover_slice_index ?? 0;
   return {
     sourceId,
     collectionId,
-    sliceIndex: collection.cover_slice_index ?? 0,
-    vizId: String(source.visualizations[0]?.id ?? ''),
+    sliceIndex,
+    vizId: compatibleVizId(source, collection.slices[sliceIndex], ''),
   };
 }

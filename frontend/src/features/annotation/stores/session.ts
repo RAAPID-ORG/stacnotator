@@ -31,7 +31,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((s) => ({ workMode: mode, isReviewMode: mode === 'explore' ? false : s.isReviewMode }));
     // Crosshair on for Tasks (point placement), off for Explore (free-form
     // drawing) - routed through imagery's own action, not a raw setState.
-    useImageryStore.getState().setCrosshair(mode === 'tasks');
+    const imagery = useImageryStore.getState();
+    imagery.setCrosshair(mode === 'tasks');
+    // Task-scoped no-data observations are meaningless once the work mode (and
+    // in Explore, the freely pannable location) changes.
+    imagery.setEmptyScope(null);
   },
 
   setReviewMode: (reviewMode) => set({ isReviewMode: reviewMode }),

@@ -14,6 +14,31 @@ import type { SliceAddress } from './types';
 
 export type Bbox4326 = [number, number, number, number];
 
+interface VizSource {
+  visualizations: { id: number; name: string }[];
+}
+
+interface VizSlice {
+  tile_urls: { visualization_name: string }[];
+}
+
+/** Keep the preferred visualization when the slice publishes it; otherwise
+ * choose the first source visualization the slice really does publish. */
+export function compatibleVizId(
+  source: VizSource,
+  slice: VizSlice | undefined,
+  preferredVizId: string
+): string {
+  const preferred = source.visualizations.find((viz) => String(viz.id) === preferredVizId);
+  if (preferred && slice?.tile_urls.some((tile) => tile.visualization_name === preferred.name)) {
+    return preferredVizId;
+  }
+  const fallback = source.visualizations.find((viz) =>
+    slice?.tile_urls.some((tile) => tile.visualization_name === viz.name)
+  );
+  return String(fallback?.id ?? source.visualizations[0]?.id ?? '');
+}
+
 /** Indexed view over a campaign's imagery catalog: every lookup the
  *  navigation/cycling/layer-building functions need, built once per
  *  campaign load rather than re-scanned on every call. */

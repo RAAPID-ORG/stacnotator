@@ -14,7 +14,6 @@ export type LayerField =
   | 'url'
   | 'auth'
   | 'attribution'
-  | 'trackStats'
   | 'minZoom'
   | 'maxZoom'
   | 'preload'
@@ -87,7 +86,6 @@ function changedFields(prev: LayerSpec, next: LayerSpec): LayerField[] {
     push('url', prev.url === next.url);
     push('auth', prev.auth === next.auth);
     push('attribution', prev.attribution === next.attribution);
-    push('trackStats', prev.trackStats === next.trackStats);
     push('minZoom', prev.minZoom === next.minZoom);
     push('maxZoom', prev.maxZoom === next.maxZoom);
     push('preload', prev.preload === next.preload);
@@ -220,7 +218,8 @@ export function applyLayerOps(
         break;
       case 'retain':
         entry.retained = true;
-        entry.layer.setVisible(false);
+        if (ctx.retireLayer) ctx.retireLayer(op.id, entry.layer);
+        else entry.layer.setVisible(false);
         touch(mounted, op.id, entry);
         break;
       case 'remove':

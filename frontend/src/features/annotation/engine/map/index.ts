@@ -13,7 +13,6 @@ export {
   updateLayer,
   type LayerContext,
 } from './olLayerFactory';
-export { EMPTY_TILE_THRESHOLD, classifyEmpty, emptyTileStats } from './tileQos/stats';
 export {
   TilePreloader,
   tileUrlsForExtent,

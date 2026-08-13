@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
 import {
-  collectionsInView,
-  emptyKey,
+  addressAtSlice,
   layerSpecFor,
   type Catalog,
   type SliceAddress,
 } from '~/features/annotation/core/catalog';
 import { useImageryStore, usePrefsStore, type PreloadTier } from '~/features/annotation/stores';
 import { mainCamera } from '~/features/annotation/shared/cameras';
+import { getWindowSlice, useWindowSlicesRevision } from '~/features/annotation/shared/windowSlices';
 import {
   TilePreloader,
   type Bbox,
@@ -29,9 +29,8 @@ export const PRELOAD_TIER_CONCURRENCY = {
 export type ResolvedPreloadTier = keyof typeof PRELOAD_TIER_CONCURRENCY;
 
 const TILE_PX = 256;
-/** Queue order: what the user is looking at now outranks what they are about
- *  to be shown. Exported so a test can name the tier it expects. */
-export const PRIORITY_CURRENT = 1;
+/** Visible maps fetch their own tiles. Speculation is limited to the exact
+ * imagery those maps will show at the upcoming task centres. */
 export const PRIORITY_UPCOMING = 2;
 const SETTLE_MS = 300;
 
@@ -81,12 +80,6 @@ function groupId(collectionId: number, sliceIndex: number): string {
   return `preload-c${collectionId}-s${sliceIndex}`;
 }
 
-function parseGroupId(id: string): { collectionId: number; sliceIndex: number } | null {
-  const match = /^preload-c(\d+)-s(\d+)$/.exec(id);
-  if (!match) return null;
-  return { collectionId: Number(match[1]), sliceIndex: Number(match[2]) };
-}
-
 /** Tile-aligned box around a point, sized to the viewport plus a one-tile
  *  border so the edges are covered. Falls back to a conservative 6x5 tiles
  *  when the viewport size is not known yet. */
@@ -100,74 +93,44 @@ function extentAround(center: LonLat, zoom: number, viewportPx: [number, number]
   return [lon - halfW, lat - halfH, lon + halfW, lat + halfH];
 }
 
-/** The visualization a collection would actually be shown with: the one the
- *  user is on when it belongs to the same source, else that source's first.
- *  Preloading any other viz fetches tiles OL will never request. */
-function vizIdFor(catalog: Catalog, sourceId: number, active: SliceAddress | null): string | null {
-  if (active && active.sourceId === sourceId) return active.vizId;
-  const first = catalog.sources.get(sourceId)?.visualizations[0]?.id;
-  return first == null ? null : String(first);
-}
-
-export interface CoverSliceJobsArgs {
+export interface VisibleSliceJobsArgs {
   catalog: Catalog;
-  sourceIds: number[];
+  addresses: SliceAddress[];
   around: LonLat;
-  zoom: number;
+  fallbackZoom: number;
   priority: number;
   viewportPx?: [number, number] | null;
-  /** The collection the map itself is already loading. */
-  excludeCollectionId?: number | null;
-  /** The address on screen, which decides each collection's visualization. */
-  active: SliceAddress | null;
 }
 
-/** Cover-slice jobs for every collection of the view except the one already
- *  on screen - that one is being loaded by the map itself. */
-export function coverSliceJobs({
+/** One job per raster actually visible in the main map or an imagery window.
+ * Hidden collections and other dates never enter the speculative queue. */
+export function visibleSliceJobs({
   catalog,
-  sourceIds,
+  addresses,
   around,
-  zoom,
+  fallbackZoom,
   priority,
   viewportPx = null,
-  excludeCollectionId = null,
-  active,
-}: CoverSliceJobsArgs): PreloadJob[] {
-  const extent = extentAround(around, zoom, viewportPx);
+}: VisibleSliceJobsArgs): PreloadJob[] {
   const jobs: PreloadJob[] = [];
 
-  for (const collection of collectionsInView(catalog, { source_ids: sourceIds })) {
-    if (collection.id === excludeCollectionId) continue;
-    const sliceIndex = collection.cover_slice_index ?? 0;
-    const slice = collection.slices[sliceIndex];
+  for (const address of addresses) {
+    const collection = catalog.collections.get(address.collectionId);
+    const slice = collection?.slices[address.sliceIndex];
     if (!slice) continue;
-    const sourceId = catalog.sourceIdByCollectionId.get(collection.id);
-    if (sourceId == null) continue;
-    const vizId = vizIdFor(catalog, sourceId, active);
-    if (vizId == null) continue;
-
-    // Same url assembly the layer itself uses (key proxy included), so a
-    // preloaded tile is the byte-identical request OL will make. A cover
-    // slice that publishes no tiles for this visualization is simply not
-    // prefetchable - layerSpecFor says so by throwing.
-    let urlTemplate: string;
+    let spec;
     try {
-      urlTemplate = layerSpecFor(catalog, {
-        sourceId,
-        collectionId: collection.id,
-        sliceIndex,
-        vizId,
-      }).url;
+      spec = layerSpecFor(catalog, address);
     } catch {
       continue;
     }
+    const zoom = catalog.sources.get(address.sourceId)?.default_zoom ?? fallbackZoom;
 
     jobs.push({
       priority,
-      groupId: groupId(collection.id, sliceIndex),
-      urlTemplate,
-      extent,
+      groupId: groupId(address.collectionId, address.sliceIndex),
+      urlTemplate: spec.url,
+      extent: extentAround(around, zoom, viewportPx),
       zoom,
       tileProvider: slice.tile_urls[0]?.tile_provider ?? null,
     });
@@ -176,11 +139,29 @@ export function coverSliceJobs({
   return jobs;
 }
 
-/** The zoom a task opens at: the active source's configured default, else
- *  wherever the camera is now. */
-function defaultZoomFor(catalog: Catalog, active: SliceAddress | null, fallback: number): number {
-  const configured = active ? catalog.sources.get(active.sourceId)?.default_zoom : null;
-  return configured ?? fallback;
+/** Resolve the exact addresses visible now: the main map's active address and
+ * one selected date for each rendered window. */
+export function visibleAddresses(
+  catalog: Catalog,
+  active: SliceAddress | null,
+  visibleCollectionIds: readonly number[]
+): SliceAddress[] {
+  const addresses: SliceAddress[] = active ? [active] : [];
+  for (const collectionId of visibleCollectionIds) {
+    if (collectionId === active?.collectionId) continue;
+    const collection = catalog.collections.get(collectionId);
+    const sourceId = catalog.sourceIdByCollectionId.get(collectionId);
+    const source = sourceId == null ? undefined : catalog.sources.get(sourceId);
+    if (!collection || sourceId == null || !source) continue;
+    const base = {
+      sourceId,
+      collectionId,
+      sliceIndex: getWindowSlice(collectionId) ?? collection.cover_slice_index ?? 0,
+      vizId: String(source.visualizations[0]?.id ?? ''),
+    };
+    addresses.push(addressAtSlice(catalog, base, base.sliceIndex));
+  }
+  return addresses;
 }
 
 export interface PreloadingOptions {
@@ -192,29 +173,31 @@ export interface PreloadingOptions {
   /** Centres the user is about to be shown, most imminent first. */
   upcoming?: LonLat[];
   viewportPx?: [number, number] | null;
+  /** Collection panels currently mounted on the canvas. */
+  visibleCollectionIds: number[];
 }
 
 export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void {
-  const { enabled, activeLoading, focus, upcoming, viewportPx = null } = options;
+  const {
+    enabled,
+    activeLoading,
+    focus,
+    upcoming,
+    viewportPx = null,
+    visibleCollectionIds,
+  } = options;
   const tier = usePrefsStore((s) => s.preloadTier);
   const concurrency = preloadConcurrency(tier);
   const preloaderRef = useRef<TilePreloader | null>(null);
   const activeLoadingRef = useRef(activeLoading);
   activeLoadingRef.current = activeLoading;
+  const windowSlicesRevision = useWindowSlicesRevision();
 
   useEffect(() => {
     if (!enabled || concurrency === 0) return;
 
     const preloader = new TilePreloader({ maxConcurrent: concurrency });
     preloaderRef.current = preloader;
-    // An empty cover slice is a fact about the catalog, not about this map:
-    // recording it here keeps every map (and the slice picker) from offering
-    // it again.
-    preloader.onGroupEmpty = (id) => {
-      const parsed = parseGroupId(id);
-      if (parsed)
-        useImageryStore.getState().markEmpty(emptyKey(parsed.collectionId, parsed.sliceIndex));
-    };
 
     return () => {
       preloader.dispose();
@@ -245,13 +228,13 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
     else preloaderRef.current?.resume();
   }, [activeLoading, enabled]);
 
-  const sourceIds = ctx.view?.source_ids;
   const address = useImageryStore((s) => s.address);
   const upcomingKey = JSON.stringify(upcoming ?? []);
+  const visibleCollectionsKey = visibleCollectionIds.join(',');
 
   useEffect(() => {
     const preloader = preloaderRef.current;
-    if (!preloader || !focus || !sourceIds) return;
+    if (!preloader || !focus) return;
 
     // Focus/address changes enqueue synchronously, while CameraController
     // coalesces its change notification to the next animation frame. Pause at
@@ -273,17 +256,16 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
     // user's current one: that is the zoom the next task will open at, and
     // tiles fetched at a zoom nobody lands on are wasted bandwidth
     // (useTilePreloading.ts:325).
-    const upcomingZoom = defaultZoomFor(ctx.catalog, address, mainCamera.getState().zoom);
+    const addresses = visibleAddresses(ctx.catalog, address, visibleCollectionIds);
     for (const center of upcoming ?? []) {
       jobs.push(
-        ...coverSliceJobs({
+        ...visibleSliceJobs({
           catalog: ctx.catalog,
-          sourceIds,
+          addresses,
           around: center,
-          zoom: upcomingZoom,
+          fallbackZoom: mainCamera.getState().zoom,
           priority: PRIORITY_UPCOMING,
           viewportPx,
-          active: address,
         })
       );
     }
@@ -292,5 +274,15 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
     // itself is rebuilt by the caller on every render.
     return () => clearTimeout(settle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx.catalog, sourceIds, focus, address, viewportPx, upcomingKey, concurrency, enabled]);
+  }, [
+    ctx.catalog,
+    focus,
+    address,
+    viewportPx,
+    upcomingKey,
+    visibleCollectionsKey,
+    windowSlicesRevision,
+    concurrency,
+    enabled,
+  ]);
 }

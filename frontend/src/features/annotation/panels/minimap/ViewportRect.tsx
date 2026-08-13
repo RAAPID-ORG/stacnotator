@@ -1,4 +1,4 @@
-import type { Bbox, FeatureLayerSpec, StyleSpec } from '~/features/annotation/engine/map';
+import type { Bbox, FeatureLayerSpec, LonLat, StyleSpec } from '~/features/annotation/engine/map';
 
 export const VIEWPORT_RECT_LAYER_ID = 'minimap-viewport';
 
@@ -15,6 +15,21 @@ function ringOf([west, south, east, north]: Bbox): GeoJSON.Position[] {
     [west, north],
     [west, south],
   ];
+}
+
+export function containsPoint([west, south, east, north]: Bbox, [lon, lat]: LonLat): boolean {
+  return lon >= west && lon <= east && lat >= south && lat <= north;
+}
+
+export function translateBounds(
+  [west, south, east, north]: Bbox,
+  [deltaLon, deltaLat]: LonLat
+): Bbox {
+  return [west + deltaLon, south + deltaLat, east + deltaLon, north + deltaLat];
+}
+
+export function centerOfBounds([west, south, east, north]: Bbox): LonLat {
+  return [(west + east) / 2, (south + north) / 2];
 }
 
 export function viewportRectLayer(bounds: Bbox, zIndex = 5): FeatureLayerSpec {

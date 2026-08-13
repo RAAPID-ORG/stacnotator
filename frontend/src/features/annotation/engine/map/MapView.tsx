@@ -9,15 +9,22 @@ import Kinetic from 'ol/Kinetic';
 import { platformModifierKeyOnly } from 'ol/events/condition';
 import { toLonLat } from 'ol/proj';
 import VectorLayer from 'ol/layer/Vector';
+import type BaseLayer from 'ol/layer/Base';
 import VectorSource from 'ol/source/Vector';
 import type { FeatureLike } from 'ol/Feature';
 import type MapBrowserEvent from 'ol/MapBrowserEvent';
 import type { CameraController } from './camera';
 import { applyLayerOps, reconcile, type MountedLayer } from './reconcile';
-import { LAYER_ID_PROP, destroyLayer, featurePropsOf, layerFeatureId } from './olLayerFactory';
+import {
+  LAYER_ID_PROP,
+  destroyLayer,
+  featurePropsOf,
+  layerFeatureId,
+  type LayerContext,
+} from './olLayerFactory';
 import { attachInteractions, geoOfFeature, type SketchLayer } from './interactions/attach';
 import type { InteractionSpec } from './interactions/types';
-import type { LayerId, LayerSpec, LonLat, TileStats } from './types';
+import type { LayerId, LayerSpec, LonLat } from './types';
 
 /** Sketch layer sits above every declarative layer so drawing/editing is never hidden. */
 const SKETCH_LAYER_Z_INDEX = 1000;
@@ -41,7 +48,6 @@ export interface MapViewProps {
   interactions?: InteractionSpec;
   onClick?: (e: MapClickEvent) => void;
   onHoverFeature?: (hit: { layerId: LayerId; featureId: string | number } | null) => void;
-  onTileStats?: (layerId: LayerId, stats: TileStats) => void;
   /** Reports whether this map has foreground source loads in flight. */
   onLoadStateChange?: (loading: boolean) => void;
   wheelZoom?: 'plain' | 'modifier';
@@ -99,7 +105,6 @@ export function MapView({
   interactions,
   onClick,
   onHoverFeature,
-  onTileStats,
   onLoadStateChange,
   wheelZoom = 'plain',
   onModifierHint,
@@ -112,16 +117,15 @@ export function MapView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<OLMap | null>(null);
   const sketchLayerRef = useRef<SketchLayer | null>(null);
-  const mountedRef = useRef<Map<LayerId, MountedLayer>>(undefined);
-  const mounted = (mountedRef.current ??= new Map());
+  const mounted = useRef(new Map<LayerId, MountedLayer>()).current;
   const hoverRef = useRef<FeatureHit | null>(null);
+  const retireLayerRef = useRef<LayerContext['retireLayer']>(undefined);
 
   // Handlers change on most renders; the map is built once, so it reads them
   // through a ref instead of being rebuilt.
   const handlers = useRef({
     onClick,
     onHoverFeature,
-    onTileStats,
     onLoadStateChange,
     wheelZoom,
     camera,
@@ -130,7 +134,6 @@ export function MapView({
     handlers.current = {
       onClick,
       onHoverFeature,
-      onTileStats,
       onLoadStateChange,
       wheelZoom,
       camera,
@@ -165,6 +168,41 @@ export function MapView({
     mapRef.current = map;
     map.on('loadstart', () => handlers.current.onLoadStateChange?.(true));
     map.on('loadend', () => handlers.current.onLoadStateChange?.(false));
+
+    // A newly activated source can be HTTP-cache warm but still needs one OL
+    // render to decode/paint its tiles. Keep only the outgoing raster beneath
+    // it through that first render, then hide it. A pan cancels the overlap
+    // immediately so retained dates cannot request tiles for a moved viewport.
+    const pendingRetires = new Map<LayerId, BaseLayer>();
+    const hidePendingRetires = () => {
+      for (const [id, layer] of pendingRetires) {
+        if (mounted.get(id)?.retained) layer.setVisible(false);
+      }
+      pendingRetires.clear();
+    };
+    map.on('movestart', hidePendingRetires);
+    retireLayerRef.current = (id, layer) => {
+      // Rapid date changes may retire another outgoing layer before the first
+      // incoming one finished. Keep at most one bridge layer visible.
+      hidePendingRetires();
+      pendingRetires.set(id, layer);
+      const finish = () => {
+        if (pendingRetires.get(id) !== layer) return;
+        pendingRetires.delete(id);
+        if (mounted.get(id)?.retained) {
+          layer.setVisible(false);
+          map.render();
+        }
+      };
+      // rendercomplete is the first frame where the incoming layer has no
+      // pending tile loads or alpha transitions. postrender is too early: an
+      // HTTP-cache hit can still be decoded at partial opacity in that frame.
+      map.once('rendercomplete', finish);
+      // A hung request must not leave two dates live indefinitely. A pan also
+      // calls hidePendingRetires synchronously before it can schedule tiles.
+      setTimeout(finish, 3000);
+      map.render();
+    };
 
     const sketchLayer: SketchLayer = new VectorLayer({
       source: new VectorSource(),
@@ -222,9 +260,11 @@ export function MapView({
       // a map left holding it keeps re-rendering off every camera move for the
       // rest of the session - once per map ever unmounted.
       map.setView(new View());
+      hidePendingRetires();
       map.setTarget(undefined);
       handlers.current.onLoadStateChange?.(false);
       mapRef.current = null;
+      retireLayerRef.current = undefined;
     };
     // Built once: the camera owns the view, and every prop above is read through refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -241,12 +281,11 @@ export function MapView({
     const map = mapRef.current;
     if (!map) return;
     const ctx = {
-      onTileStats: (layerId: LayerId, stats: TileStats) =>
-        handlers.current.onTileStats?.(layerId, stats),
+      retireLayer: retireLayerRef.current,
     };
 
     applyLayerOps(map, mounted, reconcile(mounted, layers), ctx);
-  }, [layers]);
+  }, [layers, mounted]);
 
   useEffect(() => {
     const view = camera.getView();

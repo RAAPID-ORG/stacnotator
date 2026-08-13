@@ -1,5 +1,5 @@
 import type { ImageryCollectionOut } from '~/api/client';
-import type { Catalog } from './catalog';
+import { compatibleVizId, type Catalog } from './catalog';
 import type { EmptyKey, SliceAddress } from './types';
 import { emptyKey } from './types';
 import { collectionStartDate } from './views';
@@ -16,30 +16,6 @@ function coverIndex(collection: Pick<ImageryCollectionOut, 'cover_slice_index'>)
   return collection.cover_slice_index ?? 0;
 }
 
-interface VizSource {
-  visualizations: { id: number; name: string }[];
-}
-
-interface VizSlice {
-  tile_urls: { visualization_name: string }[];
-}
-
-/** The visualization to land on: `preferredVizId` when it is still published
- *  (has a tile_url) on the target slice, else the source's first
- *  visualization. Carries the annotator's chosen visualization across
- *  date/collection navigation without leaving a dangling reference to one a
- *  slice can't actually render. */
-function resolveVizId(
-  source: VizSource,
-  slice: VizSlice | undefined,
-  preferredVizId: string
-): string {
-  const preferred = source.visualizations.find((v) => String(v.id) === preferredVizId);
-  const published =
-    !!preferred && !!slice?.tile_urls.some((t) => t.visualization_name === preferred.name);
-  return published ? preferredVizId : String(source.visualizations[0]?.id ?? '');
-}
-
 function landOn(
   cat: Catalog,
   sourceId: number,
@@ -49,8 +25,19 @@ function landOn(
 ): SliceAddress {
   const source = cat.sources.get(sourceId);
   const slice = cat.collections.get(collectionId)?.slices[sliceIndex];
-  const vizId = source ? resolveVizId(source, slice, preferredVizId) : preferredVizId;
+  const vizId = source ? compatibleVizId(source, slice, preferredVizId) : preferredVizId;
   return { sourceId, collectionId, sliceIndex, vizId };
+}
+
+/** Address for a direct date-picker selection. This uses the same compatible
+ * visualization rule as keyboard navigation instead of changing the slice
+ * index underneath a visualization that the target date does not publish. */
+export function addressAtSlice(
+  cat: Catalog,
+  current: SliceAddress,
+  sliceIndex: number
+): SliceAddress {
+  return landOn(cat, current.sourceId, current.collectionId, sliceIndex, current.vizId);
 }
 
 /** Address for jumping straight to a collection (timeline scrub, collection

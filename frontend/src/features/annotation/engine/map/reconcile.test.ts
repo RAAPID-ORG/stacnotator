@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type BaseLayer from 'ol/layer/Base';
 import TileLayer from 'ol/layer/Tile';
 import { applyLayerOps, reconcile, type LayerHost, type MountedLayer } from './reconcile';
@@ -235,6 +235,20 @@ describe('applyLayerOps', () => {
     expect(sourceOf(layer)).not.toBeNull();
   });
 
+  it('lets MapView defer hiding one outgoing raster until its replacement paints', () => {
+    const host = testHost();
+    const registry = new Map<LayerId, MountedLayer>();
+    sync(host, registry, [raster()]);
+    const layer = registry.get('imagery')!.layer;
+    const retireLayer = vi.fn();
+
+    applyLayerOps(host, registry, reconcile(registry, []), { retireLayer });
+
+    expect(registry.get('imagery')?.retained).toBe(true);
+    expect(layer.getVisible()).toBe(true);
+    expect(retireLayer).toHaveBeenCalledWith('imagery', layer);
+  });
+
   it('reuses the same layer and source when a spec comes back', () => {
     const host = testHost();
     const registry = new Map<LayerId, MountedLayer>();
@@ -277,6 +291,20 @@ describe('applyLayerOps', () => {
     expect([...registry.keys()].sort()).toEqual(['b', 'c', 'd']);
     expect(host.layers).toHaveLength(3);
     expect(sourceOf(first)).toBeNull();
+  });
+
+  it('bounds a 120-date history and leaves only the selected date visible', () => {
+    const host = testHost();
+    const registry = new Map<LayerId, MountedLayer>();
+    for (let index = 0; index < 120; index++) {
+      sync(host, registry, [raster({ id: `date-${index}` })], 16);
+    }
+
+    expect(registry.size).toBe(17);
+    expect(host.layers).toHaveLength(17);
+    expect(
+      [...registry.entries()].filter(([, mounted]) => mounted.layer.getVisible()).map(([id]) => id)
+    ).toEqual(['date-119']);
   });
 
   it('never evicts a layer that is coming back into view', () => {

@@ -2,7 +2,15 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CampaignOutFull } from '~/api/client';
-import { makeCampaign, makeSource } from '~/features/annotation/core/catalog/testHelpers';
+import { buildCatalog } from '~/features/annotation/core/catalog';
+import {
+  makeCampaign,
+  makeCollection,
+  makeSlice,
+  makeSource,
+  makeTileUrl,
+  makeViz,
+} from '~/features/annotation/core/catalog/testHelpers';
 import { useWorkStore } from '~/features/annotation/stores';
 import {
   getUserPickedSlice,
@@ -161,10 +169,20 @@ describe('AnnotationPage campaign switch', () => {
     work.beginDraft(1);
     work.editDraftGeometry({ type: 'Point', coordinates: [0, 0] });
     work.setFormValues({ '1': 'answer' });
-    // The active-collection branch of selectWindowSlice never reads the
-    // catalog, so a window pick can be recorded without building one.
+    const source = makeSource({
+      id: 1,
+      visualizations: [makeViz({ id: 1 })],
+      collections: [
+        makeCollection({
+          id: 55,
+          slices: Array.from({ length: 4 }, (_, index) =>
+            makeSlice({ id: 550 + index, tile_urls: [makeTileUrl()] })
+          ),
+        }),
+      ],
+    });
     selectWindowSlice(
-      {} as Parameters<typeof selectWindowSlice>[0],
+      buildCatalog(makeCampaign({ imagery_sources: [source] })),
       {
         address: { sourceId: 1, collectionId: 55, sliceIndex: 0, vizId: '1' },
         setAddress: () => {},

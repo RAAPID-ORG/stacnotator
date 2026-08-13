@@ -27,20 +27,12 @@ describe('markEmpty', () => {
 });
 
 describe('SNAPSHOT_FIELDS', () => {
-  it('is exactly address/showBasemap/selectedBasemapId/overlay/overlayOpacity/vector/empties', () => {
+  it('snapshots view navigation but not task-scoped empty results', () => {
     // A per-view snapshot has to carry vector layer + basemap selection,
     // and must exclude the app-wide toggles (crosshair/showAnnotations/
     // viewSync), which live on ImageryNavState but are not per-view.
     expect([...SNAPSHOT_FIELDS].sort()).toEqual(
-      [
-        'address',
-        'empties',
-        'overlay',
-        'overlayOpacity',
-        'selectedBasemapId',
-        'showBasemap',
-        'vector',
-      ].sort()
+      ['address', 'overlay', 'overlayOpacity', 'selectedBasemapId', 'showBasemap', 'vector'].sort()
     );
   });
 

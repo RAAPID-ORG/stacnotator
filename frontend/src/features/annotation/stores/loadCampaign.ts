@@ -132,6 +132,7 @@ export async function loadCampaign(
     overlayOpacity: 1,
     vector: { id: null, visible: true },
     empties: {},
+    emptyScope: null,
     viewSnapshots: {},
     // Crosshair on for Tasks (point placement), off for Explore, same rule
     // setWorkMode applies later when the user switches modes by hand.

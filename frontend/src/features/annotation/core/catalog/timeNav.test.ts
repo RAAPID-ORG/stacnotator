@@ -10,6 +10,7 @@ import {
 } from './testHelpers';
 import { emptyKey } from './types';
 import {
+  addressAtSlice,
   jumpToCollection,
   sliceNavIndices,
   slicePickerIndices,
@@ -233,6 +234,36 @@ const mvAddr = (collectionId: number, sliceIndex: number, vizId: string) => ({
 });
 
 describe('visualization carried across navigation', () => {
+  it('a direct date pick keeps the visualization when the target publishes it', () => {
+    expect(addressAtSlice(mvCat, mvAddr(10, 0, '901'), 1)).toEqual(mvAddr(10, 1, '901'));
+  });
+
+  it('a direct cover pick falls back to a visualization that cover actually publishes', () => {
+    const falseOnlyCover = makeSource({
+      id: 3,
+      visualizations: [
+        makeViz({ id: 30, name: 'True Color' }),
+        makeViz({ id: 31, name: 'False Color' }),
+      ],
+      collections: [
+        makeCollection({
+          id: 30,
+          slices: [
+            makeSlice({
+              id: 300,
+              tile_urls: [makeTileUrl({ visualization_name: 'False Color' })],
+            }),
+          ],
+        }),
+      ],
+    });
+    const directCat = buildCatalog(makeCampaign({ imagery_sources: [falseOnlyCover] }));
+
+    expect(
+      addressAtSlice(directCat, { sourceId: 3, collectionId: 30, sliceIndex: 0, vizId: '30' }, 0)
+    ).toEqual({ sourceId: 3, collectionId: 30, sliceIndex: 0, vizId: '31' });
+  });
+
   it('stepSlice keeps False Color across a slice step within the collection', () => {
     expect(stepSlice(mvCat, mvAddr(10, 0, '901'), 1, {})).toEqual(mvAddr(10, 1, '901'));
   });

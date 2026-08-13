@@ -1,5 +1,10 @@
 import type { ImagerySliceOut } from '~/api/client';
-import { emptyKey, slicePickerIndices, type Catalog } from '~/features/annotation/core/catalog';
+import {
+  addressAtSlice,
+  emptyKey,
+  slicePickerIndices,
+  type Catalog,
+} from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
 import { HeaderSelect } from '../../../shared/HeaderSelect';
 
@@ -45,7 +50,7 @@ export function SlicePicker({ catalog, title }: { catalog: Catalog; title: strin
     <HeaderSelect
       value={address.sliceIndex}
       options={options}
-      onChange={(v) => setAddress({ ...address, sliceIndex: Number(v) })}
+      onChange={(v) => setAddress(addressAtSlice(catalog, address, Number(v)))}
       title={title}
     />
   );

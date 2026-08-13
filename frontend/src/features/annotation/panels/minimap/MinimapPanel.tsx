@@ -4,6 +4,7 @@ import { IconExternalLink } from '~/shared/ui/Icons';
 import { mainCamera, minimapCamera } from '~/features/annotation/shared/cameras';
 import {
   MapView,
+  type Bbox,
   type CameraController,
   type FeatureLayerSpec,
   type LayerSpec,
@@ -14,7 +15,13 @@ import type { ComposeCtx } from '../../composition';
 import { exploreRefitTarget, tasksModeTarget } from './followTarget';
 import { type GeocodingResult } from './geocoding';
 import { LocationSearch } from './LocationSearch';
-import { campaignBboxLayer, viewportRectLayer } from './ViewportRect';
+import {
+  campaignBboxLayer,
+  centerOfBounds,
+  containsPoint,
+  translateBounds,
+  viewportRectLayer,
+} from './ViewportRect';
 
 const MINIMAP_BASEMAP: RasterLayerSpec = {
   kind: 'raster',
@@ -57,6 +64,12 @@ function useCameraCenter(camera: CameraController): LonLat {
   const [center, setCenter] = useState<LonLat>(() => camera.getState().center);
   useEffect(() => camera.onChange((s) => setCenter(s.center)), [camera]);
   return center;
+}
+
+function useCameraZoom(camera: CameraController): number {
+  const [zoom, setZoom] = useState(() => camera.getState().zoom);
+  useEffect(() => camera.onChange((state) => setZoom(state.zoom)), [camera]);
+  return zoom;
 }
 
 function densityLayer(cells: AnnotationDensityCell[]): FeatureLayerSpec | null {
@@ -155,11 +168,14 @@ export function MinimapBody({ ctx }: { ctx: ComposeCtx }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragFrame = useRef<number | null>(null);
   const dragCleanup = useRef<(() => void) | null>(null);
+  const [previewBounds, setPreviewBounds] = useState<Bbox | null>(null);
 
   useMinimapFollow(ctx.mode);
   useEffect(() => () => dragCleanup.current?.(), []);
 
   const bounds = useCameraBounds(mainCamera);
+  const minimapZoom = useCameraZoom(minimapCamera);
+  const displayedBounds = previewBounds ?? bounds;
 
   const [density, setDensity] = useState<AnnotationDensityCell[]>([]);
   useEffect(() => {
@@ -184,41 +200,52 @@ export function MinimapBody({ ctx }: { ctx: ComposeCtx }) {
     const list: LayerSpec[] = [
       MINIMAP_BASEMAP,
       campaignBboxLayer(ctx.catalog.bbox),
-      viewportRectLayer(bounds),
+      viewportRectLayer(displayedBounds),
     ];
     const density_ = densityLayer(density);
     if (density_) list.push(density_);
     return list;
-  }, [ctx.catalog.bbox, bounds, density]);
+  }, [ctx.catalog.bbox, displayedBounds, density]);
 
-  const panTo = (clientX: number, clientY: number) => {
+  const pointAt = (clientX: number, clientY: number): LonLat | null => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el) return null;
     const rect = el.getBoundingClientRect();
-    const target = minimapCamera.lonLatFromContainerPixel(
+    return minimapCamera.lonLatFromContainerPixel(
       clientX - rect.left,
       clientY - rect.top,
       rect.width,
       rect.height
     );
-    mainCamera.moveTo({ center: target });
   };
 
-  // Capture-phase: stops the pointerdown from ever reaching the OL viewport
-  // (a descendant), so OL's own DragPan never engages and fights the
-  // minimap camera's own drive effect above. Move/up are handled on
-  // `window` rather than through MapView, which exposes no drag events.
+  // Only the viewport polygon navigates the main map. Background drags and
+  // wheel events remain OpenLayers interactions for panning/zooming the
+  // minimap itself; controls (especially attribution) are left untouched.
+  // During a viewport drag only the cheap vector preview moves. The main
+  // camera receives one final destination on pointerup, so its imagery never
+  // loads a trail of intermediate locations.
   const handlePointerDownCapture = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
+    if ((e.target as Element).closest?.('.ol-control')) return;
+    const startPoint = pointAt(e.clientX, e.clientY);
+    if (!startPoint || !containsPoint(bounds, startPoint)) return;
+
     e.stopPropagation();
     e.preventDefault();
-    panTo(e.clientX, e.clientY);
+    const startBounds = bounds;
+    setPreviewBounds(startBounds);
+
+    const boundsAt = (clientX: number, clientY: number): Bbox => {
+      const point = pointAt(clientX, clientY) ?? startPoint;
+      return translateBounds(startBounds, [point[0] - startPoint[0], point[1] - startPoint[1]]);
+    };
 
     const onMove = (ev: PointerEvent) => {
       if (dragFrame.current != null) return;
       dragFrame.current = requestAnimationFrame(() => {
         dragFrame.current = null;
-        panTo(ev.clientX, ev.clientY);
+        setPreviewBounds(boundsAt(ev.clientX, ev.clientY));
       });
     };
     const onUp = (ev: PointerEvent) => {
@@ -226,24 +253,49 @@ export function MinimapBody({ ctx }: { ctx: ComposeCtx }) {
         cancelAnimationFrame(dragFrame.current);
         dragFrame.current = null;
       }
-      panTo(ev.clientX, ev.clientY);
+      const finalBounds = boundsAt(ev.clientX, ev.clientY);
+      const startCenter = centerOfBounds(startBounds);
+      const finalCenter = centerOfBounds(finalBounds);
+      setPreviewBounds(null);
+      cleanup();
+      if (finalCenter[0] !== startCenter[0] || finalCenter[1] !== startCenter[1]) {
+        mainCamera.moveTo({ center: finalCenter });
+      }
+    };
+    const onCancel = () => {
+      if (dragFrame.current != null) {
+        cancelAnimationFrame(dragFrame.current);
+        dragFrame.current = null;
+      }
+      setPreviewBounds(null);
       cleanup();
     };
     const cleanup = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
       dragCleanup.current = null;
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
     dragCleanup.current = cleanup;
+  };
+
+  const handleWheelCapture = (e: React.WheelEvent) => {
+    if (e.deltaY === 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    minimapCamera.zoomBy(e.deltaY < 0 ? 1 : -1);
   };
 
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full cursor-grab active:cursor-grabbing"
+      data-minimap-zoom={minimapZoom}
+      className={`relative h-full w-full ${previewBounds ? 'cursor-grabbing' : ''}`}
       onPointerDownCapture={handlePointerDownCapture}
+      onWheelCapture={handleWheelCapture}
     >
       <MapView camera={minimapCamera} layers={layers} wheelZoom="modifier" />
     </div>

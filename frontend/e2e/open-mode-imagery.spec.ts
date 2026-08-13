@@ -168,19 +168,30 @@ test.describe('Imagery in open mode', () => {
     await tileArrived;
   });
 
-  test('clicking the minimap pans the main map', async ({ annotationPage }) => {
+  test('dragging the minimap viewport pans the main map only on release', async ({
+    annotationPage,
+  }) => {
     const start = await getMinimapCenter(annotationPage);
-    const box = await annotationPage.locator('[data-tour="minimap"]').boundingBox();
-    // Click the lower-left of the minimap - well outside the (tiny) viewport rect,
-    // so ClickToPan recenters the main map there.
-    await annotationPage.mouse.click(box!.x + box!.width * 0.22, box!.y + box!.height * 0.78);
+    const body = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    await body.scrollIntoViewIfNeeded();
+    const box = await body.boundingBox();
+    if (!box) throw new Error('minimap has no bounding box');
+    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    await annotationPage.mouse.move(center.x, center.y);
+    await annotationPage.mouse.down();
+    await annotationPage.mouse.move(center.x + 30, center.y + 20, { steps: 6 });
+    // Pointer moves update only the rectangle preview.
+    expect(await getMinimapCenter(annotationPage)).toEqual(start);
+    await annotationPage.mouse.up();
+
     await expect
       .poll(
         async () => {
           const now = await getMinimapCenter(annotationPage);
           return Math.abs(now.lat - start.lat) > 0.01 || Math.abs(now.lon - start.lon) > 0.01;
         },
-        { timeout: 4000, message: 'minimap drag did not move the main map centre' }
+        { timeout: 4000, message: 'viewport release did not move the main map centre' }
       )
       .toBe(true);
   });

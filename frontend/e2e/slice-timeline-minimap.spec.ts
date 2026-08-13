@@ -12,6 +12,11 @@ import { assertCrosshairAt, assertMinimapCenterAt, isTileHost } from './fixtures
 type Page = import('@playwright/test').Page;
 type Locator = import('@playwright/test').Locator;
 
+const SOLID_GREEN_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGUExURQD/AP///2+9WFEAAAABYktHRAH/Ai3eAAAAB3RJTUUH6ggNCC0kqyvu3gAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII=',
+  'base64'
+);
+
 function tilesAfter(requests: CapturedRequest[], snap: number): string[] {
   return requests
     .slice(snap)
@@ -111,6 +116,148 @@ test.describe('Slice cycling via keyboard (A / D)', () => {
     await annotationPage.keyboard.press('d');
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
     await assertCrosshairAt(annotationPage, TASK_1.id, 'crosshair after d');
+  });
+
+  test('switching to an already loaded slice never exposes a blank imagery frame', async ({
+    annotationPage,
+  }) => {
+    const janRequests = new Set<string>();
+    annotationPage.on('request', (request) => {
+      if (request.url().includes('search-jan-2024')) janRequests.add(request.url());
+    });
+    await annotationPage.route('**/tiles.example.com/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        headers: {
+          'access-control-allow-origin': '*',
+          'cache-control': 'public, max-age=3600',
+        },
+        body: SOLID_GREEN_PNG,
+      })
+    );
+    await annotationPage.reload();
+    await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name);
+    await annotationPage.waitForTimeout(250);
+
+    // The task preloader warms HTTP image responses without mounting an OL
+    // layer. Reproduce that exact state for June using January's viewport tile
+    // coordinates, then switch to the never-mounted but network-cached slice.
+    const juneUrls = [...janRequests].map((url) =>
+      url.replace('search-jan-2024', 'search-jun-2024')
+    );
+    expect(juneUrls.length).toBeGreaterThan(0);
+    await annotationPage.evaluate(
+      (urls) =>
+        Promise.all(
+          urls.map(
+            (url) =>
+              new Promise<void>((resolve, reject) => {
+                const image = new Image();
+                image.crossOrigin = 'anonymous';
+                image.onload = () => resolve();
+                image.onerror = () => reject(new Error(`failed to preload ${url}`));
+                image.src = url;
+              })
+          )
+        ),
+      juneUrls
+    );
+
+    await annotationPage.evaluate(() => {
+      const state = { samples: [] as number[], done: false };
+      (window as typeof window & { __SLICE_ALPHA__?: typeof state }).__SLICE_ALPHA__ = state;
+      let frames = 0;
+      const sample = () => {
+        const canvases = document.querySelectorAll<HTMLCanvasElement>(
+          '[data-tour="main-map"] canvas'
+        );
+        let strongest = 0;
+        for (const canvas of canvases) {
+          if (canvas.width === 0 || canvas.height === 0) continue;
+          const pixel = canvas
+            .getContext('2d')
+            ?.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data;
+          strongest = Math.max(strongest, pixel?.[3] ?? 0);
+        }
+        state.samples.push(strongest);
+        if (++frames < 20) requestAnimationFrame(sample);
+        else state.done = true;
+      };
+      requestAnimationFrame(sample);
+    });
+
+    await annotationPage.keyboard.press('d');
+    await expect
+      .poll(
+        () =>
+          annotationPage.evaluate(
+            () =>
+              (window as typeof window & { __SLICE_ALPHA__?: { done: boolean } }).__SLICE_ALPHA__
+                ?.done ?? false
+          ),
+        { timeout: 3000 }
+      )
+      .toBe(true);
+    const samples = await annotationPage.evaluate(
+      () =>
+        (window as typeof window & { __SLICE_ALPHA__?: { samples: number[] } }).__SLICE_ALPHA__
+          ?.samples ?? []
+    );
+    expect(Math.min(...samples)).toBe(255);
+  });
+
+  test('panning requests only the active date, never retained dates', async ({
+    annotationPage,
+  }) => {
+    await annotationPage.evaluate(() => {
+      const key = 'annotation:prefs';
+      const existing = JSON.parse(localStorage.getItem(key) || '{}');
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          ...existing,
+          state: { ...(existing.state || {}), preloadTier: 'off' },
+          version: existing.version ?? 0,
+        })
+      );
+    });
+    await annotationPage.reload();
+    await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name);
+
+    // Mount June once so it is retained when January becomes active again.
+    await annotationPage.keyboard.press('d');
+    await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name);
+    await annotationPage.waitForTimeout(200);
+    await annotationPage.keyboard.press('a');
+    await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name);
+    await annotationPage.waitForTimeout(200);
+
+    const requested: string[] = [];
+    annotationPage.on('request', (request) => {
+      if (isTileHost(request.url())) requested.push(request.url());
+    });
+
+    const minimapBody = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    await minimapBody.scrollIntoViewIfNeeded();
+    const minimap = await minimapBody.boundingBox();
+    if (!minimap) throw new Error('minimap has no bounding box');
+    const start = { x: minimap.x + minimap.width / 2, y: minimap.y + minimap.height / 2 };
+    const destination = { x: start.x + 24, y: start.y + 18 };
+    await annotationPage.mouse.move(start.x, start.y);
+    await annotationPage.mouse.down();
+    await annotationPage.mouse.move(destination.x, destination.y, { steps: 8 });
+    await annotationPage.waitForTimeout(100);
+
+    // Dragging previews only the vector rectangle. The full-size map receives
+    // no intermediate camera positions (and therefore no imagery requests).
+    expect(requested).toEqual([]);
+
+    await annotationPage.mouse.up();
+    await annotationPage.waitForTimeout(500);
+
+    expect(requested.some((url) => url.includes('search-jan-2024'))).toBe(true);
+    expect(requested.some((url) => url.includes('search-jun-2024'))).toBe(false);
   });
 });
 
@@ -268,6 +415,39 @@ test.describe('Timeline collection switching', () => {
 test.describe('Minimap center tracks current task', () => {
   test('minimap is visible on initial load', async ({ annotationPage }) => {
     await expect(annotationPage.locator('[data-tour="minimap"]')).toBeVisible();
+  });
+
+  test('background clicks do not navigate the main map', async ({ annotationPage }) => {
+    const center = await annotationPage.locator('[data-testid="viewport-center"]').textContent();
+    const minimapBody = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    await minimapBody.scrollIntoViewIfNeeded();
+    const minimap = await minimapBody.boundingBox();
+    if (!minimap) throw new Error('minimap has no bounding box');
+
+    await annotationPage.mouse.click(minimap.x + 8, minimap.y + 8);
+    await expect(annotationPage.locator('[data-testid="viewport-center"]')).toHaveText(center!);
+  });
+
+  test('the minimap zooms independently with the mouse wheel', async ({ annotationPage }) => {
+    const minimap = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    await minimap.scrollIntoViewIfNeeded();
+    const box = await minimap.boundingBox();
+    if (!box) throw new Error('minimap has no bounding box');
+    const initial = Number(await minimap.getAttribute('data-minimap-zoom'));
+
+    await annotationPage.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await annotationPage.mouse.wheel(0, -500);
+    await expect
+      .poll(async () => Number(await minimap.getAttribute('data-minimap-zoom')))
+      .toBeGreaterThan(initial);
+  });
+
+  test('clicking minimap attribution never navigates the main map', async ({ annotationPage }) => {
+    const center = await annotationPage.locator('[data-testid="viewport-center"]').textContent();
+    await annotationPage
+      .locator('[data-tour="minimap"] .ol-attribution button')
+      .click({ force: true });
+    await expect(annotationPage.locator('[data-testid="viewport-center"]')).toHaveText(center!);
   });
 
   test('minimap center is at TASK_1 location on initial load', async ({ annotationPage }) => {

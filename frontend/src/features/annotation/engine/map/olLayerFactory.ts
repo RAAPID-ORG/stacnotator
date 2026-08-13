@@ -20,7 +20,6 @@ import type {
   LayerSpec,
   RasterLayerSpec,
   StyleSpec,
-  TileStats,
   VectorTileLayerSpec,
 } from './types';
 import type { LayerField } from './reconcile';
@@ -30,7 +29,6 @@ import {
   refreshTilerSession,
   type CrossOrigin,
 } from './tileQos/loading';
-import { emptyTileStats } from './tileQos/stats';
 
 /** Layer property keys. Prefixed so they cannot collide with OL's own. */
 export const LAYER_ID_PROP = 'mapview:layerId';
@@ -42,7 +40,9 @@ const MAX_TILE_ZOOM = 22;
 const HIGHLIGHT_EXTRA_WIDTH = 3;
 
 export interface LayerContext {
-  onTileStats?: (layerId: LayerId, stats: TileStats) => void;
+  /** MapView may keep the outgoing raster painted through the incoming
+   * layer's first render. Other hosts omit this and retire immediately. */
+  retireLayer?: (layerId: LayerId, layer: BaseLayer) => void;
 }
 
 const geoJson = new GeoJSONFormat({ dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
@@ -162,7 +162,10 @@ function createRasterSource(spec: RasterLayerSpec): XYZ {
     minZoom: spec.minZoom,
     maxZoom: spec.maxZoom,
     cacheSize: 512,
-    transition: 150,
+    // Date changes often hit tiles already warmed in the HTTP cache. Any
+    // non-zero source transition fades that cached layer in after the outgoing
+    // one is hidden, producing a pale/blank flash for no network benefit.
+    transition: 0,
     ...(credentialed ? { tileLoadFunction: credentialedTileLoader(refreshTilerSession) } : {}),
   };
   return spec.url.includes('{q}')
@@ -171,21 +174,6 @@ function createRasterSource(spec: RasterLayerSpec): XYZ {
         tileUrlFunction: ([z, x, y]) => spec.url.replace('{q}', tileXYZToQuadkey(x, y, z)),
       })
     : new XYZ({ ...options, url: spec.url });
-}
-
-/** Report every load outcome; classifying the source as empty is the caller's job. */
-function trackStats(source: XYZ, spec: RasterLayerSpec, ctx: LayerContext): void {
-  if (!spec.trackStats) return;
-  const stats = emptyTileStats();
-  const report = () => ctx.onTileStats?.(spec.id, { ...stats });
-  source.on('tileloadend', () => {
-    stats.successes++;
-    report();
-  });
-  source.on('tileloaderror', () => {
-    stats.errors++;
-    report();
-  });
 }
 
 function createVectorTileSource(spec: VectorTileLayerSpec): VectorTileSource {
@@ -237,8 +225,8 @@ function featureStyle(layer: VectorLayer<VectorSource<Feature>>) {
   };
 }
 
-export function createLayer(spec: LayerSpec, ctx: LayerContext): BaseLayer {
-  const layer = buildLayer(spec, ctx);
+export function createLayer(spec: LayerSpec, _ctx: LayerContext): BaseLayer {
+  const layer = buildLayer(spec);
   layer.set(LAYER_ID_PROP, spec.id);
   layer.set(SPEC_PROP, spec);
   layer.setVisible(spec.visible ?? true);
@@ -246,10 +234,9 @@ export function createLayer(spec: LayerSpec, ctx: LayerContext): BaseLayer {
   return layer;
 }
 
-function buildLayer(spec: LayerSpec, ctx: LayerContext): BaseLayer {
+function buildLayer(spec: LayerSpec): BaseLayer {
   if (spec.kind === 'raster') {
     const source = createRasterSource(spec);
-    trackStats(source, spec, ctx);
     return new TileLayer({ source, preload: spec.preload ?? 0, opacity: spec.opacity ?? 1 });
   }
   if (spec.kind === 'vector-tiles') {
@@ -278,7 +265,7 @@ export function updateLayer(
   layer: BaseLayer,
   spec: LayerSpec,
   changed: readonly LayerField[],
-  ctx: LayerContext
+  _ctx: LayerContext
 ): void {
   // Style functions read the spec off the layer, so this also refreshes them.
   layer.set(SPEC_PROP, spec);
@@ -301,16 +288,15 @@ export function updateLayer(
         // A raster's zoom limits live on the tile grid, a vector tile layer's on
         // the layer itself, mirroring where each one stops requesting tiles.
         if (spec.kind === 'vector-tiles') layer.setMinZoom(spec.minZoom ?? -Infinity);
-        else replaceSource(layer, spec, ctx);
+        else replaceSource(layer, spec);
         break;
       case 'url':
       case 'auth':
       case 'attribution':
-      case 'trackStats':
       case 'maxZoom':
       case 'idProperty':
       case 'sourceLayers':
-        replaceSource(layer, spec, ctx);
+        replaceSource(layer, spec);
         break;
       case 'features':
         if (spec.kind === 'features') {
@@ -329,10 +315,9 @@ export function updateLayer(
   }
 }
 
-function replaceSource(layer: BaseLayer, spec: LayerSpec, ctx: LayerContext): void {
+function replaceSource(layer: BaseLayer, spec: LayerSpec): void {
   if (spec.kind === 'raster') {
     const source = createRasterSource(spec);
-    trackStats(source, spec, ctx);
     (layer as TileLayer<XYZ>).setSource(source);
     return;
   }

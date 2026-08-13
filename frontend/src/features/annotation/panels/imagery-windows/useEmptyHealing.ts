@@ -3,6 +3,7 @@ import { createXYZ } from 'ol/tilegrid';
 import { useEffect, useRef, useState } from 'react';
 import type { ImageryCollectionOut } from '~/api/client';
 import {
+  addressAtSlice,
   emptyKey,
   layerSpecFor,
   sliceNavIndices,
@@ -179,7 +180,7 @@ function tileTargetFor(
 ): TileTarget | null {
   let spec;
   try {
-    spec = layerSpecFor(catalog, { ...address, sliceIndex });
+    spec = layerSpecFor(catalog, addressAtSlice(catalog, address, sliceIndex));
   } catch {
     return null;
   }
@@ -203,7 +204,11 @@ async function probeEmpty(target: TileTarget, signal: AbortSignal): Promise<bool
     credentials: target.credentialed ? 'include' : 'omit',
     signal,
   });
-  return resp.status === 204 || (!target.credentialed && !resp.ok);
+  if (resp.status === 204) return true;
+  if (resp.ok) return false;
+  // A generic failure says nothing about spatial coverage. Leave the current
+  // selection alone and retry on the next location/address change.
+  throw new Error(`Imagery probe failed with HTTP ${resp.status}`);
 }
 
 export function useEmptyHealing(args: UseEmptyHealingArgs): EmptyHealingResult {

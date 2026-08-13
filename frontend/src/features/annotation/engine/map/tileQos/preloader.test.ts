@@ -133,8 +133,6 @@ describe('TilePreloader queue', () => {
 
   it('clears the queue and ignores stale completions', async () => {
     const { images, preloader } = harness(1);
-    const onGroupEmpty = vi.fn();
-    preloader.onGroupEmpty = onGroupEmpty;
     preloader.enqueue({
       priority: 1,
       groupId: 'g',
@@ -151,60 +149,11 @@ describe('TilePreloader queue', () => {
     images[0].fail();
     await flush();
     expect(images).toHaveLength(1);
-    expect(onGroupEmpty).not.toHaveBeenCalled();
     preloader.dispose();
   });
 });
 
-describe('TilePreloader empty detection', () => {
-  it('reports a group empty after the error threshold with no successes', async () => {
-    const { images, preloader } = harness(4);
-    const onGroupEmpty = vi.fn();
-    preloader.onGroupEmpty = onGroupEmpty;
-    preloader.enqueue({
-      priority: 1,
-      groupId: 'slice-7',
-      urlTemplate: 'https://a/{z}/{x}/{y}',
-      extent: WORLD,
-      zoom: 2,
-    });
-    await flush();
-
-    for (let i = 0; i < 4; i++) {
-      images[i].fail();
-      await flush();
-    }
-
-    expect(onGroupEmpty).toHaveBeenCalledTimes(1);
-    expect(onGroupEmpty).toHaveBeenCalledWith('slice-7');
-    expect(preloader.queueSize).toBe(0);
-    preloader.dispose();
-  });
-
-  it('stays quiet when a tile loaded', async () => {
-    const { images, preloader } = harness(8);
-    const onGroupEmpty = vi.fn();
-    preloader.onGroupEmpty = onGroupEmpty;
-    preloader.enqueue({
-      priority: 1,
-      groupId: 'slice-7',
-      urlTemplate: 'https://a/{z}/{x}/{y}',
-      extent: WORLD,
-      zoom: 2,
-    });
-    await flush();
-
-    images[0].succeed();
-    await flush();
-    for (let i = 1; i < 6; i++) {
-      images[i].fail();
-      await flush();
-    }
-
-    expect(onGroupEmpty).not.toHaveBeenCalled();
-    preloader.dispose();
-  });
-
+describe('TilePreloader groups', () => {
   it('drops a group on abort', async () => {
     const { preloader } = harness(1);
     preloader.enqueue({

@@ -88,6 +88,7 @@ beforeEach(() => {
     showAnnotations: true,
     viewSync: true,
     viewSnapshots: {},
+    emptyScope: null,
   });
 });
 

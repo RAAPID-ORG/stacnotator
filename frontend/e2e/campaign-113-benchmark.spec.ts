@@ -213,6 +213,8 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     const started = new Map<number, number>();
     const completed = new Map<number, number>();
     const targetCompleted = new Map<number, number>();
+    const finished = new Map<number, number>();
+    const targetFinished = new Map<number, number>();
     const requestCounts = new Map<number, number>();
 
     const onRequest = (request: import('@playwright/test').Request) => {
@@ -251,8 +253,29 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
         targetCompleted.set(collection, Date.now());
       }
     };
+    const onRequestFinished = (request: import('@playwright/test').Request) => {
+      const marker = mosaicId(request.url());
+      const collection = marker ? markerToCollection.get(marker) : undefined;
+      const coord = tileCoord(request.url());
+      if (
+        collection == null ||
+        !coord ||
+        coord.z !== 15 ||
+        Math.abs(coord.x - expected.x) > 2 ||
+        Math.abs(coord.y - expected.y) > 2
+      )
+        return;
+      if (!finished.has(collection)) finished.set(collection, Date.now());
+      if (
+        targetTiles[tileKey(request.url()) ?? ''] === String(collection) &&
+        !targetFinished.has(collection)
+      ) {
+        targetFinished.set(collection, Date.now());
+      }
+    };
     annotationPage.on('request', onRequest);
     annotationPage.on('response', onResponse);
+    annotationPage.on('requestfinished', onRequestFinished);
 
     const gotoInput = annotationPage.locator('input[type="number"][title="Press Enter to go"]');
     await gotoInput.fill(String(task.annotation_number));
@@ -269,6 +292,7 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     await waitForBenchmarkNavigation(annotationPage);
     await expect.poll(() => completed.size, { timeout: 45_000 }).toBe(visibleIds.size);
     await expect.poll(() => targetCompleted.size, { timeout: 45_000 }).toBe(visibleIds.size);
+    await expect.poll(() => targetFinished.size, { timeout: 45_000 }).toBe(visibleIds.size);
 
     await expect
       .poll(
@@ -295,22 +319,35 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     const lastStart = Math.max(...started.values()) - navigationAt;
     const firstComplete = Math.min(...completed.values()) - navigationAt;
     const lastComplete = Math.max(...completed.values()) - navigationAt;
+    const lastFinished = Math.max(...finished.values()) - navigationAt;
     const lastRendered = Math.max(...Object.values(rendered));
-    const responseToPresented = Math.max(
+    const headersToPresented = Math.max(
       ...[...visibleIds].map((id) => Number(rendered[String(id)]) - Number(targetCompleted.get(id)))
+    );
+    const bodyToPresented = Math.max(
+      ...[...visibleIds].map((id) => Number(rendered[String(id)]) - Number(targetFinished.get(id)))
+    );
+    const slowestPanel = [...visibleIds].reduce((slowest, id) =>
+      Number(rendered[String(id)]) - Number(targetFinished.get(id)) >
+      Number(rendered[String(slowest)]) - Number(targetFinished.get(slowest))
+        ? id
+        : slowest
     );
     const renderedTotal = lastRendered - navigationAt;
     const totalRequests = [...requestCounts.values()].reduce((sum, count) => sum + count, 0);
     console.log(
       `BENCH113 task=${task.id} annotation=${task.annotation_number} panels=${visibleIds.size} ` +
         `start_first=${firstStart}ms start_all=${lastStart}ms ` +
-        `response_first=${firstComplete}ms response_all=${lastComplete}ms ` +
-        `paint_after_response=${responseToPresented}ms painted_all=${renderedTotal}ms ` +
+        `headers_first=${firstComplete}ms headers_all=${lastComplete}ms ` +
+        `body_all=${lastFinished}ms paint_after_headers=${headersToPresented}ms ` +
+        `paint_after_body=${bodyToPresented}ms slowest_panel=${slowestPanel} ` +
+        `painted_all=${renderedTotal}ms ` +
         `requests=${totalRequests} max_per_panel=${Math.max(...requestCounts.values())} ` +
         `target=${renderedTotal < 2000 ? 'PASS' : 'MISS'}`
     );
 
     annotationPage.off('request', onRequest);
     annotationPage.off('response', onResponse);
+    annotationPage.off('requestfinished', onRequestFinished);
   }
 });

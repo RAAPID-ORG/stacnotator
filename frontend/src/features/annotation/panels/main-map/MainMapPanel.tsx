@@ -15,18 +15,12 @@ import {
   useForegroundLoading,
 } from '~/features/annotation/shared/foregroundTileLoads';
 import { useContainerSize } from '~/features/annotation/engine/canvas';
-import {
-  MapView,
-  type LayerId,
-  type MapClickEvent,
-  type TileStats,
-} from '~/features/annotation/engine/map';
+import { MapView, type MapClickEvent } from '~/features/annotation/engine/map';
 import type { ComposeCtx } from '../../composition';
 import { fitAnnotations, recenter, useFocusCamera, useMapFocus } from './cameraBus';
 import { useAnnotationVersion } from '../../shared/annotationVersion';
 import {
   composeLayers,
-  emptySliceFrom,
   type AnnotationTileState,
   type ComposeState,
 } from '../../shared/composeLayers';
@@ -185,6 +179,8 @@ export function MainMapBody({ ctx }: MainMapProps) {
   const { containerRef, width, height } = useContainerSize();
   const [mapLoading, setMapLoading] = useState(false);
   const foregroundLoading = useForegroundLoading();
+  const windowLayout = useWorkspaceStore((s) => s.currentLayout.view.windows);
+  const visibleCollectionIds = useMemo(() => Object.keys(windowLayout).map(Number), [windowLayout]);
   useEffect(() => () => setForegroundMapLoading('main', false), []);
 
   const annotations = useMemo<AnnotationTileState>(
@@ -247,18 +243,8 @@ export function MainMapBody({ ctx }: MainMapProps) {
     // time they get there - the whole point of the upcoming tier.
     upcoming: focus?.upcoming,
     viewportPx,
+    visibleCollectionIds,
   });
-
-  const trackedRasterId = layers.find((l) => l.kind === 'raster' && l.trackStats)?.id;
-  const markEmpty = imagery.markEmpty;
-
-  const handleTileStats = (layerId: LayerId, stats: TileStats) => {
-    // The main map records empty imagery itself rather than relying on a window
-    // happening to be open on the same slice; the empty is a catalog
-    // fact every map and the slice picker read.
-    const empty = emptySliceFrom(layerId, trackedRasterId, stats, address);
-    if (empty) markEmpty(empty);
-  };
 
   return (
     <div className="flex h-full w-full">
@@ -277,7 +263,6 @@ export function MainMapBody({ ctx }: MainMapProps) {
           layers={layers}
           interactions={interactions}
           onClick={onMapClick}
-          onTileStats={handleTileStats}
           onLoadStateChange={(loading) => {
             setMapLoading(loading);
             setForegroundMapLoading('main', loading);

@@ -20,7 +20,6 @@ export interface RasterLayerSpec {
   zIndex?: number;
   visible?: boolean;
   attribution?: string;
-  trackStats?: boolean; // report TileStats via onTileStats
   minZoom?: number;
   maxZoom?: number; // basemap max_native_zoom
   preload?: number; // OL preload depth; default 0
@@ -66,10 +65,4 @@ export interface CameraState {
 }
 export interface CameraSnapshot extends CameraState {
   bounds: Bbox;
-}
-
-export interface TileStats {
-  errors: number;
-  successes: number;
-  empties: number;
 }

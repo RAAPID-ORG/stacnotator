@@ -105,7 +105,9 @@ const PREFETCH_AHEAD = 3;
 /** Pushes the current task's focus. Safe to call unconditionally - setMapFocus
  *  itself no-ops on an unchanged value. */
 export function syncMapFocus(catalog: Catalog): void {
-  setMapFocus(deriveMapFocus(getCurrentTask(), catalog));
+  const task = getCurrentTask();
+  useImageryStore.getState().setEmptyScope(task ? `task:${task.id}` : null);
+  setMapFocus(deriveMapFocus(task, catalog));
 }
 
 /** Seeds the bus from loadCampaign's result (or a later reload). Applies the

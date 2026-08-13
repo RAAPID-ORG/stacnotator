@@ -112,11 +112,16 @@ describe('snapshotForView', () => {
       overlay: { id: 9, visible: true },
       overlayOpacity: 0.5,
       vector: { id: 3, visible: false },
-      empties: { '10:2': true as const },
     };
     // crosshair/showAnnotations/viewSync are app-wide, not per-view - they
     // must NOT leak into the snapshot even though they're part of the state.
-    const state = { ...navFields, crosshair: true, showAnnotations: false, viewSync: true };
+    const state = {
+      ...navFields,
+      empties: { '10:2': true as const },
+      crosshair: true,
+      showAnnotations: false,
+      viewSync: true,
+    };
     expect(snapshotForView(state)).toEqual(navFields);
   });
 });
@@ -130,7 +135,6 @@ describe('restoreSnapshot', () => {
       overlay: { id: null, visible: true },
       overlayOpacity: 1,
       vector: { id: null, visible: true },
-      empties: {},
     };
     expect(restoreSnapshot(cat, saved, 20)).toBe(saved);
   });
@@ -143,7 +147,6 @@ describe('restoreSnapshot', () => {
     expect(snap.overlay).toEqual({ id: null, visible: true });
     expect(snap.overlayOpacity).toBe(1);
     expect(snap.vector).toEqual({ id: null, visible: true });
-    expect(snap.empties).toEqual({});
   });
 
   it('builds a null address when there is no fallback collection', () => {

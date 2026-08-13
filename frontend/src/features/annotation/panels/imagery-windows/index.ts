@@ -28,15 +28,17 @@ export const imageryWindowsFeature: Feature = {
 export { WindowHeader } from './WindowHeader';
 export {
   activateWindow,
-  getUserPickedSlice,
-  getWindowSlice,
-  resetWindowSlices,
   selectWindowSlice,
-  useWindowSlice,
   windowAddress,
   WindowBody,
   type WindowProps,
 } from './WindowPanel';
+export {
+  getUserPickedSlice,
+  getWindowSlice,
+  resetWindowSlices,
+  useWindowSlice,
+} from '../../shared/windowSlices';
 export {
   candidateOrder,
   healingEnabled,

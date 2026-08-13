@@ -7,24 +7,13 @@ import {
 import {
   applyRenderOverride,
   basemapAttribution,
-  emptyKey,
   layerSpecFor,
   resolveBasemapUrl,
   type Catalog,
-  type EmptyKey,
   type ImageryNavState,
   type LegendOverride,
-  type SliceAddress,
 } from '~/features/annotation/core/catalog';
-import { classifyEmpty } from '~/features/annotation/engine/map';
-import type {
-  GeoFeature,
-  LayerId,
-  LayerSpec,
-  LonLat,
-  StyleSpec,
-  TileStats,
-} from '~/features/annotation/engine/map';
+import type { GeoFeature, LayerSpec, LonLat, StyleSpec } from '~/features/annotation/engine/map';
 import type { ComposeCtx } from '../composition';
 
 export const ANNOTATION_LAYER_ID = 'annotations';
@@ -36,26 +25,6 @@ export const PROBE_LAYER_ID = 'probe';
 /** Layer id of a reference vector layer. Exported because labelling vector
  *  features means recognising a click or a box hit on one of these. */
 export const vectorLayerId = (id: number): string => `vector-${id}`;
-
-/**
- * The slice a map just proved empty, or null if this stats report says nothing
- * about it. The mirror of `composeLayers`: composition is shared so a toggle
- * cannot reach one map and miss another, and this is shared so an empty found
- * by the main map and an empty found by a window become the same catalog fact
- * rather than each map depending on another sitting on the same slice.
- *
- * Only the layer that was asked to report stats counts: a basemap or overlay
- * raster reports for its own tiles, not for this slice's imagery.
- */
-export function emptySliceFrom(
-  layerId: LayerId,
-  trackedRasterId: LayerId | undefined,
-  stats: TileStats,
-  address: SliceAddress | null
-): EmptyKey | null {
-  if (layerId !== trackedRasterId || !address || !classifyEmpty(stats)) return null;
-  return emptyKey(address.collectionId, address.sliceIndex);
-}
 
 const OVERLAY_Z = 3;
 const EXTENT_Z = 5;
@@ -201,9 +170,7 @@ export function composeLayers(ctx: ComposeCtx, state: ComposeState): LayerSpec[]
         state.address,
         state.legendOverrides?.[Number(state.address.vizId)]
       );
-      // Tile statistics on the active imagery only: that is what empty-slice
-      // detection watches.
-      layers.push({ ...spec, trackStats: true });
+      layers.push(spec);
     } catch {
       /* no imagery for this address */
     }

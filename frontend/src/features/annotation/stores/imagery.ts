@@ -20,9 +20,13 @@ import {
 
 export interface ImageryState extends ImageryNavState {
   viewSnapshots: Record<number, ViewSnapshot>;
+  /** Location whose explicit 204 results populate `empties`. Empty imagery is
+   * spatial, so task A's result must not leak into task B's date selector. */
+  emptyScope: string | null;
 
   setAddress: (address: SliceAddress | null) => void;
   markEmpty: (key: EmptyKey) => void;
+  setEmptyScope: (scope: string | null) => void;
   setShowBasemap: (show: boolean) => void;
   setSelectedBasemapId: (id: string | null) => void;
   setCrosshair: (crosshair: boolean) => void;
@@ -76,9 +80,12 @@ const initialNav: ImageryNavState = {
 export const useImageryStore = create<ImageryState>((set) => ({
   ...initialNav,
   viewSnapshots: {},
+  emptyScope: null,
 
   setAddress: (address) => set({ address }),
   markEmpty: (key) => set((s) => ({ empties: markEmptyKey(s.empties, key) })),
+  setEmptyScope: (emptyScope) =>
+    set((s) => (s.emptyScope === emptyScope ? s : { emptyScope, empties: {} })),
   setShowBasemap: (show) => set({ showBasemap: show }),
   setSelectedBasemapId: (id) => set({ selectedBasemapId: id }),
   setCrosshair: (crosshair) => set({ crosshair }),

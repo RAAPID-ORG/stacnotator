@@ -20,7 +20,6 @@ import {
   CROSSHAIR_LAYER_ID,
   EXTENT_LAYER_ID,
   composeLayers,
-  emptySliceFrom,
   type ComposeState,
 } from './composeLayers';
 
@@ -311,34 +310,5 @@ describe('composeLayers - showAnnotations', () => {
     const noCrosshair = composeLayers(ctxFor('tasks'), { ...focused, crosshair: false });
     expect(ids(noCrosshair)).toContain(EXTENT_LAYER_ID);
     expect(ids(noCrosshair)).not.toContain(CROSSHAIR_LAYER_ID);
-  });
-});
-
-// Both panels route their tile stats through this one function, so an empty
-// is the same catalog fact either way - no map depends on another happening to
-// sit on the same slice.
-describe('emptySliceFrom', () => {
-  const ADDRESS = { sourceId: 1000, collectionId: 7, sliceIndex: 3, vizId: '11' };
-  const EMPTY = { errors: 8, successes: 0, empties: 0 };
-  const LOADED = { errors: 0, successes: 4, empties: 0 };
-
-  it('reports the slice key when the tracked raster came back empty', () => {
-    expect(emptySliceFrom('slice-1000-11', 'slice-1000-11', EMPTY, ADDRESS)).toBe('7:3');
-  });
-
-  it('ignores stats from a layer that is not the tracked raster', () => {
-    expect(emptySliceFrom('basemap-3', 'slice-1000-11', EMPTY, ADDRESS)).toBeNull();
-  });
-
-  it('ignores a raster that did load tiles', () => {
-    expect(emptySliceFrom('slice-1000-11', 'slice-1000-11', LOADED, ADDRESS)).toBeNull();
-  });
-
-  it('has no slice to blame without an address', () => {
-    expect(emptySliceFrom('slice-1000-11', 'slice-1000-11', EMPTY, null)).toBeNull();
-  });
-
-  it('ignores stats that arrive before any raster is tracked', () => {
-    expect(emptySliceFrom('slice-1000-11', undefined, EMPTY, ADDRESS)).toBeNull();
   });
 });

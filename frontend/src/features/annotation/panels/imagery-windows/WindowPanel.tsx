@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ImageryCollectionOut } from '~/api/client';
 import { extendedLabels } from '~/features/annotation/core/annotation';
 import {
+  addressAtSlice,
   restoreSnapshot,
   type Catalog,
   type SliceAddress,
@@ -12,60 +13,19 @@ import { cameraFor, mainCamera, releaseCamera } from '~/features/annotation/shar
 import { useMapFocus } from '~/features/annotation/shared/mapFocus';
 import { setForegroundMapLoading } from '~/features/annotation/shared/foregroundTileLoads';
 import {
+  getUserPickedSlice,
+  getWindowSlice,
+  rememberWindowSlice,
+  useWindowSlice,
+} from '~/features/annotation/shared/windowSlices';
+import {
   composeLayers,
-  emptySliceFrom,
   type AnnotationTileState,
   type ComposeState,
 } from '~/features/annotation/shared/composeLayers';
-import { MapView, type LayerId, type TileStats } from '~/features/annotation/engine/map';
+import { MapView } from '~/features/annotation/engine/map';
 import type { ComposeCtx } from '../../composition';
 import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
-
-// Per-window slice memory: survives remounts so a window keeps the slice the
-// user picked for it while panels are shuffled around the canvas.
-
-const windowSliceOverrides = new Map<number, number>();
-/** The subset of the above the user chose by hand, rather than healing having
- *  landed on it. Empty-healing must leave these alone (see `healingEnabled`). */
-const userPickedSlices = new Map<number, number>();
-const sliceListeners = new Set<() => void>();
-
-function notifySliceListeners(): void {
-  for (const listener of sliceListeners) listener();
-}
-
-export function getWindowSlice(collectionId: number): number | undefined {
-  return windowSliceOverrides.get(collectionId);
-}
-
-export function getUserPickedSlice(collectionId: number): number | undefined {
-  return userPickedSlices.get(collectionId);
-}
-
-function setWindowSlice(collectionId: number, sliceIndex: number, byUser = false): void {
-  windowSliceOverrides.set(collectionId, sliceIndex);
-  if (byUser) userPickedSlices.set(collectionId, sliceIndex);
-  notifySliceListeners();
-}
-
-/** Test/teardown seam. These remember one campaign's collection ids; a new
- *  campaign's collection could reuse an id and inherit a slice pick made
- *  against a completely different time series. */
-export function resetWindowSlices(): void {
-  windowSliceOverrides.clear();
-  userPickedSlices.clear();
-  notifySliceListeners();
-}
-
-export function useWindowSlice(collectionId: number): number | undefined {
-  return useSyncExternalStore(
-    (onChange) => {
-      sliceListeners.add(onChange);
-      return () => sliceListeners.delete(onChange);
-    },
-    () => getWindowSlice(collectionId)
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Address resolution + activation, shared by the header and body.
@@ -83,7 +43,7 @@ export function windowAddress(
   const base = restoreSnapshot(catalog, undefined, collectionId).address;
   if (!base) return null;
   const remembered = getWindowSlice(collectionId);
-  return remembered != null ? { ...base, sliceIndex: remembered } : base;
+  return addressAtSlice(catalog, base, remembered ?? base.sliceIndex);
 }
 
 /** Header/body click (or a healed/picked slice): makes this window the
@@ -111,9 +71,9 @@ export function selectWindowSlice(
   collectionId: number,
   sliceIndex: number
 ): void {
-  setWindowSlice(collectionId, sliceIndex, true);
+  rememberWindowSlice(collectionId, sliceIndex, true);
   if (imagery.address?.collectionId === collectionId) {
-    imagery.setAddress({ ...imagery.address, sliceIndex });
+    imagery.setAddress(addressAtSlice(catalog, imagery.address, sliceIndex));
     imagery.setShowBasemap(false);
     return;
   }
@@ -126,9 +86,9 @@ function commitHealedSlice(
   collectionId: number,
   sliceIndex: number
 ): void {
-  setWindowSlice(collectionId, sliceIndex);
+  rememberWindowSlice(collectionId, sliceIndex);
   if (imagery.address?.collectionId === collectionId) {
-    imagery.setAddress({ ...imagery.address, sliceIndex });
+    imagery.setAddress(addressAtSlice(catalog, imagery.address, sliceIndex));
   }
 }
 
@@ -198,6 +158,15 @@ export function WindowBody({ ctx, collection }: WindowProps) {
   );
 
   const address = windowAddress(catalog, imagery, collection.id);
+  // Coverage probing must not become a fifth foreground request alongside
+  // this small map's four-slot OL queue. Key the last completed paint to both
+  // location and imagery: a task/date change disables healing until that exact
+  // panel load ends, at which point its probe normally reuses the warm tile.
+  const coverageKey =
+    address && focus
+      ? `${focus.center[0]}:${focus.center[1]}:${address.sourceId}:${address.collectionId}:${address.sliceIndex}:${address.vizId}`
+      : null;
+  const [loadedCoverageKey, setLoadedCoverageKey] = useState<string | null>(null);
 
   // Windows draw the same annotation tiles as the main map, so they bust the
   // same cache on every write the user makes after load.
@@ -229,24 +198,24 @@ export function WindowBody({ ctx, collection }: WindowProps) {
     return composeLayers(ctx, state);
   }, [ctx, imagery, address, annotations, legendOverrides, focus]);
 
-  const trackedRasterId = layers.find((l) => l.kind === 'raster' && l.trackStats)?.id;
-  const handleTileStats = (layerId: LayerId, stats: TileStats) => {
-    const empty = emptySliceFrom(layerId, trackedRasterId, stats, address);
-    if (empty) imagery.markEmpty(empty);
-  };
-
   const source = address ? catalog.sources.get(address.sourceId) : undefined;
   const healing = useEmptyHealing({
     catalog,
     collection,
     address,
-    enabled: healingEnabled({
-      viewSync: imagery.viewSync,
-      isActive,
-      sliceIndex: address?.sliceIndex ?? null,
-      userPickedIndex: getUserPickedSlice(collection.id) ?? null,
-    }),
-    getPoint: () => camera.getState().center,
+    enabled:
+      ctx.mode === 'tasks' &&
+      coverageKey !== null &&
+      loadedCoverageKey === coverageKey &&
+      healingEnabled({
+        viewSync: imagery.viewSync,
+        isActive,
+        sliceIndex: address?.sliceIndex ?? null,
+        userPickedIndex: getUserPickedSlice(collection.id) ?? null,
+      }),
+    // Empty coverage is about the task point, not wherever an unlinked window
+    // happened to be panned. Explore has no task point and is gated off above.
+    getPoint: () => focus?.center ?? camera.getState().center,
     zoom: source?.default_zoom ?? 10,
     empties: imagery.empties,
     markEmpty: imagery.markEmpty,
@@ -276,10 +245,10 @@ export function WindowBody({ ctx, collection }: WindowProps) {
           wheelZoom="modifier"
           maxTilesLoading={4}
           onModifierHint={onModifierHint}
-          onTileStats={handleTileStats}
-          onLoadStateChange={(loading) =>
-            setForegroundMapLoading(`window:${collection.id}`, loading)
-          }
+          onLoadStateChange={(loading) => {
+            setForegroundMapLoading(`window:${collection.id}`, loading);
+            if (!loading) setLoadedCoverageKey(coverageKey);
+          }}
         />
       )}
       {showHint && <StatusPill>Hold Ctrl/Cmd to zoom</StatusPill>}
