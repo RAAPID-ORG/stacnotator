@@ -171,9 +171,11 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
         {isReviewMode && <ReviewList task={task} currentUserId={currentUserId} labels={labels} />}
 
         <div
+          data-task-labels
+          tabIndex={-1}
           className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem] ${
             labelGroupActive ? activeGroupClass : ''
-          }`}
+          } focus:outline-none`}
         >
           <span className={sectionHeaderClass(labelGroupActive)}>Label</span>
           <LabelGrid
@@ -248,7 +250,7 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
               value={confidence ?? DEFAULT_CONFIDENCE}
               onChange={(e) => setConfidence(Number(e.target.value))}
               disabled={isBusy}
-              className="w-full h-2 bg-neutral-200 rounded-full appearance-none cursor-pointer accent-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-2 bg-neutral-200 rounded-full appearance-none cursor-pointer accent-brand-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <div className="flex justify-between text-[10px] text-neutral-400 px-0.5 tabular-nums">
               <span>1</span>

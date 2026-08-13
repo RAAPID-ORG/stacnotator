@@ -5,6 +5,7 @@ import type { FormField } from '~/features/annotation/core/apiTypes';
 import {
   handleFormFieldKey,
   isAudienceMember,
+  LABEL_FIELD_INDEX,
   maySubmitTask,
   type FormFieldKeyContext,
   type PolicyContext,
@@ -292,7 +293,8 @@ function commentIsFocused(): boolean {
   return box !== null && document.activeElement === box;
 }
 
-const FORM_INPUT_SELECTOR = '[data-form-field-id],[data-task-comment-input]';
+const FORM_INPUT_SELECTOR =
+  '[data-form-field-id],[data-task-comment-input],[data-task-confidence-input]';
 
 /** Whether the form's Tab/Escape may claim this keystroke. They are allowed
  *  through the registry's typing guard so a focused field can be left again,
@@ -442,8 +444,12 @@ function formKeyHandling(ctx: ComposeCtx): FormKeyHandling {
       return;
     }
     if (e.key === 'Tab') {
+      const { activeIndex } = formCtx();
       const field = activeField();
       if (field) focusFormFieldInput(field.id);
+      else if (activeIndex === LABEL_FIELD_INDEX) {
+        revealAndFocus(document.querySelector<HTMLElement>('[data-task-labels]'));
+      }
       return;
     }
     if (e.key === 'Escape') {

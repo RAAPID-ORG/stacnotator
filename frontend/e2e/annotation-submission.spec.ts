@@ -177,5 +177,17 @@ test.describe('Annotation Submission', () => {
     // Q remains a hotkey after the shortcut itself has focused the slider.
     await annotationPage.keyboard.press('q');
     await expect(confidenceSlider).toHaveValue('2');
+    expect(
+      await confidenceSlider.evaluate((element) => getComputedStyle(element).outlineStyle)
+    ).toBe('none');
+
+    // One more Tab wraps from the final field back to the label section.
+    await annotationPage.keyboard.press('Escape');
+    for (let index = 0; index <= formFields.length; index++) {
+      await annotationPage.keyboard.press('Tab');
+    }
+    const labelSection = annotationPage.locator('[data-task-labels]');
+    await expect(labelSection).toHaveClass(/ring-1/);
+    await expect.poll(() => isFullyVisible(labelSection), { timeout: 5000 }).toBe(true);
   });
 });

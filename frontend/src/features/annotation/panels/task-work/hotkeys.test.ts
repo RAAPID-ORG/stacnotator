@@ -366,6 +366,28 @@ describe('form bindings while the user is typing', () => {
     });
   });
 
+  it('Tab reveals and focuses the label section when the field cycle wraps', () => {
+    const campaign = campaignWithFields();
+    const tab = taskFormBindings(ctxFor(campaign)).find((b) => b.key === 'tab')!;
+    const labels = document.createElement('div');
+    labels.setAttribute('data-task-labels', '');
+    labels.tabIndex = -1;
+    const scrollLabels = vi.fn();
+    labels.scrollIntoView = scrollLabels;
+    document.body.appendChild(labels);
+    useWorkStore.getState().setActiveFieldIndex(0);
+
+    tab.run(new KeyboardEvent('keydown', { key: 'Tab' }));
+
+    expect(useWorkStore.getState().activeFieldIndex).toBe(-1);
+    expect(document.activeElement).toBe(labels);
+    expect(scrollLabels).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    });
+  });
+
   // Regression: Escape cleared activeFieldIndex in the store but never
   // touched the DOM, so the caret - and every subsequent keystroke - stayed
   // trapped in the field's input with no keyboard way out.
