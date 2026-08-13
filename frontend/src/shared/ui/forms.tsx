@@ -36,8 +36,6 @@ const selectChevron =
 
 export const fieldClass = (size: FieldSize = 'md') => `${fieldBase} ${fieldSingleSize[size]}`;
 
-export const inputClass = fieldClass('md');
-
 export const textareaClass = `${fieldBase} ${fieldAreaSize.md} resize-y min-h-[5rem]`;
 
 export const selectClass = `${fieldBase} ${fieldSingleSize.md} ${selectChevron}`;

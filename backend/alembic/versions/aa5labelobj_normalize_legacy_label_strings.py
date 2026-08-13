@@ -19,7 +19,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.execute(
         """
-        UPDATE data.campaign_settings s
+        UPDATE data.settings s
         SET labels = (
             SELECT jsonb_object_agg(
                 e.key,

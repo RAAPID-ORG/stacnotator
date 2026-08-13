@@ -1,0 +1,292 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { extendedLabels } from '~/features/annotation/core/annotation';
+import { collectionsInView } from '~/features/annotation/core/catalog';
+import { computeTaskProgress } from '~/features/annotation/core/tasks';
+import { useTaskSessionStore } from '~/features/annotation/panels/task-work';
+import {
+  useImageryStore,
+  usePrefsStore,
+  useWorkStore,
+  useWorkspaceStore,
+} from '~/features/annotation/stores';
+import { mainCamera } from '~/features/annotation/shared/cameras';
+import {
+  setForegroundMapLoading,
+  useForegroundLoading,
+} from '~/features/annotation/shared/foregroundTileLoads';
+import { useMapFocus } from '~/features/annotation/shared/mapFocus';
+import { useContainerSize } from '~/features/annotation/engine/canvas';
+import { MapView, type MapClickEvent } from '~/features/annotation/engine/map';
+import type { ComposeCtx } from '../../composition';
+import { fitAnnotations, recenter, useFocusCamera } from './cameraCommands';
+import { useAnnotationVersion } from '../../shared/annotationVersion';
+import {
+  composeLayers,
+  type AnnotationTileState,
+  type ComposeState,
+} from '../../shared/composeLayers';
+import { setProbePoint, useInteractionSpec } from '../../shared/interactionSpec';
+import {
+  completeTimeseriesProbe,
+  getActiveTool,
+  toggleTimeseriesTool,
+  useActiveTool,
+} from '../../shared/toolState';
+import { CollectionPicker } from './header/CollectionPicker';
+import { CustomMapControls } from './header/CustomMapControls';
+import { CustomMapLegend } from './header/CustomMapLegend';
+import { LayerSelector } from './header/LayerSelector';
+import { PreloadMenu } from './header/PreloadMenu';
+import { SlicePicker } from './header/SlicePicker';
+import { VectorLayerControls } from './header/VectorLayerControls';
+import { ViewControls } from './header/ViewControls';
+import { hotkeyTip, mainMapBindings } from './hotkeys';
+import { TimelineSidebar } from './TimelineSidebar';
+import { usePreloading } from './usePreloading';
+
+export interface MainMapProps {
+  ctx: ComposeCtx;
+}
+
+function ProbeToggle({ ctx, title }: { ctx: ComposeCtx; title: string }) {
+  const active = useActiveTool() === 'timeseries';
+
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={() => toggleTimeseriesTool(ctx)}
+      aria-pressed={active}
+      aria-label={title}
+      title={title}
+      data-testid="probe-toggle"
+      className={`flex h-6 w-6 items-center justify-center rounded-md cursor-pointer ${
+        active
+          ? 'bg-brand-600 text-white hover:bg-brand-700'
+          : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'
+      }`}
+    >
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        aria-hidden="true"
+      >
+        <path d="M2 15l4-6 4 3 4-7" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="16" cy="16" r="4" />
+        <path d="m19 19 3 3" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
+/** Assignment-scoped "N of M done" - the current filter's assignedTo, which
+ *  defaults to the viewer, so completion follows their own share of the work
+ *  rather than the whole campaign's. */
+function TaskProgressCounter() {
+  const { allTasks, filter } = useTaskSessionStore(
+    useShallow((state) => ({ allTasks: state.allTasks, filter: state.filter }))
+  );
+  const { total, completed } = computeTaskProgress(allTasks, filter.assignedTo);
+
+  return (
+    <div className="flex items-center gap-2 shrink-0">
+      <span className="text-[11px] text-neutral-500">
+        <span className="font-semibold text-neutral-900 tabular-nums">{completed}</span> of{' '}
+        <span className="tabular-nums">{total}</span> done
+      </span>
+    </div>
+  );
+}
+
+export function MainMapHeader({ ctx }: { ctx: ComposeCtx }) {
+  const { catalog, mode } = ctx;
+  const isTaskMode = mode === 'tasks';
+  const sourceIds = ctx.view?.source_ids ?? [];
+  const windows = useWorkspaceStore((s) => s.currentLayout.view.windows);
+  const bindings = useMemo(() => mainMapBindings(ctx), [ctx]);
+
+  // View sync only means something with more than one window to keep in step.
+  const windowCount = collectionsInView(catalog, { source_ids: sourceIds }).filter(
+    (c) => windows[c.id] !== undefined
+  ).length;
+
+  return (
+    <div
+      className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
+      data-tour="map-controls"
+    >
+      <div className="col-start-2 flex min-w-0 items-center justify-center gap-1">
+        <LayerSelector
+          catalog={catalog}
+          sourceIds={sourceIds}
+          title={`Select layer - ${hotkeyTip(bindings, 'i')}, ${hotkeyTip(bindings, 'shift+i')}`}
+        />
+        <CollectionPicker
+          catalog={catalog}
+          sourceIds={sourceIds}
+          isTaskMode={isTaskMode}
+          title={`Select collection - ${hotkeyTip(bindings, 'shift+d', 'Next collection')}`}
+        />
+        <SlicePicker
+          catalog={catalog}
+          title={`Select time slice - ${hotkeyTip(bindings, 'd', 'Next slice')}`}
+        />
+        <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'o')} />
+        <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'v')} />
+        <ViewControls
+          isTaskMode={isTaskMode}
+          onFocus={() => {
+            if (isTaskMode) recenter();
+            else void fitAnnotations(catalog.campaignId);
+          }}
+          focusTitle={hotkeyTip(bindings, ' ')}
+          crosshairTitle={hotkeyTip(bindings, 'x')}
+          showViewSync={windowCount > 1}
+          viewSyncTitle={hotkeyTip(bindings, 'l')}
+        />
+        {isTaskMode && ctx.campaign.time_series.length > 0 && (
+          <ProbeToggle ctx={ctx} title={hotkeyTip(bindings, 't')} />
+        )}
+        {isTaskMode && <PreloadMenu />}
+      </div>
+      {isTaskMode && (
+        <div className="col-start-3 justify-self-end">
+          <TaskProgressCounter />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A click on the task map, which probes that point's time series only while the
+ * probe tool is armed - a bare click has to stay free to mean nothing, or every
+ * attempt to look around moves the marker and refetches. The charts read the
+ * point back through the shared probe point. Shift belongs to the box gestures,
+ * so a click that carries it is not a click.
+ */
+export function taskProbeClick(event: MapClickEvent, ctx: ComposeCtx): void {
+  if (event.shiftKey || getActiveTool() !== 'timeseries') return;
+  setProbePoint(event.lonLat);
+  completeTimeseriesProbe(ctx);
+}
+
+export function MainMapBody({ ctx }: MainMapProps) {
+  const { campaign, catalog, mode } = ctx;
+  const imagery = useImageryStore();
+  const legendOverrides = usePrefsStore((s) => s.legendOverrides);
+  const draft = useWorkStore((s) => s.draft);
+  const selection = useWorkStore((s) => s.selection);
+  const editingId = useWorkStore((s) => s.editingId);
+  // Draw/edit/box-select and the probe marker are the drawing feature's, and
+  // reach the map through the shared handoff rather than a prop nobody could
+  // pass (features do not mount one another).
+  const interactions = useInteractionSpec((s) => s.spec);
+  const drawingClick = useInteractionSpec((s) => s.onMapClick);
+  const onMapClick =
+    mode === 'tasks' ? (event: MapClickEvent) => taskProbeClick(event, ctx) : drawingClick;
+  const probePoint = useInteractionSpec((s) => (s.probeMarkerHidden ? null : s.probePoint));
+  const writes = useAnnotationVersion();
+  const focus = useMapFocus();
+  const { containerRef, width, height } = useContainerSize();
+  const [mapLoading, setMapLoading] = useState(false);
+  const foregroundLoading = useForegroundLoading();
+  const windowLayout = useWorkspaceStore((s) => s.currentLayout.view.windows);
+  const visibleCollectionIds = useMemo(() => Object.keys(windowLayout).map(Number), [windowLayout]);
+  useEffect(() => () => setForegroundMapLoading('main', false), []);
+
+  const annotations = useMemo<AnnotationTileState>(
+    () => ({
+      // Every write the user makes after load has to bust the tile cache too.
+      version: (campaign.annotations_version ?? 0) + writes,
+      labels: extendedLabels(campaign),
+      // The feature being edited is drawn by the edit interaction instead, so
+      // the tile copy underneath it is hidden rather than doubled.
+      hiddenIds: editingId != null ? [editingId] : undefined,
+      highlightIds: selection.length > 0 ? selection : undefined,
+    }),
+    [campaign, writes, editingId, selection]
+  );
+
+  const draftFeatures = useMemo(
+    () =>
+      draft.phase === 'draft' || draft.phase === 'committing'
+        ? [{ id: 'draft', geometry: draft.geometry }]
+        : [],
+    [draft]
+  );
+
+  const layers = useMemo(() => {
+    const state: ComposeState = {
+      ...imagery,
+      annotations,
+      legendOverrides,
+      focusExtent: focus?.extent ?? null,
+      crosshairPoint: focus?.center ?? null,
+      crosshairColor: focus?.crosshairColor ?? null,
+      draftFeatures,
+      draftLabelId: draft.phase === 'idle' ? null : draft.labelId,
+      probePoint,
+    };
+    return composeLayers(ctx, state);
+  }, [ctx, imagery, annotations, legendOverrides, focus, draftFeatures, draft, probePoint]);
+
+  // A fresh tuple each render would restart preloading forever (its enqueue
+  // effect keys on it), so the size crosses as the two scalars it really is.
+  const viewportPx = useMemo<[number, number] | null>(
+    () => (width > 0 ? [width, height] : null),
+    [width, height]
+  );
+
+  const address = imagery.address;
+  const workingZoom = address
+    ? (catalog.sources.get(address.sourceId)?.default_zoom ?? null)
+    : null;
+
+  // Nothing else moves the leader camera off state: task navigation changes the
+  // focus, and this is what turns that into a camera move.
+  useFocusCamera(mode, workingZoom);
+
+  usePreloading(ctx, {
+    enabled: mode === 'tasks',
+    activeLoading: foregroundLoading,
+    focus: focus?.center ?? null,
+    // The tasks the user is about to reach, so their imagery is warm by the
+    // time they get there - the whole point of the upcoming tier.
+    upcoming: focus?.upcoming,
+    viewportPx,
+    visibleCollectionIds,
+  });
+
+  return (
+    <div className="flex h-full w-full">
+      <TimelineSidebar ctx={ctx} />
+      <div
+        ref={containerRef}
+        data-crosshair-lon={focus?.center?.[0]}
+        data-crosshair-lat={focus?.center?.[1]}
+        data-probe-lon={probePoint?.[0]}
+        data-probe-lat={probePoint?.[1]}
+        data-map-loading={mapLoading}
+        className="relative h-full min-w-0 flex-1"
+      >
+        <MapView
+          camera={mainCamera}
+          layers={layers}
+          interactions={interactions}
+          onClick={onMapClick}
+          onLoadStateChange={(loading) => {
+            setMapLoading(loading);
+            setForegroundMapLoading('main', loading);
+          }}
+        />
+        <CustomMapLegend catalog={catalog} />
+      </div>
+    </div>
+  );
+}

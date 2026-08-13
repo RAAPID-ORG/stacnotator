@@ -10,7 +10,6 @@ manual refresh endpoint's re-ingest. Editor-state persistence lives in
 import copy
 import json
 import logging
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -18,11 +17,11 @@ from datetime import datetime
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src import background
 from src.config import get_settings
-from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
 from src.imagery.schemas import CollectionStacConfigCreate
 from src.imagery.tile_urls import _slice_viz_params
@@ -330,49 +329,16 @@ def _register_all_stac_browser_collections(
     return registration_errors
 
 
-_STATUS_FIELDS = {"registration_status", "embedding_status"}
-
-
-def finish_registration(
-    db: Session,
-    campaign_id: int,
-    *,
-    status_field: str,
-    status: str,
-    errors: list[dict],
-) -> None:
-    """Atomically flip a campaign's status field and append to registration_errors.
-
-    The mosaic thread and the embeddings thread can each finish the same campaign
-    around the same time. A read-modify-write on registration_errors (read the
-    list, append in Python, write the whole list back) lets whichever thread
-    commits second silently overwrite the other's errors. This does the append
-    inside the UPDATE itself, so both threads' errors survive no matter which
-    commits first - the single writer of registration_errors is this statement.
-
-    Does not commit; the caller commits alongside whatever else it writes in the
-    same transaction.
-    """
-    if status_field not in _STATUS_FIELDS:
-        raise ValueError(f"Unknown status_field: {status_field!r}")
-
-    # SessionLocal runs with autoflush=False: flush any ORM writes already staged
-    # on this session, or this Core statement could run without seeing them.
-    db.flush()
-    db.execute(
-        text(
-            "UPDATE data.campaigns "
-            "SET registration_errors = coalesce(registration_errors, '[]'::jsonb) "
-            "        || cast(:new_errors AS jsonb), "
-            f"    {status_field} = :status "
-            "WHERE id = :campaign_id"
-        ),
-        {
-            "new_errors": json.dumps(errors),
-            "status": status,
-            "campaign_id": campaign_id,
-        },
-    )
+# The imagery domain's background run: mosaic registration and collection
+# refresh both report through this status/heartbeat pair on the campaign.
+REGISTRATION_RUN = background.StatusField(
+    status_column="registration_status",
+    heartbeat_column="registration_heartbeat_at",
+    interrupted_error=(
+        "Imagery registration was interrupted by a server restart. "
+        "Save the imagery again or refresh the affected collection to retry."
+    ),
+)
 
 
 def spawn_background_mosaic_registration(
@@ -380,58 +346,27 @@ def spawn_background_mosaic_registration(
     pending_registrations: list[RegistrationSpec],
     bbox: list[float],
 ) -> None:
-    """Run mosaic registration on a daemon thread with its own DB session.
+    """Run mosaic registration off the request path (see src/background.py).
 
     Registration makes many slow parallel STAC calls; doing it inline holds the
     request's write transaction open across them and trips the
     idle-in-transaction backstop. The request commits the entity reconciliation
-    (and marks the campaign `registering`) first, then calls this to rebuild the
-    tile URLs and flip `registration_status` to ready/failed when done.
+    (and begin_status_run) first, then calls this to rebuild the tile URLs and
+    flip `registration_status` to ready/failed when done.
 
     ``pending_registrations`` is already plain data (see `RegistrationSpec`), so
     the thread hands it straight to registration without touching any ORM
     object from the request session.
     """
-
-    def _run() -> None:
-        bg_db = SessionLocal()
-        try:
-            logger.info("Background mosaic registration started for campaign %d", campaign_id)
-            errors = _register_all_stac_browser_collections(
-                bg_db, pending_registrations, bbox, campaign_id
-            )
-            finish_registration(
-                bg_db,
-                campaign_id,
-                status_field="registration_status",
-                status="failed" if errors else "ready",
-                errors=errors,
-            )
-            bg_db.commit()
-            if errors:
-                logger.warning(
-                    "Mosaic registration for campaign %d: %d errors", campaign_id, len(errors)
-                )
-            else:
-                logger.info("Mosaic registration completed for campaign %d", campaign_id)
-        except Exception as exc:
-            logger.exception("Mosaic registration failed for campaign %d", campaign_id)
-            bg_db.rollback()
-            try:
-                finish_registration(
-                    bg_db,
-                    campaign_id,
-                    status_field="registration_status",
-                    status="failed",
-                    errors=[{"error": f"Mosaic registration: {_sanitize_stac_error(exc)}"}],
-                )
-                bg_db.commit()
-            except Exception:
-                logger.warning("Failed to persist registration error status", exc_info=True)
-        finally:
-            bg_db.close()
-
-    threading.Thread(target=_run, daemon=True).start()
+    background.spawn_status_run(
+        campaign_id,
+        REGISTRATION_RUN,
+        name="mosaic registration",
+        work=lambda db: _register_all_stac_browser_collections(
+            db, pending_registrations, bbox, campaign_id
+        ),
+        sanitize_error=lambda exc: f"Mosaic registration: {_sanitize_stac_error(exc)}",
+    )
 
 
 def spawn_background_collection_refresh(
@@ -439,61 +374,24 @@ def spawn_background_collection_refresh(
     collection_id: int,
     bbox: list[float],
 ) -> None:
-    """Run a manual collection re-ingest on a daemon thread with its own DB session.
+    """Run a manual collection re-ingest off the request path (see src/background.py).
 
     Refresh re-ingests every slice's AOI into the hosted tiler's pgstac, one HTTP
     call per slice, which can take minutes across a whole collection; doing it
     inline holds the request's transaction open across those calls and trips the
-    idle-in-transaction backstop. The request marks the campaign `registering`
-    and commits first, then calls this to run the ingest and flip
-    `registration_status` to ready/failed when done - mirrors
-    spawn_background_mosaic_registration.
+    idle-in-transaction backstop.
     """
 
-    def _run() -> None:
-        bg_db = SessionLocal()
-        try:
-            logger.info(
-                "Background collection refresh started for campaign %d collection %d",
-                campaign_id,
-                collection_id,
-            )
-            refresh_collection_imagery(bg_db, collection_id, campaign_id, bbox)
-            finish_registration(
-                bg_db,
-                campaign_id,
-                status_field="registration_status",
-                status="ready",
-                errors=[],
-            )
-            bg_db.commit()
-            logger.info(
-                "Collection refresh completed for campaign %d collection %d",
-                campaign_id,
-                collection_id,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Collection refresh failed for campaign %d collection %d",
-                campaign_id,
-                collection_id,
-            )
-            bg_db.rollback()
-            try:
-                finish_registration(
-                    bg_db,
-                    campaign_id,
-                    status_field="registration_status",
-                    status="failed",
-                    errors=[{"error": f"Collection refresh: {_sanitize_stac_error(exc)}"}],
-                )
-                bg_db.commit()
-            except Exception:
-                logger.warning("Failed to persist refresh error status", exc_info=True)
-        finally:
-            bg_db.close()
+    def work(db: Session) -> None:
+        refresh_collection_imagery(db, collection_id, campaign_id, bbox)
 
-    threading.Thread(target=_run, daemon=True).start()
+    background.spawn_status_run(
+        campaign_id,
+        REGISTRATION_RUN,
+        name=f"collection {collection_id} refresh",
+        work=work,
+        sanitize_error=lambda exc: f"Collection refresh: {_sanitize_stac_error(exc)}",
+    )
 
 
 def _resolved_search_body(search_query: dict | None, bbox: list[float], db_slice) -> dict:

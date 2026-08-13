@@ -136,28 +136,24 @@ export const AppSidebar = ({
         {!collapsed && <OrgSwitcher onNavigate={() => setMobileOpen?.(false)} />}
 
         <div className="p-3 border-t border-neutral-200 mt-auto">
-          <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-            <button
-              onClick={() => handleNavClick('/settings')}
-              type="button"
-              title={account?.display_name || account?.email || 'Open settings'}
-              aria-label="Open settings"
-              className="w-7 h-7 rounded-full bg-brand-50 border border-brand-200 text-brand-800 flex items-center justify-center text-[11px] font-semibold shrink-0 hover:bg-brand-100 hover:border-brand-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
-            >
+          <button
+            onClick={() => handleNavClick('/settings')}
+            type="button"
+            title={account?.display_name || account?.email || 'Open settings'}
+            aria-label="Open settings"
+            className={`group flex items-center gap-3 w-full cursor-pointer ${
+              collapsed ? 'justify-center' : ''
+            } focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 rounded-md`}
+          >
+            <span className="w-7 h-7 rounded-full bg-brand-50 border border-brand-200 text-brand-800 flex items-center justify-center text-[11px] font-semibold shrink-0 group-hover:bg-brand-100 group-hover:border-brand-300 transition-colors">
               {deriveInitial(account?.display_name, account?.email)}
-            </button>
+            </span>
             {!collapsed && (
-              <div className="flex-1 min-w-0">
-                <button
-                  onClick={() => handleNavClick('/settings')}
-                  type="button"
-                  className="block text-[13px] text-neutral-700 hover:text-brand-700 cursor-pointer transition-colors truncate text-left w-full"
-                >
-                  {account?.display_name || account?.email || 'Settings'}
-                </button>
-              </div>
+              <span className="flex-1 min-w-0 text-left text-[13px] text-neutral-700 group-hover:text-brand-700 transition-colors truncate">
+                {account?.display_name || account?.email || 'Settings'}
+              </span>
             )}
-          </div>
+          </button>
         </div>
       </aside>
     </>

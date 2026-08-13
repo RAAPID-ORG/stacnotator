@@ -120,18 +120,21 @@ export const CampaignTasksPage = () => {
     load();
   }, [campaignId, reloadTaskSets]);
 
+  // Without a URL param the scope starts on the campaign's first (default) set;
+  // "All tasks" is an explicit choice carried as taskSet=all.
   const taskSetParam = searchParams.get('taskSet');
   const requestedSetId = taskSetParam !== null ? Number(taskSetParam) : null;
   const taskScope: TaskScope =
     requestedSetId !== null && taskSets.some((s) => s.id === requestedSetId)
       ? requestedSetId
-      : 'all';
+      : taskSetParam === 'all' || taskSets.length === 0
+        ? 'all'
+        : taskSets[0].id;
 
   const handleSelectScope = (scope: TaskScope) => {
     setSearchParams(
       (params) => {
-        if (scope === 'all') params.delete('taskSet');
-        else params.set('taskSet', String(scope));
+        params.set('taskSet', String(scope));
         return params;
       },
       { replace: true }

@@ -16,24 +16,22 @@ export function isTileHost(url: string): boolean {
   }
 }
 
+/** Where the main map draws the crosshair, in WGS84. The map container carries
+ *  it as data-crosshair-lat / data-crosshair-lon - the crosshair itself is an
+ *  OpenLayers canvas feature and has no DOM node of its own. */
+export const crosshairEl = (page: Page) =>
+  page.locator('[data-tour="main-map"] [data-crosshair-lat][data-crosshair-lon]');
+
 export async function getCrosshairPosition(page: Page): Promise<{ lat: number; lon: number }> {
-  // Reads data-lat / data-lon set directly on the crosshair DOM element in WGS84.
-  // No projection math required in test code.
-  const result = await page.waitForFunction(
-    () => {
-      const el = document.querySelector('[data-lat][data-lon]');
-      if (!el) return null;
-      const lat = parseFloat(el.getAttribute('data-lat') ?? '');
-      const lon = parseFloat(el.getAttribute('data-lon') ?? '');
-      if (isNaN(lat) || isNaN(lon)) return null;
-      return { lat, lon };
-    },
-    undefined,
-    { timeout: 5000 }
-  );
-  const value = await result.jsonValue();
-  if (!value) throw new Error('Crosshair position not available after timeout');
-  return value as { lat: number; lon: number };
+  const el = crosshairEl(page);
+  await el.waitFor({ state: 'attached', timeout: 5000 });
+  const { lat, lon } = await el.evaluate((node) => ({
+    lat: node.getAttribute('data-crosshair-lat'),
+    lon: node.getAttribute('data-crosshair-lon'),
+  }));
+  const parsed = { lat: parseFloat(lat ?? ''), lon: parseFloat(lon ?? '') };
+  if (isNaN(parsed.lat) || isNaN(parsed.lon)) throw new Error('Crosshair position not available');
+  return parsed;
 }
 
 export function assertCoordsMatch(
@@ -54,8 +52,25 @@ export function assertCoordsMatch(
 export async function assertCrosshairAt(page: Page, taskId: number, label: string): Promise<void> {
   const expected = TASK_LOCATIONS[taskId];
   if (!expected) throw new Error(`No location for task ${taskId}`);
-  const actual = await getCrosshairPosition(page);
-  assertCoordsMatch(actual, expected, label);
+  let actual = await getCrosshairPosition(page);
+  await expect
+    .poll(
+      async () => {
+        actual = await getCrosshairPosition(page);
+        return (
+          Math.abs(actual.lat - expected.lat) < COORD_TOLERANCE &&
+          Math.abs(actual.lon - expected.lon) < COORD_TOLERANCE
+        );
+      },
+      { timeout: 5000 }
+    )
+    .toBe(true)
+    .catch(() => {
+      throw new Error(
+        `[${label}] Crosshair at (${actual.lat.toFixed(4)}, ${actual.lon.toFixed(4)}) ` +
+          `but expected (${expected.lat}, ${expected.lon})`
+      );
+    });
 }
 
 export function latLonToTile(lat: number, lon: number, z: number): { x: number; y: number } {
@@ -86,44 +101,20 @@ export async function assertMinimapCenterAt(
 ): Promise<void> {
   const expected = TASK_LOCATIONS[taskId];
   if (!expected) throw new Error(`No location for task ${taskId}`);
-  const result = await page.waitForFunction(
-    ({ lat, lon, tol }) => {
-      const el = document.querySelector('[data-tour="minimap"]');
-      if (!el) return null;
-      const actualLat = parseFloat(el.getAttribute('data-center-lat') ?? '');
-      const actualLon = parseFloat(el.getAttribute('data-center-lon') ?? '');
-      if (isNaN(actualLat) || isNaN(actualLon)) return null;
-      if (Math.abs(actualLat - lat) > tol || Math.abs(actualLon - lon) > tol) return null;
-      return { lat: actualLat, lon: actualLon };
-    },
-    { lat: expected.lat, lon: expected.lon, tol: 0.01 },
-    { timeout: 5000 }
-  );
-  const value = await result.jsonValue();
-  if (!value) {
-    const actual = await page.locator('[data-tour="minimap"]').evaluate((el) => ({
-      lat: el.getAttribute('data-center-lat'),
-      lon: el.getAttribute('data-center-lon'),
-    }));
-    throw new Error(
-      `[${label}] Minimap center (${actual.lat}, ${actual.lon}) not within tolerance of task ${taskId} (${expected.lat}, ${expected.lon})`
-    );
-  }
+  await waitForMinimapCenter(page, expected, label);
 }
 
 // ---------------------------------------------------------------------------
 // Open mode helpers
 // ---------------------------------------------------------------------------
 
-/** Read the live viewport centre the minimap card reports (open mode). */
+/** Read the live viewport centre the minimap card reports. The card header
+ *  renders it as "lat, lon" text - that rendered text is the observable. */
 export async function getMinimapCenter(page: Page): Promise<{ lat: number; lon: number }> {
-  const el = page.locator('[data-tour="minimap"]');
+  const el = page.locator('[data-testid="viewport-center"]').first();
   await el.waitFor({ state: 'attached', timeout: 5000 });
-  const { lat, lon } = await el.evaluate((node) => ({
-    lat: node.getAttribute('data-center-lat'),
-    lon: node.getAttribute('data-center-lon'),
-  }));
-  return { lat: parseFloat(lat ?? ''), lon: parseFloat(lon ?? '') };
+  const [lat, lon] = (await el.textContent())?.split(',').map((part) => parseFloat(part)) ?? [];
+  return { lat, lon };
 }
 
 /** Wait until the minimap centre settles within tolerance of an expected coord. */
@@ -133,51 +124,53 @@ export async function waitForMinimapCenter(
   label: string,
   tol = COORD_TOLERANCE
 ): Promise<void> {
-  await page
-    .waitForFunction(
-      ({ lat, lon, t }) => {
-        const node = document.querySelector('[data-tour="minimap"]');
-        if (!node) return false;
-        const aLat = parseFloat(node.getAttribute('data-center-lat') ?? '');
-        const aLon = parseFloat(node.getAttribute('data-center-lon') ?? '');
-        if (isNaN(aLat) || isNaN(aLon)) return false;
-        return Math.abs(aLat - lat) <= t && Math.abs(aLon - lon) <= t;
+  let actual = { lat: NaN, lon: NaN };
+  await expect
+    .poll(
+      async () => {
+        actual = await getMinimapCenter(page);
+        return (
+          Math.abs(actual.lat - expected.lat) <= tol && Math.abs(actual.lon - expected.lon) <= tol
+        );
       },
-      { lat: expected.lat, lon: expected.lon, t: tol },
       { timeout: 5000 }
     )
-    .catch(async () => {
-      const actual = await getMinimapCenter(page);
+    .toBe(true)
+    .catch(() => {
       throw new Error(
         `[${label}] minimap centre (${actual.lat}, ${actual.lon}) never reached (${expected.lat}, ${expected.lon})`
       );
     });
 }
 
-const mainCanvas = (page: Page) => page.locator('[data-tour="main-map"] canvas').first();
+// OpenLayers may create several transformed canvases whose individual boxes do
+// not cover the whole map. Gestures belong to its full viewport, not whichever
+// layer canvas happens to be first in the DOM.
+const mainViewport = (page: Page) => page.locator('[data-tour="main-map"] .ol-viewport').first();
 
 /** Click the centre of the main map - in open mode this is the viewport centre. */
 export async function clickMapCenter(page: Page): Promise<void> {
-  await mainCanvas(page).click();
+  await mainViewport(page).click();
 }
 
 /** Ctrl/Cmd+click the centre of the main map (edit-mode multi-select toggle).
  *  OL reads platformModifierKeyOnly: Ctrl on Linux/Windows (CI), Meta on macOS. */
 export async function ctrlClickMapCenter(page: Page): Promise<void> {
-  await mainCanvas(page).click({ modifiers: ['ControlOrMeta'] });
+  await mainViewport(page).click({ modifiers: ['ControlOrMeta'] });
 }
 
 /** Click at an (dx, dy) pixel offset from the main map centre. */
 export async function clickMapAt(page: Page, dx: number, dy: number): Promise<void> {
-  const box = await mainCanvas(page).boundingBox();
-  if (!box) throw new Error('main map canvas has no bounding box');
-  await page.mouse.click(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy);
+  const viewport = mainViewport(page);
+  const box = await viewport.boundingBox();
+  if (!box) throw new Error('main map viewport has no bounding box');
+  await viewport.click({ position: { x: box.width / 2 + dx, y: box.height / 2 + dy } });
 }
 
 /** Draw a polygon/line: click each (dx, dy) offset, then double-click the last to finish. */
 export async function drawPolygon(page: Page, points: Array<[number, number]>): Promise<void> {
-  const box = await mainCanvas(page).boundingBox();
-  if (!box) throw new Error('main map canvas has no bounding box');
+  const box = await mainViewport(page).boundingBox();
+  if (!box) throw new Error('main map viewport has no bounding box');
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   for (let i = 0; i < points.length - 1; i++) {
@@ -242,8 +235,8 @@ export async function fitAllAnnotations(
  * box-select). Inset a few px so the drag stays inside the canvas bounds.
  */
 export async function boxSelectWholeCanvas(page: Page): Promise<void> {
-  const box = await mainCanvas(page).boundingBox();
-  if (!box) throw new Error('main map canvas has no bounding box');
+  const box = await mainViewport(page).boundingBox();
+  if (!box) throw new Error('main map viewport has no bounding box');
   await page.keyboard.down('Shift');
   await page.mouse.move(box.x + 4, box.y + 4);
   await page.mouse.down();
@@ -261,19 +254,32 @@ export function assertTilesFetchedForTask(
   const expected = TASK_LOCATIONS[taskId];
   if (!expected) throw new Error(`No location for task ${taskId}`);
 
-  const tiles = extractTileCoords(requests.slice(sinceIndex));
-  if (tiles.length === 0) return; // OL cache hit - crosshair check is sufficient
-
-  const TILE_TOLERANCE = 2;
-  const hasTileNearTask = tiles.some((t) => {
-    const center = latLonToTile(expected.lat, expected.lon, t.z);
+  // A viewport spans well over one tile, so "near" is a neighbourhood rather
+  // than the centre tile: the centre itself is often cache-served while the
+  // surrounding ring is fetched. Task fixtures sit >= 9 tiles apart at z14, so
+  // this still tells the tasks apart.
+  const TILE_TOLERANCE = 6;
+  const near = (t: { z: number; x: number; y: number }, at: { lat: number; lon: number }) => {
+    const center = latLonToTile(at.lat, at.lon, t.z);
     return Math.abs(t.x - center.x) <= TILE_TOLERANCE && Math.abs(t.y - center.y) <= TILE_TOLERANCE;
-  });
+  };
+
+  const tiles = extractTileCoords(requests.slice(sinceIndex));
+  if (tiles.some((t) => near(t, expected))) return;
+
+  // The preloader warms the tasks the user is about to reach. Those tiles say
+  // nothing about the current task, so they must not defeat the cache-hit
+  // escape hatch below - the crosshair check carries the assertion there.
+  const others = Object.entries(TASK_LOCATIONS)
+    .filter(([id]) => Number(id) !== taskId)
+    .map(([, loc]) => loc);
+  const unexplained = tiles.filter((t) => !others.some((loc) => near(t, loc)));
+  if (unexplained.length === 0) return;
 
   expect(
-    hasTileNearTask,
+    false,
     `[${label}] Tiles loaded but none near task ${taskId} ` +
       `(${expected.lat}, ${expected.lon}). ` +
-      `Got: ${tiles.map((t) => `${t.z}/${t.x}/${t.y}`).join(', ')}`
+      `Got: ${unexplained.map((t) => `${t.z}/${t.x}/${t.y}`).join(', ')}`
   ).toBe(true);
 }

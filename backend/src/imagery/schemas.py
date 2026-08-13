@@ -1,6 +1,15 @@
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from src.canvas.schemas import CanvasLayoutOut
 
@@ -62,6 +71,7 @@ class ImageryCollectionOut(BaseModel):
     cover_slice_index: int
     has_dedicated_cover: bool = False
     display_order: int
+    generation_series_id: int | None = None
     slices: list[ImagerySliceOut]
     stac_config: CollectionStacConfigOut | None = None
 
@@ -76,6 +86,44 @@ class VisualizationTemplateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ImageryGenerationConfigV1(BaseModel):
+    """Lossless, versioned input for the temporal imagery generator."""
+
+    version: Literal[1] = 1
+    catalog_url: str
+    stac_collection_id: str
+    collection_title: str
+    is_mpc: bool
+    has_cloud_cover: bool
+    tiler: str | None = None
+    start_date: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    end_date: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    collection_period_interval: int = Field(ge=1)
+    collection_period_unit: Literal["weeks", "months", "years"]
+    slice_period_interval: int = Field(ge=1)
+    slice_period_unit: Literal["days", "weeks", "months", "years"]
+    cover_mode: Literal["nth", "custom"]
+    cover_slice_nth: int = Field(ge=1)
+    max_cloud_cover: float = Field(ge=0, le=100)
+    item_sort: Literal["date_desc", "date_asc", "cloud_cover_asc"]
+    cover_max_cloud_cover: float = Field(ge=0, le=100)
+    cover_item_sort: Literal["date_desc", "date_asc", "cloud_cover_asc"]
+    visualizations: list["NamedVizParamsCreate"]
+    cover_visualizations: list["NamedVizParamsCreate"] = []
+    search_query: dict | None = None
+    cover_search_query: dict | None = None
+    internal_storage: bool = False
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ImageryGenerationSeriesOut(BaseModel):
+    id: int
+    config: ImageryGenerationConfigV1
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ImagerySourceOut(BaseModel):
     id: int
     name: str
@@ -84,6 +132,7 @@ class ImagerySourceOut(BaseModel):
     display_order: int
     visualizations: list[VisualizationTemplateOut]
     collections: list[ImageryCollectionOut]
+    generation_series: list[ImageryGenerationSeriesOut] = []
     # Whether an encrypted provider API key is configured (drives the admin UI). The key
     # value/ciphertext is never serialized.
     has_api_key: bool = False
@@ -209,8 +258,21 @@ class ImageryCollectionCreate(BaseModel):
     name: str
     cover_slice_index: int = 0
     has_dedicated_cover: bool = False
+    generation_series_key: str | None = None
     slices: list[ImagerySliceCreate]
     stac_config: CollectionStacConfigCreate | None = None
+
+
+class ImageryGenerationSeriesCreate(BaseModel):
+    """One source-level series in the full-editor write model.
+
+    ``key`` is a request-local identity used by collections in the same
+    payload. ``id`` preserves an existing database row when editing.
+    """
+
+    key: str = Field(min_length=1)
+    id: int | None = None
+    config: ImageryGenerationConfigV1
 
 
 class VisualizationTemplateCreate(BaseModel):
@@ -221,8 +283,9 @@ class ImagerySourceCreate(BaseModel):
     id: int | None = None
     name: str
     crosshair_hex6: str = "ff0000"
-    default_zoom: int = 14
+    default_zoom: int = 15
     visualizations: list[VisualizationTemplateCreate]
+    generation_series: list[ImageryGenerationSeriesCreate] = []
     collections: list[ImageryCollectionCreate]
 
     @field_validator("visualizations")
@@ -234,6 +297,33 @@ class ImagerySourceCreate(BaseModel):
         if len(names) != len(set(names)):
             raise ValueError("visualization names must be unique per source")
         return v
+
+    @model_validator(mode="after")
+    def generation_series_references_are_valid(self) -> "ImagerySourceCreate":
+        keys = [series.key for series in self.generation_series]
+        if len(keys) != len(set(keys)):
+            raise ValueError("generation series keys must be unique per source")
+        ids = [series.id for series in self.generation_series if series.id is not None]
+        if len(ids) != len(set(ids)):
+            raise ValueError("generation series ids must be unique per source")
+        known = set(keys)
+        unknown = {
+            collection.generation_series_key
+            for collection in self.collections
+            if collection.generation_series_key is not None
+            and collection.generation_series_key not in known
+        }
+        if unknown:
+            raise ValueError(f"unknown generation series keys: {sorted(unknown)}")
+        referenced = {
+            collection.generation_series_key
+            for collection in self.collections
+            if collection.generation_series_key is not None
+        }
+        unreferenced = known - referenced
+        if unreferenced:
+            raise ValueError(f"unreferenced generation series keys: {sorted(unreferenced)}")
+        return self
 
 
 class BasemapCreate(BaseModel):

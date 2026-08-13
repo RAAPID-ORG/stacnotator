@@ -5,6 +5,7 @@ import {
   MOCK_TIMESERIES_DATA,
   MOCK_TIMESERIES_ENTRY,
   COLLECTION_S2,
+  COLLECTION_VHR,
   SLICE_2024_06,
 } from './fixtures/mock-data';
 import { clickMapAt, clickMapCenter, getMinimapCenter } from './fixtures/imagery-helpers';
@@ -21,16 +22,21 @@ async function loadOpenModeMulti(page: Page, api: ApiCapture): Promise<void> {
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
-  await page.waitForFunction(
-    () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
-    undefined,
-    { timeout: 10_000 }
-  );
+  await page
+    .locator('[data-testid="viewport-center"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 10_000 });
   api.clear();
 }
 
 const layerSelector = (page: Page) => page.locator('[data-tour="layer-selector"] button').first();
 const mainSliceBtn = (page: Page) => page.locator('button[title^="Select time slice"]').first();
+/** A small imagery window card, addressed by the collection it shows. */
+const windowCard = (page: Page, collectionId: number) =>
+  page.locator(`[data-panel-id="${collectionId}"]`);
+
+// The map opens on the chronologically first collection of the view that has a
+// window, which is VHR (2023) rather than Sentinel-2 (2024) in this fixture.
 
 // ---------------------------------------------------------------------------
 // Imagery correctness in open mode
@@ -41,15 +47,17 @@ test.describe('Imagery in open mode', () => {
     await loadOpenModeMulti(annotationPage, api);
   });
 
-  test('I cycles the active source S2 -> VHR -> S2', async ({ annotationPage }) => {
-    await expect(layerSelector(annotationPage)).toContainText('Sentinel-2');
-    await annotationPage.keyboard.press('i');
-    await expect(layerSelector(annotationPage)).toContainText('VHR', { timeout: 3000 });
+  test('I cycles the active source VHR -> S2 -> VHR', async ({ annotationPage }) => {
+    await expect(layerSelector(annotationPage)).toContainText('VHR');
     await annotationPage.keyboard.press('i');
     await expect(layerSelector(annotationPage)).toContainText('Sentinel-2', { timeout: 3000 });
+    await annotationPage.keyboard.press('i');
+    await expect(layerSelector(annotationPage)).toContainText('VHR', { timeout: 3000 });
   });
 
   test('Shift+I cycles visualisations within Sentinel-2', async ({ annotationPage }) => {
+    await annotationPage.keyboard.press('i'); // VHR has one visualisation; S2 has two
+    await expect(layerSelector(annotationPage)).toContainText('Sentinel-2', { timeout: 3000 });
     await expect(layerSelector(annotationPage)).toContainText('True Color');
     await annotationPage.keyboard.press('Shift+i');
     await expect(layerSelector(annotationPage)).toContainText('False Color', { timeout: 3000 });
@@ -58,6 +66,7 @@ test.describe('Imagery in open mode', () => {
   test('per-source visualisation memory survives source cycling (False Color restored)', async ({
     annotationPage,
   }) => {
+    await annotationPage.keyboard.press('i'); // -> S2
     await annotationPage.keyboard.press('Shift+i'); // S2 -> False Color
     await expect(layerSelector(annotationPage)).toContainText('False Color', { timeout: 3000 });
     await annotationPage.keyboard.press('i'); // -> VHR
@@ -67,15 +76,14 @@ test.describe('Imagery in open mode', () => {
   });
 
   test('the Sentinel-2 window card is in the DOM', async ({ annotationPage }) => {
-    await expect(
-      annotationPage.locator(`[data-window-collection-id="${COLLECTION_S2.id}"]`)
-    ).toBeAttached();
+    await expect(windowCard(annotationPage, COLLECTION_S2.id)).toBeAttached();
   });
 
-  test('the timeline shows the active source collection', async ({ annotationPage }) => {
-    await expect(annotationPage.locator('[data-tour="timeline-sidebar"]')).toContainText(
-      COLLECTION_S2.name
-    );
+  test('the timeline follows the active source', async ({ annotationPage }) => {
+    const timeline = annotationPage.locator('[data-tour="timeline-sidebar"]');
+    await expect(timeline).toContainText(COLLECTION_VHR.name);
+    await annotationPage.keyboard.press('i'); // -> Sentinel-2
+    await expect(timeline).toContainText(COLLECTION_S2.name, { timeout: 3000 });
   });
 
   // A window map must NOT swallow a plain wheel event (otherwise the page can't
@@ -85,7 +93,7 @@ test.describe('Imagery in open mode', () => {
   test('plain wheel over a window is not consumed, but Ctrl+wheel is (zoom)', async ({
     annotationPage,
   }) => {
-    const win = annotationPage.locator('[data-window-collection-id]').first();
+    const win = windowCard(annotationPage, COLLECTION_S2.id);
     await win.waitFor({ state: 'visible' });
     await win.scrollIntoViewIfNeeded();
     const box = await win.boundingBox();
@@ -122,21 +130,24 @@ test.describe('Imagery in open mode', () => {
 
   // Discoverability: scrolling a window without the modifier (the moment the
   // user expects zoom) flashes a hint telling them to hold Ctrl/Cmd.
-  test('plain scroll over a window flashes a "scroll to zoom" hint', async ({ annotationPage }) => {
-    const win = annotationPage.locator('[data-window-collection-id]').first();
+  test('plain scroll over a window flashes a "hold Ctrl/Cmd to zoom" hint', async ({
+    annotationPage,
+  }) => {
+    const win = windowCard(annotationPage, COLLECTION_S2.id);
     await win.waitFor({ state: 'visible' });
     await win.scrollIntoViewIfNeeded();
-    const hint = win.locator('[data-zoom-hint]');
+    const hint = win.getByText(/Hold Ctrl\/Cmd to zoom/);
 
-    await expect(hint).toHaveCSS('opacity', '0');
-    await expect(hint).toContainText('scroll to zoom');
+    await expect(hint).toHaveCount(0);
 
     const box = await win.boundingBox();
     if (!box) throw new Error('window has no bounding box');
     await annotationPage.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await annotationPage.mouse.wheel(0, 200);
 
-    await expect(hint).toHaveCSS('opacity', '1');
+    await expect(hint).toBeVisible();
+    // A flash, not a permanent badge - it takes itself away again.
+    await expect(hint).toHaveCount(0, { timeout: 5000 });
   });
 
   test('selecting a different slice from the dropdown loads that slice', async ({
@@ -148,35 +159,45 @@ test.describe('Imagery in open mode', () => {
 
     await mainSliceBtn(annotationPage).click();
     await annotationPage
-      .locator('div.rounded-lg.shadow-lg button')
-      .filter({ hasText: SLICE_2024_06.name })
-      .first()
+      .locator('div.rounded-lg.shadow-lg:visible')
+      .getByRole('button', { name: SLICE_2024_06.name, exact: true })
       .click();
 
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
     await tileArrived;
   });
 
-  test('clicking the minimap pans the main map', async ({ annotationPage }) => {
+  test('dragging the minimap viewport pans the main map only on release', async ({
+    annotationPage,
+  }) => {
     const start = await getMinimapCenter(annotationPage);
-    const box = await annotationPage.locator('[data-tour="minimap"]').boundingBox();
-    // Click the lower-left of the minimap - well outside the (tiny) viewport rect,
-    // so ClickToPan recenters the main map there.
-    await annotationPage.mouse.click(box!.x + box!.width * 0.22, box!.y + box!.height * 0.78);
-    await annotationPage
-      .waitForFunction(
-        ({ lat, lon }) => {
-          const n = document.querySelector('[data-tour="minimap"]');
-          const aLat = parseFloat(n?.getAttribute('data-center-lat') ?? '');
-          const aLon = parseFloat(n?.getAttribute('data-center-lon') ?? '');
-          return Math.abs(aLat - lat) > 0.01 || Math.abs(aLon - lon) > 0.01;
+    const body = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    await body.scrollIntoViewIfNeeded();
+    const box = await body.boundingBox();
+    const x = Number(await body.getAttribute('data-viewport-center-x'));
+    const y = Number(await body.getAttribute('data-viewport-center-y'));
+    if (!box || !Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error('minimap viewport has no rendered centre');
+    }
+    const center = { x: box.x + x, y: box.y + y };
+
+    await annotationPage.mouse.move(center.x, center.y);
+    await annotationPage.mouse.down();
+    await expect(body).toHaveClass(/cursor-grabbing/);
+    await annotationPage.mouse.move(center.x + 30, center.y + 20, { steps: 6 });
+    // Pointer moves update only the rectangle preview.
+    expect(await getMinimapCenter(annotationPage)).toEqual(start);
+    await annotationPage.mouse.up();
+
+    await expect
+      .poll(
+        async () => {
+          const now = await getMinimapCenter(annotationPage);
+          return Math.abs(now.lat - start.lat) > 0.0001 || Math.abs(now.lon - start.lon) > 0.0001;
         },
-        { lat: start.lat, lon: start.lon },
-        { timeout: 4000 }
+        { timeout: 4000, message: 'viewport release did not move the main map centre' }
       )
-      .catch(() => {
-        throw new Error('minimap drag did not move the main map centre');
-      });
+      .toBe(true);
   });
 });
 
@@ -212,7 +233,13 @@ test.describe('Timeseries probe in open mode', () => {
         timeout: 5000,
       })
       .toBe(true);
-    await expect(annotationPage.locator('.probe-marker')).toBeAttached();
+    await expect(annotationPage.locator('[data-probe-lon]')).toHaveAttribute(
+      'data-probe-lon',
+      /-?\d/
+    );
+    await expect(
+      annotationPage.getByRole('button', { name: 'Probe time series', exact: true })
+    ).toHaveAttribute('aria-pressed', 'false');
   });
 
   test('an off-centre click probes a different longitude', async ({ annotationPage }) => {
@@ -226,12 +253,13 @@ test.describe('Timeseries probe in open mode', () => {
     await clickMapAt(annotationPage, 200, 0); // well east of centre
 
     await expect
-      .poll(() => tsUrls.some((u) => (tsLon(u) ?? -999) > center.lon + 0.01), { timeout: 5000 })
+      .poll(() => tsUrls.some((u) => Math.abs((tsLon(u) ?? center.lon) - center.lon) > 0.0001), {
+        timeout: 5000,
+      })
       .toBe(true);
   });
 
-  test('switching to Pan does not probe on click', async ({ annotationPage }) => {
-    // First probe so the listener has a baseline.
+  test('a probe is one-shot; another click requires re-arming', async ({ annotationPage }) => {
     await annotationPage.keyboard.press('t');
     await clickMapCenter(annotationPage);
 
@@ -239,7 +267,6 @@ test.describe('Timeseries probe in open mode', () => {
     annotationPage.on('request', (req) => {
       if (/\/timeseries\/\d+\/[-\d.]+\/[-\d.]+\/data/.test(req.url())) after.push(req.url());
     });
-    await annotationPage.keyboard.press('p'); // pan; clears probe
     await clickMapAt(annotationPage, 60, 60);
     // Give any erroneous fetch a chance to fire, then assert none did.
     await annotationPage.waitForTimeout(800);

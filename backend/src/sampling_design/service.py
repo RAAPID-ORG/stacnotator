@@ -10,6 +10,7 @@ from fastapi import HTTPException, UploadFile
 from shapely.geometry import MultiPolygon, Point, Polygon, box
 from sqlalchemy.orm import Session
 
+from src import background
 from src.annotation import embeddings_service
 from src.annotation.ingest import insert_tasks
 from src.campaigns.models import Campaign
@@ -336,7 +337,7 @@ def create_tasks_from_sampling_strategy(
     if embedding_year is not None and campaign is not None:
         # Off the request path: the spawned thread flips this to ready/failed
         # once populate_campaign_embeddings finishes (or fails).
-        campaign.embedding_status = "registering"
+        background.begin_status_run(campaign, embeddings_service.EMBEDDING_RUN)
         db.commit()
         embeddings_service.spawn_background_embedding_computation(campaign_id, embedding_year)
 

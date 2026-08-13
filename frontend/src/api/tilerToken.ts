@@ -48,9 +48,3 @@ export async function ensureTilerSession(campaignId?: string): Promise<void> {
 
   return inflight;
 }
-
-export function clearTilerSession(): void {
-  cookieExpiry = 0;
-  inflight = null;
-  mintedForCampaign = null;
-}

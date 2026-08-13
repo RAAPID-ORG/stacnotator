@@ -1,12 +1,14 @@
 import { test, expect } from './fixtures/annotator-fixture';
 import type { ApiCapture } from './fixtures/annotator-fixture';
 import {
+  MOCK_CAMPAIGN,
   MOCK_CAMPAIGN_OPEN_MODE,
   MOCK_CAMPAIGN_OPEN_MODE_NO_TS,
   OPEN_ANN_CENTER,
   OPEN_ANN_NE_FLAGGED,
   OPEN_ANN_SW_POLYGON,
   OPEN_MODE_CENTER,
+  TASK_3,
 } from './fixtures/mock-data';
 import {
   assertCoordsMatch,
@@ -18,6 +20,7 @@ import {
   fitAllAnnotations,
   getMinimapCenter,
   parseWkt,
+  waitForMinimapCenter,
   waitForBatchDelete,
   waitForCreate,
   waitForDelete,
@@ -44,11 +47,10 @@ async function loadOpenMode(
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
   // Map laid out -> minimap reports a centre.
-  await page.waitForFunction(
-    () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
-    undefined,
-    { timeout: 10_000 }
-  );
+  await page
+    .locator('[data-testid="viewport-center"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 10_000 });
   api.clear();
 }
 
@@ -69,7 +71,7 @@ test.describe('Open mode renders', () => {
     await expect(tool(annotationPage, 'Pan (P)')).toBeVisible();
     await expect(tool(annotationPage, 'Annotate (R)')).toBeVisible();
     await expect(tool(annotationPage, 'Edit (E)')).toBeVisible();
-    await expect(tool(annotationPage, 'Timeseries (T)')).toBeVisible();
+    await expect(tool(annotationPage, 'Probe time series (T)')).toBeVisible();
     await expect(annotationPage.locator('button', { hasText: /^(Submit|Update)$/ })).toHaveCount(0);
   });
 
@@ -86,10 +88,10 @@ test.describe('Open mode renders', () => {
     await expect(controls(annotationPage)).toBeVisible();
   });
 
-  test('crosshair is present and minimap centre is the bbox centre on load', async ({
-    annotationPage,
-  }) => {
-    await expect(annotationPage.locator('[data-tour="main-map"] svg line').first()).toBeAttached();
+  // No crosshair assertion: the crosshair marks the task point, so Explore
+  // (which has no focus point) deliberately turns it off - see loadCampaign's
+  // `crosshair: workMode === 'tasks'`.
+  test('minimap centre is the bbox centre on load', async ({ annotationPage }) => {
     const c = await getMinimapCenter(annotationPage);
     assertCoordsMatch(c, OPEN_MODE_CENTER, 'initial centre');
   });
@@ -114,7 +116,7 @@ test.describe('Tools and label selection', () => {
     await annotationPage.keyboard.press('e');
     await expect(tool(annotationPage, 'Edit (E)')).toHaveClass(ACTIVE);
     await annotationPage.keyboard.press('t');
-    await expect(tool(annotationPage, 'Timeseries (T)')).toHaveClass(ACTIVE);
+    await expect(tool(annotationPage, 'Probe time series (T)')).toHaveClass(ACTIVE);
     await annotationPage.keyboard.press('p');
     await expect(tool(annotationPage, 'Pan (P)')).toHaveClass(ACTIVE);
   });
@@ -502,5 +504,64 @@ test.describe.skip('Flag for review', () => {
       (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`)
     );
     expect(put!.body.flagged_for_review).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Annotations page "View" deep link
+// ---------------------------------------------------------------------------
+
+test.describe('Annotations page View deep link', () => {
+  test.beforeEach(async ({ annotationPage }) => {
+    // The annotations page fetches the plain campaign record; the annotator
+    // fixtures only mock /detailed, so the catch-all would serve {}.
+    await annotationPage.route('**/api/campaigns/42', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      await route.fulfill({ json: MOCK_CAMPAIGN });
+    });
+  });
+
+  test('View on a standalone annotation opens Explore centred on it, even for a tasks campaign', async ({
+    annotationPage,
+  }) => {
+    const page = annotationPage;
+    await page.goto('/projects/7/campaigns/42/annotations');
+    const row = page
+      .getByRole('row')
+      .filter({ has: page.getByText(String(OPEN_ANN_NE_FLAGGED.id), { exact: true }) });
+    await row.getByRole('button', { name: 'View' }).click();
+
+    // Explore controls, not the task-mode panel (MOCK_CAMPAIGN.mode === 'tasks').
+    await expect(tool(page, 'Pan (P)')).toBeVisible({ timeout: 15_000 });
+    // Centred on the annotation, not the campaign bbox centre (50.5, 30.5).
+    await waitForMinimapCenter(page, { lat: 50.8, lon: 30.8 }, 'view-deep-link');
+    // And selected, so its details show in the controls panel.
+    await expect(controls(page)).toContainText(`Selected annotation #${OPEN_ANN_NE_FLAGGED.id}`);
+    // Re-check after the map has rendered and published its own view: the OL
+    // map itself must sit on the annotation, not just the store seed.
+    const settled = await getMinimapCenter(page);
+    expect(Math.abs(settled.lat - 50.8)).toBeLessThan(0.01);
+    expect(Math.abs(settled.lon - 30.8)).toBeLessThan(0.01);
+  });
+
+  test('View on a task-bound annotation opens Tasks mode on its task', async ({
+    annotationPage,
+  }) => {
+    const page = annotationPage;
+    const taskBound = { ...OPEN_ANN_CENTER, id: 9050, annotation_task_id: TASK_3.id };
+    await page.route('**/api/campaigns/*/annotations', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      await route.fulfill({ json: [taskBound] });
+    });
+
+    await page.goto('/projects/7/campaigns/42/annotations');
+    await page.getByRole('button', { name: 'View' }).click();
+
+    // Tasks mode, positioned on TASK_3, with the review list visible.
+    await expect(page.locator('input[type="number"][title="Press Enter to go"]')).toHaveValue(
+      String(TASK_3.annotation_number),
+      { timeout: 15_000 }
+    );
+    await expect(page.getByTestId('review-list')).toBeVisible();
   });
 });

@@ -4,11 +4,11 @@
 !.env.example
 !.env.dev
 !.env.deploy.example
-azure_deploy/.env.deploy.*
-!azure_deploy/.env.deploy.example
-azure_deploy/.env
-azure_deploy/.env.deploy.dev
-azure_deploy/.env.deploy.prod
+deployment/azure/.env.deploy.*
+!deployment/azure/.env.deploy.example
+deployment/azure/.env
+deployment/azure/.env.deploy.dev
+deployment/azure/.env.deploy.prod
 
 
 
@@ -120,6 +120,7 @@ temp/
 
 # Claude
 .claude
+.lavish
 
 # Coverage & test artifacts
 coverage/

@@ -32,8 +32,8 @@ class Settings(BaseSettings):
     DBUSER: str
     DBPASS: str
     DBHOST: str
-    DBPORT: int
 
+    DBPORT: int = 5432
     DBSCHEME: str = "postgresql"
     DBDRIVER: str = "psycopg2"
 

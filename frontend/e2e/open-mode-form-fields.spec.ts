@@ -12,11 +12,10 @@ async function loadOpenModeForms(page: Page, api: ApiCapture): Promise<void> {
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
-  await page.waitForFunction(
-    () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
-    undefined,
-    { timeout: 10_000 }
-  );
+  await page
+    .locator('[data-testid="viewport-center"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 10_000 });
   api.clear();
 }
 
@@ -85,8 +84,8 @@ test.describe('Open mode custom-field catalog', () => {
     await expect(catalog(annotationPage)).toBeVisible();
 
     // Field 100 (Condition) is required and first, so its cell carries the
-    // active-field highlight ring; pressing a digit answers it immediately.
-    await expect(annotationPage.locator('[data-form-field-id="100"]')).toHaveClass(/ring-2/);
+    // subtle active-field highlight ring; pressing a digit answers it immediately.
+    await expect(annotationPage.locator('[data-form-field-id="100"]')).toHaveClass(/ring-1/);
     await annotationPage.keyboard.press('1'); // picks "Healthy"
     await expect(
       catalog(annotationPage)

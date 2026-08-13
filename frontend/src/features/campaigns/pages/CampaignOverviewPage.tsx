@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { prefetchAnnotationChunk } from '~/app/routeChunks';
-import { onIdle } from '~/shared/utils/idle';
-
 import { getCampaign, listTaskSets, type CampaignOut, type TaskSetOut } from '~/api/client';
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
@@ -30,10 +27,6 @@ export const CampaignOverviewPage = () => {
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const projectId = campaign?.project_id ?? routeProjectId;
-
-  // From the overview the next step is almost always the annotator, whose chunk
-  // is the heaviest. Warm it on idle so opening it doesn't wait on the download.
-  useEffect(() => onIdle(prefetchAnnotationChunk), []);
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name);
 

@@ -23,12 +23,12 @@ make dev-restore-backup FILE=db/backups/<f>.sql
 Quality gates (run before pushing; CI runs the same):
 
 ```bash
-make test                # backend pytest + frontend Playwright
-make test-backend        # == cd backend && uv run pytest -v
+make test                # backend pytest + SDK pytest + frontend Playwright
+make test-backend        # == cd backend && uv run pytest -v (test-sdk for sdk/)
 make test-e2e            # == cd frontend && npx playwright test
-make lint                # ruff check + eslint
+make lint                # ruff check + eslint (backend, frontend, sdk)
 make format-check        # ruff format --check + prettier --check
-make typecheck           # mypy + tsc --noEmit
+make typecheck           # mypy (backend + sdk) + tsc --noEmit
 make ci-check            # all of the above
 ```
 
@@ -88,21 +88,31 @@ For MPC collections with first-valid compositing, the frontend fetches tiles **d
 
 Feature-sliced under `frontend/src/`:
 - `app/` — `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `AppSidebar.tsx`)
-- `features/<name>/` — `annotation`, `campaigns`, `customLayers`, `auth`, `settings`, `home`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`
-- `shared/` — cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`)
+- `features/<name>/` — `annotation`, `campaigns`, `auth`, `settings`, `home`. Most have `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`; `annotation` is layered instead (below). Custom-layers UI follows the surface split: authoring editors under `campaigns/components/`, runtime controls under the annotation panels that own them
+- `shared/` — cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`), `colormaps/` (tiler colormap definitions + select, used by the campaign editors and the annotation legend)
 - `api/` — generated client (`client/`), `hey-api.ts` config, plus `stacBrowser.ts` and `tilerToken.ts`
 
-The annotation feature is the heart of the app. Two campaign modes drive parallel component sets: **Task Mode** (predefined locations, `ControlsTaskMode`/`TaskModeMap`) and **Open Mode** (free-form, `ControlsOpenMode`/`OpenModeMap`). Maps are OpenLayers (`features/annotation/components/Map/`): `layerManager.ts`, `useSliceLayers.ts`, and tile prefetching (`tilePreloader.ts`, `useTilePreloading.ts`). State is Zustand stores. The whole annotation workflow supports keyboard hotkeys.
+### The annotation feature
+
+The heart of the app, and the one feature sliced by layer rather than by artifact kind. Under `features/annotation/`:
+
+- `core/` — pure TypeScript, no React and no OpenLayers: `catalog/` (sources, collections, slices, views, time navigation), `annotation/` (labels, geometry, form values, validation, styling), `tasks/` (claims, filtering, navigation, review rows), `workspace/` (layout maths).
+- `stores/` — the Zustand stores plus `loadCampaign`, the cross-store bootstrap.
+- `engine/` — app-agnostic and campaign-unaware: `map/` (the only place that imports `ol/*`: a `LayerSpec` union, a reconciler that diffs specs onto real layers, a camera with leader/follower, draw/modify/select interactions, tile QoS), `canvas/` (react-grid-layout panel host, popout screens, hidden tray), `hotkeys/` (a scoped binding registry).
+- `panels/` — one folder per surface (`main-map`, `imagery-windows`, `minimap`, `timeseries`, `task-work`, `explore-work`, `drawing`, `toolbar`, `layout-edit`, `tour`, `mobile`), with `panels/shared/` for state two panels genuinely share.
+- `pages/AnnotationPage.tsx` — the route entry, and the only module the rest of the app may import (enforced by `no-restricted-imports` in `eslint.config.js`; the engine is likewise barred from importing campaign concepts).
+
+Both campaign modes (**Task Mode**, predefined locations; **Open Mode**, free-form) share one map composition path, so there is no forked map or controls implementation. Every binding is declared in a hotkey table with its own help text, which is what drives the shortcut list and the tooltips.
 
 ## Conventions & guardrails
 
 - **Code is mostly self-documenting** — avoid explanatory comments; prefer clear names and low complexity (see `CONTRIBUTING.md`).
-- **Branching**: feature work on `feature/*`|`fix/*`|`refactor/*`|`hotfix/*` → PR into `develop` (the deployed integration branch) → `develop` merged into `main` for production releases. Open PRs against `develop`. `@rohansaw` is the default reviewer (`.github/CODEOWNERS`); `/.github/` and `/azure_deploy/` changes always need owner review. See `docs/development.md`.
-- **Production is Azure** (Container Apps for backend/tiler, Static Web App for frontend; PostgreSQL + Key Vault). Prod deploys via CI on push to `main` (gated by the `production` GitHub Environment); never assume local nginx/CSP behavior matches prod. Deployment scripts in `azure_deploy/`.
+- **Branching**: feature work on `feature/*`|`fix/*`|`refactor/*`|`hotfix/*` → PR into `develop` (the deployed integration branch) → `develop` merged into `main` for production releases. Open PRs against `develop`. `@rohansaw` is the default reviewer (`.github/CODEOWNERS`); `/.github/` and `/deployment/azure/` changes always need owner review. See `docs/development.md`.
+- **Production is Azure** (Container Apps for backend/tiler, Static Web App for frontend; PostgreSQL + Key Vault). Prod deploys via CI on push to `main` (gated by the `production` GitHub Environment); never assume local nginx/CSP behavior matches prod. Deployment scripts in `deployment/azure/`.
 - **Tests**: pure logic → DB-free unit tests in `backend/tests/unit/`; DB-bound code → real Postgres. E2E (Playwright, `frontend/e2e/`) must be deterministic under parallelism — observe via DOM (`data-*`, rendered text) and `waitForResponse`, never via store globals or cache-dependent tile requests. Tests focus on central business-logic, and must test actual units / user flows. We avoid bloating the test suit with unecessary tests
 - Backend lint: ruff (line-length 100, rules `E/W/F/I/UP/B/SIM/T20` — note `T20` forbids leftover `print`s). Frontend: eslint + prettier + strict `tsc`.
 - Install hooks once with `make pre-commit-install`.
 
 ## Further docs
 
-`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `azure_deploy/README.md` (deployment).
+`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `deployment/azure/README.md` (deployment).

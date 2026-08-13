@@ -1,0 +1,567 @@
+import type { TourStep, TourVariant } from './engine';
+
+export interface TourConfig {
+  hasTimeseries: boolean;
+}
+
+const toolbar = { kind: 'anchor', name: 'toolbar' } as const;
+const imagerySelector = { kind: 'anchor', name: 'imagery-selector' } as const;
+const taskFilter = { kind: 'anchor', name: 'task-filter' } as const;
+const mapControls = { kind: 'anchor', name: 'map-controls' } as const;
+const collectionPicker = { kind: 'anchor', name: 'collection-picker' } as const;
+const layerSelector = { kind: 'anchor', name: 'layer-selector' } as const;
+const reviewToggle = { kind: 'anchor', name: 'review-toggle' } as const;
+const layoutControls = { kind: 'anchor', name: 'layout-controls' } as const;
+const campaignGuide = { kind: 'anchor', name: 'campaign-guide' } as const;
+const keyboardHelp = { kind: 'anchor', name: 'keyboard-help' } as const;
+const googleEarth = { kind: 'anchor', name: 'open-in-google-earth' } as const;
+const mainMap = { kind: 'panel', id: 'main' } as const;
+const minimap = { kind: 'panel', id: 'minimap' } as const;
+const controls = { kind: 'panel', id: 'controls' } as const;
+const imageryWindows = { kind: 'role', name: 'imagery-windows' } as const;
+const timeseries = { kind: 'role', name: 'timeseries' } as const;
+
+const WINDOWS_VS_SLICES = [
+  'A Collection is a broad time range (e.g. a year or season). A Slice is a finer subdivision inside that collection (e.g. individual months).',
+  'The main map always shows one slice at a time. The smaller imagery panels show the same slice but for different collections so you can compare across time.',
+];
+
+const ZOOM_AND_PAN: Pick<TourStep, 'body' | 'hint' | 'requiredKeys' | 'placement'> = {
+  body: [
+    'Press {{alt+arrowup}} to zoom in and {{alt+arrowdown}} to zoom out. You can also scroll with the mouse wheel.',
+    'Use the arrow keys ({{arrowup}} {{arrowdown}} {{arrowleft}} {{arrowright}}) to pan the map without the mouse.',
+  ],
+  hint: 'Try Alt and the up arrow to zoom in, then Alt and the down arrow to zoom back out.',
+  requiredKeys: ['alt+arrowup', 'alt+arrowdown'],
+  placement: 'bottom',
+};
+
+const SOURCE_SWITCHING_BODY = [
+  'Open this dropdown to switch between imagery sources - the top-level groups here (e.g. Sentinel-2, Landsat, basemaps).',
+  'You can also press {{i}} to cycle through sources without opening the dropdown.',
+];
+
+const GUIDE_STEP: TourStep = {
+  id: 'campaign-guide',
+  target: campaignGuide,
+  title: 'Campaign Guide',
+  body: [
+    'Each campaign can include a guide written by its owner with instructions, label definitions, and examples. Open it from the toolbar.',
+    'If the guide is empty, ask your campaign admin to fill it in from Campaign Settings.',
+  ],
+  placement: 'bottom',
+};
+
+const HELP_STEP: TourStep = {
+  id: 'keyboard-help',
+  target: keyboardHelp,
+  title: 'Keyboard Help',
+  body: [
+    'This button opens the full keyboard shortcuts reference. It is built from the shortcuts that are actually active right now, so it always matches the mode you are in.',
+  ],
+  hint: 'Open it now.',
+  placement: 'bottom',
+  requiredClick: true,
+  requiredClickLabel: 'the keyboard shortcuts button',
+};
+
+const RESIZE_STEP: TourStep = {
+  id: 'practice-resize',
+  target: layoutControls,
+  title: 'Practice: Resize Panels',
+  body: [
+    "We've enabled Edit Layout mode for you. Try dragging a panel header to move it, or drag the edges of a panel to resize it.",
+    "When you're done, click Save to keep the layout, or Cancel to discard your changes.",
+  ],
+  placement: 'bottom',
+  effect: 'edit-layout',
+};
+
+const LAYOUT_STEP: TourStep = {
+  id: 'layout-controls',
+  target: layoutControls,
+  title: 'Layout Controls',
+  body: [
+    'Click Edit Layout to drag and resize all the panels to your liking. Save as a personal or default layout for the campaign. Use the fullscreen button to maximize the annotation workspace.',
+  ],
+  placement: 'bottom',
+};
+
+function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
+  return [
+    {
+      id: 'welcome',
+      target: toolbar,
+      title: 'Welcome to STACNotator!',
+      body: [
+        'This guided tour will walk you through all the key features of the annotation workspace.',
+        'Almost every action has a keyboard shortcut, making your workflow fast and seamless. We recommend trying to use only the keyboard for a better experience.',
+      ],
+      placement: 'bottom',
+    },
+    {
+      id: 'canvas-views',
+      target: imagerySelector,
+      title: 'Canvas Views',
+      body: [
+        'Use this dropdown to switch between the different canvas views configured for this campaign. Each view may have its own imagery collections, slices, and visualization layers and help you to organize different imagery sources meaningfully.',
+      ],
+      placement: 'bottom',
+    },
+    {
+      id: 'task-filter',
+      target: taskFilter,
+      title: 'Task Filter',
+      body: [
+        'Filter which tasks are visible - by assignee, status, or a combination. Useful when you want to focus on "pending" tasks or review a specific user\'s work.',
+      ],
+      placement: 'bottom',
+    },
+    {
+      id: 'main-map',
+      target: mainMap,
+      title: 'Main Map',
+      body: [
+        "This is the primary map view. It shows the selected imagery at the current collection & slice. Use your mouse to pan and scroll to zoom, or try the keyboard shortcuts you'll learn next.",
+      ],
+      placement: 'right',
+    },
+    {
+      id: 'collection-picker',
+      target: collectionPicker,
+      title: 'Collection Picker',
+      body: [
+        'This picker lists all collections in chronological order, and highlights the active one. A collection is a broad time range of imagery. Pick one to jump straight to it.',
+      ],
+      placement: 'bottom',
+    },
+    {
+      id: 'windows-vs-slices',
+      target: collectionPicker,
+      title: 'Collections vs Slices',
+      body: WINDOWS_VS_SLICES,
+      placement: 'bottom',
+    },
+    {
+      id: 'practice-slices',
+      target: mainMap,
+      title: 'Practice: Navigate Slices',
+      body: ['Press {{a}} to go to the previous slice and {{d}} to go to the next slice.'],
+      hint: 'Try pressing A and then D to move in both directions.',
+      placement: 'bottom',
+      requiredKeys: ['a', 'd'],
+    },
+    {
+      id: 'practice-windows',
+      target: collectionPicker,
+      title: 'Practice: Navigate Collections',
+      body: [
+        'Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection. Often you will want to browse imagery in these bigger steps rather than individually by slice, as the first slice (cover slice) is often representative of the whole collection. These are also preloaded at your default zoom-level to make your workflow faster. Set the default zoom in campaign settings for the best experience.',
+      ],
+      hint: 'Try pressing Shift+A and then Shift+D to navigate both directions.',
+      placement: 'bottom',
+      requiredKeys: ['shift+a', 'shift+d'],
+    },
+    {
+      id: 'hold-to-cycle',
+      target: collectionPicker,
+      title: 'Tip: Hold to Cycle',
+      body: [
+        'You can hold {{a}} / {{d}} or {{shift+a}} / {{shift+d}} to smoothly cycle through slices or collections without releasing the key. This is great for spotting changes across time in a flickering animation style.',
+      ],
+      hint: 'Try holding Shift+D for a moment to see it in action.',
+      placement: 'bottom',
+    },
+    {
+      id: 'map-controls',
+      target: mapControls,
+      title: 'Map Controls',
+      body: ['These controls in the header bar let you manage the map:'],
+      bullets: [
+        { text: 'Layer / Collection / Slice selectors - switch imagery directly' },
+        { text: 'Recenter - snap back to the task location ({{ }})' },
+        { text: 'Crosshair - toggle the crosshair overlay ({{x}})' },
+        { text: 'Timeseries probe - click the map to inspect the time series of that point' },
+      ],
+      placement: 'bottom',
+    },
+    {
+      id: 'practice-recenter',
+      target: mainMap,
+      title: 'Practice: Recenter Map',
+      body: ['Press {{ }} to recenter the map on the current task location.'],
+      hint: 'Try pressing Space now.',
+      placement: 'bottom',
+      requiredKeys: [' '],
+    },
+    {
+      id: 'practice-crosshair',
+      target: mainMap,
+      title: 'Practice: Toggle Crosshair',
+      body: ['Press {{x}} to toggle the crosshair overlay on the map.'],
+      hint: 'Try pressing X now.',
+      placement: 'bottom',
+      requiredKeys: ['x'],
+    },
+    {
+      id: 'imagery-windows',
+      target: imageryWindows,
+      title: 'Imagery Panels',
+      body: [
+        'These smaller panels each show a different collection at the same geographic location. Click a panel to make it the active collection in the main map.',
+        'This lets you quickly compare how a location looks across different time periods.',
+      ],
+      placement: 'top',
+    },
+    {
+      id: 'view-sync',
+      target: mapControls,
+      title: 'Imagery Panel Sync (View Link)',
+      body: [
+        'Press {{l}} to toggle view sync. When enabled, all imagery panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
+        'Tip: turning view sync off can noticeably speed up imagery loading, because only the main map needs to fetch new tiles when you navigate. The smaller panels will stay on their current slice until you click them.',
+      ],
+      placement: 'bottom',
+    },
+    ...(hasTimeseries
+      ? [
+          {
+            id: 'timeseries',
+            target: timeseries,
+            title: 'Time Series Chart',
+            body: [
+              'The time series chart shows spectral indices (e.g. NDVI) for the task location over time. Vertical bars indicate the currently selected collection/slice.',
+              'Use the timeseries probe tool in the map controls to click anywhere on the map and see its time series.',
+              'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides observations that were flagged as cloud-covered, and Smooth applies a Savitzky-Golay filter to the curve so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
+            ],
+            placement: 'left' as const,
+          },
+        ]
+      : []),
+    {
+      id: 'minimap',
+      target: minimap,
+      title: 'Minimap',
+      body: [
+        "The minimap gives you a bird's-eye overview of the campaign area. The marker shows the current task location. Coordinates are shown in the header - click the copy icon to grab them or hit the link to open in Google Earth.",
+      ],
+      placement: 'left',
+    },
+    {
+      id: 'practice-google-earth',
+      target: googleEarth,
+      title: 'Practice: Open in Google Earth',
+      body: [
+        "Click the highlighted Open in Google Earth link to inspect the current task location in Google Earth. A new tab will open with the coordinates pre-filled - handy for high-resolution context when imagery alone isn't enough.",
+      ],
+      hint: 'Click the link now.',
+      placement: 'left',
+      requiredClick: true,
+      requiredClickLabel: 'Open in Google Earth',
+    },
+    {
+      id: 'controls',
+      target: controls,
+      title: 'Annotation Controls',
+      body: ['This panel is where you actually annotate:'],
+      bullets: [
+        { text: 'Select a label (or press the number keys 1-9)' },
+        { text: 'Optionally add a comment (press {{c}} to focus it)' },
+        { text: 'Adjust your confidence level with {{q}} / {{e}}' },
+        { text: 'Press {{enter}} to submit, or use the Skip button to move on' },
+      ],
+      placement: 'left',
+    },
+    {
+      id: 'practice-tasks',
+      target: controls,
+      title: 'Practice: Navigate Tasks',
+      body: ['Press {{w}} for the previous task and {{s}} for the next task.'],
+      hint: 'Try pressing S and then W to move in both directions.',
+      placement: 'left',
+      requiredKeys: ['s', 'w'],
+    },
+    { id: 'practice-zoom', target: mainMap, title: 'Practice: Zoom & Pan', ...ZOOM_AND_PAN },
+    {
+      id: 'imagery-sources',
+      target: layerSelector,
+      title: 'Switching Imagery Sources',
+      body: SOURCE_SWITCHING_BODY,
+      placement: 'left',
+    },
+    {
+      id: 'visualizations',
+      target: layerSelector,
+      title: 'Switching Visualization Layers',
+      body: [
+        'Inside the same dropdown, each source expands to its visualization layers (e.g. True Color, False Color, NDVI). Pick one to change how the current source is rendered. {{shift+i}} cycles through them.',
+        'Note: visualization options are only available for sources that have them configured. Basemaps typically do not have multiple visualizations - only sources like Sentinel-2 with pre-configured band combinations will show visualization options.',
+      ],
+      placement: 'left',
+    },
+    {
+      id: 'review-mode',
+      target: reviewToggle,
+      title: 'Review Mode',
+      body: ['STACNotator has two ways to review annotations:'],
+      bullets: [
+        {
+          text: "Review toggle (eye icon) - enables review mode directly on this annotation page. You'll see all annotators' labels for each task in the controls panel. If multiple annotators disagree on a task, there are two ways to resolve this:",
+          sub: [
+            'Update your label to match others if you think they are correct',
+            'Update your comment to explain why you think the other annotators are wrong or why you disagree with them, and wait for them to revisit this point.',
+            'Authorized reviewers can bypass the consensus finding by setting a label that has precedence over the other labels.',
+          ],
+        },
+        {
+          text: 'Review list (list icon) - navigates to a dedicated review page with a table overview of all annotations, agreement statistics, and filtering options.',
+        },
+      ],
+      placement: 'bottom',
+    },
+    LAYOUT_STEP,
+    RESIZE_STEP,
+    GUIDE_STEP,
+    HELP_STEP,
+    {
+      id: 'complete',
+      target: toolbar,
+      title: 'Tour Complete',
+      body: [
+        "You're all set! STACNotator is designed to be keyboard-first - nearly every action has a shortcut, so you can annotate efficiently without ever reaching for the mouse. Here's your cheat-sheet:",
+      ],
+      cheatSheet: [
+        { label: 'Navigate tasks', keys: ['w', 's'] },
+        { label: 'Navigate slices', keys: ['a', 'd'] },
+        { label: 'Navigate collections', keys: ['shift+a', 'shift+d'] },
+        { label: 'Zoom in / out', keys: ['alt+arrowup', 'alt+arrowdown'] },
+        { label: 'Pan map', keys: ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'] },
+        { label: 'Recenter', keys: [' '] },
+        { label: 'Toggle crosshair', keys: ['x'] },
+        { label: 'Cycle imagery', keys: ['i'] },
+        { label: 'Cycle visualization', keys: ['shift+i'] },
+        { label: 'Toggle view sync', keys: ['l'] },
+        { label: 'Select label', text: '1-9' },
+        { label: 'Focus comment', keys: ['c'] },
+        { label: 'Adjust confidence', keys: ['q', 'e'] },
+        { label: 'Submit', keys: ['enter'] },
+      ],
+      placement: 'bottom',
+    },
+  ];
+}
+
+function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
+  const toolKeys = hasTimeseries ? ['p', 'r', 'e', 't'] : ['p', 'r', 'e'];
+
+  return [
+    {
+      id: 'welcome',
+      target: toolbar,
+      title: 'Welcome to Explore!',
+      body: [
+        'In Explore you draw annotations directly on the map. This tour will guide you through the key features. Like Tasks mode, almost every action has a keyboard shortcut.',
+      ],
+      placement: 'bottom',
+    },
+    {
+      id: 'canvas-view',
+      target: imagerySelector,
+      title: 'Canvas View',
+      body: [
+        'This dropdown selects the active canvas view. A view is a campaign-level grouping that defines which imagery sources and collections are shown together - think of it as a preset for the whole annotation workspace.',
+        'Switching views may change the available collections, slices, imagery sources, and visualization layers all at once.',
+      ],
+      placement: 'bottom',
+    },
+    {
+      id: 'collection-picker',
+      target: collectionPicker,
+      title: 'Collection Picker',
+      body: [
+        'This picker lists all collections in chronological order, and highlights the active one. Picking one jumps straight to it - often faster than stepping with {{shift+a}} / {{shift+d}}.',
+      ],
+      placement: 'bottom',
+    },
+    {
+      id: 'windows-vs-slices',
+      target: collectionPicker,
+      title: 'Collections & Slices',
+      body: WINDOWS_VS_SLICES,
+      placement: 'bottom',
+    },
+    {
+      id: 'imagery-windows',
+      target: imageryWindows,
+      title: 'Imagery Panels',
+      body: [
+        'These smaller panels each show a different collection at the same geographic location. Click a panel to make it the active collection in the main map.',
+        "This lets you quickly compare how a location looks across different time periods. The main map will update to show that collection's imagery at full size.",
+      ],
+      placement: 'top',
+    },
+    {
+      id: 'practice-slices',
+      target: mainMap,
+      title: 'Practice: Navigate Slices',
+      body: ['Press {{a}} to go to the previous slice and {{d}} to go to the next slice.'],
+      hint: 'Try pressing A and then D to move in both directions.',
+      placement: 'bottom',
+      requiredKeys: ['a', 'd'],
+    },
+    {
+      id: 'practice-windows',
+      target: collectionPicker,
+      title: 'Practice: Navigate Collections',
+      body: [
+        'Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection.',
+      ],
+      hint: 'Try pressing Shift+A and then Shift+D to navigate both directions.',
+      placement: 'bottom',
+      requiredKeys: ['shift+a', 'shift+d'],
+    },
+    {
+      id: 'imagery-sources',
+      target: layerSelector,
+      title: 'Switching Imagery Sources',
+      body: SOURCE_SWITCHING_BODY,
+      placement: 'left',
+    },
+    {
+      id: 'visualizations',
+      target: layerSelector,
+      title: 'Switching Visualization Layers',
+      body: [
+        'Inside the same dropdown, each source expands to its visualization layers (e.g. True Color, False Color, NDVI). Pick one to change how the current source is rendered. {{shift+i}} cycles through them.',
+        'Note: the canvas view dropdown in the toolbar selects which view is active, while these controls switch the imagery source and visualization within that view.',
+      ],
+      placement: 'left',
+    },
+    {
+      id: 'view-sync',
+      target: mapControls,
+      title: 'Imagery Panel Sync (View Link)',
+      body: [
+        'Press {{l}} to toggle view sync. When enabled, all imagery panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
+        'Tip: turning view sync off can noticeably speed up imagery loading, because only the main map needs to fetch new tiles when you navigate.',
+      ],
+      placement: 'left',
+    },
+    {
+      id: 'main-map',
+      target: mainMap,
+      title: 'Main Map',
+      body: [
+        hasTimeseries
+          ? 'This is your drawing canvas. Use the tools ({{p}}, {{r}}, {{e}}, {{b}}, {{t}}) to pan, annotate, edit features, label vector features, or probe time series. Use the mouse wheel to zoom and click-drag to pan.'
+          : 'This is your drawing canvas. Use the tools ({{p}}, {{r}}, {{e}}, {{b}}) to pan, annotate, edit features, or label vector features. Use the mouse wheel to zoom and click-drag to pan.',
+      ],
+      placement: 'right',
+    },
+    {
+      id: 'controls',
+      target: controls,
+      title: 'Annotation Controls',
+      body: [
+        'Select a label, choose your drawing tool, and start annotating. The labels section shows the available annotation classes and their geometry types (point, polygon, line).',
+        'Press the number keys 1-9 to quickly select a label and switch to the annotate tool.',
+      ],
+      placement: 'left',
+    },
+    {
+      id: 'practice-tools',
+      target: mainMap,
+      title: 'Practice: Tool Switching',
+      body: [
+        hasTimeseries
+          ? '{{p}} = Pan, {{r}} = Annotate, {{e}} = Edit, {{t}} = Timeseries'
+          : '{{p}} = Pan, {{r}} = Annotate, {{e}} = Edit',
+      ],
+      hint: hasTimeseries ? 'Try each of P, R, E and T.' : 'Try each of P, R and E.',
+      placement: 'bottom',
+      requiredKeys: toolKeys,
+    },
+    {
+      id: 'navigate-annotations',
+      target: controls,
+      title: 'Navigating Annotations',
+      body: [
+        'Once you have created annotations, use the Prev / Next buttons in the controls panel to step through them. The map will zoom to each one.',
+        'Press {{ }} to fit the view to all your annotations.',
+      ],
+      placement: 'left',
+    },
+    { id: 'practice-zoom', target: mainMap, title: 'Practice: Zoom & Pan', ...ZOOM_AND_PAN },
+    {
+      id: 'minimap',
+      target: minimap,
+      title: 'Minimap',
+      body: [
+        "The minimap gives you a bird's-eye overview of the campaign area. In Explore you can drag inside the minimap to move the main map to a different part of the campaign area.",
+        'The header shows the coordinates of the current viewport center (where the crosshair sits). Click the copy icon to copy them to your clipboard, or click the link icon to open the location in Google Earth.',
+      ],
+      placement: 'left',
+    },
+    {
+      id: 'practice-google-earth',
+      target: googleEarth,
+      title: 'Practice: Open in Google Earth',
+      body: [
+        "Click the highlighted Open in Google Earth link to inspect the current viewport center in Google Earth. A new tab will open with the coordinates pre-filled - handy for high-resolution context when imagery alone isn't enough.",
+      ],
+      hint: 'Click the link now.',
+      placement: 'left',
+      requiredClick: true,
+      requiredClickLabel: 'Open in Google Earth',
+    },
+    ...(hasTimeseries
+      ? [
+          {
+            id: 'timeseries',
+            target: timeseries,
+            title: 'Time Series Chart',
+            body: [
+              'The time series chart shows spectral indices (e.g. NDVI) over time. Use the Timeseries tool ({{t}}) and click anywhere on the map to load its time series.',
+              'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides cloud-flagged observations, and Smooth applies a Savitzky-Golay filter so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
+            ],
+            placement: 'left' as const,
+          },
+        ]
+      : []),
+    LAYOUT_STEP,
+    RESIZE_STEP,
+    GUIDE_STEP,
+    HELP_STEP,
+    {
+      id: 'complete',
+      target: toolbar,
+      title: 'Tour Complete',
+      body: [
+        "You're ready to start annotating in Explore! STACNotator is designed to be keyboard-first - here's your cheat-sheet:",
+      ],
+      cheatSheet: [
+        { label: 'Pan tool', keys: ['p'] },
+        { label: 'Annotate tool', keys: ['r'] },
+        { label: 'Edit tool', keys: ['e'] },
+        { label: 'Label vector features', keys: ['b'] },
+        ...(hasTimeseries ? [{ label: 'Timeseries tool', keys: ['t'] }] : []),
+        { label: 'Navigate slices', keys: ['a', 'd'] },
+        { label: 'Navigate collections', keys: ['shift+a', 'shift+d'] },
+        { label: 'Zoom in / out', keys: ['alt+arrowup', 'alt+arrowdown'] },
+        { label: 'Pan map', keys: ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'] },
+        { label: 'Fit to annotations', keys: [' '] },
+        { label: 'Select label', text: '1-9' },
+        { label: 'Save the drawn shape', keys: ['enter'] },
+        { label: 'Cancel the edit', keys: ['escape'] },
+        { label: 'Cycle imagery', keys: ['i'] },
+        { label: 'Cycle visualization', keys: ['shift+i'] },
+        { label: 'Toggle view sync', keys: ['l'] },
+      ],
+      placement: 'bottom',
+    },
+  ];
+}
+
+export function buildTourSteps(variant: TourVariant, config: TourConfig): TourStep[] {
+  return variant === 'explore' ? exploreModeSteps(config) : taskModeSteps(config);
+}

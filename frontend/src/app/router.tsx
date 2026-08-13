@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -11,8 +11,7 @@ import { HomePage } from 'src/features/home/pages/HomePage';
 import { ProjectsPage } from 'src/features/projects/pages/ProjectsPage';
 import { AppLayout } from '~/app/AppLayout';
 import { projectsPath } from '~/app/routes';
-import { Delayed } from '~/shared/ui/Delayed';
-import { SkeletonForm } from '~/shared/ui/Skeleton';
+import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { onIdle } from '~/shared/utils/idle';
 import { NotFoundPage, RouteErrorBoundary } from './RouteError';
 import {
@@ -28,49 +27,39 @@ import {
   importReview,
   importSdkAuth,
   importSettings,
+  prefetchAnnotationChunk,
   prefetchCampaignChunks,
   prefetchWorkspaceChunks,
 } from './routeChunks';
 
 // Heavy routes are code-split so the initial bundle (Home + Projects list)
-// doesn't include OpenLayers, Chart.js, react-markdown, etc.
-const CreateCampaignPage = lazy(() =>
-  importCreateCampaign().then((m) => ({ default: m.CreateCampaignPage }))
-);
-const AnnotationPage = lazy(() => importAnnotation().then((m) => ({ default: m.AnnotationPage })));
-const CampaignOverviewPage = lazy(() =>
-  importCampaignOverview().then((m) => ({ default: m.CampaignOverviewPage }))
-);
-const CampaignSettingsPage = lazy(() =>
-  importCampaignSettings().then((m) => ({ default: m.CampaignSettingsPage }))
-);
-const CampaignTasksPage = lazy(() =>
-  importCampaignTasks().then((m) => ({ default: m.CampaignTasksPage }))
-);
-const ReviewPage = lazy(() => importReview().then((m) => ({ default: m.ReviewPage })));
-const SettingsPage = lazy(() => importSettings().then((m) => ({ default: m.SettingsPage })));
-const SdkAuthPage = lazy(() => importSdkAuth().then((m) => ({ default: m.SdkAuthPage })));
-const NewProjectPage = lazy(() => importNewProject().then((m) => ({ default: m.NewProjectPage })));
-const ProjectPage = lazy(() => importProject().then((m) => ({ default: m.ProjectPage })));
-const NewOrganizationPage = lazy(() =>
-  importNewOrganization().then((m) => ({ default: m.NewOrganizationPage }))
-);
-const OrganizationPage = lazy(() =>
-  importOrganization().then((m) => ({ default: m.OrganizationPage }))
-);
-
-// Shown while a route chunk downloads. The page's real chrome isn't available
-// yet, so no fake header - just a delayed content placeholder below the empty
-// header area, which the real page fills in as soon as the chunk arrives.
-const RouteFallback = () => (
-  <Delayed>
-    <div className="flex-1 overflow-auto" role="status" aria-label="Loading">
-      <div className="page">
-        <SkeletonForm sections={3} />
-      </div>
-    </div>
-  </Delayed>
-);
+// doesn't include OpenLayers, Chart.js, react-markdown, etc. They load via
+// route.lazy rather than React.lazy + <Suspense>: the router resolves the
+// chunk during navigation, so the previous page stays visible instead of a
+// committed fallback that React throttles for ~300ms even when the chunk is
+// already prefetched.
+const lazyCreateCampaign = async () => ({
+  Component: (await importCreateCampaign()).CreateCampaignPage,
+});
+const lazyAnnotation = async () => ({ Component: (await importAnnotation()).AnnotationPage });
+const lazyCampaignOverview = async () => ({
+  Component: (await importCampaignOverview()).CampaignOverviewPage,
+});
+const lazyCampaignSettings = async () => ({
+  Component: (await importCampaignSettings()).CampaignSettingsPage,
+});
+const lazyCampaignTasks = async () => ({
+  Component: (await importCampaignTasks()).CampaignTasksPage,
+});
+const lazyReview = async () => ({ Component: (await importReview()).ReviewPage });
+const lazySettings = async () => ({ Component: (await importSettings()).SettingsPage });
+const lazySdkAuth = async () => ({ Component: (await importSdkAuth()).SdkAuthPage });
+const lazyNewProject = async () => ({ Component: (await importNewProject()).NewProjectPage });
+const lazyProject = async () => ({ Component: (await importProject()).ProjectPage });
+const lazyNewOrganization = async () => ({
+  Component: (await importNewOrganization()).NewOrganizationPage,
+});
+const lazyOrganization = async () => ({ Component: (await importOrganization()).OrganizationPage });
 
 // The id segments come from the (untrusted) URL. Validate them once here so
 // every page can read a real id - an absent/non-numeric param is treated as
@@ -89,112 +78,33 @@ const requireOrgId = ({ params }: LoaderFunctionArgs) => requireId(params.orgId)
 // can be intercepted via useBlocker - see useUnsavedChangesGuard.
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route path="/" element={<AppLayout />} errorElement={<RouteErrorBoundary />}>
+    <Route
+      path="/"
+      element={<AppLayout />}
+      errorElement={<RouteErrorBoundary />}
+      // Shown only on a direct load of a lazy route, while its chunk downloads.
+      hydrateFallbackElement={<LoadingSpinner fullScreen text="Loading…" />}
+    >
       <Route index element={<HomePage />} />
       <Route path="projects">
         <Route index element={<ProjectsPage />} />
-        <Route
-          path="new"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <NewProjectPage />
-            </Suspense>
-          }
-        />
+        <Route path="new" lazy={lazyNewProject} />
         <Route path=":projectId" loader={requireProjectId}>
-          <Route
-            index
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <ProjectPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="campaigns/new"
-            element={
-              <Suspense fallback={<RouteFallback />}>
-                <CreateCampaignPage />
-              </Suspense>
-            }
-          />
+          <Route index lazy={lazyProject} />
+          <Route path="campaigns/new" lazy={lazyCreateCampaign} />
           <Route path="campaigns/:campaignId" loader={requireCampaignId}>
-            <Route
-              index
-              element={
-                <Suspense fallback={<RouteFallback />}>
-                  <CampaignOverviewPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="annotate"
-              element={
-                <Suspense fallback={<RouteFallback />}>
-                  <AnnotationPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="settings"
-              element={
-                <Suspense fallback={<RouteFallback />}>
-                  <CampaignSettingsPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="tasks"
-              element={
-                <Suspense fallback={<RouteFallback />}>
-                  <CampaignTasksPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="annotations"
-              element={
-                <Suspense fallback={<RouteFallback />}>
-                  <ReviewPage />
-                </Suspense>
-              }
-            />
+            <Route index lazy={lazyCampaignOverview} />
+            <Route path="annotate" lazy={lazyAnnotation} />
+            <Route path="settings" lazy={lazyCampaignSettings} />
+            <Route path="tasks" lazy={lazyCampaignTasks} />
+            <Route path="annotations" lazy={lazyReview} />
           </Route>
         </Route>
       </Route>
-      <Route
-        path="organizations/new"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <NewOrganizationPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="organizations/:orgId"
-        loader={requireOrgId}
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <OrganizationPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="settings"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <SettingsPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="sdk-auth"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <SdkAuthPage />
-          </Suspense>
-        }
-      />
+      <Route path="organizations/new" lazy={lazyNewOrganization} />
+      <Route path="organizations/:orgId" loader={requireOrgId} lazy={lazyOrganization} />
+      <Route path="settings" lazy={lazySettings} />
+      <Route path="sdk-auth" lazy={lazySdkAuth} />
       {/* Unmatched paths render a friendly 404 within the layout. */}
       <Route path="*" element={<NotFoundPage />} />
     </Route>
@@ -205,8 +115,11 @@ export const Router = () => {
   useEffect(
     () =>
       onIdle(() => {
+        // Light chunks first so they win the bandwidth race; the heavy
+        // annotation chunk (OpenLayers, Chart.js) warms last.
         prefetchWorkspaceChunks();
         prefetchCampaignChunks();
+        prefetchAnnotationChunk();
       }),
     []
   );

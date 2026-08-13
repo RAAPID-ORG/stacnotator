@@ -12,6 +12,7 @@ from src.imagery.models import (
     CollectionStacConfig,
     CollectionVizConfig,
     ImageryCollection,
+    ImageryGenerationSeries,
     ImagerySlice,
     ImagerySource,
     ImageryView,
@@ -486,6 +487,10 @@ def _update_source_in_place(
                 )
             )
 
+    generation_series_by_key, stale_generation_series = _reconcile_generation_series(
+        db, db_src, src_create
+    )
+
     pending: list[RegistrationSpec] = []
     for col_idx, col_create in enumerate(src_create.collections):
         existing_col = (
@@ -495,20 +500,76 @@ def _update_source_in_place(
         )
         if existing_col:
             pending_entry = _update_collection_in_place(
-                db, existing_col, col_create, col_idx, src_create, bbox
+                db,
+                existing_col,
+                col_create,
+                col_idx,
+                src_create,
+                bbox,
+                (
+                    generation_series_by_key.get(col_create.generation_series_key)
+                    if col_create.generation_series_key is not None
+                    else None
+                ),
             )
             if pending_entry:
                 pending.append(pending_entry)
         else:
             _, pending_entry = _create_collection_record(
-                db, db_src, src_create, col_create, col_idx, bbox
+                db,
+                db_src,
+                src_create,
+                col_create,
+                col_idx,
+                bbox,
+                (
+                    generation_series_by_key.get(col_create.generation_series_key)
+                    if col_create.generation_series_key is not None
+                    else None
+                ),
             )
             if pending_entry:
                 pending.append(pending_entry)
 
     db.flush()
+    for series in stale_generation_series:
+        db.delete(series)
+    db.flush()
     db.refresh(db_src)
     return pending
+
+
+def _reconcile_generation_series(
+    db: Session, db_src: ImagerySource, src_create: ImagerySourceCreate
+) -> tuple[dict[str, int], list[ImageryGenerationSeries]]:
+    """Upsert source-level generator inputs and resolve request keys to IDs.
+
+    This is the persistence seam for generation provenance. Collection writes
+    only receive the resolved foreign key; config ownership stays here.
+    """
+    existing = {series.id: series for series in db_src.generation_series}
+    kept: set[int] = set()
+    by_key: dict[str, int] = {}
+    for incoming in src_create.generation_series:
+        if incoming.id is not None:
+            series = existing.get(incoming.id)
+            if series is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Generation series {incoming.id} does not belong to source {db_src.id}",
+                )
+            series.config = incoming.config.model_dump(mode="json")
+            flag_modified(series, "config")
+        else:
+            series = ImageryGenerationSeries(
+                source_id=db_src.id,
+                config=incoming.config.model_dump(mode="json"),
+            )
+            db.add(series)
+            db.flush()
+        kept.add(series.id)
+        by_key[incoming.key] = series.id
+    return by_key, [series for series_id, series in existing.items() if series_id not in kept]
 
 
 def _update_collection_in_place(
@@ -518,6 +579,7 @@ def _update_collection_in_place(
     col_idx: int,
     src_create: ImagerySourceCreate,
     bbox: list[float],
+    generation_series_id: int | None,
 ) -> RegistrationSpec | None:
     """Update a collection's metadata, slices, and stac_config. Returns a
     RegistrationSpec if mosaic re-search is required."""
@@ -525,6 +587,7 @@ def _update_collection_in_place(
     db_col.cover_slice_index = col_create.cover_slice_index
     db_col.has_dedicated_cover = col_create.has_dedicated_cover
     db_col.display_order = col_idx
+    db_col.generation_series_id = generation_series_id
 
     needs_reregistration = False
     has_cover = bool(col_create.has_dedicated_cover)
@@ -671,6 +734,8 @@ def _create_source(
     db.add(source)
     db.flush()
 
+    generation_series_by_key, _ = _reconcile_generation_series(db, source, src)
+
     # Visualization templates
     for viz_idx, viz in enumerate(src.visualizations):
         db.add(
@@ -683,7 +748,19 @@ def _create_source(
 
     # Collections
     for col_idx, col_create in enumerate(src.collections):
-        _, pending_entry = _create_collection_record(db, source, src, col_create, col_idx, bbox)
+        _, pending_entry = _create_collection_record(
+            db,
+            source,
+            src,
+            col_create,
+            col_idx,
+            bbox,
+            (
+                generation_series_by_key.get(col_create.generation_series_key)
+                if col_create.generation_series_key is not None
+                else None
+            ),
+        )
         if pending_entry:
             pending.append(pending_entry)
 
@@ -699,6 +776,7 @@ def _create_collection_record(
     col_create: ImageryCollectionCreate,
     col_idx: int,
     bbox: list[float],
+    generation_series_id: int | None,
 ) -> tuple[ImageryCollection, RegistrationSpec | None]:
     """Persist a single collection (stac_config, slices, tile_urls) for a source.
 
@@ -712,6 +790,7 @@ def _create_collection_record(
         cover_slice_index=col_create.cover_slice_index,
         has_dedicated_cover=col_create.has_dedicated_cover,
         display_order=col_idx,
+        generation_series_id=generation_series_id,
     )
     db.add(collection)
     db.flush()

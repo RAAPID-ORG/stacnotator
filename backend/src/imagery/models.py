@@ -40,7 +40,7 @@ class ImagerySource(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
-    default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="14", nullable=False)
+    default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="15", nullable=False)
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
     # AES-256-GCM ciphertext of the provider API key substituted into this source's
     # {api_key} tile-URL templates. Decrypted only by the backend tile proxy.
@@ -56,6 +56,11 @@ class ImagerySource(Base):
         back_populates="source",
         cascade="all, delete-orphan",
         order_by="ImageryCollection.display_order",
+    )
+    generation_series: Mapped[list["ImageryGenerationSeries"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="ImageryGenerationSeries.id",
     )
 
     @property
@@ -83,6 +88,33 @@ class VisualizationTemplate(Base):
     source: Mapped["ImagerySource"] = relationship(back_populates="visualizations")
 
 
+class ImageryGenerationSeries(Base):
+    """Saved input for one temporal-generator run.
+
+    The normalized collection/slice rows remain authoritative for rendering.
+    This record owns the versioned authoring input needed to regenerate that
+    series; collections reference it instead of duplicating the snapshot.
+    """
+
+    __tablename__ = "imagery_generation_series"
+    __table_args__ = (
+        Index("idx_imagery_generation_series_source_id", "source_id"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_sources.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    config: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    source: Mapped["ImagerySource"] = relationship(back_populates="generation_series")
+    collections: Mapped[list["ImageryCollection"]] = relationship(
+        back_populates="generation_series"
+    )
+
+
 class ImageryCollection(Base):
     """
     Temporal grouping of slices within a source.
@@ -92,6 +124,7 @@ class ImageryCollection(Base):
     __tablename__ = "imagery_collections"
     __table_args__ = (
         Index("idx_imagery_collections_source_id", "source_id"),
+        Index("idx_imagery_collections_generation_series_id", "generation_series_id"),
         {"schema": "data"},
     )
 
@@ -109,8 +142,15 @@ class ImageryCollection(Base):
         Boolean, server_default="false", nullable=False
     )
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+    generation_series_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.imagery_generation_series.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     source: Mapped["ImagerySource"] = relationship(back_populates="collections")
+    generation_series: Mapped["ImageryGenerationSeries | None"] = relationship(
+        back_populates="collections"
+    )
     slices: Mapped[list["ImagerySlice"]] = relationship(
         back_populates="collection",
         cascade="all, delete-orphan",

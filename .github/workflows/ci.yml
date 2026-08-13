@@ -82,6 +82,16 @@ jobs:
       - name: Prettier format check
         run: npx prettier --check "src/**/*.{ts,tsx,css}"
 
+  # Deploy scripts: static check  (all branches)
+  deploy-scripts:
+    name: "Deploy: Shellcheck"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shellcheck
+        run: shellcheck -x deployment/azure/env.sh deployment/azure/deploy.sh deployment/azure/bootstrap.sh
+
   # Backend: tests in Docker  (develop + main)
   backend-test:
     name: "Backend: Tests (Docker)"
@@ -210,46 +220,8 @@ jobs:
     name: "Deploy: Azure Production"
     needs: [backend-test, docker-build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, linux, x64, azure]
-    environment: production
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # The tiler is its own repo; check it out so deploy-app.sh can build +
-      # deploy it. Needs a token with read access to the private tiler repo.
-      - name: Check out tiler repo
-        uses: actions/checkout@v4
-        with:
-          repository: RAAPID-ORG/stacnotator-tiler
-          ref: ${{ vars.TILER_REPO_REF || 'main' }}
-          token: ${{ secrets.TILER_REPO_TOKEN }}
-          path: stacnotator-tiler
-
-      - name: Azure Login via OIDC (prod identity)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID_PROD }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Deploy to Azure
-        env:
-          CI: "true"
-          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP_PROD }}
-          EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT_PROD }}
-          CUSTOM_DOMAINS: ${{ secrets.CUSTOM_DOMAINS_PROD }}
-          TILER_REPO_DIR: ${{ github.workspace }}/stacnotator-tiler
-          PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN_PROD }}
-          EXTRA_TILERS: ${{ vars.EXTRA_TILERS_PROD }}
-        run: ./azure_deploy/deploy-app.sh prod
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production
+      deploy-env: prod
+    secrets: inherit

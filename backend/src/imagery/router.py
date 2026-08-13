@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
+from src import background
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
@@ -63,10 +64,10 @@ def save_imagery(
     pending = result["pending_registrations"]
     if pending:
         # Cycle-boundary clear, not a finished-work write: this commits before the
-        # background thread spawns, so it cannot race finish_registration's append.
+        # background thread spawns, so it cannot race finish_status_run's append.
         # Without it, stale errors from a prior failed registration would sit under
         # "registering" and then have new errors stacked on top indefinitely.
-        campaign.registration_status = "registering"
+        background.begin_status_run(campaign, registration.REGISTRATION_RUN)
         campaign.registration_errors = None
     db.commit()
     if pending:
@@ -127,7 +128,7 @@ def refresh_collection_imagery(
     ]
     # Cycle-boundary clear, not a finished-work write: commits before the
     # background thread spawns, matching save_imagery's convention.
-    campaign.registration_status = "registering"
+    background.begin_status_run(campaign, registration.REGISTRATION_RUN)
     campaign.registration_errors = None
     db.commit()
     registration.spawn_background_collection_refresh(campaign.id, collection_id, bbox)

@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import type {
   CollectionItem,
   ImagerySlice,
+  ItemSortOption,
   VisualizationUrl,
   StacBrowserCollectionData,
   NamedVizParams,
   VizParams,
 } from './types';
 import { emptySlice, emptyVizParams, sliceDateRange } from './types';
+import { buildStacAutoQuery } from './stacQuery';
 import {
   IconTrash,
   IconChevronDown,
@@ -65,23 +67,11 @@ export const CollectionEditor = ({
   const defaultTilerName = hostedTilers.find((t) => t.is_default)?.name;
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const buildAutoQuery = (cloudCover: number | undefined): Record<string, unknown> => {
-    const cc = cloudCover ?? 100;
-    return {
-      collections: sb ? [sb.stacCollectionId] : [],
-      filter: {
-        op: 'and',
-        args: [
-          {
-            op: 'anyinteracts',
-            args: [{ property: 'datetime' }, { interval: ['{sliceStart}', '{sliceEnd}'] }],
-          },
-          ...(cc < 100 ? [{ op: '<=', args: [{ property: 'eo:cloud_cover' }, cc] }] : []),
-        ],
-      },
-      filterLang: 'cql2-json',
-    };
-  };
+  const buildAutoQuery = (
+    cloudCover: number | undefined,
+    itemSort: ItemSortOption | undefined
+  ): Record<string, unknown> =>
+    sb ? buildStacAutoQuery(sb.stacCollectionId, { maxCloudCover: cloudCover, itemSort }) : {};
 
   const orderedVizs: NamedVizParams[] = sb
     ? vizNames.map(
@@ -527,7 +517,8 @@ export const CollectionEditor = ({
                                   updateSb({ coverSearchQuery: q ?? undefined })
                                 }
                                 autoQuery={buildAutoQuery(
-                                  sb.coverMaxCloudCover ?? sb.maxCloudCover
+                                  sb.coverMaxCloudCover ?? sb.maxCloudCover,
+                                  sb.coverItemSort ?? sb.itemSort
                                 )}
                               />
                               <p className="text-[11px] text-neutral-500 leading-snug">
@@ -716,7 +707,7 @@ export const CollectionEditor = ({
                       <StacQueryEditor
                         value={sb.searchQuery ?? null}
                         onChange={(query) => updateSb({ searchQuery: query ?? undefined })}
-                        autoQuery={buildAutoQuery(sb.maxCloudCover)}
+                        autoQuery={buildAutoQuery(sb.maxCloudCover, sb.itemSort)}
                       />
                     </div>
                   )}

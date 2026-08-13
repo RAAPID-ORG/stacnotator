@@ -90,6 +90,25 @@ test.describe('Imagery and Visualization', () => {
     await expect(cards.filter({ hasText: 'NDVI' }).first()).toBeVisible();
   });
 
+  test('map and minimap attribution controls stay compact', async ({ annotationPage }) => {
+    const buttons = annotationPage.locator(
+      '[data-tour="main-map"] .ol-attribution button, [data-tour="minimap"] .ol-attribution button'
+    );
+    await expect(buttons).toHaveCount(2);
+
+    for (const button of await buttons.all()) {
+      // OL hides the entire attribution control when the current mocked layer
+      // has no attribution, but the button must still have compact dimensions
+      // ready for a layer that does publish one.
+      const size = await button.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { width: parseFloat(style.width), height: parseFloat(style.height) };
+      });
+      expect(size.width).toBeLessThanOrEqual(14);
+      expect(size.height).toBeLessThanOrEqual(14);
+    }
+  });
+
   test('keyboard Shift+I cycles visualization layer', async ({ annotationPage }) => {
     const page = annotationPage;
     const header = page.locator('[data-tour="main-map"]');

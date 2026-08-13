@@ -37,8 +37,7 @@ const tsOption = (page: Page, option: string) => page.locator(`[data-ts-option="
 const smoothToggle = (page: Page) => tsOption(page, 'smooth');
 const removeCloudy = (page: Page) => tsOption(page, 'remove-cloudy');
 const dotsToggle = (page: Page) => tsOption(page, 'dots');
-const resetZoomBtn = (page: Page) =>
-  page.locator('button[title="Reset zoom (double-click chart)"]');
+const resetZoomBtn = (page: Page) => page.locator('button[title="Reset zoom"]');
 const legendBtn = (page: Page, name: string) =>
   page.locator(`button[title="Hide ${name}"], button[title="Show ${name}"]`).first();
 
@@ -201,21 +200,23 @@ test.describe('Remove cloudy toggle', () => {
     await openOptions(annotationPage);
   });
 
-  test('Remove cloudy toggle is present and starts off', async ({ annotationPage }) => {
-    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'false');
+  // Cloud masking is on out of the box: an unmasked NDVI series is dominated by
+  // cloud dropouts, so the chart's useful default is the masked one.
+  test('Remove cloudy toggle is present and starts on', async ({ annotationPage }) => {
+    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'true');
   });
 
-  test('clicking Remove cloudy enables it', async ({ annotationPage }) => {
+  test('clicking Remove cloudy disables it', async ({ annotationPage }) => {
     await removeCloudy(annotationPage).click();
-    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'true', {
+    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'false', {
       timeout: 2000,
     });
   });
 
-  test('clicking Remove cloudy twice disables it again', async ({ annotationPage }) => {
+  test('clicking Remove cloudy twice restores it', async ({ annotationPage }) => {
     await removeCloudy(annotationPage).click();
     await removeCloudy(annotationPage).click();
-    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'false', {
+    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'true', {
       timeout: 2000,
     });
   });

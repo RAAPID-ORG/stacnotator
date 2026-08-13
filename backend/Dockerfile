@@ -22,8 +22,10 @@ FROM ${PYTHON_IMAGE}
 
 WORKDIR /app
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user for security. The home directory must exist and be
+# writable: google/EE client libraries probe it for config, and gunicorn logs
+# a "Permission denied: '/home/appuser'" error on every worker recycle without it.
+RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
 
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y --no-install-recommends \

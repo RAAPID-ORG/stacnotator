@@ -52,6 +52,43 @@ export interface NamedVizParams {
   vizParams: VizParams;
 }
 
+/** Lossless, versioned snapshot of the inputs used to produce a temporal
+ * collection series. Runtime rendering uses the normalized collection data;
+ * this exists so the same generator can be reopened later. */
+export interface ImageryGenerationConfig {
+  version: 1;
+  catalogUrl: string;
+  stacCollectionId: string;
+  collectionTitle: string;
+  isMpc: boolean;
+  hasCloudCover: boolean;
+  tiler?: string | null;
+  startDate: string;
+  endDate: string;
+  collectionPeriodInterval: number;
+  collectionPeriodUnit: 'weeks' | 'months' | 'years';
+  slicePeriodInterval: number;
+  slicePeriodUnit: 'days' | 'weeks' | 'months' | 'years';
+  coverMode: 'nth' | 'custom';
+  coverSliceNth: number;
+  maxCloudCover: number;
+  itemSort: ItemSortOption;
+  coverMaxCloudCover: number;
+  coverItemSort: ItemSortOption;
+  visualizations: NamedVizParams[];
+  coverVisualizations: NamedVizParams[];
+  searchQuery?: Record<string, unknown>;
+  coverSearchQuery?: Record<string, unknown>;
+  internalStorage?: boolean;
+}
+
+/** One persisted or draft generator run. Configuration has one owner here;
+ * collections refer to it by id. */
+export interface ImageryGenerationSeries {
+  id: string;
+  config: ImageryGenerationConfig;
+}
+
 export const ITEM_SORT_OPTIONS = ['date_desc', 'date_asc', 'cloud_cover_asc'] as const;
 export type ItemSortOption = (typeof ITEM_SORT_OPTIONS)[number];
 export const isItemSortOption = (v: string): v is ItemSortOption =>
@@ -97,14 +134,8 @@ export interface CollectionItem {
   /** True when the slice at coverSliceIndex is an out-of-band dedicated cover with override viz params / search query. */
   hasDedicatedCover: boolean;
   data: ManualCollectionData | StacBrowserCollectionData;
-  /** Temporal window grouping interval (maps to ImageryCreate.window_interval) */
-  windowInterval?: number | null;
-  /** Temporal window grouping unit (maps to ImageryCreate.window_unit) */
-  windowUnit?: string | null;
-  /** Slice interval within each window (maps to ImageryCreate.slicing_interval) */
-  slicingInterval?: number | null;
-  /** Slice unit within each window (maps to ImageryCreate.slicing_unit) */
-  slicingUnit?: string | null;
+  /** Source-local generation-series id; null/absent means manually authored. */
+  generationSeriesId?: string | null;
 }
 
 export interface ImagerySource {
@@ -113,6 +144,7 @@ export interface ImagerySource {
   crosshairHex6: string;
   defaultZoom: number;
   visualizations: VisualizationOption[];
+  generationSeries: ImageryGenerationSeries[];
   collections: CollectionItem[];
   /** Whether a provider API key is configured server-side (persisted sources only). */
   hasApiKey?: boolean;
@@ -154,6 +186,7 @@ export const emptySource = (): ImagerySource => ({
   crosshairHex6: 'ff0000',
   defaultZoom: 15,
   visualizations: [{ name: 'True Color' }],
+  generationSeries: [],
   collections: [],
 });
 

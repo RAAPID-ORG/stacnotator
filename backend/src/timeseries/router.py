@@ -7,6 +7,7 @@ from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
+from src.earth_engine import ensure_earth_engine
 from src.timeseries import service
 from src.timeseries.constants import (
     SUPPORTED_TIMESERIES_PROVIDERS,
@@ -86,6 +87,12 @@ def get_timeseries_data(
     # Free the pooled connection back before the slow Earth Engine call.
     ts_type, source = timeseries.ts_type, timeseries.data_source
     db.close()
+
+    if not ensure_earth_engine():
+        raise HTTPException(
+            status_code=503,
+            detail="Earth Engine is currently unavailable. Please retry in a moment.",
+        )
 
     try:
         timeseries_data_df = service.get_timeseries_data(

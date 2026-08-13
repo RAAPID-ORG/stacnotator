@@ -335,10 +335,11 @@ class UpdateCampaignNameRequest(BaseModel):
 
 
 class CampaignDuplicateRequest(BaseModel):
-    """Both switches are deliberate decisions - no defaults."""
+    """Tasks and annotations are deliberate decisions - no defaults."""
 
     include_tasks: bool
     include_annotations: bool
+    include_user_layouts: bool = True
 
 
 class UpdateCampaignGuideRequest(BaseModel):

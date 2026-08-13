@@ -33,19 +33,19 @@ def upgrade() -> None:
         text(
             """
             SELECT count(*) FROM data.campaigns c
-            LEFT JOIN data.campaign_settings s ON s.campaign_id = c.id
+            LEFT JOIN data.settings s ON s.campaign_id = c.id
             WHERE s.campaign_id IS NULL
             """
         )
     ).scalar()
     if orphans:
         raise RuntimeError(
-            f"{orphans} campaign(s) have no campaign_settings row; backfill them "
+            f"{orphans} campaign(s) have no settings row; backfill them "
             "manually before this migration (the code no longer tolerates it)."
         )
     conn.execute(
         text(
-            "UPDATE data.campaign_settings SET labelling_policy = (:policy)::jsonb "
+            "UPDATE data.settings SET labelling_policy = (:policy)::jsonb "
             "WHERE labelling_policy IS NULL OR labelling_policy = '{}'::jsonb"
         ),
         {"policy": DEFAULT_POLICY},

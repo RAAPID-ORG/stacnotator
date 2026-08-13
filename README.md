@@ -51,8 +51,8 @@ You will need a Google Account for the Firebase setup.
 
 1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project.
 2. Navigate to **Settings > General**:
-   - Note your **`FIREBASE_PROJECT_ID`**.
-   - Scroll to **Your apps > \<your-app-name\>** and note the **`FIREBASE_API_KEY`** and **`FIREBASE_AUTH_DOMAIN`** from the SDK instructions.
+   - Note your **project ID**.
+   - Scroll to **Your apps > \<your-app-name\>** and note the **API key** and **auth domain** from the SDK instructions (used as the `VITE_FIREBASE_*` variables below).
 3. Navigate to **Settings > Service Accounts**:
    - Select *Firebase Admin SDK* and click **Generate new private key**. Save the file.
 
@@ -106,7 +106,7 @@ The app will be available at:
 |---|---|
 | Frontend | http://localhost:5173 (auto-reloads) |
 | Backend | http://localhost:8000 (auto-reloads) |
-| API Docs | http://localhost:8000/docs |
+| API Docs | http://localhost:8000/api/docs (disabled in production) |
 
 #### Step 5 - Stop All Services
 
@@ -122,34 +122,37 @@ stacnotator/
 ├── docker-compose.dev.yml       # Development configuration (standalone)
 ├── docker-compose.prod.yml      # Production-like local configuration
 ├── .env.example                 # Configuration template
-├── .env.dev                     # Development configuration template
 ├── Makefile                     # Common commands (dev-* for development)
-├── azure_deploy/                # Azure deployment scripts
+├── deployment/                  # Deployment
+│   └── azure/                   # deploy.sh, bootstrap.sh, utils/ (DB sync, logs)
 ├── backend/                     # FastAPI application
 │   ├── Dockerfile               # Production build
 │   ├── Dockerfile.dev           # Development (with reload)
 │   ├── src/                     # Application code
 │   └── alembic/                 # Database migrations
-└── frontend/                    # React + Vite application
-    ├── Dockerfile               # Production build (nginx)
-    ├── Dockerfile.dev           # Development server (HMR)
-    └── src/                     # Application code
+├── frontend/                    # React + Vite application
+│   ├── Dockerfile               # Production build (nginx)
+│   ├── Dockerfile.dev           # Development server (HMR)
+│   └── src/                     # Application code
+└── sdk/                         # Python SDK (active-learning client library)
 ```
 
 ## Prerequisites
 
 - Docker Engine 20.10+
 - Docker Compose 2.0+
-- 4GB+ RAM (If using segment anything module - a GPU will be required! - currently not maintained)
+- 4GB+ RAM
 - Firebase credentials file (only if using `AUTH_PROVIDER=firebase`)
 
 ## Architecture
 
 **Services:**
 - **Frontend**: React app (Vite + OpenLayers). Backend client generated with `openapi-ts`. Deployed as Azure Static Web App in production.
-- **Backend**: FastAPI application with Gunicorn workers. Handles auth, campaigns, annotations, STAC catalog browsing, and mosaic registration.
+- **Backend**: FastAPI application (Gunicorn workers in production, uvicorn reload in dev). Handles auth, organizations/projects multi-tenancy, campaigns, annotations, STAC catalog browsing, mosaic registration, time series, and sampling design.
 - **Tiler** (optional, separate repo: [stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler)): self-hosted TiTiler + GDAL tile server. Reads COGs from STAC catalogs into a pgstac index, composites mosaics, serves PNG tiles. Only needed for non-MPC catalogs or compositing/masking - MPC imagery with first-valid compositing is served directly by Planetary Computer.
 - **Database**: PostgreSQL 16 with PostGIS (spatial queries), pgvector (embeddings)
+
+More docs: [architecture](docs/architecture.md), [features](docs/features.md), [development workflow](docs/development.md), [tile serving](docs/tile-serving.md), [tilers](docs/tilers.md), [labelling policy](docs/labelling-policy.md).
 
 ## Development
 
@@ -166,20 +169,30 @@ make dev-up
 make dev-logs-backend      # Backend logs only
 make dev-shell-backend     # Backend shell
 make dev-migrate           # Run database migrations
+make dev-openapi           # Regenerate the frontend API client from the running backend
 make dev-down              # Stop all services
+
+# Quality gates (CI runs the same)
+make test                  # backend + SDK + E2E tests
+make lint                  # ruff + eslint
+make typecheck             # mypy + tsc
+make ci-check              # everything above + format checks
 ```
 
 ### Imagery providers locally
 
-The dev stack runs **db + backend + frontend only** - no tiler. That fully covers
+By default the dev stack runs **db + backend + frontend** - no tiler. That fully covers
 **Microsoft Planetary Computer (MPC) imagery with first-valid compositing**, which is
 served straight from MPC (no tiler in the path).
 
-A tiler is only needed for imagery from **outside MPC** (custom STAC catalogs) or for
-any additional **compositing / masking** (median, mean, NDVI-best, SCL masks). To use those:
-
-1. Clone and run the tiler ([stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler)) - `docker compose up` there brings up its own pgstac + tiler on `:8000`.
-2. Uncomment/set `TILERS` and `DEFAULT_TILER` on the `backend` service in `docker-compose.dev.yml` (an example is in the file).
+A tiler is only needed for imagery from **outside MPC** (custom STAC catalogs), for
+any additional **compositing / masking** (median, mean, NDVI-best, SCL masks), or for
+custom-map COG overlays. An optional tiler ships behind a compose profile: set
+`COMPOSE_PROFILES=tiler` plus `TILERS` and `DEFAULT_TILER` in your `.env` (the exact
+values are in `.env.example`) and the dev stack brings up the tiler + its own pgstac
+on `TILER_PORT` (default `8083`). The image is built straight from the
+[stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler) GitHub repo, so no
+separate checkout is needed; override `TILER_CONTEXT` with a local path to build your own.
 
 Without a tiler configured, the backend's tiler registry is empty and non-MPC or
 compositing imagery is rejected when you try to add it in campaign setup.
@@ -209,10 +222,12 @@ make pre-commit-install
 
 STACNotator supports multiple deployment options (or maybe only one at the moment):
 
-- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deploy-app.sh`. See `azure_deploy/README.md`.
-   - Deployment: Prod deploys automatically via CI on push to `main` (gated by a `production` GitHub Environment approval); dev deploys via the manual `Deploy Dev` workflow. `deploy-app.sh` can also be run locally from within VPN as a fallback (`make az-deploy-dev`, followed by `make az-sync-prod-to-dev` to fill the dev db with current prod data). We also provide a script to grant admin access to a Firebase user by ID for the initial user after deployment (See `azure_deploy/grant-admin.sh`).
+- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deployment/azure/deploy.sh`. See `deployment/azure/README.md`.
+   - Deployment: Prod deploys automatically via CI on push to `main` (gated by a `production` GitHub Environment approval); dev deploys via the manual `Deploy Dev` workflow. `deploy.sh` can also be run locally from within VPN as a fallback (`make az-deploy-dev`, followed by `make az-sync-prod-to-dev` to fill the dev db with current prod data).
 
 - **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure and we do not maintain any secure configs for bare metal deployments.
+
+Any production deployment must replace the dev-default secrets: with `ENVIRONMENT=production` the backend refuses to start while `TILER_TOKEN_SECRET` or `APIKEY_ENCRYPTION_SECRET` still hold their dev defaults (on Azure, `bootstrap.sh` generates both).
 
 ## Contributing
 This project welcomes contributions and proposals. Please open up a issue deiscribing your requirements, proposed solutions or  encountered bugs. Check the [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.

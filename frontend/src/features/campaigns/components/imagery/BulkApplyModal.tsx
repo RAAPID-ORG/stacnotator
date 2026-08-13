@@ -13,6 +13,7 @@ import type {
   VizParams,
 } from './types';
 import { emptyVizParams } from './types';
+import { buildStacAutoQuery } from './stacQuery';
 import { VizConfigPanel } from './VizConfigPanel';
 import { CoverSearchParams } from './CoverSearchParams';
 import type { ImageryController } from './controller';
@@ -158,27 +159,6 @@ const applyCoverSearch = (source: ImagerySource, s: SearchValue): CollectionItem
         }
       : c
   );
-
-const buildAutoQuery = (
-  stacCollectionId: string,
-  cloudCover: number | undefined
-): Record<string, unknown> => {
-  const cc = cloudCover ?? 100;
-  return {
-    collections: [stacCollectionId],
-    filter: {
-      op: 'and',
-      args: [
-        {
-          op: 'anyinteracts',
-          args: [{ property: 'datetime' }, { interval: ['{sliceStart}', '{sliceEnd}'] }],
-        },
-        ...(cc < 100 ? [{ op: '<=', args: [{ property: 'eo:cloud_cover' }, cc] }] : []),
-      ],
-    },
-    filterLang: 'cql2-json',
-  };
-};
 
 interface AspectSectionProps {
   title: string;
@@ -390,7 +370,10 @@ const SearchFocus = ({
       onItemSortChange={(v) => setDraft({ ...draft, itemSort: v })}
       searchQuery={draft.searchQuery ?? null}
       onSearchQueryChange={(q) => setDraft({ ...draft, searchQuery: q ?? undefined })}
-      autoQuery={buildAutoQuery(collectionId, draft.maxCloudCover)}
+      autoQuery={buildStacAutoQuery(collectionId, {
+        maxCloudCover: draft.maxCloudCover,
+        itemSort: draft.itemSort,
+      })}
       queryLabel={queryLabel}
     />
   );

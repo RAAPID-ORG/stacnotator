@@ -34,7 +34,14 @@ async function loadWithTimeseries(page: Page, api: ApiCapture): Promise<void> {
 
 const chartCanvas = (page: Page) => page.locator('[data-tour="timeseries"] canvas');
 // The main-map slice dropdown reflects which slice is shown in the main view.
-const mainSliceBtn = (page: Page) => page.locator('button[title="Select time slice (a/d)"]');
+// Its title carries the live hotkey hint, so match on the stable prefix.
+const mainSliceBtn = (page: Page) =>
+  page.locator('[data-tour="map-controls"] button[title^="Select time slice"]');
+
+// The y-axis tick labels occupy the leftmost sliver of the canvas, and chart.js
+// only delivers onClick for points inside the plot area - so "the left edge of
+// the series" has to be a fraction just clear of that gutter.
+const LEFT_EDGE = 0.12;
 
 // Click the chart at a horizontal fraction of its width (0 = earliest dates,
 // 1 = latest); out-of-plot x values clamp to the first/last label.
@@ -92,7 +99,7 @@ test.describe('Click timeseries to select nearest slice', () => {
       timeout: 3000,
     });
 
-    await clickChartAtFraction(annotationPage, 0.05);
+    await clickChartAtFraction(annotationPage, LEFT_EDGE);
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name, {
       timeout: 3000,
     });
@@ -116,7 +123,7 @@ test.describe('Click timeseries to select nearest slice', () => {
   }) => {
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name);
 
-    await clickChartAtFraction(annotationPage, 0.05);
+    await clickChartAtFraction(annotationPage, LEFT_EDGE);
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name);
   });
 });
@@ -143,8 +150,8 @@ async function loadMonthsCampaign(page: Page, api: ApiCapture): Promise<void> {
   api.clear();
 }
 
-// The header of the window card whose collection is currently active.
-const activeWindowTitle = (page: Page) => page.locator('.active-window .card-header').first();
+// Exactly one imagery window header marks itself as the active collection.
+const activeWindowName = (page: Page) => page.locator('[data-window-active="true"]');
 
 test.describe('Chart click switches active collection (month-per-collection)', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
@@ -153,10 +160,7 @@ test.describe('Chart click switches active collection (month-per-collection)', (
   });
 
   test('starts on the first collection (Mar 2022) cover slice', async ({ annotationPage }) => {
-    await expect(activeWindowTitle(annotationPage)).toHaveAttribute(
-      'title',
-      `Imagery - ${COLLECTION_MAR_2022.name}`
-    );
+    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_MAR_2022.name);
     await expect(mainSliceBtn(annotationPage)).toContainText('Cover');
   });
 
@@ -167,39 +171,31 @@ test.describe('Chart click switches active collection (month-per-collection)', (
 
     await clickChartAtFraction(annotationPage, 0.95);
 
-    await expect(activeWindowTitle(annotationPage)).toHaveAttribute(
-      'title',
-      `Imagery - ${COLLECTION_SEP_2022.name}`,
-      { timeout: 3000 }
-    );
+    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_SEP_2022.name, {
+      timeout: 3000,
+    });
     await tileArrived;
   });
 
   test('a specific weekly slice is selected, not the month Cover', async ({ annotationPage }) => {
     await clickChartAtFraction(annotationPage, 0.95);
 
-    await expect(activeWindowTitle(annotationPage)).toHaveAttribute(
-      'title',
-      `Imagery - ${COLLECTION_SEP_2022.name}`,
-      { timeout: 3000 }
-    );
+    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_SEP_2022.name, {
+      timeout: 3000,
+    });
     // Midpoint matching prefers the narrow weekly slice over the month Cover.
     await expect(mainSliceBtn(annotationPage)).not.toContainText('Cover');
   });
 
   test('clicking back near spring returns to Mar 2022', async ({ annotationPage }) => {
     await clickChartAtFraction(annotationPage, 0.95);
-    await expect(activeWindowTitle(annotationPage)).toHaveAttribute(
-      'title',
-      `Imagery - ${COLLECTION_SEP_2022.name}`,
-      { timeout: 3000 }
-    );
+    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_SEP_2022.name, {
+      timeout: 3000,
+    });
 
     await clickChartAtFraction(annotationPage, 0.18);
-    await expect(activeWindowTitle(annotationPage)).toHaveAttribute(
-      'title',
-      `Imagery - ${COLLECTION_MAR_2022.name}`,
-      { timeout: 3000 }
-    );
+    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_MAR_2022.name, {
+      timeout: 3000,
+    });
   });
 });
