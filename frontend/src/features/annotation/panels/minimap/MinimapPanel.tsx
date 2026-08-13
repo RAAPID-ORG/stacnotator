@@ -282,22 +282,14 @@ export function MinimapBody({ ctx }: { ctx: ComposeCtx }) {
     dragCleanup.current = cleanup;
   };
 
-  const handleWheelCapture = (e: React.WheelEvent) => {
-    if (e.deltaY === 0) return;
-    e.stopPropagation();
-    e.preventDefault();
-    minimapCamera.zoomBy(e.deltaY < 0 ? 1 : -1);
-  };
-
   return (
     <div
       ref={containerRef}
       data-minimap-zoom={minimapZoom}
       className={`relative h-full w-full ${previewBounds ? 'cursor-grabbing' : ''}`}
       onPointerDownCapture={handlePointerDownCapture}
-      onWheelCapture={handleWheelCapture}
     >
-      <MapView camera={minimapCamera} layers={layers} wheelZoom="modifier" />
+      <MapView camera={minimapCamera} layers={layers} wheelZoom="plain" />
     </div>
   );
 }
