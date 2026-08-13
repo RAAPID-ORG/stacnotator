@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "benchmark:campaign-113": "RUN_CAMPAIGN_BENCHMARK=1 playwright test e2e/campaign-113-benchmark.spec.ts --project=chromium --workers=1 --reporter=line"
   },
   "overrides": {
     "esbuild": "^0.28.1"

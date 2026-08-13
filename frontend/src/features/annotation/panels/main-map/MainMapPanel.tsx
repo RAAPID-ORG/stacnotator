@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { extendedLabels } from '~/features/annotation/core/annotation';
 import { collectionsInView } from '~/features/annotation/core/catalog';
 import { computeTaskProgress } from '~/features/annotation/core/tasks';
@@ -10,6 +10,10 @@ import {
   useWorkspaceStore,
 } from '~/features/annotation/stores';
 import { mainCamera } from '~/features/annotation/shared/cameras';
+import {
+  setForegroundMapLoading,
+  useForegroundLoading,
+} from '~/features/annotation/shared/foregroundTileLoads';
 import { useContainerSize } from '~/features/annotation/engine/canvas';
 import {
   MapView,
@@ -179,6 +183,9 @@ export function MainMapBody({ ctx }: MainMapProps) {
   const writes = useAnnotationVersion();
   const focus = useMapFocus();
   const { containerRef, width, height } = useContainerSize();
+  const [mapLoading, setMapLoading] = useState(false);
+  const foregroundLoading = useForegroundLoading();
+  useEffect(() => () => setForegroundMapLoading('main', false), []);
 
   const annotations = useMemo<AnnotationTileState>(
     () => ({
@@ -234,6 +241,7 @@ export function MainMapBody({ ctx }: MainMapProps) {
 
   usePreloading(ctx, {
     enabled: mode === 'tasks',
+    activeLoading: foregroundLoading,
     focus: focus?.center ?? null,
     // The tasks the user is about to reach, so their imagery is warm by the
     // time they get there - the whole point of the upcoming tier.
@@ -261,6 +269,7 @@ export function MainMapBody({ ctx }: MainMapProps) {
         data-crosshair-lat={focus?.center?.[1]}
         data-probe-lon={probePoint?.[0]}
         data-probe-lat={probePoint?.[1]}
+        data-map-loading={mapLoading}
         className="relative h-full min-w-0 flex-1"
       >
         <MapView
@@ -269,6 +278,10 @@ export function MainMapBody({ ctx }: MainMapProps) {
           interactions={interactions}
           onClick={onMapClick}
           onTileStats={handleTileStats}
+          onLoadStateChange={(loading) => {
+            setMapLoading(loading);
+            setForegroundMapLoading('main', loading);
+          }}
         />
         <CustomMapLegend catalog={catalog} />
       </div>

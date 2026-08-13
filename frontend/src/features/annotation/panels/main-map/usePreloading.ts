@@ -185,6 +185,8 @@ function defaultZoomFor(catalog: Catalog, active: SliceAddress | null, fallback:
 
 export interface PreloadingOptions {
   enabled: boolean;
+  /** Foreground map traffic always outranks speculative work. */
+  activeLoading: boolean;
   /** Where the map is centred now (the task point in tasks mode). */
   focus: LonLat | null;
   /** Centres the user is about to be shown, most imminent first. */
@@ -193,10 +195,12 @@ export interface PreloadingOptions {
 }
 
 export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void {
-  const { enabled, focus, upcoming, viewportPx = null } = options;
+  const { enabled, activeLoading, focus, upcoming, viewportPx = null } = options;
   const tier = usePrefsStore((s) => s.preloadTier);
   const concurrency = preloadConcurrency(tier);
   const preloaderRef = useRef<TilePreloader | null>(null);
+  const activeLoadingRef = useRef(activeLoading);
+  activeLoadingRef.current = activeLoading;
 
   useEffect(() => {
     if (!enabled || concurrency === 0) return;
@@ -225,13 +229,21 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
     const unsubscribe = mainCamera.onChange(() => {
       preloaderRef.current?.pause();
       if (settle) clearTimeout(settle);
-      settle = setTimeout(() => preloaderRef.current?.resume(), SETTLE_MS);
+      settle = setTimeout(() => {
+        if (!activeLoadingRef.current) preloaderRef.current?.resume();
+      }, SETTLE_MS);
     });
     return () => {
       unsubscribe();
       if (settle) clearTimeout(settle);
     };
   }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (activeLoading) preloaderRef.current?.pause();
+    else preloaderRef.current?.resume();
+  }, [activeLoading, enabled]);
 
   const sourceIds = ctx.view?.source_ids;
   const address = useImageryStore((s) => s.address);
@@ -241,28 +253,27 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
     const preloader = preloaderRef.current;
     if (!preloader || !focus || !sourceIds) return;
 
+    // Focus/address changes enqueue synchronously, while CameraController
+    // coalesces its change notification to the next animation frame. Pause at
+    // this boundary so enqueueMany cannot drain a speculative request before
+    // the foreground map has even announced that it is loading.
+    preloader.pause();
+    const settle = setTimeout(() => {
+      if (!activeLoadingRef.current) preloader.resume();
+    }, SETTLE_MS);
+
     // A new focus makes the queued neighbourhood stale. clearCache() as well
     // as clear(): the seen-URL set is what stops a tile being queued twice,
     // and leaving it populated turns every later enqueue into a no-op.
     preloader.clear();
     preloader.clearCache();
 
-    const zoom = mainCamera.getState().zoom;
-    const jobs = coverSliceJobs({
-      catalog: ctx.catalog,
-      sourceIds,
-      around: focus,
-      zoom,
-      priority: PRIORITY_CURRENT,
-      viewportPx,
-      excludeCollectionId: address?.collectionId ?? null,
-      active: address,
-    });
+    const jobs: PreloadJob[] = [];
     // Upcoming centres are prefetched at the source's default zoom, not the
     // user's current one: that is the zoom the next task will open at, and
     // tiles fetched at a zoom nobody lands on are wasted bandwidth
     // (useTilePreloading.ts:325).
-    const upcomingZoom = defaultZoomFor(ctx.catalog, address, zoom);
+    const upcomingZoom = defaultZoomFor(ctx.catalog, address, mainCamera.getState().zoom);
     for (const center of upcoming ?? []) {
       jobs.push(
         ...coverSliceJobs({
@@ -279,6 +290,7 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
     if (jobs.length > 0) preloader.enqueueMany(jobs);
     // upcomingKey stands in for the upcoming array's contents; the array
     // itself is rebuilt by the caller on every render.
+    return () => clearTimeout(settle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.catalog, sourceIds, focus, address, viewportPx, upcomingKey, concurrency, enabled]);
 }

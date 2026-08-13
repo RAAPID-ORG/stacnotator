@@ -123,6 +123,7 @@ describe('usePreloading upcoming centres', () => {
     const { unmount } = renderHook(() =>
       usePreloading(ctx, {
         enabled: true,
+        activeLoading: false,
         focus: [5, 50],
         upcoming: [[6, 51]],
         viewportPx: [800, 600],
@@ -134,22 +135,53 @@ describe('usePreloading upcoming centres', () => {
     expect(upcoming.length).toBeGreaterThan(0);
     // The upcoming extent is around the next task's centre, not this one's.
     expect(upcoming.every((job) => job.extent[0] < 6 && job.extent[2] > 6)).toBe(true);
-    expect(jobs.some((job) => job.priority === PRIORITY_CURRENT)).toBe(true);
+    expect(jobs.some((job) => job.priority === PRIORITY_CURRENT)).toBe(false);
 
     unmount();
   });
 
-  it('queues only the current focus when nothing is coming next', () => {
+  it('queues nothing when nothing is coming next because visible maps own the current focus', () => {
     const enqueueMany = vi
       .spyOn(TilePreloader.prototype, 'enqueueMany')
       .mockImplementation(() => {});
 
     const { unmount } = renderHook(() =>
-      usePreloading(ctx, { enabled: true, focus: [5, 50], viewportPx: [800, 600] })
+      usePreloading(ctx, {
+        enabled: true,
+        activeLoading: false,
+        focus: [5, 50],
+        viewportPx: [800, 600],
+      })
     );
 
-    const jobs = enqueueMany.mock.calls[0][0];
-    expect(jobs.every((job) => job.priority === PRIORITY_CURRENT)).toBe(true);
+    expect(enqueueMany).not.toHaveBeenCalled();
+
+    unmount();
+  });
+
+  it('pauses speculative requests until the foreground map is idle', () => {
+    const pause = vi.spyOn(TilePreloader.prototype, 'pause');
+    const resume = vi.spyOn(TilePreloader.prototype, 'resume');
+    const enqueueMany = vi
+      .spyOn(TilePreloader.prototype, 'enqueueMany')
+      .mockImplementation(() => {});
+
+    const { rerender, unmount } = renderHook(
+      ({ activeLoading }) =>
+        usePreloading(ctx, {
+          enabled: true,
+          activeLoading,
+          focus: [5, 50],
+          upcoming: [[6, 51]],
+          viewportPx: [800, 600],
+        }),
+      { initialProps: { activeLoading: true } }
+    );
+
+    expect(pause).toHaveBeenCalled();
+    expect(pause.mock.invocationCallOrder[0]).toBeLessThan(enqueueMany.mock.invocationCallOrder[0]);
+    rerender({ activeLoading: false });
+    expect(resume).toHaveBeenCalled();
 
     unmount();
   });

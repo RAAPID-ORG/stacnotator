@@ -42,10 +42,16 @@ export interface MapViewProps {
   onClick?: (e: MapClickEvent) => void;
   onHoverFeature?: (hit: { layerId: LayerId; featureId: string | number } | null) => void;
   onTileStats?: (layerId: LayerId, stats: TileStats) => void;
+  /** Reports whether this map has foreground source loads in flight. */
+  onLoadStateChange?: (loading: boolean) => void;
   wheelZoom?: 'plain' | 'modifier';
   onModifierHint?: () => void;
   minZoom?: number;
   maxZoom?: number;
+  /** Upper bound for concurrent tile loads owned by this map. Full-size maps
+   *  can use the default; pages with many small maps must keep this low so one
+   *  panel cannot occupy the browser/tiler queue ahead of every panel after it. */
+  maxTilesLoading?: number;
   attributionCollapsed?: boolean;
   className?: string;
 }
@@ -94,10 +100,12 @@ export function MapView({
   onClick,
   onHoverFeature,
   onTileStats,
+  onLoadStateChange,
   wheelZoom = 'plain',
   onModifierHint,
   minZoom,
   maxZoom,
+  maxTilesLoading = 64,
   attributionCollapsed = true,
   className = 'w-full h-full',
 }: MapViewProps) {
@@ -110,9 +118,23 @@ export function MapView({
 
   // Handlers change on most renders; the map is built once, so it reads them
   // through a ref instead of being rebuilt.
-  const handlers = useRef({ onClick, onHoverFeature, onTileStats, wheelZoom, camera });
+  const handlers = useRef({
+    onClick,
+    onHoverFeature,
+    onTileStats,
+    onLoadStateChange,
+    wheelZoom,
+    camera,
+  });
   useEffect(() => {
-    handlers.current = { onClick, onHoverFeature, onTileStats, wheelZoom, camera };
+    handlers.current = {
+      onClick,
+      onHoverFeature,
+      onTileStats,
+      onLoadStateChange,
+      wheelZoom,
+      camera,
+    };
   });
 
   useEffect(() => {
@@ -122,7 +144,7 @@ export function MapView({
     const map = new OLMap({
       target: container,
       layers: [],
-      maxTilesLoading: 64,
+      maxTilesLoading,
       view: camera.getView(),
       controls: [
         new ScaleLine({ units: 'metric', minWidth: 48 }),
@@ -141,6 +163,8 @@ export function MapView({
       ]),
     });
     mapRef.current = map;
+    map.on('loadstart', () => handlers.current.onLoadStateChange?.(true));
+    map.on('loadend', () => handlers.current.onLoadStateChange?.(false));
 
     const sketchLayer: SketchLayer = new VectorLayer({
       source: new VectorSource(),
@@ -199,6 +223,7 @@ export function MapView({
       // rest of the session - once per map ever unmounted.
       map.setView(new View());
       map.setTarget(undefined);
+      handlers.current.onLoadStateChange?.(false);
       mapRef.current = null;
     };
     // Built once: the camera owns the view, and every prop above is read through refs.

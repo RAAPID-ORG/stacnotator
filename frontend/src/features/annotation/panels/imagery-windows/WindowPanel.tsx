@@ -10,6 +10,7 @@ import { useImageryStore, usePrefsStore, type ImageryState } from '~/features/an
 import { useAnnotationVersion } from '~/features/annotation/shared/annotationVersion';
 import { cameraFor, mainCamera, releaseCamera } from '~/features/annotation/shared/cameras';
 import { useMapFocus } from '~/features/annotation/shared/mapFocus';
+import { setForegroundMapLoading } from '~/features/annotation/shared/foregroundTileLoads';
 import {
   composeLayers,
   emptySliceFrom,
@@ -190,6 +191,7 @@ export function WindowBody({ ctx, collection }: WindowProps) {
 
   useEffect(
     () => () => {
+      setForegroundMapLoading(`window:${collection.id}`, false);
       releaseCamera(collection.id);
     },
     [collection.id]
@@ -272,8 +274,12 @@ export function WindowBody({ ctx, collection }: WindowProps) {
           camera={camera}
           layers={layers}
           wheelZoom="modifier"
+          maxTilesLoading={4}
           onModifierHint={onModifierHint}
           onTileStats={handleTileStats}
+          onLoadStateChange={(loading) =>
+            setForegroundMapLoading(`window:${collection.id}`, loading)
+          }
         />
       )}
       {showHint && <StatusPill>Hold Ctrl/Cmd to zoom</StatusPill>}
