@@ -12,7 +12,7 @@ import { handleError } from '~/shared/utils/errorHandler';
 const INITIAL_CAMERA = { center: [0, 0] as [number, number], zoom: 2 };
 
 /** Working zoom when no imagery source declares one. */
-export const DEFAULT_MAP_ZOOM = 10;
+export const DEFAULT_MAP_ZOOM = 15;
 
 export const mainCamera: CameraController = createCamera(INITIAL_CAMERA);
 
@@ -71,7 +71,7 @@ export function fitBbox(bbox: Bbox): void {
 
 /** Frame every annotation in the campaign: the server knows their extent, and
  *  a campaign with none leaves the camera alone. Lives with the cameras rather
- *  than in main-map's cameraBus because Explore's controls panel offers the
+ *  than in main-map's camera commands because Explore's controls panel offers the
  *  another. */
 export async function fitAnnotations(campaignId: number): Promise<boolean> {
   try {
@@ -116,7 +116,7 @@ export interface LoadCameraInput {
  *
  * A deep link is the most specific instruction there is, so it wins - and only
  * in Explore, which is the only mode that link is offered from. Tasks work is
- * refocus); Explore has no single point to sit on, so it frames the campaign.
+ * task-centered; Explore opens at the campaign center and working zoom.
  */
 export function loadCameraTarget(input: LoadCameraInput): CameraTarget | null {
   const zoom = input.workingZoom ?? DEFAULT_MAP_ZOOM;
@@ -126,7 +126,13 @@ export function loadCameraTarget(input: LoadCameraInput): CameraTarget | null {
   if (input.mode === 'tasks') {
     return input.taskCenter ? { kind: 'center', center: input.taskCenter, zoom } : null;
   }
-  return input.campaignBbox ? { kind: 'fit', bbox: input.campaignBbox } : null;
+  if (!input.campaignBbox) return null;
+  const [west, south, east, north] = input.campaignBbox;
+  return {
+    kind: 'center',
+    center: [(west + east) / 2, (south + north) / 2],
+    zoom,
+  };
 }
 
 /**
@@ -148,4 +154,13 @@ export function applyCameraTarget(target: CameraTarget | null): void {
   if (!target) return;
   if (target.kind === 'fit') fitBbox(target.bbox);
   else mainCamera.moveTo({ center: target.center, zoom: target.zoom });
+}
+
+/** Move the first-view authoring canvas to its useful default scale without
+ *  discarding the campaign centre chosen during the initial load. */
+export function focusFirstViewSetup(workingZoom: number | null): void {
+  mainCamera.moveTo({
+    center: mainCamera.getState().center,
+    zoom: workingZoom ?? DEFAULT_MAP_ZOOM,
+  });
 }

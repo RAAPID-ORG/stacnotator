@@ -3,21 +3,12 @@ import type { WorkMode } from '~/features/annotation/stores';
 import {
   applyCameraTarget,
   fitAnnotations,
-  fitBbox,
   focusCameraTarget,
   mainCamera,
 } from '~/features/annotation/shared/cameras';
-import {
-  getMapFocus,
-  setMapFocus,
-  useMapFocus,
-  type MapFocus,
-} from '~/features/annotation/shared/mapFocus';
+import { getMapFocus, useMapFocus } from '~/features/annotation/shared/mapFocus';
 
-export { getMapFocus, setMapFocus, useMapFocus, type MapFocus };
-// Explore's controls panel offers the same fit command, so it lives with the
-// cameras; the map keeps reaching it here.
-export { fitAnnotations, fitBbox };
+export { fitAnnotations };
 
 const PAN_DISTANCE_PIXELS = 100;
 const ZOOM_ANIMATION_MS = 200;
@@ -49,16 +40,8 @@ export function recenter(): void {
   mainCamera.moveTo({ center: focus.center });
 }
 
-/**
- * Keeps the leader camera on whatever the map is pointed at. In tasks mode the
- * focus moves with the current task, and the map has to follow it - navigating
- * to a task the camera never visits is the whole feature. Nothing else drives
- * the camera from state, so this is the one subscription.
- *
- * The working zoom is read at move time rather than depended on: cycling the
- * imagery source changes it, and that must not yank the camera the user just
- * positioned.
- */
+/** Keeps the leader camera on the shared focus. Working zoom is read at move
+ *  time so cycling imagery never yanks a camera the user just positioned. */
 export function useFocusCamera(mode: WorkMode, workingZoom: number | null): void {
   const focus = useMapFocus();
   const center = focus?.center ?? null;

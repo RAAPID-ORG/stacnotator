@@ -9,7 +9,7 @@ import { keyLabel, type Binding } from '~/features/annotation/engine/hotkeys';
 import type { ComposeCtx } from '../../composition';
 import { toggleTimeseriesTool } from '../../shared/toolState';
 import { fallbackCollectionFor } from '../../shared/viewSelection';
-import { fitAnnotations, pan, recenter, zoom } from './cameraBus';
+import { fitAnnotations, pan, recenter, zoom } from './cameraCommands';
 
 /** Holding A/D scrubs the time series at a readable cadence; OS key-repeat is
  *  far too fast for imagery to keep up with. */

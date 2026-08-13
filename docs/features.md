@@ -99,7 +99,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Slice cycling (A/D), collection cycling (Shift+A/Shift+D), imagery source cycling incl. basemaps (I), visualization switching (Shift+I), view switching (U), vector layer toggle/cycle (V/Shift+V)
 - Crosshair for task location with configurable color per source
 - Sample extent polygon display
-- Location search in the minimap (Photon geocoder); guided tour auto-shown on first campaign open
+- Location search in the minimap (Photon geocoder); guided tour auto-shown on first established-workspace open (deferred while an admin creates the first view)
 
 ### Empty Tile Detection
 - Tiles returning 204 show diagonal hatching pattern
@@ -158,7 +158,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 
 Post-creation editing via the settings page (three tabs):
 - General: name, guide markdown, bounding box, sample extent, labels, custom form fields, labelling access, embedding year, danger zone
-- Imagery: source display settings, visualization params (same UI as creation), collection refresh, add/remove visualizations
+- Imagery: source display settings, visualization params, collection refresh, add/remove visualizations, and independently reopening any saved temporal generator to regenerate its series (unrelated/manual collections are preserved by default after an explicit choice)
 - Time Series: add/remove configurations
 
 Tasks (upload, generate, assign, move between sets, delete) live on the campaign's separate Tasks page; members and roles are managed in the project settings. Project visibility is a project attribute, not a campaign one.

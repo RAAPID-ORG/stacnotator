@@ -12,17 +12,7 @@ import {
 import { useImageryStore, usePrefsStore, useSessionStore } from '~/features/annotation/stores';
 import { getMapFocus } from '~/features/annotation/shared/mapFocus';
 import { setProbePoint, useInteractionSpec } from '~/features/annotation/shared/interactionSpec';
-import {
-  goToAnnotationNumber,
-  initTaskList,
-  next,
-  previous,
-  getTaskListState,
-  replaceTask,
-  resetTaskList,
-  setKnnValidationEnabled,
-  syncMapFocus,
-} from './taskListBus';
+import { useTaskSessionStore } from './taskSession.store';
 
 const CAMPAIGN = makeCampaign({
   imagery_sources: [
@@ -55,59 +45,68 @@ function task(id: number, annotationNumber: number, lon: number, lat: number): A
 const TASK_A = task(1, 1, 0, 0);
 const TASK_B = task(2, 2, 10, 10);
 
+function initialize(tasks: AnnotationTaskOut[], catalog = CATALOG): void {
+  useTaskSessionStore.getState().initialize({
+    tasks,
+    taskSets: [],
+    filter: FILTER,
+    currentUserId: 'u1',
+    now: 0,
+    catalog,
+  });
+}
+
 afterEach(() => {
-  resetTaskList();
+  useTaskSessionStore.getState().reset();
   useImageryStore.setState({ address: null, emptyScope: null });
   usePrefsStore.setState({ pinnedStart: {} });
   useSessionStore.setState({ selectedViewId: null, taskStartCollectionId: null });
 });
 
-describe('taskListBus KNN validation toggle', () => {
+describe('task session KNN validation toggle', () => {
   it('starts off', () => {
-    expect(getTaskListState().knnValidationEnabled).toBe(false);
+    expect(useTaskSessionStore.getState().knnValidationEnabled).toBe(false);
   });
 
   it('resets back off after the user turned it on', () => {
-    setKnnValidationEnabled(true);
-    expect(getTaskListState().knnValidationEnabled).toBe(true);
+    useTaskSessionStore.getState().setKnnValidationEnabled(true);
+    expect(useTaskSessionStore.getState().knnValidationEnabled).toBe(true);
 
-    resetTaskList();
-    expect(getTaskListState().knnValidationEnabled).toBe(false);
+    useTaskSessionStore.getState().reset();
+    expect(useTaskSessionStore.getState().knnValidationEnabled).toBe(false);
   });
 });
 
-describe('taskListBus map focus', () => {
+describe('task session map focus', () => {
   it('next() and previous() push the new current task location into shared/mapFocus', () => {
     useImageryStore
       .getState()
       .setAddress({ sourceId: 1, collectionId: 1, sliceIndex: 0, vizId: '1' });
-    initTaskList([TASK_A, TASK_B], [], FILTER, 'u1', 0);
-    syncMapFocus(CATALOG); // what the panel's initial-load effect does
+    initialize([TASK_A, TASK_B]);
 
     expect(getMapFocus()?.center).toEqual([0, 0]);
     expect(getMapFocus()?.crosshairColor).toBe('#ff0000');
 
-    next(CATALOG);
+    useTaskSessionStore.getState().next(CATALOG);
     expect(getMapFocus()?.center).toEqual([10, 10]);
 
-    previous(CATALOG);
+    useTaskSessionStore.getState().previous(CATALOG);
     expect(getMapFocus()?.center).toEqual([0, 0]);
   });
 
   it('carries the centres of the tasks after this one, which is what the preloader fetches ahead', () => {
-    initTaskList([TASK_A, TASK_B], [], FILTER, 'u1', 0);
-    syncMapFocus(CATALOG);
+    initialize([TASK_A, TASK_B]);
 
     expect(getMapFocus()?.upcoming).toEqual([[10, 10]]);
 
-    next(CATALOG);
+    useTaskSessionStore.getState().next(CATALOG);
     expect(getMapFocus()?.upcoming).toEqual([]);
   });
 
   it('goToAnnotationNumber() updates the focus to the jumped-to task', () => {
-    initTaskList([TASK_A, TASK_B], [], FILTER, 'u1', 0);
+    initialize([TASK_A, TASK_B]);
 
-    goToAnnotationNumber(2, CATALOG);
+    useTaskSessionStore.getState().goToAnnotationNumber(2, CATALOG);
 
     expect(getMapFocus()?.center).toEqual([10, 10]);
   });
@@ -128,16 +127,14 @@ describe('taskListBus map focus', () => {
     });
     useSessionStore.setState({ selectedViewId: 9, taskStartCollectionId: 72 });
     usePrefsStore.setState({ pinnedStart: { 9: 72 } });
-    initTaskList([TASK_A, TASK_B], [], FILTER, 'u1', 0);
-
-    syncMapFocus(catalog);
+    initialize([TASK_A, TASK_B], catalog);
     expect(useImageryStore.getState().address?.collectionId).toBe(72);
 
     useImageryStore.getState().setActiveCollection(catalog, 71);
-    replaceTask({ ...TASK_A, task_status: 'done' }, catalog);
+    useTaskSessionStore.getState().replaceTask({ ...TASK_A, task_status: 'done' }, catalog);
     expect(useImageryStore.getState().address?.collectionId).toBe(71);
 
-    next(catalog);
+    useTaskSessionStore.getState().next(catalog);
     expect(useImageryStore.getState().address?.collectionId).toBe(72);
   });
 
@@ -178,9 +175,7 @@ describe('taskListBus map focus', () => {
     useSessionStore.setState({ selectedViewId: 9, taskStartCollectionId: 72 });
     usePrefsStore.setState({ pinnedStart: { 9: 72 } });
     setProbePoint([4, 5]);
-    initTaskList([TASK_A, TASK_B], [], FILTER, 'u1', 0);
-
-    syncMapFocus(catalog);
+    initialize([TASK_A, TASK_B], catalog);
 
     expect(useImageryStore.getState().address).toEqual({
       sourceId: 7,
@@ -200,7 +195,7 @@ describe('taskListBus map focus', () => {
     });
     setProbePoint([6, 7]);
 
-    next(catalog);
+    useTaskSessionStore.getState().next(catalog);
 
     expect(useImageryStore.getState().address).toEqual({
       sourceId: 7,
@@ -214,20 +209,18 @@ describe('taskListBus map focus', () => {
   });
 
   it('replaceTask() re-syncs the focus for the (possibly still current) task', () => {
-    initTaskList([TASK_A, TASK_B], [], FILTER, 'u1', 0);
+    initialize([TASK_A, TASK_B]);
 
-    replaceTask({ ...TASK_A, task_status: 'done' }, CATALOG);
+    useTaskSessionStore.getState().replaceTask({ ...TASK_A, task_status: 'done' }, CATALOG);
 
     expect(getMapFocus()?.center).toEqual([0, 0]);
   });
 
   it('next() past the last task clears the focus once nothing is visible', () => {
-    initTaskList([TASK_A], [], FILTER, 'u1', 0);
-    syncMapFocus(CATALOG);
+    initialize([TASK_A]);
     expect(getMapFocus()).not.toBeNull();
 
-    initTaskList([], [], FILTER, 'u1', 0);
-    syncMapFocus(CATALOG);
+    initialize([]);
     expect(getMapFocus()).toBeNull();
   });
 });

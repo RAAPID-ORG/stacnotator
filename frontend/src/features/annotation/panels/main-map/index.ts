@@ -20,18 +20,7 @@ export const mainMapFeature: Feature = {
 };
 
 export { MainMapBody, MainMapHeader, taskProbeClick, type MainMapProps } from './MainMapPanel';
-export {
-  fitBbox,
-  fitAnnotations,
-  getMapFocus,
-  pan,
-  recenter,
-  setMapFocus,
-  useFocusCamera,
-  useMapFocus,
-  zoom,
-  type MapFocus,
-} from './cameraBus';
+export { fitAnnotations, pan, recenter, useFocusCamera, zoom } from './cameraCommands';
 export { hotkeyTip, mainMapBindings, resetMainMapNav, stopSliceAutoNav } from './hotkeys';
 export {
   PRELOAD_TIER_CONCURRENCY,

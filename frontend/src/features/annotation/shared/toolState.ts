@@ -84,7 +84,7 @@ export function selectLabel(labelId: number, ctx: ComposeCtx): void {
   if (tool !== 'annotate' && tool !== 'labelVector') void selectTool('annotate', ctx);
 }
 
-/** Test/teardown seam, mirrors task-work's resetTaskList. */
+/** Test/teardown seam, mirrors task-work's task-session reset. */
 export function resetToolState(): void {
   useToolStore.setState({ tool: 'pan' });
 }

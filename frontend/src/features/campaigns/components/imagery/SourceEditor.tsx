@@ -14,13 +14,18 @@ import { IconButton, Input, Button } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { CollectionEditor } from './CollectionEditor';
 import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
-import type { CatalogBrowserPreset } from './CatalogBrowser';
+import type { CatalogBrowserPreset, CatalogBrowserResult } from './CatalogBrowser';
 import { BulkApplyModal } from './BulkApplyModal';
 import type { BulkFocus } from './BulkApplyModal';
 import type { ImageryController } from './controller';
 import { ApiKeyField } from './ApiKeyField';
 import { isRealId } from './draftSync';
 import { setSourceApiKey } from '~/api/client';
+import {
+  editableGenerationSeries,
+  retainMatchingIds,
+  type EditableGenerationSeries,
+} from './generation';
 
 interface SourceEditorProps {
   source: ImagerySource;
@@ -98,6 +103,9 @@ export const SourceEditor = ({
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
   const [addStep, setAddStep] = useState<AddCollectionStep>(null);
   const [bulkFocus, setBulkFocus] = useState<BulkFocus | null>(null);
+  const [generationStep, setGenerationStep] = useState<'warning' | 'editing' | null>(null);
+  const [generationTargetId, setGenerationTargetId] = useState<string | null>(null);
+  const [preserveOtherCollections, setPreserveOtherCollections] = useState(true);
 
   const vizNames = source.visualizations.map((v) => v.name);
   const hasStac = source.collections.some((c) => c.data.type === 'stac_browser');
@@ -109,6 +117,10 @@ export const SourceEditor = ({
         c.slices.some((sl) => sl.vizUrls?.some((u) => u.url.includes('{api_key}'))))
   );
   const updateSource = (patch: Partial<ImagerySource>) => controller.updateSource(source.id, patch);
+  const generationSeries = editableGenerationSeries(source);
+  const activeGenerationSeries = generationSeries.find(
+    (series) => series.id === generationTargetId
+  );
 
   const handleRemoveSource = async () => {
     if (controller.mode === 'persisted') {
@@ -144,13 +156,66 @@ export const SourceEditor = ({
     });
   };
 
-  const addCollectionsFromCatalog = async (collections: CollectionItem[]) => {
-    for (const c of collections) {
-      // Align to the source's viz names so the new collection shows the same
-      // named tabs (waiting to be filled) as the rest of the source.
-      await controller.addCollection(source.id, alignCollectionToVizNames(c, vizNames));
-    }
+  const addCollectionsFromCatalog = async (result: CatalogBrowserResult) => {
+    const collections = result.collections.map((collection) =>
+      alignCollectionToVizNames(collection, vizNames)
+    );
+    await updateSource({
+      collections: [...source.collections, ...collections],
+      generationSeries: result.generationSeries
+        ? [...source.generationSeries, result.generationSeries]
+        : source.generationSeries,
+    });
     setAddStep(null);
+  };
+
+  const openGenerationEditor = (series: EditableGenerationSeries) => {
+    setGenerationTargetId(series.id);
+    setPreserveOtherCollections(true);
+    setGenerationStep(series.otherCollections.length > 0 ? 'warning' : 'editing');
+  };
+
+  const replaceGeneratedSeries = async (
+    result: CatalogBrowserResult,
+    series: EditableGenerationSeries
+  ) => {
+    const generated = result.collections;
+    if (generated.length === 0) return;
+    const replacements = retainMatchingIds(
+      generated.map((collection) => alignCollectionToVizNames(collection, vizNames)),
+      series.collections
+    );
+    const replacedIds = new Set(series.collections.map((c) => c.id));
+
+    let collections: CollectionItem[];
+    if (!preserveOtherCollections) {
+      collections = replacements;
+    } else {
+      collections = [];
+      let inserted = false;
+      for (const collection of source.collections) {
+        if (replacedIds.has(collection.id)) {
+          if (!inserted) {
+            collections.push(...replacements);
+            inserted = true;
+          }
+        } else {
+          collections.push(collection);
+        }
+      }
+      if (!inserted) collections.push(...replacements);
+    }
+
+    await updateSource({
+      collections,
+      generationSeries: preserveOtherCollections
+        ? source.generationSeries.map((candidate) =>
+            candidate.id === series.id ? (result.generationSeries ?? candidate) : candidate
+          )
+        : [result.generationSeries ?? source.generationSeries.find((s) => s.id === series.id)!],
+    });
+    setGenerationStep(null);
+    setGenerationTargetId(null);
   };
 
   if (bulkFocus) {
@@ -172,9 +237,84 @@ export const SourceEditor = ({
         initialMode="mosaic"
         campaignBbox={campaignBbox}
         initialAdvanced={controller.mode === 'persisted'}
-        onAdd={(cols) => void addCollectionsFromCatalog(cols)}
+        onAdd={(result) => void addCollectionsFromCatalog(result)}
         onClose={() => setAddStep(null)}
       />
+    );
+  }
+
+  if (generationStep === 'editing' && activeGenerationSeries) {
+    return (
+      <CatalogBrowser
+        projectId={controller.projectId}
+        initialMode="mosaic"
+        campaignBbox={campaignBbox}
+        initialAdvanced={controller.mode === 'persisted'}
+        initialGeneration={activeGenerationSeries.config}
+        generationSeriesId={activeGenerationSeries.id}
+        onAdd={(result) => void replaceGeneratedSeries(result, activeGenerationSeries)}
+        onClose={() => setGenerationStep(null)}
+      />
+    );
+  }
+
+  if (generationStep === 'warning' && activeGenerationSeries) {
+    const count = activeGenerationSeries.otherCollections.length;
+    return (
+      <Modal
+        title="Collections outside this generated series"
+        onClose={() => setGenerationStep(null)}
+        maxWidth="max-w-lg"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setGenerationStep(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setGenerationStep('editing')}>
+              Continue
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-4 space-y-3 text-sm text-neutral-700">
+          <p>
+            {count} collection{count === 1 ? '' : 's'} in this source {count === 1 ? 'is' : 'are'}
+            not part of the generated series you are editing. Choose what regeneration should do
+            with {count === 1 ? 'it' : 'them'}.
+          </p>
+          <label className="flex items-start gap-2 rounded-md border border-brand-200 bg-brand-50/40 p-3 cursor-pointer">
+            <input
+              type="radio"
+              name="non-generated-collections"
+              checked={preserveOtherCollections}
+              onChange={() => setPreserveOtherCollections(true)}
+              className="mt-0.5"
+            />
+            <span>
+              <strong className="block text-neutral-800">Keep them</strong>
+              <span className="text-xs text-neutral-500">
+                Recommended. Replace only this generated series and leave the other collections in
+                place.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 rounded-md border border-neutral-200 p-3 cursor-pointer">
+            <input
+              type="radio"
+              name="non-generated-collections"
+              checked={!preserveOtherCollections}
+              onChange={() => setPreserveOtherCollections(false)}
+              className="mt-0.5"
+            />
+            <span>
+              <strong className="block text-neutral-800">Remove them</strong>
+              <span className="text-xs text-neutral-500">
+                Replace every collection in this source with the newly generated series.
+              </span>
+            </span>
+          </label>
+        </div>
+      </Modal>
     );
   }
 
@@ -381,7 +521,7 @@ export const SourceEditor = ({
                 onChange={(e) => renameVisualization(i, e.target.value)}
                 className="flex-1"
               />
-              {hasStac && viz.name && (
+              {hasStac && generationSeries.length === 0 && viz.name && (
                 <IconButton
                   tone="brand"
                   onClick={() => setBulkFocus({ kind: 'viz', name: viz.name })}
@@ -432,15 +572,27 @@ export const SourceEditor = ({
               Collections
               <Tooltip text="A collection is a time window of imagery. Each collection contains slices annotators can switch between." />
             </h4>
-            {hasStac && (
-              <button
-                type="button"
-                onClick={() => setBulkFocus({ kind: 'search' })}
-                className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
-              >
-                Search settings · all collections
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {generationSeries.map((series) => (
+                <button
+                  key={series.id}
+                  type="button"
+                  onClick={() => openGenerationEditor(series)}
+                  className="text-xs font-medium text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
+                >
+                  Edit {series.config.collectionTitle} series
+                </button>
+              ))}
+              {hasStac && generationSeries.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => setBulkFocus({ kind: 'search' })}
+                  className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
+                >
+                  Search settings · all collections
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button

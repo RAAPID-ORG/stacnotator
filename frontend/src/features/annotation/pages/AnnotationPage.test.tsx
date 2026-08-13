@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CampaignOutFull } from '~/api/client';
@@ -15,13 +15,16 @@ import { useWorkStore } from '~/features/annotation/stores';
 import { selectWindowSlice } from '~/features/annotation/panels/imagery-windows';
 import { useImageryStore } from '~/features/annotation/stores';
 import { setProbePoint, useInteractionSpec } from '~/features/annotation/shared/interactionSpec';
+import { mainCamera } from '~/features/annotation/shared/cameras';
 
 /** loadCampaign's three calls, so the page can be driven without a server.
  *  `campaignFixture` is swapped per test before rendering. */
 let campaignFixture: CampaignOutFull = makeCampaign();
+const createImageryViewMock = vi.hoisted(() => vi.fn());
 
 vi.mock('~/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('~/api/client')>()),
+  createImageryView: createImageryViewMock,
   getCampaignWithImageryWindows: async () => ({ data: campaignFixture, status: 200 }),
   getAllAnnotationTasks: async () => ({ data: { tasks: [] }, status: 200 }),
   listTaskSets: async () => ({ data: [], status: 200 }),
@@ -78,6 +81,15 @@ vi.stubGlobal('matchMedia', (media: string) => {
   };
 });
 
+vi.stubGlobal(
+  'ResizeObserver',
+  class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+);
+
 const { AnnotationPage } = await import('./AnnotationPage');
 
 function renderPage(initialEntry = '/') {
@@ -89,9 +101,11 @@ function renderPage(initialEntry = '/') {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   setSearchParamsSpy.mockClear();
   vi.restoreAllMocks();
+  createImageryViewMock.mockReset();
 });
 
 describe('AnnotationPage gates', () => {
@@ -103,6 +117,29 @@ describe('AnnotationPage gates', () => {
 
     await waitFor(() => expect(screen.getByTestId('registering-gate')).toBeDefined());
     expect(screen.getByText('Set up layout anyway')).toBeDefined();
+    expect(screen.getByText(/Mosaic imagery is being prepared/)).toBeDefined();
+    expect(screen.getByText(/checks progress automatically/)).toBeDefined();
+  });
+
+  it('polls mosaic registration and opens setup automatically when it finishes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    campaignFixture = makeCampaign({
+      registration_status: 'registering',
+      viewer_is_admin: true,
+      imagery_sources: [makeSource({ id: 1 })],
+    });
+
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('registering-gate')).toBeDefined());
+
+    campaignFixture = makeCampaign({
+      registration_status: 'ready',
+      viewer_is_admin: true,
+      imagery_sources: [makeSource({ id: 1 })],
+    });
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await waitFor(() => expect(screen.getByTestId('no-views-gate')).toBeDefined());
   });
 
   it('offers no bypass to a non-admin', async () => {
@@ -126,6 +163,32 @@ describe('AnnotationPage gates', () => {
 
     await waitFor(() => expect(screen.getByTestId('no-views-gate')).toBeDefined());
     expect(screen.getByTestId('create-first-view')).toBeDefined();
+  });
+
+  it('moves a newly created campaign to working zoom 15 when its first view is created', async () => {
+    const source = makeSource({ id: 1, name: 'S2', default_zoom: 15 });
+    const firstView = {
+      id: 10,
+      name: 'Default view',
+      display_order: 0,
+      source_ids: [source.id],
+      default_canvas_layout: null,
+      personal_canvas_layout: null,
+    };
+    campaignFixture = makeCampaign({
+      viewer_is_admin: true,
+      imagery_sources: [source],
+    });
+    createImageryViewMock.mockResolvedValue({ data: firstView, status: 201 });
+    const moveTo = vi.spyOn(mainCamera, 'moveTo');
+
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('create-first-view')).toBeDefined());
+    fireEvent.click(screen.getByTestId('create-first-view'));
+
+    await waitFor(() => expect(screen.getByTestId('save-required-default')).toBeDefined());
+    expect(screen.queryByTestId('tour-overlay')).toBeNull();
+    expect(moveTo).toHaveBeenCalledWith(expect.objectContaining({ zoom: 15 }));
   });
 
   it('tells an annotator to wait when the campaign has no views', async () => {

@@ -120,6 +120,7 @@ temp/
 
 # Claude
 .claude
+.lavish
 
 # Coverage & test artifacts
 coverage/

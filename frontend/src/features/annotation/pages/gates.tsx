@@ -52,10 +52,11 @@ export function RegisteringGate({
         <h2 className={heading}>Campaign setup in progress</h2>
         <p className={body}>
           {campaign?.registration_status === 'registering' &&
-            'Tile imagery is being registered from the STAC catalog. '}
+            'Mosaic imagery is being prepared from the STAC catalog. This can take several minutes. '}
           {campaign?.embedding_status === 'registering' &&
             'Satellite embeddings are being computed. '}
-          You&apos;ll be able to start annotating once setup completes.
+          This page checks progress automatically and will open the workspace as soon as setup
+          completes.
         </p>
         <div className="flex items-center justify-center gap-2">
           {onNavigateSettings && (

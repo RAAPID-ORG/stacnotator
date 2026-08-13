@@ -5,10 +5,18 @@ beforeEach(() => {
   localStorage.clear();
   usePrefsStore.setState({
     preloadTier: 'auto',
+    skipConfirmDisabled: false,
     pinnedStart: {},
     toursSeen: [],
     labelStyles: {},
     legendOverrides: {},
+  });
+});
+
+describe('skip confirmation', () => {
+  it('persists the user preference in the shared preference store', () => {
+    usePrefsStore.getState().setSkipConfirmDisabled(true);
+    expect(usePrefsStore.getState().skipConfirmDisabled).toBe(true);
   });
 });
 

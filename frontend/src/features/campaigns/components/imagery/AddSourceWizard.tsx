@@ -3,7 +3,7 @@ import { Modal } from '~/shared/ui/Modal';
 import { Input, Button } from '~/shared/ui/forms';
 import { IconStac, IconChevronRight } from '~/shared/ui/Icons';
 import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
-import type { CatalogBrowserPreset } from './CatalogBrowser';
+import type { CatalogBrowserPreset, CatalogBrowserResult } from './CatalogBrowser';
 import { CollectionEditor } from './CollectionEditor';
 import type { CollectionItem, ImagerySource, NamedVizParams } from './types';
 import { emptyManualCollection, emptySource } from './types';
@@ -55,7 +55,8 @@ export const AddSourceWizard = ({
     }
   };
 
-  const finalizeFromCatalog = async (collections: CollectionItem[], fallbackName: string) => {
+  const finalizeFromCatalog = async (result: CatalogBrowserResult, fallbackName: string) => {
+    const { collections, generationSeries } = result;
     if (collections.length === 0) return;
     const first = collections[0];
     const vizNames: NamedVizParams[] | undefined =
@@ -66,6 +67,7 @@ export const AddSourceWizard = ({
     if (vizNames && vizNames.length > 0) {
       src.visualizations = vizNames.map((v) => ({ name: v.name }));
     }
+    src.generationSeries = generationSeries ? [generationSeries] : [];
     src.collections = collections;
 
     await controller.addSource(src);
@@ -80,7 +82,7 @@ export const AddSourceWizard = ({
         preset={step.preset}
         initialMode="mosaic"
         campaignBbox={campaignBbox}
-        onAdd={(cols) => finalizeFromCatalog(cols, step.preset.label)}
+        onAdd={(result) => finalizeFromCatalog(result, step.preset.label)}
         onClose={back}
       />
     );
@@ -92,12 +94,13 @@ export const AddSourceWizard = ({
         projectId={controller.projectId}
         initialMode="mosaic"
         campaignBbox={campaignBbox}
-        onAdd={(cols) => {
+        onAdd={(result) => {
+          const { collections: cols } = result;
           const fallback =
             cols[0]?.data.type === 'stac_browser'
               ? cols[0].data.stacCollectionId
               : 'Custom imagery';
-          finalizeFromCatalog(cols, fallback);
+          finalizeFromCatalog(result, fallback);
         }}
         onClose={back}
       />

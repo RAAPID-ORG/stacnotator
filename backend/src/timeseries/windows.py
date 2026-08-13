@@ -15,6 +15,8 @@ from src.canvas.layout import reconcile_layout
 # schema and migration fill in.
 DEFAULT_TIMESERIES_WINDOW_NAME = "Time series"
 TIMESERIES_WINDOW_KEY_PREFIX = "timeseries:"
+DEFAULT_TIMESERIES_WINDOW_WIDTH = 10
+DEFAULT_TIMESERIES_WINDOW_HEIGHT = 11
 
 
 def window_grid_key(window_name: str) -> str:
@@ -42,8 +44,8 @@ def sync_timeseries_windows_in_layout(
     layout_data: list[dict],
     desired_keys: list[str],
     *,
-    window_width: int = 10,
-    window_height: int = 8,
+    window_width: int = DEFAULT_TIMESERIES_WINDOW_WIDTH,
+    window_height: int = DEFAULT_TIMESERIES_WINDOW_HEIGHT,
 ) -> bool:
     """Reconcile a canvas layout's timeseries windows with ``desired_keys``.
 

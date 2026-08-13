@@ -1,6 +1,7 @@
 import type { AnnotationTaskOut } from '~/api/client';
+import { useShallow } from 'zustand/react/shallow';
 import { claimedByLabel, getActiveClaim } from '~/features/annotation/core/tasks';
-import { useTaskListState } from './taskListBus';
+import { useTaskSessionStore } from './taskSession.store';
 
 export interface ClaimBadgeProps {
   task: AnnotationTaskOut;
@@ -29,7 +30,13 @@ export function ClaimBadge({ task, currentUserId, now }: ClaimBadgeProps) {
 /** The current task's claim, for the task panel's card header - the badge
  *  belongs to the task as a whole, not to any one control inside the panel. */
 export function CurrentTaskClaimBadge() {
-  const { visibleTasks, currentIndex, currentUserId } = useTaskListState();
+  const { visibleTasks, currentIndex, currentUserId } = useTaskSessionStore(
+    useShallow((state) => ({
+      visibleTasks: state.visibleTasks,
+      currentIndex: state.currentIndex,
+      currentUserId: state.currentUserId,
+    }))
+  );
   const task = visibleTasks[currentIndex] ?? null;
   if (!task) return null;
 

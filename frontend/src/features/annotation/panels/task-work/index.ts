@@ -49,28 +49,7 @@ export {
 } from './hotkeys';
 export {
   getCurrentTask,
-  getTaskListState,
-  deriveMapFocus,
-  syncMapFocus,
-  initTaskList,
-  goToAnnotationNumber,
-  goToIndex,
-  next,
-  previous,
-  replaceTask,
-  resetTaskList,
-  setFilter,
-  setSubmitting,
-  setKnnValidationEnabled,
-  useTaskListState,
-  type TaskListState,
-} from './taskListBus';
-export {
-  requestConfirm,
-  resolveConfirm,
-  useConfirmDialogState,
-  isSkipConfirmDisabled,
-  setSkipConfirmDisabled,
-  type ConfirmRequest,
-  type ConfirmDialogState,
-} from './confirmBus';
+  useTaskSessionStore,
+  type InitializeTaskSession,
+  type TaskSessionState,
+} from './taskSession.store';

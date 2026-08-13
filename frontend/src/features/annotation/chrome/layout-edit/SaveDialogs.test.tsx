@@ -99,4 +99,27 @@ describe('SaveDialogs', () => {
     fireEvent.click(screen.getByText('Save Layout'));
     expect(onSave).toHaveBeenCalledWith(true);
   });
+
+  it('only allows a shared default save while setting up the first view', () => {
+    const onSave = vi.fn();
+    render(
+      <SaveDialogs
+        currentLayout={BASE}
+        savedLayout={BASE}
+        viewsCount={1}
+        canSaveDefault
+        mustSaveDefault
+        onSave={onSave}
+      />
+    );
+
+    expect(screen.queryByTestId('save-menu-trigger')).toBeNull();
+    expect(screen.queryByTestId('save-personal')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('save-required-default'));
+    expect(screen.getByText('Save First View for Everyone?')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Save for Everyone'));
+    expect(onSave).toHaveBeenCalledWith(true);
+  });
 });

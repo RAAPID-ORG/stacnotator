@@ -5,7 +5,12 @@ import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useAccountStore } from '~/shared/stores/account.store';
-import { createImageryView, type CampaignOutFull, type ImageryViewOut } from '~/api/client';
+import {
+  createImageryView,
+  getCampaignWithImageryWindows,
+  type CampaignOutFull,
+  type ImageryViewOut,
+} from '~/api/client';
 import { PopoutWindow } from '~/shared/ui/PopoutWindow';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -61,21 +66,18 @@ import {
   ViewAdmin,
 } from '~/features/annotation/chrome/layout-edit';
 import { MAIN_MAP_PANEL_ID, resetMainMapNav } from '~/features/annotation/panels/main-map';
-import { applyCameraTarget, loadCameraTarget } from '~/features/annotation/shared/cameras';
+import {
+  applyCameraTarget,
+  focusFirstViewSetup,
+  loadCameraTarget,
+} from '~/features/annotation/shared/cameras';
 import { clearEditSession, openEdit } from '~/features/annotation/shared/editSession';
 import { resetInteractionSpec } from '~/features/annotation/shared/interactionSpec';
 import { resetToolState, selectTool } from '~/features/annotation/shared/toolState';
 import { resetAnnotationVersion } from '~/features/annotation/shared/annotationVersion';
 import { getMapFocus, setMapFocus } from '~/features/annotation/shared/mapFocus';
 import { MobileSliceNav } from '~/features/annotation/chrome/mobile';
-import {
-  initTaskList,
-  resetDigitBuffer,
-  resetTaskList,
-  setFilter,
-  syncMapFocus,
-  useTaskListState,
-} from '~/features/annotation/panels/task-work';
+import { resetDigitBuffer, useTaskSessionStore } from '~/features/annotation/panels/task-work';
 import { Toolbar } from '~/features/annotation/chrome/toolbar';
 import { TourOverlay } from '~/features/annotation/chrome/tour';
 import {
@@ -159,13 +161,13 @@ export function AnnotationPage() {
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   /** The campaign as edited on this page (view CRUD), seeded from the load. */
   const [campaign, setCampaign] = useState<CampaignOutFull | null>(null);
-  const [taskFilter, setTaskFilter] = useState<TaskFilter | null>(null);
 
   const projectId = routeProjectId;
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name);
   const [bypassRegistering, setBypassRegistering] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [autoTourChecked, setAutoTourChecked] = useState(false);
+  const [settingUpFirstView, setSettingUpFirstView] = useState(false);
 
   const isMobile = useIsMobile();
   const isFullscreen = useLayoutStore((s) => s.isFullscreen);
@@ -178,7 +180,10 @@ export function AnnotationPage() {
   const setLayout = useWorkspaceStore((s) => s.setLayout);
   const hideWindow = useWorkspaceStore((s) => s.hideWindow);
   const newWindowSize = useWorkspaceStore((s) => s.newWindowSize);
-  const { visibleTasks, loaded: tasksLoaded, allTasks } = useTaskListState();
+  const visibleTasks = useTaskSessionStore((state) => state.visibleTasks);
+  const tasksLoaded = useTaskSessionStore((state) => state.loaded);
+  const allTasks = useTaskSessionStore((state) => state.allTasks);
+  const taskFilter = useTaskSessionStore((state) => state.filter);
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
@@ -190,6 +195,7 @@ export function AnnotationPage() {
     onDeepLinkConsumed?.();
     setBypassRegistering(false);
     setAutoTourChecked(false);
+    setSettingUpFirstView(false);
     setLoad({ status: 'loading' });
     // Tiles this campaign serves through our own tiler are cookie-authorized,
     // and the cookie is scoped to the campaign.
@@ -208,16 +214,15 @@ export function AnnotationPage() {
         if (cancelled) return;
         setLoad({ status: 'ready', result });
         setCampaign(result.campaign);
-        setTaskFilter(result.taskFilter);
-        initTaskList(
-          result.tasks,
-          result.taskSets,
-          result.taskFilter,
+        useTaskSessionStore.getState().initialize({
+          tasks: result.tasks,
+          taskSets: result.taskSets,
+          filter: result.taskFilter,
           currentUserId,
-          Date.now(),
-          link.taskId
-        );
-        syncMapFocus(result.catalog);
+          now: Date.now(),
+          catalog: result.catalog,
+          preferTaskId: link.taskId,
+        });
 
         // Point the camera at what was just loaded. Nothing else does: the
         // cameras are module-scope singletons that outlive any one campaign,
@@ -271,7 +276,8 @@ export function AnnotationPage() {
     // is reset atomically by loadCampaign instead.
     return () => {
       cancelled = true;
-      resetTaskList();
+      useTaskSessionStore.getState().reset();
+      useLayoutStore.getState().cancelConfirmDialog();
       resetToolState();
       resetInteractionSpec();
       resetMainMapNav();
@@ -331,10 +337,18 @@ export function AnnotationPage() {
   const scope = campaign && currentUserId ? `${currentUserId}:${campaign.id}` : null;
   useEffect(() => {
     if (!scope || autoTourChecked) return;
+    // A campaign with no views is still in its layout-authoring flow. Count
+    // the automatic tour as checked for this visit so creating the first view
+    // does not immediately put a tour on top of the admin's edit canvas. The
+    // tour remains unseen and will be offered on a later campaign visit.
+    if (campaign?.imagery_views.length === 0) {
+      setAutoTourChecked(true);
+      return;
+    }
     if (workMode === 'tasks' && visibleTasks.length === 0) return;
     setAutoTourChecked(true);
     if (!usePrefsStore.getState().toursSeen.includes(scope)) setTourOpen(true);
-  }, [scope, autoTourChecked, workMode, visibleTasks.length]);
+  }, [scope, autoTourChecked, campaign?.imagery_views.length, workMode, visibleTasks.length]);
 
   const closeTour = () => {
     setTourOpen(false);
@@ -342,13 +356,11 @@ export function AnnotationPage() {
   };
 
   const applyFilter = (next: TaskFilter) => {
-    setTaskFilter(next);
-    if (catalog) setFilter(next, Date.now(), catalog);
+    if (catalog) useTaskSessionStore.getState().setFilter(next, Date.now(), catalog);
   };
 
   const showAllTasks = () => {
-    if (taskFilter)
-      applyFilter({ ...taskFilter, assignedTo: [], statuses: [...ALL_TASK_STATUSES] });
+    applyFilter({ ...taskFilter, assignedTo: [], statuses: [...ALL_TASK_STATUSES] });
   };
 
   // The tour widens the filter for its duration; the filter it widened *from*
@@ -463,9 +475,32 @@ export function AnnotationPage() {
   const isRegistering =
     campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
 
+  // Campaign creation returns before mosaic registration finishes. Poll the
+  // same full response used by the initial load so completed tile URLs appear
+  // without making the user refresh or wonder whether setup is stuck.
+  useEffect(() => {
+    if (!isRegistering) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const { data } = await getCampaignWithImageryWindows({
+          path: { campaign_id: campaignId },
+        });
+        if (!cancelled && data) setCampaign(data);
+      } catch {
+        // Keep the visible status and retry; transient polling failures should
+        // not replace the workspace with an error state.
+      }
+    };
+    const interval = window.setInterval(() => void poll(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [campaignId, isRegistering]);
+
   if (load.status === 'loading') return <LoadingGate />;
-  if (load.status === 'failed' || !campaign || !catalog || !ctx || !taskFilter)
-    return <NotFoundGate />;
+  if (load.status === 'failed' || !campaign || !catalog || !ctx) return <NotFoundGate />;
 
   if (isRegistering && !bypassRegistering) {
     return (
@@ -491,8 +526,10 @@ export function AnnotationPage() {
           })
             .then((res) => {
               if (!res.data) return;
+              setSettingUpFirstView(true);
               setCampaign({ ...campaign, imagery_views: [res.data] });
               useSessionStore.getState().selectView(res.data, catalog, null);
+              focusFirstViewSetup(campaign.imagery_sources[0]?.default_zoom ?? null);
               useWorkspaceStore.getState().startEditing();
             })
             .catch((error) => handleError(error, 'Could not create the view'));
@@ -504,7 +541,13 @@ export function AnnotationPage() {
   const showCanvas = workMode === 'explore' || visibleTasks.length > 0;
 
   const layoutControls = (
-    <EditControls campaign={campaign} view={view} isCampaignAdmin={policy.isAdmin} />
+    <EditControls
+      campaign={campaign}
+      view={view}
+      isCampaignAdmin={policy.isAdmin}
+      mustSaveDefault={settingUpFirstView}
+      onDefaultSaved={() => setSettingUpFirstView(false)}
+    />
   );
 
   return (
@@ -522,6 +565,16 @@ export function AnnotationPage() {
         onNavigateSettings={onNavigateSettings}
         onOpenTour={() => setTourOpen(true)}
       />
+
+      {isRegistering && (
+        <div
+          className="border-b border-blue-200 bg-blue-50 px-4 py-2 text-center text-sm text-blue-800"
+          data-testid="registration-banner"
+        >
+          Preparing mosaic imagery in the background. You can arrange the layout now; imagery will
+          appear automatically when registration finishes.
+        </div>
+      )}
 
       {showCanvas ? (
         <Canvas

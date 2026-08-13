@@ -1,5 +1,7 @@
 from src.timeseries.windows import (
+    DEFAULT_TIMESERIES_WINDOW_HEIGHT,
     DEFAULT_TIMESERIES_WINDOW_NAME,
+    DEFAULT_TIMESERIES_WINDOW_WIDTH,
     distinct_window_keys,
     is_timeseries_window_key,
     sync_timeseries_windows_in_layout,
@@ -45,6 +47,11 @@ def test_sync_adds_one_entry_per_window():
     assert keys.count(DEFAULT_KEY) == 1
     assert keys.count("timeseries:Water") == 1
     assert "main" in keys
+    added = next(item for item in layout if item["i"] == DEFAULT_KEY)
+    assert (added["w"], added["h"]) == (
+        DEFAULT_TIMESERIES_WINDOW_WIDTH,
+        DEFAULT_TIMESERIES_WINDOW_HEIGHT,
+    )
 
 
 def test_sync_is_idempotent():

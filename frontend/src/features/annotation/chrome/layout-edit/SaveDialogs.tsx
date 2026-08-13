@@ -12,6 +12,8 @@ export interface SaveDialogsProps {
   viewsCount: number;
   /** Whether "Save as default" is offered at all (campaign admins only). */
   canSaveDefault: boolean;
+  /** During first-view setup, a personal layout is not a valid save target. */
+  mustSaveDefault?: boolean;
   onSave: (shouldBeDefault: boolean) => void;
 }
 
@@ -22,6 +24,7 @@ export function SaveDialogs({
   savedLayout,
   viewsCount,
   canSaveDefault,
+  mustSaveDefault = false,
   onSave,
 }: SaveDialogsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -49,16 +52,27 @@ export function SaveDialogs({
 
   return (
     <div ref={containerRef} className="relative" data-testid="save-dialogs">
-      <button
-        type="button"
-        onClick={() => setMenuOpen((open) => !open)}
-        className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-brand-800 hover:text-brand-600"
-        data-testid="save-menu-trigger"
-      >
-        Save
-        <IconChevronDownFilled className="w-3 h-3" />
-      </button>
-      {menuOpen && (
+      {mustSaveDefault ? (
+        <button
+          type="button"
+          onClick={() => requestSave(true)}
+          className="px-3 py-1 text-xs font-medium text-brand-800 hover:text-brand-600"
+          data-testid="save-required-default"
+        >
+          Save as default
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
+          className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-brand-800 hover:text-brand-600"
+          data-testid="save-menu-trigger"
+        >
+          Save
+          <IconChevronDownFilled className="w-3 h-3" />
+        </button>
+      )}
+      {!mustSaveDefault && menuOpen && (
         <div
           className="absolute top-full left-0 mt-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white shadow-lg z-20"
           data-testid="save-menu"
@@ -88,9 +102,13 @@ export function SaveDialogs({
 
       <ConfirmDialog
         isOpen={pending?.step === 'confirmDefault'}
-        title="Save as Default Layout?"
-        description="This will overwrite the default layout for ALL users in this campaign who do not have a personal layout. If you already have a personal layout, it will not be affected. To use the new default layout as your personal layout, apply it now and then hit reset layout and save as personal."
-        confirmText="Save Default"
+        title={mustSaveDefault ? 'Save First View for Everyone?' : 'Save as Default Layout?'}
+        description={
+          mustSaveDefault
+            ? 'The first view needs a default layout so everyone in this campaign can use it. This layout will be shared with all users who do not have a personal layout.'
+            : 'This will overwrite the default layout for ALL users in this campaign who do not have a personal layout. If you already have a personal layout, it will not be affected. To use the new default layout as your personal layout, apply it now and then hit reset layout and save as personal.'
+        }
+        confirmText={mustSaveDefault ? 'Save for Everyone' : 'Save Default'}
         cancelText="Cancel"
         isDangerous
         onCancel={() => setPending(null)}

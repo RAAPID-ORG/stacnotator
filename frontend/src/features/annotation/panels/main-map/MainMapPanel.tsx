@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { extendedLabels } from '~/features/annotation/core/annotation';
 import { collectionsInView } from '~/features/annotation/core/catalog';
 import { computeTaskProgress } from '~/features/annotation/core/tasks';
-import { useTaskListState } from '~/features/annotation/panels/task-work';
+import { useTaskSessionStore } from '~/features/annotation/panels/task-work';
 import {
   useImageryStore,
   usePrefsStore,
@@ -14,10 +15,11 @@ import {
   setForegroundMapLoading,
   useForegroundLoading,
 } from '~/features/annotation/shared/foregroundTileLoads';
+import { useMapFocus } from '~/features/annotation/shared/mapFocus';
 import { useContainerSize } from '~/features/annotation/engine/canvas';
 import { MapView, type MapClickEvent } from '~/features/annotation/engine/map';
 import type { ComposeCtx } from '../../composition';
-import { fitAnnotations, recenter, useFocusCamera, useMapFocus } from './cameraBus';
+import { fitAnnotations, recenter, useFocusCamera } from './cameraCommands';
 import { useAnnotationVersion } from '../../shared/annotationVersion';
 import {
   composeLayers,
@@ -86,7 +88,9 @@ function ProbeToggle({ ctx, title }: { ctx: ComposeCtx; title: string }) {
  *  defaults to the viewer, so completion follows their own share of the work
  *  rather than the whole campaign's. */
 function TaskProgressCounter() {
-  const { allTasks, filter } = useTaskListState();
+  const { allTasks, filter } = useTaskSessionStore(
+    useShallow((state) => ({ allTasks: state.allTasks, filter: state.filter }))
+  );
   const { total, completed } = computeTaskProgress(allTasks, filter.assignedTo);
 
   return (

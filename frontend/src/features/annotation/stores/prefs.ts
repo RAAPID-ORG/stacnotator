@@ -6,8 +6,21 @@ import type { LegendOverride } from '~/features/annotation/core/catalog';
 export type PreloadTier = 'auto' | 'off' | 'conservative' | 'balanced' | 'heavy';
 export type LabelStyleOverride = Partial<LabelStyle>;
 
+function legacySkipConfirmDisabled(): boolean {
+  try {
+    return (
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem('taskWork.skipConfirmDisabled') === '1'
+    );
+  } catch {
+    return false;
+  }
+}
+
 export interface PrefsState {
   preloadTier: PreloadTier;
+  /** Whether Skip may proceed without asking for confirmation. */
+  skipConfirmDisabled: boolean;
   /** Per-view choice of which collection becomes active on task navigation.
    *  Key = view id, value = collection id. Absent = "use the default". */
   pinnedStart: Record<number, number>;
@@ -17,6 +30,7 @@ export interface PrefsState {
   legendOverrides: Record<number, LegendOverride>;
 
   setPreloadTier: (tier: PreloadTier) => void;
+  setSkipConfirmDisabled: (disabled: boolean) => void;
   /** Pass `collectionId: null` to clear the pin for that view. */
   setPinnedStart: (viewId: number, collectionId: number | null) => void;
   markTourSeen: (tourId: string) => void;
@@ -28,6 +42,8 @@ export interface PrefsState {
 
 const initialPrefs = {
   preloadTier: 'auto' as PreloadTier,
+  // Preserve the preference written by the old task-work confirmation module.
+  skipConfirmDisabled: legacySkipConfirmDisabled(),
   pinnedStart: {} as Record<number, number>,
   toursSeen: [] as string[],
   labelStyles: {} as Record<number, LabelStyleOverride>,
@@ -40,6 +56,7 @@ export const usePrefsStore = create<PrefsState>()(
       ...initialPrefs,
 
       setPreloadTier: (preloadTier) => set({ preloadTier }),
+      setSkipConfirmDisabled: (skipConfirmDisabled) => set({ skipConfirmDisabled }),
 
       setPinnedStart: (viewId, collectionId) =>
         set((s) => {
@@ -81,6 +98,7 @@ export const usePrefsStore = create<PrefsState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         preloadTier: s.preloadTier,
+        skipConfirmDisabled: s.skipConfirmDisabled,
         pinnedStart: s.pinnedStart,
         toursSeen: s.toursSeen,
         labelStyles: s.labelStyles,

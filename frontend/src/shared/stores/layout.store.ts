@@ -60,6 +60,7 @@ interface LayoutStore {
   toggleSidebar: () => void;
   showConfirmDialog: (options: ConfirmDialogOptions) => Promise<boolean>;
   resolveConfirmDialog: (value: boolean) => void;
+  cancelConfirmDialog: () => void;
 }
 
 /**
@@ -147,6 +148,9 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     // Confirm dialog actions
     showConfirmDialog: (options) =>
       new Promise<boolean>((resolve) => {
+        // The app has one dialog slot. Replacing it must release the caller
+        // awaiting the old slot rather than leaving that command suspended.
+        useLayoutStore.getState().confirmDialog?.resolve(false);
         set({ confirmDialog: { ...options, resolve } });
       }),
 
@@ -157,5 +161,7 @@ export const useLayoutStore = create<LayoutStore>((set) => {
         set({ confirmDialog: null });
       }
     },
+
+    cancelConfirmDialog: () => useLayoutStore.getState().resolveConfirmDialog(false),
   };
 });

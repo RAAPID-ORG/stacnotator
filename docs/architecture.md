@@ -32,3 +32,17 @@ Infrastructure (networking, Key Vault, ACR, database, Container Apps Environment
 1. **Campaign creation:** Frontend builds imagery config → backend creates DB entries → background threads register mosaics (STAC searches) and fetch embeddings if applicable; annotation is blocked until they report ready.
 2. **Annotation:** Frontend loads campaign → fetches tiles from MPC or tiler and tasks-geometries from backend → user annotates → annotations stored via backend REST API.
 3. **Tile request (self-hosted):** Backend mints a campaign-scoped tiler JWT and sets it as an HttpOnly `tiler_token` cookie → the browser sends it automatically with tile requests → tiler verifies it, resolves the search's items from its pgstac index → reads COGs → composites → returns PNG.
+
+## Imagery Generation Provenance
+
+A temporal-generator run is a source-level `ImageryGenerationSeries`, not a
+property copied onto each collection. The series owns one strict, versioned
+configuration snapshot; generated collections carry a nullable foreign-key
+reference to it. Normalized collection, slice, STAC-search, and visualization
+rows remain authoritative for rendering.
+
+The full imagery-editor write interface sends series records once per source
+and associates collections through request-local keys. The backend resolves
+those keys transactionally and rejects unknown or unreferenced series. This
+supports multiple independently editable generated series alongside manual
+collections without guessing provenance for historical data.

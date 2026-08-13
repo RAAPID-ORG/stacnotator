@@ -11,22 +11,14 @@ import {
   type PolicyContext,
   type SubmitReadiness,
 } from '~/features/annotation/core/annotation';
-import { useWorkStore } from '~/features/annotation/stores';
+import { usePrefsStore, useWorkStore } from '~/features/annotation/stores';
 import type { Binding } from '~/features/annotation/engine/hotkeys';
 import type { ComposeCtx, HotkeyTable } from '../../composition';
 import { focusFormFieldInput } from '../../shared/FormFields';
 import { reveal, revealAndFocus } from '../../shared/revealFocus';
-import { isSkipConfirmDisabled, requestConfirm } from './confirmBus';
 import { submitCurrent, type SubmitOutcome } from './submit';
 import { DIGIT_INPUT_TIMEOUT_MS } from '~/shared/utils/constants';
-import {
-  getCurrentTask,
-  getTaskListState,
-  next,
-  previous,
-  replaceTask,
-  setSubmitting,
-} from './taskListBus';
+import { getCurrentTask, useTaskSessionStore } from './taskSession.store';
 
 // A two-keystroke debounce for a picker with at most a couple dozen labels.
 export const DEFAULT_CONFIDENCE = 5;
@@ -119,7 +111,7 @@ export function taskLabellingPolicy(
  *  keyboard path can never diverge from it. */
 export function currentSubmitReadiness(ctx: ComposeCtx): SubmitReadiness {
   const task = getCurrentTask();
-  const { currentUserId, isSubmitting } = getTaskListState();
+  const { currentUserId, isSubmitting } = useTaskSessionStore.getState();
   const { mayLabel } = taskLabellingPolicy(ctx, task, currentUserId);
   const userAnnotation = task?.annotations.find((a) => a.created_by_user_id === currentUserId);
   return {
@@ -138,7 +130,7 @@ interface RunSubmitOptions {
 
 async function runSubmit(ctx: ComposeCtx, options: RunSubmitOptions): Promise<SubmitOutcome> {
   const task = getCurrentTask();
-  const { currentUserId, knnValidationEnabled } = getTaskListState();
+  const { currentUserId, knnValidationEnabled } = useTaskSessionStore.getState();
   const work = useWorkStore.getState();
   const fields = ctx.campaign.settings.form_fields ?? [];
 
@@ -168,10 +160,11 @@ async function runSubmit(ctx: ComposeCtx, options: RunSubmitOptions): Promise<Su
   } else if (outcome.kind === 'error') {
     showAlert(outcome.message, 'error');
   } else if (outcome.kind === 'submitted') {
-    replaceTask(outcome.task, ctx.catalog);
-    next(ctx.catalog);
+    const session = useTaskSessionStore.getState();
+    session.replaceTask(outcome.task, ctx.catalog);
+    session.next(ctx.catalog);
   } else if (outcome.kind === 'removed') {
-    replaceTask(outcome.task, ctx.catalog);
+    useTaskSessionStore.getState().replaceTask(outcome.task, ctx.catalog);
   }
   return outcome;
 }
@@ -189,12 +182,12 @@ const MISMATCH_CONFIRM = {
  *  guard both the Submit/Skip/Authoritative buttons (via isSubmitting) and
  *  this early return enforce. */
 async function guardedSubmit(body: () => Promise<void>): Promise<void> {
-  if (getTaskListState().isSubmitting) return;
-  setSubmitting(true);
+  if (useTaskSessionStore.getState().isSubmitting) return;
+  useTaskSessionStore.getState().setSubmitting(true);
   try {
     await body();
   } finally {
-    setSubmitting(false);
+    useTaskSessionStore.getState().setSubmitting(false);
   }
 }
 
@@ -214,7 +207,7 @@ export async function submitAnnotation(ctx: ComposeCtx): Promise<void> {
     const work = useWorkStore.getState();
     const first = await runSubmit(ctx, { labelId: work.selectedLabelId });
     if (first.kind !== 'needsConfirm') return;
-    if (await requestConfirm(MISMATCH_CONFIRM)) {
+    if (await useLayoutStore.getState().showConfirmDialog(MISMATCH_CONFIRM)) {
       await runSubmit(ctx, { labelId: work.selectedLabelId, confirmMismatch: true });
     }
   });
@@ -224,19 +217,20 @@ export async function submitAnnotation(ctx: ComposeCtx): Promise<void> {
  *  Only an assignee can skip - skipping submits a
  *  null-label annotation, which only makes sense against an assignment. */
 export async function skipCurrent(ctx: ComposeCtx): Promise<void> {
-  const { currentUserId } = getTaskListState();
+  const { currentUserId } = useTaskSessionStore.getState();
   const { isAssignedToTask } = taskLabellingPolicy(ctx, getCurrentTask(), currentUserId);
   if (!isAssignedToTask) {
     useLayoutStore.getState().showAlert('You are not assigned to this task.', 'error');
     return;
   }
-  if (!isSkipConfirmDisabled()) {
-    const confirmed = await requestConfirm({
+  if (!usePrefsStore.getState().skipConfirmDisabled) {
+    const confirmed = await useLayoutStore.getState().showConfirmDialog({
       title: 'Skip annotation?',
       description: 'You can come back to it later.',
       confirmText: 'Skip',
       cancelText: 'Cancel',
       showDontAskAgain: true,
+      onDontAskAgain: () => usePrefsStore.getState().setSkipConfirmDisabled(true),
     });
     if (!confirmed) return;
   }
@@ -255,7 +249,7 @@ export async function submitAuthoritative(ctx: ComposeCtx): Promise<void> {
     return;
   }
   if (!maySubmitTask(readiness)) return;
-  const confirmed = await requestConfirm({
+  const confirmed = await useLayoutStore.getState().showConfirmDialog({
     title: 'Submit as authoritative?',
     description:
       'Your label will be recorded as the canonical answer for this task and mark it completed, overriding any other annotators and skipping consensus from assignees.',
@@ -269,7 +263,7 @@ export async function submitAuthoritative(ctx: ComposeCtx): Promise<void> {
     const work = useWorkStore.getState();
     const first = await runSubmit(ctx, { labelId: work.selectedLabelId, isAuthoritative: true });
     if (first.kind !== 'needsConfirm') return;
-    if (await requestConfirm(MISMATCH_CONFIRM)) {
+    if (await useLayoutStore.getState().showConfirmDialog(MISMATCH_CONFIRM)) {
       await runSubmit(ctx, {
         labelId: work.selectedLabelId,
         isAuthoritative: true,
@@ -357,8 +351,18 @@ export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
     ...labelDigits.map(digitBinding),
     ...([1, 2, 3, 4, 5] as const).map(confidenceBinding),
 
-    { key: 'w', help: 'Previous task', when: tasksActive, run: () => previous(ctx.catalog) },
-    { key: 's', help: 'Next task', when: tasksActive, run: () => next(ctx.catalog) },
+    {
+      key: 'w',
+      help: 'Previous task',
+      when: tasksActive,
+      run: () => useTaskSessionStore.getState().previous(ctx.catalog),
+    },
+    {
+      key: 's',
+      help: 'Next task',
+      when: tasksActive,
+      run: () => useTaskSessionStore.getState().next(ctx.catalog),
+    },
     {
       key: 'q',
       help: 'Decrease confidence',

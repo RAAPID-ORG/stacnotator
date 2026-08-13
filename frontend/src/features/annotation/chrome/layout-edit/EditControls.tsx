@@ -17,9 +17,18 @@ export interface EditControlsProps {
   campaign: CampaignOutFull;
   view: ImageryViewOut | null;
   isCampaignAdmin: boolean;
+  /** The first view's initial edit must establish the layout seen by everyone. */
+  mustSaveDefault?: boolean;
+  onDefaultSaved?: () => void;
 }
 
-export function EditControls({ campaign, view, isCampaignAdmin }: EditControlsProps) {
+export function EditControls({
+  campaign,
+  view,
+  isCampaignAdmin,
+  mustSaveDefault = false,
+  onDefaultSaved,
+}: EditControlsProps) {
   const isMobile = useIsMobile();
   const showAlert = useLayoutStore((s) => s.showAlert);
   const editing = useWorkspaceStore((s) => s.editing);
@@ -45,16 +54,20 @@ export function EditControls({ campaign, view, isCampaignAdmin }: EditControlsPr
       ...Object.values(currentLayout.main.timeseries),
     ];
     const viewLayoutData: CanvasLayoutItem[] = Object.values(currentLayout.view.windows);
+    // Do not rely on the save menu alone to uphold first-view setup: even if a
+    // caller asks for a personal save, the initial layout must be shared.
+    const saveAsDefault = mustSaveDefault || shouldBeDefault;
     try {
       await createNewCanvasLayout({
         path: { campaign_id: campaign.id },
         body: {
           view_id: view.id,
-          should_be_default: shouldBeDefault,
+          should_be_default: saveAsDefault,
           layout: { main_layout_data: mainLayoutData, view_layout_data: viewLayoutData },
         },
       });
       saveLayout();
+      if (saveAsDefault) onDefaultSaved?.();
       showAlert('Layout saved', 'success');
     } catch {
       showAlert('Failed to save layout', 'error');
@@ -98,6 +111,7 @@ export function EditControls({ campaign, view, isCampaignAdmin }: EditControlsPr
         savedLayout={savedLayout}
         viewsCount={campaign.imagery_views.length}
         canSaveDefault={isCampaignAdmin}
+        mustSaveDefault={mustSaveDefault}
         onSave={persistAndSave}
       />
       <button

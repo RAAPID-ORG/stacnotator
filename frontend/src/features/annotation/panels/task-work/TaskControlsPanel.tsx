@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import type { AnnotationTaskOut } from '~/api/client';
-import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import {
@@ -11,7 +11,6 @@ import {
 import { useSessionStore, useWorkStore } from '~/features/annotation/stores';
 import type { ComposeCtx } from '../../composition';
 import { activeGroupClass, FormFields } from '../../shared/FormFields';
-import { resolveConfirm, setSkipConfirmDisabled, useConfirmDialogState } from './confirmBus';
 import {
   DEFAULT_CONFIDENCE,
   submitAnnotation,
@@ -21,16 +20,7 @@ import {
 } from './hotkeys';
 import { LabelGrid } from './LabelGrid';
 import { ReviewList } from './ReviewList';
-import {
-  getCurrentTask,
-  goToAnnotationNumber,
-  next,
-  previous,
-  replaceTask,
-  setKnnValidationEnabled,
-  syncMapFocus,
-  useTaskListState,
-} from './taskListBus';
+import { getCurrentTask, useTaskSessionStore } from './taskSession.store';
 import { useClaims } from './useClaims';
 
 /** Populates the work-store form from a task's existing annotation by the
@@ -63,10 +53,34 @@ const navButtonClass =
   'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer';
 
 export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
-  const { visibleTasks, currentIndex, currentUserId, loaded, isSubmitting, knnValidationEnabled } =
-    useTaskListState();
+  const {
+    visibleTasks,
+    currentIndex,
+    currentUserId,
+    loaded,
+    isSubmitting,
+    knnValidationEnabled,
+    goToAnnotationNumber,
+    next,
+    previous,
+    replaceTask,
+    setKnnValidationEnabled,
+  } = useTaskSessionStore(
+    useShallow((state) => ({
+      visibleTasks: state.visibleTasks,
+      currentIndex: state.currentIndex,
+      currentUserId: state.currentUserId,
+      loaded: state.loaded,
+      isSubmitting: state.isSubmitting,
+      knnValidationEnabled: state.knnValidationEnabled,
+      goToAnnotationNumber: state.goToAnnotationNumber,
+      next: state.next,
+      previous: state.previous,
+      replaceTask: state.replaceTask,
+      setKnnValidationEnabled: state.setKnnValidationEnabled,
+    }))
+  );
   const isReviewMode = useSessionStore((s) => s.isReviewMode);
-  const confirmDialog = useConfirmDialogState();
   const showAlert = useLayoutStore((s) => s.showAlert);
   const [gotoValue, setGotoValue] = useState('');
   const task = visibleTasks[currentIndex] ?? null;
@@ -93,8 +107,7 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
   useEffect(() => {
     loadTaskIntoForm(task, currentUserId);
     setGotoValue(task ? String(task.annotation_number) : '');
-    syncMapFocus(ctx.catalog);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload the form and re-center the map whenever the current task identity or user changes, not on every keystroke against it
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload the form whenever the current task identity or user changes, not on every object replacement or keystroke against it
   }, [task?.id, currentUserId]);
 
   useClaims({
@@ -152,21 +165,6 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
 
   return (
     <div className="w-full h-full bg-white overflow-y-auto">
-      <ConfirmDialog
-        isOpen={confirmDialog.open}
-        title={confirmDialog.title}
-        description={confirmDialog.description}
-        confirmText={confirmDialog.confirmText}
-        cancelText={confirmDialog.cancelText}
-        isDangerous={confirmDialog.isDangerous}
-        showDontAskAgain={confirmDialog.showDontAskAgain}
-        onConfirm={(dontAskAgain) => {
-          if (dontAskAgain) setSkipConfirmDisabled(true);
-          resolveConfirm(true);
-        }}
-        onCancel={() => resolveConfirm(false)}
-      />
-
       <div className="flex flex-wrap">
         {isReviewMode && <ReviewList task={task} currentUserId={currentUserId} labels={labels} />}
 

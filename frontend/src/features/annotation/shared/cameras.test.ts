@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   cameraFor,
   DEFAULT_MAP_ZOOM,
+  focusFirstViewSetup,
   focusCameraTarget,
   loadCameraTarget,
+  mainCamera,
   releaseCamera,
   type LoadCameraInput,
 } from './cameras';
@@ -26,10 +28,19 @@ describe('loadCameraTarget', () => {
     expect(loadCameraTarget(loadInput())).toEqual({ kind: 'center', center: TASK, zoom: 14 });
   });
 
-  it('frames the whole campaign in explore mode', () => {
+  it('opens Explore at the campaign centre and source working zoom', () => {
     expect(loadCameraTarget(loadInput({ mode: 'explore' }))).toEqual({
-      kind: 'fit',
-      bbox: CAMPAIGN_BBOX,
+      kind: 'center',
+      center: [0, 0],
+      zoom: 14,
+    });
+  });
+
+  it('uses zoom 15 for Explore when no source declares a working zoom', () => {
+    expect(loadCameraTarget(loadInput({ mode: 'explore', workingZoom: null }))).toEqual({
+      kind: 'center',
+      center: [0, 0],
+      zoom: 15,
     });
   });
 
@@ -66,6 +77,19 @@ describe('focusCameraTarget', () => {
 
   it('does nothing without a focus', () => {
     expect(focusCameraTarget({ mode: 'tasks', center: null, workingZoom: 16 })).toBeNull();
+  });
+});
+
+describe('first-view setup', () => {
+  it('keeps the campaign centre and enters at zoom 15', () => {
+    mainCamera.moveTo({ center: [7, 8], zoom: 3 });
+
+    focusFirstViewSetup(15);
+
+    const state = mainCamera.getState();
+    expect(state.center[0]).toBeCloseTo(7);
+    expect(state.center[1]).toBeCloseTo(8);
+    expect(state.zoom).toBe(15);
   });
 });
 

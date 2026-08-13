@@ -12,7 +12,7 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useSessionStore, useWorkStore } from '~/features/annotation/stores';
 import type { ComposeCtx } from '../../composition';
 import { TaskControlsPanel } from './TaskControlsPanel';
-import { initTaskList, resetTaskList } from './taskListBus';
+import { useTaskSessionStore } from './taskSession.store';
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
@@ -37,6 +37,17 @@ function ctxFor(campaign: CampaignOutFull): ComposeCtx {
   };
 }
 
+function initializeTasks(tasks: AnnotationTaskOut[], ctx: ComposeCtx): void {
+  useTaskSessionStore.getState().initialize({
+    tasks,
+    taskSets: [],
+    filter: FILTER,
+    currentUserId: 'u1',
+    now: 0,
+    catalog: ctx.catalog,
+  });
+}
+
 // No assignments (unassigned_tasks gates it) and someone else's annotation
 // already on it, so useClaims' claimTask no-ops without hitting the network
 // stub (isClaimable is false once a task carries any annotation).
@@ -53,7 +64,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  resetTaskList();
+  useTaskSessionStore.getState().reset();
   useWorkStore.getState().resetForm();
   useSessionStore.getState().setReviewMode(false);
 });
@@ -75,9 +86,10 @@ describe('TaskControlsPanel labelling policy', () => {
         labels: [{ id: 5, name: 'water' }],
       },
     });
-    initTaskList([NOT_ALLOWED_TASK], [], FILTER, 'u1', 0);
+    const ctx = ctxFor(campaign);
+    initializeTasks([NOT_ALLOWED_TASK], ctx);
 
-    render(<TaskControlsPanel ctx={ctxFor(campaign)} />);
+    render(<TaskControlsPanel ctx={ctx} />);
 
     expect(await screen.findByTestId('policy-not-allowed-notice')).toBeTruthy();
     const submitButton = screen.getByRole('button', { name: /submit/i }) as HTMLButtonElement;
@@ -100,9 +112,10 @@ describe('TaskControlsPanel labelling policy', () => {
         labels: [{ id: 5, name: 'water' }],
       },
     });
-    initTaskList([NOT_ALLOWED_TASK], [], FILTER, 'u1', 0);
+    const ctx = ctxFor(campaign);
+    initializeTasks([NOT_ALLOWED_TASK], ctx);
 
-    render(<TaskControlsPanel ctx={ctxFor(campaign)} />);
+    render(<TaskControlsPanel ctx={ctx} />);
 
     expect(await screen.findByText('Water')).toBeTruthy();
     expect(screen.queryByTestId('policy-not-allowed-notice')).toBeNull();
@@ -138,9 +151,10 @@ describe('TaskControlsPanel claim conflict', () => {
       request: new Request('http://test'),
       response: new Response(null, { status: 409 }),
     });
-    initTaskList([OPEN_TASK], [], FILTER, 'u1', 0);
+    const ctx = ctxFor(OPEN_POLICY);
+    initializeTasks([OPEN_TASK], ctx);
 
-    render(<TaskControlsPanel ctx={ctxFor(OPEN_POLICY)} />);
+    render(<TaskControlsPanel ctx={ctx} />);
 
     await waitFor(() =>
       expect(alerts).toContainEqual(expect.stringContaining('already working on that task'))

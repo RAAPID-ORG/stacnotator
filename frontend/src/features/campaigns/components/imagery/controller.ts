@@ -5,6 +5,7 @@ import {
 } from '~/api/client';
 import type {
   ImageryEditorStateCreate,
+  ImageryGenerationConfigV1,
   ImagerySourceOut,
   ImageryCollectionOut,
 } from '~/api/client';
@@ -18,6 +19,7 @@ import type {
   ManualCollectionData,
   StacBrowserCollectionData,
   VizParams,
+  ImageryGenerationConfig,
 } from './types';
 
 export type ControllerMode = 'draft' | 'persisted';
@@ -57,6 +59,19 @@ export interface ImageryController {
   refreshCollection(sourceId: string, collectionId: string): Promise<void>;
 
   setBasemaps(basemaps: Basemap[]): Promise<void>;
+}
+
+function withoutCollection(source: ImagerySource, collectionId: string): Partial<ImagerySource> {
+  const collections = source.collections.filter((collection) => collection.id !== collectionId);
+  const referencedSeries = new Set(
+    collections.flatMap((collection) =>
+      collection.generationSeriesId ? [collection.generationSeriesId] : []
+    )
+  );
+  return {
+    collections,
+    generationSeries: source.generationSeries.filter((series) => referencedSeries.has(series.id)),
+  };
 }
 
 // viz_params serialization (VizParams -> API payload) lives in draftSync.ts as
@@ -161,9 +176,7 @@ export function useDraftController({
       removeCollection: async (sourceId, collectionId) => {
         const src = stateRef.current.sources.find((s) => s.id === sourceId);
         if (!src) return;
-        patchSource(sourceId, {
-          collections: src.collections.filter((c) => c.id !== collectionId),
-        });
+        patchSource(sourceId, withoutCollection(src, collectionId));
       },
 
       refreshCollection: async () => {
@@ -189,6 +202,41 @@ function isMpcCatalogUrl(url: string | null | undefined): boolean {
   } catch {
     return false;
   }
+}
+
+function generationConfigToFrontend(config: ImageryGenerationConfigV1): ImageryGenerationConfig {
+  return {
+    version: 1,
+    catalogUrl: config.catalog_url,
+    stacCollectionId: config.stac_collection_id,
+    collectionTitle: config.collection_title,
+    isMpc: config.is_mpc,
+    hasCloudCover: config.has_cloud_cover,
+    tiler: config.tiler,
+    startDate: config.start_date,
+    endDate: config.end_date,
+    collectionPeriodInterval: config.collection_period_interval,
+    collectionPeriodUnit: config.collection_period_unit,
+    slicePeriodInterval: config.slice_period_interval,
+    slicePeriodUnit: config.slice_period_unit,
+    coverMode: config.cover_mode,
+    coverSliceNth: config.cover_slice_nth,
+    maxCloudCover: config.max_cloud_cover,
+    itemSort: config.item_sort,
+    coverMaxCloudCover: config.cover_max_cloud_cover,
+    coverItemSort: config.cover_item_sort,
+    visualizations: config.visualizations.map((viz) => ({
+      name: viz.name,
+      vizParams: vizParamsToFrontend(viz.viz_params),
+    })),
+    coverVisualizations: (config.cover_visualizations ?? []).map((viz) => ({
+      name: viz.name,
+      vizParams: vizParamsToFrontend(viz.viz_params),
+    })),
+    searchQuery: config.search_query ?? undefined,
+    coverSearchQuery: config.cover_search_query ?? undefined,
+    internalStorage: config.internal_storage,
+  };
 }
 
 function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[]): CollectionItem {
@@ -237,6 +285,7 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
   return {
     id: String(col.id),
     name: col.name,
+    generationSeriesId: col.generation_series_id != null ? String(col.generation_series_id) : null,
     coverSliceIndex: col.cover_slice_index ?? 0,
     hasDedicatedCover: col.has_dedicated_cover ?? false,
     slices: col.slices.map((sl) => ({
@@ -258,6 +307,10 @@ function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
     crosshairHex6: src.crosshair_hex6,
     defaultZoom: src.default_zoom,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
+    generationSeries: (src.generation_series ?? []).map((series) => ({
+      id: String(series.id),
+      config: generationConfigToFrontend(series.config),
+    })),
     collections: src.collections.map((col) => mapCollectionOutToFe(col, vizNames)),
     hasApiKey: src.has_api_key,
   };
@@ -436,9 +489,7 @@ export function usePersistedController({
         mutate((s) => ({
           ...s,
           sources: s.sources.map((src) =>
-            src.id === sourceId
-              ? { ...src, collections: src.collections.filter((c) => c.id !== collectionId) }
-              : src
+            src.id === sourceId ? { ...src, ...withoutCollection(src, collectionId) } : src
           ),
         }));
       },

@@ -1793,6 +1793,10 @@ export type ImageryCollectionCreate = {
      */
     has_dedicated_cover?: boolean;
     /**
+     * Generation Series Key
+     */
+    generation_series_key?: string | null;
+    /**
      * Slices
      */
     slices: Array<ImagerySliceCreate>;
@@ -1824,6 +1828,10 @@ export type ImageryCollectionOut = {
      */
     display_order: number;
     /**
+     * Generation Series Id
+     */
+    generation_series_id?: number | null;
+    /**
      * Slices
      */
     slices: Array<ImagerySliceOut>;
@@ -1844,6 +1852,145 @@ export type ImageryEditorStateCreate = {
      * Basemaps
      */
     basemaps: Array<BasemapCreate>;
+};
+
+/**
+ * ImageryGenerationConfigV1
+ *
+ * Lossless, versioned input for the temporal imagery generator.
+ */
+export type ImageryGenerationConfigV1 = {
+    /**
+     * Version
+     */
+    version?: 1;
+    /**
+     * Catalog Url
+     */
+    catalog_url: string;
+    /**
+     * Stac Collection Id
+     */
+    stac_collection_id: string;
+    /**
+     * Collection Title
+     */
+    collection_title: string;
+    /**
+     * Is Mpc
+     */
+    is_mpc: boolean;
+    /**
+     * Has Cloud Cover
+     */
+    has_cloud_cover: boolean;
+    /**
+     * Tiler
+     */
+    tiler?: string | null;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Collection Period Interval
+     */
+    collection_period_interval: number;
+    /**
+     * Collection Period Unit
+     */
+    collection_period_unit: 'weeks' | 'months' | 'years';
+    /**
+     * Slice Period Interval
+     */
+    slice_period_interval: number;
+    /**
+     * Slice Period Unit
+     */
+    slice_period_unit: 'days' | 'weeks' | 'months' | 'years';
+    /**
+     * Cover Mode
+     */
+    cover_mode: 'nth' | 'custom';
+    /**
+     * Cover Slice Nth
+     */
+    cover_slice_nth: number;
+    /**
+     * Max Cloud Cover
+     */
+    max_cloud_cover: number;
+    /**
+     * Item Sort
+     */
+    item_sort: 'date_desc' | 'date_asc' | 'cloud_cover_asc';
+    /**
+     * Cover Max Cloud Cover
+     */
+    cover_max_cloud_cover: number;
+    /**
+     * Cover Item Sort
+     */
+    cover_item_sort: 'date_desc' | 'date_asc' | 'cloud_cover_asc';
+    /**
+     * Visualizations
+     */
+    visualizations: Array<NamedVizParamsCreate>;
+    /**
+     * Cover Visualizations
+     */
+    cover_visualizations?: Array<NamedVizParamsCreate>;
+    /**
+     * Search Query
+     */
+    search_query?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Cover Search Query
+     */
+    cover_search_query?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean;
+};
+
+/**
+ * ImageryGenerationSeriesCreate
+ *
+ * One source-level series in the full-editor write model.
+ *
+ * ``key`` is a request-local identity used by collections in the same
+ * payload. ``id`` preserves an existing database row when editing.
+ */
+export type ImageryGenerationSeriesCreate = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Id
+     */
+    id?: number | null;
+    config: ImageryGenerationConfigV1;
+};
+
+/**
+ * ImageryGenerationSeriesOut
+ */
+export type ImageryGenerationSeriesOut = {
+    /**
+     * Id
+     */
+    id: number;
+    config: ImageryGenerationConfigV1;
 };
 
 /**
@@ -1927,6 +2074,10 @@ export type ImagerySourceCreate = {
      */
     visualizations: Array<VisualizationTemplateCreate>;
     /**
+     * Generation Series
+     */
+    generation_series?: Array<ImageryGenerationSeriesCreate>;
+    /**
      * Collections
      */
     collections: Array<ImageryCollectionCreate>;
@@ -1964,6 +2115,10 @@ export type ImagerySourceOut = {
      * Collections
      */
     collections: Array<ImageryCollectionOut>;
+    /**
+     * Generation Series
+     */
+    generation_series?: Array<ImageryGenerationSeriesOut>;
     /**
      * Has Api Key
      */
