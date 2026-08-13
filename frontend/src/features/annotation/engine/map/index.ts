@@ -19,7 +19,7 @@ export {
   type PreloaderOptions,
 } from './tileQos/preloader';
 export {
-  credentialedTileLoader,
+  foregroundTileLoader,
   crossOriginFor,
   crossOriginForTile,
   isProxiedTileUrl,

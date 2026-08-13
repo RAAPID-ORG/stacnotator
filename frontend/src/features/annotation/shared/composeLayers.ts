@@ -140,6 +140,13 @@ export function composeLayers(ctx: ComposeCtx, state: ComposeState): LayerSpec[]
   const { catalog } = ctx;
   const isWindow = state.target === 'window';
   const layers: LayerSpec[] = [];
+  // The pre-rewrite windows recreated their XYZ source on every task. Keep
+  // that correctness boundary while still sharing one source/cache between
+  // maps showing the same raster at the current task.
+  const taskRasterScope =
+    ctx.mode === 'tasks' && state.crosshairPoint
+      ? `${state.crosshairPoint[0]}:${state.crosshairPoint[1]}`
+      : undefined;
 
   // Imagery, or the basemap when it is selected - and also when there is no
   // imagery to show at all, so the map is never a blank canvas.
@@ -170,7 +177,7 @@ export function composeLayers(ctx: ComposeCtx, state: ComposeState): LayerSpec[]
         state.address,
         state.legendOverrides?.[Number(state.address.vizId)]
       );
-      layers.push(spec);
+      layers.push({ ...spec, cacheScope: taskRasterScope });
     } catch {
       /* no imagery for this address */
     }
@@ -186,6 +193,7 @@ export function composeLayers(ctx: ComposeCtx, state: ComposeState): LayerSpec[]
         auth: 'cookie',
         opacity: state.overlayOpacity ?? 1,
         maxZoom: map.max_native_zoom ?? undefined,
+        cacheScope: taskRasterScope,
         zIndex: OVERLAY_Z,
       });
     }

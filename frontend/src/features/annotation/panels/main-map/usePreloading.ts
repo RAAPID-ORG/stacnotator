@@ -9,6 +9,7 @@ import { useImageryStore, usePrefsStore, type PreloadTier } from '~/features/ann
 import { mainCamera } from '~/features/annotation/shared/cameras';
 import {
   TilePreloader,
+  tileUrlsForExtent,
   type Bbox,
   type LonLat,
   type PreloadJob,
@@ -268,6 +269,21 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
       windowSlices,
       viewSync
     );
+    const currentJobs = visibleSliceJobs({
+      catalog: ctx.catalog,
+      addresses,
+      around: focus,
+      fallbackZoom: mainCamera.getState().zoom,
+      priority: PRIORITY_UPCOMING,
+      viewportPx,
+    });
+    const foregroundUrls = new Set(
+      currentJobs.flatMap((job) => tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom))
+    );
+    // Heavy mode may have fifty old-task requests in flight. Keep only requests
+    // the new viewport can reuse; stale work must not hold the connection while
+    // the user waits, but shared URLs must not be aborted (see TilePreloader).
+    preloader.cancelInflightExcept(foregroundUrls);
     for (const center of upcoming ?? []) {
       jobs.push(
         ...visibleSliceJobs({

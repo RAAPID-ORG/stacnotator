@@ -1,7 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import type Tile from 'ol/Tile';
 import {
-  credentialedTileLoader,
+  foregroundTileLoader,
   crossOriginFor,
   crossOriginForTile,
   ensureSessionFor,
@@ -82,13 +82,13 @@ function fakeTile(crossOrigin: string | null) {
   return { image, tile: { getImage: () => image } as unknown as Tile };
 }
 
-describe('credentialedTileLoader', () => {
+describe('foregroundTileLoader', () => {
   it('waits for a fresh token before loading a credentialed tile', async () => {
     let release = () => {};
     const refresh = vi.fn(() => new Promise<void>((resolve) => (release = resolve)));
     const { image, tile } = fakeTile('use-credentials');
 
-    credentialedTileLoader(refresh)(tile, 'https://tiler/1/2/3.png');
+    foregroundTileLoader(refresh)(tile, 'https://tiler/1/2/3.png');
     expect(image.fetchPriority).toBe('high');
     expect(image.src).toBe('');
 
@@ -102,7 +102,7 @@ describe('credentialedTileLoader', () => {
     const refresh = vi.fn().mockResolvedValue(undefined);
     const { image, tile } = fakeTile('anonymous');
 
-    credentialedTileLoader(refresh)(tile, 'https://osm/1/2/3.png');
+    foregroundTileLoader(refresh)(tile, 'https://osm/1/2/3.png');
     await Promise.resolve();
     await Promise.resolve();
 
@@ -115,7 +115,7 @@ describe('credentialedTileLoader', () => {
     setTilerTokenRefresher(refresh);
     const { image, tile } = fakeTile('use-credentials');
 
-    credentialedTileLoader(refreshTilerSession)(tile, 'https://tiler/1/2/3.png');
+    foregroundTileLoader(refreshTilerSession)(tile, 'https://tiler/1/2/3.png');
     await Promise.resolve();
     await Promise.resolve();
 
@@ -128,7 +128,7 @@ describe('credentialedTileLoader', () => {
     const refresh = vi.fn().mockRejectedValue(new Error('offline'));
     const { image, tile } = fakeTile('use-credentials');
 
-    credentialedTileLoader(refresh)(tile, 'https://tiler/1/2/3.png');
+    foregroundTileLoader(refresh)(tile, 'https://tiler/1/2/3.png');
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();

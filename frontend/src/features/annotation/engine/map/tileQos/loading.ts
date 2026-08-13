@@ -72,7 +72,7 @@ export function ensureSessionFor(
  * request at 'low'). The cookie is sent automatically because the source uses
  * 'use-credentials'; we only make sure it is fresh before issuing the request.
  */
-export function credentialedTileLoader(refreshToken: () => Promise<void>): LoadFunction {
+export function foregroundTileLoader(refreshToken: () => Promise<void>): LoadFunction {
   return (tile, src) => {
     const image = (tile as ImageTile).getImage() as HTMLImageElement;
     image.fetchPriority = 'high';

@@ -23,6 +23,8 @@ export interface RasterLayerSpec {
   minZoom?: number;
   maxZoom?: number; // basemap max_native_zoom
   preload?: number; // OL preload depth; default 0
+  /** Changes when cached tile/error state must not cross a navigation boundary. */
+  cacheScope?: string;
 }
 
 export interface VectorTileLayerSpec {

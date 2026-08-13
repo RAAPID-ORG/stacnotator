@@ -13,7 +13,11 @@ import {
   makeView,
   makeViz,
 } from '~/features/annotation/core/catalog/testHelpers';
-import type { LayerSpec, VectorTileLayerSpec } from '~/features/annotation/engine/map';
+import type {
+  LayerSpec,
+  RasterLayerSpec,
+  VectorTileLayerSpec,
+} from '~/features/annotation/engine/map';
 import type { ComposeCtx } from '../composition';
 import {
   ANNOTATION_LAYER_ID,
@@ -147,6 +151,19 @@ describe('composeLayers - tasks mode', () => {
       type: 'Point',
       coordinates: [5, 6],
     });
+  });
+
+  it('scopes raster cache state to the current task, but not in Explore', () => {
+    const taskRaster = composeLayers(ctxFor('tasks'), stateWith({ crosshairPoint: [5, 6] })).find(
+      (layer) => layer.kind === 'raster'
+    ) as RasterLayerSpec;
+    const exploreRaster = composeLayers(
+      ctxFor('explore'),
+      stateWith({ crosshairPoint: [5, 6] })
+    ).find((layer) => layer.kind === 'raster') as RasterLayerSpec;
+
+    expect(taskRaster.cacheScope).toBe('5:6');
+    expect(exploreRaster.cacheScope).toBeUndefined();
   });
 });
 

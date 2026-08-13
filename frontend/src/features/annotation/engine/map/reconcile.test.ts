@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type BaseLayer from 'ol/layer/Base';
+import ImageTile from 'ol/ImageTile';
 import TileLayer from 'ol/layer/Tile';
+import TileState from 'ol/TileState';
 import { applyLayerOps, reconcile, type LayerHost, type MountedLayer } from './reconcile';
 import type {
   FeatureLayerSpec,
@@ -73,6 +75,14 @@ describe('reconcile', () => {
         spec: after,
         changed: ['minZoom', 'maxZoom', 'preload'],
       },
+    ]);
+  });
+
+  it('replaces raster cache state at a task boundary', () => {
+    const before = raster({ cacheScope: 'task-1' });
+    const after = raster({ cacheScope: 'task-2' });
+    expect(reconcile(mounted(before), [after])).toEqual([
+      { type: 'update', id: 'imagery', spec: after, changed: ['cacheScope'] },
     ]);
   });
 
@@ -273,6 +283,31 @@ describe('applyLayerOps', () => {
     expect(layer?.getVisible()).toBe(true);
     expect(registry.get('b')?.retained).toBe(true);
     expect(host.layers).toHaveLength(2);
+  });
+
+  it('retries only failed renderer tiles when a retained date comes back', () => {
+    const host = testHost();
+    const registry = new Map<LayerId, MountedLayer>();
+    sync(host, registry, [raster({ id: 'a' })]);
+    const layer = registry.get('a')!.layer as TileLayer;
+    const load = vi.fn();
+    const failed = new ImageTile(
+      [15, 1, 2],
+      TileState.ERROR,
+      'https://tiler/15/1/2.png',
+      { crossOrigin: null },
+      load
+    );
+    const renderer = layer.getRenderer() as unknown as {
+      getTileCache(): { set(key: string, tile: ImageTile): void };
+    };
+    renderer.getTileCache().set('failed', failed);
+
+    sync(host, registry, [raster({ id: 'b' })]);
+    sync(host, registry, [raster({ id: 'a' })]);
+
+    expect(load).toHaveBeenCalledOnce();
+    expect(failed.getState()).toBe(TileState.LOADING);
   });
 
   it('rebuilds the source only when the spec asks for other tiles', () => {

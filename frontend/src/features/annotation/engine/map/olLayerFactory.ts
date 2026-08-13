@@ -23,16 +23,19 @@ import type {
 } from './types';
 import type { LayerField } from './reconcile';
 import {
-  credentialedTileLoader,
+  foregroundTileLoader,
   crossOriginForTile,
   refreshTilerSession,
   type CrossOrigin,
 } from './tileQos/loading';
+import { attachTileErrorRecovery, detachTileErrorRecovery } from './tileQos/recovery';
+import { acquireRasterSource, releaseRasterSource } from './tileQos/sourcePool';
 
 /** Layer property keys. Prefixed so they cannot collide with OL's own. */
 export const LAYER_ID_PROP = 'mapview:layerId';
 const SPEC_PROP = 'mapview:spec';
 const GEO_FEATURE_PROP = 'mapview:feature';
+const RASTER_SOURCE_KEY_PROP = 'mapview:rasterSourceKey';
 
 const PMTILES_SCHEME = 'pmtiles://';
 const MAX_TILE_ZOOM = 22;
@@ -145,10 +148,21 @@ export function featurePropsOf(feature: FeatureLike): Record<string, unknown> {
   return props;
 }
 
-function createRasterSource(spec: RasterLayerSpec): XYZ {
+function rasterSourceKey(spec: RasterLayerSpec, crossOrigin: CrossOrigin): string {
+  return JSON.stringify([
+    spec.url,
+    crossOrigin,
+    spec.attribution ?? null,
+    spec.minZoom ?? null,
+    spec.maxZoom ?? null,
+    spec.cacheScope ?? null,
+  ]);
+}
+
+function createRasterSource(spec: RasterLayerSpec): { key: string; source: XYZ } {
   const crossOrigin: CrossOrigin =
     spec.auth === 'cookie' ? 'use-credentials' : crossOriginForTile(spec.url);
-  const credentialed = crossOrigin === 'use-credentials';
+  const key = rasterSourceKey(spec, crossOrigin);
   const options = {
     attributions: spec.attribution,
     crossOrigin,
@@ -159,14 +173,19 @@ function createRasterSource(spec: RasterLayerSpec): XYZ {
     // non-zero source transition fades that cached layer in after the outgoing
     // one is hidden, producing a pale/blank flash for no network benefit.
     transition: 0,
-    ...(credentialed ? { tileLoadFunction: credentialedTileLoader(refreshTilerSession) } : {}),
+    // Foreground tiles always outrank the preloader's low-priority requests.
+    // The loader refreshes auth only when this source is credentialed.
+    tileLoadFunction: foregroundTileLoader(refreshTilerSession),
   };
-  return spec.url.includes('{q}')
-    ? new XYZ({
-        ...options,
-        tileUrlFunction: ([z, x, y]) => spec.url.replace('{q}', tileXYZToQuadkey(x, y, z)),
-      })
-    : new XYZ({ ...options, url: spec.url });
+  const source = acquireRasterSource(key, () =>
+    spec.url.includes('{q}')
+      ? new XYZ({
+          ...options,
+          tileUrlFunction: ([z, x, y]) => spec.url.replace('{q}', tileXYZToQuadkey(x, y, z)),
+        })
+      : new XYZ({ ...options, url: spec.url })
+  );
+  return { key, source };
 }
 
 function createVectorTileSource(spec: VectorTileLayerSpec): VectorTileSource {
@@ -229,8 +248,11 @@ export function createLayer(spec: LayerSpec): BaseLayer {
 
 function buildLayer(spec: LayerSpec): BaseLayer {
   if (spec.kind === 'raster') {
-    const source = createRasterSource(spec);
-    return new TileLayer({ source, preload: spec.preload ?? 0, opacity: spec.opacity ?? 1 });
+    const { key, source } = createRasterSource(spec);
+    const layer = new TileLayer({ source, preload: spec.preload ?? 0, opacity: spec.opacity ?? 1 });
+    layer.set(RASTER_SOURCE_KEY_PROP, key);
+    attachTileErrorRecovery(layer);
+    return layer;
   }
   if (spec.kind === 'vector-tiles') {
     const layer = new VectorTileLayer({
@@ -261,6 +283,12 @@ export function updateLayer(
 ): void {
   // Style functions read the spec off the layer, so this also refreshes them.
   layer.set(SPEC_PROP, spec);
+  let sourceReplaced = false;
+  const replaceSourceOnce = () => {
+    if (sourceReplaced) return;
+    replaceSource(layer, spec);
+    sourceReplaced = true;
+  };
 
   for (const field of changed) {
     switch (field) {
@@ -280,15 +308,16 @@ export function updateLayer(
         // A raster's zoom limits live on the tile grid, a vector tile layer's on
         // the layer itself, mirroring where each one stops requesting tiles.
         if (spec.kind === 'vector-tiles') layer.setMinZoom(spec.minZoom ?? -Infinity);
-        else replaceSource(layer, spec);
+        else replaceSourceOnce();
         break;
       case 'url':
       case 'auth':
       case 'attribution':
       case 'maxZoom':
+      case 'cacheScope':
       case 'idProperty':
       case 'sourceLayers':
-        replaceSource(layer, spec);
+        replaceSourceOnce();
         break;
       case 'features':
         if (spec.kind === 'features') {
@@ -309,8 +338,13 @@ export function updateLayer(
 
 function replaceSource(layer: BaseLayer, spec: LayerSpec): void {
   if (spec.kind === 'raster') {
-    const source = createRasterSource(spec);
-    (layer as TileLayer<XYZ>).setSource(source);
+    const { key, source } = createRasterSource(spec);
+    const rasterLayer = layer as TileLayer<XYZ>;
+    const previousKey = rasterLayer.get(RASTER_SOURCE_KEY_PROP) as string | undefined;
+    rasterLayer.setSource(source);
+    rasterLayer.set(RASTER_SOURCE_KEY_PROP, key);
+    if (previousKey) releaseRasterSource(previousKey);
+    attachTileErrorRecovery(rasterLayer);
     return;
   }
   if (spec.kind === 'vector-tiles') {
@@ -322,6 +356,14 @@ function replaceSource(layer: BaseLayer, spec: LayerSpec): void {
 
 /** Dropping the source aborts in-flight tile requests for a layer being removed. */
 export function destroyLayer(layer: BaseLayer): void {
+  if (layer instanceof TileLayer) {
+    detachTileErrorRecovery(layer as TileLayer<XYZ>);
+    const key = layer.get(RASTER_SOURCE_KEY_PROP) as string | undefined;
+    if (key) {
+      releaseRasterSource(key);
+      layer.unset(RASTER_SOURCE_KEY_PROP, true);
+    }
+  }
   const withSource = layer as unknown as { setSource?: (source: null) => void };
   if (typeof withSource.setSource === 'function') withSource.setSource(null);
 }

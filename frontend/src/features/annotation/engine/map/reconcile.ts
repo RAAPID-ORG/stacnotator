@@ -1,5 +1,8 @@
 import type BaseLayer from 'ol/layer/Base';
 import { createLayer, destroyLayer, updateLayer } from './olLayerFactory';
+import TileLayer from 'ol/layer/Tile';
+import type XYZ from 'ol/source/XYZ';
+import { retryErroredTiles } from './tileQos/recovery';
 import type { LayerId, LayerSpec } from './types';
 
 /**
@@ -16,6 +19,7 @@ export type LayerField =
   | 'attribution'
   | 'minZoom'
   | 'maxZoom'
+  | 'cacheScope'
   | 'preload'
   | 'idProperty'
   | 'sourceLayers'
@@ -88,6 +92,7 @@ function changedFields(prev: LayerSpec, next: LayerSpec): LayerField[] {
     push('attribution', prev.attribution === next.attribution);
     push('minZoom', prev.minZoom === next.minZoom);
     push('maxZoom', prev.maxZoom === next.maxZoom);
+    push('cacheScope', prev.cacheScope === next.cacheScope);
     push('preload', prev.preload === next.preload);
     push('opacity', prev.opacity === next.opacity);
   }
@@ -210,6 +215,9 @@ export function applyLayerOps(
         entry.spec = op.spec;
         entry.retained = false;
         entry.layer.setVisible(op.spec.visible ?? true);
+        if (entry.layer instanceof TileLayer) {
+          retryErroredTiles(entry.layer as TileLayer<XYZ>);
+        }
         break;
       case 'update':
         updateLayer(entry.layer, op.spec, op.changed);

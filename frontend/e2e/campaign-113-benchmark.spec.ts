@@ -2,6 +2,12 @@ import { execFileSync } from 'node:child_process';
 import { test, expect } from './fixtures/annotator-fixture';
 import { TEST_USER_ID } from './fixtures/mock-data';
 
+const CAMPAIGN_ID = Number(process.env.BENCH_CAMPAIGN_ID ?? 113);
+const TEST_TILE = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGUExURQD/AP///2+9WFEAAAABYktHRAH/Ai3eAAAAB3RJTUUH6ggNCC0kqyvu3gAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII=',
+  'base64'
+);
+
 const extractScript = `
 import json
 from src.main import app
@@ -12,7 +18,7 @@ from src.annotation.service import get_annotation_tasks_for_campaign
 from src.annotation.schemas import AnnotationTaskOut
 
 db = SessionLocal()
-campaign = get_campaign_full(db, 113)
+campaign = get_campaign_full(db, ${CAMPAIGN_ID})
 out = CampaignOutFull.from_orm(campaign).model_dump(mode='json')
 tasks = [AnnotationTaskOut.model_validate(task).model_dump(mode='json') for task in get_annotation_tasks_for_campaign(db, campaign)]
 print(json.dumps({'campaign': out, 'tasks': tasks}))
@@ -105,7 +111,110 @@ for (const source of real?.campaign.imagery_sources ?? []) {
   }
 }
 
-test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
+test(`campaign ${CAMPAIGN_ID} retries a transient foreground tile after cycling away and back`, async ({
+  annotationPage,
+}) => {
+  test.setTimeout(90_000);
+  const task = tasks[0];
+  const source = real?.campaign.imagery_sources[0];
+  const collection = source?.collections[0];
+  const visualization = source?.visualizations[0]?.name;
+  const slice = collection?.slices[collection.cover_slice_index ?? 0];
+  const tileUrl = slice?.tile_urls.find(
+    (entry: any) => entry.visualization_name === visualization
+  )?.tile_url;
+  const marker = tileUrl ? mosaicId(tileUrl) : null;
+  expect(task).toBeTruthy();
+  expect(marker).toBeTruthy();
+
+  const point = pointOf(task);
+  const z = source?.default_zoom ?? 15;
+  const coord = tileAt(point.lon, point.lat, z);
+  const target = `/mosaic/${marker}/tiles/WebMercatorQuad/${z}/${coord.x}/${coord.y}`;
+  let attempts = 0;
+
+  await annotationPage.addInitScript((targetValue) => {
+    const original = CanvasRenderingContext2D.prototype.drawImage;
+    CanvasRenderingContext2D.prototype.drawImage = function (
+      this: CanvasRenderingContext2D,
+      ...args: any[]
+    ) {
+      const image = args[0] as { currentSrc?: string; src?: string } | undefined;
+      const url = image?.currentSrc ?? image?.src ?? '';
+      const state = window as typeof window & {
+        __RETRY_TILE_TARGET__?: string;
+        __RETRY_TILE_PAINTS__?: number;
+      };
+      if (
+        state.__RETRY_TILE_TARGET__ &&
+        url.includes(state.__RETRY_TILE_TARGET__) &&
+        this.canvas.closest('[data-panel-id="main"]')
+      ) {
+        state.__RETRY_TILE_PAINTS__ = (state.__RETRY_TILE_PAINTS__ ?? 0) + 1;
+      }
+      return (original as (...values: any[]) => void).apply(this, args);
+    } as typeof CanvasRenderingContext2D.prototype.drawImage;
+    const state = window as typeof window & {
+      __RETRY_TILE_TARGET__?: string;
+      __RETRY_TILE_PAINTS__?: number;
+    };
+    state.__RETRY_TILE_TARGET__ = targetValue;
+    state.__RETRY_TILE_PAINTS__ = 0;
+  }, target);
+  await annotationPage.route('https://planetarycomputer.microsoft.com/**', (route) => {
+    if (route.request().url().includes(target)) {
+      attempts++;
+      if (attempts === 1) return route.abort('failed');
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        headers: { 'access-control-allow-origin': '*' },
+        body: TEST_TILE,
+      });
+    }
+    return route.continue();
+  });
+  await annotationPage.route('**/api/campaigns/*/detailed', (route) =>
+    route.fulfill({ json: real.campaign })
+  );
+  await annotationPage.route('**/api/campaigns/*/annotation-tasks', (route) =>
+    route.fulfill({ json: { campaign_id: CAMPAIGN_ID, tasks } })
+  );
+  await annotationPage.evaluate(() => {
+    const key = 'annotation:prefs';
+    const stored = JSON.parse(localStorage.getItem(key) || '{}');
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        ...stored,
+        state: { ...(stored.state || {}), preloadTier: 'heavy' },
+        version: stored.version ?? 0,
+      })
+    );
+  });
+  await annotationPage.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await waitForBenchmarkNavigation(annotationPage);
+  await expect.poll(() => attempts, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
+
+  await annotationPage.keyboard.press('Shift+d');
+  await annotationPage.waitForTimeout(100);
+  await annotationPage.keyboard.press('Shift+a');
+
+  await expect.poll(() => attempts, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+  await expect
+    .poll(
+      () =>
+        annotationPage.evaluate(
+          () =>
+            (window as typeof window & { __RETRY_TILE_PAINTS__?: number }).__RETRY_TILE_PAINTS__ ??
+            0
+        ),
+      { timeout: 15_000 }
+    )
+    .toBeGreaterThan(0);
+});
+
+test(`campaign ${CAMPAIGN_ID} cold random-task benchmark`, async ({ annotationPage }) => {
   test.setTimeout(180_000);
   await annotationPage.addInitScript(() => {
     const original = CanvasRenderingContext2D.prototype.drawImage;
@@ -156,7 +265,7 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     await route.fulfill({ json: real.campaign });
   });
   await annotationPage.route('**/api/campaigns/*/annotation-tasks', async (route) => {
-    await route.fulfill({ json: { campaign_id: 113, tasks } });
+    await route.fulfill({ json: { campaign_id: CAMPAIGN_ID, tasks } });
   });
   await annotationPage.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });
   await annotationPage.waitForSelector('[data-tour="controls"]', { timeout: 30_000 });
@@ -177,7 +286,7 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     .sort(() => Math.random() - 0.5);
   const selected: typeof candidates = requestedIds.map((id) => {
     const candidate = candidates.find((entry) => entry.task.id === id);
-    if (!candidate) throw new Error(`Unknown campaign 113 task id: ${id}`);
+    if (!candidate) throw new Error(`Unknown campaign ${CAMPAIGN_ID} task id: ${id}`);
     return candidate;
   });
   if (requestedIds.length === 0) {
@@ -212,8 +321,10 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     ).toEqual([]);
     const started = new Map<number, number>();
     const completed = new Map<number, number>();
+    const lastCompleted = new Map<number, number>();
     const targetCompleted = new Map<number, number>();
     const finished = new Map<number, number>();
+    const lastFinishedByCollection = new Map<number, number>();
     const targetFinished = new Map<number, number>();
     const requestCounts = new Map<number, number>();
 
@@ -245,6 +356,7 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
       )
         return;
       if (response.ok() && !completed.has(collection)) completed.set(collection, Date.now());
+      if (response.ok()) lastCompleted.set(collection, Date.now());
       if (
         response.ok() &&
         targetTiles[tileKey(response.url()) ?? ''] === String(collection) &&
@@ -266,6 +378,7 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
       )
         return;
       if (!finished.has(collection)) finished.set(collection, Date.now());
+      lastFinishedByCollection.set(collection, Date.now());
       if (
         targetTiles[tileKey(request.url()) ?? ''] === String(collection) &&
         !targetFinished.has(collection)
@@ -320,6 +433,8 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     const firstComplete = Math.min(...completed.values()) - navigationAt;
     const lastComplete = Math.max(...completed.values()) - navigationAt;
     const lastFinished = Math.max(...finished.values()) - navigationAt;
+    const lastResponseAny = Math.max(...lastCompleted.values()) - navigationAt;
+    const lastBodyAny = Math.max(...lastFinishedByCollection.values()) - navigationAt;
     const lastRendered = Math.max(...Object.values(rendered));
     const headersToPresented = Math.max(
       ...[...visibleIds].map((id) => Number(rendered[String(id)]) - Number(targetCompleted.get(id)))
@@ -336,10 +451,11 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     const renderedTotal = lastRendered - navigationAt;
     const totalRequests = [...requestCounts.values()].reduce((sum, count) => sum + count, 0);
     console.log(
-      `BENCH113 task=${task.id} annotation=${task.annotation_number} panels=${visibleIds.size} ` +
+      `BENCH${CAMPAIGN_ID} task=${task.id} annotation=${task.annotation_number} panels=${visibleIds.size} ` +
         `start_first=${firstStart}ms start_all=${lastStart}ms ` +
         `headers_first=${firstComplete}ms headers_all=${lastComplete}ms ` +
-        `body_all=${lastFinished}ms paint_after_headers=${headersToPresented}ms ` +
+        `first_bodies_all=${lastFinished}ms responses_last=${lastResponseAny}ms ` +
+        `bodies_last=${lastBodyAny}ms paint_after_headers=${headersToPresented}ms ` +
         `paint_after_body=${bodyToPresented}ms slowest_panel=${slowestPanel} ` +
         `painted_all=${renderedTotal}ms ` +
         `requests=${totalRequests} max_per_panel=${Math.max(...requestCounts.values())} ` +
@@ -350,9 +466,11 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     annotationPage.off('response', onResponse);
     annotationPage.off('requestfinished', onRequestFinished);
 
-    expect(
-      renderedTotal,
-      `task ${task.id}: all visible imagery should paint within 2s (starts ${firstStart}-${lastStart}ms, bodies ${lastFinished}ms, post-body paint ${bodyToPresented}ms)`
-    ).toBeLessThan(2000);
+    expect
+      .soft(
+        renderedTotal,
+        `task ${task.id}: all visible imagery should paint within 2s (starts ${firstStart}-${lastStart}ms, bodies ${lastFinished}ms, post-body paint ${bodyToPresented}ms)`
+      )
+      .toBeLessThan(2000);
   }
 });

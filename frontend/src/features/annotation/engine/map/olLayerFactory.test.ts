@@ -75,6 +75,25 @@ describe('raster layers', () => {
     expect(rasterSourceOf(layer).getUrls()).toEqual(['https://other/{z}/{x}/{y}.png']);
   });
 
+  it('shares the tile cache when the same raster is visible in two maps', () => {
+    const main = createLayer(spec({ id: 'main-imagery' }));
+    const window = createLayer(spec({ id: 'window-imagery' }));
+
+    expect(rasterSourceOf(main)).toBe(rasterSourceOf(window));
+    destroyLayer(main);
+    expect(rasterSourceOf(window)).not.toBeNull();
+    destroyLayer(window);
+  });
+
+  it('does not carry source state across task cache scopes', () => {
+    const firstTask = createLayer(spec({ id: 'first', cacheScope: 'task-1' }));
+    const secondTask = createLayer(spec({ id: 'second', cacheScope: 'task-2' }));
+
+    expect(rasterSourceOf(firstTask)).not.toBe(rasterSourceOf(secondTask));
+    destroyLayer(firstTask);
+    destroyLayer(secondTask);
+  });
+
   it('limits the tile grid and preload depth from the spec', () => {
     const layer = createLayer(spec({ minZoom: 4, maxZoom: 18, preload: 2 }));
     const grid = rasterSourceOf(layer).getTileGrid()!;

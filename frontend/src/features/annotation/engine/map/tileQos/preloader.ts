@@ -75,7 +75,7 @@ export class TilePreloader {
   private generation = 0;
   private drainTimer: ReturnType<typeof setInterval> | null = null;
   private preloaded = new Set<string>();
-  private inflightCancels = new Set<() => void>();
+  private inflightCancels = new Map<() => void, string>();
 
   private readonly maxConcurrent: number;
   private readonly refreshToken: () => Promise<void>;
@@ -150,6 +150,17 @@ export class TilePreloader {
     this.preloaded.clear();
   }
 
+  /**
+   * Cancel speculative work that cannot serve the new foreground viewport.
+   * URLs the active OL layers may share are deliberately preserved: Chromium
+   * coalesces equal image requests, so aborting one of those also fails OL's.
+   */
+  cancelInflightExcept(keepUrls: ReadonlySet<string>): void {
+    for (const [cancel, url] of this.inflightCancels) {
+      if (!keepUrls.has(url)) cancel();
+    }
+  }
+
   dispose(): void {
     this.disposed = true;
     this.clear();
@@ -222,7 +233,7 @@ export class TilePreloader {
         this.inflightCancels.delete(cancel);
         done(true);
       };
-      this.inflightCancels.add(cancel);
+      this.inflightCancels.set(cancel, url);
 
       img.onload = () => {
         if (settled) return;
@@ -252,7 +263,7 @@ export class TilePreloader {
   }
 
   private abortInflight(): void {
-    for (const cancel of this.inflightCancels) cancel();
+    for (const cancel of this.inflightCancels.keys()) cancel();
     this.inflightCancels.clear();
     this.inflight = 0;
   }

@@ -151,6 +151,26 @@ describe('TilePreloader queue', () => {
     expect(images).toHaveLength(1);
     preloader.dispose();
   });
+
+  it('cancels stale in-flight work but preserves URLs shared by the foreground', async () => {
+    const { images, preloader } = harness(4);
+    preloader.enqueue({
+      priority: 1,
+      groupId: 'old-task',
+      urlTemplate: 'https://a/{z}/{x}/{y}',
+      extent: WORLD,
+      zoom: 1,
+    });
+    await flush();
+    preloader.pause();
+    const keep = new Set([images[0].src]);
+
+    preloader.cancelInflightExcept(keep);
+
+    expect(images[0].srcHistory).toEqual([keep.values().next().value]);
+    expect(images.slice(1).every((image) => image.src === '')).toBe(true);
+    preloader.dispose();
+  });
 });
 
 describe('TilePreloader groups', () => {
