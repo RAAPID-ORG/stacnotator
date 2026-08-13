@@ -15,7 +15,7 @@ import { useWorkStore } from '~/features/annotation/stores';
 import type { Binding } from '~/features/annotation/engine/hotkeys';
 import type { ComposeCtx, HotkeyTable } from '../../composition';
 import { focusFormFieldInput } from '../../shared/FormFields';
-import { revealAndFocus } from '../../shared/revealFocus';
+import { reveal, revealAndFocus } from '../../shared/revealFocus';
 import { isSkipConfirmDisabled, requestConfirm } from './confirmBus';
 import { submitCurrent, type SubmitOutcome } from './submit';
 import { DIGIT_INPUT_TIMEOUT_MS } from '~/shared/utils/constants';
@@ -293,8 +293,7 @@ function commentIsFocused(): boolean {
   return box !== null && document.activeElement === box;
 }
 
-const FORM_INPUT_SELECTOR =
-  '[data-form-field-id],[data-task-comment-input],[data-task-confidence-input]';
+const FORM_INPUT_SELECTOR = '[data-form-field-id],[data-task-comment-input]';
 
 /** Whether the form's Tab/Escape may claim this keystroke. They are allowed
  *  through the registry's typing guard so a focused field can be left again,
@@ -312,23 +311,11 @@ function adjustConfidence(delta: number): void {
   const work = useWorkStore.getState();
   const current = work.confidence ?? DEFAULT_CONFIDENCE;
   work.setConfidence(Math.max(1, Math.min(5, current + delta)));
-  focusConfidence();
+  revealConfidence();
 }
 
-function focusConfidence(): void {
-  const section = document.querySelector<HTMLElement>('[data-task-confidence]');
-  const slider = section?.querySelector<HTMLElement>('[data-task-confidence-input]') ?? null;
-  revealAndFocus(section, slider);
-}
-
-/** Confidence shortcuts remain live after they focus the range input, but do
- * not steal Q/E or shifted digits from any unrelated text field. */
-function confidenceKeysApply(): boolean {
-  const active = document.activeElement;
-  if (!(active instanceof HTMLElement)) return true;
-  const tag = active.tagName;
-  if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return true;
-  return active.matches('[data-task-confidence-input]');
+function revealConfidence(): void {
+  reveal(document.querySelector<HTMLElement>('[data-task-confidence]'));
 }
 
 export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
@@ -359,11 +346,10 @@ export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
   const confidenceBinding = (level: 1 | 2 | 3 | 4 | 5): Binding => ({
     key: `shift+${level}`,
     help: 'Set confidence level',
-    allowInInput: true,
-    when: () => tasksActive() && confidenceKeysApply(),
+    when: tasksActive,
     run: () => {
       useWorkStore.getState().setConfidence(level);
-      focusConfidence();
+      revealConfidence();
     },
   });
 
@@ -376,15 +362,13 @@ export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
     {
       key: 'q',
       help: 'Decrease confidence',
-      allowInInput: true,
-      when: () => tasksActive() && confidenceKeysApply(),
+      when: tasksActive,
       run: () => adjustConfidence(-1),
     },
     {
       key: 'e',
       help: 'Increase confidence',
-      allowInInput: true,
-      when: () => tasksActive() && confidenceKeysApply(),
+      when: tasksActive,
       run: () => adjustConfidence(1),
     },
     { key: 'c', help: 'Focus comment', when: tasksActive, run: focusComment },

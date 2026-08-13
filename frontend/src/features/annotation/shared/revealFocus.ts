@@ -12,6 +12,11 @@ export function revealAndFocus(
   focusTarget: HTMLElement | null = container
 ): void {
   if (!container) return;
-  container.scrollIntoView?.(REVEAL_OPTIONS);
+  reveal(container);
   (focusTarget ?? container).focus({ preventScroll: true });
+}
+
+/** Reveal a control group without turning it into a typing target. */
+export function reveal(container: HTMLElement | null): void {
+  container?.scrollIntoView?.(REVEAL_OPTIONS);
 }

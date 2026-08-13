@@ -170,16 +170,21 @@ test.describe('Annotation Submission', () => {
     await annotationPage.keyboard.press('Shift+3');
     const confidenceSection = annotationPage.locator('[data-task-confidence]');
     const confidenceSlider = annotationPage.locator('[data-task-confidence-input]');
-    await expect(confidenceSlider).toBeFocused();
+    await expect(confidenceSlider).not.toBeFocused();
     await expect(confidenceSlider).toHaveValue('3');
     await expect.poll(() => isFullyVisible(confidenceSection), { timeout: 5000 }).toBe(true);
 
-    // Q remains a hotkey after the shortcut itself has focused the slider.
+    // Q remains a hotkey because revealing confidence does not turn the
+    // range input into the page's typing target.
     await annotationPage.keyboard.press('q');
     await expect(confidenceSlider).toHaveValue('2');
     expect(
       await confidenceSlider.evaluate((element) => getComputedStyle(element).outlineStyle)
     ).toBe('none');
+    // Setting confidence must not strand focus on an input and suppress the
+    // rest of the annotation hotkey table.
+    await annotationPage.keyboard.press('c');
+    await expect(annotationPage.locator('[data-task-comment-input]')).toBeFocused();
 
     // One more Tab wraps from the final field back to the label section.
     await annotationPage.keyboard.press('Escape');

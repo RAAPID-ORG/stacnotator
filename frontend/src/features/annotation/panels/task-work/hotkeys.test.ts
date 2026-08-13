@@ -149,7 +149,7 @@ describe('confidence bindings', () => {
     const { slider, scroll } = mountConfidenceControl();
     binding.run(event);
     expect(useWorkStore.getState().confidence).toBe(3);
-    expect(document.activeElement).toBe(slider);
+    expect(document.activeElement).not.toBe(slider);
     expect(scroll).toHaveBeenCalledWith({
       behavior: 'smooth',
       block: 'center',
@@ -157,7 +157,7 @@ describe('confidence bindings', () => {
     });
   });
 
-  it('keeps Q/E active after moving focus to the confidence slider', () => {
+  it('reveals confidence without turning its slider into a typing target', () => {
     const { slider } = mountConfidenceControl();
     const decrease = bindings().find((b) => b.key === 'q')!;
     useWorkStore.getState().setConfidence(4);
@@ -165,17 +165,9 @@ describe('confidence bindings', () => {
     decrease.run(new KeyboardEvent('keydown', { key: 'q' }));
 
     expect(useWorkStore.getState().confidence).toBe(3);
-    expect(document.activeElement).toBe(slider);
-    expect(decrease.allowInInput).toBe(true);
+    expect(document.activeElement).not.toBe(slider);
+    expect(decrease.allowInInput).toBeUndefined();
     expect(decrease.when!()).toBe(true);
-  });
-
-  it('does not claim confidence hotkeys inside unrelated inputs', () => {
-    const search = document.createElement('input');
-    document.body.appendChild(search);
-    search.focus();
-
-    expect(bindings().find((b) => b.key === 'q')!.when!()).toBe(false);
   });
 });
 
