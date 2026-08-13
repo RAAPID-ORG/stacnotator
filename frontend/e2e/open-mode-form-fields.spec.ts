@@ -84,8 +84,8 @@ test.describe('Open mode custom-field catalog', () => {
     await expect(catalog(annotationPage)).toBeVisible();
 
     // Field 100 (Condition) is required and first, so its cell carries the
-    // active-field highlight ring; pressing a digit answers it immediately.
-    await expect(annotationPage.locator('[data-form-field-id="100"]')).toHaveClass(/ring-2/);
+    // subtle active-field highlight ring; pressing a digit answers it immediately.
+    await expect(annotationPage.locator('[data-form-field-id="100"]')).toHaveClass(/ring-1/);
     await annotationPage.keyboard.press('1'); // picks "Healthy"
     await expect(
       catalog(annotationPage)

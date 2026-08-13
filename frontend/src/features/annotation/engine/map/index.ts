@@ -11,7 +11,6 @@ export {
   layerFeatureId,
   toOlStyle,
   updateLayer,
-  type LayerContext,
 } from './olLayerFactory';
 export {
   TilePreloader,

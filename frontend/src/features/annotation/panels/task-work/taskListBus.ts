@@ -9,7 +9,7 @@ import {
   widenFilterForTask,
   type TaskFilter,
 } from '~/features/annotation/core/tasks';
-import { useImageryStore } from '~/features/annotation/stores';
+import { useImageryStore, usePrefsStore, useSessionStore } from '~/features/annotation/stores';
 import { setMapFocus, type MapFocus } from '~/features/annotation/shared/mapFocus';
 import type { LonLat } from '~/features/annotation/engine/map';
 
@@ -106,7 +106,23 @@ const PREFETCH_AHEAD = 3;
  *  itself no-ops on an unchanged value. */
 export function syncMapFocus(catalog: Catalog): void {
   const task = getCurrentTask();
-  useImageryStore.getState().setEmptyScope(task ? `task:${task.id}` : null);
+  const imagery = useImageryStore.getState();
+  const scope = task ? `task:${task.id}` : null;
+  const taskChanged = imagery.emptyScope !== scope;
+
+  // The collection star is a per-view promise about task navigation. Apply it
+  // only when task identity changes: claims/submissions replace the current
+  // task object too, but must not unexpectedly reset imagery while the user is
+  // still working at the same location.
+  if (taskChanged && task) {
+    const viewId = useSessionStore.getState().selectedViewId;
+    const pinned = viewId == null ? undefined : usePrefsStore.getState().pinnedStart[viewId];
+    if (pinned != null && catalog.collections.has(pinned)) {
+      imagery.setActiveCollection(catalog, pinned);
+    }
+  }
+
+  imagery.setEmptyScope(scope);
   setMapFocus(deriveMapFocus(task, catalog));
 }
 

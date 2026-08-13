@@ -157,6 +157,15 @@ describe('reconcile retention', () => {
     expect(reconcile(mounted(raster()), [])).toEqual([{ type: 'retain', id: 'imagery' }]);
   });
 
+  it('names the incoming raster that replaces the same render slot', () => {
+    const oldDate = raster({ id: 'old', slot: 'imagery' });
+    const newDate = raster({ id: 'new', slot: 'imagery' });
+    expect(reconcile(mounted(oldDate), [newDate])).toEqual([
+      { type: 'add', spec: newDate },
+      { type: 'retain', id: 'old', replacementId: 'new' },
+    ]);
+  });
+
   it('leaves an already retained raster alone', () => {
     expect(reconcile(retained(raster()), [])).toEqual([]);
   });
@@ -238,15 +247,16 @@ describe('applyLayerOps', () => {
   it('lets MapView defer hiding one outgoing raster until its replacement paints', () => {
     const host = testHost();
     const registry = new Map<LayerId, MountedLayer>();
-    sync(host, registry, [raster()]);
-    const layer = registry.get('imagery')!.layer;
+    sync(host, registry, [raster({ id: 'old', slot: 'imagery' })]);
+    const layer = registry.get('old')!.layer;
     const retireLayer = vi.fn();
+    const replacement = raster({ id: 'new', slot: 'imagery' });
 
-    applyLayerOps(host, registry, reconcile(registry, []), { retireLayer });
+    applyLayerOps(host, registry, reconcile(registry, [replacement]), { retireLayer });
 
-    expect(registry.get('imagery')?.retained).toBe(true);
+    expect(registry.get('old')?.retained).toBe(true);
     expect(layer.getVisible()).toBe(true);
-    expect(retireLayer).toHaveBeenCalledWith('imagery', layer);
+    expect(retireLayer).toHaveBeenCalledWith('old', layer, registry.get('new')?.layer);
   });
 
   it('reuses the same layer and source when a spec comes back', () => {

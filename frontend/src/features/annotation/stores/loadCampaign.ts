@@ -134,6 +134,7 @@ export async function loadCampaign(
     empties: {},
     emptyScope: null,
     viewSnapshots: {},
+    windowSlices: {},
     // Crosshair on for Tasks (point placement), off for Explore, same rule
     // setWorkMode applies later when the user switches modes by hand.
     crosshair: workMode === 'tasks',

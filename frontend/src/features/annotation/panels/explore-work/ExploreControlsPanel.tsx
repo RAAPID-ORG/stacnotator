@@ -54,9 +54,9 @@ const TOOLS: ToolDef[] = [
   },
   {
     id: 'timeseries',
-    label: 'Timeseries',
+    label: 'Probe time series',
     shortcut: 'T',
-    icon: 'M3 3v18h18M7 16l4-4 4 4 5-6',
+    icon: 'M3 17l4-7 4 3 4-7M16 12a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm3 7 3 3',
   },
 ];
 
@@ -346,7 +346,7 @@ export function ExploreControlsPanel({ ctx }: ExploreControlsPanelProps) {
 
         {tool === 'timeseries' && (
           <p className="text-[11px] text-neutral-600 leading-relaxed">
-            Click anywhere on the map to load timeseries data for that location.
+            Click one point on the map to load its time series. The probe then returns to Pan.
           </p>
         )}
 

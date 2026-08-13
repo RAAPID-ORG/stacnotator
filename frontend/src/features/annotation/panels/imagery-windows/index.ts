@@ -34,12 +34,6 @@ export {
   type WindowProps,
 } from './WindowPanel';
 export {
-  getUserPickedSlice,
-  getWindowSlice,
-  resetWindowSlices,
-  useWindowSlice,
-} from '../../shared/windowSlices';
-export {
   candidateOrder,
   healingEnabled,
   nextProbe,

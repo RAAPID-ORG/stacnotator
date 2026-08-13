@@ -143,30 +143,34 @@ export async function waitForMinimapCenter(
     });
 }
 
-const mainCanvas = (page: Page) => page.locator('[data-tour="main-map"] canvas').first();
+// OpenLayers may create several transformed canvases whose individual boxes do
+// not cover the whole map. Gestures belong to its full viewport, not whichever
+// layer canvas happens to be first in the DOM.
+const mainViewport = (page: Page) => page.locator('[data-tour="main-map"] .ol-viewport').first();
 
 /** Click the centre of the main map - in open mode this is the viewport centre. */
 export async function clickMapCenter(page: Page): Promise<void> {
-  await mainCanvas(page).click();
+  await mainViewport(page).click();
 }
 
 /** Ctrl/Cmd+click the centre of the main map (edit-mode multi-select toggle).
  *  OL reads platformModifierKeyOnly: Ctrl on Linux/Windows (CI), Meta on macOS. */
 export async function ctrlClickMapCenter(page: Page): Promise<void> {
-  await mainCanvas(page).click({ modifiers: ['ControlOrMeta'] });
+  await mainViewport(page).click({ modifiers: ['ControlOrMeta'] });
 }
 
 /** Click at an (dx, dy) pixel offset from the main map centre. */
 export async function clickMapAt(page: Page, dx: number, dy: number): Promise<void> {
-  const box = await mainCanvas(page).boundingBox();
-  if (!box) throw new Error('main map canvas has no bounding box');
-  await page.mouse.click(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy);
+  const viewport = mainViewport(page);
+  const box = await viewport.boundingBox();
+  if (!box) throw new Error('main map viewport has no bounding box');
+  await viewport.click({ position: { x: box.width / 2 + dx, y: box.height / 2 + dy } });
 }
 
 /** Draw a polygon/line: click each (dx, dy) offset, then double-click the last to finish. */
 export async function drawPolygon(page: Page, points: Array<[number, number]>): Promise<void> {
-  const box = await mainCanvas(page).boundingBox();
-  if (!box) throw new Error('main map canvas has no bounding box');
+  const box = await mainViewport(page).boundingBox();
+  if (!box) throw new Error('main map viewport has no bounding box');
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   for (let i = 0; i < points.length - 1; i++) {
@@ -231,8 +235,8 @@ export async function fitAllAnnotations(
  * box-select). Inset a few px so the drag stays inside the canvas bounds.
  */
 export async function boxSelectWholeCanvas(page: Page): Promise<void> {
-  const box = await mainCanvas(page).boundingBox();
-  if (!box) throw new Error('main map canvas has no bounding box');
+  const box = await mainViewport(page).boundingBox();
+  if (!box) throw new Error('main map viewport has no bounding box');
   await page.keyboard.down('Shift');
   await page.mouse.move(box.x + 4, box.y + 4);
   await page.mouse.down();

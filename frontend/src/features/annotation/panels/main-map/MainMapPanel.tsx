@@ -25,7 +25,12 @@ import {
   type ComposeState,
 } from '../../shared/composeLayers';
 import { setProbePoint, useInteractionSpec } from '../../shared/interactionSpec';
-import { getActiveTool, toggleTimeseriesTool, useActiveTool } from '../../shared/toolState';
+import {
+  completeTimeseriesProbe,
+  getActiveTool,
+  toggleTimeseriesTool,
+  useActiveTool,
+} from '../../shared/toolState';
 import { CollectionPicker } from './header/CollectionPicker';
 import { CustomMapControls } from './header/CustomMapControls';
 import { CustomMapLegend } from './header/CustomMapLegend';
@@ -51,6 +56,7 @@ function ProbeToggle({ ctx, title }: { ctx: ComposeCtx; title: string }) {
       onMouseDown={(e) => e.stopPropagation()}
       onClick={() => toggleTimeseriesTool(ctx)}
       aria-pressed={active}
+      aria-label={title}
       title={title}
       data-testid="probe-toggle"
       className={`flex h-6 w-6 items-center justify-center rounded-md cursor-pointer ${
@@ -68,7 +74,9 @@ function ProbeToggle({ ctx, title }: { ctx: ComposeCtx; title: string }) {
         strokeWidth="2"
         aria-hidden="true"
       >
-        <path d="M3 3v18h18M7 16l4-4 4 4 5-6" />
+        <path d="M2 15l4-6 4 3 4-7" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="16" cy="16" r="4" />
+        <path d="m19 19 3 3" strokeLinecap="round" />
       </svg>
     </button>
   );
@@ -104,43 +112,48 @@ export function MainMapHeader({ ctx }: { ctx: ComposeCtx }) {
   ).length;
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1" data-tour="map-controls">
-      <LayerSelector
-        catalog={catalog}
-        sourceIds={sourceIds}
-        title={`Select layer - ${hotkeyTip(bindings, 'i')}, ${hotkeyTip(bindings, 'shift+i')}`}
-      />
-      <CollectionPicker
-        catalog={catalog}
-        sourceIds={sourceIds}
-        isTaskMode={isTaskMode}
-        title={`Select collection - ${hotkeyTip(bindings, 'shift+d', 'Next collection')}`}
-      />
-      <SlicePicker
-        catalog={catalog}
-        title={`Select time slice - ${hotkeyTip(bindings, 'd', 'Next slice')}`}
-      />
-      <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'o')} />
-      {!isTaskMode && (
-        <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'v')} />
-      )}
-      <ViewControls
-        isTaskMode={isTaskMode}
-        onFocus={() => {
-          if (isTaskMode) recenter();
-          else void fitAnnotations(catalog.campaignId);
-        }}
-        focusTitle={hotkeyTip(bindings, ' ')}
-        crosshairTitle={hotkeyTip(bindings, 'x')}
-        showViewSync={windowCount > 1}
-        viewSyncTitle={hotkeyTip(bindings, 'l')}
-      />
-      {isTaskMode && ctx.campaign.time_series.length > 0 && (
-        <ProbeToggle ctx={ctx} title={hotkeyTip(bindings, 't')} />
-      )}
-      {isTaskMode && <PreloadMenu />}
+    <div
+      className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
+      data-tour="map-controls"
+    >
+      <div className="col-start-2 flex min-w-0 items-center justify-center gap-1">
+        <LayerSelector
+          catalog={catalog}
+          sourceIds={sourceIds}
+          title={`Select layer - ${hotkeyTip(bindings, 'i')}, ${hotkeyTip(bindings, 'shift+i')}`}
+        />
+        <CollectionPicker
+          catalog={catalog}
+          sourceIds={sourceIds}
+          isTaskMode={isTaskMode}
+          title={`Select collection - ${hotkeyTip(bindings, 'shift+d', 'Next collection')}`}
+        />
+        <SlicePicker
+          catalog={catalog}
+          title={`Select time slice - ${hotkeyTip(bindings, 'd', 'Next slice')}`}
+        />
+        <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'o')} />
+        {!isTaskMode && (
+          <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'v')} />
+        )}
+        <ViewControls
+          isTaskMode={isTaskMode}
+          onFocus={() => {
+            if (isTaskMode) recenter();
+            else void fitAnnotations(catalog.campaignId);
+          }}
+          focusTitle={hotkeyTip(bindings, ' ')}
+          crosshairTitle={hotkeyTip(bindings, 'x')}
+          showViewSync={windowCount > 1}
+          viewSyncTitle={hotkeyTip(bindings, 'l')}
+        />
+        {isTaskMode && ctx.campaign.time_series.length > 0 && (
+          <ProbeToggle ctx={ctx} title={hotkeyTip(bindings, 't')} />
+        )}
+        {isTaskMode && <PreloadMenu />}
+      </div>
       {isTaskMode && (
-        <div className="ml-auto">
+        <div className="col-start-3 justify-self-end">
           <TaskProgressCounter />
         </div>
       )}
@@ -155,9 +168,10 @@ export function MainMapHeader({ ctx }: { ctx: ComposeCtx }) {
  * point back through the shared probe point. Shift belongs to the box gestures,
  * so a click that carries it is not a click.
  */
-export function taskProbeClick(event: MapClickEvent): void {
+export function taskProbeClick(event: MapClickEvent, ctx: ComposeCtx): void {
   if (event.shiftKey || getActiveTool() !== 'timeseries') return;
   setProbePoint(event.lonLat);
+  completeTimeseriesProbe(ctx);
 }
 
 export function MainMapBody({ ctx }: MainMapProps) {
@@ -172,7 +186,8 @@ export function MainMapBody({ ctx }: MainMapProps) {
   // pass (features do not mount one another).
   const interactions = useInteractionSpec((s) => s.spec);
   const drawingClick = useInteractionSpec((s) => s.onMapClick);
-  const onMapClick = mode === 'tasks' ? taskProbeClick : drawingClick;
+  const onMapClick =
+    mode === 'tasks' ? (event: MapClickEvent) => taskProbeClick(event, ctx) : drawingClick;
   const probePoint = useInteractionSpec((s) => (s.probeMarkerHidden ? null : s.probePoint));
   const writes = useAnnotationVersion();
   const focus = useMapFocus();

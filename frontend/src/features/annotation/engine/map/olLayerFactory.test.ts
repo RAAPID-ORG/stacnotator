@@ -39,7 +39,7 @@ describe('raster layers', () => {
   });
 
   it('tags the layer with its id and applies presentation fields', () => {
-    const layer = createLayer(spec({ opacity: 0.5, zIndex: 4, visible: false }), {});
+    const layer = createLayer(spec({ opacity: 0.5, zIndex: 4, visible: false }));
     expect(layer.get(LAYER_ID_PROP)).toBe('imagery');
     expect(layer.getOpacity()).toBe(0.5);
     expect(layer.getZIndex()).toBe(4);
@@ -47,65 +47,65 @@ describe('raster layers', () => {
   });
 
   it('expands {q} templates to Bing quadkeys', () => {
-    const layer = createLayer(spec({ url: 'https://bing/{q}.jpeg' }), {});
+    const layer = createLayer(spec({ url: 'https://bing/{q}.jpeg' }));
     const url = rasterSourceOf(layer).getTileUrlFunction()([2, 1, 2], 1, mercator);
     expect(url).toBe('https://bing/21.jpeg');
   });
 
   it('sends credentials for cookie auth and for the app-registered proxy URLs', () => {
-    expect(crossOriginOf(createLayer(spec({ auth: 'cookie' }), {}))).toBe('use-credentials');
+    expect(crossOriginOf(createLayer(spec({ auth: 'cookie' })))).toBe('use-credentials');
 
     const proxied = spec({ url: '/api/7/imagery/slices/9/tiles/NDVI/{z}/{x}/{y}' });
-    expect(crossOriginOf(createLayer(proxied, {}))).toBe('anonymous'); // no matcher yet
+    expect(crossOriginOf(createLayer(proxied))).toBe('anonymous'); // no matcher yet
     setProxiedTileMatcher((url) => url.startsWith('/api/'));
-    expect(crossOriginOf(createLayer(proxied, {}))).toBe('use-credentials');
+    expect(crossOriginOf(createLayer(proxied))).toBe('use-credentials');
     setProxiedTileMatcher(() => false);
 
-    expect(crossOriginOf(createLayer(spec(), {}))).toBe('anonymous');
+    expect(crossOriginOf(createLayer(spec()))).toBe('anonymous');
   });
 
   it('rebuilds the source on a url change and keeps the layer instance', () => {
     const before = spec();
-    const layer = createLayer(before, {});
+    const layer = createLayer(before);
     const source = rasterSourceOf(layer);
 
     const after = spec({ url: 'https://other/{z}/{x}/{y}.png' });
-    updateLayer(layer, after, ['url'], {});
+    updateLayer(layer, after, ['url']);
     expect(rasterSourceOf(layer)).not.toBe(source);
     expect(rasterSourceOf(layer).getUrls()).toEqual(['https://other/{z}/{x}/{y}.png']);
   });
 
   it('limits the tile grid and preload depth from the spec', () => {
-    const layer = createLayer(spec({ minZoom: 4, maxZoom: 18, preload: 2 }), {});
+    const layer = createLayer(spec({ minZoom: 4, maxZoom: 18, preload: 2 }));
     const grid = rasterSourceOf(layer).getTileGrid()!;
     expect(grid.getMinZoom()).toBe(4);
     expect(grid.getMaxZoom()).toBe(18);
     expect((layer as TileLayer<XYZ>).getPreload()).toBe(2);
-    expect((createLayer(spec(), {}) as TileLayer<XYZ>).getPreload()).toBe(0);
+    expect((createLayer(spec()) as TileLayer<XYZ>).getPreload()).toBe(0);
   });
 
   it('draws cached raster tiles without an alpha fade during a layer switch', () => {
-    const source = rasterSourceOf(createLayer(spec(), {})) as XYZ & {
+    const source = rasterSourceOf(createLayer(spec())) as XYZ & {
       tileOptions: { transition: number };
     };
     expect(source.tileOptions.transition).toBe(0);
   });
 
   it('rebuilds the grid for a zoom-limit change and sets preload in place', () => {
-    const layer = createLayer(spec({ minZoom: 4, preload: 0 }), {});
+    const layer = createLayer(spec({ minZoom: 4, preload: 0 }));
     const source = rasterSourceOf(layer);
 
-    updateLayer(layer, spec({ minZoom: 4, preload: 4 }), ['preload'], {});
+    updateLayer(layer, spec({ minZoom: 4, preload: 4 }), ['preload']);
     expect((layer as TileLayer<XYZ>).getPreload()).toBe(4);
     expect(rasterSourceOf(layer)).toBe(source);
 
-    updateLayer(layer, spec({ minZoom: 6, preload: 4 }), ['minZoom'], {});
+    updateLayer(layer, spec({ minZoom: 6, preload: 4 }), ['minZoom']);
     expect(rasterSourceOf(layer)).not.toBe(source);
     expect(rasterSourceOf(layer).getTileGrid()!.getMinZoom()).toBe(6);
   });
 
   it('drops the source on destroy so in-flight tile requests abort', () => {
-    const layer = createLayer(spec(), {});
+    const layer = createLayer(spec());
     destroyLayer(layer);
     expect((layer as TileLayer<XYZ>).getSource()).toBeNull();
   });
@@ -133,21 +133,21 @@ describe('vector tile layers', () => {
     ) as Style | undefined;
 
   it('hides features owned by the editing interaction', () => {
-    const layer = createLayer(spec({ hiddenFeatureIds: [7] }), {});
+    const layer = createLayer(spec({ hiddenFeatureIds: [7] }));
     expect(styleOf(layer, 7)).toBeUndefined();
     expect(styleOf(layer, 8)).toBeDefined();
   });
 
   it('thickens the stroke of highlighted features', () => {
-    const layer = createLayer(spec({ highlightFeatureIds: [7] }), {});
+    const layer = createLayer(spec({ highlightFeatureIds: [7] }));
     expect(styleOf(layer, 7)?.getStroke()?.getWidth()).toBe(5);
     expect(styleOf(layer, 8)?.getStroke()?.getWidth()).toBe(2);
   });
 
   it('re-reads hidden ids after an update without touching the source', () => {
-    const layer = createLayer(spec({ hiddenFeatureIds: [7] }), {});
+    const layer = createLayer(spec({ hiddenFeatureIds: [7] }));
     const source = (layer as VectorTileLayer<VectorTileSource<RenderFeature>>).getSource();
-    updateLayer(layer, spec({ hiddenFeatureIds: [8] }), ['hiddenFeatureIds'], {});
+    updateLayer(layer, spec({ hiddenFeatureIds: [8] }), ['hiddenFeatureIds']);
     expect((layer as VectorTileLayer<VectorTileSource<RenderFeature>>).getSource()).toBe(source);
     expect(styleOf(layer, 7)).toBeDefined();
     expect(styleOf(layer, 8)).toBeUndefined();
@@ -155,8 +155,7 @@ describe('vector tile layers', () => {
 
   it('promotes idProperty to the feature id and filters source layers', () => {
     const layer = createLayer(
-      spec({ idProperty: 'annotation_id', sourceLayers: ['annotations'] }),
-      {}
+      spec({ idProperty: 'annotation_id', sourceLayers: ['annotations'] })
     ) as VectorTileLayer<VectorTileSource<RenderFeature>>;
     // MVT keeps both settings private; reading them is the only proof the format
     // will promote the id and drop other layers.
@@ -168,7 +167,7 @@ describe('vector tile layers', () => {
   });
 
   it('matches hidden ids through idProperty when the source carries no ol id', () => {
-    const layer = createLayer(spec({ idProperty: 'annotation_id', hiddenFeatureIds: [7] }), {});
+    const layer = createLayer(spec({ idProperty: 'annotation_id', hiddenFeatureIds: [7] }));
     const styleFn = (layer as VectorTileLayer<VectorTileSource<RenderFeature>>).getStyleFunction()!;
     const untagged = new Feature({ geometry: new Point([0, 0]), annotation_id: 7 });
     const other = new Feature({ geometry: new Point([0, 0]), annotation_id: 8 });
@@ -178,29 +177,28 @@ describe('vector tile layers', () => {
   });
 
   it('applies minZoom on the layer without touching the source', () => {
-    const layer = createLayer(spec({ minZoom: 10 }), {}) as VectorTileLayer<
+    const layer = createLayer(spec({ minZoom: 10 })) as VectorTileLayer<
       VectorTileSource<RenderFeature>
     >;
     expect(layer.getMinZoom()).toBe(10);
     const source = layer.getSource();
-    updateLayer(layer, spec({ minZoom: 12 }), ['minZoom'], {});
+    updateLayer(layer, spec({ minZoom: 12 }), ['minZoom']);
     expect(layer.getMinZoom()).toBe(12);
     expect(layer.getSource()).toBe(source);
   });
 
   it('rebuilds the source when the format settings change', () => {
-    const layer = createLayer(spec({ idProperty: 'a' }), {}) as VectorTileLayer<
+    const layer = createLayer(spec({ idProperty: 'a' })) as VectorTileLayer<
       VectorTileSource<RenderFeature>
     >;
     const source = layer.getSource();
-    updateLayer(layer, spec({ idProperty: 'b' }), ['idProperty'], {});
+    updateLayer(layer, spec({ idProperty: 'b' }), ['idProperty']);
     expect(layer.getSource()).not.toBe(source);
   });
 
   it('skips features whose style callback returns null', () => {
     const layer = createLayer(
-      spec({ style: (props) => (props.label_id === 3 ? null : { fill: { color: '#000' } }) }),
-      {}
+      spec({ style: (props) => (props.label_id === 3 ? null : { fill: { color: '#000' } }) })
     );
     expect(styleOf(layer, 7)).toBeUndefined();
   });
@@ -215,7 +213,7 @@ describe('feature layers', () => {
   };
 
   it('reprojects 4326 geometry into the view projection', () => {
-    const layer = createLayer(point, {}) as VectorLayer<VectorSource<Feature>>;
+    const layer = createLayer(point) as VectorLayer<VectorSource<Feature>>;
     const features = layer.getSource()!.getFeatures();
     expect(features).toHaveLength(1);
     expect(features[0].getId()).toBe(7);
@@ -225,16 +223,16 @@ describe('feature layers', () => {
   });
 
   it('replaces the feature set in place', () => {
-    const layer = createLayer(point, {}) as VectorLayer<VectorSource<Feature>>;
+    const layer = createLayer(point) as VectorLayer<VectorSource<Feature>>;
     const source = layer.getSource() as VectorSource<Feature>;
-    updateLayer(layer, { ...point, features: [] }, ['features'], {});
+    updateLayer(layer, { ...point, features: [] }, ['features']);
     expect(layer.getSource()).toBe(source);
     expect(source.getFeatures()).toHaveLength(0);
   });
 
   it('styles features through the spec callback', () => {
     const style = vi.fn(() => ({ fill: { color: '#0f0' } }));
-    const layer = createLayer({ ...point, style }, {}) as VectorLayer<VectorSource<Feature>>;
+    const layer = createLayer({ ...point, style }) as VectorLayer<VectorSource<Feature>>;
     const feature = layer.getSource()!.getFeatures()[0];
     const styleFn = layer.getStyleFunction()!;
     expect(styleFn(feature, 1)).toBeDefined();
@@ -243,24 +241,21 @@ describe('feature layers', () => {
 
   it('reuses one Style for callbacks that allocate a fresh spec per feature', () => {
     const style = vi.fn(() => ({ fill: { color: '#0f0' } }));
-    const layer = createLayer(
-      {
-        ...point,
-        features: [
-          { id: 1, geometry: { type: 'Point', coordinates: [0, 0] } },
-          { id: 2, geometry: { type: 'Point', coordinates: [1, 1] } },
-        ],
-        style,
-      },
-      {}
-    ) as VectorLayer<VectorSource<Feature>>;
+    const layer = createLayer({
+      ...point,
+      features: [
+        { id: 1, geometry: { type: 'Point', coordinates: [0, 0] } },
+        { id: 2, geometry: { type: 'Point', coordinates: [1, 1] } },
+      ],
+      style,
+    }) as VectorLayer<VectorSource<Feature>>;
     const styleFn = layer.getStyleFunction()!;
     const [a, b] = layer.getSource()!.getFeatures();
     expect(styleFn(a, 1)).toBe(styleFn(b, 1));
   });
 
   it('hands callers their own properties, not OL or bookkeeping keys', () => {
-    const layer = createLayer(point, {}) as VectorLayer<VectorSource<Feature>>;
+    const layer = createLayer(point) as VectorLayer<VectorSource<Feature>>;
     expect(featurePropsOf(layer.getSource()!.getFeatures()[0])).toEqual({ a: 1 });
   });
 });

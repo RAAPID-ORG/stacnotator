@@ -1,7 +1,6 @@
 import type { ImageryCollectionOut } from '~/api/client';
 import { emptyKey, slicePickerIndices } from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
-import { useWindowSlice } from '~/features/annotation/shared/windowSlices';
 import type { ComposeCtx } from '../../composition';
 import { HeaderSelect } from '../../shared/HeaderSelect';
 import { selectWindowSlice, windowAddress } from './WindowPanel';
@@ -18,9 +17,6 @@ function sliceLabel(collection: ImageryCollectionOut, index: number): string {
 export function WindowHeader({ ctx, collection }: WindowHeaderProps) {
   const { catalog } = ctx;
   const imagery = useImageryStore();
-  // The active collection already re-renders this via imagery.address; a
-  // background window only repaints its picker when its own memory changes.
-  useWindowSlice(collection.id);
 
   const isActive = imagery.address?.collectionId === collection.id;
   const address = windowAddress(catalog, imagery, collection.id);

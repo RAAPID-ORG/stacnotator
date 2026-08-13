@@ -71,7 +71,7 @@ test.describe('Open mode renders', () => {
     await expect(tool(annotationPage, 'Pan (P)')).toBeVisible();
     await expect(tool(annotationPage, 'Annotate (R)')).toBeVisible();
     await expect(tool(annotationPage, 'Edit (E)')).toBeVisible();
-    await expect(tool(annotationPage, 'Timeseries (T)')).toBeVisible();
+    await expect(tool(annotationPage, 'Probe time series (T)')).toBeVisible();
     await expect(annotationPage.locator('button', { hasText: /^(Submit|Update)$/ })).toHaveCount(0);
   });
 
@@ -116,7 +116,7 @@ test.describe('Tools and label selection', () => {
     await annotationPage.keyboard.press('e');
     await expect(tool(annotationPage, 'Edit (E)')).toHaveClass(ACTIVE);
     await annotationPage.keyboard.press('t');
-    await expect(tool(annotationPage, 'Timeseries (T)')).toHaveClass(ACTIVE);
+    await expect(tool(annotationPage, 'Probe time series (T)')).toHaveClass(ACTIVE);
     await annotationPage.keyboard.press('p');
     await expect(tool(annotationPage, 'Pan (P)')).toHaveClass(ACTIVE);
   });

@@ -60,7 +60,6 @@ import {
   useScreens,
   ViewAdmin,
 } from '~/features/annotation/chrome/layout-edit';
-import { resetWindowSlices } from '~/features/annotation/panels/imagery-windows';
 import { MAIN_MAP_PANEL_ID, resetMainMapNav } from '~/features/annotation/panels/main-map';
 import { applyCameraTarget, loadCameraTarget } from '~/features/annotation/shared/cameras';
 import { clearEditSession, openEdit } from '~/features/annotation/shared/editSession';
@@ -267,17 +266,14 @@ export function AnnotationPage() {
     // are re-seeded by loadCampaign itself; what is left here is the state the
     // features keep in module scope, which no store re-seeds and which would
     // otherwise leak into the next campaign - a probe marker on a place nobody
-    // clicked, a slice pick made against another time series, a source-cycling
-    // memory keyed by an id that means something else now, a held-down A/D
-    // still stepping slices. This is the seam because the effect's dependency
-    // list *is* campaign identity: React runs this cleanup before the new
-    // load starts, so a campaign change can never be observed half-cleared.
+    // clicked, source-cycling memory keyed by an id that means something else
+    // now, or a held-down A/D still stepping slices. Store-owned imagery state
+    // is reset atomically by loadCampaign instead.
     return () => {
       cancelled = true;
       resetTaskList();
       resetToolState();
       resetInteractionSpec();
-      resetWindowSlices();
       resetMainMapNav();
       resetDigitBuffer();
       clearEditSession();
@@ -459,33 +455,7 @@ export function AnnotationPage() {
   const screenPanels = (screenId: number): PanelDef[] =>
     Object.entries(screens.state.assignment)
       .filter(([, id]) => id === screenId)
-      .flatMap(([panelId]) => {
-        const panel = panelsById.get(panelId);
-        if (!panel) return [];
-        return [
-          {
-            ...panel,
-            header: (
-              <>
-                {panel.header}
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    screens.returnPanel(panelId);
-                  }}
-                  title="Return to the main canvas"
-                  data-testid={`return-${panelId}`}
-                  className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 hover:bg-neutral-100"
-                >
-                  Return
-                </button>
-              </>
-            ),
-          },
-        ];
-      });
+      .flatMap(([panelId]) => panelsById.get(panelId) ?? []);
 
   // ------------------------------------------------------------------
   // Gates
@@ -538,7 +508,7 @@ export function AnnotationPage() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="annotation-workspace flex min-h-0 flex-1 flex-col">
       <Toolbar
         campaign={campaign}
         catalog={catalog}

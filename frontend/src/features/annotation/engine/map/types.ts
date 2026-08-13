@@ -14,6 +14,9 @@ export interface StyleSpec {
 export interface RasterLayerSpec {
   kind: 'raster';
   id: LayerId;
+  /** Mutually-exclusive render slot. A replacement in the same slot may
+   * bridge the outgoing pixels until that exact incoming layer paints. */
+  slot?: string;
   url: string; // XYZ template; '{q}' means Bing quadkey
   auth?: 'cookie' | 'none'; // cookie => credentialed loader + tiler token refresh
   opacity?: number;

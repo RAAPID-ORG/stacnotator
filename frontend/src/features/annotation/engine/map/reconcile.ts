@@ -1,5 +1,5 @@
 import type BaseLayer from 'ol/layer/Base';
-import { createLayer, destroyLayer, updateLayer, type LayerContext } from './olLayerFactory';
+import { createLayer, destroyLayer, updateLayer } from './olLayerFactory';
 import type { LayerId, LayerSpec } from './types';
 
 /**
@@ -11,6 +11,7 @@ export const MAX_RETAINED_LAYERS = 16;
 
 /** Spec fields a caller can change without the layer being rebuilt. */
 export type LayerField =
+  | 'slot'
   | 'url'
   | 'auth'
   | 'attribution'
@@ -31,7 +32,7 @@ export type LayerOp =
   | { type: 'add'; spec: LayerSpec }
   | { type: 'restore'; id: LayerId; spec: LayerSpec; changed: LayerField[] }
   | { type: 'update'; id: LayerId; spec: LayerSpec; changed: LayerField[] }
-  | { type: 'retain'; id: LayerId }
+  | { type: 'retain'; id: LayerId; replacementId?: LayerId }
   | { type: 'remove'; id: LayerId };
 
 /** What the diff needs to know about a layer that is already on the map. */
@@ -83,6 +84,7 @@ function changedFields(prev: LayerSpec, next: LayerSpec): LayerField[] {
   };
 
   if (prev.kind === 'raster' && next.kind === 'raster') {
+    push('slot', prev.slot === next.slot);
     push('url', prev.url === next.url);
     push('auth', prev.auth === next.auth);
     push('attribution', prev.attribution === next.attribution);
@@ -139,6 +141,10 @@ export function reconcile(
   retainLimit: number = MAX_RETAINED_LAYERS
 ): LayerOp[] {
   const nextById = new Map(next.map((spec) => [spec.id, spec]));
+  const replacementBySlot = new Map<string, LayerId>();
+  for (const spec of next) {
+    if (spec.kind === 'raster' && spec.slot) replacementBySlot.set(spec.slot, spec.id);
+  }
   const rebuilt: LayerOp[] = [];
   const adds: LayerOp[] = [];
   const restores: LayerOp[] = [];
@@ -176,7 +182,14 @@ export function reconcile(
     ...adds,
     ...restores,
     ...updates,
-    ...retiring.filter((id) => !evicted.has(id)).map((id): LayerOp => ({ type: 'retain', id })),
+    ...retiring
+      .filter((id) => !evicted.has(id))
+      .map((id): LayerOp => {
+        const spec = current.get(id)?.spec;
+        const replacementId =
+          spec?.kind === 'raster' && spec.slot ? replacementBySlot.get(spec.slot) : undefined;
+        return { type: 'retain', id, replacementId };
+      }),
     ...drops,
     ...[...evicted].map((id): LayerOp => ({ type: 'remove', id })),
   ];
@@ -192,11 +205,13 @@ export function applyLayerOps(
   host: LayerHost,
   mounted: Map<LayerId, MountedLayer>,
   ops: readonly LayerOp[],
-  ctx: LayerContext
+  lifecycle: {
+    retireLayer?: (layerId: LayerId, layer: BaseLayer, replacement?: BaseLayer) => void;
+  }
 ): void {
   for (const op of ops) {
     if (op.type === 'add') {
-      const layer = createLayer(op.spec, ctx);
+      const layer = createLayer(op.spec);
       host.addLayer(layer);
       mounted.set(op.spec.id, { spec: op.spec, layer, retained: false });
       continue;
@@ -207,19 +222,21 @@ export function applyLayerOps(
 
     switch (op.type) {
       case 'restore':
-        updateLayer(entry.layer, op.spec, op.changed, ctx);
+        updateLayer(entry.layer, op.spec, op.changed);
         entry.spec = op.spec;
         entry.retained = false;
         entry.layer.setVisible(op.spec.visible ?? true);
         break;
       case 'update':
-        updateLayer(entry.layer, op.spec, op.changed, ctx);
+        updateLayer(entry.layer, op.spec, op.changed);
         entry.spec = op.spec;
         break;
       case 'retain':
         entry.retained = true;
-        if (ctx.retireLayer) ctx.retireLayer(op.id, entry.layer);
-        else entry.layer.setVisible(false);
+        if (lifecycle.retireLayer) {
+          const replacement = op.replacementId ? mounted.get(op.replacementId)?.layer : undefined;
+          lifecycle.retireLayer(op.id, entry.layer, replacement);
+        } else entry.layer.setVisible(false);
         touch(mounted, op.id, entry);
         break;
       case 'remove':

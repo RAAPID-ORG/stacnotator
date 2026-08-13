@@ -17,7 +17,7 @@ export interface FormFieldsProps {
 
 /** Marks the group that digit keys and Enter are aimed at - the label picker or
  *  one custom field. Shared so every group in the panel reads the same. */
-export const activeGroupClass = 'ring-2 ring-brand-600 rounded bg-brand-50/50';
+export const activeGroupClass = 'ring-1 ring-inset ring-brand-500/50 rounded bg-brand-50/35';
 
 const optionButtonClass = (selected: boolean, disabled: boolean) =>
   `w-40 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex justify-between items-center ${

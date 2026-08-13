@@ -349,5 +349,10 @@ test('campaign 113 cold random-task benchmark', async ({ annotationPage }) => {
     annotationPage.off('request', onRequest);
     annotationPage.off('response', onResponse);
     annotationPage.off('requestfinished', onRequestFinished);
+
+    expect(
+      renderedTotal,
+      `task ${task.id}: all visible imagery should paint within 2s (starts ${firstStart}-${lastStart}ms, bodies ${lastFinished}ms, post-body paint ${bodyToPresented}ms)`
+    ).toBeLessThan(2000);
   }
 });

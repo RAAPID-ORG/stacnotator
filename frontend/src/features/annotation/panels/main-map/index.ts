@@ -9,7 +9,6 @@ export const mainMapFeature: Feature = {
   panels: (ctx) => [
     {
       id: MAIN_MAP_PANEL_ID,
-      title: 'Map',
       header: createElement(MainMapHeader, { ctx }),
       body: createElement(MainMapBody, { ctx }),
       // Editing the layout swaps the map for a hide target: rendering a live

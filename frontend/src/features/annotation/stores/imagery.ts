@@ -20,11 +20,16 @@ import {
 
 export interface ImageryState extends ImageryNavState {
   viewSnapshots: Record<number, ViewSnapshot>;
+  /** Per-window date selection. This is campaign-scoped imagery state, not a
+   * module-global panel cache, so loadCampaign can reset it atomically with
+   * the rest of navigation. */
+  windowSlices: Record<number, { selected: number; userPicked: number | null }>;
   /** Location whose explicit 204 results populate `empties`. Empty imagery is
    * spatial, so task A's result must not leak into task B's date selector. */
   emptyScope: string | null;
 
   setAddress: (address: SliceAddress | null) => void;
+  rememberWindowSlice: (collectionId: number, sliceIndex: number, byUser?: boolean) => void;
   markEmpty: (key: EmptyKey) => void;
   setEmptyScope: (scope: string | null) => void;
   setShowBasemap: (show: boolean) => void;
@@ -80,9 +85,20 @@ const initialNav: ImageryNavState = {
 export const useImageryStore = create<ImageryState>((set) => ({
   ...initialNav,
   viewSnapshots: {},
+  windowSlices: {},
   emptyScope: null,
 
   setAddress: (address) => set({ address }),
+  rememberWindowSlice: (collectionId, sliceIndex, byUser = false) =>
+    set((s) => ({
+      windowSlices: {
+        ...s.windowSlices,
+        [collectionId]: {
+          selected: sliceIndex,
+          userPicked: byUser ? sliceIndex : (s.windowSlices[collectionId]?.userPicked ?? null),
+        },
+      },
+    })),
   markEmpty: (key) => set((s) => ({ empties: markEmptyKey(s.empties, key) })),
   setEmptyScope: (emptyScope) =>
     set((s) => (s.emptyScope === emptyScope ? s : { emptyScope, empties: {} })),

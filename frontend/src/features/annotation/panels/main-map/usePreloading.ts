@@ -7,7 +7,6 @@ import {
 } from '~/features/annotation/core/catalog';
 import { useImageryStore, usePrefsStore, type PreloadTier } from '~/features/annotation/stores';
 import { mainCamera } from '~/features/annotation/shared/cameras';
-import { getWindowSlice, useWindowSlicesRevision } from '~/features/annotation/shared/windowSlices';
 import {
   TilePreloader,
   type Bbox,
@@ -144,9 +143,14 @@ export function visibleSliceJobs({
 export function visibleAddresses(
   catalog: Catalog,
   active: SliceAddress | null,
-  visibleCollectionIds: readonly number[]
+  visibleCollectionIds: readonly number[],
+  windowSlices: Readonly<Record<number, { selected: number }>>,
+  viewSync: boolean
 ): SliceAddress[] {
   const addresses: SliceAddress[] = active ? [active] : [];
+  // An unsynchronised background window stays at its own panned location when
+  // tasks advance, so preloading the next task into it would be pure waste.
+  if (!viewSync) return addresses;
   for (const collectionId of visibleCollectionIds) {
     if (collectionId === active?.collectionId) continue;
     const collection = catalog.collections.get(collectionId);
@@ -156,7 +160,7 @@ export function visibleAddresses(
     const base = {
       sourceId,
       collectionId,
-      sliceIndex: getWindowSlice(collectionId) ?? collection.cover_slice_index ?? 0,
+      sliceIndex: windowSlices[collectionId]?.selected ?? collection.cover_slice_index ?? 0,
       vizId: String(source.visualizations[0]?.id ?? ''),
     };
     addresses.push(addressAtSlice(catalog, base, base.sliceIndex));
@@ -191,7 +195,6 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
   const preloaderRef = useRef<TilePreloader | null>(null);
   const activeLoadingRef = useRef(activeLoading);
   activeLoadingRef.current = activeLoading;
-  const windowSlicesRevision = useWindowSlicesRevision();
 
   useEffect(() => {
     if (!enabled || concurrency === 0) return;
@@ -229,6 +232,8 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
   }, [activeLoading, enabled]);
 
   const address = useImageryStore((s) => s.address);
+  const viewSync = useImageryStore((s) => s.viewSync);
+  const windowSlices = useImageryStore((s) => s.windowSlices);
   const upcomingKey = JSON.stringify(upcoming ?? []);
   const visibleCollectionsKey = visibleCollectionIds.join(',');
 
@@ -256,7 +261,13 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
     // user's current one: that is the zoom the next task will open at, and
     // tiles fetched at a zoom nobody lands on are wasted bandwidth
     // (useTilePreloading.ts:325).
-    const addresses = visibleAddresses(ctx.catalog, address, visibleCollectionIds);
+    const addresses = visibleAddresses(
+      ctx.catalog,
+      address,
+      visibleCollectionIds,
+      windowSlices,
+      viewSync
+    );
     for (const center of upcoming ?? []) {
       jobs.push(
         ...visibleSliceJobs({
@@ -281,7 +292,8 @@ export function usePreloading(ctx: ComposeCtx, options: PreloadingOptions): void
     viewportPx,
     upcomingKey,
     visibleCollectionsKey,
-    windowSlicesRevision,
+    windowSlices,
+    viewSync,
     concurrency,
     enabled,
   ]);

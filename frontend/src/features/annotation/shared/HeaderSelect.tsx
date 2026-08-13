@@ -4,6 +4,7 @@ import { IconChevronDown } from '~/shared/ui/Icons';
 
 const MAX_LIST_HEIGHT_PX = 300;
 const CLOSE_DELAY_MS = 80;
+const VIEWPORT_GAP_PX = 4;
 
 export interface HeaderSelectOption {
   value: string | number;
@@ -74,12 +75,20 @@ export function HeaderSelect({
     if (!open || !buttonRef.current || !listRef.current) return;
     const win = buttonRef.current.ownerDocument.defaultView ?? window;
     const rect = buttonRef.current.getBoundingClientRect();
-    const spaceBelow = win.innerHeight - rect.bottom - 8;
-    const height = Math.min(MAX_LIST_HEIGHT_PX, Math.max(spaceBelow, 80));
-    const width = listRef.current.getBoundingClientRect().width;
-    listRef.current.style.top = `${rect.bottom + 4}px`;
-    listRef.current.style.left = `${Math.max(4, Math.min(rect.left, win.innerWidth - width - 4))}px`;
-    listRef.current.style.maxHeight = `${height}px`;
+    const list = listRef.current;
+    const spaceBelow = win.innerHeight - rect.bottom - VIEWPORT_GAP_PX * 2;
+    const spaceAbove = rect.top - VIEWPORT_GAP_PX * 2;
+    const desiredHeight = Math.min(MAX_LIST_HEIGHT_PX, list.scrollHeight);
+    const openAbove = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+    const availableHeight = Math.max(0, openAbove ? spaceAbove : spaceBelow);
+    const height = Math.min(MAX_LIST_HEIGHT_PX, availableHeight);
+    const width = list.getBoundingClientRect().width;
+    const top = openAbove
+      ? rect.top - VIEWPORT_GAP_PX - Math.min(desiredHeight, height)
+      : rect.bottom + VIEWPORT_GAP_PX;
+    list.style.top = `${Math.max(VIEWPORT_GAP_PX, top)}px`;
+    list.style.left = `${Math.max(VIEWPORT_GAP_PX, Math.min(rect.left, win.innerWidth - width - VIEWPORT_GAP_PX))}px`;
+    list.style.maxHeight = `${height}px`;
   }, [open, options]);
 
   const select = (option: HeaderSelectOption) => {

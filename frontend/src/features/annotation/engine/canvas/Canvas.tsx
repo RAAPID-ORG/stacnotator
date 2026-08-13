@@ -78,7 +78,7 @@ export function Canvas({
           resizeConfig={resizeConfig}
           compactor={CANVAS_COMPACTOR}
           onLayoutChange={
-            isStatic || !onLayoutChange
+            !editingActive || !onLayoutChange
               ? undefined
               : (nextLayout) => onLayoutChange([...nextLayout])
           }

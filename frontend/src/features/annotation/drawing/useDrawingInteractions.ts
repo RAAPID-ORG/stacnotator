@@ -37,7 +37,7 @@ import {
   useEditSession,
 } from '../shared/editSession';
 import { setInteractions, setProbePoint } from '../shared/interactionSpec';
-import { getActiveTool, useActiveTool } from '../shared/toolState';
+import { completeTimeseriesProbe, getActiveTool, useActiveTool } from '../shared/toolState';
 import { labelFeature, labelFeaturesInBox, type LabelOutcome } from './vectorLabel';
 
 const DRAW_SHAPES: Record<GeometryType, DrawShape> = {
@@ -185,6 +185,7 @@ export async function handleMapClick(ctx: ComposeCtx, event: MapClickEvent): Pro
 
   if (tool === 'timeseries') {
     setProbePoint(event.lonLat);
+    completeTimeseriesProbe(ctx);
     return;
   }
 

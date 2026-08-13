@@ -87,7 +87,7 @@ function ScreenGrid({ screenId, panels, layout, editing, onLayoutChange }: Scree
   return (
     <div
       ref={containerRef}
-      className={`h-full overflow-y-auto overflow-x-hidden bg-base p-1 ${editing ? 'is-editing' : ''}`}
+      className={`annotation-workspace h-full overflow-y-auto overflow-x-hidden bg-base p-1 ${editing ? 'is-editing' : ''}`}
       data-testid={`popout-screen-${screenId}`}
     >
       {renderableLayout.length === 0 ? (
@@ -106,7 +106,11 @@ function ScreenGrid({ screenId, panels, layout, editing, onLayoutChange }: Scree
             dragConfig={dragConfig}
             resizeConfig={resizeConfig}
             compactor={SCREEN_COMPACTOR}
-            onLayoutChange={onLayoutChange && ((nextLayout) => onLayoutChange([...nextLayout]))}
+            onLayoutChange={
+              editing && onLayoutChange
+                ? (nextLayout) => onLayoutChange([...nextLayout])
+                : undefined
+            }
           >
             {renderableLayout.map((item) => {
               const panel = panelsById.get(item.i);
@@ -122,10 +126,8 @@ function ScreenGrid({ screenId, panels, layout, editing, onLayoutChange }: Scree
 
 /** A secondary canvas hosted in a pop-out window: its own grid of panels,
  *  with the same free-compaction rules and header-only drag handle as the
- *  main Canvas, via the shared PanelHost handle/cancel selectors. A panel
- *  returning to the main canvas, or any other header action, is composed by
- *  the caller into `PanelDef.header` - ScreenWindow only arranges whatever
- *  panels it's given. */
+ *  main Canvas, via the shared PanelHost handle/cancel selectors. ScreenWindow
+ *  only arranges the same panel definitions the main canvas uses. */
 export function ScreenWindow({
   screenId,
   panels,

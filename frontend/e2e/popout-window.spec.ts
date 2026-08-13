@@ -1,8 +1,8 @@
 /**
  * Multi-monitor screens: in edit-layout mode, canvas cards can be sent to
  * secondary browser windows ("screens") that each host their own arrangeable
- * grid. Cards return individually or when the screen closes, and the split
- * persists per user+campaign with a one-click restore after reload.
+ * grid. Cards return when the screen closes, and the split persists per
+ * user+campaign with a one-click restore after reload.
  * Observed via the popup page object and DOM only - no store globals.
  */
 import { test, expect } from './fixtures/annotator-fixture';
@@ -41,25 +41,13 @@ test.describe('Secondary screens', () => {
     await page.locator('[data-tour="minimap"]').hover();
     await page.locator('[data-testid="send-to-screen-minimap"]').click();
     await page.locator('[data-testid="send-to-screen-minimap-2"]').click();
-    await expect(popup.locator('[data-testid="return-minimap"]')).toBeVisible();
+    await expect(popup.locator('[data-testid^="return-"]')).toHaveCount(0);
     await expect(page.locator('[data-tour="minimap"]')).toHaveCount(0);
 
     // Closing the screen window returns every card to the main canvas.
     await popup.close({ runBeforeUnload: true });
     await expect(page.locator('[data-tour="controls"]')).toBeVisible();
     await expect(page.locator('[data-tour="minimap"]')).toBeVisible();
-  });
-
-  test('a card returns individually and the screen stays open', async ({ annotationPage }) => {
-    const page = annotationPage;
-
-    const popup = await sendControlsToNewScreen(page);
-    await popup.locator('[data-testid="return-controls"]').click();
-    await expect(page.locator('[data-tour="controls"]')).toBeVisible();
-    // The empty screen stays open, inviting more cards.
-    await expect(popup.locator('[data-testid="popout-screen-2"]')).toContainText(
-      'This screen is empty'
-    );
   });
 
   test('the split persists across reload and restores with one click', async ({

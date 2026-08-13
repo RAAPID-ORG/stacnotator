@@ -62,6 +62,16 @@ export function toggleTimeseriesTool(ctx: ComposeCtx): void {
   void selectTool(getActiveTool() === 'timeseries' ? 'pan' : 'timeseries', ctx);
 }
 
+/** Complete the one-shot probe without clearing the point it just produced.
+ * A normal tool change still clears that point; completion is different
+ * because the chart and marker must remain visible after the cursor returns
+ * to navigation. */
+export function completeTimeseriesProbe(ctx: ComposeCtx): void {
+  if (getActiveTool() !== 'timeseries') return;
+  useToolStore.setState({ tool: 'pan' });
+  if (ctx.mode === 'explore') useWorkStore.getState().setSelectedLabelId(null);
+}
+
 /**
  * Pick the label the next gesture applies. Picking a label is how a user
  * starts drawing, so it arms the annotate tool - except in label-vector mode,

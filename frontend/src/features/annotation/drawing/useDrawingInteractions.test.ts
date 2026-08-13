@@ -18,7 +18,8 @@ import {
   setEditAnnotation,
   setPendingGeometry,
 } from '../shared/editSession';
-import { resetToolState, selectTool } from '../shared/toolState';
+import { resetInteractionSpec, useInteractionSpec } from '../shared/interactionSpec';
+import { getActiveTool, resetToolState, selectTool } from '../shared/toolState';
 import { commitEdit, deleteSelection, handleMapClick } from './useDrawingInteractions';
 
 vi.mock('~/api/client', async () => {
@@ -59,8 +60,20 @@ beforeEach(async () => {
     .mockReset()
     .mockResolvedValue(apiSuccess({ deleted_count: 2 }));
   clearEditSession();
+  resetInteractionSpec();
   resetToolState();
   await selectTool('edit', CTX);
+});
+
+describe('handleMapClick with the time-series probe', () => {
+  it('keeps the selected point but returns to pan after one click', async () => {
+    await selectTool('timeseries', CTX);
+
+    await handleMapClick(CTX, click({ lonLat: [3, 4] }));
+
+    expect(useInteractionSpec.getState().probePoint).toEqual([3, 4]);
+    expect(getActiveTool()).toBe('pan');
+  });
 });
 
 describe('handleMapClick with the edit tool', () => {

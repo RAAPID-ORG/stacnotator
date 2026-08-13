@@ -13,7 +13,6 @@ import {
 } from '~/features/annotation/core/catalog/testHelpers';
 import { TilePreloader } from '~/features/annotation/engine/map';
 import { useImageryStore } from '~/features/annotation/stores';
-import { rememberWindowSlice, resetWindowSlices } from '~/features/annotation/shared/windowSlices';
 import type { ComposeCtx } from '../../composition';
 import {
   PRIORITY_UPCOMING,
@@ -93,7 +92,7 @@ const args = {
 };
 
 describe('visibleSliceJobs', () => {
-  beforeEach(() => resetWindowSlices());
+  beforeEach(() => useImageryStore.setState({ windowSlices: {}, viewSync: true }));
 
   it('prefetches the exact visualization and date currently visible', () => {
     const jobs = visibleSliceJobs(args);
@@ -101,22 +100,28 @@ describe('visibleSliceJobs', () => {
   });
 
   it('never expands the job set to hidden collections in the catalog', () => {
-    const addresses = visibleAddresses(CATALOG, NDVI, []);
+    const addresses = visibleAddresses(CATALOG, NDVI, [], {}, true);
     expect(addresses).toEqual([NDVI]);
     expect(visibleSliceJobs({ ...args, addresses })).toHaveLength(1);
   });
 
   it('adds one exact address for each visible imagery window', () => {
-    expect(visibleAddresses(CATALOG, NDVI, [100, 200])).toEqual([
+    expect(visibleAddresses(CATALOG, NDVI, [100, 200], {}, true)).toEqual([
       NDVI,
       { sourceId: 1, collectionId: 200, sliceIndex: 0, vizId: '10' },
     ]);
   });
 
   it('uses a window selected date instead of preloading its cover', () => {
-    rememberWindowSlice(200, 1, true);
+    useImageryStore.getState().rememberWindowSlice(200, 1, true);
 
-    const addresses = visibleAddresses(CATALOG, NDVI, [200]);
+    const addresses = visibleAddresses(
+      CATALOG,
+      NDVI,
+      [200],
+      useImageryStore.getState().windowSlices,
+      true
+    );
     expect(addresses).toEqual([
       NDVI,
       { sourceId: 1, collectionId: 200, sliceIndex: 1, vizId: '10' },
@@ -125,6 +130,10 @@ describe('visibleSliceJobs', () => {
       'https://t.test/ndvi/{z}/{x}/{y}.png',
       'https://t.test/other-later/{z}/{x}/{y}.png',
     ]);
+  });
+
+  it('does not preload unsynchronised background windows at the next task', () => {
+    expect(visibleAddresses(CATALOG, NDVI, [100, 200], {}, false)).toEqual([NDVI]);
   });
 });
 
@@ -142,8 +151,7 @@ describe('usePreloading upcoming centres', () => {
   });
 
   beforeEach(() => {
-    resetWindowSlices();
-    useImageryStore.setState({ address: NDVI });
+    useImageryStore.setState({ address: NDVI, windowSlices: {}, viewSync: true });
   });
 
   it('queues only the visible imagery at centres the caller says are coming next', () => {

@@ -25,16 +25,6 @@ describe('useScreens', () => {
     expect(result.current.state.screens).toEqual([]);
   });
 
-  it('gives a returned panel back without closing its screen', () => {
-    const { result } = renderHook(() => useScreens(SCOPE));
-
-    act(() => result.current.send('minimap', 'new', ITEM, 1200));
-    act(() => result.current.returnPanel('minimap'));
-
-    expect([...result.current.popped]).toEqual([]);
-    expect(result.current.state.screens).toHaveLength(1);
-  });
-
   it('seeds a new screen with the bounds it is opened at, so panels scale against a real width', () => {
     const { result } = renderHook(() => useScreens(SCOPE));
 

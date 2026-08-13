@@ -13,12 +13,6 @@ import { cameraFor, mainCamera, releaseCamera } from '~/features/annotation/shar
 import { useMapFocus } from '~/features/annotation/shared/mapFocus';
 import { setForegroundMapLoading } from '~/features/annotation/shared/foregroundTileLoads';
 import {
-  getUserPickedSlice,
-  getWindowSlice,
-  rememberWindowSlice,
-  useWindowSlice,
-} from '~/features/annotation/shared/windowSlices';
-import {
   composeLayers,
   type AnnotationTileState,
   type ComposeState,
@@ -36,13 +30,13 @@ import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
  *  collection's cover) over the collection's default source/visualization. */
 export function windowAddress(
   catalog: Catalog,
-  imagery: Pick<ImageryState, 'address'>,
+  imagery: Pick<ImageryState, 'address' | 'windowSlices'>,
   collectionId: number
 ): SliceAddress | null {
   if (imagery.address?.collectionId === collectionId) return imagery.address;
   const base = restoreSnapshot(catalog, undefined, collectionId).address;
   if (!base) return null;
-  const remembered = getWindowSlice(collectionId);
+  const remembered = imagery.windowSlices[collectionId]?.selected;
   return addressAtSlice(catalog, base, remembered ?? base.sliceIndex);
 }
 
@@ -51,7 +45,7 @@ export function windowAddress(
  *  it was remembered to be on rather than resetting to the cover. */
 export function activateWindow(
   catalog: Catalog,
-  imagery: Pick<ImageryState, 'address' | 'setAddress' | 'setShowBasemap'>,
+  imagery: Pick<ImageryState, 'address' | 'windowSlices' | 'setAddress' | 'setShowBasemap'>,
   collectionId: number
 ): void {
   const address = windowAddress(catalog, imagery, collectionId);
@@ -60,24 +54,24 @@ export function activateWindow(
   imagery.setShowBasemap(false);
 }
 
-/** Remember the pick, then activate. An already-active window changes only
- *  its slice, keeping
- *  its current source/visualization - windowAddress's active-collection
- *  short-circuit means routing this through activateWindow alone would
- *  return the *old*, pre-pick address unchanged. */
+/** Remember the pick and activate that exact address. The passed imagery is a
+ * Zustand snapshot, so reading it again after rememberWindowSlice would still
+ * see the old selection; derive the picked address before either store write. */
 export function selectWindowSlice(
   catalog: Catalog,
-  imagery: Pick<ImageryState, 'address' | 'setAddress' | 'setShowBasemap'>,
+  imagery: Pick<
+    ImageryState,
+    'address' | 'windowSlices' | 'setAddress' | 'setShowBasemap' | 'rememberWindowSlice'
+  >,
   collectionId: number,
   sliceIndex: number
 ): void {
-  rememberWindowSlice(collectionId, sliceIndex, true);
-  if (imagery.address?.collectionId === collectionId) {
-    imagery.setAddress(addressAtSlice(catalog, imagery.address, sliceIndex));
-    imagery.setShowBasemap(false);
-    return;
-  }
-  activateWindow(catalog, imagery, collectionId);
+  const current = windowAddress(catalog, imagery, collectionId);
+  if (!current) return;
+  const selected = addressAtSlice(catalog, current, sliceIndex);
+  imagery.rememberWindowSlice(collectionId, sliceIndex, true);
+  imagery.setAddress(selected);
+  imagery.setShowBasemap(false);
 }
 
 function commitHealedSlice(
@@ -86,7 +80,7 @@ function commitHealedSlice(
   collectionId: number,
   sliceIndex: number
 ): void {
-  rememberWindowSlice(collectionId, sliceIndex);
+  imagery.rememberWindowSlice(collectionId, sliceIndex);
   if (imagery.address?.collectionId === collectionId) {
     imagery.setAddress(addressAtSlice(catalog, imagery.address, sliceIndex));
   }
@@ -132,10 +126,7 @@ export function WindowBody({ ctx, collection }: WindowProps) {
   const imagery = useImageryStore();
   const legendOverrides = usePrefsStore((s) => s.legendOverrides);
   const camera = cameraFor(collection.id);
-  // Re-render on this window's own remembered-slice changes even while it
-  // is not the active collection (otherwise a healed/picked slice would not
-  // repaint until something else happened to re-render this component).
-  useWindowSlice(collection.id);
+  const windowSlice = imagery.windowSlices[collection.id];
 
   const focus = useMapFocus();
 
@@ -211,7 +202,7 @@ export function WindowBody({ ctx, collection }: WindowProps) {
         viewSync: imagery.viewSync,
         isActive,
         sliceIndex: address?.sliceIndex ?? null,
-        userPickedIndex: getUserPickedSlice(collection.id) ?? null,
+        userPickedIndex: windowSlice?.userPicked ?? null,
       }),
     // Empty coverage is about the task point, not wherever an unlinked window
     // happened to be panned. Explore has no task point and is gated off above.

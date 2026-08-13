@@ -16,7 +16,6 @@ import { PMTilesVectorSource } from 'ol-pmtiles';
 import type {
   FeatureLayerSpec,
   GeoFeature,
-  LayerId,
   LayerSpec,
   RasterLayerSpec,
   StyleSpec,
@@ -38,12 +37,6 @@ const GEO_FEATURE_PROP = 'mapview:feature';
 const PMTILES_SCHEME = 'pmtiles://';
 const MAX_TILE_ZOOM = 22;
 const HIGHLIGHT_EXTRA_WIDTH = 3;
-
-export interface LayerContext {
-  /** MapView may keep the outgoing raster painted through the incoming
-   * layer's first render. Other hosts omit this and retire immediately. */
-  retireLayer?: (layerId: LayerId, layer: BaseLayer) => void;
-}
 
 const geoJson = new GeoJSONFormat({ dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
 
@@ -225,7 +218,7 @@ function featureStyle(layer: VectorLayer<VectorSource<Feature>>) {
   };
 }
 
-export function createLayer(spec: LayerSpec, _ctx: LayerContext): BaseLayer {
+export function createLayer(spec: LayerSpec): BaseLayer {
   const layer = buildLayer(spec);
   layer.set(LAYER_ID_PROP, spec.id);
   layer.set(SPEC_PROP, spec);
@@ -264,14 +257,16 @@ function buildLayer(spec: LayerSpec): BaseLayer {
 export function updateLayer(
   layer: BaseLayer,
   spec: LayerSpec,
-  changed: readonly LayerField[],
-  _ctx: LayerContext
+  changed: readonly LayerField[]
 ): void {
   // Style functions read the spec off the layer, so this also refreshes them.
   layer.set(SPEC_PROP, spec);
 
   for (const field of changed) {
     switch (field) {
+      case 'slot':
+        // Replacement metadata lives in SPEC_PROP, updated above.
+        break;
       case 'visible':
         layer.setVisible(spec.visible ?? true);
         break;

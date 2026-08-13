@@ -51,7 +51,6 @@ export interface ScreensApi {
     item: LayoutItem | undefined,
     canvasPx: number
   ) => void;
-  returnPanel: (panelId: string) => void;
   close: (id: number) => void;
   setScreenLayout: (id: number, layout: LayoutItem[]) => void;
   rememberBounds: (id: number, bounds: ScreenBounds) => void;
@@ -130,10 +129,6 @@ export function useScreens(scope: string | null): ScreensApi {
     [update]
   );
 
-  const returnPanel = useCallback(
-    (panelId: string) => update((c) => returnPanelFromScreen(c, panelId)),
-    [update]
-  );
   const close = useCallback((id: number) => update((c) => closeScreen(c, id)), [update]);
   const rememberBounds = useCallback(
     (id: number, bounds: ScreenBounds) => update((c) => rememberScreenBounds(c, id, bounds)),
@@ -188,7 +183,6 @@ export function useScreens(scope: string | null): ScreensApi {
       popped,
       restorable,
       send,
-      returnPanel,
       close,
       setScreenLayout,
       rememberBounds,
@@ -201,7 +195,6 @@ export function useScreens(scope: string | null): ScreensApi {
       popped,
       restorable,
       send,
-      returnPanel,
       close,
       setScreenLayout,
       rememberBounds,

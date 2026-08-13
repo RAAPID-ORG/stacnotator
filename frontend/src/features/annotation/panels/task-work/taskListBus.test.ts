@@ -1,8 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AnnotationTaskOut } from '~/api/client';
 import { buildCatalog } from '~/features/annotation/core/catalog';
-import { makeCampaign, makeSource, makeTask } from '~/features/annotation/core/catalog/testHelpers';
-import { useImageryStore } from '~/features/annotation/stores';
+import {
+  makeCampaign,
+  makeCollection,
+  makeSlice,
+  makeSource,
+  makeTask,
+  makeViz,
+} from '~/features/annotation/core/catalog/testHelpers';
+import { useImageryStore, usePrefsStore, useSessionStore } from '~/features/annotation/stores';
 import { getMapFocus } from '~/features/annotation/shared/mapFocus';
 import {
   goToAnnotationNumber,
@@ -41,7 +48,9 @@ const TASK_B = task(2, 2, 10, 10);
 
 afterEach(() => {
   resetTaskList();
-  useImageryStore.getState().setAddress(null);
+  useImageryStore.setState({ address: null, emptyScope: null });
+  usePrefsStore.setState({ pinnedStart: {} });
+  useSessionStore.setState({ selectedViewId: null });
 });
 
 describe('taskListBus KNN validation toggle', () => {
@@ -92,6 +101,35 @@ describe('taskListBus map focus', () => {
     goToAnnotationNumber(2, CATALOG);
 
     expect(getMapFocus()?.center).toEqual([10, 10]);
+  });
+
+  it('opens each new task on the collection starred for the selected view', () => {
+    const source = makeSource({
+      id: 7,
+      visualizations: [makeViz({ id: 70, name: 'rgb' })],
+      collections: [
+        makeCollection({ id: 71, slices: [makeSlice({ id: 710 })] }),
+        makeCollection({ id: 72, slices: [makeSlice({ id: 720 })] }),
+      ],
+    });
+    const catalog = buildCatalog(makeCampaign({ imagery_sources: [source] }));
+    useImageryStore.setState({
+      address: { sourceId: 7, collectionId: 71, sliceIndex: 0, vizId: '70' },
+      emptyScope: null,
+    });
+    useSessionStore.setState({ selectedViewId: 9 });
+    usePrefsStore.setState({ pinnedStart: { 9: 72 } });
+    initTaskList([TASK_A, TASK_B], [], FILTER, 'u1', 0);
+
+    syncMapFocus(catalog);
+    expect(useImageryStore.getState().address?.collectionId).toBe(72);
+
+    useImageryStore.getState().setActiveCollection(catalog, 71);
+    replaceTask({ ...TASK_A, task_status: 'done' }, catalog);
+    expect(useImageryStore.getState().address?.collectionId).toBe(71);
+
+    next(catalog);
+    expect(useImageryStore.getState().address?.collectionId).toBe(72);
   });
 
   it('replaceTask() re-syncs the focus for the (possibly still current) task', () => {

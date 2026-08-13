@@ -466,7 +466,7 @@ input[type='range'] {
    attribution toggle into a dominant button in small maps. Keep the compact
    corner treatment the previous map/minimap used while retaining the native
    expandable attribution list and its accessible button. */
-.ol-attribution.ol-control {
+.annotation-workspace .ol-attribution.ol-control {
   right: 3px !important;
   bottom: 3px !important;
   max-width: calc(100% - 6px) !important;
@@ -475,8 +475,8 @@ input[type='range'] {
   font-size: 10px !important;
 }
 
-.ol-attribution.ol-control button,
-.ol-touch .ol-attribution.ol-control button {
+.annotation-workspace .ol-attribution.ol-control button,
+.annotation-workspace .ol-touch .ol-attribution.ol-control button {
   width: 14px !important;
   height: 14px !important;
   margin: 0 !important;
@@ -487,7 +487,7 @@ input[type='range'] {
   background: transparent !important;
 }
 
-.ol-attribution.ol-control ul {
+.annotation-workspace .ol-attribution.ol-control ul {
   padding: 1px 3px !important;
   font-size: 8px !important;
   line-height: 12px !important;

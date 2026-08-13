@@ -12,11 +12,8 @@ import {
   makeViz,
 } from '~/features/annotation/core/catalog/testHelpers';
 import { useWorkStore } from '~/features/annotation/stores';
-import {
-  getUserPickedSlice,
-  getWindowSlice,
-  selectWindowSlice,
-} from '~/features/annotation/panels/imagery-windows';
+import { selectWindowSlice } from '~/features/annotation/panels/imagery-windows';
+import { useImageryStore } from '~/features/annotation/stores';
 import { setProbePoint, useInteractionSpec } from '~/features/annotation/shared/interactionSpec';
 
 /** loadCampaign's three calls, so the page can be driven without a server.
@@ -181,17 +178,17 @@ describe('AnnotationPage campaign switch', () => {
         }),
       ],
     });
+    useImageryStore.setState({
+      address: { sourceId: 1, collectionId: 55, sliceIndex: 0, vizId: '1' },
+    });
     selectWindowSlice(
       buildCatalog(makeCampaign({ imagery_sources: [source] })),
-      {
-        address: { sourceId: 1, collectionId: 55, sliceIndex: 0, vizId: '1' },
-        setAddress: () => {},
-        setShowBasemap: () => {},
-      },
+      useImageryStore.getState(),
       55,
       3
     );
-    expect(getWindowSlice(55)).toBe(3);
+    expect(useImageryStore.getState().windowSlices[55]?.selected).toBe(3);
+    expect(useImageryStore.getState().address?.sliceIndex).toBe(3);
 
     campaignFixture = makeCampaign({ id: 2, registration_status: 'registering' });
     mockCampaignId = 2;
@@ -203,8 +200,7 @@ describe('AnnotationPage campaign switch', () => {
     await waitFor(() => expect(screen.getByTestId('registering-gate')).toBeDefined());
 
     expect(useInteractionSpec.getState().probePoint).toBeNull();
-    expect(getWindowSlice(55)).toBeUndefined();
-    expect(getUserPickedSlice(55)).toBeUndefined();
+    expect(useImageryStore.getState().windowSlices[55]).toBeUndefined();
     expect(useWorkStore.getState().draft.phase).toBe('idle');
     expect(useWorkStore.getState().formValues).toEqual({});
   });

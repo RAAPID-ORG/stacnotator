@@ -159,9 +159,8 @@ test.describe('Imagery in open mode', () => {
 
     await mainSliceBtn(annotationPage).click();
     await annotationPage
-      .locator('div.rounded-lg.shadow-lg button')
-      .filter({ hasText: SLICE_2024_06.name })
-      .first()
+      .locator('div.rounded-lg.shadow-lg:visible')
+      .getByRole('button', { name: SLICE_2024_06.name, exact: true })
       .click();
 
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
@@ -233,6 +232,9 @@ test.describe('Timeseries probe in open mode', () => {
       'data-probe-lon',
       /-?\d/
     );
+    await expect(
+      annotationPage.getByRole('button', { name: 'Probe time series', exact: true })
+    ).toHaveAttribute('aria-pressed', 'false');
   });
 
   test('an off-centre click probes a different longitude', async ({ annotationPage }) => {
@@ -250,8 +252,7 @@ test.describe('Timeseries probe in open mode', () => {
       .toBe(true);
   });
 
-  test('switching to Pan does not probe on click', async ({ annotationPage }) => {
-    // First probe so the listener has a baseline.
+  test('a probe is one-shot; another click requires re-arming', async ({ annotationPage }) => {
     await annotationPage.keyboard.press('t');
     await clickMapCenter(annotationPage);
 
@@ -259,7 +260,6 @@ test.describe('Timeseries probe in open mode', () => {
     annotationPage.on('request', (req) => {
       if (/\/timeseries\/\d+\/[-\d.]+\/[-\d.]+\/data/.test(req.url())) after.push(req.url());
     });
-    await annotationPage.keyboard.press('p'); // pan; clears probe
     await clickMapAt(annotationPage, 60, 60);
     // Give any erroneous fetch a chance to fire, then assert none did.
     await annotationPage.waitForTimeout(800);
