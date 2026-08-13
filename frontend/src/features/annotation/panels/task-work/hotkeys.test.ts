@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AnnotationTaskOut, CampaignOutFull } from '~/api/client';
 import { buildCatalog } from '~/features/annotation/core/catalog';
 import { makeCampaign, makeTask } from '~/features/annotation/core/catalog/testHelpers';
@@ -235,6 +235,8 @@ describe('form bindings while the user is typing', () => {
     wrapper7.appendChild(input7);
     const wrapper8 = document.createElement('div');
     wrapper8.setAttribute('data-form-field-id', '8');
+    const scrollField8 = vi.fn();
+    wrapper8.scrollIntoView = scrollField8;
     const input8 = document.createElement('input');
     wrapper8.appendChild(input8);
     document.body.append(wrapper7, wrapper8);
@@ -247,6 +249,49 @@ describe('form bindings while the user is typing', () => {
 
     expect(useWorkStore.getState().activeFieldIndex).toBe(1);
     expect(document.activeElement).toBe(input8);
+    expect(scrollField8).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    });
+  });
+
+  it('Tab reveals and focuses an option field that has no text input', () => {
+    const campaign = campaignWithFields();
+    campaign.settings.form_fields = [
+      { id: 7, title: 'Notes', required: false, type: 'text' },
+      {
+        id: 8,
+        title: 'Condition',
+        required: false,
+        type: 'category',
+        options: [{ id: 81, name: 'Healthy' }],
+      },
+    ];
+    const tab = taskFormBindings(ctxFor(campaign)).find((b) => b.key === 'tab')!;
+
+    const wrapper7 = document.createElement('div');
+    wrapper7.setAttribute('data-form-field-id', '7');
+    const input7 = document.createElement('input');
+    wrapper7.appendChild(input7);
+    const wrapper8 = document.createElement('div');
+    wrapper8.setAttribute('data-form-field-id', '8');
+    wrapper8.tabIndex = -1;
+    const scrollField8 = vi.fn();
+    wrapper8.scrollIntoView = scrollField8;
+    document.body.append(wrapper7, wrapper8);
+
+    useWorkStore.getState().setActiveFieldIndex(0);
+    input7.focus();
+    tab.run(new KeyboardEvent('keydown', { key: 'Tab' }));
+
+    expect(useWorkStore.getState().activeFieldIndex).toBe(1);
+    expect(document.activeElement).toBe(wrapper8);
+    expect(scrollField8).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    });
   });
 
   // Regression: Escape cleared activeFieldIndex in the store but never

@@ -6,7 +6,7 @@
  * - Skip (null label) sends the right payload
  */
 import { test, expect, waitForNavIdle, type CapturedRequest } from './fixtures/annotator-fixture';
-import { LABELS } from './fixtures/mock-data';
+import { LABELS, MOCK_CAMPAIGN } from './fixtures/mock-data';
 
 /** Return the last POST to /annotate */
 function lastAnnotateRequest(requests: CapturedRequest[]): CapturedRequest | undefined {
@@ -109,5 +109,51 @@ test.describe('Annotation Submission', () => {
     await page.keyboard.press('Enter');
     await waitForNavIdle(page);
     expect(lastAnnotateRequest(api.requests)).toBeUndefined();
+  });
+
+  test('Tab scrolls the task controls until the active form field is fully visible', async ({
+    annotationPage,
+  }) => {
+    const formFields = Array.from({ length: 12 }, (_, index) => ({
+      id: 700 + index,
+      title: `Question ${index + 1}`,
+      required: false,
+      type: 'text' as const,
+    }));
+    await annotationPage.route('**/api/campaigns/*/detailed', async (route) => {
+      await route.fulfill({
+        json: {
+          ...MOCK_CAMPAIGN,
+          settings: { ...MOCK_CAMPAIGN.settings, form_fields: formFields },
+        },
+      });
+    });
+    await annotationPage.reload();
+    await annotationPage.waitForSelector('[data-tour="controls"]', { timeout: 10_000 });
+
+    const scroller = annotationPage.locator('[data-tour="controls"] .panel-body > div').first();
+    const lastField = annotationPage.locator('[data-form-field-id="711"]');
+    await expect(lastField).toBeAttached();
+    expect(await scroller.evaluate((element) => element.scrollTop)).toBe(0);
+
+    for (let index = 0; index < formFields.length; index++) {
+      await annotationPage.keyboard.press('Tab');
+    }
+
+    await expect(lastField).toHaveClass(/ring-1/);
+    await expect
+      .poll(
+        async () => {
+          const [viewport, field, scrollTop] = await Promise.all([
+            scroller.boundingBox(),
+            lastField.boundingBox(),
+            scroller.evaluate((element) => element.scrollTop),
+          ]);
+          if (!viewport || !field || scrollTop === 0) return false;
+          return field.y >= viewport.y && field.y + field.height <= viewport.y + viewport.height;
+        },
+        { timeout: 5000 }
+      )
+      .toBe(true);
   });
 });

@@ -337,13 +337,15 @@ function FieldInput({
   }
 }
 
-/** Focuses the first input/textarea inside a field's container. Feature-layer
- *  side of formFieldNav's `focusFieldId`. */
+/** Reveal a keyboard-selected field inside its scrollable panel, then place
+ * focus on its input. Option fields have no input, so their container receives
+ * focus instead; this also releases a caret left in the previous text field. */
 export function focusFormFieldInput(fieldId: number): void {
-  const input = document.querySelector<HTMLElement>(
-    `[data-form-field-id="${fieldId}"] input, [data-form-field-id="${fieldId}"] textarea`
-  );
-  input?.focus();
+  const field = document.querySelector<HTMLElement>(`[data-form-field-id="${fieldId}"]`);
+  if (!field) return;
+  field.scrollIntoView?.({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+  const input = field.querySelector<HTMLElement>('input, textarea');
+  (input ?? field).focus({ preventScroll: true });
 }
 
 export function FormFields({
@@ -361,7 +363,8 @@ export function FormFields({
         <div
           key={field.id}
           data-form-field-id={field.id}
-          className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem] ${
+          tabIndex={-1}
+          className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem] focus:outline-none ${
             activeFieldIndex === index ? activeGroupClass : ''
           }`}
         >
