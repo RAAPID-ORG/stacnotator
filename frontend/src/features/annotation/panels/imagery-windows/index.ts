@@ -3,7 +3,7 @@ import { collectionsInView } from '~/features/annotation/core/catalog';
 import { useImageryStore, useWorkspaceStore } from '~/features/annotation/stores';
 import type { Feature } from '../../composition';
 import { WindowHeader } from './WindowHeader';
-import { activateWindow, WindowBody } from './WindowPanel';
+import { WindowBody } from './WindowPanel';
 
 export const imageryWindowsFeature: Feature = {
   panels: (ctx) => {
@@ -19,20 +19,15 @@ export const imageryWindowsFeature: Feature = {
       body: createElement(WindowBody, { ctx, collection }),
       hideTarget: true,
       hidable: true,
-      onHeaderClick: () => activateWindow(ctx.catalog, useImageryStore.getState(), collection.id),
-      onBodyClick: () => activateWindow(ctx.catalog, useImageryStore.getState(), collection.id),
+      onHeaderClick: () =>
+        useImageryStore.getState().activateCollection(ctx.catalog, collection.id),
+      onBodyClick: () => useImageryStore.getState().activateCollection(ctx.catalog, collection.id),
     }));
   },
 };
 
 export { WindowHeader } from './WindowHeader';
-export {
-  activateWindow,
-  selectWindowSlice,
-  windowAddress,
-  WindowBody,
-  type WindowProps,
-} from './WindowPanel';
+export { selectWindowSlice, windowAddress, WindowBody, type WindowProps } from './WindowPanel';
 export {
   candidateOrder,
   healingEnabled,

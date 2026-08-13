@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePrefsStore, type PreloadTier } from '~/features/annotation/stores';
+import { IconGauge } from '~/shared/ui/Icons';
 import { PRELOAD_TIER_CONCURRENCY, autoPreloadTier, resolvePreloadTier } from '../usePreloading';
 
 const DOT: Record<PreloadTier, string> = {
@@ -61,19 +62,7 @@ export function PreloadMenu() {
         title={`Tile preloading: ${LABEL[effective]}${tier === 'auto' ? ' (auto-tuned to your connection)' : ''}. Click to change.`}
         className={`relative flex h-6 w-6 items-center justify-center rounded-md cursor-pointer ${active ? 'bg-brand-600 text-white hover:bg-brand-700' : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'}`}
       >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          aria-hidden="true"
-        >
-          <path d="M10 2v4M10 14v4M4.93 4.93l2.83 2.83M12.24 12.24l2.83 2.83M2 10h4M14 10h4" />
-          {!active && <line x1="3" y1="17" x2="17" y2="3" strokeWidth="2" />}
-        </svg>
+        <IconGauge className="h-[13px] w-[13px]" />
         <span
           className={`absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-white ${DOT[effective]}`}
           aria-hidden

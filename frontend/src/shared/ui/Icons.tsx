@@ -221,6 +221,14 @@ export const IconCopy = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconGauge = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M3 16a7 7 0 1114 0" />
+    <path d="M10 13.5l4-5" />
+    <circle cx="10" cy="13.5" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 export const IconExternalLink = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M9 5H6a2 2 0 00-2 2v7a2 2 0 002 2h7a2 2 0 002-2v-3" />

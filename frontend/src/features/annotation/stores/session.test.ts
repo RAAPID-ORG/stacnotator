@@ -75,18 +75,6 @@ describe('setWorkMode', () => {
   });
 });
 
-describe('activateCollection', () => {
-  it('delegates to imagery.setActiveCollection', () => {
-    useSessionStore.getState().activateCollection(10, cat);
-    expect(useImageryStore.getState().address).toEqual({
-      sourceId: 1,
-      collectionId: 10,
-      sliceIndex: 0,
-      vizId: '1',
-    });
-  });
-});
-
 describe('selectView', () => {
   it('updates selectedViewId and delegates the snapshot/restore to imagery.switchView', () => {
     useSessionStore.getState().selectView(makeView({ id: 1, source_ids: [1] }), cat, 10);

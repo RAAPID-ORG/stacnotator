@@ -16,7 +16,11 @@ const source = makeSource({
   visualizations: [makeViz({ id: 1, name: 'True Color' })],
   collections: [
     makeCollection({ id: 10, name: 'A', slices: [makeSlice({ id: 100, name: 's0' })] }),
-    makeCollection({ id: 20, name: 'B', slices: [makeSlice({ id: 200, name: 's0' })] }),
+    makeCollection({
+      id: 20,
+      name: 'B',
+      slices: [makeSlice({ id: 200, name: 's0' }), makeSlice({ id: 201, name: 's1' })],
+    }),
   ],
 });
 const campaign = makeCampaign({ imagery_sources: [source] });
@@ -34,6 +38,7 @@ beforeEach(() => {
     showAnnotations: true,
     viewSync: true,
     viewSnapshots: {},
+    windowSlices: {},
     emptyScope: null,
   });
 });
@@ -70,15 +75,15 @@ describe('setAddress / markEmpty', () => {
   });
 });
 
-describe('setActiveCollection', () => {
-  it('lands on the target collection cover slice and turns off the basemap, keeping overlay/vector/empties', () => {
+describe('activateCollection', () => {
+  it('lands on the cover without window memory and keeps overlay/vector/empties', () => {
     useImageryStore.setState({
       showBasemap: true,
       overlay: { id: 5, visible: true },
       vector: { id: 9, visible: false },
       empties: { '20:0': true },
     });
-    useImageryStore.getState().setActiveCollection(cat, 10);
+    useImageryStore.getState().activateCollection(cat, 10);
     const s = useImageryStore.getState();
     expect(s.address).toEqual({ sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1' });
     expect(s.showBasemap).toBe(false);
@@ -86,10 +91,61 @@ describe('setActiveCollection', () => {
     expect(s.vector).toEqual({ id: 9, visible: false });
     expect(s.empties).toEqual({ '20:0': true });
   });
+
+  it('restores the slice previously selected in the target imagery window', () => {
+    useImageryStore
+      .getState()
+      .setAddress({ sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1' });
+    useImageryStore.getState().rememberWindowSlice(20, 1, true);
+
+    useImageryStore.getState().activateCollection(cat, 20);
+
+    expect(useImageryStore.getState().address).toEqual({
+      sourceId: 1,
+      collectionId: 20,
+      sliceIndex: 1,
+      vizId: '1',
+    });
+  });
+
+  it('restores the target window slice when stepping to the next collection', () => {
+    useImageryStore
+      .getState()
+      .setAddress({ sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1' });
+    useImageryStore.getState().rememberWindowSlice(20, 1, true);
+
+    useImageryStore.getState().stepCollectionAction(cat, 1);
+
+    expect(useImageryStore.getState().address).toEqual({
+      sourceId: 1,
+      collectionId: 20,
+      sliceIndex: 1,
+      vizId: '1',
+    });
+  });
+});
+
+describe('resetForTask', () => {
+  it('clears window memory and deliberately returns to the configured collection cover', () => {
+    useImageryStore.setState({
+      address: { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1' },
+      windowSlices: { 20: { selected: 1, userPicked: 1 } },
+    });
+
+    useImageryStore.getState().resetForTask(cat, 20, 'task:2');
+
+    expect(useImageryStore.getState().address).toEqual({
+      sourceId: 1,
+      collectionId: 20,
+      sliceIndex: 0,
+      vizId: '1',
+    });
+    expect(useImageryStore.getState().windowSlices).toEqual({});
+  });
 });
 
 // ---------------------------------------------------------------------------
-// setActiveCollection: per-source visualization memory. False Color is
+// activateCollection: per-source visualization memory. False Color is
 // published on Jan and Mar, but not on Feb - Feb proves the fallback.
 // ---------------------------------------------------------------------------
 
@@ -145,12 +201,12 @@ const sourceMV = makeSource({
 const campaignMV = makeCampaign({ imagery_sources: [sourceMV] });
 const catMV = buildCatalog(campaignMV);
 
-describe('setActiveCollection: per-source visualization memory', () => {
+describe('activateCollection: per-source visualization memory', () => {
   it('keeps the current visualization when switching to a collection in the same source', () => {
     useImageryStore
       .getState()
       .setAddress({ sourceId: 2, collectionId: 210, sliceIndex: 0, vizId: '22' });
-    useImageryStore.getState().setActiveCollection(catMV, 230);
+    useImageryStore.getState().activateCollection(catMV, 230);
     expect(useImageryStore.getState().address).toEqual({
       sourceId: 2,
       collectionId: 230,
@@ -163,7 +219,7 @@ describe('setActiveCollection: per-source visualization memory', () => {
     useImageryStore
       .getState()
       .setAddress({ sourceId: 2, collectionId: 210, sliceIndex: 0, vizId: '22' });
-    useImageryStore.getState().setActiveCollection(catMV, 220);
+    useImageryStore.getState().activateCollection(catMV, 220);
     expect(useImageryStore.getState().address).toEqual({
       sourceId: 2,
       collectionId: 220,

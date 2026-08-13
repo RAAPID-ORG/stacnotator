@@ -1,40 +1,7 @@
 import type { ImageryCollectionOut, ImageryViewOut } from '~/api/client';
-import { compatibleVizId, type Catalog } from './catalog';
-import {
-  SNAPSHOT_FIELDS,
-  type ImageryNavState,
-  type SliceAddress,
-  type ViewSnapshot,
-} from './types';
-
-/** Chronological ordering for a source's collections in the timeline.
- *  Collections are stored in insertion order, so a collection added later but
- *  covering an earlier period (e.g. 2019 imagery added after 2020) would
- *  otherwise show up at the end of the timeline; ordering by earliest slice
- *  start date slots it into its proper place. */
-
-interface DatedCollection {
-  slices: { start_date?: string | null }[];
-}
-
-/** Earliest slice start date (YYYY-MM-DD). Empty/undated collections sort last. */
-export function collectionStartDate(collection: DatedCollection): string {
-  let earliest = '';
-  for (const s of collection.slices) {
-    if (s.start_date && (!earliest || s.start_date < earliest)) earliest = s.start_date;
-  }
-  return earliest || '9999-99-99';
-}
-
-/** Stable chronological comparator for entries carrying a `collection`. */
-export function byCollectionDate<T extends { collection?: DatedCollection | null }>(
-  a: T,
-  b: T
-): number {
-  const da = a.collection ? collectionStartDate(a.collection) : '9999-99-99';
-  const db = b.collection ? collectionStartDate(b.collection) : '9999-99-99';
-  return da.localeCompare(db);
-}
+import type { Catalog } from './catalog';
+import { collectionAddress } from './timeNav';
+import { SNAPSHOT_FIELDS, type ImageryNavState, type ViewSnapshot } from './types';
 
 /** Collections browsable in a view: every collection of the view's sources,
  *  in the view's stored source order then each source's own collection
@@ -79,26 +46,11 @@ export function restoreSnapshot(
   if (saved) return saved;
   return {
     address:
-      fallbackCollectionId != null ? defaultAddressForCollection(cat, fallbackCollectionId) : null,
+      fallbackCollectionId != null ? collectionAddress(cat, fallbackCollectionId, null) : null,
     showBasemap: false,
     selectedBasemapId: null,
     overlay: { id: null, visible: true },
     overlayOpacity: 1,
     vector: { id: null, visible: true },
-  };
-}
-
-function defaultAddressForCollection(cat: Catalog, collectionId: number): SliceAddress | null {
-  const collection = cat.collections.get(collectionId);
-  const sourceId = cat.sourceIdByCollectionId.get(collectionId);
-  if (!collection || sourceId === undefined) return null;
-  const source = cat.sources.get(sourceId);
-  if (!source) return null;
-  const sliceIndex = collection.cover_slice_index ?? 0;
-  return {
-    sourceId,
-    collectionId,
-    sliceIndex,
-    vizId: compatibleVizId(source, collection.slices[sliceIndex], ''),
   };
 }

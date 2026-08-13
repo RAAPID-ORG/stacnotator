@@ -12,7 +12,7 @@ export interface CollectionPickerProps {
 
 export function CollectionPicker({ catalog, sourceIds, isTaskMode, title }: CollectionPickerProps) {
   const address = useImageryStore((s) => s.address);
-  const setActiveCollection = useImageryStore((s) => s.setActiveCollection);
+  const activateCollection = useImageryStore((s) => s.activateCollection);
   const selectedViewId = useSessionStore((s) => s.selectedViewId);
   const taskStartCollectionId = useSessionStore((s) => s.taskStartCollectionId);
   const setTaskStartCollection = useSessionStore((s) => s.setTaskStartCollection);
@@ -35,7 +35,7 @@ export function CollectionPicker({ catalog, sourceIds, isTaskMode, title }: Coll
       <HeaderSelect
         value={address?.collectionId ?? ''}
         options={collections.map((c) => ({ value: c.id, label: c.name }))}
-        onChange={(v) => setActiveCollection(catalog, Number(v))}
+        onChange={(v) => activateCollection(catalog, Number(v))}
         title={title}
         markedValue={pinnable ? effectiveStart : undefined}
         onMarkOption={

@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import type { ImageryViewOut } from '~/api/client';
 import {
+  collectionAddress,
   cycleSource,
   cycleViz,
-  jumpToCollection,
   markEmpty as markEmptyKey,
   restoreSnapshot,
   snapshotForView,
-  stepCollection,
+  stepCollectionId,
   stepSlice,
   toggleCycle,
   type Catalog,
@@ -58,10 +58,10 @@ export interface ImageryState extends ImageryNavState {
   cycleVizAction: (cat: Catalog, dir: 1 | -1) => void;
   stepSliceAction: (cat: Catalog, dir: 1 | -1) => void;
   stepCollectionAction: (cat: Catalog, dir: 1 | -1) => void;
-  /** Switch the active collection directly (e.g. clicking a window), landing
-   *  on its cover slice. Leaves overlay/vector/empties untouched - only the
-   *  address changes. */
-  setActiveCollection: (cat: Catalog, collectionId: number | null) => void;
+  /** Activate a collection inside the current task, resuming the slice that
+   * its imagery window last showed. A collection without memory starts on its
+   * cover. Task transitions use resetForTask instead. */
+  activateCollection: (cat: Catalog, collectionId: number | null) => void;
   /** Save the outgoing view's nav state under `fromViewId` (skipped when
    *  null, e.g. first view of a session), then restore `toViewId`'s saved
    *  snapshot or a fresh default at `fallbackCollectionId`. */
@@ -86,6 +86,22 @@ const initialNav: ImageryNavState = {
   viewSync: true,
 };
 
+/** One landing policy for every within-task collection transition. Keeping it
+ * beside the state that owns windowSlices prevents picker, timeline, hotkey,
+ * and panel-click paths from drifting into different cover/resume rules. */
+function activeCollectionAddress(
+  cat: Catalog,
+  state: Pick<ImageryState, 'address' | 'windowSlices'>,
+  collectionId: number
+): SliceAddress | null {
+  return collectionAddress(
+    cat,
+    collectionId,
+    state.address,
+    state.windowSlices[collectionId]?.selected
+  );
+}
+
 export const useImageryStore = create<ImageryState>((set) => ({
   ...initialNav,
   viewSnapshots: {},
@@ -108,7 +124,9 @@ export const useImageryStore = create<ImageryState>((set) => ({
     set((s) => (s.emptyScope === emptyScope ? s : { emptyScope, empties: {} })),
   resetForTask: (cat, collectionId, emptyScope) =>
     set((s) => ({
-      address: collectionId != null ? jumpToCollection(cat, collectionId, s.address) : null,
+      // Deliberately omit window memory: a task transition is the one point
+      // where imagery starts from the configured collection default.
+      address: collectionId != null ? collectionAddress(cat, collectionId, s.address) : null,
       showBasemap: false,
       empties: {},
       emptyScope,
@@ -159,13 +177,15 @@ export const useImageryStore = create<ImageryState>((set) => ({
   stepCollectionAction: (cat, dir) =>
     set((s) => {
       if (!s.address) return s;
-      const next = stepCollection(cat, s.address, dir, s.empties);
-      return next ? { address: next } : s;
+      const collectionId = stepCollectionId(cat, s.address, dir);
+      if (collectionId == null) return s;
+      const address = activeCollectionAddress(cat, s, collectionId);
+      return address ? { address } : s;
     }),
 
-  setActiveCollection: (cat, collectionId) =>
+  activateCollection: (cat, collectionId) =>
     set((s) => ({
-      address: collectionId != null ? jumpToCollection(cat, collectionId, s.address) : null,
+      address: collectionId != null ? activeCollectionAddress(cat, s, collectionId) : null,
       showBasemap: false,
     })),
 

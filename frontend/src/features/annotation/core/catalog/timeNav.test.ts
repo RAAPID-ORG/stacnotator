@@ -11,10 +11,10 @@ import {
 import { emptyKey } from './types';
 import {
   addressAtSlice,
-  jumpToCollection,
+  collectionAddress,
   sliceNavIndices,
   slicePickerIndices,
-  stepCollection,
+  stepCollectionId,
   stepSlice,
 } from './timeNav';
 
@@ -127,35 +127,18 @@ describe('stepSlice', () => {
   });
 });
 
-describe('stepCollection', () => {
-  // A direct Shift+A/D collection switch always lands on the target's cover
-  // slice, never a within-collection nav slice. This is
-  // distinct from stepSlice's end-of-collection wrap, which lands on the
-  // first/last *nav* slice (see the stepSlice describe block above).
-
-  it('moves to the next collection, landing on its cover slice (not the first nav slice)', () => {
-    // Feb's cover_slice_index is 1, not 0 (the first nav index) - proves the
-    // landing is the cover, not sliceNavIndices[0].
-    expect(stepCollection(cat, addr(10, 1), 1, {})).toEqual(addr(11, 1));
+describe('stepCollectionId', () => {
+  it('finds the next collection in chronological order', () => {
+    expect(stepCollectionId(cat, addr(10, 1), 1)).toBe(11);
   });
 
-  it('moves to the previous collection, landing on its cover slice even when it is a dedicated cover', () => {
-    // Jan's cover (index 0) is a dedicated cover, excluded from sliceNavIndices
-    // entirely - stepCollection still lands there on a direct switch.
-    expect(stepCollection(cat, addr(11, 0), -1, {})).toEqual(addr(10, 0));
+  it('finds the previous collection', () => {
+    expect(stepCollectionId(cat, addr(11, 0), -1)).toBe(10);
   });
 
   it('returns null past the first/last collection', () => {
-    expect(stepCollection(cat, addr(10, 0), -1, {})).toBeNull();
-    expect(stepCollection(cat, addr(11, 0), 1, {})).toBeNull();
-  });
-
-  it('lands on the cover regardless of empties (empties only affect stepSlice, not a direct collection switch)', () => {
-    const allEmpty = {
-      [emptyKey(11, 0)]: true as const,
-      [emptyKey(11, 1)]: true as const,
-    };
-    expect(stepCollection(cat, addr(10, 1), 1, allEmpty)).toEqual(addr(11, 1));
+    expect(stepCollectionId(cat, addr(10, 0), -1)).toBeNull();
+    expect(stepCollectionId(cat, addr(11, 0), 1)).toBeNull();
   });
 });
 
@@ -268,23 +251,19 @@ describe('visualization carried across navigation', () => {
     expect(stepSlice(mvCat, mvAddr(10, 0, '901'), 1, {})).toEqual(mvAddr(10, 1, '901'));
   });
 
-  it('stepCollection keeps False Color when the target collection still publishes it', () => {
-    expect(stepCollection(mvCat, mvAddr(10, 0, '901'), 1, {})).toEqual(mvAddr(12, 0, '901'));
+  it('collectionAddress keeps the current visualization within the same source', () => {
+    expect(collectionAddress(mvCat, 12, mvAddr(10, 0, '901'))).toEqual(mvAddr(12, 0, '901'));
   });
 
-  it('stepCollection falls back to the first visualization when the target does not publish the current one', () => {
-    expect(stepCollection(mvCat, mvAddr(12, 0, '901'), 1, {})).toEqual(mvAddr(11, 0, '900'));
+  it('collectionAddress uses an explicit remembered slice instead of the cover', () => {
+    expect(collectionAddress(mvCat, 10, mvAddr(12, 0, '901'), 1)).toEqual(mvAddr(10, 1, '901'));
   });
 
-  it('jumpToCollection keeps the current visualization within the same source', () => {
-    expect(jumpToCollection(mvCat, 12, mvAddr(10, 0, '901'))).toEqual(mvAddr(12, 0, '901'));
+  it('collectionAddress falls back when the target does not publish the current visualization', () => {
+    expect(collectionAddress(mvCat, 11, mvAddr(12, 0, '901'))).toEqual(mvAddr(11, 0, '900'));
   });
 
-  it('jumpToCollection falls back to the first visualization when the target does not publish the current one', () => {
-    expect(jumpToCollection(mvCat, 11, mvAddr(12, 0, '901'))).toEqual(mvAddr(11, 0, '900'));
-  });
-
-  it('jumpToCollection resets to the target source default when jumping from a different source', () => {
+  it('collectionAddress resets to the target source default when switching sources', () => {
     const other = makeSource({
       id: 2,
       name: 'Other',
@@ -292,7 +271,7 @@ describe('visualization carried across navigation', () => {
       collections: [makeCollection({ id: 300, name: 'C', slices: [makeSlice({ id: 3000 })] })],
     });
     const multiSourceCat = buildCatalog(makeCampaign({ imagery_sources: [mvSource, other] }));
-    expect(jumpToCollection(multiSourceCat, 300, mvAddr(10, 0, '901'))).toEqual({
+    expect(collectionAddress(multiSourceCat, 300, mvAddr(10, 0, '901'))).toEqual({
       sourceId: 2,
       collectionId: 300,
       sliceIndex: 0,
@@ -300,7 +279,7 @@ describe('visualization carried across navigation', () => {
     });
   });
 
-  it('jumpToCollection returns null for an unknown collection', () => {
-    expect(jumpToCollection(mvCat, 999, null)).toBeNull();
+  it('collectionAddress returns null for an unknown collection', () => {
+    expect(collectionAddress(mvCat, 999, null)).toBeNull();
   });
 });

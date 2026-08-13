@@ -2,7 +2,7 @@ import type { ImageryCollectionOut } from '~/api/client';
 import { compatibleVizId, type Catalog } from './catalog';
 import type { EmptyKey, SliceAddress } from './types';
 import { emptyKey } from './types';
-import { collectionStartDate } from './views';
+import { collectionStartDate } from './collectionDates';
 
 /**
  * Slice/collection stepping (A/D, Shift+A/D), plus the cover-slice rules
@@ -40,21 +40,23 @@ export function addressAtSlice(
   return landOn(cat, current.sourceId, current.collectionId, sliceIndex, current.vizId);
 }
 
-/** Address for jumping straight to a collection (timeline scrub, collection
- *  picker): lands on its cover slice, carrying the current visualization
- *  forward when the jump stays within the source it came from and that
- *  visualization is still published on the landing slice - resets to the
- *  target source's first visualization otherwise. */
-export function jumpToCollection(
+/** Resolve an address in another collection. The caller owns the landing
+ * policy: passing a remembered slice resumes that collection's window;
+ * omitting it deliberately selects the collection's cover/default. The
+ * current visualization is carried within a source when the landing slice
+ * publishes it, with the normal compatible-visualization fallback. */
+export function collectionAddress(
   cat: Catalog,
   collectionId: number,
-  current: SliceAddress | null
+  current: SliceAddress | null,
+  rememberedSliceIndex?: number
 ): SliceAddress | null {
   const collection = cat.collections.get(collectionId);
   const sourceId = cat.sourceIdByCollectionId.get(collectionId);
   if (!collection || sourceId === undefined) return null;
   const preferredVizId = current && current.sourceId === sourceId ? current.vizId : '';
-  return landOn(cat, sourceId, collectionId, coverIndex(collection), preferredVizId);
+  const sliceIndex = rememberedSliceIndex ?? coverIndex(collection);
+  return landOn(cat, sourceId, collectionId, sliceIndex, preferredVizId);
 }
 
 /** All slice indices, for the listing/dropdown (includes the dedicated cover). */
@@ -99,8 +101,7 @@ function sourceCollectionsChronological(cat: Catalog, sourceId: number): Imagery
 
 /** The neighbor collection in chronological order within the same source
  *  (dir=1 next, dir=-1 prev), or null past the first/last collection. Shared
- *  by stepCollection (direct Shift+A/D switch) and stepSlice's end-of-
- *  collection wrap - the two differ only in which slice they land on. */
+ *  by direct collection targeting and stepSlice's end-of-collection wrap. */
 function neighborCollection(
   cat: Catalog,
   addr: SliceAddress,
@@ -112,27 +113,19 @@ function neighborCollection(
   return ordered[idx + dir] ?? null;
 }
 
-/** Moves to the neighbor collection, landing on its cover slice -
- *  unconditionally, including a dedicated cover: a direct Shift+A/D switch
- *  always shows the collection's representative slice, never a
- *  within-collection nav slice.
- *  Null past the first/last collection. */
-export function stepCollection(
-  cat: Catalog,
-  addr: SliceAddress,
-  dir: 1 | -1,
-  _empties: Record<EmptyKey, true>
-): SliceAddress | null {
-  const target = neighborCollection(cat, addr, dir);
-  if (!target) return null;
-  return landOn(cat, addr.sourceId, target.id, coverIndex(target), addr.vizId);
+/** The neighboring collection id in chronological order. This deliberately
+ * does not decide which slice to land on; the stateful caller knows whether
+ * this is within-task navigation (resume the window) or a new-task reset
+ * (use the cover). */
+export function stepCollectionId(cat: Catalog, addr: SliceAddress, dir: 1 | -1): number | null {
+  return neighborCollection(cat, addr, dir)?.id ?? null;
 }
 
 /** Next/prev non-empty regular slice within the current collection; at a
  *  boundary, wraps into the neighbor collection landing on its first (dir=1)
  *  or last (dir=-1) nav slice, falling back to the cover only when none is
- *  eligible - distinct from stepCollection's unconditional cover landing on a
- *  direct collection switch. */
+ *  eligible. This chronological slice behavior is intentionally separate from
+ *  direct collection activation, whose landing policy is owned by the store. */
 export function stepSlice(
   cat: Catalog,
   addr: SliceAddress,

@@ -20,7 +20,6 @@ export interface SessionState {
   /** Make `view` the selected one: its imagery nav state and its canvas
    *  windows both come with it, so the whole page belongs to one view. */
   selectView: (view: ImageryViewOut, cat: Catalog, fallbackCollectionId: number | null) => void;
-  activateCollection: (collectionId: number, cat: Catalog) => void;
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -52,9 +51,5 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     useImageryStore.getState().switchView(cat, selectedViewId, view.id, fallbackCollectionId);
     useWorkspaceStore.getState().loadViewLayout(view);
     set({ selectedViewId: view.id, taskStartCollectionId: fallbackCollectionId });
-  },
-
-  activateCollection: (collectionId, cat) => {
-    useImageryStore.getState().setActiveCollection(cat, collectionId);
   },
 }));

@@ -130,7 +130,7 @@ describe('task session map focus', () => {
     initialize([TASK_A, TASK_B], catalog);
     expect(useImageryStore.getState().address?.collectionId).toBe(72);
 
-    useImageryStore.getState().setActiveCollection(catalog, 71);
+    useImageryStore.getState().activateCollection(catalog, 71);
     useTaskSessionStore.getState().replaceTask({ ...TASK_A, task_status: 'done' }, catalog);
     expect(useImageryStore.getState().address?.collectionId).toBe(71);
 

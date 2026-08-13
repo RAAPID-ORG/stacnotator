@@ -12,7 +12,7 @@ interface Scrub {
 export function TimelineSidebar({ ctx }: { ctx: ComposeCtx }) {
   const { catalog } = ctx;
   const address = useImageryStore((s) => s.address);
-  const setActiveCollection = useImageryStore((s) => s.setActiveCollection);
+  const activateCollection = useImageryStore((s) => s.activateCollection);
 
   const trackRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -59,11 +59,11 @@ export function TimelineSidebar({ ctx }: { ctx: ComposeCtx }) {
       if (index === null) return;
       const collection = collections[index];
       if (collection.id !== useImageryStore.getState().address?.collectionId) {
-        setActiveCollection(catalog, collection.id);
+        activateCollection(catalog, collection.id);
       }
       setScrub({ y: clientY - rect.top, label: collection.name });
     },
-    [catalog, collections, setActiveCollection]
+    [activateCollection, catalog, collections]
   );
 
   const startScrub = (e: React.PointerEvent<HTMLDivElement>) => {

@@ -1,5 +1,6 @@
 export * from './types';
 export * from './catalog';
+export * from './collectionDates';
 export * from './timeNav';
 export * from './cycling';
 export * from './nearestSlice';

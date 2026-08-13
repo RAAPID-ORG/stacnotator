@@ -3,7 +3,7 @@ import type { ImageryCollectionOut } from '~/api/client';
 import { extendedLabels } from '~/features/annotation/core/annotation';
 import {
   addressAtSlice,
-  restoreSnapshot,
+  collectionAddress,
   type Catalog,
   type SliceAddress,
 } from '~/features/annotation/core/catalog';
@@ -22,7 +22,7 @@ import type { ComposeCtx } from '../../composition';
 import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
 
 // ---------------------------------------------------------------------------
-// Address resolution + activation, shared by the header and body.
+// Address resolution + slice selection, shared by the header and body.
 // ---------------------------------------------------------------------------
 
 /** The address this window shows: the shared one when it is the active
@@ -34,24 +34,8 @@ export function windowAddress(
   collectionId: number
 ): SliceAddress | null {
   if (imagery.address?.collectionId === collectionId) return imagery.address;
-  const base = restoreSnapshot(catalog, undefined, collectionId).address;
-  if (!base) return null;
   const remembered = imagery.windowSlices[collectionId]?.selected;
-  return addressAtSlice(catalog, base, remembered ?? base.sliceIndex);
-}
-
-/** Header/body click (or a healed/picked slice): makes this window the
- *  active collection at its own current address, preserving whatever slice
- *  it was remembered to be on rather than resetting to the cover. */
-export function activateWindow(
-  catalog: Catalog,
-  imagery: Pick<ImageryState, 'address' | 'windowSlices' | 'setAddress' | 'setShowBasemap'>,
-  collectionId: number
-): void {
-  const address = windowAddress(catalog, imagery, collectionId);
-  if (!address) return;
-  imagery.setAddress(address);
-  imagery.setShowBasemap(false);
+  return collectionAddress(catalog, collectionId, null, remembered);
 }
 
 /** Remember the pick and activate that exact address. The passed imagery is a
