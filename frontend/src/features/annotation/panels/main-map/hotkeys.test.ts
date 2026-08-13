@@ -4,6 +4,7 @@ import { buildCatalog } from '~/features/annotation/core/catalog';
 import {
   makeCampaign,
   makeTimeSeries,
+  makeVectorLayer,
   makeView,
 } from '~/features/annotation/core/catalog/testHelpers';
 import { useImageryStore } from '~/features/annotation/stores';
@@ -56,6 +57,22 @@ describe('mainMapBindings', () => {
     expect(hotkeyTip(bindings, 'x')).toBe('Toggle crosshair (X)');
     expect(hotkeyTip(bindings, 'shift+x')).toBe('Toggle drawn objects (Shift+X)');
     expect(hotkeyTip(bindings, ' ')).toContain('(Space)');
+  });
+
+  it('enables reference-vector shortcuts while annotating tasks', () => {
+    const campaign = makeCampaign({ vector_layers: [makeVectorLayer({ id: 5 })] });
+    const bindings = mainMapBindings({
+      campaign,
+      catalog: buildCatalog(campaign),
+      view: null,
+      mode: 'tasks',
+      isMobile: false,
+    });
+
+    for (const key of ['v', 'shift+v']) {
+      const binding = bindings.find((candidate) => candidate.key === key);
+      expect(binding?.when?.()).toBe(true);
+    }
   });
 });
 

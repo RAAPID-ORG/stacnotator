@@ -104,12 +104,10 @@ const ids = (layers: LayerSpec[]) => layers.map((l) => l.id);
 const kinds = (layers: LayerSpec[]) => layers.map((l) => l.kind);
 
 describe('composeLayers - tasks mode', () => {
-  it('composes the imagery raster plus the task extent, and no vector tiles', () => {
+  it('composes the imagery raster, task extent and selected reference vector layer', () => {
     const layers = composeLayers(
       ctxFor('tasks'),
       stateWith({
-        // Both vector-tile sources armed: neither annotation tiles nor a
-        // reference vector layer belong on a task map.
         vector: { id: 5, visible: true },
         focusExtent: {
           id: 'task-7',
@@ -130,7 +128,7 @@ describe('composeLayers - tasks mode', () => {
 
     expect(ids(layers)).toContain('slice-1000-11');
     expect(ids(layers)).toContain(EXTENT_LAYER_ID);
-    expect(kinds(layers)).not.toContain('vector-tiles');
+    expect(ids(layers)).toContain('vector-5');
   });
 
   it('omits the extent layer when there is no task geometry', () => {

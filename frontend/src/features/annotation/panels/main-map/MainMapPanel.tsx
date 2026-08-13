@@ -133,9 +133,7 @@ export function MainMapHeader({ ctx }: { ctx: ComposeCtx }) {
           title={`Select time slice - ${hotkeyTip(bindings, 'd', 'Next slice')}`}
         />
         <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'o')} />
-        {!isTaskMode && (
-          <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'v')} />
-        )}
+        <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'v')} />
         <ViewControls
           isTaskMode={isTaskMode}
           onFocus={() => {

@@ -85,7 +85,7 @@ export function mainMapBindings(ctx: ComposeCtx): Binding[] {
 
   const overlays = () => readyCustomMaps([...catalog.customMaps.values()]);
   const vectorLayers = () => [...catalog.vectorLayers.values()];
-  const hasVectorLayers = () => mode === 'explore' && catalog.vectorLayers.size > 0;
+  const hasVectorLayers = () => catalog.vectorLayers.size > 0;
 
   // Explore registers its own 't' in the 'mode' scope alongside the rest of its
   // tool palette; this one is the Tasks half, and registering both would list
@@ -135,8 +135,7 @@ export function mainMapBindings(ctx: ComposeCtx): Binding[] {
       run: () => useImageryStore.getState().overlayAction(overlays(), 'cycle'),
     },
 
-    // Reference vector layers are Explore-only, and only where the campaign
-    // has any.
+    // Reference vector layers are available wherever the campaign has any.
     {
       key: 'v',
       help: 'Toggle vector layer',

@@ -201,9 +201,9 @@ export function composeLayers(ctx: ComposeCtx, state: ComposeState): LayerSpec[]
     });
   }
 
-  // Reference vector layers are an Explore affordance (V / Shift+V); a task
-  // map stays on the task. Windows never carry them.
-  if (!isWindow && ctx.mode === 'explore' && state.vector.id != null && state.vector.visible) {
+  // Reference vector layers provide campaign context in both Tasks and
+  // Explore. Imagery windows never carry them; selection belongs to the map.
+  if (!isWindow && state.vector.id != null && state.vector.visible) {
     const vector = catalog.vectorLayers.get(state.vector.id);
     if (vector) {
       layers.push({
