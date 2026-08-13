@@ -35,7 +35,12 @@ const source = makeSource({
 const cat = buildCatalog(makeCampaign({ imagery_sources: [source] }));
 
 beforeEach(() => {
-  useSessionStore.setState({ workMode: 'explore', isReviewMode: false, selectedViewId: null });
+  useSessionStore.setState({
+    workMode: 'explore',
+    isReviewMode: false,
+    selectedViewId: null,
+    taskStartCollectionId: null,
+  });
   useWorkspaceStore.setState({
     currentLayout: EMPTY_WORKSPACE_LAYOUT,
     savedLayout: EMPTY_WORKSPACE_LAYOUT,
@@ -86,6 +91,7 @@ describe('selectView', () => {
   it('updates selectedViewId and delegates the snapshot/restore to imagery.switchView', () => {
     useSessionStore.getState().selectView(makeView({ id: 1, source_ids: [1] }), cat, 10);
     expect(useSessionStore.getState().selectedViewId).toBe(1);
+    expect(useSessionStore.getState().taskStartCollectionId).toBe(10);
     expect(useImageryStore.getState().address).toEqual({
       sourceId: 1,
       collectionId: 10,
@@ -96,6 +102,7 @@ describe('selectView', () => {
     useImageryStore.setState({ showBasemap: true });
     useSessionStore.getState().selectView(makeView({ id: 2 }), cat, null);
     expect(useSessionStore.getState().selectedViewId).toBe(2);
+    expect(useSessionStore.getState().taskStartCollectionId).toBeNull();
     expect(useImageryStore.getState().viewSnapshots[1]?.showBasemap).toBe(true);
   });
 

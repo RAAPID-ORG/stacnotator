@@ -264,9 +264,6 @@ export function updateLayer(
 
   for (const field of changed) {
     switch (field) {
-      case 'slot':
-        // Replacement metadata lives in SPEC_PROP, updated above.
-        break;
       case 'visible':
         layer.setVisible(spec.visible ?? true);
         break;

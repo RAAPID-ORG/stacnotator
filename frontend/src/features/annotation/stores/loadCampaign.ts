@@ -106,16 +106,7 @@ export async function loadCampaign(
   const workMode: WorkMode =
     options.initialWorkMode === undefined && tasks.length === 0 ? 'explore' : seededWorkMode;
 
-  useSessionStore.setState({
-    workMode,
-    // Mirrors setWorkMode's own rule: Explore never carries a review flag.
-    isReviewMode: workMode === 'explore' ? false : (options.isReviewMode ?? false),
-    selectedViewId,
-  });
-
   const layout = layoutForView(campaign, view);
-  useWorkspaceStore.setState({ currentLayout: layout, savedLayout: layout, editing: false });
-
   const pinned =
     selectedViewId != null ? usePrefsStore.getState().pinnedStart[selectedViewId] : undefined;
   const fallbackCollectionId = defaultActiveCollectionId(catalog, view, layout, pinned);
@@ -123,6 +114,15 @@ export async function loadCampaign(
     fallbackCollectionId != null
       ? restoreSnapshot(catalog, undefined, fallbackCollectionId).address
       : null;
+
+  useSessionStore.setState({
+    workMode,
+    // Mirrors setWorkMode's own rule: Explore never carries a review flag.
+    isReviewMode: workMode === 'explore' ? false : (options.isReviewMode ?? false),
+    selectedViewId,
+    taskStartCollectionId: fallbackCollectionId,
+  });
+  useWorkspaceStore.setState({ currentLayout: layout, savedLayout: layout, editing: false });
 
   useImageryStore.setState({
     address,

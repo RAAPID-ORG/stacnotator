@@ -71,7 +71,12 @@ beforeEach(() => {
   vi.mocked(getAllAnnotationTasks).mockReset();
   vi.mocked(listTaskSets).mockReset();
   usePrefsStore.setState({ pinnedStart: {} });
-  useSessionStore.setState({ workMode: 'explore', isReviewMode: false, selectedViewId: null });
+  useSessionStore.setState({
+    workMode: 'explore',
+    isReviewMode: false,
+    selectedViewId: null,
+    taskStartCollectionId: null,
+  });
   useWorkspaceStore.setState({
     currentLayout: EMPTY_WORKSPACE_LAYOUT,
     savedLayout: EMPTY_WORKSPACE_LAYOUT,
@@ -106,6 +111,7 @@ describe('loadCampaign happy path', () => {
 
     expect(useSessionStore.getState().workMode).toBe('tasks');
     expect(useSessionStore.getState().selectedViewId).toBe(100);
+    expect(useSessionStore.getState().taskStartCollectionId).toBe(10);
 
     expect(useImageryStore.getState().address).toEqual({
       sourceId: 1,

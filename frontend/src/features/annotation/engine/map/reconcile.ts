@@ -11,7 +11,6 @@ export const MAX_RETAINED_LAYERS = 16;
 
 /** Spec fields a caller can change without the layer being rebuilt. */
 export type LayerField =
-  | 'slot'
   | 'url'
   | 'auth'
   | 'attribution'
@@ -32,7 +31,7 @@ export type LayerOp =
   | { type: 'add'; spec: LayerSpec }
   | { type: 'restore'; id: LayerId; spec: LayerSpec; changed: LayerField[] }
   | { type: 'update'; id: LayerId; spec: LayerSpec; changed: LayerField[] }
-  | { type: 'retain'; id: LayerId; replacementId?: LayerId }
+  | { type: 'retain'; id: LayerId }
   | { type: 'remove'; id: LayerId };
 
 /** What the diff needs to know about a layer that is already on the map. */
@@ -84,7 +83,6 @@ function changedFields(prev: LayerSpec, next: LayerSpec): LayerField[] {
   };
 
   if (prev.kind === 'raster' && next.kind === 'raster') {
-    push('slot', prev.slot === next.slot);
     push('url', prev.url === next.url);
     push('auth', prev.auth === next.auth);
     push('attribution', prev.attribution === next.attribution);
@@ -130,10 +128,10 @@ function evictable(
 }
 
 /**
- * Ops are ordered so the incoming layers reach the map before the outgoing ones
- * are hidden: switching to a layer whose tiles are already loaded never shows a
- * frame with neither of them. A kind change is the one remove that has to come
- * first, so its id is never claimed twice.
+ * A kind change is the one removal that has to happen before additions, so its
+ * id is never claimed twice. Retired rasters remain mounted for their source
+ * cache but are hidden in the same reconciliation pass: stale imagery must
+ * never stand in for a newly selected date while that date loads.
  */
 export function reconcile(
   current: ReadonlyMap<LayerId, MountedSpec>,
@@ -141,10 +139,6 @@ export function reconcile(
   retainLimit: number = MAX_RETAINED_LAYERS
 ): LayerOp[] {
   const nextById = new Map(next.map((spec) => [spec.id, spec]));
-  const replacementBySlot = new Map<string, LayerId>();
-  for (const spec of next) {
-    if (spec.kind === 'raster' && spec.slot) replacementBySlot.set(spec.slot, spec.id);
-  }
   const rebuilt: LayerOp[] = [];
   const adds: LayerOp[] = [];
   const restores: LayerOp[] = [];
@@ -182,14 +176,7 @@ export function reconcile(
     ...adds,
     ...restores,
     ...updates,
-    ...retiring
-      .filter((id) => !evicted.has(id))
-      .map((id): LayerOp => {
-        const spec = current.get(id)?.spec;
-        const replacementId =
-          spec?.kind === 'raster' && spec.slot ? replacementBySlot.get(spec.slot) : undefined;
-        return { type: 'retain', id, replacementId };
-      }),
+    ...retiring.filter((id) => !evicted.has(id)).map((id): LayerOp => ({ type: 'retain', id })),
     ...drops,
     ...[...evicted].map((id): LayerOp => ({ type: 'remove', id })),
   ];
@@ -204,10 +191,7 @@ function touch(mounted: Map<LayerId, MountedLayer>, id: LayerId, entry: MountedL
 export function applyLayerOps(
   host: LayerHost,
   mounted: Map<LayerId, MountedLayer>,
-  ops: readonly LayerOp[],
-  lifecycle: {
-    retireLayer?: (layerId: LayerId, layer: BaseLayer, replacement?: BaseLayer) => void;
-  }
+  ops: readonly LayerOp[]
 ): void {
   for (const op of ops) {
     if (op.type === 'add') {
@@ -233,10 +217,7 @@ export function applyLayerOps(
         break;
       case 'retain':
         entry.retained = true;
-        if (lifecycle.retireLayer) {
-          const replacement = op.replacementId ? mounted.get(op.replacementId)?.layer : undefined;
-          lifecycle.retireLayer(op.id, entry.layer, replacement);
-        } else entry.layer.setVisible(false);
+        entry.layer.setVisible(false);
         touch(mounted, op.id, entry);
         break;
       case 'remove':

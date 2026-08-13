@@ -15,10 +15,6 @@ import type MapBrowserEvent from 'ol/MapBrowserEvent';
 import type { CameraController } from './camera';
 import { applyLayerOps, reconcile, type MountedLayer } from './reconcile';
 import { LAYER_ID_PROP, destroyLayer, featurePropsOf, layerFeatureId } from './olLayerFactory';
-import {
-  createRasterReplacementBridge,
-  type RasterReplacementBridge,
-} from './rasterReplacementBridge';
 import { attachInteractions, geoOfFeature, type SketchLayer } from './interactions/attach';
 import type { InteractionSpec } from './interactions/types';
 import type { LayerId, LayerSpec, LonLat } from './types';
@@ -116,7 +112,6 @@ export function MapView({
   const sketchLayerRef = useRef<SketchLayer | null>(null);
   const mounted = useRef(new Map<LayerId, MountedLayer>()).current;
   const hoverRef = useRef<FeatureHit | null>(null);
-  const replacementBridgeRef = useRef<RasterReplacementBridge | null>(null);
 
   // Handlers change on most renders; the map is built once, so it reads them
   // through a ref instead of being rebuilt.
@@ -165,11 +160,6 @@ export function MapView({
     mapRef.current = map;
     map.on('loadstart', () => handlers.current.onLoadStateChange?.(true));
     map.on('loadend', () => handlers.current.onLoadStateChange?.(false));
-
-    replacementBridgeRef.current = createRasterReplacementBridge(
-      map,
-      (id, layer) => mounted.get(id)?.retained === true && mounted.get(id)?.layer === layer
-    );
 
     const sketchLayer: SketchLayer = new VectorLayer({
       source: new VectorSource(),
@@ -227,11 +217,9 @@ export function MapView({
       // a map left holding it keeps re-rendering off every camera move for the
       // rest of the session - once per map ever unmounted.
       map.setView(new View());
-      replacementBridgeRef.current?.dispose();
       map.setTarget(undefined);
       handlers.current.onLoadStateChange?.(false);
       mapRef.current = null;
-      replacementBridgeRef.current = null;
     };
     // Built once: the camera owns the view, and every prop above is read through refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -247,11 +235,7 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const ctx = {
-      retireLayer: replacementBridgeRef.current?.retire,
-    };
-
-    applyLayerOps(map, mounted, reconcile(mounted, layers), ctx);
+    applyLayerOps(map, mounted, reconcile(mounted, layers));
   }, [layers, mounted]);
 
   useEffect(() => {

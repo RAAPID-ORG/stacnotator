@@ -10,9 +10,13 @@ export interface SessionState {
   workMode: WorkMode;
   isReviewMode: boolean;
   selectedViewId: number | null;
+  /** Effective start collection for task navigation in the selected view.
+   * Unlike prefs.pinnedStart this is always resolved, including the default. */
+  taskStartCollectionId: number | null;
 
   setWorkMode: (mode: WorkMode) => void;
   setReviewMode: (reviewMode: boolean) => void;
+  setTaskStartCollection: (collectionId: number) => void;
   /** Make `view` the selected one: its imagery nav state and its canvas
    *  windows both come with it, so the whole page belongs to one view. */
   selectView: (view: ImageryViewOut, cat: Catalog, fallbackCollectionId: number | null) => void;
@@ -23,6 +27,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   workMode: 'explore',
   isReviewMode: false,
   selectedViewId: null,
+  taskStartCollectionId: null,
 
   setWorkMode: (mode) => {
     // Entering Explore also drops any lingering review-mode flag - review is
@@ -40,11 +45,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   setReviewMode: (reviewMode) => set({ isReviewMode: reviewMode }),
 
+  setTaskStartCollection: (taskStartCollectionId) => set({ taskStartCollectionId }),
+
   selectView: (view, cat, fallbackCollectionId) => {
     const { selectedViewId } = get();
     useImageryStore.getState().switchView(cat, selectedViewId, view.id, fallbackCollectionId);
     useWorkspaceStore.getState().loadViewLayout(view);
-    set({ selectedViewId: view.id });
+    set({ selectedViewId: view.id, taskStartCollectionId: fallbackCollectionId });
   },
 
   activateCollection: (collectionId, cat) => {

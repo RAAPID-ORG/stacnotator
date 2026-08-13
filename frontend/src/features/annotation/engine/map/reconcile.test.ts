@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type BaseLayer from 'ol/layer/Base';
 import TileLayer from 'ol/layer/Tile';
 import { applyLayerOps, reconcile, type LayerHost, type MountedLayer } from './reconcile';
@@ -157,12 +157,12 @@ describe('reconcile retention', () => {
     expect(reconcile(mounted(raster()), [])).toEqual([{ type: 'retain', id: 'imagery' }]);
   });
 
-  it('names the incoming raster that replaces the same render slot', () => {
-    const oldDate = raster({ id: 'old', slot: 'imagery' });
-    const newDate = raster({ id: 'new', slot: 'imagery' });
+  it('hides an outgoing date immediately while retaining its tile cache', () => {
+    const oldDate = raster({ id: 'old' });
+    const newDate = raster({ id: 'new' });
     expect(reconcile(mounted(oldDate), [newDate])).toEqual([
       { type: 'add', spec: newDate },
-      { type: 'retain', id: 'old', replacementId: 'new' },
+      { type: 'retain', id: 'old' },
     ]);
   });
 
@@ -224,7 +224,7 @@ const sync = (
   registry: Map<LayerId, MountedLayer>,
   specs: LayerSpec[],
   retainLimit?: number
-) => applyLayerOps(host, registry, reconcile(registry, specs, retainLimit), {});
+) => applyLayerOps(host, registry, reconcile(registry, specs, retainLimit));
 
 const sourceOf = (layer: BaseLayer | undefined) =>
   layer instanceof TileLayer ? layer.getSource() : null;
@@ -244,19 +244,18 @@ describe('applyLayerOps', () => {
     expect(sourceOf(layer)).not.toBeNull();
   });
 
-  it('lets MapView defer hiding one outgoing raster until its replacement paints', () => {
+  it('hides the outgoing raster in the same pass that adds its replacement', () => {
     const host = testHost();
     const registry = new Map<LayerId, MountedLayer>();
-    sync(host, registry, [raster({ id: 'old', slot: 'imagery' })]);
+    sync(host, registry, [raster({ id: 'old' })]);
     const layer = registry.get('old')!.layer;
-    const retireLayer = vi.fn();
-    const replacement = raster({ id: 'new', slot: 'imagery' });
+    const replacement = raster({ id: 'new' });
 
-    applyLayerOps(host, registry, reconcile(registry, [replacement]), { retireLayer });
+    applyLayerOps(host, registry, reconcile(registry, [replacement]));
 
     expect(registry.get('old')?.retained).toBe(true);
-    expect(layer.getVisible()).toBe(true);
-    expect(retireLayer).toHaveBeenCalledWith('old', layer, registry.get('new')?.layer);
+    expect(layer.getVisible()).toBe(false);
+    expect(registry.get('new')?.layer.getVisible()).toBe(true);
   });
 
   it('reuses the same layer and source when a spec comes back', () => {

@@ -152,7 +152,6 @@ export function basemapAttribution(url: string): string | undefined {
 export interface RasterLayerLike {
   kind: 'raster';
   id: string;
-  slot: 'imagery';
   url: string;
   auth?: 'cookie' | 'none';
   opacity?: number;
@@ -198,7 +197,6 @@ export function layerSpecFor(
   return {
     kind: 'raster',
     id: `slice-${slice.id}-${viz.id}`,
-    slot: 'imagery',
     url,
     auth: isProxiedTileUrl(url) ? 'cookie' : 'none',
   };

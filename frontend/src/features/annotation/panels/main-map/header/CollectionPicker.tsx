@@ -14,6 +14,8 @@ export function CollectionPicker({ catalog, sourceIds, isTaskMode, title }: Coll
   const address = useImageryStore((s) => s.address);
   const setActiveCollection = useImageryStore((s) => s.setActiveCollection);
   const selectedViewId = useSessionStore((s) => s.selectedViewId);
+  const taskStartCollectionId = useSessionStore((s) => s.taskStartCollectionId);
+  const setTaskStartCollection = useSessionStore((s) => s.setTaskStartCollection);
   const pinnedStart = usePrefsStore((s) => s.pinnedStart);
   const setPinnedStart = usePrefsStore((s) => s.setPinnedStart);
 
@@ -22,6 +24,10 @@ export function CollectionPicker({ catalog, sourceIds, isTaskMode, title }: Coll
 
   const pinnable = isTaskMode && selectedViewId != null;
   const pinned = selectedViewId != null ? pinnedStart[selectedViewId] : undefined;
+  const effectiveStart =
+    pinned != null && collections.some((collection) => collection.id === pinned)
+      ? pinned
+      : taskStartCollectionId;
 
   return (
     // timeline sidebar - it is what picks a window now.
@@ -31,13 +37,17 @@ export function CollectionPicker({ catalog, sourceIds, isTaskMode, title }: Coll
         options={collections.map((c) => ({ value: c.id, label: c.name }))}
         onChange={(v) => setActiveCollection(catalog, Number(v))}
         title={title}
-        markedValue={pinnable ? (pinned ?? null) : undefined}
+        markedValue={pinnable ? effectiveStart : undefined}
         onMarkOption={
           pinnable && selectedViewId != null
-            ? (v) => setPinnedStart(selectedViewId, pinned === Number(v) ? null : Number(v))
+            ? (v) => {
+                const collectionId = Number(v);
+                setPinnedStart(selectedViewId, collectionId);
+                setTaskStartCollection(collectionId);
+              }
             : undefined
         }
-        markActiveTitle="Opens first on every task - click to clear"
+        markActiveTitle="Show this collection first on every task (selected)"
         markInactiveTitle="Show this collection first on every task"
       />
     </span>

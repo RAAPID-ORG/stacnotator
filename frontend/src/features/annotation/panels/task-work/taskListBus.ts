@@ -9,8 +9,9 @@ import {
   widenFilterForTask,
   type TaskFilter,
 } from '~/features/annotation/core/tasks';
-import { useImageryStore, usePrefsStore, useSessionStore } from '~/features/annotation/stores';
+import { useImageryStore, useSessionStore } from '~/features/annotation/stores';
 import { setMapFocus, type MapFocus } from '~/features/annotation/shared/mapFocus';
+import { setProbePoint } from '~/features/annotation/shared/interactionSpec';
 import type { LonLat } from '~/features/annotation/engine/map';
 
 export interface TaskListState {
@@ -115,14 +116,14 @@ export function syncMapFocus(catalog: Catalog): void {
   // task object too, but must not unexpectedly reset imagery while the user is
   // still working at the same location.
   if (taskChanged && task) {
-    const viewId = useSessionStore.getState().selectedViewId;
-    const pinned = viewId == null ? undefined : usePrefsStore.getState().pinnedStart[viewId];
-    if (pinned != null && catalog.collections.has(pinned)) {
-      imagery.setActiveCollection(catalog, pinned);
-    }
+    const session = useSessionStore.getState();
+    const startCollectionId =
+      session.taskStartCollectionId ?? imagery.address?.collectionId ?? null;
+    imagery.resetForTask(catalog, startCollectionId, `task:${task.id}`);
+    setProbePoint(null);
+  } else {
+    imagery.setEmptyScope(scope);
   }
-
-  imagery.setEmptyScope(scope);
   setMapFocus(deriveMapFocus(task, catalog));
 }
 

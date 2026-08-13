@@ -32,6 +32,10 @@ export interface ImageryState extends ImageryNavState {
   rememberWindowSlice: (collectionId: number, sliceIndex: number, byUser?: boolean) => void;
   markEmpty: (key: EmptyKey) => void;
   setEmptyScope: (scope: string | null) => void;
+  /** Start a new task's imagery session at `collectionId`'s cover slice.
+   * Clears every location-specific navigation cache in one write while
+   * preserving campaign-wide layer choices such as visualization/overlays. */
+  resetForTask: (cat: Catalog, collectionId: number | null, scope: string) => void;
   setShowBasemap: (show: boolean) => void;
   setSelectedBasemapId: (id: string | null) => void;
   setCrosshair: (crosshair: boolean) => void;
@@ -102,6 +106,15 @@ export const useImageryStore = create<ImageryState>((set) => ({
   markEmpty: (key) => set((s) => ({ empties: markEmptyKey(s.empties, key) })),
   setEmptyScope: (emptyScope) =>
     set((s) => (s.emptyScope === emptyScope ? s : { emptyScope, empties: {} })),
+  resetForTask: (cat, collectionId, emptyScope) =>
+    set((s) => ({
+      address: collectionId != null ? jumpToCollection(cat, collectionId, s.address) : null,
+      showBasemap: false,
+      empties: {},
+      emptyScope,
+      viewSnapshots: {},
+      windowSlices: {},
+    })),
   setShowBasemap: (show) => set({ showBasemap: show }),
   setSelectedBasemapId: (id) => set({ selectedBasemapId: id }),
   setCrosshair: (crosshair) => set({ crosshair }),
