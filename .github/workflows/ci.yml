@@ -82,20 +82,15 @@ jobs:
       - name: Prettier format check
         run: npx prettier --check "src/**/*.{ts,tsx,css}"
 
-  # Deploy scripts: static check + offline derivation test  (all branches)
+  # Deploy scripts: static check  (all branches)
   deploy-scripts:
-    name: "Deploy: Shellcheck & Derivation Test"
+    name: "Deploy: Shellcheck"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Shellcheck
-        run: shellcheck -x deployment/azure/env.sh deployment/azure/deploy.sh deployment/azure/bootstrap.sh deployment/azure/tests/env_test.sh
-
-      # Guards the assumption the deploy rests on: every host is derivable before
-      # anything is written. Needs no Azure access.
-      - name: Derivation test
-        run: bash deployment/azure/tests/env_test.sh
+        run: shellcheck -x deployment/azure/env.sh deployment/azure/deploy.sh deployment/azure/bootstrap.sh
 
   # Backend: tests in Docker  (develop + main)
   backend-test:

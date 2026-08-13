@@ -56,10 +56,9 @@ _load_local_env_file() {
 }
 
 # One call for every platform resource Terraform created, plus one for the Container
-# Apps environment domain. Skipped when the caller already supplied them, which is
-# what lets the derivation be tested offline.
+# Apps environment domain. Skipped when the caller already supplied them.
 _discover_resources() {
-    local query tsv missing=()
+    local query tsv missing=() discovered=()
     query="[
         [?type=='Microsoft.ContainerRegistry/registries']|[0].name,
         [?type=='Microsoft.KeyVault/vaults']|[0].name,
@@ -68,7 +67,12 @@ _discover_resources() {
         [?type=='Microsoft.DBforPostgreSQL/flexibleServers']|[0].name
     ]"
     tsv=$(az resource list -g "$RESOURCE_GROUP" --query "$query" -o tsv) || return 1
-    IFS=$'\t' read -r ACR_NAME KV_NAME CAE_NAME IDENTITY_ID POSTGRES_SERVER <<<"$tsv"
+    mapfile -t discovered <<<"$tsv"
+    ACR_NAME="${discovered[0]:-}"
+    KV_NAME="${discovered[1]:-}"
+    CAE_NAME="${discovered[2]:-}"
+    IDENTITY_ID="${discovered[3]:-}"
+    POSTGRES_SERVER="${discovered[4]:-}"
     # Only used to print a copy-pasteable restore command, so a miss is not fatal.
     _require_discovered "$POSTGRES_SERVER" || POSTGRES_SERVER=""
 

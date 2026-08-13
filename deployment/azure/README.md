@@ -366,7 +366,6 @@ After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch w
 | `deploy.sh` | Every release | Resolve config, build all three concurrently, one write per resource, gate on backend health |
 | `bootstrap.sh` | Once per environment | Upload Firebase + EE credentials, generate the shared secrets when absent, create the Static Web App, add the tiler workload profile |
 | `env.sh` | Sourced | Config resolution shared by both; holds no identifiers |
-| `tests/env_test.sh` | CI | Offline check that every host derives correctly, no Azure access needed |
 | `download-prod-db.sh` | As needed | Pull production DB to local development (no env argument, prod-only) |
 | `sync-prod-data-to-dev.sh` | As needed | Sync production DB to dev Azure environment (no env argument) |
 | `dev-restore-backup.sh` | As needed | Restore a SQL dump into the **local** docker dev stack (wipe, restore, migrate, restart); run via `make dev-restore-backup FILE=...` |
