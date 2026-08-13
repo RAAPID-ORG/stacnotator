@@ -94,15 +94,19 @@ Feature-sliced under `frontend/src/`:
 
 ### The annotation feature
 
-The heart of the app, and the one feature sliced by layer rather than by artifact kind. Under `features/annotation/`:
+The heart of the app. Under `features/annotation/`, grouped by what a thing *is*:
 
-- `core/` — pure TypeScript, no React and no OpenLayers: `catalog/` (sources, collections, slices, views, time navigation), `annotation/` (labels, geometry, form values, validation, styling), `tasks/` (claims, filtering, navigation, review rows), `workspace/` (layout maths).
-- `stores/` — the Zustand stores plus `loadCampaign`, the cross-store bootstrap.
-- `engine/` — app-agnostic and campaign-unaware: `map/` (the only place that imports `ol/*`: a `LayerSpec` union, a reconciler that diffs specs onto real layers, a camera with leader/follower, draw/modify/select interactions, tile QoS), `canvas/` (react-grid-layout panel host, popout screens, hidden tray), `hotkeys/` (a scoped binding registry).
-- `panels/` — one folder per surface (`main-map`, `imagery-windows`, `minimap`, `timeseries`, `task-work`, `explore-work`, `drawing`, `toolbar`, `layout-edit`, `tour`, `mobile`), with `panels/shared/` for state two panels genuinely share.
-- `pages/AnnotationPage.tsx` — the route entry, and the only module the rest of the app may import (enforced by `no-restricted-imports` in `eslint.config.js`; the engine is likewise barred from importing campaign concepts).
+- `domain/` — the campaign's vocabulary as plain data and functions: `catalog.ts` (sources, collections, slices, tile URLs), `imageryNav.ts` (slice/collection stepping, source cycling), `annotation.ts` (labels, geometry, form values, validation), `labelStyle.ts`, `tasks.ts` (claims, filtering, review rows), `renderConfig.ts`. No React, no OpenLayers, no stores — enforced by `no-restricted-imports`, and what makes it unit-testable without any of them.
+- `stores/` — the Zustand stores. `campaign.ts` holds the loaded campaign, catalog, view and mode; **everything reads the campaign from there rather than being handed it**, which is why no context object is threaded through the tree. `load.ts` is the one seam that re-seeds every store on a campaign change.
+- `map/` — everything that touches `ol/*`: `MapView.tsx`, `layers.ts` (spec → OL layer, plus the plan that keeps a map's layers in step and retains rasters for their tiles), `camera.ts` (the page's cameras + leader/follower), `interactions.ts`, `compose.ts` (what each map draws), `preloader.ts`/`tileLoading.ts` (tile QoS).
+- `canvas/` — the react-grid-layout host and its own pure geometry (`grid.ts`, `screens.ts`, `dropCell.ts`).
+- `panels/<Name>/` — one folder per grid card (`MainMap`, `Minimap`, `ImageryWindow`, `TaskControls`, `ExploreControls`, `Timeseries`), each holding only what that panel needs. `panels.tsx` builds the whole panel list in one place.
+- `chrome/<Surface>/` — page-level UI *outside* the grid: `Toolbar`, `Tour`, `LayoutEdit`, `Screens`, plus single-file surfaces (`MobileSliceNav`, `EditOverlayControls`, `Gates`).
+- `components/` — leaf UI with no feature knowledge, shared by panels *and* chrome (`FormFields`, `LabelChips`, `HeaderSelect`). Anything used by only one panel lives in that panel's folder.
+- `hotkeys.ts` + `bindings.ts` — one ordered binding table per mode; the first binding whose key matches and whose `when` passes wins. That ordering is how Escape means "cancel the edit" while editing and "close the draft" otherwise, with no scope machinery. Locally-mounted tables shadow the page's.
+- `AnnotationPage.tsx` — the route entry, and the only module the rest of the app may import (`no-restricted-imports` in `eslint.config.js`).
 
-Both campaign modes (**Task Mode**, predefined locations; **Open Mode**, free-form) share one map composition path, so there is no forked map or controls implementation. Every binding is declared in a hotkey table with its own help text, which is what drives the shortcut list and the tooltips.
+Both campaign modes (**Task Mode**, predefined locations; **Open Mode**, free-form) share one map composition path, so there is no forked map or controls implementation. Every binding declares its own help text, which is what drives the shortcut list and the tooltips.
 
 ## Conventions & guardrails
 

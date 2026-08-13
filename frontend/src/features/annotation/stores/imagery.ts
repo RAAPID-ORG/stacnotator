@@ -1,40 +1,41 @@
 import { create } from 'zustand';
 import type { ImageryViewOut } from '~/api/client';
 import {
+  emptyKey,
+  type Catalog,
+  type Empties,
+  type ImageryNavState,
+  type SliceAddress,
+  type ViewSnapshot,
+} from '../domain/catalog';
+import { snapshotForView } from '../domain/catalog';
+import {
   collectionAddress,
   cycleSource,
   cycleViz,
-  markEmpty as markEmptyKey,
   restoreSnapshot,
-  snapshotForView,
   stepCollectionId,
   stepSlice,
   toggleCycle,
-  type Catalog,
-  type EmptyKey,
-  type ImageryNavState,
   type OverlayAction,
-  type SliceAddress,
-  type ViewSnapshot,
-} from '~/features/annotation/core/catalog';
+} from '../domain/imageryNav';
 
 export interface ImageryState extends ImageryNavState {
   viewSnapshots: Record<number, ViewSnapshot>;
-  /** Per-window date selection. This is campaign-scoped imagery state, not a
-   * module-global panel cache, so loadCampaign can reset it atomically with
-   * the rest of navigation. */
+  /** Per-window date selection, campaign-scoped so a load can reset it
+   *  atomically with the rest of navigation. */
   windowSlices: Record<number, { selected: number; userPicked: number | null }>;
-  /** Location whose explicit 204 results populate `empties`. Empty imagery is
-   * spatial, so task A's result must not leak into task B's date selector. */
+  /** Location whose 204s populate `empties`. Empty imagery is spatial, so one
+   *  task's result must not leak into another's date selector. */
   emptyScope: string | null;
 
   setAddress: (address: SliceAddress | null) => void;
   rememberWindowSlice: (collectionId: number, sliceIndex: number, byUser?: boolean) => void;
-  markEmpty: (key: EmptyKey) => void;
+  markEmpty: (collectionId: number, sliceIndex: number) => void;
   setEmptyScope: (scope: string | null) => void;
-  /** Start a new task's imagery session at `collectionId`'s cover slice.
-   * Clears every location-specific navigation cache in one write while
-   * preserving campaign-wide layer choices such as visualization/overlays. */
+  /** Start a new task at `collectionId`'s cover slice, clearing every
+   *  location-specific cache in one write while keeping campaign-wide layer
+   *  choices such as the visualization. */
   resetForTask: (cat: Catalog, collectionId: number | null, scope: string) => void;
   setShowBasemap: (show: boolean) => void;
   setSelectedBasemapId: (id: string | null) => void;
@@ -42,12 +43,8 @@ export interface ImageryState extends ImageryNavState {
   toggleCrosshair: () => void;
   toggleAnnotations: () => void;
   toggleViewSync: () => void;
-  /** Custom-map overlay selection: toggle on/off the current pick, cycle to
-   *  the next item in `items`, or clear the pick entirely ('deselect' - the
-   *  header's "No overlay"). Wraps domain/catalog's toggleCycle. */
   overlayAction: (items: Array<{ id: number }>, action: OverlayAction) => void;
   setOverlayOpacity: (opacity: number) => void;
-  /** Same as overlayAction, for the PMTiles vector-layer selection. */
   vectorAction: (items: Array<{ id: number }>, action: OverlayAction) => void;
   cycleSourceAction: (
     cat: Catalog,
@@ -58,22 +55,19 @@ export interface ImageryState extends ImageryNavState {
   cycleVizAction: (cat: Catalog, dir: 1 | -1) => void;
   stepSliceAction: (cat: Catalog, dir: 1 | -1) => void;
   stepCollectionAction: (cat: Catalog, dir: 1 | -1) => void;
-  /** Activate a collection inside the current task, resuming the slice that
-   * its imagery window last showed. A collection without memory starts on its
-   * cover. Task transitions use resetForTask instead. */
+  /** Activate a collection inside the current task, resuming the slice its
+   *  window last showed. Task transitions use `resetForTask` instead. */
   activateCollection: (cat: Catalog, collectionId: number | null) => void;
-  /** Save the outgoing view's nav state under `fromViewId` (skipped when
-   *  null, e.g. first view of a session), then restore `toViewId`'s saved
-   *  snapshot or a fresh default at `fallbackCollectionId`. */
   switchView: (
     cat: Catalog,
     fromViewId: number | null,
     toViewId: number,
     fallbackCollectionId: number | null
   ) => void;
+  reset: (patch: Partial<ImageryState>) => void;
 }
 
-const initialNav: ImageryNavState = {
+const INITIAL_NAV: ImageryNavState = {
   address: null,
   showBasemap: false,
   selectedBasemapId: null,
@@ -86,10 +80,9 @@ const initialNav: ImageryNavState = {
   viewSync: true,
 };
 
-/** One landing policy for every within-task collection transition. Keeping it
- * beside the state that owns windowSlices prevents picker, timeline, hotkey,
- * and panel-click paths from drifting into different cover/resume rules. */
-function activeCollectionAddress(
+/** One landing policy for every within-task collection change, so the picker,
+ *  the timeline, the hotkeys and a panel click cannot drift apart. */
+function activeAddress(
   cat: Catalog,
   state: Pick<ImageryState, 'address' | 'windowSlices'>,
   collectionId: number
@@ -103,12 +96,13 @@ function activeCollectionAddress(
 }
 
 export const useImageryStore = create<ImageryState>((set) => ({
-  ...initialNav,
+  ...INITIAL_NAV,
   viewSnapshots: {},
   windowSlices: {},
   emptyScope: null,
 
   setAddress: (address) => set({ address }),
+
   rememberWindowSlice: (collectionId, sliceIndex, byUser = false) =>
     set((s) => ({
       windowSlices: {
@@ -119,13 +113,20 @@ export const useImageryStore = create<ImageryState>((set) => ({
         },
       },
     })),
-  markEmpty: (key) => set((s) => ({ empties: markEmptyKey(s.empties, key) })),
+
+  markEmpty: (collectionId, sliceIndex) =>
+    set((s) => {
+      const key = emptyKey(collectionId, sliceIndex);
+      return s.empties[key] ? s : { empties: { ...s.empties, [key]: true } as Empties };
+    }),
+
   setEmptyScope: (emptyScope) =>
     set((s) => (s.emptyScope === emptyScope ? s : { emptyScope, empties: {} })),
+
   resetForTask: (cat, collectionId, emptyScope) =>
     set((s) => ({
-      // Deliberately omit window memory: a task transition is the one point
-      // where imagery starts from the configured collection default.
+      // Window memory is deliberately dropped: a task transition is the one
+      // point where imagery starts from the configured collection default.
       address: collectionId != null ? collectionAddress(cat, collectionId, s.address) : null,
       showBasemap: false,
       empties: {},
@@ -133,8 +134,9 @@ export const useImageryStore = create<ImageryState>((set) => ({
       viewSnapshots: {},
       windowSlices: {},
     })),
-  setShowBasemap: (show) => set({ showBasemap: show }),
-  setSelectedBasemapId: (id) => set({ selectedBasemapId: id }),
+
+  setShowBasemap: (showBasemap) => set({ showBasemap }),
+  setSelectedBasemapId: (selectedBasemapId) => set({ selectedBasemapId }),
   setCrosshair: (crosshair) => set({ crosshair }),
   toggleCrosshair: () => set((s) => ({ crosshair: !s.crosshair })),
   toggleAnnotations: () => set((s) => ({ showAnnotations: !s.showAnnotations })),
@@ -179,13 +181,13 @@ export const useImageryStore = create<ImageryState>((set) => ({
       if (!s.address) return s;
       const collectionId = stepCollectionId(cat, s.address, dir);
       if (collectionId == null) return s;
-      const address = activeCollectionAddress(cat, s, collectionId);
+      const address = activeAddress(cat, s, collectionId);
       return address ? { address } : s;
     }),
 
   activateCollection: (cat, collectionId) =>
     set((s) => ({
-      address: collectionId != null ? activeCollectionAddress(cat, s, collectionId) : null,
+      address: collectionId != null ? activeAddress(cat, s, collectionId) : null,
       showBasemap: false,
     })),
 
@@ -195,7 +197,12 @@ export const useImageryStore = create<ImageryState>((set) => ({
         fromViewId != null
           ? { ...s.viewSnapshots, [fromViewId]: snapshotForView(s) }
           : s.viewSnapshots;
-      const restored = restoreSnapshot(cat, viewSnapshots[toViewId], fallbackCollectionId);
-      return { ...restored, viewSnapshots };
+      return {
+        ...restoreSnapshot(cat, viewSnapshots[toViewId], fallbackCollectionId),
+        viewSnapshots,
+      };
     }),
+
+  reset: (patch) =>
+    set({ ...INITIAL_NAV, viewSnapshots: {}, windowSlices: {}, emptyScope: null, ...patch }),
 }));

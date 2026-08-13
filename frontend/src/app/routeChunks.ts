@@ -2,7 +2,7 @@
 // ahead of navigation.
 
 export const importCreateCampaign = () => import('~/features/campaigns/pages/CreateCampaignPage');
-export const importAnnotation = () => import('~/features/annotation/pages/AnnotationPage');
+export const importAnnotation = () => import('~/features/annotation/AnnotationPage');
 export const importCampaignOverview = () =>
   import('~/features/campaigns/pages/CampaignOverviewPage');
 export const importCampaignSettings = () =>

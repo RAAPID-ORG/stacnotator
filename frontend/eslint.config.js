@@ -57,9 +57,20 @@ export default tseslint.config(
     },
   },
 
-  // The annotation feature is layered: core (pure logic) -> stores -> panels,
-  // over an engine that knows maps and canvases but nothing about campaigns.
-  // Outside the feature, only its page is importable.
+  // Files that export both components and helpers those components' callers
+  // need. Splitting them would put a one-function file next to every panel.
+  {
+    files: [
+      'src/features/annotation/components/FormFields.tsx',
+      'src/features/annotation/panels/ImageryWindow/ImageryWindow.tsx',
+      'src/features/annotation/panels/MainMap/MainMap.tsx',
+    ],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+
+  // Outside the annotation feature, only its page is importable.
   {
     files: ['src/**/*.{ts,tsx}'],
     ignores: ['src/features/annotation/**'],
@@ -69,34 +80,28 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: [
-                '~/features/annotation/*',
-                '!~/features/annotation/pages',
-                '!~/features/annotation/pages/*',
-              ],
-              message:
-                'Import the annotation feature through ~/features/annotation/pages/AnnotationPage.',
+              group: ['~/features/annotation/*', '!~/features/annotation/AnnotationPage'],
+              message: 'Import the annotation feature through ~/features/annotation/AnnotationPage.',
             },
           ],
         },
       ],
     },
   },
+
+  // domain/ is the campaign's vocabulary as plain data and functions. Keeping
+  // it free of React, OpenLayers and the stores is what makes it testable
+  // without any of them.
   {
-    files: ['src/features/annotation/engine/**/*.{ts,tsx}'],
+    files: ['src/features/annotation/domain/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              group: [
-                '~/features/annotation/core/*',
-                '~/features/annotation/stores*',
-                '~/features/annotation/panels/*',
-                '~/features/annotation/pages/*',
-              ],
-              message: 'The engine is app-agnostic: it may not depend on campaign concepts.',
+              group: ['**/stores/*', '**/panels/*', '**/chrome/*', '**/map/*', '**/canvas/*', 'react', 'ol', 'ol/*', 'zustand'],
+              message: 'domain/ is pure: no React, no OpenLayers, no stores.',
             },
           ],
         },

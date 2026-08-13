@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildCatalog } from '~/features/annotation/core/catalog';
+import { buildCatalog } from '../domain/catalog';
 import {
   makeCampaign,
   makeCollection,
@@ -7,7 +7,7 @@ import {
   makeSource,
   makeTileUrl,
   makeViz,
-} from '~/features/annotation/core/catalog/testHelpers';
+} from '~/features/annotation/testing/fixtures';
 import { useImageryStore } from './imagery';
 
 const source = makeSource({
@@ -58,7 +58,7 @@ describe('setAddress / markEmpty', () => {
 
   it('keeps empty results within one task location', () => {
     useImageryStore.getState().setEmptyScope('task:1');
-    useImageryStore.getState().markEmpty('10:0');
+    useImageryStore.getState().markEmpty(10, 0);
     useImageryStore.getState().setEmptyScope('task:1');
     expect(useImageryStore.getState().empties).toEqual({ '10:0': true });
 
@@ -67,10 +67,10 @@ describe('setAddress / markEmpty', () => {
   });
 
   it('marks a slice empty, no-op when already marked (same reference)', () => {
-    useImageryStore.getState().markEmpty('10:0');
+    useImageryStore.getState().markEmpty(10, 0);
     const empties = useImageryStore.getState().empties;
     expect(empties).toEqual({ '10:0': true });
-    useImageryStore.getState().markEmpty('10:0');
+    useImageryStore.getState().markEmpty(10, 0);
     expect(useImageryStore.getState().empties).toBe(empties);
   });
 });
