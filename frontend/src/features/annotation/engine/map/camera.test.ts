@@ -89,6 +89,18 @@ describe('lonLatFromContainerPixel', () => {
   });
 });
 
+describe('containerPixelFromLonLat', () => {
+  it('is the inverse of the container-pixel conversion', () => {
+    const camera = createCamera({ center: [12, 34], zoom: 8 });
+    const coordinate = camera.lonLatFromContainerPixel(213, 71, 320, 180);
+
+    const [x, y] = camera.containerPixelFromLonLat(coordinate, 320, 180);
+
+    expect(x).toBeCloseTo(213, 8);
+    expect(y).toBeCloseTo(71, 8);
+  });
+});
+
 /** A camera only fits once a map with a real viewport renders it. */
 const attachedCamera = (state: { center: [number, number]; zoom: number }) => {
   const camera = createCamera(state);

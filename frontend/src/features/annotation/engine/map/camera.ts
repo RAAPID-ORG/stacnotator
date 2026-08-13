@@ -84,6 +84,24 @@ export class CameraController {
     return toLonLat([cx + dx * resolution, cy - dy * resolution]) as LonLat;
   }
 
+  /** The inverse of `lonLatFromContainerPixel`, used by overlays that need to
+   * line up with geometry rendered by this camera (for example the minimap's
+   * draggable viewport). */
+  containerPixelFromLonLat(
+    coordinate: LonLat,
+    containerWidthPx: number,
+    containerHeightPx: number
+  ): [number, number] {
+    const resolution = this.view.getResolution() ?? 0;
+    const [cx, cy] = this.view.getCenter() ?? [0, 0];
+    const [x, y] = fromLonLat(coordinate);
+    if (resolution === 0) return [containerWidthPx / 2, containerHeightPx / 2];
+    return [
+      containerWidthPx / 2 + (x - cx) / resolution,
+      containerHeightPx / 2 + (cy - y) / resolution,
+    ];
+  }
+
   moveTo(target: Partial<CameraState>, opts?: { animateMs?: number }): void {
     const center = target.center ? fromLonLat(target.center) : undefined;
     if (opts?.animateMs) {

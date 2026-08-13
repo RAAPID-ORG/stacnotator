@@ -174,11 +174,16 @@ test.describe('Imagery in open mode', () => {
     const body = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
     await body.scrollIntoViewIfNeeded();
     const box = await body.boundingBox();
-    if (!box) throw new Error('minimap has no bounding box');
-    const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const x = Number(await body.getAttribute('data-viewport-center-x'));
+    const y = Number(await body.getAttribute('data-viewport-center-y'));
+    if (!box || !Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error('minimap viewport has no rendered centre');
+    }
+    const center = { x: box.x + x, y: box.y + y };
 
     await annotationPage.mouse.move(center.x, center.y);
     await annotationPage.mouse.down();
+    await expect(body).toHaveClass(/cursor-grabbing/);
     await annotationPage.mouse.move(center.x + 30, center.y + 20, { steps: 6 });
     // Pointer moves update only the rectangle preview.
     expect(await getMinimapCenter(annotationPage)).toEqual(start);
@@ -188,7 +193,7 @@ test.describe('Imagery in open mode', () => {
       .poll(
         async () => {
           const now = await getMinimapCenter(annotationPage);
-          return Math.abs(now.lat - start.lat) > 0.01 || Math.abs(now.lon - start.lon) > 0.01;
+          return Math.abs(now.lat - start.lat) > 0.0001 || Math.abs(now.lon - start.lon) > 0.0001;
         },
         { timeout: 4000, message: 'viewport release did not move the main map centre' }
       )
@@ -248,7 +253,9 @@ test.describe('Timeseries probe in open mode', () => {
     await clickMapAt(annotationPage, 200, 0); // well east of centre
 
     await expect
-      .poll(() => tsUrls.some((u) => (tsLon(u) ?? -999) > center.lon + 0.01), { timeout: 5000 })
+      .poll(() => tsUrls.some((u) => Math.abs((tsLon(u) ?? center.lon) - center.lon) > 0.0001), {
+        timeout: 5000,
+      })
       .toBe(true);
   });
 

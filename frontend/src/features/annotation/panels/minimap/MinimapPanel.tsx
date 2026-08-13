@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getAnnotationDensity, type AnnotationDensityCell } from '~/api/client';
 import { IconExternalLink } from '~/shared/ui/Icons';
+import { useContainerSize } from '~/features/annotation/engine/canvas';
 import { mainCamera, minimapCamera } from '~/features/annotation/shared/cameras';
 import {
   MapView,
@@ -165,7 +166,7 @@ export function MinimapHeader({ ctx: _ctx }: { ctx: ComposeCtx }) {
 }
 
 export function MinimapBody({ ctx }: { ctx: ComposeCtx }) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { containerRef, width, height } = useContainerSize();
   const dragFrame = useRef<number | null>(null);
   const dragCleanup = useRef<(() => void) | null>(null);
   const [previewBounds, setPreviewBounds] = useState<Bbox | null>(null);
@@ -176,6 +177,11 @@ export function MinimapBody({ ctx }: { ctx: ComposeCtx }) {
   const bounds = useCameraBounds(mainCamera);
   const minimapZoom = useCameraZoom(minimapCamera);
   const displayedBounds = previewBounds ?? bounds;
+
+  const viewportCenterPixel =
+    width > 0 && height > 0
+      ? minimapCamera.containerPixelFromLonLat(centerOfBounds(displayedBounds), width, height)
+      : null;
 
   const [density, setDensity] = useState<AnnotationDensityCell[]>([]);
   useEffect(() => {
@@ -286,6 +292,8 @@ export function MinimapBody({ ctx }: { ctx: ComposeCtx }) {
     <div
       ref={containerRef}
       data-minimap-zoom={minimapZoom}
+      data-viewport-center-x={viewportCenterPixel?.[0]}
+      data-viewport-center-y={viewportCenterPixel?.[1]}
       className={`relative h-full w-full ${previewBounds ? 'cursor-grabbing' : ''}`}
       onPointerDownCapture={handlePointerDownCapture}
     >
