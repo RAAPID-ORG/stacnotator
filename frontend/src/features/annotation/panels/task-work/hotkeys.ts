@@ -14,6 +14,7 @@ import { useWorkStore } from '~/features/annotation/stores';
 import type { Binding } from '~/features/annotation/engine/hotkeys';
 import type { ComposeCtx, HotkeyTable } from '../../composition';
 import { focusFormFieldInput } from '../../shared/FormFields';
+import { revealAndFocus } from '../../shared/revealFocus';
 import { isSkipConfirmDisabled, requestConfirm } from './confirmBus';
 import { submitCurrent, type SubmitOutcome } from './submit';
 import { DIGIT_INPUT_TIMEOUT_MS } from '~/shared/utils/constants';
@@ -282,7 +283,8 @@ function commentBox(): HTMLTextAreaElement | null {
 }
 
 function focusComment(): void {
-  commentBox()?.focus();
+  const box = commentBox();
+  revealAndFocus(document.querySelector<HTMLElement>('[data-task-comment]'), box);
 }
 
 function commentIsFocused(): boolean {
@@ -308,6 +310,23 @@ function adjustConfidence(delta: number): void {
   const work = useWorkStore.getState();
   const current = work.confidence ?? DEFAULT_CONFIDENCE;
   work.setConfidence(Math.max(1, Math.min(5, current + delta)));
+  focusConfidence();
+}
+
+function focusConfidence(): void {
+  const section = document.querySelector<HTMLElement>('[data-task-confidence]');
+  const slider = section?.querySelector<HTMLElement>('[data-task-confidence-input]') ?? null;
+  revealAndFocus(section, slider);
+}
+
+/** Confidence shortcuts remain live after they focus the range input, but do
+ * not steal Q/E or shifted digits from any unrelated text field. */
+function confidenceKeysApply(): boolean {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return true;
+  const tag = active.tagName;
+  if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return true;
+  return active.matches('[data-task-confidence-input]');
 }
 
 export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
@@ -338,8 +357,12 @@ export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
   const confidenceBinding = (level: 1 | 2 | 3 | 4 | 5): Binding => ({
     key: `shift+${level}`,
     help: 'Set confidence level',
-    when: tasksActive,
-    run: () => useWorkStore.getState().setConfidence(level),
+    allowInInput: true,
+    when: () => tasksActive() && confidenceKeysApply(),
+    run: () => {
+      useWorkStore.getState().setConfidence(level);
+      focusConfidence();
+    },
   });
 
   return [
@@ -348,8 +371,20 @@ export function taskWorkBindings(ctx: ComposeCtx): Binding[] {
 
     { key: 'w', help: 'Previous task', when: tasksActive, run: () => previous(ctx.catalog) },
     { key: 's', help: 'Next task', when: tasksActive, run: () => next(ctx.catalog) },
-    { key: 'q', help: 'Decrease confidence', when: tasksActive, run: () => adjustConfidence(-1) },
-    { key: 'e', help: 'Increase confidence', when: tasksActive, run: () => adjustConfidence(1) },
+    {
+      key: 'q',
+      help: 'Decrease confidence',
+      allowInInput: true,
+      when: () => tasksActive() && confidenceKeysApply(),
+      run: () => adjustConfidence(-1),
+    },
+    {
+      key: 'e',
+      help: 'Increase confidence',
+      allowInInput: true,
+      when: () => tasksActive() && confidenceKeysApply(),
+      run: () => adjustConfidence(1),
+    },
     { key: 'c', help: 'Focus comment', when: tasksActive, run: focusComment },
     {
       key: 'f',

@@ -114,6 +114,23 @@ describe('taskLabellingPolicy', () => {
 describe('confidence bindings', () => {
   const bindings = () => taskWorkBindings(ctxFor(makeCampaign()));
 
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function mountConfidenceControl() {
+    const section = document.createElement('div');
+    section.setAttribute('data-task-confidence', '');
+    const scroll = vi.fn();
+    section.scrollIntoView = scroll;
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.setAttribute('data-task-confidence-input', '');
+    section.appendChild(slider);
+    document.body.appendChild(section);
+    return { section, slider, scroll };
+  }
+
   it('binds Shift+1..5 to the confidence levels, sharing one help row', () => {
     for (const level of [1, 2, 3, 4, 5] as const) {
       const binding = bindings().find((b) => b.key === `shift+${level}`);
@@ -129,8 +146,63 @@ describe('confidence bindings', () => {
 
     expect(matchKey(event, binding.key)).toBe(true);
 
+    const { slider, scroll } = mountConfidenceControl();
     binding.run(event);
     expect(useWorkStore.getState().confidence).toBe(3);
+    expect(document.activeElement).toBe(slider);
+    expect(scroll).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    });
+  });
+
+  it('keeps Q/E active after moving focus to the confidence slider', () => {
+    const { slider } = mountConfidenceControl();
+    const decrease = bindings().find((b) => b.key === 'q')!;
+    useWorkStore.getState().setConfidence(4);
+
+    decrease.run(new KeyboardEvent('keydown', { key: 'q' }));
+
+    expect(useWorkStore.getState().confidence).toBe(3);
+    expect(document.activeElement).toBe(slider);
+    expect(decrease.allowInInput).toBe(true);
+    expect(decrease.when!()).toBe(true);
+  });
+
+  it('does not claim confidence hotkeys inside unrelated inputs', () => {
+    const search = document.createElement('input');
+    document.body.appendChild(search);
+    search.focus();
+
+    expect(bindings().find((b) => b.key === 'q')!.when!()).toBe(false);
+  });
+});
+
+describe('comment binding', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('reveals the comment section before focusing its textarea', () => {
+    const section = document.createElement('div');
+    section.setAttribute('data-task-comment', '');
+    const scroll = vi.fn();
+    section.scrollIntoView = scroll;
+    const comment = document.createElement('textarea');
+    comment.setAttribute('data-task-comment-input', '');
+    section.appendChild(comment);
+    document.body.appendChild(section);
+
+    const binding = taskWorkBindings(ctxFor(makeCampaign())).find((b) => b.key === 'c')!;
+    binding.run(new KeyboardEvent('keydown', { key: 'c' }));
+
+    expect(document.activeElement).toBe(comment);
+    expect(scroll).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    });
   });
 });
 

@@ -111,7 +111,7 @@ test.describe('Annotation Submission', () => {
     expect(lastAnnotateRequest(api.requests)).toBeUndefined();
   });
 
-  test('Tab scrolls the task controls until the active form field is fully visible', async ({
+  test('form hotkeys reveal fields, comment, and confidence inside task controls', async ({
     annotationPage,
   }) => {
     const formFields = Array.from({ length: 12 }, (_, index) => ({
@@ -133,6 +133,15 @@ test.describe('Annotation Submission', () => {
 
     const scroller = annotationPage.locator('[data-tour="controls"] .panel-body > div').first();
     const lastField = annotationPage.locator('[data-form-field-id="711"]');
+    const isFullyVisible = async (target: typeof lastField) => {
+      const [viewport, element] = await Promise.all([scroller.boundingBox(), target.boundingBox()]);
+      return (
+        viewport !== null &&
+        element !== null &&
+        element.y >= viewport.y &&
+        element.y + element.height <= viewport.y + viewport.height
+      );
+    };
     await expect(lastField).toBeAttached();
     expect(await scroller.evaluate((element) => element.scrollTop)).toBe(0);
 
@@ -144,16 +153,29 @@ test.describe('Annotation Submission', () => {
     await expect
       .poll(
         async () => {
-          const [viewport, field, scrollTop] = await Promise.all([
-            scroller.boundingBox(),
-            lastField.boundingBox(),
-            scroller.evaluate((element) => element.scrollTop),
-          ]);
-          if (!viewport || !field || scrollTop === 0) return false;
-          return field.y >= viewport.y && field.y + field.height <= viewport.y + viewport.height;
+          const scrollTop = await scroller.evaluate((element) => element.scrollTop);
+          return scrollTop > 0 && (await isFullyVisible(lastField));
         },
         { timeout: 5000 }
       )
       .toBe(true);
+
+    await annotationPage.keyboard.press('Escape');
+    await annotationPage.keyboard.press('c');
+    const commentSection = annotationPage.locator('[data-task-comment]');
+    await expect(annotationPage.locator('[data-task-comment-input]')).toBeFocused();
+    await expect.poll(() => isFullyVisible(commentSection), { timeout: 5000 }).toBe(true);
+
+    await annotationPage.keyboard.press('Escape');
+    await annotationPage.keyboard.press('Shift+3');
+    const confidenceSection = annotationPage.locator('[data-task-confidence]');
+    const confidenceSlider = annotationPage.locator('[data-task-confidence-input]');
+    await expect(confidenceSlider).toBeFocused();
+    await expect(confidenceSlider).toHaveValue('3');
+    await expect.poll(() => isFullyVisible(confidenceSection), { timeout: 5000 }).toBe(true);
+
+    // Q remains a hotkey after the shortcut itself has focused the slider.
+    await annotationPage.keyboard.press('q');
+    await expect(confidenceSlider).toHaveValue('2');
   });
 });

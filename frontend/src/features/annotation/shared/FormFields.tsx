@@ -6,6 +6,7 @@ import {
   setFieldValue,
   type FormValues,
 } from '~/features/annotation/core/annotation';
+import { revealAndFocus } from './revealFocus';
 
 export interface FormFieldsProps {
   fields: FormField[];
@@ -343,9 +344,8 @@ function FieldInput({
 export function focusFormFieldInput(fieldId: number): void {
   const field = document.querySelector<HTMLElement>(`[data-form-field-id="${fieldId}"]`);
   if (!field) return;
-  field.scrollIntoView?.({ behavior: 'smooth', block: 'center', inline: 'nearest' });
   const input = field.querySelector<HTMLElement>('input, textarea');
-  (input ?? field).focus({ preventScroll: true });
+  revealAndFocus(field, input);
 }
 
 export function FormFields({

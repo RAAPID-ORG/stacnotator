@@ -192,7 +192,10 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
           disabled={isBusy}
         />
 
-        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
+        <div
+          data-task-comment
+          className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]"
+        >
           <textarea
             data-task-comment-input
             value={comment}
@@ -205,7 +208,10 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
           />
         </div>
 
-        <div className="flex flex-col gap-2 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
+        <div
+          data-task-confidence
+          className="flex flex-col gap-2 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]"
+        >
           <div className="flex flex-col gap-1">
             <div className="flex justify-between items-center">
               <span className={sectionHeaderClass()}>Confidence</span>
@@ -234,6 +240,7 @@ export function TaskControlsPanel({ ctx }: TaskControlsPanelProps) {
               </div>
             </div>
             <input
+              data-task-confidence-input
               type="range"
               min="1"
               max="5"
