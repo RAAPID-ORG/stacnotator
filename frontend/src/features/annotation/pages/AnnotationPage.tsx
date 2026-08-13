@@ -41,7 +41,8 @@ import {
   type LayoutItem,
   type PanelDef,
 } from '~/features/annotation/engine/canvas';
-import { setProxiedTileMatcher } from '~/features/annotation/engine/map';
+import { setProxiedTileMatcher, setTilerTokenRefresher } from '~/features/annotation/engine/map';
+import { ensureTilerSession } from '~/api/tilerToken';
 import {
   activeFeatures,
   featuresToPanels,
@@ -92,6 +93,7 @@ import {
 // Registered here because the page is where the app's parts are composed - the
 // same seam the tiler-token refresher uses.
 setProxiedTileMatcher(isProxiedTileUrl);
+setTilerTokenRefresher(() => ensureTilerSession());
 
 type LoadState =
   | { status: 'loading' }
@@ -190,6 +192,9 @@ export function AnnotationPage() {
     setBypassRegistering(false);
     setAutoTourChecked(false);
     setLoad({ status: 'loading' });
+    // Tiles this campaign serves through our own tiler are cookie-authorized,
+    // and the cookie is scoped to the campaign.
+    void ensureTilerSession(String(campaignId));
 
     let cancelled = false;
     void loadCampaign(campaignId, {

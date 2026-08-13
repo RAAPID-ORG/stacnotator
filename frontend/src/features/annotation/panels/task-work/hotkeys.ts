@@ -16,6 +16,7 @@ import type { ComposeCtx, HotkeyTable } from '../../composition';
 import { focusFormFieldInput } from '../../shared/FormFields';
 import { isSkipConfirmDisabled, requestConfirm } from './confirmBus';
 import { submitCurrent, type SubmitOutcome } from './submit';
+import { DIGIT_INPUT_TIMEOUT_MS } from '~/shared/utils/constants';
 import {
   getCurrentTask,
   getTaskListState,
@@ -26,7 +27,6 @@ import {
 } from './taskListBus';
 
 // A two-keystroke debounce for a picker with at most a couple dozen labels.
-const DIGIT_BUFFER_TIMEOUT_MS = 500;
 export const DEFAULT_CONFIDENCE = 5;
 
 let digitBuffer = '';
@@ -61,7 +61,7 @@ function handleDigitInput(digit: string, labels: LabelBase[]): void {
   if (currentNum > labels.length || !canAddMoreDigits || digitBuffer.length >= 2) {
     processDigitBuffer(labels);
   } else {
-    digitTimer = setTimeout(() => processDigitBuffer(labels), DIGIT_BUFFER_TIMEOUT_MS);
+    digitTimer = setTimeout(() => processDigitBuffer(labels), DIGIT_INPUT_TIMEOUT_MS);
   }
 }
 

@@ -24,6 +24,10 @@ vi.mock('~/api/client', async (importOriginal) => ({
 
 let mockCampaignId = 7;
 
+vi.mock('~/api/tilerToken', () => ({
+  ensureTilerSession: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock('~/shared/hooks/useCampaignIdParam', () => ({
   useCampaignIdParam: () => mockCampaignId,
 }));
