@@ -79,8 +79,10 @@ BACKEND_SECRETS=(
 # The complete backend environment, applied in a single write. Nothing here is
 # late-bound, which is what keeps a deploy to one revision.
 BACKEND_ENV=(
-    "DBNAME=stacnotator" "DBUSER=psqladmin" "DBPORT=5432"
-    "DBDRIVER=psycopg2" "DBSCHEME=postgresql"
+    # DBPORT, DBSCHEME and DBDRIVER are deliberately absent: the backend already
+    # defaults them (src/config.py), and which driver and URL scheme the app uses is
+    # its own concern, not a deployment knob.
+    "DBNAME=$DB_NAME" "DBUSER=$DB_ADMIN_USER"
     "DBPASS=secretref:db-password" "DBHOST=secretref:db-host"
     "FIREBASE_CREDENTIALS=secretref:firebase-credentials"
     "EE_PRIVATE_KEY=secretref:ee-private-key"

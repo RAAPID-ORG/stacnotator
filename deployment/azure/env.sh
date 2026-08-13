@@ -23,6 +23,7 @@ IDENTIFIER_VARS=(
     RESOURCE_GROUP PUBLIC_DOMAIN EE_SERVICE_ACCOUNT CUSTOM_DOMAINS EXTRA_TILERS
     TILER_NAME TILER_ALLOWS_INGEST TILER_AZURE_SIGNING TILER_DEDICATED IMAGE_TAG
     FIREBASE_CREDS EE_CREDS FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN FIREBASE_PROJECT_ID
+    DB_NAME DB_ADMIN_USER
 )
 
 # Register sensitive values with GitHub Actions so they are replaced with "***" in
@@ -145,6 +146,13 @@ resolve_config() {
 
     PROJECT_NAME="stacnotator-${ENV}"
     POSTGRES_SERVER="${POSTGRES_SERVER:-}"
+    # Both are owned by the raapid-infra Terraform (postgresql module: the databases
+    # list and administrator_login). Defaulted rather than looked up because they
+    # change approximately never and a lookup would cost a round trip on every
+    # deploy; override from the environment if that stops being true. A mismatch
+    # shows up as an unhealthy revision with an auth or missing-database error.
+    DB_NAME="${DB_NAME:-stacnotator}"
+    DB_ADMIN_USER="${DB_ADMIN_USER:-psqladmin}"
     APP_BACKEND="${PROJECT_NAME}-backend"
     APP_TILER="${PROJECT_NAME}-tiler"
     APP_SWA="${PROJECT_NAME}-frontend"

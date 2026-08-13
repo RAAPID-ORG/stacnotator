@@ -1,6 +1,6 @@
 # Deployment Scripts
 
-Scripts for deploying STACNotator to Azure. They self-manage all application resources (Container Apps, Static Web App, identities, RBAC) within the project's resource group, so app deploys stay independent of the platform-managed (Terraform) infrastructure.
+Scripts for deploying STACNotator to Azure. They self-manage all application resources (Container Apps, Static Web App, identities, RBAC) within the project's resource group, so app deploys stay independent of the platform-managed infrastructure.
 
 Two entry points, split by lifecycle:
 
@@ -43,9 +43,9 @@ currently off in both envs; turn it on if you need it for heavy tile load.
 | Backend API | Container App (Consumption) | `deploy.sh` |
 | Tiler | Container App (Consumption) | `deploy.sh` |
 | Frontend | Azure Static Web App | `deploy.sh` |
-| Database | PostgreSQL Flexible Server | Terraform |
-| Container Apps Environment | Container Apps Environment | Terraform |
-| Networking, Key Vault, ACR | Various | Terraform |
+| Database | PostgreSQL Flexible Server | External |
+| Container Apps Environment | Container Apps Environment | External |
+| Networking, Key Vault, ACR | Various | External |
 
 ## Automated deployments (CI)
 
@@ -58,13 +58,13 @@ Both callers share `.github/workflows/deploy.yml`, a reusable workflow taking th
 | **prod** | push to `main` | `deploy-prod` job in `.github/workflows/ci.yml` (runs after tests + image build pass) | `production` Environment approval |
 | **dev** | manual `Run workflow` on `develop` | `.github/workflows/deploy-dev.yml` | `dev` Environment approval |
 
-The dev workflow deploys code only and never touches a database. To refresh dev data, run `make az-sync-prod-to-dev` separately (see below). One-time Environment setup for dev is documented under [Deploy Dev workflow](#deploy-dev-workflow-code-only-no-db-sync).
+The dev workflow deploys code only and never touches a database. To refresh dev data, run `make az-sync-prod-to-dev` separately (see below) - note this clears all existing dev data. One-time Environment setup for dev is documented under [Deploy Dev workflow](#deploy-dev-workflow-code-only-no-db-sync).
 
 The manual CLI path below is the fallback for local deploys and first-time environment bootstrapping.
 
 ## Prerequisites
 
-- **Infrastructure** deployed by Platform Engineers via Terraform (RG, ACR, KV, DB, CAE) for both prod and dev
+- **Infrastructure** deployed by Platform Engineers externally (RG, ACR, KV, DB, CAE) for both prod and dev
 - **Contributor** role on the project resource group
 - **Azure CLI** logged in (`az login`) and within VPN
 - **Tiler repo** checked out next to this one (`../stacnotator-tiler`, or set `TILER_REPO_DIR`) - the deploy delegates the tiler build/deploy to its `deployment/deploy-containerapp.sh` and aborts if it's missing
@@ -72,13 +72,13 @@ The manual CLI path below is the fallback for local deploys and first-time envir
 
 ## Run once per environment
 
-Ensure the infrastructure is deployed on Azure first.
+Ensure the infrastructure is deployed on Azure first. Then
 
 ```bash
 # 1. Create the local config (laptop deploys only; CI reads GitHub Environments)
 cp deployment/azure/.env.deploy.example deployment/azure/.env.deploy.dev
 # Fill in RESOURCE_GROUP, PUBLIC_DOMAIN, EE_SERVICE_ACCOUNT, and the credential
-# paths bootstrap.sh uploads (FIREBASE_CREDS, EE_CREDS, FIREBASE_*).
+# paths. bootstrap.sh uploads (FIREBASE_CREDS, EE_CREDS, FIREBASE_*).
 
 # 2. Upload secrets, create the Static Web App, add the workload profile
 make az-bootstrap-dev         # or az-bootstrap-prod
@@ -119,8 +119,8 @@ KV=$(az keyvault list -g "$RG" --query "[0].name" -o tsv)
 SERVER=$(az postgres flexible-server list -g "$RG" --query "[0].name" -o tsv)
 
 # 1. Allowlist the extensions pgstac installs (postgis, btree_gist, unaccent). The
-#    canonical home is Terraform (azurerm_postgresql_flexible_server_configuration);
-#    set it directly if you're bootstrapping ahead of that:
+#    canonical home is the infrastructure config; set it directly only if you are
+#    bootstrapping ahead of that:
 az postgres flexible-server parameter set -g "$RG" -s "$SERVER" \
   --name azure.extensions --value POSTGIS,BTREE_GIST,UNACCENT
 
@@ -276,7 +276,7 @@ az postgres flexible-server restore --resource-group <rg> \
   --restore-time <recorded-timestamp>
 ```
 
-Retention comes from `postgres_backup_retention_days` in the `raapid-infra` Terraform, so the recorded instant is only restorable inside that window.
+The restore window is whatever backup retention the server is provisioned with, so the recorded instant is only usable inside it.
 
 **Image tagging**: defaults to git commit SHA. Override with `IMAGE_TAG` env var.
 
