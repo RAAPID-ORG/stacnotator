@@ -1,13 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import type { CustomMapOut, RenderConfig } from '~/api/client';
+import type { RenderConfig } from '~/api/client';
 import {
   applyRenderOverride,
   effectiveRenderConfig,
   isCustomized,
-  readyCustomMaps,
   stampLegendOverride,
-} from './renderConfig';
-import { makeCustomMap } from '../testing/fixtures';
+} from './tileColors';
 
 const TILES = 'https://tiler.test/searches/s1/tiles/WebMercatorQuad/{z}/{x}/{y}.png';
 
@@ -94,27 +92,6 @@ describe('applyRenderOverride', () => {
     ).toBe(catUrl);
     const noColormap: RenderConfig = { mode: 'continuous', rescale: [0, 1] };
     expect(applyRenderOverride(contUrl, noColormap, { rescale: [0, 2] })).toBe(contUrl);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// readyCustomMaps
-// ---------------------------------------------------------------------------
-
-const map = (id: number, over: Partial<CustomMapOut> = {}): CustomMapOut =>
-  makeCustomMap({
-    id,
-    name: `Map ${id}`,
-    tile_url: `https://tiles.example.com/${id}/{z}/{x}/{y}.png`,
-    ...over,
-  });
-
-describe('readyCustomMaps', () => {
-  it('keeps only ready maps with a tile_url', () => {
-    const READY_1 = map(1);
-    const REGISTERING = map(4, { status: 'registering', tile_url: null });
-    const NO_TILE = map(5, { tile_url: null });
-    expect(readyCustomMaps([READY_1, REGISTERING, NO_TILE])).toEqual([READY_1]);
   });
 });
 

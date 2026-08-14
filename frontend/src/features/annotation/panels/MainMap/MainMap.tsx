@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { allBindings } from '../../bindings';
+import { pageKeymap } from '../../keymap';
 import { useContainerSize } from '../../canvas/useContainerSize';
 import { hotkeyTip } from '../../hotkeys';
 import { extendedLabels } from '../../campaign/annotation';
@@ -107,10 +107,10 @@ export function MainMapHeader() {
   const isTaskMode = mode === 'tasks';
   const sourceIds = view?.source_ids ?? [];
   const windows = useLayoutStore((s) => s.currentLayout.windows);
-  // allBindings() reads the stores directly; these are the inputs that should
+  // pageKeymap() reads the stores directly; these are the inputs that should
   // rebuild the table, not what the closure literally names.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const bindings = useMemo(() => allBindings(), [campaign, catalog, mode, view]);
+  const bindings = useMemo(() => pageKeymap(), [campaign, catalog, mode, view]);
 
   // View sync only means something with more than one window to keep in step.
   const windowCount = collectionsInView(catalog, { source_ids: sourceIds }).filter(

@@ -1,6 +1,6 @@
 import type { ImageryCatalog } from './imagery';
 import type { SliceAddress } from './imageryNav';
-import { stampLegendOverride, type LegendOverride } from './renderConfig';
+import { stampLegendOverride, type LegendOverride } from './tileColors';
 
 // Provider tiles needing an API key go through the backend proxy, which holds
 // the key encrypted and attaches it server-side.

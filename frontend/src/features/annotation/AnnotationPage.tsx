@@ -11,7 +11,7 @@ import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.stor
 import { PopoutWindow } from '~/shared/ui/PopoutWindow';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
-import { allBindings, resetNavMemory } from './bindings';
+import { pageKeymap, resetNavMemory } from './keymap';
 import { Canvas } from './canvas/Canvas';
 import { EditOverlayControls } from './chrome/EditOverlayControls';
 import {
@@ -211,10 +211,10 @@ export function AnnotationPage() {
   // ------------------------------------------------------------------
   // Hotkeys
   // ------------------------------------------------------------------
-  // allBindings() reads the stores directly, so the deps are what should
+  // pageKeymap() reads the stores directly, so the deps are what should
   // rebuild the table rather than what the closure literally names.
   const bindings = useMemo(
-    () => (campaign && catalog ? allBindings() : []),
+    () => (campaign && catalog ? pageKeymap() : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [campaign, catalog, view, workMode, isMobile]
   );

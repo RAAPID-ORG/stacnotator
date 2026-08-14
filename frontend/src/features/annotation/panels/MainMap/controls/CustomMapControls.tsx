@@ -1,5 +1,5 @@
 import { type ImageryCatalog } from '../../../campaign/imagery';
-import { readyCustomMaps } from '../../../campaign/renderConfig';
+import { readyCustomMaps } from '../../../campaign/imagery';
 import { useImageryStore } from '../../../stores/imagery';
 import { IconExternalLink } from '~/shared/ui/Icons';
 import { HeaderSelect } from '../../../components/HeaderSelect';

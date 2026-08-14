@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react';
 import type { RenderConfig } from '~/api/client';
 import { ColormapSelect } from '~/shared/colormaps/ColormapSelect';
 import { gradientFor, isColormapName } from '~/shared/colormaps/colormaps';
-import { type ImageryCatalog } from '../../../campaign/imagery';
+import { readyCustomMaps, type ImageryCatalog } from '../../../campaign/imagery';
 import {
   effectiveRenderConfig,
   isCustomized,
-  readyCustomMaps,
   type RenderOverride,
-} from '../../../campaign/renderConfig';
+} from '../../../campaign/tileColors';
 import { useImageryStore } from '../../../stores/imagery';
 import { usePrefsStore } from '../../../stores/prefs';
 

@@ -1,7 +1,7 @@
 import { type ImageryCatalog } from '../campaign/imagery';
 import { type ImageryNavState } from '../campaign/imageryNav';
 import { basemapAttribution, resolveBasemapUrl, sliceRaster } from '../campaign/tileUrls';
-import { applyRenderOverride, type LegendOverride } from '../campaign/renderConfig';
+import { applyRenderOverride, type LegendOverride } from '../campaign/tileColors';
 import {
   resolveLabelStyle,
   toDraftStyleSpec,

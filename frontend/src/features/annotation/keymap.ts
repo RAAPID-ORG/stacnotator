@@ -1,3 +1,8 @@
+/**
+ * Every keyboard shortcut the annotation page has, and what each one runs.
+ * `pageKeymap()` at the bottom assembles them in precedence order; `hotkeys.ts`
+ * is the mechanism that dispatches them and renders their help text.
+ */
 import type { LabelBase } from '~/api/client';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -11,7 +16,7 @@ import {
   type FormField,
   type FormKeyContext,
 } from './campaign/annotation';
-import { readyCustomMaps } from './campaign/renderConfig';
+import { readyCustomMaps } from './campaign/imagery';
 import { rememberAddress, type SliceAddress } from './campaign/imageryNav';
 import { fitAnnotations, mainCamera, pan, zoom } from './map/camera';
 import { campaignState, formFields, useCampaignStore } from './stores/campaign';
@@ -567,7 +572,7 @@ function mapBindings(): Binding[] {
 const tag = (table: Binding[], group: Binding['group']): Binding[] =>
   table.map((b) => ({ ...b, group }));
 
-export function allBindings(): Binding[] {
+export function pageKeymap(): Binding[] {
   const { workMode, isMobile } = campaignState();
   // Drawing is Explore's map behaviour, and the one surface that edits data by
   // pointer - mobile gets the read-only canvas instead.

@@ -1,4 +1,4 @@
-import type { CategoricalEntry, CustomMapOut, RenderConfig } from '~/api/client';
+import type { CategoricalEntry, RenderConfig } from '~/api/client';
 import { isColormapName } from '~/shared/colormaps/colormaps';
 
 export interface RenderOverride {
@@ -120,8 +120,4 @@ export function stampLegendOverride(tileUrl: string, override: LegendOverride | 
     });
   }
   return tileUrl;
-}
-
-export function readyCustomMaps(maps: CustomMapOut[]): CustomMapOut[] {
-  return maps.filter((m) => m.status === 'ready' && !!m.tile_url);
 }

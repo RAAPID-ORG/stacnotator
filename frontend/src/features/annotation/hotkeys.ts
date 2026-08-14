@@ -1,3 +1,8 @@
+/**
+ * The keyboard mechanism: one keydown listener over a stack of binding tables,
+ * plus the help text and tooltips those bindings drive. Which keys the page
+ * actually binds, and to what, lives in `keymap.ts`.
+ */
 import { useEffect } from 'react';
 
 export interface Binding {

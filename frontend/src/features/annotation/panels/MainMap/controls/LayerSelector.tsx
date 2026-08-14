@@ -3,7 +3,7 @@ import { type SliceAddress } from '../../../campaign/imageryNav';
 import { restoreSnapshot } from '../../../campaign/imageryNav';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect, type HeaderSelectOption } from '../../../components/HeaderSelect';
-import { rememberLastAddress } from '../../../bindings';
+import { rememberLastAddress } from '../../../keymap';
 
 const BASEMAP_PREFIX = 'basemap-';
 

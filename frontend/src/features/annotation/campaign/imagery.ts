@@ -95,3 +95,9 @@ export function byCollectionDate<
   const second = b.collection ? collectionStartDate(b.collection) : UNDATED;
   return first.localeCompare(second);
 }
+
+/** Custom maps the map can actually draw. Registration is asynchronous, so a
+ *  campaign can hold overlays that have no tiles yet. */
+export function readyCustomMaps(maps: CustomMapOut[]): CustomMapOut[] {
+  return maps.filter((m) => m.status === 'ready' && !!m.tile_url);
+}

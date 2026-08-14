@@ -9,7 +9,8 @@ import {
   makeVectorLayer,
   makeViz,
 } from '../testing/fixtures';
-import { buildImageryCatalog } from './imagery';
+import type { CustomMapOut } from '~/api/client';
+import { buildImageryCatalog, readyCustomMaps } from './imagery';
 
 const source = makeSource({
   id: 1,
@@ -86,5 +87,26 @@ describe('buildImageryCatalog', () => {
 
   it('carries the campaign id for proxy url assembly', () => {
     expect(cat.campaignId).toBe(7);
+  });
+});
+
+describe('readyCustomMaps', () => {
+  const map = (id: number, over: Partial<CustomMapOut> = {}): CustomMapOut =>
+    makeCustomMap({
+      id,
+      name: `Map ${id}`,
+      tile_url: `https://tiles.example.com/${id}/{z}/{x}/{y}.png`,
+      ...over,
+    });
+
+  it('keeps only ready maps with a tile_url', () => {
+    const ready = map(1);
+    expect(
+      readyCustomMaps([
+        ready,
+        map(4, { status: 'registering', tile_url: null }),
+        map(5, { tile_url: null }),
+      ])
+    ).toEqual([ready]);
   });
 });
