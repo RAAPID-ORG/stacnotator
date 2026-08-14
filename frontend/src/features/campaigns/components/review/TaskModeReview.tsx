@@ -17,7 +17,7 @@ import {
   formatTaskStatus,
   getTaskStatusColor,
 } from '~/shared/utils/taskStatus';
-import { extractCentroidFromWKT } from '~/shared/utils/utility';
+import { extractCentroidFromWKT, formatDuration } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { AnnotationDistributionMap } from './AnnotationDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
@@ -30,6 +30,19 @@ import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type StatusFilter, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
+
+/** Median active seconds recorded across a task's annotators, or null when
+ *  nobody's time was measured. Median rather than sum so that a task annotated
+ *  three times is comparable with one annotated once. */
+const taskActiveSeconds = (task: AnnotationTaskOut): number | null => {
+  const measured = (task.assignments ?? [])
+    .map((a) => a.active_seconds)
+    .filter((s): s is number => s != null)
+    .sort((x, y) => x - y);
+  if (!measured.length) return null;
+  const mid = Math.floor(measured.length / 2);
+  return measured.length % 2 ? measured[mid] : (measured[mid - 1] + measured[mid]) / 2;
+};
 
 /** Funnel icon for the filters dropdown trigger - kept local since Icons.tsx has unrelated WIP. */
 const IconFunnel = ({ className }: { className?: string }) => (
@@ -183,6 +196,16 @@ export const TaskModeReview = ({
         if (ca === Infinity) return 1;
         if (cb === Infinity) return -1;
         return sortOption === 'confidence-asc' ? ca - cb : cb - ca;
+      }
+      if (sortOption === 'time-asc' || sortOption === 'time-desc') {
+        // Unmeasured tasks sort last either way - they carry no information
+        // about difficulty, so they should not head the "slowest" list.
+        const ta = taskActiveSeconds(a),
+          tb = taskActiveSeconds(b);
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return sortOption === 'time-asc' ? ta - tb : tb - ta;
       }
       if (sortOption === 'id-asc') return a.annotation_number - b.annotation_number;
       if (sortOption === 'id-desc') return b.annotation_number - a.annotation_number;
@@ -583,6 +606,8 @@ export const TaskModeReview = ({
                         <option value="confidence-desc">Confidence (High to Low)</option>
                         <option value="id-asc">Annotation # (Ascending)</option>
                         <option value="id-desc">Annotation # (Descending)</option>
+                        <option value="time-desc">Time spent (Slowest first)</option>
+                        <option value="time-asc">Time spent (Fastest first)</option>
                       </select>
                     </div>
                   </div>
@@ -801,12 +826,8 @@ export const TaskModeReview = ({
                                         ann.created_by_user_id?.substring(0, 8) ||
                                         'Unknown';
 
-                                    const assignmentForAnn = assignments.find(
-                                      (a) => a.user_id === ann.created_by_user_id
-                                    );
                                     const isSkippedAnn =
-                                      assignmentForAnn?.status === 'skipped' ||
-                                      ann.label_id == null;
+                                      annotator?.status === 'skipped' || ann.label_id == null;
                                     const label = ann.label_id
                                       ? `#${ann.label_id}`
                                       : isSkippedAnn
@@ -853,6 +874,14 @@ export const TaskModeReview = ({
                                         >
                                           {confidence}
                                         </span>
+                                        {annotator?.active_seconds != null && (
+                                          <>
+                                            <span className="text-neutral-400">|</span>
+                                            <span title="Active time spent on this task">
+                                              {formatDuration(annotator.active_seconds)}
+                                            </span>
+                                          </>
+                                        )}
                                         {hasComment && (
                                           <>
                                             <span className="text-neutral-400">|</span>

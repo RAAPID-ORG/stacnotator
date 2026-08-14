@@ -193,6 +193,10 @@ export type AnnotationFromTaskCreate = {
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
+    /**
+     * Active Ms
+     */
+    active_ms?: number | null;
 };
 
 /**
@@ -381,6 +385,10 @@ export type AnnotationTaskAssignmentOut = {
      */
     claimed_at?: string | null;
     /**
+     * Active Seconds
+     */
+    active_seconds?: number | null;
+    /**
      * User Email
      */
     user_email?: string | null;
@@ -558,6 +566,18 @@ export type AnnotatorInfo = {
     label_distribution: {
         [key: string]: number;
     };
+    /**
+     * Timed Tasks
+     */
+    timed_tasks?: number;
+    /**
+     * Median Seconds Per Task
+     */
+    median_seconds_per_task?: number | null;
+    /**
+     * Total Active Seconds
+     */
+    total_active_seconds?: number | null;
 };
 
 /**
@@ -3246,6 +3266,14 @@ export type TilerOption = {
      * Is Default
      */
     is_default: boolean;
+    /**
+     * Stac Url
+     */
+    stac_url?: string | null;
+    /**
+     * Allows Ingest
+     */
+    allows_ingest?: boolean;
 };
 
 /**

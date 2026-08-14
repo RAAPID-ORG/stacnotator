@@ -324,3 +324,20 @@ export const extractCentroidFromWKT = (wkt: string): LatLon | null => {
   // Fallback: try extractLatLonFromWKT for anything else
   return extractLatLonFromWKT(wkt);
 };
+
+/** Compact duration for the annotation-time columns: "45s", "3m 20s", "1h 12m".
+ *  Null means never measured, which reads as an em-free dash rather than 0. */
+export const formatDuration = (seconds: number | null | undefined): string => {
+  if (seconds == null) return '-';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    const rest = Math.round(seconds % 60);
+    return rest ? `${minutes}m ${rest}s` : `${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return restMinutes ? `${hours}h ${restMinutes}m` : `${hours}h`;
+};

@@ -20,6 +20,7 @@ import {
 import { campaignState, formFields, useCampaignStore } from './stores/campaign';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { usePrefsStore } from './stores/prefs';
+import { forgetTaskActiveMs, readTaskActiveMs } from './taskTiming';
 import { useWorkStore } from './stores/work';
 
 export const DEFAULT_CONFIDENCE = 5;
@@ -173,8 +174,11 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         flagged_for_review: params.flagged,
         flag_comment: params.flagged ? params.flagComment || null : null,
         form_values: Object.keys(params.formValues).length ? params.formValues : null,
+        active_ms: readTaskActiveMs(task.id),
       },
     });
+    // Only once the backend has it: a failed submit keeps the time for the retry.
+    forgetTaskActiveMs(task.id);
     const result: AnnotationTaskSubmitResponse | undefined = response.data;
     const added = result?.annotation ?? null;
     return {

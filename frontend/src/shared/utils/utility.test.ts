@@ -1,6 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatSliceLabel, formatWindowLabel, parseEmailList, searchUsers } from './utility';
+import {
+  formatDuration,
+  formatSliceLabel,
+  formatWindowLabel,
+  parseEmailList,
+  searchUsers,
+} from './utility';
+
+describe('formatDuration', () => {
+  it('reads an unmeasured duration as a dash rather than zero', () => {
+    expect(formatDuration(null)).toBe('-');
+    expect(formatDuration(undefined)).toBe('-');
+  });
+
+  it('shows seconds under a minute', () => {
+    expect(formatDuration(0)).toBe('0s');
+    expect(formatDuration(45)).toBe('45s');
+  });
+
+  it('shows minutes and seconds under an hour', () => {
+    expect(formatDuration(200)).toBe('3m 20s');
+    expect(formatDuration(180)).toBe('3m');
+  });
+
+  it('drops seconds once past an hour', () => {
+    expect(formatDuration(4320)).toBe('1h 12m');
+    expect(formatDuration(3600)).toBe('1h');
+  });
+});
 
 describe('formatSliceLabel', () => {
   it('labels a weekly slice with its inclusive start and end days', () => {

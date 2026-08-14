@@ -6,6 +6,7 @@ import {
   type PairwiseAgreement,
 } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
+import { formatDuration } from '~/shared/utils/utility';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 
@@ -257,6 +258,12 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                         </th>
                       ))}
                       <th className={`${thCls} text-right`}>Total</th>
+                      <th className={`${thCls} text-right`} title="Median active time per task">
+                        Median / task
+                      </th>
+                      <th className={`${thCls} text-right`} title="Total active time on tasks">
+                        Active time
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -288,6 +295,15 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                         })}
                         <td className="px-4 py-3 text-right font-medium text-neutral-900">
                           {annotator.total_annotations}
+                        </td>
+                        <td
+                          className="px-4 py-3 text-right text-neutral-700"
+                          title={`${annotator.timed_tasks ?? 0} timed tasks`}
+                        >
+                          {formatDuration(annotator.median_seconds_per_task)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-neutral-700">
+                          {formatDuration(annotator.total_active_seconds)}
                         </td>
                       </tr>
                     ))}

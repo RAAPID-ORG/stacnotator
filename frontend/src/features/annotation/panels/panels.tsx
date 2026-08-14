@@ -46,6 +46,10 @@ export interface PanelContext {
   view: ImageryViewOut | null;
   mode: WorkMode;
   layout: WorkspaceLayout;
+  /** The collection the main map is showing, which is the window this list
+   *  marks as active. Passed in rather than read off the store so a change of
+   *  collection rebuilds the panels and the outline moves with it. */
+  activeCollectionId: number | null;
 }
 
 /**
@@ -54,7 +58,14 @@ export interface PanelContext {
  * all known at build time, and a reader should be able to see the workspace's
  * shape in one place.
  */
-export function buildPanels({ campaign, catalog, view, mode, layout }: PanelContext): PanelDef[] {
+export function buildPanels({
+  campaign,
+  catalog,
+  view,
+  mode,
+  layout,
+  activeCollectionId,
+}: PanelContext): PanelDef[] {
   const panels: PanelDef[] = [
     {
       id: MAIN_MAP_PANEL,
@@ -96,7 +107,6 @@ export function buildPanels({ campaign, catalog, view, mode, layout }: PanelCont
     });
   }
 
-  const activeCollectionId = useImageryStore.getState().address?.collectionId;
   for (const collection of collectionsInView(catalog, view)) {
     if (layout.windows[collection.id] === undefined) continue;
     const activate = () => useImageryStore.getState().activateCollection(catalog, collection.id);

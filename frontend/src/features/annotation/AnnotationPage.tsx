@@ -58,6 +58,12 @@ import {
 } from './stores/layout';
 import { usePrefsStore } from './stores/prefs';
 import { useTasksStore } from './stores/tasks';
+import {
+  focusTimedTask,
+  noteTaskActivity,
+  resetTaskTiming,
+  setTaskTimingVisible,
+} from './taskTiming';
 import { useWorkStore } from './stores/work';
 
 type LoadState = 'loading' | 'ready' | 'failed';
@@ -124,6 +130,9 @@ export function AnnotationPage() {
   const popped = usePoppedPanels();
   const restorableScreens = useRestorableScreens();
 
+  // Which imagery window the canvas outlines as active.
+  const activeCollectionId = useImageryStore((s) => s.address?.collectionId ?? null);
+
   const visibleTasks = useTasksStore((s) => s.visibleTasks);
   const tasksLoaded = useTasksStore((s) => s.loaded);
   const allTasks = useTasksStore((s) => s.allTasks);
@@ -132,8 +141,26 @@ export function AnnotationPage() {
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name);
   useEffect(() => useCampaignStore.getState().setMobile(isMobile), [isMobile]);
 
-  const goTo = (subpage: 'settings' | 'tasks' | '') => () =>
-    navigate(campaignPath(projectId, campaignId, subpage || undefined));
+  // ------------------------------------------------------------------
+  // Time on task
+  // ------------------------------------------------------------------
+  const timedTaskId = useTasksStore((s) => s.visibleTasks[s.currentIndex]?.id ?? null);
+  useEffect(() => {
+    focusTimedTask(timedTaskId);
+    return () => focusTimedTask(null);
+  }, [timedTaskId]);
+
+  useEffect(() => {
+    const onVisibility = () => setTaskTimingVisible(document.visibilityState === 'visible');
+    onVisibility();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  const goTo =
+    (subpage: 'settings' | 'tasks' | '', search = '') =>
+    () =>
+      navigate(campaignPath(projectId, campaignId, subpage || undefined) + search);
 
   // ------------------------------------------------------------------
   // Load
@@ -203,6 +230,7 @@ export function AnnotationPage() {
       useWorkStore.getState().resetAll();
       useAppLayoutStore.getState().cancelConfirmDialog();
       resetNavMemory();
+      resetTaskTiming();
     };
     // A new campaign is a whole new page; nothing else re-runs the load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -269,7 +297,14 @@ export function AnnotationPage() {
   // ------------------------------------------------------------------
   const panels: PanelDef[] = useMemo(() => {
     if (!campaign || !catalog) return [];
-    const built = buildPanels({ campaign, catalog, view, mode: workMode, layout: currentLayout });
+    const built = buildPanels({
+      campaign,
+      catalog,
+      view,
+      mode: workMode,
+      layout: currentLayout,
+      activeCollectionId,
+    });
     // The main map is the leader every other camera follows and the page would
     // be left with no map at all, so it gets no send control.
     if (isMobile || !editing) return built;
@@ -300,7 +335,17 @@ export function AnnotationPage() {
             ),
           }
     );
-  }, [campaign, catalog, view, workMode, currentLayout, isMobile, editing, screens]);
+  }, [
+    campaign,
+    catalog,
+    view,
+    workMode,
+    currentLayout,
+    activeCollectionId,
+    isMobile,
+    editing,
+    screens,
+  ]);
 
   const panelIds = useMemo(() => panels.map((p) => p.id), [panels]);
   const windowSize = defaultWindowItem(newWindowSize.perRow, newWindowSize.rows);
@@ -420,7 +465,16 @@ export function AnnotationPage() {
   const showCanvas = workMode === 'explore' || visibleTasks.length > 0;
 
   return (
-    <div className="annotation-workspace flex min-h-0 flex-1 flex-col">
+    // Activity is captured here rather than on `document` so that panels popped
+    // out to another screen count too: they are React portals, so their events
+    // still propagate up this tree even though they live in another document.
+    <div
+      className="annotation-workspace flex min-h-0 flex-1 flex-col"
+      onPointerDownCapture={noteTaskActivity}
+      onPointerMoveCapture={noteTaskActivity}
+      onKeyDownCapture={noteTaskActivity}
+      onWheelCapture={noteTaskActivity}
+    >
       <Toolbar
         campaign={campaign}
         tasks={allTasks}
@@ -437,7 +491,7 @@ export function AnnotationPage() {
             onDefaultSaved={() => setSettingUpFirstView(false)}
           />
         }
-        onNavigateWorkPage={goTo('')}
+        onNavigateWorkPage={workMode === 'tasks' ? goTo('tasks', '?taskSet=all') : goTo('')}
         onNavigateSettings={goTo('settings')}
         onOpenTour={() => setTourOpen(true)}
       />
