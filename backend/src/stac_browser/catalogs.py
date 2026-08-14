@@ -1,18 +1,15 @@
 """Catalog listing: curated catalogs, the StacIndex integration, and the SSRF guard
 applied to user-supplied catalog URLs."""
 
-import contextlib
-import ipaddress
 import logging
-import socket
 import time
 from collections import OrderedDict
 from typing import Any
-from urllib.parse import urlparse
 
 import httpx
 from fastapi import HTTPException
 
+from src import net_guard
 from src.tilers import registry
 
 logger = logging.getLogger(__name__)
@@ -78,61 +75,19 @@ def _cache_get(key: str) -> dict | None:
     return _collections_cache.get(key)
 
 
-_INTERNAL_IP_ERROR = "Catalog URL host is not permitted"
-
-
-def _trusted_catalog_origins() -> frozenset[str]:
-    """Origins always allowed regardless of resolved IP (trusted config)."""
-    origins: set[str] = set()
-    candidate_urls = [registry.MPC_STAC_URL]
-    with contextlib.suppress(Exception):
-        candidate_urls += [
-            str(t.stac_url) for t in registry.all_tilers() if getattr(t, "stac_url", None)
-        ]
-    for u in candidate_urls:
-        p = urlparse(u)
-        origins.add(f"{p.scheme}://{p.netloc}".rstrip("/"))
-    return frozenset(origins)
-
-
-def _is_internal_ip(ip_str: str) -> bool:
-    addr = ipaddress.ip_address(ip_str)
-    return (
-        addr.is_private
-        or addr.is_loopback
-        or addr.is_link_local
-        or addr.is_reserved
-        or addr.is_multicast
-        or addr.is_unspecified
-    )
-
-
 def assert_catalog_url_safe(catalog_url: str) -> None:
-    """Block SSRF: reject catalog URLs whose host resolves to an internal address.
+    """Reject a catalog URL we must not fetch, with the reason as a 400.
 
-    Public hosts are allowed (browsing arbitrary public STAC catalogs is a core
-    feature). Trusted configured origins (MPC, configured tilers) are always allowed.
+    A courtesy check only, so the user gets a clear error on the entry URL rather
+    than a 502 from deeper in. The guard that actually holds is on the connection
+    (``net_guard``), which also covers redirects and the hrefs the catalog itself
+    hands us. Public hosts are allowed - browsing arbitrary public STAC catalogs
+    is the whole feature.
     """
-    parsed = urlparse(catalog_url)
-    if parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail="Catalog URL must be http or https")
-    host = parsed.hostname
-    if not host:
-        raise HTTPException(status_code=400, detail="Catalog URL has no host")
-
-    origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
-    if origin in _trusted_catalog_origins():
-        return
-
-    port = parsed.port or (443 if parsed.scheme == "https" else 80)
     try:
-        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
-    except socket.gaierror as e:
-        raise HTTPException(status_code=400, detail="Catalog host could not be resolved") from e
-
-    for info in infos:
-        if _is_internal_ip(str(info[4][0])):
-            raise HTTPException(status_code=403, detail=_INTERNAL_IP_ERROR)
+        net_guard.assert_public_url(catalog_url)
+    except net_guard.UnsafeUrlError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 def map_stacindex_catalog(cat: dict) -> dict | None:

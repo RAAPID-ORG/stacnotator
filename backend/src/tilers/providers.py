@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 import httpx
 
 from src.config import TilerCfg, get_settings
+from src.net_guard import assert_public_url
 from src.tilers.registry import HOSTED as PROVIDER_HOSTED
 from src.tilers.registry import MPC as PROVIDER_MPC
 from src.tilers.registry import is_mpc_url
@@ -201,6 +202,7 @@ def ingest_on_tiler(
     """
     if not tiler.allows_ingest:
         raise ValueError("Configured tiler does not allow STAC-API ingest")
+    assert_public_url(catalog_url)
     body = {
         "catalog_url": catalog_url,
         "collection": collection,
@@ -229,6 +231,7 @@ def register_cog_on_tiler(
     ``internal_storage`` marks the search so the tiler reads its assets with the managed
     identity. Returns the tiler search id, used to build the tile-URL template.
     """
+    assert_public_url(cog_url)
     token = mint_tiler_token("backend", [], scope=["searches:write"], ttl=300)
     resp = httpx.post(
         f"{_register_base(tiler)}/searches/register-cog",

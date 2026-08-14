@@ -62,6 +62,8 @@ def _fake_post(monkeypatch, payload):
             captured.update(url=url, json=json, headers=headers) or _Resp()
         ),
     )
+    # The SSRF guard resolves DNS; these tests are about the payload, not the guard.
+    monkeypatch.setattr(providers, "assert_public_url", lambda url: None)
     return captured
 
 

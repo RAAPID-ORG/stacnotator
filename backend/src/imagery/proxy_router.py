@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from src import net_guard
 from src.crypto import DecryptionError, decrypt
 from src.database import SessionLocal
 from src.imagery.models import Basemap, ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
@@ -27,7 +28,9 @@ from src.tilers import tokens
 
 router = APIRouter(tags=["Imagery Tiles"])
 
-_client = httpx.AsyncClient(timeout=15.0)
+# Guarded: the template is a stored, campaign-admin-supplied URL, so the fetch is
+# only as trustworthy as whatever that admin typed.
+_client = net_guard.guarded_async_client(timeout=15.0)
 
 
 async def _read[T](lookup: Callable[[Session], T]) -> T:
@@ -79,13 +82,23 @@ async def _proxy(template: str, encrypted_api_key: str | None, z: int, x: int, y
     try:
         resp = await _client.get(url)
         resp.raise_for_status()
+    except net_guard.UnsafeUrlError as e:
+        raise HTTPException(status_code=502, detail=f"Upstream tile URL rejected: {e}") from e
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail="Upstream tile fetch failed") from e
     return Response(
         content=resp.content,
-        media_type=resp.headers.get("content-type", "image/png"),
+        media_type=_image_media_type(resp.headers.get("content-type")),
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+def _image_media_type(upstream: str | None) -> str:
+    """Never echo a non-image content type back from an image endpoint - the body
+    is upstream-controlled, so HTML here would render in the user's origin."""
+    if upstream and upstream.split(";")[0].strip().lower().startswith("image/"):
+        return upstream
+    return "application/octet-stream"
 
 
 @router.get(

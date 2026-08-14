@@ -10,10 +10,15 @@ import planetary_computer as pc
 import pystac
 import pystac_client
 from pystac_client import CollectionClient
+from pystac_client.exceptions import APIError
+from pystac_client.stac_api_io import StacApiIO
 
+from src import net_guard
 from src.tilers.registry import is_mpc_url
 
 logger = logging.getLogger(__name__)
+
+STAC_READ_TIMEOUT = 30.0
 
 # Collections whose items carry eo:cloud_cover even though the collection metadata
 # doesn't declare the EO extension (mostly MPC), so the wizard can still offer a
@@ -33,6 +38,43 @@ _KNOWN_CLOUD_COVER_COLLECTIONS = {
 }
 
 
+class GuardedStacIO(StacApiIO):
+    """Reads every STAC document through the SSRF-guarded httpx client.
+
+    A catalog's own content decides what we fetch next - its ``next`` page links,
+    its child and item hrefs - so checking the entry URL the user typed guards
+    almost nothing. pystac_client's stock IO is a requests session we can't pin a
+    resolved address into, hence the swap.
+    """
+
+    # One pooled client for every catalog read in the process. A per-instance client
+    # would be built and dropped per request, losing the connection reuse.
+    _http = net_guard.guarded_client(
+        timeout=STAC_READ_TIMEOUT, follow_redirects=True, headers={"Accept": "application/json"}
+    )
+
+    def read_text(self, source, *args, **kwargs) -> str:
+        href = source.to_dict()["href"] if isinstance(source, pystac.link.Link) else str(source)
+        if not href.lower().startswith(("http://", "https://")):
+            raise APIError(f"refusing to read a non-http STAC href: {href}")
+        return super().read_text(source, *args, **kwargs)
+
+    def request(self, href, method=None, headers=None, parameters=None) -> str:
+        try:
+            if method == "POST":
+                resp = self._http.post(href, json=parameters, headers=headers)
+            else:
+                resp = self._http.get(href, params=parameters or None, headers=headers)
+        except Exception as err:
+            logger.debug("STAC read failed: %s %s", href, err)
+            raise APIError(str(err)) from err
+        if resp.status_code != 200:
+            error = APIError(resp.text)
+            error.status_code = resp.status_code
+            raise error
+        return resp.content.decode("utf-8")
+
+
 def get_client(catalog_url: str, sign: bool = True) -> pystac_client.Client:
     """Get a pystac Client for the given catalog URL.
 
@@ -45,7 +87,7 @@ def get_client(catalog_url: str, sign: bool = True) -> pystac_client.Client:
     kwargs = {}
     if sign and is_mpc_url(catalog_url):
         kwargs["modifier"] = pc.sign_inplace
-    return pystac_client.Client.open(catalog_url, **kwargs)
+    return pystac_client.Client.open(catalog_url, stac_io=GuardedStacIO(), **kwargs)
 
 
 def _asset_defs_from_item(item: pystac.Item) -> dict:
@@ -78,6 +120,33 @@ def _sample_item_assets(col) -> dict:
     return _asset_defs_from_item(item) if item is not None else {}
 
 
+MAX_CHILD_FETCH_WORKERS = 16
+
+
+def _child_collections(client: pystac_client.Client, stac_io) -> list[dict]:
+    """A static catalog (an S3-hosted catalog.json, say) has no /collections endpoint: its
+    collections hang off the root as ``child`` links, one JSON document each. Fetch them in
+    parallel and keep the collections.
+
+    Only direct children are collected. A child that is itself a catalog would need a
+    recursive crawl to reach, which ``search_items`` could not then resolve back to a
+    collection, so it is reported as unavailable rather than half-supported.
+    """
+    hrefs = [href for link in client.get_links(rel="child") if (href := link.get_absolute_href())]
+
+    def read(href: str) -> dict | None:
+        try:
+            doc: dict = stac_io.read_json(href)
+            return doc
+        except Exception:
+            logger.warning("static catalog child unreachable: %s", href, exc_info=True)
+            return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CHILD_FETCH_WORKERS) as pool:
+        docs = [doc for doc in pool.map(read, hrefs) if doc is not None]
+    return [doc for doc in docs if doc.get("type") in ("Collection", "Catalog")]
+
+
 def _raw_collections(client: pystac_client.Client) -> list[dict]:
     """Fetch the raw /collections payload (all pages) as plain dicts.
 
@@ -85,12 +154,13 @@ def _raw_collections(client: pystac_client.Client) -> list[dict]:
     first collection with malformed STAC metadata, aborting the whole catalog. Reading
     the raw list lets us parse each collection independently and isolate the bad ones.
     """
-    link = client.get_single_link("data") or client.get_single_link("collections")
-    if link is None:
-        raise ValueError("catalog exposes no 'data' link to list collections")
     stac_io = client._stac_io
     if stac_io is None:
         raise ValueError("catalog client has no IO to read collections")
+
+    link = client.get_single_link("data") or client.get_single_link("collections")
+    if link is None:
+        return _child_collections(client, stac_io)
 
     out: list[dict] = []
     href: str | None = link.href
@@ -163,10 +233,13 @@ def _collection_out(col: pystac.Collection) -> dict:
     }
 
 
-def _unavailable_collection(raw: dict, err: Exception) -> dict:
+NESTED_CATALOG_REASON = "Nested sub-catalogs can't be browsed - only collections"
+
+
+def _unavailable_collection(raw: dict, err: Exception | None, reason: str | None = None) -> dict:
     """A collection we couldn't parse. Surfaced (never hidden) but not selectable, with
     a reason, so the user still sees it exists and understands why it's unusable."""
-    reason = (
+    reason = reason or (
         "Missing the required 'stac_version' field in its STAC metadata"
         if "stac_version" not in raw
         else "Its STAC metadata is invalid and could not be parsed"
@@ -199,6 +272,9 @@ def list_collections(catalog_url: str) -> list[dict]:
 
     results = []
     for raw in raw_cols:
+        if raw.get("type") == "Catalog":
+            results.append(_unavailable_collection(raw, None, NESTED_CATALOG_REASON))
+            continue
         try:
             col = CollectionClient.from_dict(raw, root=client)
         except Exception as e:
@@ -267,7 +343,9 @@ def _to_utc(dt: datetime | None) -> datetime | None:
     return None if dt is None else _as_utc(dt)
 
 
-def _parse_dt(value: str) -> datetime | None:
+def parse_datetime(value: str) -> datetime | None:
+    """One end of a STAC datetime range, as UTC. None when open (``""``/``".."``)
+    or unparseable - the caller decides which of those it will accept."""
     value = value.strip()
     if not value or value == "..":
         return None
@@ -283,8 +361,8 @@ def parse_datetime_range(datetime_range: str | None) -> tuple[datetime | None, d
         return (None, None)
     parts = datetime_range.split("/")
     if len(parts) == 1:
-        return (_parse_dt(parts[0]), None)
-    return (_parse_dt(parts[0]), _parse_dt(parts[1]))
+        return (parse_datetime(parts[0]), None)
+    return (parse_datetime(parts[0]), parse_datetime(parts[1]))
 
 
 def bbox_intersects(item_bbox: list[float] | None, query_bbox: list[float] | None) -> bool:
@@ -420,7 +498,7 @@ def _search_via_walk(
     )
     # One pooled client reused across the whole crawl (connection + TLS reuse).
     with (
-        httpx.Client(timeout=15, follow_redirects=True, limits=limits) as http,
+        net_guard.guarded_client(timeout=15, follow_redirects=True, limits=limits) as http,
         concurrent.futures.ThreadPoolExecutor(max_workers=MAX_STATIC_FETCH_WORKERS) as pool,
     ):
         while idx < total and len(results) < limit and fetched < STATIC_PAGE_FETCH_BUDGET:
