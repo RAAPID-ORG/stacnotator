@@ -10,6 +10,7 @@ import {
 import type { BandPreset, AssetInfo } from './collectionPresets';
 import type { VizParams } from './types';
 import { normalizeColorFormula, validateColorFormula } from './vizValidation';
+import { COMPOSITING_METHODS, NO_TILER_NOTE } from './tilerCapabilities';
 import { IconChevronDown, IconChevronUp } from '~/shared/ui/Icons';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
 import { Input, Select } from '~/shared/ui/forms';
@@ -102,6 +103,8 @@ interface VizConfigPanelProps {
   vizParams: VizParams;
   onChange: (params: VizParams) => void;
   showCompositing?: boolean;
+  /** Compositing methods the tiler serving this catalog can actually produce. */
+  compositingMethods?: string[];
 }
 
 export const VizConfigPanel = ({
@@ -110,6 +113,7 @@ export const VizConfigPanel = ({
   vizParams,
   onChange,
   showCompositing = false,
+  compositingMethods,
 }: VizConfigPanelProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isRgbAsset, setIsRgbAsset] = useState(false);
@@ -139,6 +143,14 @@ export const VizConfigPanel = ({
   const selBidx = vizParams.bidx ?? [];
   // How many output bands are selected (drives RGB-vs-single-band / colormap logic).
   const selCount = bandMode ? selBidx.length : vizParams.assets.length;
+
+  // Best-NDVI needs red/NIR bands to rank pixels by, so it is only meaningful on the
+  // collections we know carry them.
+  const offeredMethods = COMPOSITING_METHODS.filter(
+    (m) =>
+      (compositingMethods ?? COMPOSITING_METHODS.map((c) => c.value)).includes(m.value) &&
+      (m.value !== 'ndvi_best' || collectionId.includes('sentinel-2'))
+  );
 
   const presets = COLLECTION_PRESETS[collectionId] || [];
   const validPresets = presets.filter((p) =>
@@ -439,16 +451,19 @@ export const VizConfigPanel = ({
             size="sm"
             value={vizParams.compositing || 'first'}
             onChange={(e) => update('compositing', e.target.value)}
+            disabled={offeredMethods.length < 2}
           >
-            <option value="first">First valid pixel</option>
-            <option value="mean">Mean</option>
-            <option value="median">Median</option>
-            <option value="max">Maximum</option>
-            <option value="min">Minimum</option>
-            {collectionId.includes('sentinel-2') && (
-              <option value="ndvi_best">Best NDVI pixel</option>
-            )}
+            {offeredMethods.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
           </Select>
+          {offeredMethods.length < 2 && (
+            <p className="text-[10px] text-neutral-500 mt-1">
+              Only first-valid compositing is available for this catalog. {NO_TILER_NOTE}
+            </p>
+          )}
           {vizParams.compositing && vizParams.compositing !== 'first' && (
             <p className="text-[10px] text-amber-600 mt-1">
               Non-first-valid compositing reads multiple scenes per tile - expect ~10x slower data

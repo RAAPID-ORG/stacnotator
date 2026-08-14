@@ -12,6 +12,8 @@ interface VizTabsProps {
   collectionId: string;
   availableAssets: Record<string, AssetInfo>;
   showCompositing: boolean;
+  /** Compositing methods the tiler serving this catalog can actually produce. */
+  compositingMethods?: string[];
   onParamsChange: (index: number, params: VizParams) => void;
   /** When provided, a "Visualization Name" input is shown and tab names are editable. */
   onNameChange?: (index: number, name: string) => void;
@@ -28,6 +30,7 @@ export const VizTabs = ({
   collectionId,
   availableAssets,
   showCompositing,
+  compositingMethods,
   onParamsChange,
   onNameChange,
   onAdd,
@@ -96,6 +99,7 @@ export const VizTabs = ({
           vizParams={visualizations[active]?.vizParams || emptyVizParams()}
           onChange={(params) => onParamsChange(active, params)}
           showCompositing={showCompositing}
+          compositingMethods={compositingMethods}
         />
       </div>
     </div>

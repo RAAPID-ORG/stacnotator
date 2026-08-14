@@ -17,6 +17,8 @@ import { buildStacAutoQuery } from './stacQuery';
 import { VizConfigPanel } from './VizConfigPanel';
 import { CoverSearchParams } from './CoverSearchParams';
 import type { ImageryController } from './controller';
+import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
+import { compositingMethods, servingTiler } from './tilerCapabilities';
 
 export type BulkFocus = { kind: 'viz'; name: string } | { kind: 'search' };
 
@@ -189,6 +191,7 @@ interface BulkApplyModalProps {
 export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApplyModalProps) => {
   const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
   const [hasCloudCover, setHasCloudCover] = useState(false);
+  const { tilers } = useProjectTilers(controller.projectId);
 
   const cols = stacCols(source);
   const first = cols[0];
@@ -223,6 +226,9 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
         collectionId={collectionId}
         availableAssets={availableAssets}
         showCompositing={allMosaic}
+        compositingMethods={compositingMethods(
+          first ? servingTiler(sbData(first).catalogUrl, sbData(first).tiler, tilers) : undefined
+        )}
         hasCover={hasCover}
         onClose={onClose}
       />
@@ -259,6 +265,7 @@ interface VizFocusProps {
   collectionId: string;
   availableAssets: Record<string, AssetInfo>;
   showCompositing: boolean;
+  compositingMethods: string[];
   hasCover: boolean;
   onClose: () => void;
 }
@@ -270,6 +277,7 @@ const VizFocus = ({
   collectionId,
   availableAssets,
   showCompositing,
+  compositingMethods,
   hasCover,
   onClose,
 }: VizFocusProps) => {
@@ -305,6 +313,7 @@ const VizFocus = ({
             vizParams={regularDraft}
             onChange={setRegularDraft}
             showCompositing={showCompositing}
+            compositingMethods={compositingMethods}
           />
         </AspectSection>
 
@@ -316,6 +325,7 @@ const VizFocus = ({
               vizParams={coverDraft}
               onChange={setCoverDraft}
               showCompositing
+              compositingMethods={compositingMethods}
             />
           </AspectSection>
         )}

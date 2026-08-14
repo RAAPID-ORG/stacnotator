@@ -25,6 +25,7 @@ import { CoverSearchParams } from './CoverSearchParams';
 import { StacQueryEditor } from './StacQueryEditor';
 import { getCollections, type AssetInfo } from '~/api/client';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
+import { compositingMethods, servingTiler } from './tilerCapabilities';
 
 interface CollectionEditorProps {
   collection: CollectionItem;
@@ -65,6 +66,9 @@ export const CollectionEditor = ({
 
   const hostedTilers = tilers.filter((t) => t.kind === 'hosted');
   const defaultTilerName = hostedTilers.find((t) => t.is_default)?.name;
+  const availableCompositing = compositingMethods(
+    servingTiler(sb?.catalogUrl ?? '', sb?.tiler, tilers)
+  );
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const buildAutoQuery = (
@@ -666,12 +670,17 @@ export const CollectionEditor = ({
                             value={sb.tiler ?? defaultTilerName ?? ''}
                             onChange={(e) => updateSb({ tiler: e.target.value || null })}
                           >
-                            {hostedTilers.map((t) => (
-                              <option key={t.name} value={t.name}>
-                                {t.name}
-                                {t.is_default ? ' (default)' : ''}
-                              </option>
-                            ))}
+                            {hostedTilers.map((t) => {
+                              const canServe =
+                                servingTiler(sb.catalogUrl, t.name, tilers)?.name === t.name;
+                              return (
+                                <option key={t.name} value={t.name} disabled={!canServe}>
+                                  {t.name}
+                                  {t.is_default ? ' (default)' : ''}
+                                  {canServe ? '' : ' - cannot serve this catalog'}
+                                </option>
+                              );
+                            })}
                           </Select>
                         </div>
                       )}
@@ -728,6 +737,7 @@ export const CollectionEditor = ({
                             collectionId={sb.stacCollectionId}
                             availableAssets={availableAssets}
                             showCompositing
+                            compositingMethods={availableCompositing}
                             onParamsChange={writeCoverVizParams}
                           />
                           {coverVizPrompt === 'open' && (
@@ -773,6 +783,7 @@ export const CollectionEditor = ({
                           collectionId={sb.stacCollectionId}
                           availableAssets={availableAssets}
                           showCompositing={sb.mode === 'mosaic'}
+                          compositingMethods={availableCompositing}
                           onParamsChange={writeVizParams}
                         />
                       </div>

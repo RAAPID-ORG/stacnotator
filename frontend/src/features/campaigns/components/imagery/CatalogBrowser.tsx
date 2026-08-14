@@ -18,6 +18,8 @@ import type {
 import { createId, emptyVizParams, isItemSortOption } from './types';
 import { buildStacAutoQuery } from './stacQuery';
 import { VizTabs } from './VizTabs';
+import { compositingMethods, servingTiler, NO_TILER_NOTE } from './tilerCapabilities';
+import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { CoverSearchParams } from './CoverSearchParams';
 import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
 import type { BandPreset } from './collectionPresets';
@@ -231,6 +233,16 @@ export const CatalogBrowser = ({
 
   const [query, setQuery] = useState('');
   const [customCatalogUrl, setCustomCatalogUrl] = useState('');
+  const { tilers } = useProjectTilers(projectId);
+  // A catalog can only be offered if some tiler the organization may use can render it,
+  // and that same tiler decides which compositing methods are on the table.
+  const catalogTiler = (cat: StacCatalogOut) => servingTiler(cat.url, cat.tiler_name, tilers);
+  // A catalog nobody hosts for us has to be ingested, so an arbitrary URL is only an
+  // option when some allowed tiler can ingest.
+  const hasIngestTiler = tilers.some((t) => t.kind === 'hosted' && t.allows_ingest);
+  const availableCompositing = compositingMethods(
+    selectedCatalog ? catalogTiler(selectedCatalog) : undefined
+  );
   const [mode, setMode] = useState<'single-item' | 'mosaic'>(initialMode);
 
   // Date range - default to 2024-01 through 2024-12
@@ -993,57 +1005,63 @@ export const CatalogBrowser = ({
   const providedCatalogs = catalogs.filter((c) => c.provided);
   const stacIndexCatalogs = catalogs.filter((c) => !c.provided);
 
-  const renderCatalogCard = (cat: StacCatalogOut) => (
-    <div key={cat.id} className="flex items-start gap-1.5">
-      <button
-        type="button"
-        onClick={() => selectCatalog(cat)}
-        disabled={!cat.selectable}
-        className={`flex-1 text-left px-3 py-2.5 rounded-lg border transition-colors ${
-          cat.selectable
-            ? 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
-            : 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
-        }`}
-      >
-        <span className="text-sm font-medium flex items-center gap-1.5">
-          {cat.title}
-          {cat.is_mpc && (
-            <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
-              MPC
-            </span>
-          )}
-          {cat.auth_required && (
-            <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
-              Auth required
-            </span>
-          )}
-        </span>
-        <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
-        {!cat.selectable && cat.unavailable_reason && !cat.auth_required && (
-          <p className="text-[11px] text-amber-600 mt-1">{cat.unavailable_reason}</p>
-        )}
-      </button>
-      <div className="mt-2.5">
-        <InfoPopover>
-          <div className="space-y-1.5">
-            {cat.summary ? (
-              <p>{cat.summary}</p>
-            ) : (
-              <p className="text-neutral-400 italic">No description available.</p>
+  const renderCatalogCard = (cat: StacCatalogOut) => {
+    const untileable = !cat.is_mpc && !catalogTiler(cat);
+    const selectable = cat.selectable !== false && !untileable;
+    const unavailableReason = untileable ? NO_TILER_NOTE : cat.unavailable_reason;
+    return (
+      <div key={cat.id} className="flex items-start gap-1.5">
+        <button
+          type="button"
+          onClick={() => selectCatalog(cat)}
+          disabled={!selectable}
+          className={`flex-1 text-left px-3 py-2.5 rounded-lg border transition-colors ${
+            selectable
+              ? 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
+              : 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
+          }`}
+        >
+          <span className="text-sm font-medium flex items-center gap-1.5">
+            {cat.title}
+            {cat.is_mpc && (
+              <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
+                MPC
+              </span>
             )}
-            <a
-              href={cat.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand-600 hover:underline block truncate"
-            >
-              {cat.url}
-            </a>
-          </div>
-        </InfoPopover>
+            {cat.auth_required && (
+              <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
+                Auth required
+              </span>
+            )}
+          </span>
+          <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
+          {!selectable && unavailableReason && !cat.auth_required && (
+            <p className="text-[11px] text-amber-600 mt-1">{unavailableReason}</p>
+          )}
+        </button>
+        <div className="mt-2.5">
+          <InfoPopover>
+            <div className="space-y-1.5">
+              {cat.summary ? (
+                <p>{cat.summary}</p>
+              ) : (
+                <p className="text-neutral-400 italic">No description available.</p>
+              )}
+              <a
+                href={cat.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-600 hover:underline block truncate"
+              >
+                {cat.url}
+              </a>
+            </div>
+          </InfoPopover>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
   const filteredCollections = fuzzy(
     collections,
     query,
@@ -1186,16 +1204,20 @@ export const CatalogBrowser = ({
                       value={customCatalogUrl}
                       onChange={(e) => setCustomCatalogUrl(e.target.value)}
                       placeholder="https://earth-search.aws.element84.com/v1"
+                      disabled={!hasIngestTiler}
                     />
                     <Button
                       variant="primary"
                       size="sm"
                       onClick={loadCustomCatalog}
-                      disabled={!customCatalogUrl.trim()}
+                      disabled={!hasIngestTiler || !customCatalogUrl.trim()}
                     >
                       Load
                     </Button>
                   </div>
+                  {!hasIngestTiler && (
+                    <p className="text-[11px] text-amber-600 mt-1.5">{NO_TILER_NOTE}</p>
+                  )}
                 </CatalogSection>
 
                 <CatalogSection
@@ -1676,6 +1698,7 @@ export const CatalogBrowser = ({
                           collectionId={selectedCollection.id}
                           availableAssets={availableAssets}
                           showCompositing={mode === 'mosaic' && showAdvanced}
+                          compositingMethods={availableCompositing}
                           onParamsChange={(_, params) => updateVizParams(params)}
                           onNameChange={initialGeneration ? undefined : updateVizName}
                           onAdd={initialGeneration ? undefined : addVisualization}
@@ -1721,6 +1744,7 @@ export const CatalogBrowser = ({
                           <CoverSliceAdvancedPanel
                             selectedCollection={selectedCollection!}
                             availableAssets={availableAssets}
+                            compositingMethods={availableCompositing}
                             coverVisualizations={coverVisualizations}
                             setCoverVisualizations={setCoverVisualizations}
                             activeCoverVizIndex={activeCoverVizIndex}
@@ -1928,6 +1952,7 @@ const CoverSliceSection = ({
 interface CoverSliceAdvancedPanelProps {
   selectedCollection: StacCollectionOut;
   availableAssets: Record<string, AssetInfo>;
+  compositingMethods: string[];
   coverVisualizations: NamedVizParams[];
   setCoverVisualizations: React.Dispatch<React.SetStateAction<NamedVizParams[]>>;
   activeCoverVizIndex: number;
@@ -1944,6 +1969,7 @@ interface CoverSliceAdvancedPanelProps {
 const CoverSliceAdvancedPanel = ({
   selectedCollection,
   availableAssets,
+  compositingMethods,
   coverVisualizations,
   setCoverVisualizations,
   activeCoverVizIndex,
@@ -1985,6 +2011,7 @@ const CoverSliceAdvancedPanel = ({
             collectionId={selectedCollection.id}
             availableAssets={availableAssets}
             showCompositing
+            compositingMethods={compositingMethods}
             onParamsChange={(i, params) =>
               setCoverVisualizations((prev) =>
                 prev.map((v, idx) => (idx === i ? { ...v, vizParams: params } : v))
