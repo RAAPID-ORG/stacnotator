@@ -19,6 +19,8 @@ from src.background import finish_status_run
 from src.campaigns.models import Campaign
 from src.database import SessionLocal
 from src.imagery.registration import REGISTRATION_RUN
+from src.organizations.models import Organization
+from src.projects.models import Project
 
 
 @pytest.fixture()
@@ -42,11 +44,18 @@ def db_session():
 
 
 def _make_campaign(db_session) -> Campaign:
+    org = Organization(name="finish-registration-test-org")
+    db_session.add(org)
+    db_session.flush()
+    project = Project(name="finish-registration-test-project", organization_id=org.id)
+    db_session.add(project)
+    db_session.flush()
     campaign = Campaign(
         name="finish-registration-test",
         mode="open",
         registration_status="registering",
         embedding_status="registering",
+        project_id=project.id,
     )
     db_session.add(campaign)
     db_session.flush()
@@ -98,6 +107,25 @@ class TestFinishRegistration:
         refreshed = db_session.get(Campaign, campaign.id)
         assert refreshed.registration_status == "ready"
         assert refreshed.registration_errors == []
+
+    def test_clearing_errors_then_finishing_does_not_leave_a_null_entry(self, db_session):
+        """The imagery router clears registration_errors at a cycle boundary. If
+        that clear lands as the JSON scalar 'null' instead of SQL NULL, the
+        append below turns it into [null] and every later read of the campaign
+        fails validation."""
+        campaign = _make_campaign(db_session)
+        campaign.registration_errors = None
+        finish_status_run(
+            db_session,
+            campaign.id,
+            field=REGISTRATION_RUN,
+            status="ready",
+            errors=[],
+        )
+
+        db_session.expire_all()
+        refreshed = db_session.get(Campaign, campaign.id)
+        assert refreshed.registration_errors in (None, [])
 
     def test_missing_campaign_is_a_noop(self, db_session):
         """No row matches -> the UPDATE affects zero rows; must not raise."""
