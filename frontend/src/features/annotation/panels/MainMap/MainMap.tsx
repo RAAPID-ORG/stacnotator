@@ -9,10 +9,16 @@ import { extendedLabels } from '../../campaign/annotation';
 import { collectionsInView } from '../../campaign/imagery';
 import { computeTaskProgress } from '../../campaign/tasks';
 import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
-import { composeLayers, type AnnotationTiles, type ComposeState } from '../../map/compose';
+import {
+  composeLayers,
+  PROBE_LAYER_ID,
+  probeIndexOf,
+  type AnnotationTiles,
+  type ComposeState,
+} from '../../map/compose';
 import { MapView } from '../../map/MapView';
 import { setForegroundMapLoading, useForegroundLoading } from '../../map/tileLoading';
-import type { MapClickEvent } from '../../map/types';
+import type { LonLat, MapClickEvent } from '../../map/types';
 import { useCampaign, useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
 import { useLayoutStore } from '../../stores/layout';
@@ -34,6 +40,9 @@ import { usePreloading } from './usePreloading';
  *  half-filled grid to explain itself. */
 const SLOW_LOAD_MS = 700;
 
+/** Stable empty array: a fresh [] each render would recompose the layers. */
+const EMPTY_PROBES: LonLat[] = [];
+
 /** Keeps the leader camera on the shared focus. Working zoom is read at move
  *  time so cycling imagery never yanks a camera the user just positioned. */
 function useFocusCamera(mode: WorkMode, workingZoom: number | null): void {
@@ -51,38 +60,62 @@ function useFocusCamera(mode: WorkMode, workingZoom: number | null): void {
   }, [mode, lon, lat]);
 }
 
-function ProbeToggle({ title }: { title: string }) {
-  const active = useWorkStore((s) => s.tool === 'timeseries');
+/** Both modes can drop probes - Explore arms the tool from its palette - so
+ *  the way back off the map lives in the header both share. */
+function ClearProbes() {
+  const probeCount = useWorkStore((s) => s.probePoints.length);
+  if (probeCount === 0) return null;
 
   return (
     <button
       type="button"
       onMouseDown={(e) => e.stopPropagation()}
-      onClick={() => useWorkStore.getState().toggleProbeTool()}
-      aria-pressed={active}
-      aria-label={title}
-      title={title}
-      data-testid="probe-toggle"
-      className={`flex h-6 w-6 items-center justify-center rounded-md cursor-pointer ${
-        active
-          ? 'bg-brand-600 text-white hover:bg-brand-700'
-          : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'
-      }`}
+      onClick={() => useWorkStore.getState().clearProbePoints()}
+      title={`Clear ${probeCount} probe${probeCount > 1 ? 's' : ''}`}
+      aria-label="Clear probes"
+      data-testid="clear-probes"
+      className="flex h-5 items-center gap-0.5 rounded px-1 text-[10px] font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 cursor-pointer"
     >
-      <svg
-        width="13"
-        height="13"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        aria-hidden="true"
-      >
-        <path d="M2 15l4-6 4 3 4-7" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="16" cy="16" r="4" />
-        <path d="m19 19 3 3" strokeLinecap="round" />
-      </svg>
+      <span className="tabular-nums">{probeCount}</span>
+      <span aria-hidden="true">×</span>
     </button>
+  );
+}
+
+function ProbeToggle({ title }: { title: string }) {
+  const active = useWorkStore((s) => s.tool === 'timeseries');
+
+  return (
+    <div className="flex items-center gap-0.5">
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() => useWorkStore.getState().toggleProbeTool()}
+        aria-pressed={active}
+        aria-label={title}
+        title={title}
+        data-testid="probe-toggle"
+        className={`flex h-6 w-6 items-center justify-center rounded-md cursor-pointer ${
+          active
+            ? 'bg-brand-600 text-white hover:bg-brand-700'
+            : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'
+        }`}
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path d="M2 15l4-6 4 3 4-7" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="16" cy="16" r="4" />
+          <path d="m19 19 3 3" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
   );
 }
 
@@ -162,6 +195,7 @@ export function MainMapHeader() {
         {isTaskMode && campaign.time_series.length > 0 && (
           <ProbeToggle title={hotkeyTip(bindings, 't')} />
         )}
+        <ClearProbes />
         {isTaskMode && <PreloadMenu />}
       </div>
       {isTaskMode && (
@@ -183,7 +217,9 @@ export function MainMapHeader() {
 export function taskProbeClick(event: MapClickEvent): void {
   const work = useWorkStore.getState();
   if (event.shiftKey || work.tool !== 'timeseries') return;
-  work.setProbePoint(event.lonLat);
+  const hit = event.layerId === PROBE_LAYER_ID ? probeIndexOf(event.featureId) : null;
+  if (hit !== null) work.removeProbePoint(hit);
+  else work.addProbePoint(event.lonLat);
   work.completeProbe();
 }
 
@@ -202,7 +238,7 @@ export function MainMapBody() {
   const interactions = useWorkStore((s) => s.interactions);
   const drawingClick = useWorkStore((s) => s.onMapClick);
   const onMapClick = mode === 'tasks' ? taskProbeClick : drawingClick;
-  const probePoint = useWorkStore((s) => (s.probeMarkerHidden ? null : s.probePoint));
+  const probePoints = useWorkStore((s) => (s.probeMarkerHidden ? EMPTY_PROBES : s.probePoints));
   const writes = useTileVersion();
   const focus = useMapFocus();
   const { containerRef, width, height } = useContainerSize();
@@ -244,7 +280,7 @@ export function MainMapBody() {
       crosshairColor: focus?.crosshairColor ?? null,
       draftFeatures,
       draftLabelId: draft.phase === 'idle' ? null : draft.labelId,
-      probePoint,
+      probePoints,
     };
     return composeLayers({ catalog, mode }, state);
   }, [
@@ -256,7 +292,7 @@ export function MainMapBody() {
     focus,
     draftFeatures,
     draft,
-    probePoint,
+    probePoints,
   ]);
 
   // A fresh tuple each render would restart preloading forever (its enqueue
@@ -293,8 +329,9 @@ export function MainMapBody() {
         ref={containerRef}
         data-crosshair-lon={focus?.center?.[0]}
         data-crosshair-lat={focus?.center?.[1]}
-        data-probe-lon={probePoint?.[0]}
-        data-probe-lat={probePoint?.[1]}
+        data-probe-lon={probePoints.at(-1)?.[0]}
+        data-probe-lat={probePoints.at(-1)?.[1]}
+        data-probe-count={probePoints.length}
         data-map-loading={mapLoading}
         className="relative h-full min-w-0 flex-1"
       >

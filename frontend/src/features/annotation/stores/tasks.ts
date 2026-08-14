@@ -134,7 +134,9 @@ function publishSelection(catalog: ImageryCatalog): void {
         ? pinned
         : (taskStartCollectionId ?? imagery.address?.collectionId ?? null);
     imagery.resetForTask(catalog, start, scope!);
-    useWorkStore.getState().setProbePoint(null);
+    // Probes are comparisons at this task's location; the next task's map
+    // is a different place, so they do not follow it.
+    useWorkStore.getState().clearProbePoints();
   } else {
     imagery.setEmptyScope(scope);
   }

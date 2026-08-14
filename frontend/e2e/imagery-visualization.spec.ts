@@ -14,7 +14,7 @@ test.describe('Imagery and Visualization', () => {
     annotationPage,
   }) => {
     const page = annotationPage;
-    const header = page.locator('[data-tour="main-map"]');
+    const header = page.locator('[data-panel-role="main-map"]');
 
     // Press D to go to next slice
     await page.keyboard.press('d');
@@ -28,7 +28,7 @@ test.describe('Imagery and Visualization', () => {
 
   test('navigation resets slice index to 0', async ({ annotationPage }) => {
     const page = annotationPage;
-    const header = page.locator('[data-tour="main-map"]');
+    const header = page.locator('[data-panel-role="main-map"]');
 
     // Switch to slice 2 (Jun 2024)
     await page.keyboard.press('d');
@@ -47,11 +47,13 @@ test.describe('Imagery and Visualization', () => {
   }) => {
     const page = annotationPage;
 
-    // Header renders "<done> of <total> done" within data-tour="main-map".
+    // Header renders "<done> of <total> done" within data-panel-role="main-map".
     // Scope is the assignedTo filter (default: current user). Our user is
     // assigned to all 5 tasks, of which TASK_3/4/5 are done/skipped/conflicting
     // (all counted as completed). So the counter must show 3 of 5.
-    const counter = page.locator('[data-tour="main-map"]').getByText(/\d+\s+of\s+\d+\s+done/i);
+    const counter = page
+      .locator('[data-panel-role="main-map"]')
+      .getByText(/\d+\s+of\s+\d+\s+done/i);
     await expect(counter).toContainText('3');
     await expect(counter).toContainText('5');
   });
@@ -60,7 +62,9 @@ test.describe('Imagery and Visualization', () => {
     annotationPage,
   }) => {
     const page = annotationPage;
-    const counter = page.locator('[data-tour="main-map"]').getByText(/\d+\s+of\s+\d+\s+done/i);
+    const counter = page
+      .locator('[data-panel-role="main-map"]')
+      .getByText(/\d+\s+of\s+\d+\s+done/i);
     await expect(counter).toContainText('3 of 5');
 
     // TASK_2 is shared with a co-assignee who has not acted, so submitting
@@ -92,7 +96,7 @@ test.describe('Imagery and Visualization', () => {
 
   test('map and minimap attribution controls stay compact', async ({ annotationPage }) => {
     const buttons = annotationPage.locator(
-      '[data-tour="main-map"] .ol-attribution button, [data-tour="minimap"] .ol-attribution button'
+      '[data-panel-role="main-map"] .ol-attribution button, [data-tour="minimap"] .ol-attribution button'
     );
     await expect(buttons).toHaveCount(2);
 
@@ -111,7 +115,7 @@ test.describe('Imagery and Visualization', () => {
 
   test('keyboard Shift+I cycles visualization layer', async ({ annotationPage }) => {
     const page = annotationPage;
-    const header = page.locator('[data-tour="main-map"]');
+    const header = page.locator('[data-panel-role="main-map"]');
 
     // Initial layer should be "True Color" (first viz)
     await expect(header).toContainText('True Color');

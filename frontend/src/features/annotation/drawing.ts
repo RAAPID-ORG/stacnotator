@@ -19,7 +19,7 @@ import {
   type GeometryType,
 } from './campaign/annotation';
 import { resolveLabelStyle, toDraftStyleSpec, toStyleSpec } from './campaign/labelStyle';
-import { ANNOTATION_LAYER_ID, vectorLayerId } from './map/compose';
+import { ANNOTATION_LAYER_ID, PROBE_LAYER_ID, probeIndexOf, vectorLayerId } from './map/compose';
 import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from './map/types';
 import { campaignState, formFields, useCampaignStore, useLabels } from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
@@ -223,7 +223,11 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
   const work = useWorkStore.getState();
 
   if (work.tool === 'timeseries') {
-    work.setProbePoint(event.lonLat);
+    // Clicking a marker takes that probe back off the chart; anywhere else
+    // adds one alongside the probes already there.
+    const hit = event.layerId === PROBE_LAYER_ID ? probeIndexOf(event.featureId) : null;
+    if (hit !== null) work.removeProbePoint(hit);
+    else work.addProbePoint(event.lonLat);
     work.completeProbe();
     return;
   }

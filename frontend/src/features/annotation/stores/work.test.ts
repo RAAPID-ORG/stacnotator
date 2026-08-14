@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FormField } from '../campaign/annotation';
 import { apiSuccess, makeAnnotation, makeCampaign } from '~/features/annotation/testing/fixtures';
 import { seedCampaign } from '../testing/seed';
-import { useWorkStore } from './work';
+import { MAX_PROBES, useWorkStore } from './work';
 
 vi.mock('~/api/client', async (importActual) => {
   const actual = await importActual<typeof import('~/api/client')>();
@@ -276,5 +276,43 @@ describe('a commit that resolves after the user has moved on', () => {
 
     expect(useWorkStore.getState().draft).toEqual({ phase: 'draft', labelId: 2, geometry: second });
     expect(useWorkStore.getState().formValues).toEqual({ '1': 'second shape' });
+  });
+});
+
+describe('probe points', () => {
+  beforeEach(() => useWorkStore.setState({ probePoints: [] }));
+
+  it('accumulates probes so several locations can be compared at once', () => {
+    const work = useWorkStore.getState();
+    work.addProbePoint([1, 2]);
+    work.addProbePoint([3, 4]);
+    expect(useWorkStore.getState().probePoints).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
+  });
+
+  it('drops the oldest past the cap rather than refusing the click', () => {
+    for (let i = 0; i <= MAX_PROBES; i++) useWorkStore.getState().addProbePoint([i, 0]);
+    const points = useWorkStore.getState().probePoints;
+    expect(points).toHaveLength(MAX_PROBES);
+    expect(points[0]).toEqual([1, 0]);
+    expect(points.at(-1)).toEqual([MAX_PROBES, 0]);
+  });
+
+  it('removes one by index and clears the rest on request', () => {
+    const work = useWorkStore.getState();
+    work.addProbePoint([1, 2]);
+    work.addProbePoint([3, 4]);
+    work.addProbePoint([5, 6]);
+
+    useWorkStore.getState().removeProbePoint(1);
+    expect(useWorkStore.getState().probePoints).toEqual([
+      [1, 2],
+      [5, 6],
+    ]);
+
+    useWorkStore.getState().clearProbePoints();
+    expect(useWorkStore.getState().probePoints).toEqual([]);
   });
 });

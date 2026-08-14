@@ -43,6 +43,10 @@ export interface EditSession {
   busy: boolean;
 }
 
+/** Beyond a handful the chart is unreadable and every probe costs a fetch
+ *  per series. */
+export const MAX_PROBES = 6;
+
 /** `drafted` = the shape is waiting on answers; `nothing` = there was no draft. */
 export type SaveOutcome = 'saved' | 'save-failed' | 'drafted' | 'discarded' | 'nothing';
 
@@ -65,10 +69,12 @@ interface WorkState {
   /** Draw/edit/box-select config the map applies, published by the tool. */
   interactions: InteractionSpec | undefined;
   onMapClick: ((e: MapClickEvent) => void) | undefined;
-  /** Where the timeseries tool last probed, drawn as the probe marker. */
-  probePoint: LonLat | null;
-  /** The chart legend hid every series for the probe point, so its on-map
-   *  marker is meaningless and comes off too. */
+  /** Everywhere the timeseries tool has probed, drawn as numbered markers and
+   *  charted side by side. Ordered oldest first, capped at MAX_PROBES so the
+   *  chart stays readable and one click cannot fan out into a dozen fetches. */
+  probePoints: LonLat[];
+  /** The chart legend hid every probe series, so the on-map markers are
+   *  meaningless and come off too. */
   probeMarkerHidden: boolean;
 
   setSelectedLabelId: (id: number | null) => void;
@@ -83,7 +89,10 @@ interface WorkState {
     spec: InteractionSpec | undefined,
     onMapClick?: (e: MapClickEvent) => void
   ) => void;
-  setProbePoint: (point: LonLat | null) => void;
+  addProbePoint: (point: LonLat) => void;
+  /** Clicking a marker takes that comparison back off the chart. */
+  removeProbePoint: (index: number) => void;
+  clearProbePoints: () => void;
   setProbeMarkerHidden: (hidden: boolean) => void;
   setPendingGeometry: (geometry: GeoJSON.Geometry | null) => void;
   setEditAnnotation: (annotation: AnnotationOut) => void;
@@ -195,7 +204,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     version: 0,
     interactions: undefined,
     onMapClick: undefined,
-    probePoint: null,
+    probePoints: [],
     probeMarkerHidden: false,
 
     setSelectedLabelId: (selectedLabelId) => set({ selectedLabelId }),
@@ -207,7 +216,13 @@ export const useWorkStore = create<WorkState>((set, get) => {
     setActiveFieldIndex: (activeFieldIndex) => set({ activeFieldIndex }),
     setSelection: (selection) => set({ selection }),
     setInteractions: (interactions, onMapClick) => set({ interactions, onMapClick }),
-    setProbePoint: (probePoint) => set({ probePoint }),
+    // At the cap the oldest probe gives way, so the tool keeps working rather
+    // than silently doing nothing.
+    addProbePoint: (point) =>
+      set((s) => ({ probePoints: [...s.probePoints, point].slice(-MAX_PROBES) })),
+    removeProbePoint: (index) =>
+      set((s) => ({ probePoints: s.probePoints.filter((_, i) => i !== index) })),
+    clearProbePoints: () => set({ probePoints: [] }),
     setProbeMarkerHidden: (probeMarkerHidden) => set({ probeMarkerHidden }),
     setPendingGeometry: (pending) => set((s) => (s.edit ? { edit: { ...s.edit, pending } } : {})),
     setEditAnnotation: (annotation) =>
@@ -226,7 +241,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         version: 0,
         interactions: undefined,
         onMapClick: undefined,
-        probePoint: null,
+        probePoints: [],
         probeMarkerHidden: false,
       }),
 
@@ -245,7 +260,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
       // Dropping the label on pan is Explore's "stop drawing". In Tasks the
       // selected label is the answer waiting to be submitted, not a draw arm.
       if (tool === 'pan' && campaignState().workMode === 'explore') set({ selectedLabelId: null });
-      if (tool !== 'timeseries') set({ probePoint: null });
       // An unsaved drag would otherwise stay hidden in the tiles with nothing
       // on screen to confirm or cancel it.
       if (tool !== 'edit') get().clearEdit();

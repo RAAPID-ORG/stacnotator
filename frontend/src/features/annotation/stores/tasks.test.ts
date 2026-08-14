@@ -175,7 +175,7 @@ describe('task session map focus', () => {
     });
     useCampaignStore.setState({ view: makeView({ id: 9 }), taskStartCollectionId: 72 });
     usePrefsStore.setState({ pinnedStart: { 9: 72 } });
-    useWorkStore.getState().setProbePoint([4, 5]);
+    useWorkStore.getState().addProbePoint([4, 5]);
     initialize([TASK_A, TASK_B], catalog);
 
     expect(useImageryStore.getState().address).toEqual({
@@ -187,14 +187,14 @@ describe('task session map focus', () => {
     expect(useImageryStore.getState().windowSlices).toEqual({});
     expect(useImageryStore.getState().empties).toEqual({});
     expect(useImageryStore.getState().viewSnapshots).toEqual({});
-    expect(useWorkStore.getState().probePoint).toBeNull();
+    expect(useWorkStore.getState().probePoints).toEqual([]);
 
     useImageryStore.setState({
       address: { sourceId: 7, collectionId: 71, sliceIndex: 1, vizId: '70' },
       windowSlices: { 71: { selected: 1, userPicked: 1 } },
       empties: { '71:0': true },
     });
-    useWorkStore.getState().setProbePoint([6, 7]);
+    useWorkStore.getState().addProbePoint([6, 7]);
 
     useTasksStore.getState().next(catalog);
 
@@ -206,7 +206,7 @@ describe('task session map focus', () => {
     });
     expect(useImageryStore.getState().windowSlices).toEqual({});
     expect(useImageryStore.getState().empties).toEqual({});
-    expect(useWorkStore.getState().probePoint).toBeNull();
+    expect(useWorkStore.getState().probePoints).toEqual([]);
   });
 
   it('replaceTask() re-syncs the focus for the (possibly still current) task', () => {

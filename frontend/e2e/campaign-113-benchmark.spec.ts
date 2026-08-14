@@ -224,7 +224,7 @@ test(`campaign ${CAMPAIGN_ID} cold random-task benchmark`, async ({ annotationPa
     ) {
       const canvas = this.canvas;
       const panel = canvas.closest(
-        '[data-window-collection-id], [data-panel-id], [data-tour="main-map"]'
+        '[data-window-collection-id], [data-panel-id], [data-panel-role="main-map"]'
       ) as HTMLElement | null;
       const key =
         panel?.dataset.tour === 'main-map'

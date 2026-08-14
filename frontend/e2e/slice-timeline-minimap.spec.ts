@@ -170,7 +170,7 @@ test.describe('Slice cycling via keyboard (A / D)', () => {
       let frames = 0;
       const sample = () => {
         const canvases = document.querySelectorAll<HTMLCanvasElement>(
-          '[data-tour="main-map"] canvas'
+          '[data-panel-role="main-map"] canvas'
         );
         let strongest = 0;
         for (const canvas of canvases) {

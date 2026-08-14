@@ -19,6 +19,20 @@ export const CROSSHAIR_LAYER_ID = 'crosshair';
 export const DRAFT_LAYER_ID = 'draft';
 export const PROBE_LAYER_ID = 'probe';
 
+/** One colour per probe, shared with the chart so a marker and its lines
+ *  match. */
+const PROBE_COLORS = ['#f97316', '#0891b2', '#a855f7', '#16a34a', '#e11d48', '#ca8a04'];
+
+export const probeColor = (index: number): string => PROBE_COLORS[index % PROBE_COLORS.length];
+
+export const probeFeatureId = (index: number): string => `probe-${index}`;
+
+/** Which probe a clicked marker is, or null when the id is not one. */
+export function probeIndexOf(featureId: string | number | undefined): number | null {
+  const match = /^probe-(\d+)$/.exec(String(featureId ?? ''));
+  return match ? Number(match[1]) : null;
+}
+
 /** Exported because labelling a vector feature means recognising a click or a
  *  box hit on one of these. */
 export const vectorLayerId = (id: number): string => `vector-${id}`;
@@ -71,7 +85,7 @@ export interface ComposeState extends ImageryNavState {
   crosshairColor?: string | null;
   draftFeatures?: GeoFeature[];
   draftLabelId?: number | null;
-  probePoint?: LonLat | null;
+  probePoints?: LonLat[];
 }
 
 /** `v` busts the browser and OL tile caches after a write. */
@@ -259,16 +273,23 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     });
   }
 
-  if (!isWindow && state.probePoint) {
+  if (!isWindow && state.probePoints?.length) {
     layers.push({
       kind: 'features',
       id: PROBE_LAYER_ID,
-      features: [
-        { id: PROBE_LAYER_ID, geometry: { type: 'Point', coordinates: state.probePoint } },
-      ],
-      style: {
-        circle: { radius: 5, fill: { color: '#f59e0b' }, stroke: { color: '#ffffff', width: 1.5 } },
-      },
+      features: state.probePoints.map((point, index) => ({
+        id: probeFeatureId(index),
+        geometry: { type: 'Point', coordinates: point },
+      })),
+      // Marker colour matches the chart series for the same probe, which is
+      // what makes "this line is that dot" readable at a glance.
+      style: (feature) => ({
+        circle: {
+          radius: 5,
+          fill: { color: probeColor(probeIndexOf(feature.id) ?? 0) },
+          stroke: { color: '#ffffff', width: 1.5 },
+        },
+      }),
       zIndex: PROBE_Z,
     });
   }

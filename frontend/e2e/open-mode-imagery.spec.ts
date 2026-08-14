@@ -259,6 +259,21 @@ test.describe('Timeseries probe in open mode', () => {
       .toBe(true);
   });
 
+  test('probes accumulate so several locations can be compared', async ({ annotationPage }) => {
+    const map = annotationPage.locator('[data-probe-count]');
+
+    await annotationPage.keyboard.press('t');
+    await clickMapCenter(annotationPage);
+    await expect(map).toHaveAttribute('data-probe-count', '1');
+
+    await annotationPage.keyboard.press('t');
+    await clickMapAt(annotationPage, 150, 80);
+    await expect(map).toHaveAttribute('data-probe-count', '2');
+
+    await annotationPage.getByTestId('clear-probes').click();
+    await expect(map).toHaveAttribute('data-probe-count', '0');
+  });
+
   test('a probe is one-shot; another click requires re-arming', async ({ annotationPage }) => {
     await annotationPage.keyboard.press('t');
     await clickMapCenter(annotationPage);

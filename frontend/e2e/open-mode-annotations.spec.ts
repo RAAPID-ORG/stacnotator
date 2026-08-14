@@ -274,7 +274,10 @@ test.describe.skip('Editing annotations', () => {
     );
 
     // Alt+drag translates the whole feature.
-    const box = await annotationPage.locator('[data-tour="main-map"] canvas').first().boundingBox();
+    const box = await annotationPage
+      .locator('[data-panel-role="main-map"] canvas')
+      .first()
+      .boundingBox();
     const cx = box!.x + box!.width / 2;
     const cy = box!.y + box!.height / 2;
     await annotationPage.keyboard.down('Alt');
@@ -306,7 +309,10 @@ test.describe.skip('Editing annotations', () => {
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText('Selected annotation #');
 
-    const box = await annotationPage.locator('[data-tour="main-map"] canvas').first().boundingBox();
+    const box = await annotationPage
+      .locator('[data-panel-role="main-map"] canvas')
+      .first()
+      .boundingBox();
     const cx = box!.x + box!.width / 2;
     const cy = box!.y + box!.height / 2;
     await annotationPage.keyboard.down('Alt');

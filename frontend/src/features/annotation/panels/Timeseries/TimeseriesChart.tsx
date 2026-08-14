@@ -19,11 +19,12 @@ import {
 import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
 import { nearestSlice } from '../../campaign/imageryNav';
+import { probeColor } from '../../map/compose';
 import { useImageryStore } from '../../stores/imagery';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { IconInfo, IconSliders } from '~/shared/ui/Icons';
 import { useWorkStore } from '../../stores/work';
-import type { TimeSeriesData } from './cache';
+import type { LatLon, TimeSeriesData } from './cache';
 import {
   collectSeriesLabels,
   formatDateForTooltip,
@@ -52,22 +53,33 @@ ChartJS.register(
 );
 
 const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
-const PROBE_COLORS = ['#f97316', '#84cc16', '#f43f5e', '#a78bfa', '#fb923c', '#22d3ee'];
 const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
+
+/** A probe's lines take the colour of its map marker, so several series at one
+ *  probe are told apart by dash instead. */
+const SERIES_DASHES = [[], [6, 3], [2, 2], [8, 3, 2, 3]];
 
 const MIN_VISIBLE_POINTS = 3;
 
 type LineDataset = ChartDataset<'line', (number | null)[]>;
 
-export interface ChartProps {
-  series: TimeSeriesOut[];
-  data: TimeSeriesData;
-  probeData: TimeSeriesData | null;
-  /** Task mode compares two points (main + probe); explore mode charts one. */
-  isOpenMode: boolean;
+/** One location on the chart: the task's own point (probeIndex null) or a
+ *  probe the user dropped. */
+export interface ChartPoint {
+  key: string;
+  latLon: LatLon;
+  /** Appended to each series name in the legend. */
+  label: string;
+  probeIndex: number | null;
 }
 
-export function Chart({ series, data, probeData, isOpenMode }: ChartProps) {
+export interface ChartProps {
+  series: TimeSeriesOut[];
+  /** Every location with data, in draw order. */
+  points: { point: ChartPoint; data: TimeSeriesData }[];
+}
+
+export function Chart({ series, points }: ChartProps) {
   const catalog = useCatalog();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<ChartJS<'line'> | null>(null);
@@ -96,49 +108,35 @@ export function Chart({ series, data, probeData, isOpenMode }: ChartProps) {
     });
   }, []);
 
-  // Toggling every drawn series off in the legend also takes the map's probe
-  // marker away, so the two never disagree about whether that point is being
-  // looked at.
+  // Toggling every probe series off in the legend also takes the map's probe
+  // markers away, so the two never disagree about whether those points are
+  // being looked at.
   const markerHidden = useMemo(() => {
-    if (series.length === 0) return false;
-    if (probeData) return series.every((_, i) => hiddenDatasets.has(series.length + i));
-    if (isOpenMode && data) return series.every((_, i) => hiddenDatasets.has(i));
-    return false;
-  }, [series, probeData, data, isOpenMode, hiddenDatasets]);
+    const probeDatasets = points.flatMap(({ point }, group) =>
+      point.probeIndex === null ? [] : series.map((_, i) => group * series.length + i)
+    );
+    return probeDatasets.length > 0 && probeDatasets.every((i) => hiddenDatasets.has(i));
+  }, [points, series, hiddenDatasets]);
 
   useEffect(() => {
     useWorkStore.getState().setProbeMarkerHidden(markerHidden);
     return () => useWorkStore.getState().setProbeMarkerHidden(false);
   }, [markerHidden]);
 
-  // A fresh point's data arriving is the moment a legend toggle should stop
-  // hiding its series - otherwise a marker the user hid earlier could stay
-  // invisible forever even after the point (and its meaning) has moved on.
+  // Adding or dropping a point shifts every dataset index after it, so the
+  // hidden set is cleared rather than left pointing at whatever moved into
+  // those slots.
+  const pointsKey = points.map(({ point }) => point.key).join('|');
   useEffect(() => {
-    if (!probeData) return;
-    setHiddenDatasets((prev) => {
-      const next = new Set(prev);
-      for (let i = 0; i < series.length; i++) next.delete(series.length + i);
-      return next;
-    });
-  }, [probeData, series.length]);
-
-  useEffect(() => {
-    if (!isOpenMode) return;
-    setHiddenDatasets((prev) => {
-      const next = new Set(prev);
-      for (let i = 0; i < series.length; i++) next.delete(i);
-      return next;
-    });
-  }, [isOpenMode, data, series.length]);
+    setHiddenDatasets(new Set());
+  }, [pointsKey]);
 
   const chartData = useMemo(() => {
     // x-axis labels from this chart's own series, so a 2022 window and a
     // 2018 window each span just the years they cover instead of a shared axis.
     const labels = collectSeriesLabels(
       series.map((ts) => ts.id),
-      data,
-      probeData
+      ...points.map(({ data }) => data)
     );
     const monthLabels = getOptimalMonthLabels(labels);
     const dotRadius = showDots ? 1.5 : 0;
@@ -147,13 +145,13 @@ export function Chart({ series, data, probeData, isOpenMode }: ChartProps) {
       ts: TimeSeriesOut,
       index: number,
       source: TimeSeriesData,
-      colors: string[],
-      datasetIndex: number,
-      labelSuffix: string
+      point: ChartPoint,
+      datasetIndex: number
     ): LineDataset => {
       const rows = source[ts.id] ?? [];
       const rowMap = new Map(rows.map((r) => [r.time, r]));
-      const color = colors[index % colors.length];
+      const color =
+        point.probeIndex === null ? COLORS[index % COLORS.length] : probeColor(point.probeIndex);
 
       const rawData = labels.map((time) => {
         const row = rowMap.get(time);
@@ -166,7 +164,8 @@ export function Chart({ series, data, probeData, isOpenMode }: ChartProps) {
         : rawData;
 
       return {
-        label: `${ts.name}${labelSuffix}`,
+        label: `${ts.name}${point.label}`,
+        borderDash: point.probeIndex === null ? [] : SERIES_DASHES[index % SERIES_DASHES.length],
         data: finalData,
         borderColor: color,
         backgroundColor: color,
@@ -192,19 +191,12 @@ export function Chart({ series, data, probeData, isOpenMode }: ChartProps) {
       };
     };
 
-    const datasets: LineDataset[] = series.map((ts, index) =>
-      buildDataset(ts, index, data, COLORS, index, '')
+    const datasets: LineDataset[] = points.flatMap(({ point, data }, group) =>
+      series.map((ts, index) => buildDataset(ts, index, data, point, group * series.length + index))
     );
-    if (probeData) {
-      series.forEach((ts, index) => {
-        datasets.push(
-          buildDataset(ts, index, probeData, PROBE_COLORS, series.length + index, ' (probe)')
-        );
-      });
-    }
 
     return { labels, datasets, monthLabels };
-  }, [series, data, probeData, removeCloudy, showDots, smoothEnabled, smoothing, hiddenDatasets]);
+  }, [series, points, removeCloudy, showDots, smoothEnabled, smoothing, hiddenDatasets]);
 
   // Resolve the slice currently shown on the map so its date range can be
   // highlighted on the chart. Selecting the slice itself, rather than the
@@ -364,52 +356,48 @@ export function Chart({ series, data, probeData, isOpenMode }: ChartProps) {
           >
             <IconInfo className="w-3 h-3" />
           </button>
-          {series.map((ts, index) => {
-            const color = COLORS[index % COLORS.length];
-            const isHidden = hiddenDatasets.has(index);
-            return (
-              <button
-                key={ts.id}
-                className="flex items-center gap-1 cursor-pointer hover:opacity-80"
-                onClick={() => toggleDataset(index)}
-                title={isHidden ? `Show ${ts.name}` : `Hide ${ts.name}`}
-              >
-                <div
-                  className="w-2 h-2 rounded-sm transition-opacity"
-                  style={{ backgroundColor: color, opacity: isHidden ? 0.3 : 1 }}
-                />
-                <span
-                  className={`text-[9px] font-bold transition-opacity ${isHidden ? 'line-through text-neutral-400' : 'text-neutral-700'}`}
-                >
-                  {ts.name}
-                </span>
-              </button>
-            );
-          })}
-          {probeData &&
+          {points.map(({ point }, group) =>
             series.map((ts, index) => {
-              const color = PROBE_COLORS[index % PROBE_COLORS.length];
-              const dsIndex = series.length + index;
+              const dsIndex = group * series.length + index;
+              const isProbe = point.probeIndex !== null;
+              const color = isProbe
+                ? probeColor(point.probeIndex ?? 0)
+                : COLORS[index % COLORS.length];
               const isHidden = hiddenDatasets.has(dsIndex);
+              const name = `${ts.name}${point.label}`;
               return (
                 <button
-                  key={`probe-${ts.id}`}
+                  key={`${point.key}-${ts.id}`}
                   className="flex items-center gap-1 cursor-pointer hover:opacity-80"
                   onClick={() => toggleDataset(dsIndex)}
-                  title={isHidden ? `Show ${ts.name} (probe)` : `Hide ${ts.name} (probe)`}
+                  title={isHidden ? `Show ${name}` : `Hide ${name}`}
                 >
-                  <div
-                    className="w-2 h-0.5 border-t-2 transition-opacity"
-                    style={{ borderColor: color, opacity: isHidden ? 0.3 : 1 }}
-                  />
+                  {isProbe ? (
+                    <div
+                      className="w-2 h-0.5 border-t-2 transition-opacity"
+                      style={{ borderColor: color, opacity: isHidden ? 0.3 : 1 }}
+                    />
+                  ) : (
+                    <div
+                      className="w-2 h-2 rounded-sm transition-opacity"
+                      style={{ backgroundColor: color, opacity: isHidden ? 0.3 : 1 }}
+                    />
+                  )}
                   <span
-                    className={`text-[9px] font-bold transition-opacity ${isHidden ? 'line-through text-neutral-400' : 'text-neutral-500'}`}
+                    className={`text-[9px] font-bold transition-opacity ${
+                      isHidden
+                        ? 'line-through text-neutral-400'
+                        : isProbe
+                          ? 'text-neutral-500'
+                          : 'text-neutral-700'
+                    }`}
                   >
-                    {ts.name} (probe)
+                    {name}
                   </span>
                 </button>
               );
-            })}
+            })
+          )}
           {isZoomed && (
             <button
               className="text-[9px] text-brand-600 hover:text-brand-700 font-medium ml-1 cursor-pointer"

@@ -20,7 +20,7 @@ export function isTileHost(url: string): boolean {
  *  it as data-crosshair-lat / data-crosshair-lon - the crosshair itself is an
  *  OpenLayers canvas feature and has no DOM node of its own. */
 export const crosshairEl = (page: Page) =>
-  page.locator('[data-tour="main-map"] [data-crosshair-lat][data-crosshair-lon]');
+  page.locator('[data-panel-role="main-map"] [data-crosshair-lat][data-crosshair-lon]');
 
 export async function getCrosshairPosition(page: Page): Promise<{ lat: number; lon: number }> {
   const el = crosshairEl(page);
@@ -146,7 +146,8 @@ export async function waitForMinimapCenter(
 // OpenLayers may create several transformed canvases whose individual boxes do
 // not cover the whole map. Gestures belong to its full viewport, not whichever
 // layer canvas happens to be first in the DOM.
-const mainViewport = (page: Page) => page.locator('[data-tour="main-map"] .ol-viewport').first();
+const mainViewport = (page: Page) =>
+  page.locator('[data-panel-role="main-map"] .ol-viewport').first();
 
 /** Click the centre of the main map - in open mode this is the viewport centre. */
 export async function clickMapCenter(page: Page): Promise<void> {
