@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { newOrganizationPath, organizationPath } from '~/app/routes';
+import { newOrganizationPath, organizationPath, organizationsPath } from '~/app/routes';
 import { useOrgStore } from '~/shared/stores/org.store';
 import { Badge } from '~/shared/ui/Badge';
 import { IconBuilding, IconCheck, IconChevronDown, IconGear, IconPlus } from '~/shared/ui/Icons';
@@ -198,6 +198,17 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
               ))}
 
               <div role="separator" className="my-1 border-t border-neutral-100" />
+
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="org-switcher-browse"
+                onClick={() => go(organizationsPath())}
+                className={menuItemClass}
+              >
+                <IconBuilding className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                Browse organizations
+              </button>
 
               <button
                 type="button"

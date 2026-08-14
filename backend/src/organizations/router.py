@@ -12,12 +12,17 @@ from src.organizations import service
 from src.organizations.dependencies import require_org_admin, require_org_member
 from src.organizations.models import Organization
 from src.organizations.schemas import (
+    AccessRequestCreate,
+    AccessRequestOut,
+    AccessRequestsResponse,
     AddUsersByEmailRequest,
     AddUsersByEmailResult,
     InternalStorageUpdateRequest,
     InviteOut,
     InvitesListResponse,
     OrganizationCreate,
+    OrganizationDirectoryEntry,
+    OrganizationDirectoryResponse,
     OrganizationOut,
     OrganizationsListResponse,
     OrganizationTilersOut,
@@ -58,6 +63,72 @@ def list_organizations(
 ):
     pairs = service.list_organizations_for_user(db, user)
     return OrganizationsListResponse(items=[_to_out(org, admin) for org, admin in pairs])
+
+
+@router.get("/directory", response_model=OrganizationDirectoryResponse)
+def list_organization_directory(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+):
+    """Every approved organization, whether or not the viewer belongs to it,
+    so they can find one to ask to join."""
+    return OrganizationDirectoryResponse(
+        items=[
+            OrganizationDirectoryEntry(
+                id=org.id, name=org.name, description=org.description, membership=membership
+            )
+            for org, membership in service.list_directory(db, user)
+        ]
+    )
+
+
+@router.post("/{organization_id}/access-request", status_code=204)
+def request_organization_access(
+    organization_id: int,
+    body: AccessRequestCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+):
+    service.request_access(db, organization_id, user, body.note)
+
+
+@router.get("/{organization_id}/access-requests", response_model=AccessRequestsResponse)
+def list_organization_access_requests(
+    organization_id: int,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(require_org_admin),
+):
+    requests = service.list_access_requests(db, organization_id)
+    return AccessRequestsResponse(
+        items=[
+            AccessRequestOut(
+                user=UserOut.model_validate(r.user),
+                note=r.request_note,
+                requested_at=r.created_at,
+            )
+            for r in requests
+        ]
+    )
+
+
+@router.post("/{organization_id}/access-requests/{user_id}/approve", status_code=204)
+def approve_organization_access_request(
+    organization_id: int,
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(require_org_admin),
+):
+    service.approve_access_request(db, organization_id, user_id)
+
+
+@router.post("/{organization_id}/access-requests/{user_id}/reject", status_code=204)
+def reject_organization_access_request(
+    organization_id: int,
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(require_org_admin),
+):
+    service.reject_access_request(db, organization_id, user_id)
 
 
 @router.post("/{organization_id}/approve", response_model=OrganizationOut)

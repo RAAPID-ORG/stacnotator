@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +20,37 @@ class OrganizationOut(BaseModel):
 
 class OrganizationsListResponse(BaseModel):
     items: list[OrganizationOut]
+
+
+MembershipStanding = Literal["none", "pending", "active"]
+
+
+class OrganizationDirectoryEntry(BaseModel):
+    """An organization as a non-member sees it, with where they stand: not in
+    it, waiting on an access request, or already a member."""
+
+    id: int
+    name: str
+    description: str | None = None
+    membership: MembershipStanding
+
+
+class OrganizationDirectoryResponse(BaseModel):
+    items: list[OrganizationDirectoryEntry]
+
+
+class AccessRequestCreate(BaseModel):
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class AccessRequestOut(BaseModel):
+    user: UserOut
+    note: str | None = None
+    requested_at: datetime
+
+
+class AccessRequestsResponse(BaseModel):
+    items: list[AccessRequestOut]
 
 
 class OrganizationCreate(BaseModel):

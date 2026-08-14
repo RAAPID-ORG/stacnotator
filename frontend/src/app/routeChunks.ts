@@ -16,6 +16,8 @@ export const importProject = () => import('~/features/projects/pages/ProjectPage
 export const importNewOrganization = () =>
   import('~/features/organizations/pages/NewOrganizationPage');
 export const importOrganization = () => import('~/features/organizations/pages/OrganizationPage');
+export const importBrowseOrganizations = () =>
+  import('~/features/organizations/pages/BrowseOrganizationsPage');
 
 /** Warm the campaign-cluster chunks (New campaign, overview, settings, tasks,
  *  review). These are the common next hops from the home/campaigns pages and are
@@ -36,6 +38,7 @@ export function prefetchWorkspaceChunks(): void {
   void importNewProject();
   void importOrganization();
   void importNewOrganization();
+  void importBrowseOrganizations();
   void importSettings();
 }
 

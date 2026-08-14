@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from src.auth.models import User
 from src.organizations.models import (
     MEMBER_STATUS_ACTIVE,
+    MEMBER_STATUS_PENDING,
     ORG_STATUS_APPROVED,
     ORG_STATUS_PENDING,
     ORG_STATUS_REJECTED,
@@ -16,6 +17,7 @@ from src.organizations.models import (
     OrganizationTiler,
     OrganizationUser,
 )
+from src.organizations.schemas import MembershipStanding
 from src.projects.models import Project, ProjectUser
 from src.tilers import registry
 
@@ -129,6 +131,100 @@ def list_organizations_for_user(db: Session, user: User) -> list[tuple[Organizat
     return [(org, bool(is_admin)) for org, is_admin in rows]
 
 
+def membership_standing(status: str | None) -> MembershipStanding:
+    """How a membership row reads to the user it belongs to. Anything other
+    than a known status means they are simply not in."""
+    if status == MEMBER_STATUS_ACTIVE:
+        return "active"
+    if status == MEMBER_STATUS_PENDING:
+        return "pending"
+    return "none"
+
+
+def list_directory(db: Session, user: User) -> list[tuple[Organization, MembershipStanding]]:
+    """Every approved org with the viewer's standing ('none', 'pending' or
+    'active'). The one listing not scoped to membership: it is what a newly
+    registered user browses to find the org to ask to join. Authentication
+    already requires a verified email, so every caller has one."""
+    rows = db.execute(
+        select(Organization, OrganizationUser.status)
+        .outerjoin(
+            OrganizationUser,
+            (OrganizationUser.organization_id == Organization.id)
+            & (OrganizationUser.user_id == user.id),
+        )
+        .where(Organization.status == ORG_STATUS_APPROVED)
+        .order_by(func.lower(Organization.name))
+    ).all()
+    return [(org, membership_standing(status)) for org, status in rows]
+
+
+def access_request_block(org_status: str, membership_status: str | None) -> str | None:
+    """Why this user may not request access, or None when they may. An
+    outstanding request is not a block: asking again just rewrites the note."""
+    if org_status != ORG_STATUS_APPROVED:
+        return "This organization is not accepting access requests"
+    if membership_status == MEMBER_STATUS_ACTIVE:
+        return "You are already a member of this organization"
+    return None
+
+
+def request_access(db: Session, organization_id: int, user: User, note: str | None) -> None:
+    org = _get_org(db, organization_id)
+    membership = db.get(OrganizationUser, (user.id, organization_id))
+    blocked = access_request_block(org.status, membership.status if membership else None)
+    if blocked:
+        raise HTTPException(status_code=409, detail=blocked)
+    if membership is None:
+        db.add(
+            OrganizationUser(
+                user_id=user.id,
+                organization_id=organization_id,
+                is_admin=False,
+                status=MEMBER_STATUS_PENDING,
+                request_note=note,
+            )
+        )
+    else:
+        membership.request_note = note
+    db.commit()
+
+
+def list_access_requests(db: Session, organization_id: int) -> list[OrganizationUser]:
+    return list(
+        db.scalars(
+            select(OrganizationUser)
+            .where(
+                OrganizationUser.organization_id == organization_id,
+                OrganizationUser.status == MEMBER_STATUS_PENDING,
+            )
+            .options(joinedload(OrganizationUser.user))
+            .order_by(OrganizationUser.created_at)
+        ).all()
+    )
+
+
+def _get_access_request(db: Session, organization_id: int, user_id: UUID) -> OrganizationUser:
+    membership = db.get(OrganizationUser, (user_id, organization_id))
+    if membership is None or membership.status != MEMBER_STATUS_PENDING:
+        raise HTTPException(status_code=404, detail="No pending access request for this user")
+    return membership
+
+
+def approve_access_request(db: Session, organization_id: int, user_id: UUID) -> None:
+    membership = _get_access_request(db, organization_id, user_id)
+    membership.status = MEMBER_STATUS_ACTIVE
+    membership.request_note = None
+    db.commit()
+
+
+def reject_access_request(db: Session, organization_id: int, user_id: UUID) -> None:
+    """Drop the request outright. The user keeps no trace of it and may ask
+    again - an org admin declining once is not a permanent ban."""
+    db.delete(_get_access_request(db, organization_id, user_id))
+    db.commit()
+
+
 def update_organization(
     db: Session, organization_id: int, *, name: str | None, description: str | None
 ) -> Organization:
@@ -155,10 +251,15 @@ def set_internal_storage(db: Session, organization_id: int, allowed: bool) -> Or
 
 
 def get_org_users(db: Session, organization_id: int) -> list[OrganizationUser]:
+    """Active members only. Pending rows are access requests waiting on an
+    admin, and are listed by list_access_requests instead."""
     return list(
         db.scalars(
             select(OrganizationUser)
-            .where(OrganizationUser.organization_id == organization_id)
+            .where(
+                OrganizationUser.organization_id == organization_id,
+                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+            )
             .options(joinedload(OrganizationUser.user))
             .join(User, User.id == OrganizationUser.user_id)
             .order_by(func.lower(func.coalesce(User.display_name, User.email)))

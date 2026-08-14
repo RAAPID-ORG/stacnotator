@@ -5,6 +5,41 @@ export type ClientOptions = {
 };
 
 /**
+ * AccessRequestCreate
+ */
+export type AccessRequestCreate = {
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * AccessRequestOut
+ */
+export type AccessRequestOut = {
+    user: UserOut;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Requested At
+     */
+    requested_at: string;
+};
+
+/**
+ * AccessRequestsResponse
+ */
+export type AccessRequestsResponse = {
+    /**
+     * Items
+     */
+    items: Array<AccessRequestOut>;
+};
+
+/**
  * AddProjectUsersByEmailRequest
  */
 export type AddProjectUsersByEmailRequest = {
@@ -2410,6 +2445,41 @@ export type OrganizationCreate = {
 };
 
 /**
+ * OrganizationDirectoryEntry
+ *
+ * An organization as a non-member sees it, with where they stand: not in
+ * it, waiting on an access request, or already a member.
+ */
+export type OrganizationDirectoryEntry = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Membership
+     */
+    membership: 'none' | 'pending' | 'active';
+};
+
+/**
+ * OrganizationDirectoryResponse
+ */
+export type OrganizationDirectoryResponse = {
+    /**
+     * Items
+     */
+    items: Array<OrganizationDirectoryEntry>;
+};
+
+/**
  * OrganizationOut
  */
 export type OrganizationOut = {
@@ -4075,6 +4145,150 @@ export type RequestOrganizationResponses = {
 };
 
 export type RequestOrganizationResponse = RequestOrganizationResponses[keyof RequestOrganizationResponses];
+
+export type ListOrganizationDirectoryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/organizations/directory';
+};
+
+export type ListOrganizationDirectoryResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationDirectoryResponse;
+};
+
+export type ListOrganizationDirectoryResponse = ListOrganizationDirectoryResponses[keyof ListOrganizationDirectoryResponses];
+
+export type RequestOrganizationAccessData = {
+    body: AccessRequestCreate;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/access-request';
+};
+
+export type RequestOrganizationAccessErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestOrganizationAccessError = RequestOrganizationAccessErrors[keyof RequestOrganizationAccessErrors];
+
+export type RequestOrganizationAccessResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RequestOrganizationAccessResponse = RequestOrganizationAccessResponses[keyof RequestOrganizationAccessResponses];
+
+export type ListOrganizationAccessRequestsData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/access-requests';
+};
+
+export type ListOrganizationAccessRequestsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListOrganizationAccessRequestsError = ListOrganizationAccessRequestsErrors[keyof ListOrganizationAccessRequestsErrors];
+
+export type ListOrganizationAccessRequestsResponses = {
+    /**
+     * Successful Response
+     */
+    200: AccessRequestsResponse;
+};
+
+export type ListOrganizationAccessRequestsResponse = ListOrganizationAccessRequestsResponses[keyof ListOrganizationAccessRequestsResponses];
+
+export type ApproveOrganizationAccessRequestData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/access-requests/{user_id}/approve';
+};
+
+export type ApproveOrganizationAccessRequestErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveOrganizationAccessRequestError = ApproveOrganizationAccessRequestErrors[keyof ApproveOrganizationAccessRequestErrors];
+
+export type ApproveOrganizationAccessRequestResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type ApproveOrganizationAccessRequestResponse = ApproveOrganizationAccessRequestResponses[keyof ApproveOrganizationAccessRequestResponses];
+
+export type RejectOrganizationAccessRequestData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/access-requests/{user_id}/reject';
+};
+
+export type RejectOrganizationAccessRequestErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectOrganizationAccessRequestError = RejectOrganizationAccessRequestErrors[keyof RejectOrganizationAccessRequestErrors];
+
+export type RejectOrganizationAccessRequestResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RejectOrganizationAccessRequestResponse = RejectOrganizationAccessRequestResponses[keyof RejectOrganizationAccessRequestResponses];
 
 export type ApproveOrganizationData = {
     body?: never;

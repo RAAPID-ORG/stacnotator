@@ -20,6 +20,7 @@ import {
   importCampaignOverview,
   importCampaignSettings,
   importCampaignTasks,
+  importBrowseOrganizations,
   importNewOrganization,
   importNewProject,
   importOrganization,
@@ -60,6 +61,9 @@ const lazyNewOrganization = async () => ({
   Component: (await importNewOrganization()).NewOrganizationPage,
 });
 const lazyOrganization = async () => ({ Component: (await importOrganization()).OrganizationPage });
+const lazyBrowseOrganizations = async () => ({
+  Component: (await importBrowseOrganizations()).BrowseOrganizationsPage,
+});
 
 // The id segments come from the (untrusted) URL. Validate them once here so
 // every page can read a real id - an absent/non-numeric param is treated as
@@ -101,6 +105,7 @@ const router = createBrowserRouter(
           </Route>
         </Route>
       </Route>
+      <Route path="organizations" lazy={lazyBrowseOrganizations} />
       <Route path="organizations/new" lazy={lazyNewOrganization} />
       <Route path="organizations/:orgId" loader={requireOrgId} lazy={lazyOrganization} />
       <Route path="settings" lazy={lazySettings} />

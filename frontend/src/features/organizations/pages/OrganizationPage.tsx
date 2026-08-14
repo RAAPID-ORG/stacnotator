@@ -8,6 +8,7 @@ import { Delayed } from '~/shared/ui/Delayed';
 import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
 import { handleError } from '~/shared/utils/errorHandler';
+import { AccessRequests } from '../components/AccessRequests';
 import { OrganizationMembers } from '../components/OrganizationMembers';
 import { useOrganizations } from '../hooks/useOrganizations';
 
@@ -174,6 +175,7 @@ export const OrganizationPage = () => {
         {org ? (
           <>
             <DetailsForm org={org} onSaved={refresh} />
+            <AccessRequests organizationId={org.id} />
             <OrganizationMembers organizationId={org.id} />
           </>
         ) : (

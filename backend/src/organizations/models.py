@@ -80,8 +80,9 @@ class Organization(Base):
 
 
 class OrganizationUser(Base):
-    """Org membership. `pending` rows come from the join link (Phase 3) and
-    grant nothing until an org admin approves them."""
+    """Org membership. `pending` rows are access requests: a registered user
+    asked to join and an org admin has not decided yet. They grant nothing -
+    every access check requires `active`."""
 
     __tablename__ = "organization_users"
     __table_args__ = (
@@ -103,6 +104,9 @@ class OrganizationUser(Base):
     status: Mapped[str] = mapped_column(
         String(20), server_default=MEMBER_STATUS_ACTIVE, nullable=False
     )
+    # What the requester wrote when asking to join. Only informs the admin's
+    # decision, so approval clears it.
+    request_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),

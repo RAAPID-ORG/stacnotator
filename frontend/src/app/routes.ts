@@ -7,6 +7,7 @@ export type CampaignSubpage = 'annotate' | 'settings' | 'tasks' | 'annotations';
 export const campaignPath = (projectId: number, campaignId: number, sub?: CampaignSubpage) =>
   `/projects/${projectId}/campaigns/${campaignId}${sub ? `/${sub}` : ''}`;
 
+export const organizationsPath = () => '/organizations';
 export const newOrganizationPath = () => '/organizations/new';
 export const organizationPath = (orgId: number) => `/organizations/${orgId}`;
 
