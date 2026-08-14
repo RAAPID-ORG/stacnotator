@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { collectionsInView, groupTimeseriesIntoWindows, type Catalog } from '../campaign/catalog';
+import { collectionsInView, type ImageryCatalog } from '../campaign/imagery';
+import { groupTimeseriesIntoWindows } from '../campaign/timeseries';
 import type { WorkspaceLayout } from '../canvas/grid';
 import { ExploreControls } from './ExploreControls/ExploreControls';
 import { ImageryWindowBody } from './ImageryWindow/ImageryWindow';
@@ -41,7 +42,7 @@ export interface PanelDef {
 
 export interface PanelContext {
   campaign: CampaignOutFull;
-  catalog: Catalog;
+  catalog: ImageryCatalog;
   view: ImageryViewOut | null;
   mode: WorkMode;
   layout: WorkspaceLayout;

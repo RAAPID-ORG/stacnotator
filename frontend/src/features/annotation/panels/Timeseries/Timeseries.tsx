@@ -1,6 +1,6 @@
 import { useCampaignStore } from '../../stores/campaign';
 import { useEffect, useMemo, useState } from 'react';
-import type { TimeseriesWindow } from '../../campaign/catalog';
+import type { TimeseriesWindow } from '../../campaign/timeseries';
 import { Spinner } from '~/shared/ui/Spinner';
 import type { LonLat } from '../../map/types';
 import { useWorkStore } from '../../stores/work';

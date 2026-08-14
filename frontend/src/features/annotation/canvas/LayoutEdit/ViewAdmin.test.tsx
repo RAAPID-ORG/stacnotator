@@ -12,7 +12,7 @@ import {
   makeView,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
-import { buildCatalog } from '../../campaign/catalog';
+import { buildImageryCatalog } from '../../campaign/imagery';
 import { useCampaignStore } from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
 import { ViewAdmin } from './ViewAdmin';
@@ -67,7 +67,7 @@ describe('deleting a view', () => {
     vi.mocked(deleteImageryView).mockResolvedValue(apiSuccess(undefined));
     useCampaignStore.setState({
       campaign: CAMPAIGN,
-      catalog: buildCatalog(CAMPAIGN),
+      catalog: buildImageryCatalog(CAMPAIGN),
       view: CAMPAIGN.imagery_views.find((v) => v.id === 1) ?? null,
     });
 
@@ -89,7 +89,7 @@ describe('deleting a view', () => {
     vi.mocked(deleteImageryView).mockResolvedValue(apiSuccess(undefined));
     useCampaignStore.setState({
       campaign: CAMPAIGN,
-      catalog: buildCatalog(CAMPAIGN),
+      catalog: buildImageryCatalog(CAMPAIGN),
       view: CAMPAIGN.imagery_views.find((v) => v.id === 1) ?? null,
     });
 

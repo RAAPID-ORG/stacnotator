@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_TIMESERIES_WINDOW_NAME, groupTimeseriesIntoWindows } from './catalog';
+import { DEFAULT_TIMESERIES_WINDOW_NAME, groupTimeseriesIntoWindows } from './timeseries';
 import { makeTimeSeries } from '../testing/fixtures';
 
 const DEFAULT_KEY = `timeseries:${DEFAULT_TIMESERIES_WINDOW_NAME}`;

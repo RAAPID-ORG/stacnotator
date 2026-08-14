@@ -1,6 +1,8 @@
 import { useCatalog } from '../../stores/campaign';
 import { useEffect, useRef } from 'react';
-import { sliceRaster, type Catalog, type SliceAddress } from '../../campaign/catalog';
+import { type ImageryCatalog } from '../../campaign/imagery';
+import { type SliceAddress } from '../../campaign/imageryNav';
+import { sliceRaster } from '../../campaign/tileUrls';
 import { addressAtSlice } from '../../campaign/imageryNav';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore, type PreloadTier } from '../../stores/prefs';
@@ -86,7 +88,7 @@ function extentAround(center: LonLat, zoom: number, viewportPx: [number, number]
 }
 
 export interface VisibleSliceJobsArgs {
-  catalog: Catalog;
+  catalog: ImageryCatalog;
   addresses: SliceAddress[];
   around: LonLat;
   fallbackZoom: number;
@@ -134,7 +136,7 @@ export function visibleSliceJobs({
 /** Resolve the exact addresses visible now: the main map's active address and
  * one selected date for each rendered window. */
 export function visibleAddresses(
-  catalog: Catalog,
+  catalog: ImageryCatalog,
   active: SliceAddress | null,
   visibleCollectionIds: readonly number[],
   windowSlices: Readonly<Record<number, { selected: number }>>,

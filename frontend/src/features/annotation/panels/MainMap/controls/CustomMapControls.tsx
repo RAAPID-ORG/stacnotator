@@ -1,4 +1,4 @@
-import { type Catalog } from '../../../campaign/catalog';
+import { type ImageryCatalog } from '../../../campaign/imagery';
 import { readyCustomMaps } from '../../../campaign/renderConfig';
 import { useImageryStore } from '../../../stores/imagery';
 import { IconExternalLink } from '~/shared/ui/Icons';
@@ -25,7 +25,7 @@ export function CustomMapControls({
   catalog,
   toggleTitle,
 }: {
-  catalog: Catalog;
+  catalog: ImageryCatalog;
   toggleTitle: string;
 }) {
   const overlay = useImageryStore((s) => s.overlay);

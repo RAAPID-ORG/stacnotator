@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildCatalog } from '../campaign/catalog';
+import { buildImageryCatalog } from '../campaign/imagery';
 import {
   makeCampaign,
   makeCollection,
@@ -34,7 +34,7 @@ const source = makeSource({
     makeCollection({ id: 10, name: 'A', slices: [makeSlice({ id: 100, name: 's0' })] }),
   ],
 });
-const cat = buildCatalog(makeCampaign({ imagery_sources: [source] }));
+const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [source] }));
 
 beforeEach(() => {
   useCampaignStore.setState({
@@ -120,7 +120,7 @@ describe('selectView', () => {
 describe('startCollectionFor', () => {
   const dated = (id: number, start: string) =>
     makeCollection({ id, name: `C${id}`, slices: [makeSlice({ id: id * 10, start_date: start })] });
-  const catalog = buildCatalog(
+  const catalog = buildImageryCatalog(
     makeCampaign({
       imagery_sources: [
         makeSource({

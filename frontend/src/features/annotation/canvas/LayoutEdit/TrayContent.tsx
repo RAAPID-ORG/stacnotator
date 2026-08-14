@@ -1,6 +1,6 @@
 import type { ImageryViewOut } from '~/api/client';
-import type { Catalog } from '../../campaign/catalog';
-import { collectionsInView } from '../../campaign/catalog';
+import type { ImageryCatalog } from '../../campaign/imagery';
+import { collectionsInView } from '../../campaign/imagery';
 import { useLayoutStore } from '../../stores/layout';
 import { defaultWindowItem, fromGridLayout, toGridLayout, type LayoutItem } from '../grid';
 import { HiddenTray, type HiddenTrayItem } from './HiddenTray';
@@ -11,7 +11,7 @@ const MIN_WINDOW_H = 5;
 const MAX_WINDOW_H = 20;
 
 export interface TrayContentProps {
-  catalog: Catalog;
+  catalog: ImageryCatalog;
   view: ImageryViewOut | null;
   canvasRef: React.RefObject<HTMLElement | null>;
 }

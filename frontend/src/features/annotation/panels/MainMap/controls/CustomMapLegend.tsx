@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { RenderConfig } from '~/api/client';
 import { ColormapSelect } from '~/shared/colormaps/ColormapSelect';
 import { gradientFor, isColormapName } from '~/shared/colormaps/colormaps';
-import { type Catalog } from '../../../campaign/catalog';
+import { type ImageryCatalog } from '../../../campaign/imagery';
 import {
   effectiveRenderConfig,
   isCustomized,
@@ -133,7 +133,7 @@ function CategoricalBody({
 }
 
 export interface CustomMapLegendProps {
-  catalog: Catalog;
+  catalog: ImageryCatalog;
 }
 
 export function CustomMapLegend({ catalog }: CustomMapLegendProps) {

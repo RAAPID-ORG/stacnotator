@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AnnotationTaskOut } from '~/api/client';
-import { buildCatalog } from '../campaign/catalog';
+import { buildImageryCatalog } from '../campaign/imagery';
 import {
   makeCampaign,
   makeCollection,
@@ -27,7 +27,7 @@ const CAMPAIGN = makeCampaign({
     }),
   ],
 });
-const CATALOG = buildCatalog(CAMPAIGN);
+const CATALOG = buildImageryCatalog(CAMPAIGN);
 const FILTER = {
   assignedTo: [],
   statuses: ['pending' as const],
@@ -121,7 +121,7 @@ describe('task session map focus', () => {
         makeCollection({ id: 72, slices: [makeSlice({ id: 720 })] }),
       ],
     });
-    const catalog = buildCatalog(makeCampaign({ imagery_sources: [source] }));
+    const catalog = buildImageryCatalog(makeCampaign({ imagery_sources: [source] }));
     useImageryStore.setState({
       address: { sourceId: 7, collectionId: 71, sliceIndex: 0, vizId: '70' },
       emptyScope: null,
@@ -156,7 +156,7 @@ describe('task session map focus', () => {
         }),
       ],
     });
-    const catalog = buildCatalog(makeCampaign({ imagery_sources: [source] }));
+    const catalog = buildImageryCatalog(makeCampaign({ imagery_sources: [source] }));
     useImageryStore.setState({
       address: { sourceId: 7, collectionId: 71, sliceIndex: 1, vizId: '70' },
       windowSlices: { 71: { selected: 1, userPicked: 1 } },

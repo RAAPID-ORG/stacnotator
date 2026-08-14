@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
 import { geometryCentroid, wktToGeometry } from '../campaign/annotation';
-import type { Catalog } from '../campaign/catalog';
+import type { ImageryCatalog } from '../campaign/imagery';
 import {
   applyTaskFilter,
   nextIndex,
@@ -55,15 +55,15 @@ export interface TasksState {
     tasks: AnnotationTaskOut[];
     taskSets: TaskSetOut[];
     filter: TaskFilter;
-    catalog: Catalog;
+    catalog: ImageryCatalog;
     now: number;
     preferTaskId?: number;
   }) => void;
-  setFilter: (filter: TaskFilter, now: number, catalog: Catalog) => void;
-  goToAnnotationNumber: (annotationNumber: number, catalog: Catalog) => boolean;
-  next: (catalog: Catalog) => void;
-  previous: (catalog: Catalog) => void;
-  replaceTask: (updated: AnnotationTaskOut, catalog: Catalog) => void;
+  setFilter: (filter: TaskFilter, now: number, catalog: ImageryCatalog) => void;
+  goToAnnotationNumber: (annotationNumber: number, catalog: ImageryCatalog) => boolean;
+  next: (catalog: ImageryCatalog) => void;
+  previous: (catalog: ImageryCatalog) => void;
+  replaceTask: (updated: AnnotationTaskOut, catalog: ImageryCatalog) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   reset: () => void;
@@ -100,7 +100,7 @@ function sameFocus(a: MapFocus | null, b: MapFocus | null): boolean {
   );
 }
 
-function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog: Catalog) {
+function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog: ImageryCatalog) {
   if (!task) return null;
   const geometry = wktToGeometry(task.geometry.geometry);
   const sourceId = useImageryStore.getState().address?.sourceId ?? null;
@@ -120,7 +120,7 @@ function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog:
  * change which task is current without also moving the imagery, the probe
  * point and the focus.
  */
-function publishSelection(catalog: Catalog): void {
+function publishSelection(catalog: ImageryCatalog): void {
   const state = useTasksStore.getState();
   const task = currentOf(state);
   const imagery = useImageryStore.getState();

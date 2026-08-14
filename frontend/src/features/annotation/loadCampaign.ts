@@ -1,5 +1,5 @@
 import { getAllAnnotationTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
-import { buildCatalog } from './campaign/catalog';
+import { buildImageryCatalog } from './campaign/imagery';
 import { restoreSnapshot } from './campaign/imageryNav';
 import { layoutForView } from './canvas/grid';
 import { seedFilter } from './campaign/tasks';
@@ -42,7 +42,7 @@ export async function loadCampaign(
   if (!campaign) throw new Error(`loadCampaign: no data for ${campaignId}`);
   const tasks = tasksRes.data?.tasks ?? [];
   const taskSets = setsRes.data ?? [];
-  const catalog = buildCatalog(campaign);
+  const catalog = buildImageryCatalog(campaign);
   const view = campaign.imagery_views[0] ?? null;
 
   const filter = seedFilter(tasks, taskSets, options.currentUserId, options.now, {

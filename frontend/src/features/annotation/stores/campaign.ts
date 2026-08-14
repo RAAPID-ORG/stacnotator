@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
 import {
-  buildCatalog,
+  buildImageryCatalog,
   collectionStartDate,
   collectionsInView,
-  type Catalog,
-} from '../campaign/catalog';
+  type ImageryCatalog,
+} from '../campaign/imagery';
 import {
   extendedLabels,
   type ExtendedLabel,
@@ -27,7 +27,7 @@ export type WorkMode = 'tasks' | 'explore';
  */
 interface CampaignState {
   campaign: CampaignOutFull | null;
-  catalog: Catalog | null;
+  catalog: ImageryCatalog | null;
   view: ImageryViewOut | null;
   workMode: WorkMode;
   isReviewMode: boolean;
@@ -52,7 +52,7 @@ interface CampaignState {
  * every window is hidden. A pinned start wins inside whichever pool applies.
  */
 export function startCollectionFor(
-  catalog: Catalog,
+  catalog: ImageryCatalog,
   view: ImageryViewOut | null,
   windows: Record<number, LayoutItem>
 ): number | null {
@@ -77,7 +77,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   taskStartCollectionId: null,
 
   setCampaign: (campaign) => {
-    const catalog = buildCatalog(campaign);
+    const catalog = buildImageryCatalog(campaign);
     const current = get().view;
     const kept = campaign.imagery_views.find((v) => v.id === current?.id) ?? null;
     set({ campaign, catalog, view: kept ?? current });
@@ -125,7 +125,7 @@ export function useCampaign(): CampaignOutFull {
   return campaign;
 }
 
-export function useCatalog(): Catalog {
+export function useCatalog(): ImageryCatalog {
   const catalog = useCampaignStore((s) => s.catalog);
   if (!catalog) throw new Error('useCatalog: no campaign loaded');
   return catalog;

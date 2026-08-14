@@ -1,5 +1,9 @@
 import type { ImageryCollectionOut } from '~/api/client';
-import { collectionStartDate, collectionsInView, type Catalog } from '../../campaign/catalog';
+import {
+  collectionStartDate,
+  collectionsInView,
+  type ImageryCatalog,
+} from '../../campaign/imagery';
 import { sliceNavIndices } from '../../campaign/imageryNav';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -8,7 +12,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
  *  main map is on (the rail is a time axis, and two sources' periods are not
  *  one axis), oldest first. */
 export function timelineCollections(
-  catalog: Catalog,
+  catalog: ImageryCatalog,
   sourceIds: number[],
   activeSourceId: number | null
 ): ImageryCollectionOut[] {

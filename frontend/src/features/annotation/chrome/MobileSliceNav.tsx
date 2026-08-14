@@ -1,6 +1,6 @@
 import { useCampaignStore, useCatalog } from '../stores/campaign';
 import type { MouseEvent, ReactNode } from 'react';
-import { collectionsInView } from '../campaign/catalog';
+import { collectionsInView } from '../campaign/imagery';
 import { useImageryStore } from '../stores/imagery';
 import {
   IconChevronDoubleLeft,

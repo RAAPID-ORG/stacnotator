@@ -1,4 +1,5 @@
-import { type Catalog, type SliceAddress } from '../../../campaign/catalog';
+import { type ImageryCatalog } from '../../../campaign/imagery';
+import { type SliceAddress } from '../../../campaign/imageryNav';
 import { restoreSnapshot } from '../../../campaign/imageryNav';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect, type HeaderSelectOption } from '../../../components/HeaderSelect';
@@ -9,7 +10,7 @@ const BASEMAP_PREFIX = 'basemap-';
 /** Staying on the current collection when only the visualization changes is
  *  what makes I/Shift+I feel like a filter rather than a jump. */
 function addressFor(
-  catalog: Catalog,
+  catalog: ImageryCatalog,
   sourceId: number,
   vizId: string,
   current: SliceAddress | null
@@ -22,7 +23,7 @@ function addressFor(
 }
 
 export interface LayerSelectorProps {
-  catalog: Catalog;
+  catalog: ImageryCatalog;
   sourceIds: number[];
   /** Tooltip carrying the source/visualization hotkeys, from the bindings. */
   title: string;

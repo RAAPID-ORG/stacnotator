@@ -4,7 +4,7 @@ import { allBindings } from '../../bindings';
 import { useContainerSize } from '../../canvas/useContainerSize';
 import { hotkeyTip } from '../../hotkeys';
 import { extendedLabels } from '../../campaign/annotation';
-import { collectionsInView } from '../../campaign/catalog';
+import { collectionsInView } from '../../campaign/imagery';
 import { computeTaskProgress } from '../../campaign/tasks';
 import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
 import { composeLayers, type AnnotationTiles, type ComposeState } from '../../map/compose';

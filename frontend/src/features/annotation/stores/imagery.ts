@@ -1,14 +1,14 @@
 import { create } from 'zustand';
 import type { ImageryViewOut } from '~/api/client';
+import { type ImageryCatalog } from '../campaign/imagery';
 import {
   emptyKey,
-  type Catalog,
   type Empties,
   type ImageryNavState,
   type SliceAddress,
   type ViewSnapshot,
-} from '../campaign/catalog';
-import { snapshotForView } from '../campaign/catalog';
+} from '../campaign/imageryNav';
+import { snapshotForView } from '../campaign/imageryNav';
 import {
   collectionAddress,
   cycleSource,
@@ -36,7 +36,7 @@ export interface ImageryState extends ImageryNavState {
   /** Start a new task at `collectionId`'s cover slice, clearing every
    *  location-specific cache in one write while keeping campaign-wide layer
    *  choices such as the visualization. */
-  resetForTask: (cat: Catalog, collectionId: number | null, scope: string) => void;
+  resetForTask: (cat: ImageryCatalog, collectionId: number | null, scope: string) => void;
   setShowBasemap: (show: boolean) => void;
   setSelectedBasemapId: (id: string | null) => void;
   setCrosshair: (crosshair: boolean) => void;
@@ -47,19 +47,19 @@ export interface ImageryState extends ImageryNavState {
   setOverlayOpacity: (opacity: number) => void;
   vectorAction: (items: Array<{ id: number }>, action: OverlayAction) => void;
   cycleSourceAction: (
-    cat: Catalog,
+    cat: ImageryCatalog,
     view: Pick<ImageryViewOut, 'source_ids'>,
     dir: 1 | -1,
     lastBySource: Record<number, SliceAddress>
   ) => void;
-  cycleVizAction: (cat: Catalog, dir: 1 | -1) => void;
-  stepSliceAction: (cat: Catalog, dir: 1 | -1) => void;
-  stepCollectionAction: (cat: Catalog, dir: 1 | -1) => void;
+  cycleVizAction: (cat: ImageryCatalog, dir: 1 | -1) => void;
+  stepSliceAction: (cat: ImageryCatalog, dir: 1 | -1) => void;
+  stepCollectionAction: (cat: ImageryCatalog, dir: 1 | -1) => void;
   /** Activate a collection inside the current task, resuming the slice its
    *  window last showed. Task transitions use `resetForTask` instead. */
-  activateCollection: (cat: Catalog, collectionId: number | null) => void;
+  activateCollection: (cat: ImageryCatalog, collectionId: number | null) => void;
   switchView: (
-    cat: Catalog,
+    cat: ImageryCatalog,
     fromViewId: number | null,
     toViewId: number,
     fallbackCollectionId: number | null
@@ -83,7 +83,7 @@ const INITIAL_NAV: ImageryNavState = {
 /** One landing policy for every within-task collection change, so the picker,
  *  the timeline, the hotkeys and a panel click cannot drift apart. */
 function activeAddress(
-  cat: Catalog,
+  cat: ImageryCatalog,
   state: Pick<ImageryState, 'address' | 'windowSlices'>,
   collectionId: number
 ): SliceAddress | null {

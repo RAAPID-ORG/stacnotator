@@ -1,11 +1,11 @@
-import { collectionsInView, type Catalog } from '../../../campaign/catalog';
+import { collectionsInView, type ImageryCatalog } from '../../../campaign/imagery';
 import { useCampaignStore } from '../../../stores/campaign';
 import { useImageryStore } from '../../../stores/imagery';
 import { usePrefsStore } from '../../../stores/prefs';
 import { HeaderSelect } from '../../../components/HeaderSelect';
 
 export interface CollectionPickerProps {
-  catalog: Catalog;
+  catalog: ImageryCatalog;
   sourceIds: number[];
   isTaskMode: boolean;
   /** Tooltip carrying the collection hotkeys, from the binding table. */

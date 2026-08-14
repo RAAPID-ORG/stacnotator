@@ -1,7 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ImageryCollectionOut } from '~/api/client';
-import { buildCatalog, emptyKey, type Empties } from '../../campaign/catalog';
+import { buildImageryCatalog } from '../../campaign/imagery';
+import { emptyKey, type Empties } from '../../campaign/imageryNav';
 import {
   makeCampaign,
   makeCollection,
@@ -199,7 +200,7 @@ describe('useEmptyHealing enabled gate', () => {
       }),
     ],
   });
-  const CATALOG = buildCatalog(CAMPAIGN);
+  const CATALOG = buildImageryCatalog(CAMPAIGN);
   const COLLECTION = CATALOG.collections.get(100)!;
   const ADDRESS = { sourceId: 1, collectionId: 100, sliceIndex: 0, vizId: '11' };
 

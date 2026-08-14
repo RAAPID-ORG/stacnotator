@@ -1,4 +1,4 @@
-import { buildCatalog } from '../campaign/catalog';
+import { buildImageryCatalog } from '../campaign/imagery';
 import { layoutForView } from '../canvas/grid';
 import { useCampaignStore, type WorkMode } from '../stores/campaign';
 import { useImageryStore } from '../stores/imagery';
@@ -7,7 +7,7 @@ import { useTasksStore } from '../stores/tasks';
 import { useWorkStore } from '../stores/work';
 import type { AnnotationTaskOut, CampaignOutFull, TaskSetOut } from '~/api/client';
 import type { TaskFilter } from '../campaign/tasks';
-import type { Catalog } from '../campaign/catalog';
+import type { ImageryCatalog } from '../campaign/imagery';
 
 const DEFAULT_FILTER: TaskFilter = {
   assignedTo: [],
@@ -31,8 +31,8 @@ export interface SeedOptions {
  * exercise anything that reads the campaign without going through the network.
  * Mirrors `loadCampaign`; keep the two in step.
  */
-export function seedCampaign(campaign: CampaignOutFull, options: SeedOptions = {}): Catalog {
-  const catalog = buildCatalog(campaign);
+export function seedCampaign(campaign: CampaignOutFull, options: SeedOptions = {}): ImageryCatalog {
+  const catalog = buildImageryCatalog(campaign);
   const view = campaign.imagery_views[0] ?? null;
   const layout = layoutForView(campaign, view);
 

@@ -31,7 +31,7 @@ import { ScreenWindow } from './canvas/Screens/ScreenWindow';
 import { Toolbar } from './chrome/Toolbar/Toolbar';
 import { TourOverlay } from './chrome/Tour/TourOverlay';
 import { useHotkeys } from './hotkeys';
-import { groupTimeseriesIntoWindows } from './campaign/catalog';
+import { groupTimeseriesIntoWindows } from './campaign/timeseries';
 import { isAudienceMember } from './campaign/annotation';
 import {
   coversPanels,

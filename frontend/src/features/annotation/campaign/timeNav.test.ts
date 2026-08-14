@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCatalog } from './catalog';
+import { buildImageryCatalog } from './imagery';
 import {
   makeCampaign,
   makeCollection,
@@ -8,7 +8,7 @@ import {
   makeTileUrl,
   makeViz,
 } from '../testing/fixtures';
-import { emptyKey } from './catalog';
+import { emptyKey } from './imageryNav';
 import {
   addressAtSlice,
   collectionAddress,
@@ -83,7 +83,7 @@ const source = makeSource({
 });
 
 const campaign = makeCampaign({ imagery_sources: [source] });
-const cat = buildCatalog(campaign);
+const cat = buildImageryCatalog(campaign);
 
 const addr = (collectionId: number, sliceIndex: number) => ({
   sourceId: 1,
@@ -208,7 +208,7 @@ const mvSource = makeSource({
   ],
 });
 const mvCampaign = makeCampaign({ imagery_sources: [mvSource] });
-const mvCat = buildCatalog(mvCampaign);
+const mvCat = buildImageryCatalog(mvCampaign);
 const mvAddr = (collectionId: number, sliceIndex: number, vizId: string) => ({
   sourceId: 1,
   collectionId,
@@ -240,7 +240,7 @@ describe('visualization carried across navigation', () => {
         }),
       ],
     });
-    const directCat = buildCatalog(makeCampaign({ imagery_sources: [falseOnlyCover] }));
+    const directCat = buildImageryCatalog(makeCampaign({ imagery_sources: [falseOnlyCover] }));
 
     expect(
       addressAtSlice(directCat, { sourceId: 3, collectionId: 30, sliceIndex: 0, vizId: '30' }, 0)
@@ -270,7 +270,9 @@ describe('visualization carried across navigation', () => {
       visualizations: [makeViz({ id: 20, name: 'True Color' })],
       collections: [makeCollection({ id: 300, name: 'C', slices: [makeSlice({ id: 3000 })] })],
     });
-    const multiSourceCat = buildCatalog(makeCampaign({ imagery_sources: [mvSource, other] }));
+    const multiSourceCat = buildImageryCatalog(
+      makeCampaign({ imagery_sources: [mvSource, other] })
+    );
     expect(collectionAddress(multiSourceCat, 300, mvAddr(10, 0, '901'))).toEqual({
       sourceId: 2,
       collectionId: 300,

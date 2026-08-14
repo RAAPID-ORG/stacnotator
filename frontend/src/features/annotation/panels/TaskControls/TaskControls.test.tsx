@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
 import type { AnnotationTaskOut, CampaignOutFull } from '~/api/client';
-import { buildCatalog } from '../../campaign/catalog';
+import { buildImageryCatalog } from '../../campaign/imagery';
 import { makeCampaign, makeTask, makeTaskAnnotation } from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useCampaignStore } from '../../stores/campaign';
@@ -25,7 +25,7 @@ const FILTER = {
 
 /** Seeds the campaign store the way a load would, then the task session. */
 function seed(campaign: CampaignOutFull, tasks: AnnotationTaskOut[]): void {
-  const catalog = buildCatalog(campaign);
+  const catalog = buildImageryCatalog(campaign);
   useCampaignStore.setState({
     campaign,
     catalog,

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ImageryCollectionOut } from '~/api/client';
 import { extendedLabels } from '../../campaign/annotation';
-import { type Catalog, type SliceAddress } from '../../campaign/catalog';
+import { type ImageryCatalog } from '../../campaign/imagery';
+import { type SliceAddress } from '../../campaign/imageryNav';
 import { addressAtSlice, collectionAddress } from '../../campaign/imageryNav';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useImageryStore, type ImageryState } from '../../stores/imagery';
@@ -22,7 +23,7 @@ import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
  *  collection, else its own remembered slice (falling back to the
  *  collection's cover) over the collection's default source/visualization. */
 export function windowAddress(
-  catalog: Catalog,
+  catalog: ImageryCatalog,
   imagery: Pick<ImageryState, 'address' | 'windowSlices'>,
   collectionId: number
 ): SliceAddress | null {
@@ -35,7 +36,7 @@ export function windowAddress(
  * Zustand snapshot, so reading it again after rememberWindowSlice would still
  * see the old selection; derive the picked address before either store write. */
 export function selectWindowSlice(
-  catalog: Catalog,
+  catalog: ImageryCatalog,
   imagery: Pick<
     ImageryState,
     'address' | 'windowSlices' | 'setAddress' | 'setShowBasemap' | 'rememberWindowSlice'
@@ -52,7 +53,7 @@ export function selectWindowSlice(
 }
 
 function commitHealedSlice(
-  catalog: Catalog,
+  catalog: ImageryCatalog,
   imagery: ImageryState,
   collectionId: number,
   sliceIndex: number

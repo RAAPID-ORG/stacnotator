@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildCatalog } from '../../../campaign/catalog';
+import { buildImageryCatalog } from '../../../campaign/imagery';
 import {
   makeCampaign,
   makeCollection,
@@ -22,7 +22,7 @@ const source = makeSource({
     makeCollection({ id: 72, name: 'Summer', slices: [makeSlice({ id: 720 })] }),
   ],
 });
-const catalog = buildCatalog(makeCampaign({ imagery_sources: [source] }));
+const catalog = buildImageryCatalog(makeCampaign({ imagery_sources: [source] }));
 
 beforeEach(() => {
   usePrefsStore.setState({ pinnedStart: {} });

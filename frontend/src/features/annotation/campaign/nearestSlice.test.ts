@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCatalog } from './catalog';
+import { buildImageryCatalog } from './imagery';
 import { makeCampaign, makeCollection, makeSlice, makeSource, makeViz } from '../testing/fixtures';
 import { findNearestSlice, nearestSlice } from './imageryNav';
 
@@ -142,7 +142,7 @@ const s2 = makeSource({
 });
 
 const campaign = makeCampaign({ imagery_sources: [s2] });
-const cat = buildCatalog(campaign);
+const cat = buildImageryCatalog(campaign);
 
 describe('nearestSlice (catalog-level)', () => {
   it('resolves collectionId/sliceIndex back to a full SliceAddress, preserving the current viz', () => {
@@ -161,6 +161,6 @@ describe('nearestSlice (catalog-level)', () => {
   });
 
   it('returns null when nothing is eligible', () => {
-    expect(nearestSlice(buildCatalog(makeCampaign()), day('2024-01-01'), null)).toBeNull();
+    expect(nearestSlice(buildImageryCatalog(makeCampaign()), day('2024-01-01'), null)).toBeNull();
   });
 });

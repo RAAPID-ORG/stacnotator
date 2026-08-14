@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildCatalog } from '../campaign/catalog';
+import { buildImageryCatalog } from '../campaign/imagery';
 import {
   makeCampaign,
   makeCollection,
@@ -24,7 +24,7 @@ const source = makeSource({
   ],
 });
 const campaign = makeCampaign({ imagery_sources: [source] });
-const cat = buildCatalog(campaign);
+const cat = buildImageryCatalog(campaign);
 
 beforeEach(() => {
   useImageryStore.setState({
@@ -199,7 +199,7 @@ const sourceMV = makeSource({
   ],
 });
 const campaignMV = makeCampaign({ imagery_sources: [sourceMV] });
-const catMV = buildCatalog(campaignMV);
+const catMV = buildImageryCatalog(campaignMV);
 
 describe('activateCollection: per-source visualization memory', () => {
   it('keeps the current visualization when switching to a collection in the same source', () => {

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { buildCatalog } from './catalog';
+import { buildImageryCatalog } from './imagery';
 import { makeCampaign, makeCollection, makeSource, makeViz } from '../testing/fixtures';
-import { collectionsInView, snapshotForView } from './catalog';
+import { collectionsInView } from './imagery';
+import { snapshotForView } from './imageryNav';
 import { restoreSnapshot } from './imageryNav';
 
 // ---------------------------------------------------------------------------
@@ -22,7 +23,7 @@ const s2 = makeSource({
 });
 
 const campaign = makeCampaign({ imagery_sources: [s1, s2] });
-const cat = buildCatalog(campaign);
+const cat = buildImageryCatalog(campaign);
 
 describe('collectionsInView', () => {
   it('flattens the view sources in stored order, then each source own collection order', () => {

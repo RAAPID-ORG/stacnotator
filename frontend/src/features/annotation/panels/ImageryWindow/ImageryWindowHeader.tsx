@@ -1,5 +1,5 @@
 import type { ImageryCollectionOut } from '~/api/client';
-import { emptyKey } from '../../campaign/catalog';
+import { emptyKey } from '../../campaign/imageryNav';
 import { slicePickerIndices } from '../../campaign/imageryNav';
 import { useImageryStore } from '../../stores/imagery';
 import { useCatalog } from '../../stores/campaign';

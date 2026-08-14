@@ -8,7 +8,7 @@ import type XYZ from 'ol/source/XYZ';
 import TileState from 'ol/TileState';
 import { unByKey } from 'ol/Observable';
 import { ensureTilerSession } from '~/api/tilerToken';
-import { isProxiedTileUrl } from '../campaign/catalog';
+import { isProxiedTileUrl } from '../campaign/tileUrls';
 
 export type CrossOrigin = 'anonymous' | 'use-credentials';
 

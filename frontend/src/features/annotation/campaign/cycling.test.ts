@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCatalog } from './catalog';
+import { buildImageryCatalog } from './imagery';
 import {
   makeCampaign,
   makeCollection,
@@ -139,7 +139,7 @@ const addr = (sourceId: number, collectionId: number, vizId: string) => ({
 
 describe('cycleSource', () => {
   it('cycles from the first source to the second source, landing on its first collection/viz', () => {
-    const cat = buildCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
+    const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
     const result = cycleSource(
       cat,
       view,
@@ -152,7 +152,7 @@ describe('cycleSource', () => {
   });
 
   it('cycles from the last source to the basemap', () => {
-    const cat = buildCatalog(
+    const cat = buildImageryCatalog(
       makeCampaign({ imagery_sources: [s2, vhr], basemaps: [{ id: 5, name: 'Osm', url: 'x' }] })
     );
     const result = cycleSource(
@@ -167,7 +167,7 @@ describe('cycleSource', () => {
   });
 
   it('cycles from the basemap back to the first source', () => {
-    const cat = buildCatalog(
+    const cat = buildImageryCatalog(
       makeCampaign({ imagery_sources: [s2, vhr], basemaps: [{ id: 5, name: 'Osm', url: 'x' }] })
     );
     const result = cycleSource(
@@ -182,7 +182,7 @@ describe('cycleSource', () => {
   });
 
   it('returns null when there is only one ring entry', () => {
-    const cat = buildCatalog(makeCampaign({ imagery_sources: [s2], basemaps: [] }));
+    const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [s2], basemaps: [] }));
     const singleSourceView = { id: 1, name: 'V', source_ids: [1] };
     const result = cycleSource(
       cat,
@@ -196,7 +196,7 @@ describe('cycleSource', () => {
   });
 
   it('restores the remembered address when returning to a source after a detour', () => {
-    const cat = buildCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
+    const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
     const lastBySource = { 1: addr(1, 101, '11') };
     const result = cycleSource(
       cat,
@@ -210,7 +210,7 @@ describe('cycleSource', () => {
   });
 
   it('ignores remembered state referencing a collection the source no longer owns', () => {
-    const cat = buildCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
+    const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
     const lastBySource = { 1: addr(1, 999, '11') };
     const result = cycleSource(
       cat,
@@ -224,7 +224,7 @@ describe('cycleSource', () => {
   });
 
   it('never targets a source that has been dropped from the view, even with remembered state', () => {
-    const cat = buildCatalog(
+    const cat = buildImageryCatalog(
       makeCampaign({ imagery_sources: [s2, vhr], basemaps: [{ id: 5, name: 'Osm', url: 'x' }] })
     );
     const droppedView = { id: 1, name: 'V', source_ids: [2] };
@@ -241,7 +241,7 @@ describe('cycleSource', () => {
   });
 
   it('cycles backward with dir -1', () => {
-    const cat = buildCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
+    const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
     const result = cycleSource(
       cat,
       view,
@@ -285,7 +285,7 @@ describe('rememberAddress', () => {
 });
 
 describe('cycleViz', () => {
-  const cat = buildCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
+  const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr], basemaps: [] }));
 
   it('advances from true color to false color within a source', () => {
     expect(cycleViz(cat, addr(1, 100, '10'), 1)).toEqual(addr(1, 100, '11'));

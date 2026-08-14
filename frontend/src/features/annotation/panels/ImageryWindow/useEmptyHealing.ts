@@ -2,13 +2,9 @@ import { fromLonLat } from 'ol/proj';
 import { createXYZ } from 'ol/tilegrid';
 import { useEffect, useRef, useState } from 'react';
 import type { ImageryCollectionOut } from '~/api/client';
-import {
-  emptyKey,
-  sliceRaster,
-  type Catalog,
-  type Empties,
-  type SliceAddress,
-} from '../../campaign/catalog';
+import { type ImageryCatalog } from '../../campaign/imagery';
+import { emptyKey, type Empties, type SliceAddress } from '../../campaign/imageryNav';
+import { sliceRaster } from '../../campaign/tileUrls';
 import { addressAtSlice, sliceNavIndices } from '../../campaign/imageryNav';
 import { ensureTilerSession } from '~/api/tilerToken';
 import type { LonLat } from '../../map/types';
@@ -135,7 +131,7 @@ export function healingEnabled(gate: HealingGate): boolean {
 }
 
 export interface UseEmptyHealingArgs {
-  catalog: Catalog;
+  catalog: ImageryCatalog;
   collection: ImageryCollectionOut;
   /** The window's own current address, or null while it has none to show. */
   address: SliceAddress | null;
@@ -172,7 +168,7 @@ interface TileTarget {
 const tileGrid = createXYZ();
 
 function tileTargetFor(
-  catalog: Catalog,
+  catalog: ImageryCatalog,
   address: SliceAddress,
   sliceIndex: number,
   point: LonLat,

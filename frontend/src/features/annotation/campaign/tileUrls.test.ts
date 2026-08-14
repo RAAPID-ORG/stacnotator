@@ -9,7 +9,8 @@ import {
   makeVectorLayer,
   makeViz,
 } from '../testing/fixtures';
-import { buildCatalog, sliceRaster, isProxiedTileUrl, resolveBasemapUrl } from './catalog';
+import { buildImageryCatalog } from './imagery';
+import { sliceRaster, isProxiedTileUrl, resolveBasemapUrl } from './tileUrls';
 
 const source = makeSource({
   id: 1,
@@ -60,35 +61,6 @@ const campaign = makeCampaign({
   ],
 });
 
-describe('buildCatalog', () => {
-  const cat = buildCatalog(campaign);
-
-  it('indexes sources, collections, slices, and visualizations by id', () => {
-    expect(cat.sources.get(1)).toBe(source);
-    expect(cat.collections.get(10)).toBe(source.collections[0]);
-    expect(cat.slices.get(100)).toBe(source.collections[0].slices[0]);
-    expect(cat.vizzes.get(1000)).toBe(source.visualizations[0]);
-  });
-
-  it('indexes basemaps, custom maps, and vector layers by id', () => {
-    expect(cat.basemaps.get(5)?.name).toBe('Osm');
-    expect(cat.customMaps.get(9)?.name).toBe('CM');
-    expect(cat.vectorLayers.get(3)?.name).toBe('V');
-  });
-
-  it('maps a collection id back to its owning source id', () => {
-    expect(cat.sourceOf.get(10)).toBe(1);
-  });
-
-  it('derives bbox from campaign settings', () => {
-    expect(cat.bbox).toEqual([-10, -20, 10, 20]);
-  });
-
-  it('carries the campaign id for proxy url assembly', () => {
-    expect(cat.campaignId).toBe(7);
-  });
-});
-
 describe('tile url resolution', () => {
   it('recognises our own proxy routes, which need the tiler cookie', () => {
     expect(isProxiedTileUrl('/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}')).toBe(true);
@@ -107,7 +79,7 @@ describe('tile url resolution', () => {
 });
 
 describe('sliceRaster', () => {
-  const cat = buildCatalog(campaign);
+  const cat = buildImageryCatalog(campaign);
 
   it('assembles a direct (unproxied) tile url for a keyless visualization', () => {
     const spec = sliceRaster(cat, { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' });

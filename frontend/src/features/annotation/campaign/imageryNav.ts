@@ -1,15 +1,51 @@
 import type { ImageryCollectionOut, ImageryViewOut } from '~/api/client';
-import {
-  collectionStartDate,
-  emptyKey,
-  type Catalog,
-  type Empties,
-  type OverlaySelection,
-  type SliceAddress,
-  type ViewSnapshot,
-} from './catalog';
+import { collectionStartDate, type ImageryCatalog } from './imagery';
 
-export type { SliceAddress };
+/** Where the maps are pointed: a slice of one collection of one source, drawn
+ *  with one of that source's visualizations. */
+export interface SliceAddress {
+  sourceId: number;
+  collectionId: number;
+  sliceIndex: number;
+  vizId: string;
+}
+
+/** Slices known to render nothing at the current location, keyed `<collection>:<slice>`. */
+export type Empties = Record<string, true>;
+
+export const emptyKey = (collectionId: number, sliceIndex: number): string =>
+  `${collectionId}:${sliceIndex}`;
+
+export interface OverlaySelection {
+  id: number | null;
+  visible: boolean;
+}
+
+/** What the maps draw, beyond the imagery itself. */
+export interface ImageryNavState {
+  address: SliceAddress | null;
+  showBasemap: boolean;
+  selectedBasemapId: string | null;
+  overlay: OverlaySelection;
+  overlayOpacity: number;
+  vector: OverlaySelection;
+  empties: Empties;
+  crosshair: boolean;
+  showAnnotations: boolean;
+  viewSync: boolean;
+}
+
+/** The slice of nav state that is remembered per imagery view. The toggles are
+ *  left out on purpose: they are app-wide, not per-view. */
+export type ViewSnapshot = Pick<
+  ImageryNavState,
+  'address' | 'showBasemap' | 'selectedBasemapId' | 'overlay' | 'overlayOpacity' | 'vector'
+>;
+
+export function snapshotForView(state: ImageryNavState): ViewSnapshot {
+  const { address, showBasemap, selectedBasemapId, overlay, overlayOpacity, vector } = state;
+  return { address, showBasemap, selectedBasemapId, overlay, overlayOpacity, vector };
+}
 
 /**
  * Slice/collection stepping (A/D, Shift+A/D) and source/visualization cycling
@@ -37,7 +73,7 @@ function compatibleVizId(
 }
 
 function landOn(
-  cat: Catalog,
+  cat: ImageryCatalog,
   sourceId: number,
   collectionId: number,
   sliceIndex: number,
@@ -56,7 +92,7 @@ function landOn(
 /** A date-picker selection. Uses the same compatible-visualization rule as
  *  keyboard navigation rather than moving the slice out from under a
  *  visualization the target date does not publish. */
-export function addressAtSlice(cat: Catalog, current: SliceAddress, sliceIndex: number) {
+export function addressAtSlice(cat: ImageryCatalog, current: SliceAddress, sliceIndex: number) {
   return landOn(cat, current.sourceId, current.collectionId, sliceIndex, current.vizId);
 }
 
@@ -64,7 +100,7 @@ export function addressAtSlice(cat: Catalog, current: SliceAddress, sliceIndex: 
  *  policy: a remembered slice resumes that collection's window, omitting it
  *  selects the cover. */
 export function collectionAddress(
-  cat: Catalog,
+  cat: ImageryCatalog,
   collectionId: number,
   current: SliceAddress | null,
   rememberedSliceIndex?: number
@@ -100,7 +136,7 @@ export function sliceNavIndices(collection: ImageryCollectionOut, empties: Empti
   return out;
 }
 
-function chronological(cat: Catalog, sourceId: number): ImageryCollectionOut[] {
+function chronological(cat: ImageryCatalog, sourceId: number): ImageryCollectionOut[] {
   const source = cat.sources.get(sourceId);
   if (!source) return [];
   return [...source.collections].sort((a, b) =>
@@ -108,7 +144,11 @@ function chronological(cat: Catalog, sourceId: number): ImageryCollectionOut[] {
   );
 }
 
-function neighbor(cat: Catalog, addr: SliceAddress, dir: 1 | -1): ImageryCollectionOut | null {
+function neighbor(
+  cat: ImageryCatalog,
+  addr: SliceAddress,
+  dir: 1 | -1
+): ImageryCollectionOut | null {
   const ordered = chronological(cat, addr.sourceId);
   const idx = ordered.findIndex((c) => c.id === addr.collectionId);
   return idx === -1 ? null : (ordered[idx + dir] ?? null);
@@ -117,14 +157,18 @@ function neighbor(cat: Catalog, addr: SliceAddress, dir: 1 | -1): ImageryCollect
 /** The neighbouring collection id, chronologically. Deliberately does not pick
  *  a slice: the store knows whether this is within-task navigation (resume the
  *  window) or a new task (use the cover). */
-export function stepCollectionId(cat: Catalog, addr: SliceAddress, dir: 1 | -1): number | null {
+export function stepCollectionId(
+  cat: ImageryCatalog,
+  addr: SliceAddress,
+  dir: 1 | -1
+): number | null {
   return neighbor(cat, addr, dir)?.id ?? null;
 }
 
 /** Next/prev non-empty slice, wrapping into the neighbouring collection at a
  *  boundary and landing on its first (or last) navigable slice. */
 export function stepSlice(
-  cat: Catalog,
+  cat: ImageryCatalog,
   addr: SliceAddress,
   dir: 1 | -1,
   empties: Empties
@@ -162,7 +206,7 @@ export type CycleSourceResult =
 /** The cycling ring is one entry per view source plus one per basemap.
  *  `lastBySource` is the caller's memory of where each source was left. */
 export function cycleSource(
-  cat: Catalog,
+  cat: ImageryCatalog,
   view: Pick<ImageryViewOut, 'source_ids'>,
   addr: SliceAddress | null,
   basemap: { showBasemap: boolean; selectedBasemapId: string | null },
@@ -218,7 +262,7 @@ export function rememberAddress(
 
 /** Next visualization within the current source, wrapping. Null when the
  *  basemap is active or the source has only one. */
-export function cycleViz(cat: Catalog, addr: SliceAddress | null, dir: 1 | -1) {
+export function cycleViz(cat: ImageryCatalog, addr: SliceAddress | null, dir: 1 | -1) {
   if (!addr) return null;
   const source = cat.sources.get(addr.sourceId);
   if (!source || source.visualizations.length <= 1) return null;
@@ -307,7 +351,7 @@ export function findNearestSlice(
 /** Catalog-level wrapper: resolves back to a full address, keeping the
  *  caller's visualization where the target source has it. */
 export function nearestSlice(
-  cat: Catalog,
+  cat: ImageryCatalog,
   epochMs: number,
   addr: SliceAddress | null
 ): SliceAddress | null {
@@ -329,7 +373,7 @@ export function nearestSlice(
 /** Saved snapshot when there is one, else a default at the fallback
  *  collection's cover. */
 export function restoreSnapshot(
-  cat: Catalog,
+  cat: ImageryCatalog,
   saved: ViewSnapshot | undefined,
   fallbackCollectionId: number | null
 ): ViewSnapshot {

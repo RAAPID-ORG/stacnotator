@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCatalog } from '../../campaign/catalog';
+import { buildImageryCatalog } from '../../campaign/imagery';
 import {
   makeCampaign,
   makeCollection,
@@ -25,7 +25,7 @@ const vhr = makeSource({
   ],
 });
 
-const catalog = buildCatalog(makeCampaign({ imagery_sources: [s2, vhr] }));
+const catalog = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr] }));
 
 describe('timelineCollections', () => {
   it('orders a later-added but earlier-dated collection first', () => {

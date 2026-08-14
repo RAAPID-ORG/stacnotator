@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedCampaign } from '../../testing/seed';
 import type { CampaignOutFull } from '~/api/client';
-import { buildCatalog } from '../../campaign/catalog';
+import { buildImageryCatalog } from '../../campaign/imagery';
 import {
   makeCampaign,
   makeCollection,
@@ -79,7 +79,7 @@ const CAMPAIGN: CampaignOutFull = makeCampaign({
   ],
 });
 
-const CATALOG = buildCatalog(CAMPAIGN);
+const CATALOG = buildImageryCatalog(CAMPAIGN);
 const NDVI = { sourceId: 1, collectionId: 100, sliceIndex: 0, vizId: '11' };
 
 const args = {

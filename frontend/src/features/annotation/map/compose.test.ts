@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CampaignOutFull } from '~/api/client';
 import type { ExtendedLabel } from '../campaign/annotation';
-import { buildCatalog } from '../campaign/catalog';
+import { buildImageryCatalog } from '../campaign/imagery';
 import {
   makeCampaign,
   makeCollection,
@@ -76,7 +76,7 @@ const CAMPAIGN: CampaignOutFull = makeCampaign({
   imagery_views: [makeView({ id: 1, name: 'Default', source_ids: [1] })],
 });
 
-const CATALOG = buildCatalog(CAMPAIGN);
+const CATALOG = buildImageryCatalog(CAMPAIGN);
 
 function ctxFor(mode: 'tasks' | 'explore'): ComposeContext {
   return { catalog: CATALOG, mode };

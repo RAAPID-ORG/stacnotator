@@ -1,10 +1,6 @@
-import {
-  basemapAttribution,
-  resolveBasemapUrl,
-  sliceRaster,
-  type Catalog,
-  type ImageryNavState,
-} from '../campaign/catalog';
+import { type ImageryCatalog } from '../campaign/imagery';
+import { type ImageryNavState } from '../campaign/imageryNav';
+import { basemapAttribution, resolveBasemapUrl, sliceRaster } from '../campaign/tileUrls';
 import { applyRenderOverride, type LegendOverride } from '../campaign/renderConfig';
 import {
   resolveLabelStyle,
@@ -78,7 +74,7 @@ export interface ComposeState extends ImageryNavState {
 export const annotationTilesUrl = (campaignId: number, version: number) =>
   `/api/campaigns/${campaignId}/annotations/tiles/{z}/{x}/{y}.pbf?v=${version}`;
 
-function selectedBasemap(cat: Catalog, selectedBasemapId: string | null) {
+function selectedBasemap(cat: ImageryCatalog, selectedBasemapId: string | null) {
   const id = Number(selectedBasemapId?.replace('basemap-', ''));
   return (Number.isFinite(id) ? cat.basemaps.get(id) : undefined) ?? [...cat.basemaps.values()][0];
 }
@@ -120,7 +116,7 @@ function annotationStyle(state: AnnotationTiles): TileStyleFn {
 }
 
 export interface ComposeContext {
-  catalog: Catalog;
+  catalog: ImageryCatalog;
   mode: WorkMode;
 }
 

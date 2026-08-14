@@ -1,5 +1,6 @@
 import type { ImagerySliceOut } from '~/api/client';
-import { emptyKey, type Catalog } from '../../../campaign/catalog';
+import { type ImageryCatalog } from '../../../campaign/imagery';
+import { emptyKey } from '../../../campaign/imageryNav';
 import { addressAtSlice, slicePickerIndices } from '../../../campaign/imageryNav';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect } from '../../../components/HeaderSelect';
@@ -25,7 +26,7 @@ function sliceLabel(slice: ImagerySliceOut, index: number): string {
   return `Slice ${index + 1}`;
 }
 
-export function SlicePicker({ catalog, title }: { catalog: Catalog; title: string }) {
+export function SlicePicker({ catalog, title }: { catalog: ImageryCatalog; title: string }) {
   const address = useImageryStore((s) => s.address);
   const empties = useImageryStore((s) => s.empties);
   const setAddress = useImageryStore((s) => s.setAddress);

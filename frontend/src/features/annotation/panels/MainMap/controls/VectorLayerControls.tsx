@@ -1,4 +1,4 @@
-import type { Catalog } from '../../../campaign/catalog';
+import type { ImageryCatalog } from '../../../campaign/imagery';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect } from '../../../components/HeaderSelect';
 
@@ -22,7 +22,7 @@ export function VectorLayerControls({
   catalog,
   toggleTitle,
 }: {
-  catalog: Catalog;
+  catalog: ImageryCatalog;
   toggleTitle: string;
 }) {
   const vector = useImageryStore((s) => s.vector);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byCollectionDate, collectionStartDate } from './catalog';
+import { byCollectionDate, collectionStartDate } from './imagery';
 
 const collection = (...starts: string[]) => ({
   slices: starts.map((start_date) => ({ start_date })),
