@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Delayed } from '~/shared/ui/Delayed';
 import { pageKeymap } from '../../keymap';
 import { useContainerSize } from '../../canvas/useContainerSize';
-import { PillSpinner, StatusPill } from '../../components/StatusPill';
 import { hotkeyTip } from '../../hotkeys';
 import { extendedLabels } from '../../campaign/annotation';
 import { collectionsInView } from '../../campaign/imagery';
@@ -35,10 +33,6 @@ import { VectorLayerControls } from './controls/VectorLayerControls';
 import { ViewControls } from './controls/ViewControls';
 import { TimelineSidebar } from './TimelineSidebar';
 import { usePreloading } from './usePreloading';
-
-/** Past this a tile load is slow enough to name, rather than leaving the
- *  half-filled grid to explain itself. */
-const SLOW_LOAD_MS = 700;
 
 /** Stable empty array: a fresh [] each render would recompose the layers. */
 const EMPTY_PROBES: LonLat[] = [];
@@ -345,16 +339,6 @@ export function MainMapBody() {
             setForegroundMapLoading('main', loading);
           }}
         />
-        {/* The tile grid is the loading feedback; this only speaks up when a
-            load is slow enough that the grid alone looks stuck. */}
-        {mapLoading && (
-          <Delayed delayMs={SLOW_LOAD_MS}>
-            <StatusPill>
-              <PillSpinner />
-              Loading imagery
-            </StatusPill>
-          </Delayed>
-        )}
         <CustomMapLegend catalog={catalog} />
       </div>
     </div>
