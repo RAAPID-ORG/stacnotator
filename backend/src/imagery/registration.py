@@ -394,6 +394,55 @@ def spawn_background_collection_refresh(
     )
 
 
+def refreshable_collection_ids(db: Session, source_id: int, campaign_id: int) -> list[int]:
+    """Every collection of this source whose STAC search can be re-run, in
+    display order. 404s for a source outside the caller's campaign, and 400s
+    when the source holds nothing re-searchable (a manual-URL source has no
+    catalog to ask again)."""
+    source = db.execute(
+        select(ImagerySource).where(
+            ImagerySource.id == source_id, ImagerySource.campaign_id == campaign_id
+        )
+    ).scalar_one_or_none()
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    ids = [
+        collection.id
+        for collection in source.collections
+        if collection.stac_config
+        and collection.stac_config.catalog_url
+        and collection.stac_config.stac_collection_id
+    ]
+    if not ids:
+        raise HTTPException(
+            status_code=400, detail="This source has no STAC collections to re-register"
+        )
+    return ids
+
+
+def spawn_background_source_refresh(
+    campaign_id: int,
+    collection_ids: list[int],
+    bbox: list[float],
+) -> None:
+    """Re-ingest a whole source in one background run, so the campaign's
+    registration status flips once for the source rather than racing between
+    one run per collection."""
+
+    def work(db: Session) -> None:
+        for collection_id in collection_ids:
+            refresh_collection_imagery(db, collection_id, campaign_id, bbox)
+
+    background.spawn_status_run(
+        campaign_id,
+        REGISTRATION_RUN,
+        name=f"source refresh ({len(collection_ids)} collections)",
+        work=work,
+        sanitize_error=lambda exc: f"Source refresh: {_sanitize_stac_error(exc)}",
+    )
+
+
 def _resolved_search_body(search_query: dict | None, bbox: list[float], db_slice) -> dict:
     """Deepcopy the CQL2-JSON query and inject bbox + this slice's datetime.
 

@@ -139,6 +139,33 @@ def refresh_collection_imagery(
     return {"registration_status": "registering"}
 
 
+@router.post("/{campaign_id}/imagery/sources/{source_id}/refresh")
+def refresh_source_imagery(
+    campaign_id: int,
+    source_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Re-run every STAC search this source was built from and re-ingest what
+    comes back, so a season that has moved on picks up its newer imagery.
+
+    Same shape as the per-collection refresh: validate synchronously, then hand
+    the slow per-slice tiler calls to a background run.
+    """
+    collection_ids = registration.refreshable_collection_ids(db, source_id, campaign.id)
+    bbox = [
+        campaign.settings.bbox_west,
+        campaign.settings.bbox_south,
+        campaign.settings.bbox_east,
+        campaign.settings.bbox_north,
+    ]
+    background.begin_status_run(campaign, registration.REGISTRATION_RUN)
+    campaign.registration_errors = None
+    db.commit()
+    registration.spawn_background_source_refresh(campaign.id, collection_ids, bbox)
+    return {"registration_status": "registering"}
+
+
 @router.post("/{campaign_id}/imagery/views", response_model=ImageryViewOut, status_code=201)
 def create_imagery_view(
     campaign_id: int,

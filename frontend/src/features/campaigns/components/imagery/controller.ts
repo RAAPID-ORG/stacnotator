@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   saveImagery as apiSaveImagery,
   refreshCollectionImagery as apiRefreshCollection,
+  refreshSourceImagery as apiRefreshSource,
 } from '~/api/client';
 import type {
   ImageryEditorStateCreate,
@@ -57,6 +58,8 @@ export interface ImageryController {
   ): Promise<void>;
   removeCollection(sourceId: string, collectionId: string): Promise<void>;
   refreshCollection(sourceId: string, collectionId: string): Promise<void>;
+  /** Re-run every STAC search behind a source and re-ingest what comes back. */
+  refreshSource(sourceId: string): Promise<void>;
 
   setBasemaps(basemaps: Basemap[]): Promise<void>;
 }
@@ -181,6 +184,10 @@ export function useDraftController({
 
       refreshCollection: async () => {
         // No-op in draft - collections resolve at campaign-create time.
+      },
+
+      refreshSource: async () => {
+        // No-op in draft - nothing is registered yet.
       },
 
       setBasemaps: async (basemaps) => {
@@ -314,6 +321,9 @@ function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
     collections: src.collections.map((col) => mapCollectionOutToFe(col, vizNames)),
     hasApiKey: src.has_api_key,
     organizationApiKeyId: src.organization_api_key_id,
+    sliceCount: src.slice_count,
+    registeredSliceCount: src.registered_slice_count,
+    refreshable: src.refreshable,
   };
 }
 
@@ -495,6 +505,29 @@ export function usePersistedController({
             src.id === sourceId ? { ...src, ...withoutCollection(src, collectionId) } : src
           ),
         }));
+      },
+
+      refreshSource: async (sourceId) => {
+        // Same rule as refreshCollection: this re-runs the saved search
+        // server-side, so unsaved edits would be ignored and confuse the result.
+        if (isDirty) {
+          handleError(
+            new Error('Save your changes before re-registering this source.'),
+            'Cannot re-register'
+          );
+          return;
+        }
+        setPending(true);
+        try {
+          await apiRefreshSource({
+            path: { campaign_id: campaignId, source_id: Number(sourceId) },
+          });
+          refetch?.();
+        } catch (e) {
+          handleError(e, 'Failed to re-register source');
+        } finally {
+          setPending(false);
+        }
       },
 
       refreshCollection: async (_sourceId, collectionId) => {

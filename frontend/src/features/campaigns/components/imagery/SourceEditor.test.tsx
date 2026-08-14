@@ -93,6 +93,7 @@ const controller = {
   updateCollection: vi.fn(),
   removeCollection: vi.fn(),
   refreshCollection: vi.fn(),
+  refreshSource: vi.fn(),
   setBasemaps: vi.fn(),
 } satisfies ImageryController;
 

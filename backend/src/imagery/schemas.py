@@ -138,6 +138,12 @@ class ImagerySourceOut(BaseModel):
     # never serialized.
     has_api_key: bool = False
     organization_api_key_id: int | None = None
+    # Per-source registration, read off the rows themselves: how much of this
+    # source an annotator can actually see, and whether re-searching its
+    # catalog could bring in newer imagery.
+    slice_count: int = 0
+    registered_slice_count: int = 0
+    refreshable: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

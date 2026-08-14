@@ -9,6 +9,8 @@ Multi-tenancy: organization → project → campaign.
 - Per-organization tiler allowlists and an `allows_internal_storage` flag (see [tilers.md](tilers.md))
 - Per-organization provider API keys: an org admin stores a named key once and any campaign in the org points its imagery source or basemap at it, so the secret is pasted (and rotated) in one place. A layer holds either its own encrypted key or an org key reference, never both; the tile proxy resolves whichever applies
 
+Imagery registration runs per campaign but succeeds per source: each source reports how many of its slices actually have tiles, and a source built from STAC searches can be re-registered from the source editor to pick up newer imagery as a season progresses.
+
 ## Campaign Modes
 
 - **Task Mode** - Predefined annotation locations (points/polygons). Tasks are assigned to annotators who visit each location and label it.

@@ -74,6 +74,29 @@ class ImagerySource(Base):
     def has_api_key(self) -> bool:
         return self.encrypted_api_key is not None or self.organization_api_key_id is not None
 
+    # Registration state, per source rather than per campaign: one source can be
+    # fully registered while another is still missing tiles, and the campaign's
+    # single status cannot say which.
+    @property
+    def slice_count(self) -> int:
+        return sum(len(c.slices) for c in self.collections)
+
+    @property
+    def registered_slice_count(self) -> int:
+        """Slices that actually have a tile URL, i.e. that an annotator can see."""
+        return sum(1 for c in self.collections for s in c.slices if s.tile_urls)
+
+    @property
+    def refreshable(self) -> bool:
+        """Whether re-running the STAC search could pick up newer imagery -
+        true once any collection carries the search that produced it."""
+        return any(
+            c.stac_config is not None
+            and c.stac_config.catalog_url
+            and c.stac_config.stac_collection_id
+            for c in self.collections
+        )
+
 
 class VisualizationTemplate(Base):
     """Named visualization option belonging to a source (e.g. 'True Color', 'NDVI')."""

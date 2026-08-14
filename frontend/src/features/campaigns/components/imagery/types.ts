@@ -150,6 +150,11 @@ export interface ImagerySource {
   hasApiKey?: boolean;
   /** Set when that key is one of the organization's shared ones. */
   organizationApiKeyId?: number | null;
+  /** Registration, as the server sees it: how many of this source's slices
+   *  actually have tiles, and whether its STAC search can be re-run. */
+  sliceCount?: number;
+  registeredSliceCount?: number;
+  refreshable?: boolean;
 }
 
 export interface Basemap {

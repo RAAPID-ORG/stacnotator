@@ -94,6 +94,51 @@ function alignCollectionToVizNames(c: CollectionItem, vizNames: string[]): Colle
   return { ...c, data: { ...data, visualizations, coverVisualizations, vizUrls } };
 }
 
+/**
+ * How much of this source is actually registered, and the way to re-run its
+ * searches. Registration happens per campaign but succeeds per source, so a
+ * source with no tiles is invisible in the campaign-wide status.
+ */
+function SourceRegistration({
+  controller,
+  source,
+}: {
+  controller: ImageryController;
+  source: ImagerySource;
+}) {
+  const persisted = controller.campaignId != null && isRealId(source.id);
+  const total = source.sliceCount ?? 0;
+  if (!persisted || total === 0) return null;
+
+  const registered = source.registeredSliceCount ?? 0;
+  const complete = registered === total;
+
+  return (
+    <div className="space-y-1" data-testid="source-registration">
+      <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+        Registration
+        <Tooltip text="Slices become visible once their imagery is registered with the tiler. Re-register to run this source's searches again - use it when a season has moved on and newer imagery should be picked up." />
+      </label>
+      <div className="flex items-center gap-3">
+        <span className={`text-[11px] ${complete ? 'text-emerald-600' : 'text-amber-600'}`}>
+          {registered} of {total} slices registered
+        </span>
+        {source.refreshable && (
+          <button
+            type="button"
+            onClick={() => void controller.refreshSource(source.id)}
+            disabled={controller.pending}
+            data-testid="re-register-source"
+            className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {controller.pending ? 'Working…' : 'Re-register imagery'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export const SourceEditor = ({
   source,
   controller,
@@ -431,6 +476,8 @@ export const SourceEditor = ({
             placeholder="Source name…"
           />
         </div>
+
+        <SourceRegistration controller={controller} source={source} />
 
         {sourceNeedsApiKey && (
           <div className="space-y-1">

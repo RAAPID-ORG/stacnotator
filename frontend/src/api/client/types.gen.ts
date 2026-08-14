@@ -2176,6 +2176,18 @@ export type ImagerySourceOut = {
      * Organization Api Key Id
      */
     organization_api_key_id?: number | null;
+    /**
+     * Slice Count
+     */
+    slice_count?: number;
+    /**
+     * Registered Slice Count
+     */
+    registered_slice_count?: number;
+    /**
+     * Refreshable
+     */
+    refreshable?: boolean;
 };
 
 /**
@@ -7182,6 +7194,38 @@ export type RefreshCollectionImageryErrors = {
 export type RefreshCollectionImageryError = RefreshCollectionImageryErrors[keyof RefreshCollectionImageryErrors];
 
 export type RefreshCollectionImageryResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type RefreshSourceImageryData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Source Id
+         */
+        source_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/sources/{source_id}/refresh';
+};
+
+export type RefreshSourceImageryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshSourceImageryError = RefreshSourceImageryErrors[keyof RefreshSourceImageryErrors];
+
+export type RefreshSourceImageryResponses = {
     /**
      * Successful Response
      */
