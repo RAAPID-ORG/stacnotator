@@ -62,20 +62,26 @@ const ensureNavInfo = (projectId: number) => {
     .finally(() => pendingLoads.delete(projectId));
 };
 
-/** Project name from the nav cache, fetched on demand for deep entries.
- *  Feeds the project crumb on campaign pages, whose API responses only carry
- *  the project id. */
-export const useProjectName = (projectId: number | null): string | null => {
+/** A project from the nav cache, fetched on demand for deep entries (straight
+ *  into a campaign route). The one place the app resolves "which project is
+ *  this route about", so the breadcrumb, the sidebar and the org scope all
+ *  read the same answer. */
+export const useProjectNavInfo = (projectId: number | null): ProjectNavInfo | undefined => {
   const info = useSyncExternalStore(subscribe, () =>
     projectId === null ? undefined : navInfoCache.get(projectId)
   );
   useEffect(() => {
     if (projectId !== null) ensureNavInfo(projectId);
   }, [projectId]);
-  return info?.project.name ?? null;
+  return info;
 };
 
-const PROJECT_ROUTE = /^\/projects\/(\d+)(?:\/campaigns\/(\d+))?/;
+/** Feeds the project crumb on campaign pages, whose API responses only carry
+ *  the project id. */
+export const useProjectName = (projectId: number | null): string | null =>
+  useProjectNavInfo(projectId)?.project.name ?? null;
+
+export const PROJECT_ROUTE = /^\/projects\/(\d+)(?:\/campaigns\/(\d+))?/;
 
 /** Longer names are visually truncated in the 180px sidebar; the native title
  *  shows the full text on hover without extra chrome. */

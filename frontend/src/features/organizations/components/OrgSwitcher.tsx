@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { newOrganizationPath, organizationPath, organizationsPath } from '~/app/routes';
+import {
+  newOrganizationPath,
+  organizationPath,
+  organizationsPath,
+  projectsPath,
+} from '~/app/routes';
 import { useOrgStore } from '~/shared/stores/org.store';
 import { Badge } from '~/shared/ui/Badge';
 import { IconBuilding, IconCheck, IconChevronDown, IconGear, IconPlus } from '~/shared/ui/Icons';
@@ -84,9 +89,14 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
 
   const activeOrg = orgs.find((o) => o.id === activeOrgId);
 
+  /** Switching organization is a move, not a filter: the page you were on
+   *  belongs to the organization you just left, so it lands on the new one's
+   *  projects. */
   const selectOrg = (id: number | null) => {
     setActiveOrgId(id);
     close();
+    navigate(projectsPath());
+    onNavigate?.();
   };
 
   const go = (path: string) => {

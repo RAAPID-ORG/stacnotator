@@ -62,6 +62,9 @@ export const ProjectsPage = () => {
     [projects, filter, activeOrgId, belongsToAnyOrg, query]
   );
 
+  // The page is the active organization's workspace; naming it keeps the
+  // switcher and the list from disagreeing about where the user is.
+  const activeOrgName = memberships.find((org) => org.id === activeOrgId)?.name ?? null;
   const canCreateProject = approvedOrgs.length > 0;
   const showCreationGating = !canCreateProject && !orgsLoading && orgsError === null;
   const needsOrgSelection = filter === 'organization' && activeOrgId === null;
@@ -72,6 +75,11 @@ export const ProjectsPage = () => {
         <header className="page-header">
           <div>
             <h1 className="page-title">Projects</h1>
+            {activeOrgName && (
+              <p className="text-xs text-neutral-500 mt-0.5" data-testid="projects-org-scope">
+                {activeOrgName}
+              </p>
+            )}
             {loading ? (
               <Skeleton className="h-4 w-48 mt-1.5" />
             ) : (

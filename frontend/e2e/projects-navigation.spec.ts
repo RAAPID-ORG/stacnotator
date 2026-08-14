@@ -11,7 +11,29 @@ const openProjects = async (page: import('@playwright/test').Page) => {
   await Promise.all([page.waitForResponse(ROUTE.projects), page.goto('/projects')]);
 };
 
+const SECOND_ORG = { ...MOCK_ORG, id: MOCK_ORG.id + 1, name: 'Second Org' };
+
 test.describe('Projects list', () => {
+  test('switching organization leaves the current project for the new organization', async ({
+    appPage,
+  }) => {
+    await appPage.route(ROUTE.organizations, async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      await route.fulfill({ json: { items: [MOCK_ORG, SECOND_ORG] } });
+    });
+    await openProjects(appPage);
+    await appPage.getByTestId('project-row').first().click();
+    await expect(appPage).toHaveURL(new RegExp(`/projects/${MOCK_PROJECT.id}$`));
+
+    await appPage.getByTestId('org-switcher').click();
+    await appPage.getByRole('menuitemradio', { name: SECOND_ORG.name }).click();
+
+    // The project belonged to the organization just left, so the workspace
+    // lands on the new one's projects rather than staying put.
+    await expect(appPage).toHaveURL(/\/projects$/);
+    await expect(appPage.getByTestId('org-switcher')).toContainText(SECOND_ORG.name);
+  });
+
   test('a first run auto-activates the approved organization and defaults to my projects', async ({
     appPage,
   }) => {

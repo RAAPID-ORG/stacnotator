@@ -68,3 +68,23 @@ describe('useOrgStore', () => {
     expect(JSON.parse(raw ?? '')).toMatchObject({ state: { activeOrgId: 9 } });
   });
 });
+
+describe('adoptActiveOrg', () => {
+  it('moves the workspace to the organization of the page being viewed', () => {
+    useOrgStore.setState({ activeOrgId: 1, hasChosenOrg: true });
+    useOrgStore.getState().adoptActiveOrg(2, [1, 2]);
+    expect(useOrgStore.getState().activeOrgId).toBe(2);
+  });
+
+  it('ignores organizations the viewer does not belong to', () => {
+    useOrgStore.setState({ activeOrgId: 1, hasChosenOrg: true });
+    useOrgStore.getState().adoptActiveOrg(99, [1, 2]);
+    expect(useOrgStore.getState().activeOrgId).toBe(1);
+  });
+
+  it('leaves a first-run session marked as chosen once it lands somewhere', () => {
+    useOrgStore.setState({ activeOrgId: null, hasChosenOrg: false });
+    useOrgStore.getState().adoptActiveOrg(2, [2]);
+    expect(useOrgStore.getState()).toMatchObject({ activeOrgId: 2, hasChosenOrg: true });
+  });
+});

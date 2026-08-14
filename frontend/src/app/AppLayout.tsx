@@ -9,6 +9,7 @@ import { Breadcrumbs } from 'src/shared/ui/Breadcrumbs';
 import { ErrorFallback } from 'src/shared/ui/ErrorFallback';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
 import { ANNOTATION_ROUTE } from 'src/app/routes';
+import { useOrgScope } from 'src/app/useOrgScope';
 
 /**
  * Main application layout
@@ -17,6 +18,9 @@ import { ANNOTATION_ROUTE } from 'src/app/routes';
  */
 export const AppLayout = () => {
   const { pathname } = useLocation();
+
+  // The workspace follows the page: see useOrgScope.
+  useOrgScope();
 
   // All layout state from a single source of truth
   const {
