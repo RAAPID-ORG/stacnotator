@@ -11,7 +11,7 @@ import type {
   ImageryCollectionOut,
 } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
-import { basemapToBackend, sourceToBackend } from './draftSync';
+import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
 import type {
   Basemap,
   CollectionItem,
@@ -99,6 +99,31 @@ export function vizParamsToFrontend(d: Record<string, unknown> | null | undefine
     nirBand: (p.nir_band as string) ?? undefined,
     redBand: (p.red_band as string) ?? undefined,
     maxItems: (p.max_items as number) ?? undefined,
+  };
+}
+
+export interface SourceRegistrationProgress {
+  registered: number;
+  total: number;
+  percent: number;
+  complete: boolean;
+}
+
+/** How far a source's slices have got with the tiler, or null when the question
+ *  doesn't apply yet: an unsaved source has nothing registered by definition,
+ *  and a source without slices has nothing to register. */
+export function sourceRegistration(
+  source: ImagerySource,
+  campaignId: number | undefined
+): SourceRegistrationProgress | null {
+  const total = source.sliceCount ?? 0;
+  if (campaignId == null || !isRealId(source.id) || total === 0) return null;
+  const registered = source.registeredSliceCount ?? 0;
+  return {
+    registered,
+    total,
+    percent: Math.round((registered / total) * 100),
+    complete: registered === total,
   };
 }
 

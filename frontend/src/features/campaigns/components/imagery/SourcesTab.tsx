@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { IconPlus, IconSettings } from '~/shared/ui/Icons';
+import { IconCheck, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import type { ImageryController } from './controller';
+import { sourceRegistration } from './controller';
 import { AddSourceWizard } from './AddSourceWizard';
 
 interface SourcesTabProps {
@@ -25,20 +26,43 @@ export const SourcesTab = ({ controller, campaignBbox = null, onEditSource }: So
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {sources.map((source) => (
-          <button
-            key={source.id}
-            type="button"
-            onClick={() => onEditSource(source.id)}
-            title="Click to configure"
-            className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer px-4 py-3 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/10"
-          >
-            <IconSettings className="absolute inset-0 m-auto w-4 h-4 transition-opacity opacity-0 group-hover:opacity-100 text-brand-600" />
-            <span className="text-xs font-medium leading-tight truncate max-w-[120px] transition-opacity group-hover:opacity-0">
-              {source.name || 'Untitled'}
-            </span>
-          </button>
-        ))}
+        {sources.map((source) => {
+          const registration = sourceRegistration(source, controller.campaignId);
+          return (
+            <button
+              key={source.id}
+              type="button"
+              onClick={() => onEditSource(source.id)}
+              title={
+                registration
+                  ? `Click to configure - ${registration.registered} of ${registration.total} slices registered`
+                  : 'Click to configure'
+              }
+              className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer px-4 py-3 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/10"
+            >
+              <IconSettings className="absolute inset-0 m-auto w-4 h-4 transition-opacity opacity-0 group-hover:opacity-100 text-brand-600" />
+              <span className="text-xs font-medium leading-tight truncate max-w-[120px] transition-opacity group-hover:opacity-0">
+                {source.name || 'Untitled'}
+              </span>
+              {registration && (
+                <span
+                  data-testid="source-registration-progress"
+                  data-registered={registration.registered}
+                  data-total={registration.total}
+                  className="absolute top-1 right-1 transition-opacity group-hover:opacity-0"
+                >
+                  {registration.complete ? (
+                    <IconCheck className="w-3 h-3 text-green-700" />
+                  ) : (
+                    <span className="text-[9px] font-medium text-amber-600">
+                      {registration.percent}%
+                    </span>
+                  )}
+                </span>
+              )}
+            </button>
+          );
+        })}
 
         <button
           type="button"

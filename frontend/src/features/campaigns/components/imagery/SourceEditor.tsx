@@ -18,6 +18,7 @@ import type { CatalogBrowserPreset, CatalogBrowserResult } from './CatalogBrowse
 import { BulkApplyModal } from './BulkApplyModal';
 import type { BulkFocus } from './BulkApplyModal';
 import type { ImageryController } from './controller';
+import { sourceRegistration } from './controller';
 import { ApiKeyField } from './ApiKeyField';
 import { isRealId } from './draftSync';
 import { setSourceApiKey } from '~/api/client';
@@ -106,12 +107,10 @@ function SourceRegistration({
   controller: ImageryController;
   source: ImagerySource;
 }) {
-  const persisted = controller.campaignId != null && isRealId(source.id);
-  const total = source.sliceCount ?? 0;
-  if (!persisted || total === 0) return null;
+  const registration = sourceRegistration(source, controller.campaignId);
+  if (!registration) return null;
 
-  const registered = source.registeredSliceCount ?? 0;
-  const complete = registered === total;
+  const { registered, total, percent, complete } = registration;
 
   return (
     <div className="space-y-1" data-testid="source-registration">
@@ -120,8 +119,8 @@ function SourceRegistration({
         <Tooltip text="Slices become visible once their imagery is registered with the tiler. Re-register to run this source's searches again - use it when a season has moved on and newer imagery should be picked up." />
       </label>
       <div className="flex items-center gap-3">
-        <span className={`text-[11px] ${complete ? 'text-emerald-600' : 'text-amber-600'}`}>
-          {registered} of {total} slices registered
+        <span className={`text-[11px] ${complete ? 'text-green-700' : 'text-amber-600'}`}>
+          {registered} of {total} slices registered ({percent}%)
         </span>
         {source.refreshable && (
           <button
