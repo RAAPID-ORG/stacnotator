@@ -1,6 +1,13 @@
 import pytest
+from pydantic import ValidationError
 
-from src.timeseries.schemas import TimeSeriesCreate, parse_ym, ym_range_to_dates
+from src.timeseries.schemas import (
+    TimeSeriesCreate,
+    TimeSeriesOut,
+    parse_ym,
+    timeseries_options,
+    ym_range_to_dates,
+)
 from src.timeseries.windows import DEFAULT_TIMESERIES_WINDOW_NAME
 
 
@@ -37,6 +44,91 @@ def test_window_name_defaults_when_omitted():
         ts_type="NDVI",
     )
     assert ts.window_name == DEFAULT_TIMESERIES_WINDOW_NAME
+
+
+def _create(**overrides):
+    return TimeSeriesCreate(
+        **{
+            "name": "ts",
+            "start_ym": "202401",
+            "end_ym": "202412",
+            "data_source": "SENTINEL2",
+            "provider": "EE",
+            "ts_type": "NDVI",
+            **overrides,
+        }
+    )
+
+
+class TestSourceAndIndexValidation:
+    """A series that names an index its source cannot compute would save fine and
+    then fail for every annotator who opened it, so it is refused up front."""
+
+    def test_rejects_an_index_the_source_lacks_the_bands_for(self):
+        with pytest.raises(ValidationError, match="NDRE"):
+            _create(data_source="MODIS", ts_type="NDRE")
+
+    def test_rejects_an_unknown_index(self):
+        with pytest.raises(ValidationError, match="Unknown index"):
+            _create(ts_type="NDXX")
+
+    def test_rejects_an_unknown_source(self):
+        with pytest.raises(ValidationError, match="Unsupported data source"):
+            _create(data_source="SENTINEL3")
+
+    def test_rejects_an_unknown_provider(self):
+        with pytest.raises(ValidationError, match="Unsupported provider"):
+            _create(provider="STAC")
+
+    def test_accepts_the_indices_a_source_does_carry(self):
+        assert _create(data_source="LANDSAT", ts_type="NBR").ts_type == "NBR"
+        assert _create(data_source="SENTINEL2", ts_type="NDRE").ts_type == "NDRE"
+
+    def test_stores_canonical_keys(self):
+        item = _create(data_source=" landsat ", ts_type=" ndmi ")
+        assert (item.data_source, item.ts_type) == ("LANDSAT", "NDMI")
+
+
+class TestOutputCarriesTheIndexDescription:
+    def test_chart_metadata_travels_with_the_series(self):
+        out = TimeSeriesOut(
+            id=1,
+            campaign_id=2,
+            name="ts",
+            window_name="Time series",
+            start_ym="202401",
+            end_ym="202412",
+            data_source="SENTINEL2",
+            provider="EE",
+            ts_type="GCVI",
+        )
+        assert out.index is not None
+        assert (out.index.domain_min, out.index.domain_max) == (0.0, 10.0)
+        assert out.index.summary
+
+    def test_an_unrecognised_stored_index_lists_instead_of_failing(self):
+        out = TimeSeriesOut(
+            id=1,
+            campaign_id=2,
+            name="ts",
+            window_name="Time series",
+            start_ym="202401",
+            end_ym="202412",
+            data_source="SENTINEL2",
+            provider="EE",
+            ts_type="RETIRED",
+        )
+        assert out.index is None
+
+
+class TestCreationOptions:
+    def test_every_source_advertises_only_indices_it_can_compute(self):
+        options = timeseries_options()
+        known = {index.key for index in options.indices}
+        assert options.sources
+        for source in options.sources:
+            assert source.index_keys
+            assert set(source.index_keys) <= known
 
 
 def test_parse_ym_valid():

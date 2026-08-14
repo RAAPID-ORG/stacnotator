@@ -129,11 +129,11 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 
 ## Time Series
 
-- MODIS and Sentinel-2 (CloudScore+ cloud masking) NDVI time series via Google Earth Engine
+- Three sources via Google Earth Engine: Sentinel-2 (10 m, CloudScore+ and SCL masking), Landsat 5/7/8/9 merged into one 30 m record back to 1984 (QA_PIXEL masking), and MODIS MOD09Q1 (250 m, 8-day)
+- Seven spectral indices, each scoped to the sources carrying the bands it needs: NDVI, EVI2, GCVI, NDMI, NBR, MNDWI, and NDRE (Sentinel-2 only, red edge). Each ships a summary, what it is good for, its limitation and its citation, shown when picking one and used to scale the chart axis
 - Point-based querying - click on map to see temporal profile
 - Chart with Savitzky-Golay smoothing
 - Configurable per campaign; series are grouped into named canvas windows (`window_name`)
-- Will be extended to any form of TS from GEE
 
 ## Embeddings & Similarity
 

@@ -9,19 +9,14 @@ from src.campaigns.models import Campaign
 from src.database import get_db
 from src.earth_engine import ensure_earth_engine
 from src.timeseries import service
-from src.timeseries.constants import (
-    SUPPORTED_TIMESERIES_PROVIDERS,
-    SUPPORTED_TIMESERIES_SOURCES,
-    SUPPORTED_TIMESERIES_TYPES,
-    as_timeseries_source,
-)
-from src.timeseries.ndvi_ee import RateLimited, UpstreamFailed
+from src.timeseries.fetch import RateLimited, UpstreamFailed
 from src.timeseries.schemas import (
     TimeseriesBulkCreateRequest,
     TimeseriesBulkCreateResponse,
     TimeseriesDataResponse,
     TimeseriesListResponse,
     TimeSeriesOptionsOut,
+    timeseries_options,
     ym_range_to_dates,
 )
 
@@ -56,12 +51,9 @@ def create_timeseries_for_campaign(
 
 @router.get("/timeseries/create-options", response_model=TimeSeriesOptionsOut)
 def get_timeseries_creation_options():
-    """Get options for registering new timeseries for a campaign, such as supported data sources, providers, and types."""
-    return TimeSeriesOptionsOut(
-        data_sources=SUPPORTED_TIMESERIES_SOURCES,
-        providers=SUPPORTED_TIMESERIES_PROVIDERS,
-        ts_types=SUPPORTED_TIMESERIES_TYPES,
-    )
+    """Get options for registering new timeseries for a campaign: the satellite
+    sources, the spectral indices each one can compute, and what they are for."""
+    return timeseries_options()
 
 
 @router.get(
@@ -87,11 +79,7 @@ def get_timeseries_data(
 
     # Free the pooled connection back before the slow Earth Engine call.
     ts_type = timeseries.ts_type
-    source = as_timeseries_source(timeseries.data_source)
-    if source is None:
-        raise HTTPException(
-            status_code=400, detail=f"Unsupported data source: {timeseries.data_source}"
-        )
+    data_source = timeseries.data_source
     db.close()
 
     if not ensure_earth_engine():
@@ -103,12 +91,14 @@ def get_timeseries_data(
     try:
         timeseries_data_df = service.get_timeseries_data(
             ts_type=ts_type,
-            source=source,
+            data_source=data_source,
             latitude=latitude,
             longitude=longitude,
             start_date=start,
             end_date=end,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RateLimited as exc:
         raise HTTPException(
             status_code=503,

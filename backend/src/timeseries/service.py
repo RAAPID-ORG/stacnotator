@@ -1,5 +1,3 @@
-from typing import Literal
-
 import pandas as pd
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -8,9 +6,11 @@ from sqlalchemy.orm import Session
 from src.campaigns.models import Campaign
 from src.canvas.service import sync_main_layouts
 from src.config import get_settings
-from src.timeseries import ndvi_ee
+from src.timeseries.fetch import fetch_index_series
+from src.timeseries.indices import index_for
 from src.timeseries.models import TimeSeries
 from src.timeseries.schemas import TimeSeriesCreate
+from src.timeseries.sources import source_for
 from src.timeseries.windows import distinct_window_keys, sync_timeseries_windows_in_layout
 
 settings = get_settings()
@@ -18,18 +18,30 @@ settings = get_settings()
 
 def get_timeseries_data(
     ts_type: str,
-    source: Literal["MODIS", "SENTINEL2"],
+    data_source: str,
     latitude: float,
     longitude: float,
     start_date: str,
     end_date: str,
 ) -> pd.DataFrame:
-    if ts_type == "NDVI":
-        return ndvi_ee.fetch_ndvi(
-            source, latitude=latitude, longitude=longitude, start_date=start_date, end_date=end_date
-        )
-    else:
-        raise ValueError("Currenty only supporting NDVI timeseries.")
+    """Resolve a stored series' source and index, then fetch its values. Raises
+    ValueError if the stored combination is no longer one we can compute."""
+    source = source_for(data_source)
+    if source is None:
+        raise ValueError(f"Unsupported data source: {data_source}")
+
+    index = index_for(ts_type)
+    if index is None:
+        raise ValueError(f"Unknown index: {ts_type}")
+
+    return fetch_index_series(
+        source,
+        index,
+        latitude=latitude,
+        longitude=longitude,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
 
 # ============================================================================
