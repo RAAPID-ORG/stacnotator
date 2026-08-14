@@ -202,12 +202,12 @@ class ImageryViewOut(BaseModel):
     _default_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
     _personal_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def default_canvas_layout(self) -> CanvasLayoutOut | None:
         return self._default_canvas_layout
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def personal_canvas_layout(self) -> CanvasLayoutOut | None:
         return self._personal_canvas_layout

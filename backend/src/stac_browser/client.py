@@ -258,11 +258,13 @@ def _simplify_item(item) -> dict:
     }
 
 
-def _to_utc(dt: datetime | None) -> datetime | None:
+def _as_utc(dt: datetime) -> datetime:
     """Coerce a datetime to timezone-aware UTC so comparisons never mix naive/aware."""
-    if dt is None:
-        return None
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def _to_utc(dt: datetime | None) -> datetime | None:
+    return None if dt is None else _as_utc(dt)
 
 
 def _parse_dt(value: str) -> datetime | None:
@@ -303,10 +305,10 @@ def datetime_in_range(
     """Whether an item's datetime falls within [start, end]. Undated items are kept."""
     if item_dt is None:
         return True
-    item_dt = _to_utc(item_dt)
-    if start and item_dt < start:
+    utc = _as_utc(item_dt)
+    if start and utc < start:
         return False
-    return not (end and item_dt > end)
+    return not (end and utc > end)
 
 
 def _conforms_to_item_search(client: pystac_client.Client) -> bool:

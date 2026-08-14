@@ -65,10 +65,13 @@ def insert_tasks(
     Raises:
         HTTPException: On DB failure; commits on success
     """
-    max_annotation_number = db.scalar(
-        select(func.coalesce(func.max(AnnotationTask.annotation_number), 0)).where(
-            AnnotationTask.campaign_id == campaign_id
+    max_annotation_number: int = (
+        db.scalar(
+            select(func.coalesce(func.max(AnnotationTask.annotation_number), 0)).where(
+                AnnotationTask.campaign_id == campaign_id
+            )
         )
+        or 0
     )
     source_data: list[dict | None] = (
         list(raw_source_data) if raw_source_data is not None else [None] * len(geometry_wkts)
@@ -470,7 +473,10 @@ def create_annotations_from_geojson(
         if existing:
             raise HTTPException(
                 status_code=400,
-                detail=f"id(s) already exist in this campaign: {sorted(set(existing))}",
+                detail=(
+                    "id(s) already exist in this campaign: "
+                    f"{sorted({sid for sid in existing if sid is not None})}"
+                ),
             )
 
     try:

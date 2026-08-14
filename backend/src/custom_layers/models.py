@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -16,6 +17,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
 
 from src.database import Base
+
+if TYPE_CHECKING:
+    from src.campaigns.models import Campaign
 
 
 class CustomMap(Base):
@@ -48,7 +52,7 @@ class CustomMap(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="custom_maps")  # noqa: F821
+    campaign: Mapped["Campaign"] = relationship(back_populates="custom_maps")
 
 
 class VectorLayer(Base):
@@ -77,4 +81,4 @@ class VectorLayer(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="vector_layers")  # noqa: F821
+    campaign: Mapped["Campaign"] = relationship(back_populates="vector_layers")

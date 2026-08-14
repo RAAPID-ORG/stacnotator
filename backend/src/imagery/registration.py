@@ -198,7 +198,7 @@ def _register_all_stac_browser_collections(
         return []
 
     # Resolve each hosted tiler once; MPC-only collections resolve none.
-    tilers_by_name: dict[str, object] = {}
+    tilers_by_name: dict[str, providers.TilerCfg] = {}
     for name in {t["tiler_name"] for t in tasks if t["any_needs_hosted"]}:
         try:
             tilers_by_name[name] = providers.resolve_tiler(name)
@@ -469,7 +469,8 @@ def _register_mpc_slice(stac, db_slice, bbox: list[float], search_query: dict | 
     body = _resolved_search_body(search_query, bbox, db_slice)
     resp = httpx.post(MPC_REGISTER_URL, json=body, timeout=30)
     resp.raise_for_status()
-    return resp.json()["searchid"]
+    search_id: str = resp.json()["searchid"]
+    return search_id
 
 
 def _register_hosted_slice(stac, db_slice, bbox, search_query, campaign_id, tiler) -> str:
@@ -578,7 +579,7 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
 
                 # Rebuild each visualization's URL with its own params + the slice's new ref.
                 for tu in sl.tile_urls:
-                    ref = refs.get(tu.tile_provider)
+                    ref = refs.get(tu.tile_provider or "")
                     if ref is None:
                         continue
                     params = _slice_viz_params(stac, tu.visualization_name, is_cover)

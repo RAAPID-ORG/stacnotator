@@ -1,11 +1,12 @@
 import io
 import random
 from collections import defaultdict
+from typing import Any, cast
 from uuid import UUID
 
 import pandas as pd
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import CursorResult, Result, delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.annotation.constants import (
@@ -76,6 +77,12 @@ def _seed_assignment_status(
             ANNOTATION_TASK_STATUS_DONE if label_id is not None else ANNOTATION_TASK_STATUS_SKIPPED
         )
     return seeded
+
+
+def _deleted_rows(result: Result[Any]) -> int:
+    """Session.execute is typed as returning a plain Result; a DELETE always
+    produces a CursorResult, which is what carries rowcount."""
+    return cast("CursorResult[Any]", result).rowcount
 
 
 def _verify_campaign_members(
@@ -201,7 +208,10 @@ def assign_tasks_to_users(
         if req.strategy == "fixed_per_user" and not req.user_task_counts:
             raise HTTPException(status_code=400, detail="No users selected")
 
-        target_users = req.user_ids if req.strategy == "even" else list(req.user_task_counts)
+        # The two branches above already rejected the empty half of each
+        # strategy, which is what makes these non-null here.
+        counts = req.user_task_counts or {}
+        target_users = req.user_ids if req.strategy == "even" else list(counts)
         _verify_campaign_members(db, campaign_id, set(target_users))
 
         eligible_ids = _eligible_task_ids(db, campaign_id, req.task_set_id)
@@ -209,7 +219,7 @@ def assign_tasks_to_users(
         mapping = (
             _distribute_evenly(eligible_ids, req.user_ids)
             if req.strategy == "even"
-            else _distribute_fixed(eligible_ids, req.user_task_counts)
+            else _distribute_fixed(eligible_ids, counts)
         )
 
     pairs = [(task_id, user_id) for task_id, user_ids in mapping.items() for user_id in user_ids]
@@ -246,12 +256,16 @@ def unassign_user_from_task(db: Session, campaign_id: int, task_id: int, user_id
         )
 
     # Delete the assignment
-    stmt = delete(AnnotationTaskAssignment).where(
-        AnnotationTaskAssignment.task_id == task_id, AnnotationTaskAssignment.user_id == user_id
+    deleted = _deleted_rows(
+        db.execute(
+            delete(AnnotationTaskAssignment).where(
+                AnnotationTaskAssignment.task_id == task_id,
+                AnnotationTaskAssignment.user_id == user_id,
+            )
+        )
     )
-    result = db.execute(stmt)
 
-    if result.rowcount == 0:
+    if deleted == 0:
         raise HTTPException(
             status_code=404, detail=f"User {user_id} is not assigned to task {task_id}"
         )
@@ -284,9 +298,9 @@ def unassign_users_from_tasks(
             return 0
         where_clauses.append(AnnotationTaskAssignment.user_id.in_(user_ids))
 
-    result = db.execute(delete(AnnotationTaskAssignment).where(*where_clauses))
+    deleted = _deleted_rows(db.execute(delete(AnnotationTaskAssignment).where(*where_clauses)))
     db.commit()
-    return result.rowcount or 0
+    return deleted
 
 
 def _reviewable_tasks(

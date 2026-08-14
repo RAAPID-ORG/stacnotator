@@ -3,6 +3,8 @@ and per-point dataframe extraction. No FastAPI or database dependency here;
 failures surface as the domain errors below for the router to translate.
 """
 
+from typing import Any, Literal
+
 import ee
 import pandas as pd
 from googleapiclient.errors import HttpError
@@ -105,7 +107,9 @@ def add_s2_cloud_mask(image):
 
 # Canonical registry of supported NDVI time series sources; constants.py
 # derives SUPPORTED_TIMESERIES_SOURCES from this so the two never drift.
-ds_configs = {
+TimeseriesSource = Literal["MODIS", "SENTINEL2"]
+
+ds_configs: dict[TimeseriesSource, dict[str, Any]] = {
     "MODIS": {
         "collection_id": "MODIS/061/MOD09Q1",
         "NDVI": {
@@ -143,7 +147,8 @@ def _link_cloudscore_plus(s2_collection: ee.ImageCollection) -> ee.ImageCollecti
         cs_image = ee.Image(image.get("cs_match"))
         return image.addBands(cs_image.select(["cs_cdf"]))
 
-    return joined.map(_add_cs_band)
+    linked: ee.ImageCollection = ee.ImageCollection(joined.map(_add_cs_band))
+    return linked
 
 
 def _region_data_to_dataframe(region_data: list) -> pd.DataFrame:
@@ -168,7 +173,7 @@ def _region_data_to_dataframe(region_data: list) -> pd.DataFrame:
 
 
 def fetch_ndvi(
-    source: str,
+    source: TimeseriesSource,
     latitude: float,
     longitude: float,
     start_date: str,
@@ -178,11 +183,7 @@ def fetch_ndvi(
     Fetch NDVI time series for a specific point from Earth Engine, given a date
     range and source.
     """
-    config = ds_configs.get(source.upper())
-    if not config:
-        raise ValueError(
-            f"Source '{source}' not recognized. Available sources: {list(ds_configs.keys())}"
-        )
+    config = ds_configs[source]
 
     if "NDVI" not in config:
         raise ValueError(f"NDVI not yet supported for data source: {source}")

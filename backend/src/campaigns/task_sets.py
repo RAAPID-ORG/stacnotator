@@ -87,7 +87,7 @@ def delete_task_set(db: Session, campaign_id: int, task_set_id: int) -> None:
     num_sets = db.scalar(
         select(func.count()).select_from(TaskSet).where(TaskSet.campaign_id == campaign_id)
     )
-    if num_sets <= 1:
+    if (num_sets or 0) <= 1:
         raise HTTPException(
             status_code=409,
             detail="A campaign must keep at least one task set",

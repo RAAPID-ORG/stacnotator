@@ -8,6 +8,7 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.annotation import claims, embeddings_service, export, ingest, service, spatial
+from src.annotation.models import Annotation
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationDensityCell,
@@ -162,7 +163,7 @@ async def ingest_annotation_tasks_from_csv(
     file: UploadFile = File(...),
     task_set_id: int = Form(...),
 ):
-    if not file.filename.endswith(".csv"):
+    if not (file.filename or "").endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
     require_task_set(db, campaign.id, task_set_id, status_code=400)
@@ -231,15 +232,13 @@ def create_annotation_openmode(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> AnnotationOut:
-    annotation = service.create_annotation(
+) -> Annotation:
+    return service.create_annotation(
         db=db,
         campaign=campaign,
         annotation_create=annotation,
         user_id=user.id,
     )
-
-    return annotation
 
 
 @router.post(
@@ -275,16 +274,14 @@ def update_annotation_openmode(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> AnnotationOut:
-    annotation = service.update_annotation(
+) -> Annotation:
+    return service.update_annotation(
         db=db,
         annotation_id=annotation_id,
         annotation_update=annotation_update,
         user_id=user.id,
         campaign=campaign,
     )
-
-    return annotation
 
 
 # ============================================================================
@@ -503,7 +500,7 @@ def get_annotation(
     annotation_id: int,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
-) -> AnnotationOut:
+) -> Annotation:
     """Fetch one annotation's full-resolution geometry for click-to-edit."""
     annotation = service.get_annotation_by_id(db, annotation_id, campaign)
     if annotation is None:

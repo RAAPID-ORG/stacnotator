@@ -510,11 +510,15 @@ def _update_source_in_place(
     for name, viz in list(existing_viz.items()):
         if name not in payload_names:
             db.delete(viz)
-    for viz_idx, viz in enumerate(src_create.visualizations):
-        if viz.name in existing_viz:
-            existing_viz[viz.name].display_order = viz_idx
+    for viz_idx, viz_create in enumerate(src_create.visualizations):
+        if viz_create.name in existing_viz:
+            existing_viz[viz_create.name].display_order = viz_idx
         else:
-            db.add(VisualizationTemplate(source_id=db_src.id, name=viz.name, display_order=viz_idx))
+            db.add(
+                VisualizationTemplate(
+                    source_id=db_src.id, name=viz_create.name, display_order=viz_idx
+                )
+            )
 
     # Remove CollectionVizConfig rows for viz names that disappeared from the source.
     if removed_viz_names:

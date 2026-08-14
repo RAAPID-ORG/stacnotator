@@ -21,8 +21,12 @@ from src.database import Base
 from src.projects.access import VISIBILITY_PUBLIC
 
 if TYPE_CHECKING:
+    from src.annotation.models import Annotation, AnnotationTask
     from src.canvas.models import CanvasLayout
+    from src.custom_layers.models import CustomMap, VectorLayer
+    from src.imagery.models import Basemap, ImagerySource, ImageryView
     from src.projects.models import Project
+    from src.timeseries.models import TimeSeries
 
 
 class Campaign(Base):
@@ -83,40 +87,40 @@ class Campaign(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
-    time_series: Mapped[list["TimeSeries"]] = relationship(  # noqa: F821
+    time_series: Mapped[list["TimeSeries"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    task_items: Mapped[list["AnnotationTask"]] = relationship(  # noqa: F821
+    task_items: Mapped[list["AnnotationTask"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    annotations: Mapped[list["Annotation"]] = relationship(  # noqa: F821
+    annotations: Mapped[list["Annotation"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    imagery_sources: Mapped[list["ImagerySource"]] = relationship(  # noqa: F821
+    imagery_sources: Mapped[list["ImagerySource"]] = relationship(
         "ImagerySource",
         back_populates="campaign",
         cascade="all, delete-orphan",
         order_by="ImagerySource.display_order",
     )
-    basemaps: Mapped[list["Basemap"]] = relationship(  # noqa: F821
+    basemaps: Mapped[list["Basemap"]] = relationship(
         "Basemap", back_populates="campaign", cascade="all, delete-orphan"
     )
-    custom_maps: Mapped[list["CustomMap"]] = relationship(  # noqa: F821
+    custom_maps: Mapped[list["CustomMap"]] = relationship(
         "CustomMap",
         back_populates="campaign",
         cascade="all, delete-orphan",
         order_by="CustomMap.display_order",
     )
-    vector_layers: Mapped[list["VectorLayer"]] = relationship(  # noqa: F821
+    vector_layers: Mapped[list["VectorLayer"]] = relationship(
         "VectorLayer",
         back_populates="campaign",
         cascade="all, delete-orphan",
         order_by="VectorLayer.display_order",
     )
-    imagery_views: Mapped[list["ImageryView"]] = relationship(  # noqa: F821
+    imagery_views: Mapped[list["ImageryView"]] = relationship(
         "ImageryView",
         back_populates="campaign",
         cascade="all, delete-orphan",

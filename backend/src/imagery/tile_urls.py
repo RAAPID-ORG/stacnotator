@@ -38,8 +38,8 @@ def _slice_viz_params(stac, viz_name: str, is_cover: bool) -> dict:
     for vc in stac.collection.viz_configs if stac.collection else []:
         if vc.name == viz_name:
             if is_cover and vc.cover_render_params:
-                return vc.cover_render_params
-            return vc.render_params or {}
+                return dict(vc.cover_render_params)
+            return dict(vc.render_params or {})
     return {}
 
 

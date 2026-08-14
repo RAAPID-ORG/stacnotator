@@ -161,6 +161,8 @@ def build_tile_url(
         qs = build_viz_query_string(viz_params, for_mpc=True)
         return f"{url}&{qs}" if qs else url
 
+    if tiler is None:
+        raise ValueError(f"provider {provider!r} needs a tiler to build a tile URL")
     base = tiler.url.rstrip("/")
     url = f"{base}/searches/{ref}/tiles/WebMercatorQuad/{{z}}/{{x}}/{{y}}.png"
     qs = build_viz_query_string(viz_params)
@@ -215,7 +217,8 @@ def ingest_on_tiler(
         timeout=300,
     )
     resp.raise_for_status()
-    return resp.json()["ingested"]
+    ingested: int = resp.json()["ingested"]
+    return ingested
 
 
 def register_cog_on_tiler(
@@ -238,7 +241,8 @@ def register_cog_on_tiler(
         timeout=60,
     )
     resp.raise_for_status()
-    return resp.json()["id"]
+    search_id: str = resp.json()["id"]
+    return search_id
 
 
 # Wire contract with the tiler (its `azure.ASSET_SIGNER_MANAGED_IDENTITY`): a search stamped
@@ -268,4 +272,5 @@ def register_on_tiler(
         timeout=30,
     )
     resp.raise_for_status()
-    return resp.json()["id"]
+    search_id: str = resp.json()["id"]
+    return search_id

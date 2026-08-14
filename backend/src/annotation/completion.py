@@ -88,7 +88,8 @@ def attach_counts_toward_completion_flat(
     org_member_ids = get_org_public_member_ids(db, campaign)
 
     for ann in task_linked:
-        assigned_ids = {a.user_id for a in (ann.annotation_task.assignments or [])}
+        task = ann.annotation_task
+        assigned_ids = {a.user_id for a in (task.assignments or [])} if task else set()
         ann.counts_toward_completion = _counting_context(
             ann, policy, role_map, admin_ids, assigned_ids, org_member_ids
         )

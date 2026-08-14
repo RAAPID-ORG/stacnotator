@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from src.timeseries import ndvi_ee
+from src.timeseries.constants import as_timeseries_source
 
 
 def _fake_collection() -> MagicMock:
@@ -57,15 +58,13 @@ class TestDsConfigsSelection:
         assert config["cloudmask_callable"] is ndvi_ee.add_s2_cloud_mask
         assert config["link_cloudscore"] is True
 
-    def test_unknown_source_raises_before_touching_ee(self):
-        with pytest.raises(ValueError, match="not recognized"):
-            ndvi_ee.fetch_ndvi(
-                "LANDSAT",
-                latitude=1.0,
-                longitude=2.0,
-                start_date="2024-01-01",
-                end_date="2024-02-01",
-            )
+    def test_unknown_source_is_rejected_at_the_boundary(self):
+        """Validation moved to the request boundary (constants.as_timeseries_source),
+        so fetch_ndvi is only ever handed a source the registry knows."""
+        assert as_timeseries_source("LANDSAT") is None
+
+    def test_source_matching_ignores_case_and_padding(self):
+        assert as_timeseries_source(" modis ") == "MODIS"
 
 
 class TestFetchNdvi:
@@ -77,7 +76,7 @@ class TestFetchNdvi:
         monkeypatch.setattr(ndvi_ee.ee.Geometry, "Point", MagicMock(return_value="point"))
 
         ndvi_ee.fetch_ndvi(
-            "modis", latitude=1.0, longitude=2.0, start_date="2024-01-01", end_date="2024-02-01"
+            "MODIS", latitude=1.0, longitude=2.0, start_date="2024-01-01", end_date="2024-02-01"
         )
 
         image_collection.assert_called_once_with("MODIS/061/MOD09Q1")

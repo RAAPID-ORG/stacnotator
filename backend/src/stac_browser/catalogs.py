@@ -7,6 +7,7 @@ import logging
 import socket
 import time
 from collections import OrderedDict
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -55,7 +56,7 @@ CURATED_CATALOGS: list[dict] = [
 ]
 
 
-_catalogs_cache: dict = {"data": None, "expires": 0}
+_catalogs_cache: dict[str, Any] = {"data": None, "expires": 0}
 
 # Per-catalog_url collections cache. MPC's /collections can time out for
 # 20+ seconds - cache aggressively and serve stale on upstream failure so
@@ -86,7 +87,7 @@ def _trusted_catalog_origins() -> frozenset[str]:
     candidate_urls = [registry.MPC_STAC_URL]
     with contextlib.suppress(Exception):
         candidate_urls += [
-            t.stac_url for t in registry.all_tilers() if getattr(t, "stac_url", None)
+            str(t.stac_url) for t in registry.all_tilers() if getattr(t, "stac_url", None)
         ]
     for u in candidate_urls:
         p = urlparse(u)
@@ -130,7 +131,7 @@ def assert_catalog_url_safe(catalog_url: str) -> None:
         raise HTTPException(status_code=400, detail="Catalog host could not be resolved") from e
 
     for info in infos:
-        if _is_internal_ip(info[4][0]):
+        if _is_internal_ip(str(info[4][0])):
             raise HTTPException(status_code=403, detail=_INTERNAL_IP_ERROR)
 
 
@@ -165,8 +166,9 @@ def map_stacindex_catalog(cat: dict) -> dict | None:
 async def public_catalogs() -> list[dict]:
     """Curated catalogs (MPC, Vantor) + StacIndex API catalogs (user-independent), cached."""
     now = time.time()
-    if _catalogs_cache["data"] and now < _catalogs_cache["expires"]:
-        return _catalogs_cache["data"]
+    cached: list[dict] | None = _catalogs_cache["data"]
+    if cached and now < _catalogs_cache["expires"]:
+        return cached
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -175,8 +177,8 @@ async def public_catalogs() -> list[dict]:
             all_catalogs = resp.json()
     except Exception as e:
         logger.error("Failed to fetch StacIndex catalogs: %s", e)
-        if _catalogs_cache["data"]:
-            return _catalogs_cache["data"]
+        if cached:
+            return cached
         raise HTTPException(status_code=502, detail="StacIndex unavailable") from e
 
     filtered = [*CURATED_CATALOGS]

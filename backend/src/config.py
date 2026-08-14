@@ -1,6 +1,7 @@
 import json
 import os
 from functools import lru_cache
+from typing import Literal
 from urllib.parse import quote_plus
 
 from pydantic import BaseModel, Field, computed_field, field_validator
@@ -93,7 +94,9 @@ class Settings(BaseSettings):
     # tiler_token cookie attributes. For sibling-subdomain deployments set
     # TILER_COOKIE_DOMAIN=".example.com" so the cookie reaches the tiler subdomains.
     TILER_COOKIE_DOMAIN: str | None = None
-    TILER_COOKIE_SAMESITE: str = "lax"
+    # Only the three values a Set-Cookie header accepts; pydantic rejects
+    # anything else at startup rather than minting a cookie browsers drop.
+    TILER_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
     TILER_COOKIE_SECURE: bool = True
 
     # tiler registry: name -> tiler. Stored as a raw string (like CORS_ORIGINS) so an empty
@@ -136,7 +139,7 @@ class Settings(BaseSettings):
             pass
         return [origin.strip() for origin in v.split(",") if origin.strip()]
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def TILE_DB_SLOTS(self) -> int:
         """Resolved tile bulkhead size: the explicit override, else half the pool."""
@@ -144,7 +147,7 @@ class Settings(BaseSettings):
             return max(1, self.DB_TILE_MAX_CONCURRENCY)
         return max(1, (self.DB_POOL_SIZE + self.DB_MAX_OVERFLOW) // 2)
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def DATABASE_URL(self) -> str:
         return (

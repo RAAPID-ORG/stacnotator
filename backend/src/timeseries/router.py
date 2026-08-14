@@ -13,6 +13,7 @@ from src.timeseries.constants import (
     SUPPORTED_TIMESERIES_PROVIDERS,
     SUPPORTED_TIMESERIES_SOURCES,
     SUPPORTED_TIMESERIES_TYPES,
+    as_timeseries_source,
 )
 from src.timeseries.ndvi_ee import RateLimited, UpstreamFailed
 from src.timeseries.schemas import (
@@ -85,7 +86,12 @@ def get_timeseries_data(
         ) from exc
 
     # Free the pooled connection back before the slow Earth Engine call.
-    ts_type, source = timeseries.ts_type, timeseries.data_source
+    ts_type = timeseries.ts_type
+    source = as_timeseries_source(timeseries.data_source)
+    if source is None:
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported data source: {timeseries.data_source}"
+        )
     db.close()
 
     if not ensure_earth_engine():

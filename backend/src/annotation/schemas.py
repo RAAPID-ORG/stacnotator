@@ -13,6 +13,7 @@ from src.annotation.constants import (
     TASK_STATUS_PARTIAL,
     TASK_STATUS_PENDING,
     TASK_STATUS_SKIPPED,
+    TaskStatus,
 )
 
 
@@ -114,7 +115,9 @@ class AnnotationTaskAssignmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-def compute_task_status_value(assignment_list: list[dict], annotation_list: list[dict]) -> str:
+def compute_task_status_value(
+    assignment_list: list[dict], annotation_list: list[dict]
+) -> TaskStatus:
     """Derive a task's status from its assignments and annotations.
 
     Only counting annotations (`counts_toward_completion` is True; every
@@ -221,9 +224,7 @@ class AnnotationTaskOut(BaseModel):
     id: int
     annotation_number: int
     task_set_id: int
-    task_status: Literal["pending", "partial", "done", "skipped", "conflicting"] = (
-        TASK_STATUS_PENDING
-    )
+    task_status: TaskStatus = TASK_STATUS_PENDING
     geometry: GeometryOut
     assignments: list[AnnotationTaskAssignmentOut] | None
     annotations: list[AnnotationFromTaskOut]

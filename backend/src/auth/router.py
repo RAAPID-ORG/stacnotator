@@ -60,7 +60,7 @@ def get_tiler_token(
     """Set a short-lived, campaign-scoped tiler HttpOnly cookie (authenticated users only)."""
     settings = get_settings()
     campaigns = [str(cid) for cid in visible_campaign_ids(db, user.id)]
-    token = mint_tiler_token(user.id, campaigns, scope=["tiles:read"], ttl=TILER_TOKEN_TTL)
+    token = mint_tiler_token(str(user.id), campaigns, scope=["tiles:read"], ttl=TILER_TOKEN_TTL)
     response.set_cookie(
         key="tiler_token",
         value=token,

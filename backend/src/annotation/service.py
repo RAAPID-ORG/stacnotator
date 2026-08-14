@@ -438,10 +438,14 @@ def add_annotation_for_task(
 
     db.commit()
 
-    if annotation:
-        db.refresh(annotation)
-        annotation.counts_toward_completion = counts_toward_completion(policy, has_assignments, ctx)
-        return annotation
+    if annotation is None:
+        # A skip with no comment leaves no annotation behind, only the
+        # assignment status the branches above set.
+        return None
+
+    db.refresh(annotation)
+    annotation.counts_toward_completion = counts_toward_completion(policy, has_assignments, ctx)
+    return annotation
 
 
 def _get_task_for_annotating(
@@ -493,6 +497,8 @@ def submit_task_annotation(
     )
 
     refreshed_task = get_annotation_task_by_id(db, task_id, campaign)
+    if refreshed_task is None:
+        raise HTTPException(status_code=404, detail="Annotation task not found in this campaign")
     task_out = AnnotationTaskOut.model_validate(refreshed_task)
     return AnnotationTaskSubmitResponse(
         annotation=annotation,

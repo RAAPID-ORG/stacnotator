@@ -201,7 +201,7 @@ def get_campaign_statistics(
         user_annots = annotations_by_user[user_id]
 
         # Calculate label distribution for this user
-        label_dist = defaultdict(int)
+        label_dist: defaultdict[str, int] = defaultdict(int)
         for ann in user_annots:
             if ann.label_id is not None:
                 label_name = label_names.get(ann.label_id, f"Unknown ({ann.label_id})")
@@ -221,7 +221,7 @@ def get_campaign_statistics(
     annotator_list.sort(key=lambda x: x.total_annotations, reverse=True)
 
     # Calculate overall label distribution
-    overall_label_dist = defaultdict(int)
+    overall_label_dist: defaultdict[str, int] = defaultdict(int)
     for ann in annotations:
         if ann.label_id is not None:
             label_name = label_names.get(ann.label_id, f"Unknown ({ann.label_id})")

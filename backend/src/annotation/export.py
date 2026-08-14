@@ -39,7 +39,8 @@ def _resolve_label_name(campaign: Campaign, label_id: int | None) -> str | None:
     labels = campaign.settings.labels if campaign.settings else {}
     label_id_str = str(label_id)
     if label_id_str in labels:
-        return labels[label_id_str]["name"]
+        name: str = labels[label_id_str]["name"]
+        return name
     return None
 
 
@@ -117,7 +118,8 @@ def _geometry_to_wkt(geom) -> str | None:
     if geom is None:
         return None
     try:
-        return to_shape(geom).wkt
+        wkt: str = to_shape(geom).wkt
+        return wkt
     except Exception:
         return str(geom)
 

@@ -4,6 +4,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from geoalchemy2 import Geometry as GeoAlchemyGeometry
+from geoalchemy2.elements import WKBElement
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
@@ -41,7 +42,9 @@ class AnnotationGeometry(Base):
     )
 
     # Geometry data (PostGIS)
-    geometry: Mapped[str] = mapped_column(
+    # geoalchemy2 hands back a WKBElement on read; writes accept an
+    # "SRID=4326;<wkt>" string, which is why every insert here passes one.
+    geometry: Mapped[WKBElement] = mapped_column(
         GeoAlchemyGeometry(geometry_type="GEOMETRY", srid=4326),
         nullable=False,
     )
@@ -52,6 +55,11 @@ class AnnotationTask(Base):
     Represents a single annotation task assigned within a campaign.
     Each task item has a unique annotation number within its campaign.
     """
+
+    if TYPE_CHECKING:
+        # Not a column: attached per request by annotation/service.py, which
+        # looks the embeddings up in one query rather than per task.
+        has_embedding: bool
 
     __tablename__ = "annotation_tasks"
     __table_args__ = (
@@ -274,13 +282,13 @@ class Annotation(Base):
     flag_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Audit fields
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[dt_datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
     )
 
-    updated_at: Mapped[DateTime] = mapped_column(
+    updated_at: Mapped[dt_datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),

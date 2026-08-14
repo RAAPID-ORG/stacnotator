@@ -17,6 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
 if TYPE_CHECKING:
+    from src.campaigns.models import Campaign
     from src.canvas.models import CanvasLayout
     from src.organizations.models import OrganizationApiKey
 
@@ -52,7 +53,7 @@ class ImagerySource(Base):
         ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
     )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="imagery_sources")  # noqa: F821
+    campaign: Mapped["Campaign"] = relationship(back_populates="imagery_sources")
     organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
     visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
         back_populates="source",
@@ -333,7 +334,7 @@ class Basemap(Base):
         ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
     )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")  # noqa: F821
+    campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")
     organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
 
     @property
@@ -365,7 +366,7 @@ class ImageryView(Base):
     # Ordered source ids whose collections are browsable in this view.
     source_ids: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="imagery_views")  # noqa: F821
+    campaign: Mapped["Campaign"] = relationship(back_populates="imagery_views")
     canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(
         "CanvasLayout",
         foreign_keys="[CanvasLayout.view_id]",

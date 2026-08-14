@@ -10,7 +10,7 @@ from src.canvas.service import sync_main_layouts
 from src.config import get_settings
 from src.timeseries import ndvi_ee
 from src.timeseries.models import TimeSeries
-from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
+from src.timeseries.schemas import TimeSeriesCreate
 from src.timeseries.windows import distinct_window_keys, sync_timeseries_windows_in_layout
 
 settings = get_settings()
@@ -56,21 +56,20 @@ def sync_campaign_timeseries_windows(campaign_id: int, db: Session) -> None:
     )
 
 
-def get_timeseries_for_campaign(campaign_id: int, db: Session) -> list[TimeSeriesOut]:
+def get_timeseries_for_campaign(campaign_id: int, db: Session) -> list[TimeSeries]:
     # Check campaign exists
     campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign with id {campaign_id} not found")
 
-    ts_items = (
+    return list(
         db.execute(select(TimeSeries).where(TimeSeries.campaign_id == campaign_id)).scalars().all()
     )
-    return ts_items
 
 
 def create_timeseries_bulk(
     campaign_id: int, ts_creates: list[TimeSeriesCreate], db: Session
-) -> list[TimeSeriesOut]:
+) -> list[TimeSeries]:
     """
     Create multiple timeseries for a campaign and sync the canvas windows.
 
