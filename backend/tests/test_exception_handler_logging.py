@@ -48,3 +48,11 @@ def test_unhandled_exception_logs_traceback(client, caplog):
 
     assert record.exc_info is not None, "traceback dropped - cause is unrecoverable from logs"
     assert "underlying cause we need to see" in record.exc_text
+
+
+def test_security_headers_are_stamped_on_every_response(client):
+    """Including error responses, which the handlers build themselves."""
+    for response in (client.get("/healthz"), client.get("/api/campaigns/nope/annotations")):
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["x-frame-options"] == "DENY"
+        assert response.headers["referrer-policy"] == "no-referrer"
