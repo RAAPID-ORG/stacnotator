@@ -27,10 +27,13 @@ WORKDIR /app
 # a "Permission denied: '/home/appuser'" error on every worker recycle without it.
 RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
 
-# Install runtime dependencies only
+# Install runtime dependencies only. libpq5 is what psycopg2 links against; the
+# psql/pg_dump binaries are deliberately absent, because postgresql-client pulls
+# perl in with it and perl is the largest block of unfixable CVEs in this image.
+# Nothing here shells out to them - migrations run through alembic, and the
+# scripts that do use pg_dump run on a developer machine, not in this container.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
-    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder
