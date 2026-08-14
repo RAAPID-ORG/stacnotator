@@ -103,6 +103,31 @@ class InvitesListResponse(BaseModel):
     items: list[InviteOut]
 
 
+class OrganizationApiKeyOut(BaseModel):
+    """A stored provider key, named. The secret itself is never returned."""
+
+    id: int
+    name: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrganizationApiKeysResponse(BaseModel):
+    items: list[OrganizationApiKeyOut]
+
+
+class OrganizationApiKeyCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    value: str = Field(min_length=1)
+
+
+class OrganizationApiKeyUpdate(BaseModel):
+    """Rotation: the same key under the same name."""
+
+    value: str = Field(min_length=1)
+
+
 class OrganizationTilersOut(BaseModel):
     tiler_names: list[str]
 

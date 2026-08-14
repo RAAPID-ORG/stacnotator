@@ -18,6 +18,7 @@ from src.database import Base
 
 if TYPE_CHECKING:
     from src.canvas.models import CanvasLayout
+    from src.organizations.models import OrganizationApiKey
 
 
 class ImagerySource(Base):
@@ -45,8 +46,14 @@ class ImagerySource(Base):
     # AES-256-GCM ciphertext of the provider API key substituted into this source's
     # {api_key} tile-URL templates. Decrypted only by the backend tile proxy.
     encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set instead of `encrypted_api_key` when this source uses one of the
+    # organization's shared keys. Exactly one of the two is ever set.
+    organization_api_key_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
+    )
 
     campaign: Mapped["Campaign"] = relationship(back_populates="imagery_sources")  # noqa: F821
+    organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
     visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
         back_populates="source",
         cascade="all, delete-orphan",
@@ -65,7 +72,7 @@ class ImagerySource(Base):
 
     @property
     def has_api_key(self) -> bool:
-        return self.encrypted_api_key is not None
+        return self.encrypted_api_key is not None or self.organization_api_key_id is not None
 
 
 class VisualizationTemplate(Base):
@@ -298,12 +305,17 @@ class Basemap(Base):
     # AES-256-GCM ciphertext of the provider API key substituted into this basemap's
     # {api_key} URL template. Decrypted only by the backend tile proxy.
     encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # As on ImagerySource: the org's shared key instead of this row's own.
+    organization_api_key_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
+    )
 
     campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")  # noqa: F821
+    organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
 
     @property
     def has_api_key(self) -> bool:
-        return self.encrypted_api_key is not None
+        return self.encrypted_api_key is not None or self.organization_api_key_id is not None
 
 
 class ImageryView(Base):

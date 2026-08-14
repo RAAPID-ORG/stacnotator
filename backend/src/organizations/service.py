@@ -6,6 +6,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.auth.models import User
+from src.crypto import encrypt
 from src.organizations.models import (
     MEMBER_STATUS_ACTIVE,
     MEMBER_STATUS_PENDING,
@@ -14,6 +15,7 @@ from src.organizations.models import (
     ORG_STATUS_REJECTED,
     Invite,
     Organization,
+    OrganizationApiKey,
     OrganizationTiler,
     OrganizationUser,
 )
@@ -499,6 +501,59 @@ def remove_member(db: Session, organization_id: int, user_id: UUID) -> None:
         )
     )
     db.delete(membership)
+    db.commit()
+
+
+def list_api_keys(db: Session, organization_id: int) -> list[OrganizationApiKey]:
+    return list(
+        db.scalars(
+            select(OrganizationApiKey)
+            .where(OrganizationApiKey.organization_id == organization_id)
+            .order_by(func.lower(OrganizationApiKey.name))
+        ).all()
+    )
+
+
+def create_api_key(
+    db: Session, organization_id: int, *, name: str, value: str, created_by: UUID
+) -> OrganizationApiKey:
+    if db.scalar(
+        select(OrganizationApiKey).where(
+            OrganizationApiKey.organization_id == organization_id,
+            OrganizationApiKey.name == name,
+        )
+    ):
+        raise HTTPException(status_code=409, detail="A key with this name already exists")
+    key = OrganizationApiKey(
+        organization_id=organization_id,
+        name=name,
+        encrypted_key=encrypt(value),
+        created_by=created_by,
+    )
+    db.add(key)
+    db.commit()
+    db.refresh(key)
+    return key
+
+
+def _get_api_key(db: Session, organization_id: int, key_id: int) -> OrganizationApiKey:
+    key = db.get(OrganizationApiKey, key_id)
+    if key is None or key.organization_id != organization_id:
+        raise HTTPException(status_code=404, detail="API key not found")
+    return key
+
+
+def rotate_api_key(db: Session, organization_id: int, key_id: int, value: str) -> None:
+    """Replace the secret in place. Everything pointing at this key picks the
+    new one up on its next tile request - that is the point of sharing it."""
+    _get_api_key(db, organization_id, key_id).encrypted_key = encrypt(value)
+    db.commit()
+
+
+def delete_api_key(db: Session, organization_id: int, key_id: int) -> None:
+    """Imagery pointing at this key is left without one (the FK nulls out), so
+    its tiles start failing until an admin sets another."""
+    db.delete(_get_api_key(db, organization_id, key_id))
     db.commit()
 
 

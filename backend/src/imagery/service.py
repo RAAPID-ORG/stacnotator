@@ -30,25 +30,65 @@ from src.imagery.schemas import (
     ImageryViewUpdate,
 )
 from src.imagery.tile_urls import update_collection_viz_params
-from src.organizations.models import Organization
+from src.organizations.models import Organization, OrganizationApiKey
 from src.tilers import providers, registry
 
 
-def set_basemap_api_key(db: Session, campaign_id: int, basemap_id: int, value: str) -> Basemap:
-    """Store the AES-256-GCM-encrypted provider key for a basemap (campaign-scoped lookup)."""
+def organization_keys(campaign: Campaign) -> list[OrganizationApiKey]:
+    """The shared keys this campaign may point its imagery at: its own
+    organization's, and only those."""
+    return sorted(campaign.project.organization.api_keys, key=lambda k: k.name.lower())
+
+
+def _apply_api_key(
+    target: Basemap | ImagerySource,
+    campaign: Campaign,
+    value: str | None,
+    organization_api_key_id: int | None,
+) -> None:
+    """Point the layer at one key source and clear the other, so there is never
+    a question of which of the two applies."""
+    if organization_api_key_id is not None:
+        if all(k.id != organization_api_key_id for k in organization_keys(campaign)):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Organization API key not found"
+            )
+        target.encrypted_api_key = None
+        target.organization_api_key_id = organization_api_key_id
+        return
+    target.encrypted_api_key = encrypt(value or "")
+    target.organization_api_key_id = None
+
+
+def set_basemap_api_key(
+    db: Session,
+    campaign: Campaign,
+    basemap_id: int,
+    *,
+    value: str | None,
+    organization_api_key_id: int | None,
+) -> Basemap:
+    """Set where a basemap's provider key comes from (campaign-scoped lookup)."""
     basemap = db.get(Basemap, basemap_id)
-    if basemap is None or basemap.campaign_id != campaign_id:
+    if basemap is None or basemap.campaign_id != campaign.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Basemap not found")
-    basemap.encrypted_api_key = encrypt(value)
+    _apply_api_key(basemap, campaign, value, organization_api_key_id)
     return basemap
 
 
-def set_source_api_key(db: Session, campaign_id: int, source_id: int, value: str) -> ImagerySource:
-    """Store the AES-256-GCM-encrypted provider key for an imagery source."""
+def set_source_api_key(
+    db: Session,
+    campaign: Campaign,
+    source_id: int,
+    *,
+    value: str | None,
+    organization_api_key_id: int | None,
+) -> ImagerySource:
+    """Set where an imagery source's provider key comes from."""
     source = db.get(ImagerySource, source_id)
-    if source is None or source.campaign_id != campaign_id:
+    if source is None or source.campaign_id != campaign.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
-    source.encrypted_api_key = encrypt(value)
+    _apply_api_key(source, campaign, value, organization_api_key_id)
     return source
 
 

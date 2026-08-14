@@ -568,18 +568,28 @@ export type ApiKeyStatusOut = {
      * Has Api Key
      */
     has_api_key: boolean;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
 };
 
 /**
  * ApiKeyUpdate
  *
- * Write-only provider API key value (campaign-admin sets it; never read back).
+ * Where this layer's provider key comes from: a literal value to encrypt
+ * and keep on the row, or one of the owning organization's shared keys.
+ * Write-only either way - a stored value is never read back.
  */
 export type ApiKeyUpdate = {
     /**
      * Value
      */
-    value: string;
+    value?: string | null;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
 };
 
 /**
@@ -757,6 +767,10 @@ export type BasemapOut = {
      * Has Api Key
      */
     has_api_key?: boolean;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
 };
 
 /**
@@ -2158,6 +2172,10 @@ export type ImagerySourceOut = {
      * Has Api Key
      */
     has_api_key?: boolean;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
 };
 
 /**
@@ -2431,6 +2449,62 @@ export type NumberFormField = {
 };
 
 /**
+ * OrganizationApiKeyCreate
+ */
+export type OrganizationApiKeyCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Value
+     */
+    value: string;
+};
+
+/**
+ * OrganizationApiKeyOut
+ *
+ * A stored provider key, named. The secret itself is never returned.
+ */
+export type OrganizationApiKeyOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * OrganizationApiKeyUpdate
+ *
+ * Rotation: the same key under the same name.
+ */
+export type OrganizationApiKeyUpdate = {
+    /**
+     * Value
+     */
+    value: string;
+};
+
+/**
+ * OrganizationApiKeysResponse
+ */
+export type OrganizationApiKeysResponse = {
+    /**
+     * Items
+     */
+    items: Array<OrganizationApiKeyOut>;
+};
+
+/**
  * OrganizationCreate
  */
 export type OrganizationCreate = {
@@ -2477,6 +2551,32 @@ export type OrganizationDirectoryResponse = {
      * Items
      */
     items: Array<OrganizationDirectoryEntry>;
+};
+
+/**
+ * OrganizationKeyOut
+ *
+ * A shared key this campaign's organization offers, by name.
+ */
+export type OrganizationKeyOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * OrganizationKeysResponse
+ */
+export type OrganizationKeysResponse = {
+    /**
+     * Items
+     */
+    items: Array<OrganizationKeyOut>;
 };
 
 /**
@@ -4635,6 +4735,134 @@ export type RemoveOrganizationMemberResponses = {
 };
 
 export type RemoveOrganizationMemberResponse = RemoveOrganizationMemberResponses[keyof RemoveOrganizationMemberResponses];
+
+export type ListOrganizationApiKeysData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/api-keys';
+};
+
+export type ListOrganizationApiKeysErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListOrganizationApiKeysError = ListOrganizationApiKeysErrors[keyof ListOrganizationApiKeysErrors];
+
+export type ListOrganizationApiKeysResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationApiKeysResponse;
+};
+
+export type ListOrganizationApiKeysResponse = ListOrganizationApiKeysResponses[keyof ListOrganizationApiKeysResponses];
+
+export type CreateOrganizationApiKeyData = {
+    body: OrganizationApiKeyCreate;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/api-keys';
+};
+
+export type CreateOrganizationApiKeyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateOrganizationApiKeyError = CreateOrganizationApiKeyErrors[keyof CreateOrganizationApiKeyErrors];
+
+export type CreateOrganizationApiKeyResponses = {
+    /**
+     * Successful Response
+     */
+    201: OrganizationApiKeyOut;
+};
+
+export type CreateOrganizationApiKeyResponse = CreateOrganizationApiKeyResponses[keyof CreateOrganizationApiKeyResponses];
+
+export type DeleteOrganizationApiKeyData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * Key Id
+         */
+        key_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/api-keys/{key_id}';
+};
+
+export type DeleteOrganizationApiKeyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteOrganizationApiKeyError = DeleteOrganizationApiKeyErrors[keyof DeleteOrganizationApiKeyErrors];
+
+export type DeleteOrganizationApiKeyResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteOrganizationApiKeyResponse = DeleteOrganizationApiKeyResponses[keyof DeleteOrganizationApiKeyResponses];
+
+export type RotateOrganizationApiKeyData = {
+    body: OrganizationApiKeyUpdate;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * Key Id
+         */
+        key_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/api-keys/{key_id}';
+};
+
+export type RotateOrganizationApiKeyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RotateOrganizationApiKeyError = RotateOrganizationApiKeyErrors[keyof RotateOrganizationApiKeyErrors];
+
+export type RotateOrganizationApiKeyResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RotateOrganizationApiKeyResponse = RotateOrganizationApiKeyResponses[keyof RotateOrganizationApiKeyResponses];
 
 export type GetOrganizationTilersData = {
     body?: never;
@@ -7087,6 +7315,36 @@ export type UpdateImageryViewResponses = {
 };
 
 export type UpdateImageryViewResponse = UpdateImageryViewResponses[keyof UpdateImageryViewResponses];
+
+export type ListCampaignOrganizationKeysData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/organization-keys';
+};
+
+export type ListCampaignOrganizationKeysErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCampaignOrganizationKeysError = ListCampaignOrganizationKeysErrors[keyof ListCampaignOrganizationKeysErrors];
+
+export type ListCampaignOrganizationKeysResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationKeysResponse;
+};
+
+export type ListCampaignOrganizationKeysResponse = ListCampaignOrganizationKeysResponses[keyof ListCampaignOrganizationKeysResponses];
 
 export type SetBasemapApiKeyData = {
     body: ApiKeyUpdate;

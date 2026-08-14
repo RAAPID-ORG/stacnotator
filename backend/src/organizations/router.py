@@ -20,6 +20,10 @@ from src.organizations.schemas import (
     InternalStorageUpdateRequest,
     InviteOut,
     InvitesListResponse,
+    OrganizationApiKeyCreate,
+    OrganizationApiKeyOut,
+    OrganizationApiKeysResponse,
+    OrganizationApiKeyUpdate,
     OrganizationCreate,
     OrganizationDirectoryEntry,
     OrganizationDirectoryResponse,
@@ -247,6 +251,55 @@ def remove_organization_member(
     org: Organization = Depends(require_org_admin),
 ):
     service.remove_member(db, organization_id, user_id)
+
+
+@router.get("/{organization_id}/api-keys", response_model=OrganizationApiKeysResponse)
+def list_organization_api_keys(
+    organization_id: int,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(require_org_member),
+):
+    """Names only. Members need these to point a campaign's imagery at one;
+    only admins can add or change them."""
+    keys = service.list_api_keys(db, organization_id)
+    return OrganizationApiKeysResponse(
+        items=[OrganizationApiKeyOut.model_validate(k) for k in keys]
+    )
+
+
+@router.post("/{organization_id}/api-keys", response_model=OrganizationApiKeyOut, status_code=201)
+def create_organization_api_key(
+    organization_id: int,
+    body: OrganizationApiKeyCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    org: Organization = Depends(require_org_admin),
+):
+    key = service.create_api_key(
+        db, organization_id, name=body.name, value=body.value, created_by=user.id
+    )
+    return OrganizationApiKeyOut.model_validate(key)
+
+
+@router.put("/{organization_id}/api-keys/{key_id}", status_code=204)
+def rotate_organization_api_key(
+    organization_id: int,
+    key_id: int,
+    body: OrganizationApiKeyUpdate,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(require_org_admin),
+):
+    service.rotate_api_key(db, organization_id, key_id, body.value)
+
+
+@router.delete("/{organization_id}/api-keys/{key_id}", status_code=204)
+def delete_organization_api_key(
+    organization_id: int,
+    key_id: int,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(require_org_admin),
+):
+    service.delete_api_key(db, organization_id, key_id)
 
 
 @router.get("/{organization_id}/tilers", response_model=OrganizationTilersOut)

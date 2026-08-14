@@ -97,7 +97,7 @@ export const NewOrganizationPage = () => {
                   id="org-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Acme Research"
+                  placeholder="NASA Harvest"
                   invalid={Boolean(error)}
                   disabled={submitting}
                 />

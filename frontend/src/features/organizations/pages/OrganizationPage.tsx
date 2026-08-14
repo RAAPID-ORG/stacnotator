@@ -9,6 +9,7 @@ import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
 import { handleError } from '~/shared/utils/errorHandler';
 import { AccessRequests } from '../components/AccessRequests';
+import { OrganizationApiKeys } from '../components/OrganizationApiKeys';
 import { OrganizationMembers } from '../components/OrganizationMembers';
 import { useOrganizations } from '../hooks/useOrganizations';
 
@@ -176,6 +177,7 @@ export const OrganizationPage = () => {
           <>
             <DetailsForm org={org} onSaved={refresh} />
             <AccessRequests organizationId={org.id} />
+            <OrganizationApiKeys organizationId={org.id} />
             <OrganizationMembers organizationId={org.id} />
           </>
         ) : (

@@ -133,9 +133,11 @@ class ImagerySourceOut(BaseModel):
     visualizations: list[VisualizationTemplateOut]
     collections: list[ImageryCollectionOut]
     generation_series: list[ImageryGenerationSeriesOut] = []
-    # Whether an encrypted provider API key is configured (drives the admin UI). The key
-    # value/ciphertext is never serialized.
+    # Whether a provider API key is configured (drives the admin UI), and which
+    # shared org key it is when the source uses one. The key value/ciphertext is
+    # never serialized.
     has_api_key: bool = False
+    organization_api_key_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -146,18 +148,40 @@ class BasemapOut(BaseModel):
     url: str
     max_native_zoom: int | None = None
     has_api_key: bool = False
+    organization_api_key_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class ApiKeyUpdate(BaseModel):
-    """Write-only provider API key value (campaign-admin sets it; never read back)."""
+    """Where this layer's provider key comes from: a literal value to encrypt
+    and keep on the row, or one of the owning organization's shared keys.
+    Write-only either way - a stored value is never read back."""
 
-    value: str = Field(min_length=1)
+    value: str | None = Field(default=None, min_length=1)
+    organization_api_key_id: int | None = None
+
+    @model_validator(mode="after")
+    def exactly_one_source(self) -> "ApiKeyUpdate":
+        if (self.value is None) == (self.organization_api_key_id is None):
+            raise ValueError("Set exactly one of value or organization_api_key_id")
+        return self
 
 
 class ApiKeyStatusOut(BaseModel):
     has_api_key: bool
+    organization_api_key_id: int | None = None
+
+
+class OrganizationKeyOut(BaseModel):
+    """A shared key this campaign's organization offers, by name."""
+
+    id: int
+    name: str
+
+
+class OrganizationKeysResponse(BaseModel):
+    items: list[OrganizationKeyOut]
 
 
 class ImageryViewOut(BaseModel):

@@ -439,13 +439,15 @@ export const SourceEditor = ({
               <Tooltip text="A manual collection URL in this source uses {api_key}. Save imagery, then set the key here - it is stored encrypted server-side and attached when tiles are proxied through the backend (never exposed to annotators)." />
             </label>
             <ApiKeyField
+              campaignId={controller.campaignId}
               persisted={controller.campaignId != null && isRealId(source.id)}
               hasApiKey={source.hasApiKey}
-              onSave={async (value) => {
+              organizationApiKeyId={source.organizationApiKeyId}
+              onSave={async (body) => {
                 if (controller.campaignId == null) return false;
                 const { error } = await setSourceApiKey({
                   path: { campaign_id: controller.campaignId, source_id: Number(source.id) },
-                  body: { value },
+                  body,
                 });
                 return !error;
               }}

@@ -313,6 +313,7 @@ function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
     })),
     collections: src.collections.map((col) => mapCollectionOutToFe(col, vizNames)),
     hasApiKey: src.has_api_key,
+    organizationApiKeyId: src.organization_api_key_id,
   };
 }
 
@@ -336,6 +337,7 @@ export interface PersistedControllerOptions {
     url: string;
     max_native_zoom?: number | null;
     has_api_key?: boolean;
+    organization_api_key_id?: number | null;
   }[];
   campaignBbox?: number[] | null;
   /** Called after any mutation succeeds so the parent can refetch. */
@@ -359,6 +361,7 @@ export function usePersistedController({
         url: b.url,
         maxNativeZoom: b.max_native_zoom ?? undefined,
         hasApiKey: b.has_api_key,
+        organizationApiKeyId: b.organization_api_key_id,
       })),
     }),
     [imagery, basemaps]

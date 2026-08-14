@@ -34,10 +34,19 @@ def client():
     return TestClient(app)
 
 
-def _override_admin_auth(db):
+def _campaign_with_keys(keys):
+    return SimpleNamespace(
+        id=CAMPAIGN_ID,
+        project=SimpleNamespace(organization=SimpleNamespace(api_keys=keys)),
+    )
+
+
+def _override_admin_auth(db, campaign=None):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(id="u1")
-    app.dependency_overrides[require_campaign_admin] = lambda: SimpleNamespace(id=CAMPAIGN_ID)
+    app.dependency_overrides[require_campaign_admin] = lambda: (
+        campaign or SimpleNamespace(id=CAMPAIGN_ID)
+    )
     app.dependency_overrides[bearer] = lambda: None
 
 
@@ -57,11 +66,48 @@ def test_set_basemap_key_stores_ciphertext(client, crypto_key):
     resp = client.put(f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/key", json={"value": "planet-secret"})
 
     assert resp.status_code == 200
-    assert resp.json() == {"has_api_key": True}
+    assert resp.json() == {"has_api_key": True, "organization_api_key_id": None}
     # Stored value is ciphertext, not the plaintext key, and round-trips.
     assert basemap.encrypted_api_key != "planet-secret"
     assert crypto.decrypt(basemap.encrypted_api_key) == "planet-secret"
     assert "planet-secret" not in resp.text
+
+
+def test_set_basemap_key_can_point_at_an_organization_key(client, crypto_key):
+    """Choosing a shared key drops any literal one, so only one of the two ever
+    applies."""
+    basemap = Basemap(id=3, campaign_id=CAMPAIGN_ID, name="planet", url="x")
+    basemap.encrypted_api_key = crypto.encrypt("old-literal-key")
+    db = MagicMock()
+    db.get.return_value = basemap
+    _override_admin_auth(db, campaign=_campaign_with_keys([SimpleNamespace(id=11, name="Planet")]))
+
+    resp = client.put(
+        f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/key", json={"organization_api_key_id": 11}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"has_api_key": True, "organization_api_key_id": 11}
+    assert basemap.encrypted_api_key is None
+    assert basemap.organization_api_key_id == 11
+
+
+def test_set_basemap_key_rejects_a_key_from_another_organization(client, crypto_key):
+    basemap = Basemap(id=3, campaign_id=CAMPAIGN_ID, name="planet", url="x")
+    db = MagicMock()
+    db.get.return_value = basemap
+    _override_admin_auth(db, campaign=_campaign_with_keys([]))
+
+    resp = client.put(
+        f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/key", json={"organization_api_key_id": 11}
+    )
+    assert resp.status_code == 404
+
+
+def test_set_basemap_key_needs_exactly_one_of_the_two(client, crypto_key):
+    _override_admin_auth(MagicMock())
+    resp = client.put(f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/key", json={})
+    assert resp.status_code == 422
 
 
 def test_set_basemap_key_404_on_wrong_campaign(client, crypto_key):
@@ -137,3 +183,41 @@ def test_proxy_fetches_and_returns_tile(client, crypto_key, monkeypatch):
     assert resp.headers["cache-control"] == "public, max-age=86400"
     # The key was attached server-side to the upstream URL with coords substituted.
     assert captured["url"] == "https://e/2/1/1.png?api_key=planet-secret"
+
+
+def test_proxy_uses_the_organization_key_when_the_layer_points_at_one(
+    client, crypto_key, monkeypatch
+):
+    basemap = Basemap(
+        id=3,
+        campaign_id=CAMPAIGN_ID,
+        name="p",
+        url="https://e/{z}/{x}/{y}.png?api_key={api_key}",
+    )
+    basemap.organization_api_key_id = 11
+    org_key = SimpleNamespace(id=11, encrypted_key=crypto.encrypt("shared-secret"))
+
+    db = MagicMock()
+    db.get.side_effect = lambda model, _id: basemap if model is Basemap else org_key
+    monkeypatch.setattr(proxy_router, "SessionLocal", lambda: db)
+
+    captured = {}
+
+    class FakeResp:
+        content = b"PNGDATA"
+        headers = {"content-type": "image/png"}
+
+        def raise_for_status(self):
+            pass
+
+    async def fake_get(url):
+        captured["url"] = url
+        return FakeResp()
+
+    monkeypatch.setattr(proxy_router._client, "get", fake_get)
+
+    token = tiler_token.mint("u1", [CAMPAIGN_ID])
+    resp = client.get(_tile_url(z=2, x=1, y=1), cookies={"tiler_token": token})
+
+    assert resp.status_code == 200
+    assert captured["url"] == "https://e/2/1/1.png?api_key=shared-secret"

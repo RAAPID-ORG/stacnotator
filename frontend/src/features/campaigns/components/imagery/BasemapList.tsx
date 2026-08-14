@@ -93,13 +93,15 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
               </div>
               {bm.url.includes('{api_key}') && (
                 <ApiKeyField
+                  campaignId={controller.campaignId}
                   persisted={controller.campaignId != null && isRealId(bm.id)}
                   hasApiKey={bm.hasApiKey}
-                  onSave={async (value) => {
+                  organizationApiKeyId={bm.organizationApiKeyId}
+                  onSave={async (body) => {
                     if (controller.campaignId == null) return false;
                     const { error } = await setBasemapApiKey({
                       path: { campaign_id: controller.campaignId, basemap_id: Number(bm.id) },
-                      body: { value },
+                      body,
                     });
                     return !error;
                   }}

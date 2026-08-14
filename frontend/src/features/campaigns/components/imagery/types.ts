@@ -148,6 +148,8 @@ export interface ImagerySource {
   collections: CollectionItem[];
   /** Whether a provider API key is configured server-side (persisted sources only). */
   hasApiKey?: boolean;
+  /** Set when that key is one of the organization's shared ones. */
+  organizationApiKeyId?: number | null;
 }
 
 export interface Basemap {
@@ -158,6 +160,8 @@ export interface Basemap {
   maxNativeZoom?: number;
   /** Whether a provider API key is configured server-side (persisted basemaps only). */
   hasApiKey?: boolean;
+  /** Set when that key is one of the organization's shared ones. */
+  organizationApiKeyId?: number | null;
 }
 
 export interface ImageryStepState {

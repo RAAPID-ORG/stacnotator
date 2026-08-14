@@ -73,6 +73,9 @@ class Organization(Base):
     tilers: Mapped[list["OrganizationTiler"]] = relationship(
         cascade="all, delete-orphan",
     )
+    api_keys: Mapped[list["OrganizationApiKey"]] = relationship(
+        cascade="all, delete-orphan",
+    )
 
     @property
     def allowed_tiler_names(self) -> list[str]:
@@ -115,6 +118,36 @@ class OrganizationUser(Base):
 
     organization: Mapped["Organization"] = relationship(back_populates="users")
     user: Mapped["User"] = relationship()
+
+
+class OrganizationApiKey(Base):
+    """A provider API key an org admin stores once, so every campaign in the
+    org can point its imagery at it instead of pasting the same secret again -
+    and so rotating it is one edit rather than one per campaign.
+
+    Same AES-256-GCM ciphertext as the per-campaign keys (src/crypto.py); it is
+    decrypted only by the tile proxy and never leaves the backend."""
+
+    __tablename__ = "organization_api_keys"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "name", name="organization_api_keys_name_uniq"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    organization_id: Mapped[int] = mapped_column(
+        ForeignKey("data.organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    encrypted_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        server_default=func.current_timestamp(),
+        nullable=False,
+    )
 
 
 class OrganizationTiler(Base):

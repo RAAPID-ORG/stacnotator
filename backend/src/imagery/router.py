@@ -19,6 +19,8 @@ from src.imagery.schemas import (
     ImageryViewOrderUpdate,
     ImageryViewOut,
     ImageryViewUpdate,
+    OrganizationKeyOut,
+    OrganizationKeysResponse,
 )
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -185,6 +187,21 @@ def delete_imagery_view(
     service.delete_view(db, campaign, view_id)
 
 
+@router.get("/{campaign_id}/imagery/organization-keys", response_model=OrganizationKeysResponse)
+def list_campaign_organization_keys(
+    campaign_id: int,
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """The shared provider keys this campaign's organization has set up, so the
+    imagery editor can offer them instead of asking for the secret again."""
+    return OrganizationKeysResponse(
+        items=[
+            OrganizationKeyOut(id=key.id, name=key.name)
+            for key in service.organization_keys(campaign)
+        ]
+    )
+
+
 @router.put("/{campaign_id}/imagery/basemaps/{basemap_id}/key", response_model=ApiKeyStatusOut)
 def set_basemap_api_key(
     campaign_id: int,
@@ -193,10 +210,19 @@ def set_basemap_api_key(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Store an encrypted provider API key for a basemap (campaign admin only). Write-only."""
-    service.set_basemap_api_key(db, campaign_id, basemap_id, body.value)
+    """Point a basemap at a provider key: a literal one (encrypted here) or one
+    of the organization's shared keys. Campaign admin only, write-only."""
+    basemap = service.set_basemap_api_key(
+        db,
+        campaign,
+        basemap_id,
+        value=body.value,
+        organization_api_key_id=body.organization_api_key_id,
+    )
     db.commit()
-    return ApiKeyStatusOut(has_api_key=True)
+    return ApiKeyStatusOut(
+        has_api_key=True, organization_api_key_id=basemap.organization_api_key_id
+    )
 
 
 @router.put("/{campaign_id}/imagery/sources/{source_id}/key", response_model=ApiKeyStatusOut)
@@ -207,7 +233,13 @@ def set_source_api_key(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Store an encrypted provider API key for an imagery source (campaign admin only)."""
-    service.set_source_api_key(db, campaign_id, source_id, body.value)
+    """As above, for an imagery source."""
+    source = service.set_source_api_key(
+        db,
+        campaign,
+        source_id,
+        value=body.value,
+        organization_api_key_id=body.organization_api_key_id,
+    )
     db.commit()
-    return ApiKeyStatusOut(has_api_key=True)
+    return ApiKeyStatusOut(has_api_key=True, organization_api_key_id=source.organization_api_key_id)

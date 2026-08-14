@@ -21,6 +21,7 @@ from src.crypto import DecryptionError, decrypt
 from src.database import SessionLocal
 from src.imagery.models import Basemap, ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
 from src.imagery.proxy import build_upstream_tile_url
+from src.organizations.models import OrganizationApiKey
 from src.tile_bulkhead import tile_db_slot
 from src.tilers import tokens
 
@@ -54,6 +55,17 @@ def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
         raise HTTPException(status_code=401, detail="Invalid tiler session") from None
     if str(campaign_id) not in claims.get("campaigns", []):
         raise HTTPException(status_code=403, detail="No access to this campaign")
+
+
+def _resolve_key(db: Session, layer: Basemap | ImagerySource) -> str | None:
+    """The layer's own key, or the organization key it points at. Both are the
+    same ciphertext; only where it is stored differs."""
+    if layer.encrypted_api_key is not None:
+        return layer.encrypted_api_key
+    if layer.organization_api_key_id is None:
+        return None
+    key = db.get(OrganizationApiKey, layer.organization_api_key_id)
+    return key.encrypted_key if key else None
 
 
 async def _proxy(template: str, encrypted_api_key: str | None, z: int, x: int, y: int) -> Response:
@@ -91,7 +103,7 @@ async def proxy_basemap_tile(
         basemap = db.get(Basemap, basemap_id)
         if basemap is None or basemap.campaign_id != campaign_id:
             raise HTTPException(status_code=404, detail="Basemap not found")
-        return basemap.url, basemap.encrypted_api_key
+        return basemap.url, _resolve_key(db, basemap)
 
     url, encrypted_api_key = await _read(lookup)
     return await _proxy(url, encrypted_api_key, z, x, y)
@@ -126,7 +138,7 @@ async def proxy_slice_tile(
         ).scalar_one_or_none()
         if tile is None:
             raise HTTPException(status_code=404, detail="Tile URL not found")
-        return tile.tile_url, source.encrypted_api_key
+        return tile.tile_url, _resolve_key(db, source)
 
     tile_url, encrypted_api_key = await _read(lookup)
     return await _proxy(tile_url, encrypted_api_key, z, x, y)

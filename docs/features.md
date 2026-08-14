@@ -7,6 +7,7 @@ Multi-tenancy: organization → project → campaign.
 - Any signed-in user can browse every approved organization and request access with an optional note; org admins see the requester's email and note and approve or reject. Approval turns the pending membership into an active one; rejection drops the request and they may ask again
 - Projects have `private`/`organization`/`public` visibility and project-scoped members with `admin` and `authoritative reviewer` roles
 - Per-organization tiler allowlists and an `allows_internal_storage` flag (see [tilers.md](tilers.md))
+- Per-organization provider API keys: an org admin stores a named key once and any campaign in the org points its imagery source or basemap at it, so the secret is pasted (and rotated) in one place. A layer holds either its own encrypted key or an org key reference, never both; the tile proxy resolves whichever applies
 
 ## Campaign Modes
 
