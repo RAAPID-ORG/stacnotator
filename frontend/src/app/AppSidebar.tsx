@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ANNOTATION_ROUTE, projectsPath } from '~/app/routes';
 import { SidebarProjectNav } from '~/app/SidebarProjectNav';
+import { LEGAL_DOCS, legalPath } from '~/features/legal/docs';
 import { OrgSwitcher } from '~/features/organizations/components/OrgSwitcher';
 import { useAccountStore } from 'src/shared/stores/account.store';
 
@@ -154,6 +155,22 @@ export const AppSidebar = ({
               </span>
             )}
           </button>
+
+          {!collapsed && (
+            <nav className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-neutral-400">
+              {LEGAL_DOCS.map((doc) => (
+                <a
+                  key={doc.key}
+                  href={legalPath(doc.key)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-neutral-700 transition-colors"
+                >
+                  {doc.short}
+                </a>
+              ))}
+            </nav>
+          )}
         </div>
       </aside>
     </>

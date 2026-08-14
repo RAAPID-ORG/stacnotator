@@ -1,10 +1,22 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
 import { PasswordRequirementsList, passwordMeetsAllRequirements } from './PasswordRequirements';
 import { Button, Field, Input } from '~/shared/ui/forms';
+import { legalPath, type LegalKey } from '~/features/legal/docs';
 import { AuthCard } from './AuthCard';
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
+
+const LegalLink = ({ doc, children }: { doc: LegalKey; children: ReactNode }) => (
+  <a
+    href={legalPath(doc)}
+    target="_blank"
+    rel="noreferrer"
+    className="underline text-brand-700 hover:text-brand-900"
+  >
+    {children}
+  </a>
+);
 
 export function LoginScreen() {
   const [loading, setLoading] = useState(false);
@@ -288,6 +300,13 @@ export function LoginScreen() {
           </>
         )}
       </p>
+
+      {mode !== 'forgot-password' && (
+        <p className="mt-4 text-center text-xs text-brand-500">
+          By continuing you agree to our <LegalLink doc="terms">Terms of Service</LegalLink> and{' '}
+          <LegalLink doc="privacy">Privacy Policy</LegalLink>.
+        </p>
+      )}
     </AuthCard>
   );
 }
