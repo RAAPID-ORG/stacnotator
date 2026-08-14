@@ -31,6 +31,7 @@ import {
   getOptimalMonthLabels,
   parseSeriesDate,
   referenceLinePlugin,
+  seriesAxis,
   setSliceMarker,
   sliceMarkerFor,
   sliceMarkerPlugin,
@@ -240,6 +241,8 @@ export function Chart({ series, points }: ChartProps) {
     setIsZoomed(chart.isZoomedOrPanned());
   }, []);
 
+  const axis = useMemo(() => seriesAxis(series.map((s) => s.index)), [series]);
+
   // Memoized so its identity stays stable across re-renders that don't
   // actually change anything it reads - react-driven chart.js updates run a
   // full reprocessing pass whenever the options object changes.
@@ -255,6 +258,7 @@ export function Chart({ series, points }: ChartProps) {
       animation: { duration: 400, easing: 'easeInOutQuart' },
       plugins: {
         legend: { display: false },
+        referenceLines: { values: axis.referenceLines },
         tooltip: {
           callbacks: {
             title: (items) => {
@@ -289,8 +293,8 @@ export function Chart({ series, points }: ChartProps) {
           grid: { display: false },
         },
         y: {
-          min: 0,
-          max: 1,
+          min: axis.min,
+          max: axis.max,
           ticks: { font: { size: 8 }, maxTicksLimit: 5 },
           grid: { color: '#e5e5e5' },
         },
@@ -300,7 +304,7 @@ export function Chart({ series, points }: ChartProps) {
         line: { borderWidth: 1.5 },
       },
     };
-  }, [handleChartClick, catalog, chartData, handleZoomOrPanComplete]);
+  }, [handleChartClick, catalog, chartData, handleZoomOrPanComplete, axis]);
 
   // Create the chart.js instance once; destroy it on unmount.
   useEffect(() => {

@@ -555,7 +555,18 @@ export const MOCK_TIMESERIES_ENTRY = {
   end_ym: '202406',
   data_source: 'Sentinel-2',
   provider: 'planetary',
-  ts_type: 'ndvi',
+  ts_type: 'NDVI',
+  index: {
+    key: 'NDVI',
+    label: 'NDVI',
+    summary: 'Contrast between near-infrared and red reflectance.',
+    good_for: 'General land cover and vegetation seasonality.',
+    caution: 'Saturates over dense canopy.',
+    citation: 'Rouse et al., 1974',
+    domain_min: -0.2,
+    domain_max: 1.0,
+    reference_lines: [0.25, 0.75],
+  },
 };
 
 // Bi-weekly NDVI observations over a growing season with some cloud-flagged entries.
@@ -751,7 +762,18 @@ export const MONTHS_TIMESERIES_ENTRY = {
   end_ym: '202212',
   data_source: 'Imagery',
   provider: 'planetary',
-  ts_type: 'ndvi',
+  ts_type: 'NDVI',
+  index: {
+    key: 'NDVI',
+    label: 'NDVI',
+    summary: 'Contrast between near-infrared and red reflectance.',
+    good_for: 'General land cover and vegetation seasonality.',
+    caution: 'Saturates over dense canopy.',
+    citation: 'Rouse et al., 1974',
+    domain_min: -0.2,
+    domain_max: 1.0,
+    reference_lines: [0.25, 0.75],
+  },
 };
 
 export const MOCK_CAMPAIGN_MONTHS = {

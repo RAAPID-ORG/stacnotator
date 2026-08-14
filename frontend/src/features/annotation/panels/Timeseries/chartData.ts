@@ -1,5 +1,13 @@
-import type { Plugin } from 'chart.js';
+import type { ChartType, Plugin } from 'chart.js';
+import type { SpectralIndexOut } from '~/api/client';
 import type { TimeSeriesData } from './cache';
+
+declare module 'chart.js' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required to match chart.js' own signature
+  interface PluginOptionsByType<TType extends ChartType> {
+    referenceLines?: { values: number[] };
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Label / date formatting
@@ -262,13 +270,40 @@ export const sliceMarkerPlugin: Plugin<'line'> = {
   },
 };
 
-/** Muted horizontal reference lines at NDVI 0.25/0.75, styled to match the
- *  default y-axis gridline at 0.5. Fixed values - no external state. */
+/** The y-axis a chart of these series needs.
+ *
+ *  One window can hold series plotting different indices, and those do not
+ *  share a range - NDVI tops out at 1 while GCVI runs to 10 - so the axis spans
+ *  every domain present. Reference lines are only drawn when every series plots
+ *  the same index, since a threshold that means "water" for one index means
+ *  nothing for another. Series whose index the client doesn't recognise fall
+ *  back to the old fixed 0-1 axis. */
+export function seriesAxis(indices: (SpectralIndexOut | null | undefined)[]): {
+  min: number;
+  max: number;
+  referenceLines: number[];
+} {
+  const known = indices.filter((index): index is SpectralIndexOut => !!index);
+  if (known.length === 0) return { min: 0, max: 1, referenceLines: [] };
+
+  const sharesOneIndex = new Set(known.map((index) => index.key)).size === 1;
+  return {
+    min: Math.min(...known.map((index) => index.domain_min)),
+    max: Math.max(...known.map((index) => index.domain_max)),
+    referenceLines: sharesOneIndex ? known[0].reference_lines : [],
+  };
+}
+
+/** Muted horizontal lines at the values an index calls out, styled to match the
+ *  y-axis gridlines. The values come from the chart's own options, so each
+ *  chart marks the thresholds that mean something for what it plots. */
 export const referenceLinePlugin: Plugin<'line'> = {
-  id: 'ndviReferenceLines',
-  beforeDatasetsDraw(chart) {
+  id: 'referenceLines',
+  defaults: { values: [] as number[] },
+  beforeDatasetsDraw(chart, _args, options: { values?: number[] }) {
+    const values = options?.values ?? [];
     const yScale = chart.scales.y;
-    if (!yScale) return;
+    if (values.length === 0 || !yScale) return;
     const { ctx, chartArea } = chart;
     if (!chartArea) return;
 
@@ -277,7 +312,7 @@ export const referenceLinePlugin: Plugin<'line'> = {
     ctx.lineWidth = 1;
     ctx.setLineDash([]);
     ctx.beginPath();
-    for (const value of [0.25, 0.75]) {
+    for (const value of values) {
       const y = yScale.getPixelForValue(value);
       if (y < chartArea.top || y > chartArea.bottom) continue;
       const snapped = Math.round(y) + 0.5;

@@ -4,6 +4,7 @@ import {
   formatDateForTooltip,
   parseSeriesDate,
   getOptimalMonthLabels,
+  seriesAxis,
   setSliceMarker,
   sliceMarkerFor,
 } from './chartData';
@@ -136,5 +137,49 @@ describe('getOptimalMonthLabels', () => {
     expect(labels[0].label).toBe("Jan '24");
     // Every other month, starting from the first.
     expect(labels.every((m, i) => i === labels.length - 1 || m.index % 2 === 0)).toBe(true);
+  });
+});
+
+describe('seriesAxis', () => {
+  const index = (key: string, min: number, max: number, lines: number[] = []) => ({
+    key,
+    label: key,
+    summary: '',
+    good_for: '',
+    caution: '',
+    citation: '',
+    domain_min: min,
+    domain_max: max,
+    reference_lines: lines,
+  });
+
+  it('uses the index domain rather than a fixed 0-1 axis', () => {
+    expect(seriesAxis([index('GCVI', 0, 10, [2, 6])])).toEqual({
+      min: 0,
+      max: 10,
+      referenceLines: [2, 6],
+    });
+  });
+
+  it('spans every domain when one window mixes indices', () => {
+    const axis = seriesAxis([index('NDVI', -0.2, 1), index('GCVI', 0, 10)]);
+    expect([axis.min, axis.max]).toEqual([-0.2, 10]);
+  });
+
+  it('drops reference lines when the series do not share an index', () => {
+    // A threshold that means "water" for MNDWI means nothing plotted against NDVI.
+    expect(
+      seriesAxis([index('MNDWI', -1, 1, [0]), index('NDVI', -0.2, 1, [0.25])]).referenceLines
+    ).toEqual([]);
+  });
+
+  it('keeps the reference lines when several series plot the same index', () => {
+    expect(
+      seriesAxis([index('NDVI', -0.2, 1, [0.25]), index('NDVI', -0.2, 1, [0.25])]).referenceLines
+    ).toEqual([0.25]);
+  });
+
+  it('falls back to the fixed axis when no index is recognised', () => {
+    expect(seriesAxis([null, undefined])).toEqual({ min: 0, max: 1, referenceLines: [] });
   });
 });

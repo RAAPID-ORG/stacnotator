@@ -1288,7 +1288,8 @@ export const createTimeseriesForCampaign = <ThrowOnError extends boolean = false
 /**
  * Get Timeseries Creation Options
  *
- * Get options for registering new timeseries for a campaign, such as supported data sources, providers, and types.
+ * Get options for registering new timeseries for a campaign: the satellite
+ * sources, the spectral indices each one can compute, and what they are for.
  */
 export const getTimeseriesCreationOptions = <ThrowOnError extends boolean = false>(options?: Options<GetTimeseriesCreationOptionsData, ThrowOnError>) => (options?.client ?? client).get<GetTimeseriesCreationOptionsResponses, unknown, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
