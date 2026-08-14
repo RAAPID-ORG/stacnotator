@@ -23,11 +23,9 @@ class DecryptionError(Exception):
 
 
 def _key() -> bytes:
-    raw = get_settings().APIKEY_ENCRYPTION_SECRET
-    key = base64.b64decode(raw)
-    if len(key) != 32:
-        raise ValueError("APIKEY_ENCRYPTION_SECRET must be base64 of exactly 32 bytes (AES-256)")
-    return key
+    # Settings rejects anything that is not base64 of 32 bytes at startup, so by the time
+    # a request reaches here the decode cannot fail.
+    return base64.b64decode(get_settings().APIKEY_ENCRYPTION_SECRET)
 
 
 def encrypt(plaintext: str) -> str:

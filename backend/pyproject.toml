@@ -28,6 +28,7 @@ dependencies = [
     # STAC catalog browsing & MPC token signing
     "pystac-client>=0.8.0",
     "planetary-computer>=1.0.0",
+    "email-validator>=2.3.0",
 ]
 
 [dependency-groups]

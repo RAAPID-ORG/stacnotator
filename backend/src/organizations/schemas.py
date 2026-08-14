@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from src.auth.schemas import UserOut
 
@@ -81,7 +81,10 @@ class OrganizationUsersResponse(BaseModel):
 
 
 class AddUsersByEmailRequest(BaseModel):
-    emails: list[str] = Field(min_length=1)
+    # These reach a SQL lookup and, when unmatched, become stored invites, so the
+    # field has to mean "address" rather than "string": a bare str let a NUL byte
+    # through to psycopg2 as a 500 and let junk be persisted as an invite.
+    emails: list[EmailStr] = Field(min_length=1)
 
 
 class AddUsersByEmailResult(BaseModel):

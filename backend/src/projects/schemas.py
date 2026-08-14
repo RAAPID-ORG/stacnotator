@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from src.auth.schemas import UserOut
 from src.projects.access import VISIBILITY_PRIVATE, ProjectVisibility
@@ -50,6 +50,10 @@ class TilerOption(BaseModel):
     kind: str  # "mpc" | "hosted"
     url: str | None = None  # browser-facing URL (hosted only; null for MPC)
     is_default: bool  # default hosted pick for non-MPC collections
+    # The wizard offers a catalog / compositing method only when some tiler can render it:
+    # its own STAC API (`stac_url`) needs no ingest, anything else does.
+    stac_url: str | None = None
+    allows_ingest: bool = False
 
 
 class ProjectTilersOut(BaseModel):
@@ -74,7 +78,7 @@ class ProjectUsersResponse(BaseModel):
 
 
 class AddProjectUsersByEmailRequest(BaseModel):
-    emails: list[str] = Field(min_length=1)
+    emails: list[EmailStr] = Field(min_length=1)
 
 
 class AddProjectUsersByIdsRequest(BaseModel):

@@ -117,6 +117,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
     { name = "earthengine-api" },
+    { name = "email-validator" },
     { name = "fastapi" },
     { name = "firebase-admin" },
     { name = "geoalchemy2" },
@@ -152,6 +153,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.17.2" },
     { name = "earthengine-api", specifier = ">=1.7.4" },
+    { name = "email-validator", specifier = ">=2.3.0" },
     { name = "fastapi", specifier = ">=0.135.0" },
     { name = "firebase-admin", specifier = ">=7.1.0" },
     { name = "geoalchemy2", specifier = ">=0.18.1" },
@@ -509,6 +511,15 @@ wheels = [
 ]
 
 [[package]]
+name = "dnspython"
+version = "2.8.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/8b/57666417c0f90f08bcafa776861060426765fdb422eb10212086fb811d26/dnspython-2.8.0.tar.gz", hash = "sha256:181d3c6996452cb1189c4046c61599b84a5a86e099562ffde77d26984ff26d0f", size = 368251, upload-time = "2025-09-07T18:58:00.022Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ba/5a/18ad964b0086c6e62e2e7500f7edc89e3faa45033c71c1893d34eed2b2de/dnspython-2.8.0-py3-none-any.whl", hash = "sha256:01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af", size = 331094, upload-time = "2025-09-07T18:57:58.071Z" },
+]
+
+[[package]]
 name = "earthengine-api"
 version = "1.7.26"
 source = { registry = "https://pypi.org/simple" }
@@ -523,6 +534,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/23/1f/ab8b1795012d0fae593c4dffd559575c35a87d1b87f1f13692817ba73832/earthengine_api-1.7.26.tar.gz", hash = "sha256:92e0b7033ac68c11d70f3b79ea7e63dd5f0763ad1404298cc9f9e3d50b225d72", size = 432254, upload-time = "2026-05-11T22:51:10.534Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b1/c0/e8d2e1f3d090f48d23ca8cc67aa90594afa9d365e26f4c482ce80a31161e/earthengine_api-1.7.26-py3-none-any.whl", hash = "sha256:9d0bde3d8a64dd31fa05dc78ac258cd7e02f5cb540a759a4f18f50442aabec1a", size = 479555, upload-time = "2026-05-11T22:51:08.409Z" },
+]
+
+[[package]]
+name = "email-validator"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dnspython" },
+    { name = "idna" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f5/22/900cb125c76b7aaa450ce02fd727f452243f2e91a61af068b40adba60ea9/email_validator-2.3.0.tar.gz", hash = "sha256:9fc05c37f2f6cf439ff414f8fc46d917929974a82244c20eb10231ba60c54426", size = 51238, upload-time = "2025-08-26T13:09:06.831Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/15/545e2b6cf2e3be84bc1ed85613edd75b8aea69807a71c26f4ca6a9258e82/email_validator-2.3.0-py3-none-any.whl", hash = "sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4", size = 35604, upload-time = "2025-08-26T13:09:05.858Z" },
 ]
 
 [[package]]

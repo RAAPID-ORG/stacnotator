@@ -1,3 +1,5 @@
+import base64
+import binascii
 import json
 import os
 from functools import lru_cache
@@ -14,7 +16,10 @@ _DEFAULT_CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
 # the guard and the default are the same string - so they are named here once and both
 # sides read the name.
 DEV_TILER_TOKEN_SECRET = "dev-tiler-secret-change-in-production"  # noqa: S105
-DEV_APIKEY_ENCRYPTION_SECRET = "dev-apikey-secret-change-in-production"  # noqa: S105
+# Spelled as base64 of a readable 32-byte phrase because AES-256 needs exactly that, and
+# a placeholder that cannot satisfy the format is not a placeholder - it just moves the
+# failure to the first request that tries to encrypt a provider key.
+DEV_APIKEY_ENCRYPTION_SECRET = base64.b64encode(b"stacnotator-dev-insecure-key-32b").decode()
 
 
 def _parse_origins(v: str | list[str]) -> list[str]:
@@ -128,6 +133,23 @@ class Settings(BaseSettings):
     # AES-256-GCM master key for encrypting imagery provider API keys at rest (base64 of 32 bytes).
     # On Azure this App Setting is a Key Vault reference so the real key lives in Key Vault.
     APIKEY_ENCRYPTION_SECRET: str = DEV_APIKEY_ENCRYPTION_SECRET
+
+    @field_validator("APIKEY_ENCRYPTION_SECRET", mode="after")
+    @classmethod
+    def _key_must_be_aes256(cls, v: str) -> str:
+        # A key of the wrong shape is only noticed by whichever request first encrypts a
+        # provider key, which surfaces as a 500 rather than as bad configuration. Check it
+        # here so an unusable key is a boot failure with the reason attached.
+        try:
+            key = base64.b64decode(v, validate=True)
+        except binascii.Error as exc:
+            raise ValueError("APIKEY_ENCRYPTION_SECRET must be valid base64") from exc
+        if len(key) != 32:
+            raise ValueError(
+                "APIKEY_ENCRYPTION_SECRET must be base64 of exactly 32 bytes (AES-256), "
+                f"got {len(key)}"
+            )
+        return v
 
     # tiler_token cookie attributes. For sibling-subdomain deployments set
     # TILER_COOKIE_DOMAIN=".example.com" so the cookie reaches the tiler subdomains.
