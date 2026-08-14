@@ -47,13 +47,14 @@ Do not attempt to gain unauthorized access, probe or disrupt the Service or its
 infrastructure, circumvent access controls or usage limits, distribute malware
 through it, or place unreasonable load on it through automated access.
 
-## 5. Disclaimers
+## 5. Disclaimer of warranties
 
-The Service and everything it produces are provided "as is" and "as available",
-with no warranty of any kind, express or implied, including merchantability,
-fitness for a particular purpose, accuracy, and non-infringement.
+THE SERVICE AND EVERYTHING IT PRODUCES ARE PROVIDED "AS IS" AND "AS AVAILABLE",
+WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION
+THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+TITLE, ACCURACY, AND NON-INFRINGEMENT.
 
-We make no warranty that the Service will be available, uninterrupted, or
+We do not warrant that the Service will be available, uninterrupted, or
 error-free; that imagery, annotations, or exports are accurate, complete, or
 current; that the Service, its downloads, or its outputs are free of viruses or
 other harmful components, or that the Service cannot be compromised by third
@@ -75,44 +76,47 @@ put into the Service and of any results you download.
 
 We may delete inactive or abandoned accounts, organizations, projects, and
 campaigns, and content created with malformed or test data, at our discretion
-and without notice. Backups, where they exist, are for our operations and are
-not a recovery service for you.
+and without notice. Backups, where they exist, serve our operations and are not
+a recovery service for you.
 
-## 7. Liability
+## 7. Limitation of liability
 
-We provide the Service free of charge and assume no liability for it. To the
-fullest extent permitted by law, we are not liable for any damage arising from
-the use of, or the inability to use, the Service - including slight negligence,
-indirect, special, incidental or consequential damage, lost profits, lost or
-corrupted data, interrupted work, and damage caused by third parties or by
-malware. Because the Service is gratuitous, our liability is in any case
-limited to intent and gross negligence (§§ 521, 599 BGB, applied by analogy).
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, NEITHER THE OPERATOR NOR ITS
+AFFILIATES, EMPLOYEES, CONTRACTORS, OR AGENTS WILL BE LIABLE FOR ANY DIRECT,
+INDIRECT, SPECIAL, INCIDENTAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES,
+OR FOR ANY LOST PROFITS, LOST OR CORRUPTED DATA, BUSINESS INTERRUPTION, OR COST
+OF SUBSTITUTE SERVICES, ARISING OUT OF OR RELATING TO THE SERVICE OR THESE
+TERMS, ON ANY THEORY OF LIABILITY, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGES. OUR TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS WILL NOT EXCEED ONE
+HUNDRED US DOLLARS (US$100).
 
-Liability that cannot be excluded in advance by contract - for intent, for
-injury to life, body, or health, and under mandatory statutory provisions such
-as product liability law - remains, because the law does not permit its
-exclusion. Nothing in these terms is meant to reach further than the law
-allows; where a limitation is only partly permitted, it applies as far as it
-is. These exclusions apply equally to our staff, contractors, and anyone else
-we engage to operate the Service.
+You use the Service at your own risk. Some jurisdictions do not allow the
+exclusion of implied warranties or the limitation of incidental or
+consequential damages, so parts of sections 5 and 7 may not apply to you; in
+that case our liability is limited as far as the applicable law permits.
 
-Claims against us expire one year after you learn of the circumstances giving
-rise to them, except where a longer period is mandatory.
+Any claim arising out of or relating to the Service must be brought within one
+year after it arose, except where a longer period is required by law.
+
+## 8. Indemnity
 
 If a third party brings a claim against us because of your use of the Service -
 content you submitted, data you exported, a key you added, or rights you
-infringed - you will indemnify us against that claim and the reasonable cost of
-defending it, unless you are not responsible for the underlying breach.
+infringed - you will indemnify and hold us harmless against that claim and the
+reasonable cost of defending it, to the extent permitted by the law that
+applies to you.
 
-## 8. Final provisions
+## 9. Final provisions
 
 We may update these terms; the current version and its date are always shown on
 this page. Continuing to use the Service after a change means you accept it. If
 you do not, stop using the Service and ask us to delete your account.
 
-These terms are governed by the law of [JURISDICTION - default: the Federal
-Republic of Germany], excluding its conflict-of-law rules and the UN Convention
-on Contracts for the International Sale of Goods. If a provision is or becomes
-invalid, the rest stays in effect.
+These terms are governed by the laws of the State of [OPERATOR_STATE], USA,
+excluding its conflict-of-law rules and the UN Convention on Contracts for the
+International Sale of Goods. The courts located in [OPERATOR_STATE] have
+exclusive jurisdiction, except where mandatory consumer-protection law gives
+you the right to sue where you live. If a provision is or becomes invalid, the
+rest stays in effect.
 
 Contact: [CONTACT_EMAIL]

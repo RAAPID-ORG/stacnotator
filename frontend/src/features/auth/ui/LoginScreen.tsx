@@ -304,7 +304,7 @@ export function LoginScreen() {
       {mode !== 'forgot-password' && (
         <p className="mt-4 text-center text-xs text-brand-500">
           By continuing you agree to our <LegalLink doc="terms">Terms of Service</LegalLink> and{' '}
-          <LegalLink doc="imprint">Privacy notice</LegalLink>.
+          <LegalLink doc="privacy">Privacy notice</LegalLink>.
         </p>
       )}
     </AuthCard>
