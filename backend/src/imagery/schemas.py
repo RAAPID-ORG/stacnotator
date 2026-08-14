@@ -312,7 +312,8 @@ class VisualizationTemplateCreate(BaseModel):
 class ImagerySourceCreate(BaseModel):
     id: int | None = None
     name: str
-    crosshair_hex6: str = "ff0000"
+    # Reaches the frontend as a colour, so it stays six hex digits and nothing else.
+    crosshair_hex6: str = Field(default="ff0000", pattern=r"^[0-9a-fA-F]{6}$")
     default_zoom: int = 15
     visualizations: list[VisualizationTemplateCreate]
     generation_series: list[ImageryGenerationSeriesCreate] = []

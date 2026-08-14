@@ -1,10 +1,63 @@
 from datetime import UTC, datetime
 
+import pytest
+from pydantic import ValidationError
+
 from src.stac_browser.client import (
     bbox_intersects,
     datetime_in_range,
     parse_datetime_range,
 )
+from src.stac_browser.schemas import MAX_SEARCH_LIMIT, SearchRequest
+
+
+def _search(**overrides) -> SearchRequest:
+    return SearchRequest(catalog_url="https://c.test/stac", collection_id="c", **overrides)
+
+
+class TestSearchRequestLimits:
+    """Every one of these values reaches an upstream catalog, so none of them is free."""
+
+    def test_rejects_an_unbounded_page(self):
+        with pytest.raises(ValidationError):
+            _search(limit=MAX_SEARCH_LIMIT + 1)
+        with pytest.raises(ValidationError):
+            _search(limit=0)
+
+    def test_rejects_a_negative_offset(self):
+        with pytest.raises(ValidationError):
+            _search(offset=-1)
+
+    @pytest.mark.parametrize(
+        "bbox",
+        [
+            [0, 0, 1],  # not 4 or 6 values
+            [0, 0, 1, 1, 2],
+            [0, 10, 1, 0],  # south past north
+            [0, -95, 1, 95],  # off the globe
+            [float("nan"), 0, 1, 1],
+        ],
+    )
+    def test_rejects_a_malformed_bbox(self, bbox):
+        with pytest.raises(ValidationError):
+            _search(bbox=bbox)
+
+    def test_accepts_2d_3d_and_antimeridian_boxes(self):
+        assert _search(bbox=[0, 0, 1, 1]).bbox == [0, 0, 1, 1]
+        assert _search(bbox=[0, 0, 100, 1, 1, 500]).bbox == [0, 0, 100, 1, 1, 500]
+        # West past east is how a box crossing the antimeridian is written.
+        assert _search(bbox=[170, -10, -170, 10]).bbox == [170, -10, -170, 10]
+
+    @pytest.mark.parametrize("value", ["not-a-date", "2020-01-01/nope", "a/b/c", "../.."])
+    def test_rejects_an_unparseable_datetime_range(self, value):
+        with pytest.raises(ValidationError):
+            _search(datetime_range=value)
+
+    @pytest.mark.parametrize(
+        "value", ["2020-06-01T00:00:00Z", "2020-01-01/2020-12-31", "../2020-12-31", "2020-01-01/.."]
+    )
+    def test_accepts_stac_datetime_forms(self, value):
+        assert _search(datetime_range=value).datetime_range == value
 
 
 class TestParseDatetimeRange:
