@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ImageryCollectionOut } from '~/api/client';
 import { extendedLabels } from '../../campaign/annotation';
 import { type ImageryCatalog } from '../../campaign/imagery';
@@ -13,6 +13,7 @@ import { useMapFocus } from '../../stores/tasks';
 import { setForegroundMapLoading } from '../../map/tileLoading';
 import { composeLayers, type AnnotationTiles, type ComposeState } from '../../map/compose';
 import { MapView } from '../../map/MapView';
+import { PillSpinner, StatusPill } from '../../components/StatusPill';
 import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
 
 // ---------------------------------------------------------------------------
@@ -86,14 +87,6 @@ function NoImageryOverlay() {
       <span className="rounded bg-neutral-50/80 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
         No imagery
       </span>
-    </div>
-  );
-}
-
-function StatusPill({ children }: { children: ReactNode }) {
-  return (
-    <div className="pointer-events-none absolute bottom-1.5 left-1/2 z-[1000] -translate-x-1/2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white">
-      {children}
     </div>
   );
 }
@@ -224,7 +217,7 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
       {showHint && <StatusPill>Hold Ctrl/Cmd to zoom</StatusPill>}
       {healing.searchingLabel && (
         <StatusPill>
-          <span className="mr-1.5 inline-block h-2.5 w-2.5 animate-spin rounded-full border border-white/40 border-t-white align-middle" />
+          <PillSpinner />
           Searching imagery... {healing.searchingLabel}
         </StatusPill>
       )}

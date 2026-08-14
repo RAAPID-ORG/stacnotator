@@ -12,6 +12,7 @@ import type { ExtendedLabel } from '../campaign/annotation';
 import type { WorkMode } from '../stores/campaign';
 import type { GeoFeature, LayerSpec, LonLat, StyleSpec } from './types';
 
+export const TILE_SKELETON_LAYER_ID = 'tile-skeleton';
 export const ANNOTATION_LAYER_ID = 'annotations';
 export const EXTENT_LAYER_ID = 'task-extent';
 export const CROSSHAIR_LAYER_ID = 'crosshair';
@@ -22,6 +23,7 @@ export const PROBE_LAYER_ID = 'probe';
  *  box hit on one of these. */
 export const vectorLayerId = (id: number): string => `vector-${id}`;
 
+const TILE_SKELETON_Z = -1;
 const OVERLAY_Z = 3;
 const EXTENT_Z = 5;
 const VECTOR_Z = 8;
@@ -60,6 +62,8 @@ export interface ComposeState extends ImageryNavState {
    *  reference layers, sketch or probe - those belong to the map the user is
    *  working in. */
   target?: 'main' | 'window';
+  /** Draw the tile-grid backdrop under everything. */
+  tileSkeleton?: boolean;
   legendOverrides?: Record<number, LegendOverride>;
   annotations?: AnnotationTiles;
   focusExtent?: GeoFeature | null;
@@ -120,10 +124,29 @@ export interface ComposeContext {
   mode: WorkMode;
 }
 
+/** One flat tile with a hairline border, repeated over the whole grid. Drawn
+ *  by the same tile machinery as the imagery, so the squares sit exactly where
+ *  the real tiles will: they fill in one by one as the imagery arrives instead
+ *  of the map going white while it loads. */
+const TILE_SKELETON_URL =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='256' height='256'>" +
+  "<rect width='256' height='256' fill='%23eceef1'/>" +
+  "<rect x='0.5' y='0.5' width='255' height='255' fill='none' stroke='%23dcdfe4'/></svg>";
+
 export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSpec[] {
   const { catalog, mode } = ctx;
   const isWindow = state.target === 'window';
   const layers: LayerSpec[] = [];
+
+  if (state.tileSkeleton) {
+    layers.push({
+      kind: 'raster',
+      id: TILE_SKELETON_LAYER_ID,
+      url: TILE_SKELETON_URL,
+      auth: 'none',
+      zIndex: TILE_SKELETON_Z,
+    });
+  }
 
   // A task's rasters get their own cache scope: imagery must not be reused
   // across task locations even when the URL is identical.

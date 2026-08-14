@@ -19,6 +19,7 @@ import {
   ANNOTATION_LAYER_ID,
   CROSSHAIR_LAYER_ID,
   EXTENT_LAYER_ID,
+  TILE_SKELETON_LAYER_ID,
   composeLayers,
   type ComposeState,
 } from './compose';
@@ -320,5 +321,25 @@ describe('composeLayers - showAnnotations', () => {
     const noCrosshair = composeLayers(ctxFor('tasks'), { ...focused, crosshair: false });
     expect(ids(noCrosshair)).toContain(EXTENT_LAYER_ID);
     expect(ids(noCrosshair)).not.toContain(CROSSHAIR_LAYER_ID);
+  });
+});
+
+describe('composeLayers - tile skeleton', () => {
+  it('is left out unless asked for', () => {
+    expect(ids(composeLayers(ctxFor('explore'), stateWith()))).not.toContain(
+      TILE_SKELETON_LAYER_ID
+    );
+  });
+
+  it('sits under every other layer, including with no imagery to show', () => {
+    const layers = composeLayers(ctxFor('explore'), stateWith({ tileSkeleton: true }));
+    expect(ids(layers)[0]).toBe(TILE_SKELETON_LAYER_ID);
+    expect((layers[0] as RasterLayerSpec).zIndex).toBeLessThan(0);
+
+    const empty = composeLayers(
+      ctxFor('explore'),
+      stateWith({ tileSkeleton: true, address: null })
+    );
+    expect(ids(empty)).toContain(TILE_SKELETON_LAYER_ID);
   });
 });

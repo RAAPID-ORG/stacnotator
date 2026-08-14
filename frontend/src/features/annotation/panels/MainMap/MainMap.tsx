@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { Delayed } from '~/shared/ui/Delayed';
 import { pageKeymap } from '../../keymap';
 import { useContainerSize } from '../../canvas/useContainerSize';
+import { PillSpinner, StatusPill } from '../../components/StatusPill';
 import { hotkeyTip } from '../../hotkeys';
 import { extendedLabels } from '../../campaign/annotation';
 import { collectionsInView } from '../../campaign/imagery';
@@ -27,6 +29,10 @@ import { VectorLayerControls } from './controls/VectorLayerControls';
 import { ViewControls } from './controls/ViewControls';
 import { TimelineSidebar } from './TimelineSidebar';
 import { usePreloading } from './usePreloading';
+
+/** Past this a tile load is slow enough to name, rather than leaving the
+ *  half-filled grid to explain itself. */
+const SLOW_LOAD_MS = 700;
 
 /** Keeps the leader camera on the shared focus. Working zoom is read at move
  *  time so cycling imagery never yanks a camera the user just positioned. */
@@ -230,6 +236,7 @@ export function MainMapBody() {
   const layers = useMemo(() => {
     const state: ComposeState = {
       ...imagery,
+      tileSkeleton: true,
       annotations,
       legendOverrides,
       focusExtent: focus?.extent ?? null,
@@ -301,6 +308,16 @@ export function MainMapBody() {
             setForegroundMapLoading('main', loading);
           }}
         />
+        {/* The tile grid is the loading feedback; this only speaks up when a
+            load is slow enough that the grid alone looks stuck. */}
+        {mapLoading && (
+          <Delayed delayMs={SLOW_LOAD_MS}>
+            <StatusPill>
+              <PillSpinner />
+              Loading imagery
+            </StatusPill>
+          </Delayed>
+        )}
         <CustomMapLegend catalog={catalog} />
       </div>
     </div>
