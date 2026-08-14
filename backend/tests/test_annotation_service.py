@@ -900,6 +900,7 @@ class TestExportAnnotatorCount:
             id=task_id,
             annotation_number=annotation_number,
             raw_source_data=None,
+            assignments=[],
         )
 
     @staticmethod
@@ -1054,7 +1055,10 @@ class TestExportMergeCorrectness:
     @staticmethod
     def _task(task_id=1, annotation_number=42, raw_source_data=None):
         return SimpleNamespace(
-            id=task_id, annotation_number=annotation_number, raw_source_data=raw_source_data
+            id=task_id,
+            annotation_number=annotation_number,
+            raw_source_data=raw_source_data,
+            assignments=[],
         )
 
     @staticmethod
@@ -1466,7 +1470,7 @@ class TestExportFormFields:
     @staticmethod
     def _task(task_id=1, annotation_number=42):
         return SimpleNamespace(
-            id=task_id, annotation_number=annotation_number, raw_source_data=None
+            id=task_id, annotation_number=annotation_number, raw_source_data=None, assignments=[]
         )
 
     @staticmethod

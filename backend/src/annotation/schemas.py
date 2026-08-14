@@ -92,6 +92,7 @@ class AnnotationTaskAssignmentOut(BaseModel):
     status: Literal["pending", "done", "skipped"]
     is_review: bool = False
     claimed_at: datetime | None = None
+    active_seconds: int | None = None
     user_email: str | None = None
     user_display_name: str | None = None
 
@@ -106,6 +107,7 @@ class AnnotationTaskAssignmentOut(BaseModel):
                 "status": data.status,
                 "is_review": data.is_review,
                 "claimed_at": data.claimed_at,
+                "active_seconds": data.active_seconds,
                 "user_email": user.email,
                 "user_display_name": user.display_name,
             }
@@ -282,6 +284,9 @@ class AnnotationFromTaskCreate(BaseModel):
     flagged_for_review: bool | None = None
     flag_comment: str | None = Field(default=None, max_length=5000)
     form_values: dict[str, FormValue] | None = None
+    # Active time the client measured for this task since the last submit. Capped
+    # at an hour so a misbehaving client cannot distort the duration statistics.
+    active_ms: int | None = Field(default=None, ge=0, le=3_600_000)
 
 
 class AnnotationTaskSubmitResponse(BaseModel):

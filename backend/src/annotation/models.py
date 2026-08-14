@@ -172,6 +172,14 @@ class AnnotationTaskAssignment(Base):
         nullable=True,
     )
 
+    # Active seconds this user has spent on the task, accumulated across submits.
+    # NULL means never measured, which keeps rows predating the measurement out
+    # of the duration statistics rather than averaging them in as zero.
+    active_seconds: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
     # Relationships
     annotation_task: Mapped["AnnotationTask"] = relationship(
         back_populates="assignments",

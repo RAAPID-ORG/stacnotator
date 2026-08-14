@@ -92,8 +92,12 @@ class TestTaskStatusInExportRecords:
         user_a, user_b = uuid4(), uuid4()
         task = _task(
             assignments=[
-                SimpleNamespace(user_id=user_a, status="done", is_review=False),
-                SimpleNamespace(user_id=user_b, status="done", is_review=False),
+                SimpleNamespace(
+                    user_id=user_a, status="done", is_review=False, active_seconds=None
+                ),
+                SimpleNamespace(
+                    user_id=user_b, status="done", is_review=False, active_seconds=None
+                ),
             ]
         )
         anns = [
@@ -116,7 +120,11 @@ class TestTaskStatusInExportRecords:
         assignee = uuid4()
         extra_labeler = uuid4()
         task = _task(
-            assignments=[SimpleNamespace(user_id=assignee, status="done", is_review=False)]
+            assignments=[
+                SimpleNamespace(
+                    user_id=assignee, status="done", is_review=False, active_seconds=None
+                )
+            ]
         )
         anns = [
             _annotation(
@@ -140,8 +148,12 @@ class TestTaskStatusInExportRecords:
         reviewer = uuid4()
         task = _task(
             assignments=[
-                SimpleNamespace(user_id=primary, status="done", is_review=False),
-                SimpleNamespace(user_id=reviewer, status="pending", is_review=True),
+                SimpleNamespace(
+                    user_id=primary, status="done", is_review=False, active_seconds=None
+                ),
+                SimpleNamespace(
+                    user_id=reviewer, status="pending", is_review=True, active_seconds=None
+                ),
             ]
         )
         anns = [

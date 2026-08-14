@@ -141,6 +141,7 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_flag_comment",
     "stacnotator_created_by_user_email",
     "stacnotator_created_at",
+    "stacnotator_active_seconds",
     "stacnotator_imagery_source_name",
     "stacnotator_imagery_start_date",
     "stacnotator_imagery_end_date",
@@ -238,6 +239,22 @@ def _compute_task_status_for_export(
     return compute_task_status_value(assignment_list, annotation_list)
 
 
+def _active_seconds_for(annotation: Annotation) -> int | None:
+    """Active seconds the annotation's author spent on its task.
+
+    Read off the task's eager-loaded assignments, since that is where the
+    measurement lives. None for open-mode annotations and for work done before
+    the measurement existed.
+    """
+    task = annotation.annotation_task
+    if task is None:
+        return None
+    for assignment in task.assignments or []:
+        if assignment.user_id == annotation.created_by_user_id:
+            return assignment.active_seconds
+    return None
+
+
 def _build_export_record_for_annotation(
     annotation: Annotation,
     campaign: Campaign,
@@ -282,6 +299,7 @@ def _build_export_record_for_annotation(
     record["stacnotator_flag_comment"] = annotation.flag_comment
     record["stacnotator_created_by_user_email"] = user_email_map.get(annotation.created_by_user_id)
     record["stacnotator_created_at"] = annotation.created_at
+    record["stacnotator_active_seconds"] = _active_seconds_for(annotation)
     record["stacnotator_annotator_count"] = task_annotator_count
     record["stacnotator_imagery_source_name"] = annotation.imagery_source_name
     record["stacnotator_imagery_start_date"] = annotation.imagery_start_date
@@ -358,6 +376,10 @@ def _build_export_record_merged(
     record["stacnotator_flag_comment"] = " | ".join(flag_comments) if flag_comments else None
     record["stacnotator_created_by_user_email"] = ", ".join(emails) if emails else None
     record["stacnotator_created_at"] = latest_created_at
+    # Summed, not averaged: the merged row stands for the task, so the useful
+    # figure is the total effort the task cost across its annotators.
+    measured = [s for s in (_active_seconds_for(a) for a in labeled) if s is not None]
+    record["stacnotator_active_seconds"] = sum(measured) if measured else None
     record["stacnotator_annotator_count"] = len(labeled)
     if include_geometry_wkt:
         geom = canonical.geometry.geometry if canonical.geometry else None

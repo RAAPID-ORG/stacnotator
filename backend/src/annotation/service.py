@@ -436,6 +436,13 @@ def add_annotation_for_task(
                 else ANNOTATION_TASK_STATUS_DONE
             )
 
+    # Time rides on the assignment rather than the annotation so that a skip,
+    # which may leave no annotation behind, still records the effort it cost.
+    if assignment is not None and annotation_create.active_ms:
+        assignment.active_seconds = (assignment.active_seconds or 0) + round(
+            annotation_create.active_ms / 1000
+        )
+
     db.commit()
 
     if annotation is None:

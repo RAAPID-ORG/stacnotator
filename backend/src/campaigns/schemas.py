@@ -475,6 +475,9 @@ class AnnotatorInfo(BaseModel):
     user_display_name: str | None
     total_annotations: int
     label_distribution: dict[str, int]  # label name -> count
+    timed_tasks: int = 0  # tasks with a measured duration
+    median_seconds_per_task: int | None = None
+    total_active_seconds: int | None = None
 
 
 class PairwiseAgreement(BaseModel):
