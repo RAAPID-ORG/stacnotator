@@ -1,7 +1,6 @@
 import logging
 import time
 from collections.abc import Collection
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer
@@ -77,25 +76,10 @@ def _tiler_catalogs(allowed_tiler_names: Collection[str]) -> list[dict]:
     return out
 
 
-def _origin(url: str) -> str:
-    parsed = urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}".lower()
-
-
-def _catalog_tiler(catalog_url: str) -> registry.Tiler | None:
-    """The platform tiler whose STAC API this URL points at, if any. MPC is a public
-    catalog, not a platform one, so it never matches here."""
-    origin = _origin(catalog_url)
-    for tiler in registry.browsable_tilers():
-        if tiler.kind != registry.MPC and tiler.stac_url and _origin(tiler.stac_url) == origin:
-            return tiler
-    return None
-
-
 def _authorize_catalog(catalog_url: str, project: Project) -> None:
     """A platform tiler's STAC API is scoped to the organizations allowed that tiler,
     exactly as ``/stac/catalogs`` lists it. Public catalogs stay browsable by anyone."""
-    tiler = _catalog_tiler(catalog_url)
+    tiler = registry.tiler_of_catalog(catalog_url)
     if tiler is None or tiler.name in project.organization.allowed_tiler_names:
         return
     raise HTTPException(

@@ -5,7 +5,6 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from src.campaigns.models import Campaign
 from src.canvas.service import new_default_view_layout, sync_view_layouts
-from src.config import get_settings
 from src.crypto import encrypt
 from src.imagery.models import (
     Basemap,
@@ -200,12 +199,17 @@ def _forbidden(tiler_name: str, collection_name: str) -> HTTPException:
     )
 
 
-def _authorize_tilers(org: Organization, editor_state: ImageryEditorStateCreate) -> None:
-    """Reject the whole save up front (before any writes) if a collection would be served
-    by a tiler the owning organization may not use: unknown hosted tiler => 400, provider
-    outside its allowlist => 403. MPC-routed collections are checked against 'mpc'; the
-    hosted tiler is only checked when something actually needs it."""
-    settings = get_settings()
+def _resolve_tilers(org: Organization, editor_state: ImageryEditorStateCreate) -> None:
+    """Pin every collection that needs a hosted tiler to the one that will actually serve
+    it, rejecting the whole save up front (before any writes) when there is none: unknown
+    hosted tiler => 400, provider outside the organization's allowlist => 403, no tiler
+    that can serve the catalog => 403.
+
+    MPC-routed collections are checked against 'mpc'; the hosted tiler is only resolved
+    when something actually needs it (non-first compositing, masking, a non-MPC catalog).
+    A catalog that is not a platform tiler's own has to be ingested, so a tiler that
+    cannot ingest is not a candidate for it however the payload was pinned.
+    """
     allowed = set(org.allowed_tiler_names)
     for src in editor_state.sources:
         for col in src.collections:
@@ -220,19 +224,26 @@ def _authorize_tilers(org: Organization, editor_state: ImageryEditorStateCreate)
                 continue
 
             # 'mpc' in the tiler field is not a hosted pin - the wizard offers it as a
-            # discoverable tiler, MPC routing is decided above, and whatever still needs
-            # a hosted tiler falls back to the default one.
+            # discoverable tiler, and MPC routing is decided above.
             pinned = None if stac.tiler == registry.MPC else stac.tiler
-            name = pinned or settings.DEFAULT_TILER
-            if name is None:
-                continue
-            if name not in settings.TILERS:
+            if pinned and not registry.is_known(pinned):
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Unknown tiler '{name}' for collection '{col.name}'",
+                    detail=f"Unknown tiler '{pinned}' for collection '{col.name}'",
                 )
-            if name not in allowed:
-                raise _forbidden(name, col.name)
+            if pinned and pinned not in allowed:
+                raise _forbidden(pinned, col.name)
+
+            tiler = registry.serving_tiler(stac.catalog_url, pinned, allowed)
+            if tiler is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        f"Your organization has no tiler that can serve imagery from "
+                        f"'{stac.catalog_url}' (collection '{col.name}')"
+                    ),
+                )
+            stac.tiler = tiler.name
 
 
 def create_imagery_from_editor_state(
@@ -278,7 +289,7 @@ def save_imagery_editor_state(
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
 
-    _authorize_tilers(campaign.project.organization, editor_state)
+    _resolve_tilers(campaign.project.organization, editor_state)
 
     bbox = [
         campaign.settings.bbox_west,

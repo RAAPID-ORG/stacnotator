@@ -336,7 +336,14 @@ def get_project_tilers(project: Project) -> ProjectTilersOut:
     allowed = set(project.organization.allowed_tiler_names)
     return ProjectTilersOut(
         tilers=[
-            TilerOption(name=t.name, kind=t.kind, url=t.url, is_default=t.is_default)
+            TilerOption(
+                name=t.name,
+                kind=t.kind,
+                url=t.url,
+                is_default=t.is_default,
+                stac_url=t.stac_url,
+                allows_ingest=t.allows_ingest,
+            )
             for t in registry.all_tilers()
             if t.name in allowed
         ],
