@@ -2,121 +2,60 @@
 
 Last updated: 2026-08-14
 
-## 1. About the Service
+STACNotator (the "Service") is operated by [OPERATOR_NAME], [OPERATOR_ADDRESS],
+USA, and offered free of charge to support research and education. By using it
+you agree to these terms. Contact: [CONTACT_EMAIL].
 
-STACNotator (the "Service") is operated by [OPERATOR_NAME], [OPERATOR_ADDRESS]
-(the "Operator", "we"). It is a platform for annotating geospatial imagery,
-offered free of charge to support research and education. By creating an
-account or using the Service you agree to these terms.
+## The Service may or may not be there
 
-There is no entitlement to use the Service. Accounts require approval, which
-may be granted or refused at our discretion. We may change, suspend, or shut
-down the Service, in whole or in part, at any time and without notice.
+There is no entitlement to use the Service and no service level of any kind. We
+may change it, take it offline, refuse or remove accounts, and stop running it
+altogether, at any time, without notice and without giving a reason.
 
-The source code is separately available under the MIT License; running your own
-copy is governed by that license, not by these terms.
+## No guarantee that your data is kept
 
-## 2. Your account and your content
+We make no guarantee of data retention. Keep local copies of anything you put
+into the Service and of any results you download. We may delete inactive or
+abandoned accounts and projects, and anything created with malformed or test
+data, at our discretion.
 
-Keep your credentials confidential; you are responsible for what happens under
-your account. Authentication is handled by Google Firebase Authentication, so
-we never store your password.
-
-Annotations, campaigns, and other content you create remain yours. You grant us
-the right to store, process, and display them as needed to run the Service,
-including showing them to other members of your organizations and campaigns.
-You are responsible for what you submit: do not submit anything unlawful, that
-infringes third-party rights, or that contains other people's personal data
-without a legal basis.
-
-## 3. Provider API keys
-
-If you add an API key for a third-party imagery provider, it stays yours and
-stays subject to that provider's terms. You are responsible for how it is used
-through the Service and for any usage, cost, or quota it consumes. Use the
-narrowest scope that works - read-only wherever the provider offers it.
-
-We store keys encrypted and use them only to serve imagery for the organization
-or campaign they were added to, where administrators can see them. We do not
-warrant that a stored key cannot be disclosed. If you suspect exposure, revoke
-and rotate the key with your provider.
-
-## 4. Acceptable use
-
-Do not attempt to gain unauthorized access, probe or disrupt the Service or its
-infrastructure, circumvent access controls or usage limits, distribute malware
-through it, or place unreasonable load on it through automated access.
-
-## 5. Disclaimer of warranties
+## No warranty
 
 THE SERVICE AND EVERYTHING IT PRODUCES ARE PROVIDED "AS IS" AND "AS AVAILABLE",
-WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION
-THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
-TITLE, ACCURACY, AND NON-INFRINGEMENT.
+WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, AND NON-INFRINGEMENT.
 
-We do not warrant that the Service will be available, uninterrupted, or
-error-free; that imagery, annotations, or exports are accurate, complete, or
-current; that the Service, its downloads, or its outputs are free of viruses or
-other harmful components, or that the Service cannot be compromised by third
-parties; or that data will not be lost, corrupted, or become unavailable.
+We do not warrant that the Service is available, uninterrupted, or error-free,
+that imagery or annotations are accurate, that it is free of viruses or cannot
+be compromised, or that data will not be lost or corrupted. Imagery comes from
+third-party providers whose availability, accuracy, and terms are outside our
+control. Verify results before acting on them.
 
-Imagery and map data come from third-party providers (for example Microsoft
-Planetary Computer, Planet, other STAC catalogs, and Google Earth Engine).
-Their availability, accuracy, and terms are outside our control, and your use
-of that data must comply with the respective provider's terms.
-
-The Service is not built for any use where inaccuracy, failure, or downtime
-could cause harm, loss, or legal exposure. Verify results independently before
-acting on them.
-
-## 6. No guarantee of data retention
-
-We make no guarantee that data is retained. Keep local copies of anything you
-put into the Service and of any results you download.
-
-We may delete inactive or abandoned accounts, organizations, projects, and
-campaigns, and content created with malformed or test data, at our discretion
-and without notice. Backups, where they exist, serve our operations and are not
-a recovery service for you.
-
-## 7. Limitation of liability
+## No liability
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, NEITHER THE OPERATOR NOR ITS
-AFFILIATES, EMPLOYEES, CONTRACTORS, OR AGENTS WILL BE LIABLE FOR ANY DIRECT,
-INDIRECT, SPECIAL, INCIDENTAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES,
-OR FOR ANY LOST PROFITS, LOST OR CORRUPTED DATA, BUSINESS INTERRUPTION, OR COST
-OF SUBSTITUTE SERVICES, ARISING OUT OF OR RELATING TO THE SERVICE OR THESE
-TERMS, ON ANY THEORY OF LIABILITY, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
-DAMAGES. OUR TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS WILL NOT EXCEED ONE
-HUNDRED US DOLLARS (US$100).
+AFFILIATES, EMPLOYEES, OR CONTRACTORS WILL BE LIABLE FOR ANY DIRECT, INDIRECT,
+SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING FROM THE SERVICE,
+INCLUDING LOST DATA, LOST PROFITS, AND DAMAGE CAUSED BY THIRD PARTIES OR
+MALWARE, EVEN IF WE WERE ADVISED THAT THEY WERE POSSIBLE.
 
-You use the Service at your own risk. Some jurisdictions do not allow the
-exclusion of implied warranties or the limitation of incidental or
-consequential damages, so parts of sections 5 and 7 may not apply to you; in
-that case our liability is limited as far as the applicable law permits.
+You use the Service at your own risk. Some jurisdictions do not allow these
+exclusions, in which case our liability is limited as far as their law permits.
 
-Any claim arising out of or relating to the Service must be brought within one
-year after it arose, except where a longer period is required by law.
+## What we ask of you
 
-## 8. Indemnity
+Your annotations and campaigns stay yours; you let us store and display them so
+the Service can work, including to other members of your campaigns. Do not
+submit anything unlawful or anyone else's personal data without a legal basis,
+and do not attack, probe, or overload the Service.
 
-If a third party brings a claim against us because of your use of the Service -
-content you submitted, data you exported, a key you added, or rights you
-infringed - you will indemnify and hold us harmless against that claim and the
-reasonable cost of defending it, to the extent permitted by the law that
-applies to you.
+API keys you add for imagery providers stay yours and stay subject to that
+provider's terms. You are responsible for their use and cost. We store them
+encrypted, but cannot warrant that a stored key is never disclosed - use
+read-only keys where the provider offers them.
 
-## 9. Final provisions
+## Changes and applicable law
 
-We may update these terms; the current version and its date are always shown on
-this page. Continuing to use the Service after a change means you accept it. If
-you do not, stop using the Service and ask us to delete your account.
-
-These terms are governed by the laws of the State of [OPERATOR_STATE], USA,
-excluding its conflict-of-law rules and the UN Convention on Contracts for the
-International Sale of Goods. The courts located in [OPERATOR_STATE] have
-exclusive jurisdiction, except where mandatory consumer-protection law gives
-you the right to sue where you live. If a provision is or becomes invalid, the
-rest stays in effect.
-
-Contact: [CONTACT_EMAIL]
+We may update these terms; the current version and its date are shown above.
+Continuing to use the Service means you accept them. These terms are governed
+by the laws of the State of [OPERATOR_STATE], USA.
