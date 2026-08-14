@@ -166,7 +166,7 @@ export const AppSidebar = ({
                   rel="noreferrer"
                   className="hover:text-neutral-700 transition-colors"
                 >
-                  {doc.short}
+                  {doc.title}
                 </a>
               ))}
             </nav>

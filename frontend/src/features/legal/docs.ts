@@ -1,7 +1,6 @@
 export const LEGAL_DOCS = [
-  { key: 'terms', title: 'Terms of Service', short: 'Terms' },
-  { key: 'privacy', title: 'Privacy Policy', short: 'Privacy' },
-  { key: 'imprint', title: 'Imprint', short: 'Imprint' },
+  { key: 'terms', title: 'Terms' },
+  { key: 'imprint', title: 'Imprint and Privacy' },
 ] as const;
 
 export type LegalKey = (typeof LEGAL_DOCS)[number]['key'];

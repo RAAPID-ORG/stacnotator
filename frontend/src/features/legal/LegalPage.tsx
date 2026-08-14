@@ -1,13 +1,11 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import imprintMd from './imprint.md?raw';
-import privacyMd from './privacy.md?raw';
 import termsMd from './terms.md?raw';
 import { LEGAL_DOCS, legalPath, type LegalKey } from './docs';
 
 const CONTENT: Record<LegalKey, string> = {
   terms: termsMd,
-  privacy: privacyMd,
   imprint: imprintMd,
 };
 
