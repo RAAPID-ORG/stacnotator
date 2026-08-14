@@ -229,18 +229,7 @@ const AllTasksCard = ({
   return (
     <div className="surface h-full flex flex-col border-2 border-brand-300">
       <div className="surface-section flex-1 flex flex-col">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-neutral-900 truncate">All tasks</h3>
-          {onManage && (
-            <button
-              type="button"
-              onClick={onManage}
-              className="text-[11px] text-neutral-400 hover:text-neutral-600 shrink-0"
-            >
-              Details
-            </button>
-          )}
-        </div>
+        <h3 className="text-sm font-semibold text-neutral-900 truncate">All tasks</h3>
         <p className="text-[11px] text-brand-600 mt-0.5 font-medium">Across all sets</p>
 
         <div className="mt-4">
@@ -255,10 +244,15 @@ const AllTasksCard = ({
           </p>
         </div>
 
-        <div className="mt-4 flex-1 flex items-end">
-          <Button onClick={onOpen} className="w-full">
-            {totalLabeled === 0 ? 'Start' : 'Continue'}
+        <div className="mt-4 flex-1 flex items-end gap-2">
+          <Button onClick={onOpen} className="flex-1">
+            Annotate
           </Button>
+          {onManage && (
+            <Button variant="secondary" onClick={onManage} className="flex-1">
+              View
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -281,18 +275,7 @@ const TaskSetCard = ({
   return (
     <div className="surface h-full flex flex-col">
       <div className="surface-section flex-1 flex flex-col">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-neutral-900 truncate">{taskSet.name}</h3>
-          {onManage && (
-            <button
-              type="button"
-              onClick={onManage}
-              className="text-[11px] text-neutral-400 hover:text-neutral-600 shrink-0"
-            >
-              Details
-            </button>
-          )}
-        </div>
+        <h3 className="text-sm font-semibold text-neutral-900 truncate">{taskSet.name}</h3>
         <p className="text-[11px] text-neutral-500 mt-0.5">Created {createdDate}</p>
 
         <div className="mt-4">
@@ -307,10 +290,15 @@ const TaskSetCard = ({
           </p>
         </div>
 
-        <div className="mt-4 flex-1 flex items-end">
-          <Button variant="secondary" onClick={onOpen} className="w-full" disabled={isEmpty}>
-            {isEmpty ? 'No tasks' : taskSet.num_labeled === 0 ? 'Start' : 'Continue'}
+        <div className="mt-4 flex-1 flex items-end gap-2">
+          <Button onClick={onOpen} className="flex-1" disabled={isEmpty}>
+            {isEmpty ? 'No tasks' : 'Annotate'}
           </Button>
+          {onManage && (
+            <Button variant="secondary" onClick={onManage} className="flex-1">
+              View
+            </Button>
+          )}
         </div>
       </div>
     </div>
