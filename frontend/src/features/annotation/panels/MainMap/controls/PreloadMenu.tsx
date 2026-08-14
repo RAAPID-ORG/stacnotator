@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePrefsStore, type PreloadTier } from '../../../stores/prefs';
-import { IconGauge } from '~/shared/ui/Icons';
-import { PRELOAD_TIER_CONCURRENCY, autoPreloadTier, resolvePreloadTier } from '../usePreloading';
+import {
+  PRELOAD_TIER_CONCURRENCY,
+  autoPreloadTier,
+  resolvePreloadTier,
+  usePreloadProgress,
+} from '../usePreloading';
 
-const DOT: Record<PreloadTier, string> = {
-  auto: 'bg-brand-500',
-  off: 'bg-neutral-300',
-  conservative: 'bg-amber-400',
-  balanced: 'bg-emerald-400',
-  heavy: 'bg-emerald-600',
-};
+/** Bars shown while nothing is queued yet, so the control keeps its width. */
+const IDLE_BARS = [0, 0, 0];
 
 const LABEL: Record<PreloadTier, string> = {
   auto: 'Auto',
@@ -18,6 +17,29 @@ const LABEL: Record<PreloadTier, string> = {
   balanced: 'Balanced',
   heavy: 'Heavy',
 };
+
+/** One bar per upcoming task, nearest first, filling as its tiles land. A
+ *  bar that reaches the top fades back to a resting tone: warm is the calm
+ *  state, and only the tasks still loading should draw the eye. */
+function PreloadBars({ percents, active }: { percents: readonly number[]; active: boolean }) {
+  return (
+    <span className="flex h-[14px] items-end gap-[2px]" aria-hidden>
+      {percents.map((percent, index) => (
+        <span
+          key={index}
+          className="relative h-full w-[3px] overflow-hidden rounded-full bg-neutral-200"
+        >
+          <span
+            className={`absolute inset-x-0 bottom-0 rounded-full transition-[height] duration-300 ${
+              !active ? 'bg-neutral-300' : percent >= 100 ? 'bg-brand-300' : 'bg-brand-600'
+            }`}
+            style={{ height: `${percent}%` }}
+          />
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export function PreloadMenu() {
   const tier = usePrefsStore((s) => s.preloadTier);
@@ -38,6 +60,11 @@ export function PreloadMenu() {
   const auto = autoPreloadTier();
   const effective = resolvePreloadTier(tier);
   const active = effective !== 'off';
+  const progress = usePreloadProgress();
+  const percents = active && progress.length > 0 ? progress : IDLE_BARS;
+  const ahead = active
+    ? `Next tasks ${percents.map((p) => `${p}%`).join(' / ')} preloaded`
+    : 'Nothing preloaded ahead';
 
   const options: Array<{ tier: PreloadTier; hint: string }> = [
     { tier: 'auto', hint: `tuned to your connection (currently ${LABEL[auto].toLowerCase()})` },
@@ -59,14 +86,12 @@ export function PreloadMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         data-testid="preload-menu"
-        title={`Tile preloading: ${LABEL[effective]}${tier === 'auto' ? ' (auto-tuned to your connection)' : ''}. Click to change.`}
-        className={`relative flex h-6 w-6 items-center justify-center rounded-md cursor-pointer ${active ? 'bg-brand-600 text-white hover:bg-brand-700' : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'}`}
+        data-preload-progress={percents.join(',')}
+        aria-label={`Tile preloading: ${LABEL[effective]}. ${ahead}.`}
+        title={`Tile preloading: ${LABEL[effective]}${tier === 'auto' ? ' (auto-tuned to your connection)' : ''}. ${ahead}. Click to change.`}
+        className="flex h-6 items-center justify-center rounded-md px-1 cursor-pointer hover:bg-neutral-100"
       >
-        <IconGauge className="h-[13px] w-[13px]" />
-        <span
-          className={`absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-white ${DOT[effective]}`}
-          aria-hidden
-        />
+        <PreloadBars percents={percents} active={active} />
       </button>
 
       {open && (

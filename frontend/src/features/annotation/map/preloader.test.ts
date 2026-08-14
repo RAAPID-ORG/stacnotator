@@ -195,6 +195,131 @@ describe('TilePreloader groups', () => {
   });
 });
 
+describe('TilePreloader progress', () => {
+  it('counts every settled tile, loaded or errored, against its group total', async () => {
+    const { images, preloader } = harness(4);
+    preloader.enqueue({
+      priority: 1,
+      groupId: 'g',
+      urlTemplate: 'https://a/{z}/{x}/{y}',
+      extent: WORLD,
+      zoom: 1,
+    });
+    await flush();
+    expect(preloader.progress().get('g')).toEqual({ done: 0, total: 4 });
+
+    images[0].succeed();
+    images[1].fail();
+    await flush();
+
+    expect(preloader.progress().get('g')).toEqual({ done: 2, total: 4 });
+    preloader.dispose();
+  });
+
+  it('drops the abandoned remainder so an aborted group still reads complete', async () => {
+    const { images, preloader } = harness(1);
+    preloader.enqueue({
+      priority: 1,
+      groupId: 'g',
+      urlTemplate: 'https://a/{z}/{x}/{y}',
+      extent: WORLD,
+      zoom: 2,
+    });
+    await flush();
+    expect(preloader.progress().get('g')).toEqual({ done: 0, total: 16 });
+
+    preloader.abort('g');
+    images[0].succeed();
+    await flush();
+
+    expect(preloader.progress().get('g')).toEqual({ done: 1, total: 1 });
+    preloader.dispose();
+  });
+
+  it('forgets group counts when a new focus clears the queue', async () => {
+    const { preloader } = harness(1);
+    preloader.enqueue({
+      priority: 1,
+      groupId: 'g',
+      urlTemplate: 'https://a/{z}/{x}/{y}',
+      extent: WORLD,
+      zoom: 1,
+    });
+    await flush();
+
+    preloader.clear();
+
+    expect(preloader.progress().size).toBe(0);
+    preloader.dispose();
+  });
+
+  it('counts a tile already fetched this cycle as warm instead of dropping it', async () => {
+    const { images, preloader } = harness(4);
+    const job = {
+      priority: 1,
+      groupId: 'first',
+      urlTemplate: 'https://a/{z}/{x}/{y}',
+      extent: WORLD,
+      zoom: 1,
+    };
+    preloader.enqueue(job);
+    await flush();
+    images.forEach((image) => image.succeed());
+    await flush();
+
+    preloader.clear();
+    preloader.enqueue({ ...job, groupId: 'again' });
+    await flush();
+
+    expect(preloader.progress().get('again')).toEqual({ done: 4, total: 4 });
+    expect(images).toHaveLength(4);
+    preloader.dispose();
+  });
+
+  it('drops a cancelled tile from the warm set so it is fetched again later', async () => {
+    const { images, preloader } = harness(4);
+    const job = {
+      priority: 1,
+      groupId: 'g',
+      urlTemplate: 'https://a/{z}/{x}/{y}',
+      extent: WORLD,
+      zoom: 1,
+    };
+    preloader.enqueue(job);
+    await flush();
+
+    preloader.cancelInflightExcept(new Set());
+    preloader.clear();
+    preloader.enqueue({ ...job, groupId: 'retry' });
+    await flush();
+
+    expect(preloader.progress().get('retry')).toEqual({ done: 0, total: 4 });
+    expect(images).toHaveLength(8);
+    preloader.dispose();
+  });
+
+  it('notifies on enqueue and on each settled tile', async () => {
+    const { images, preloader } = harness(4);
+    const onProgress = vi.fn();
+    preloader.onProgress = onProgress;
+
+    preloader.enqueue({
+      priority: 1,
+      groupId: 'g',
+      urlTemplate: 'https://a/{z}/{x}/{y}',
+      extent: WORLD,
+      zoom: 1,
+    });
+    await flush();
+    expect(onProgress).toHaveBeenCalledTimes(1);
+
+    images[0].succeed();
+    await flush();
+    expect(onProgress).toHaveBeenCalledTimes(2);
+    preloader.dispose();
+  });
+});
+
 describe('TilePreloader credentials', () => {
   it('refreshes the tiler session only for credentialed tiles', async () => {
     const refreshToken = vi.mocked(ensureTilerSession);

@@ -141,6 +141,10 @@ export function sourceToBackend(src: ImagerySource): ImagerySourceCreate {
     name: src.name,
     crosshair_hex6: src.crosshairHex6,
     default_zoom: src.defaultZoom,
+    max_native_zoom: src.maxNativeZoom ?? null,
+    // Both honoured on create only; rotating a key goes through the key endpoint.
+    organization_api_key_id: src.organizationApiKeyId ?? null,
+    api_key: src.apiKey || null,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
     generation_series: src.generationSeries.map((series) => ({
       key: series.id,

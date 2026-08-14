@@ -60,8 +60,15 @@ interface QueuedTile {
   crossOrigin: CrossOrigin;
 }
 
+/** How much of one group's neighbourhood is already in the browser cache. */
+export interface GroupProgress {
+  done: number;
+  total: number;
+}
+
 export class TilePreloader {
   private tileQueue: QueuedTile[] = [];
+  private groups = new Map<string, GroupProgress>();
   private inflight = 0;
   private paused = false;
   private disposed = false;
@@ -75,6 +82,9 @@ export class TilePreloader {
 
   /** Fired when the queue is empty and nothing is in-flight. */
   onIdle?: () => void;
+
+  /** Fired whenever a group's counts move, so a UI can follow the warm-up. */
+  onProgress?: () => void;
 
   constructor(options: PreloaderOptions = {}) {
     this.maxConcurrent = options.maxConcurrent ?? MAX_CONCURRENT;
@@ -117,17 +127,26 @@ export class TilePreloader {
     return this.tileQueue.length;
   }
 
+  /** Per-group tile counts. Aborted work is written off the total rather than
+   *  left pending, so a group a caller gave up on still reads as complete. */
+  progress(): Map<string, GroupProgress> {
+    const snapshot = new Map<string, GroupProgress>();
+    for (const [groupId, counts] of this.groups) snapshot.set(groupId, { ...counts });
+    return snapshot;
+  }
+
   abort(groupId: string): void {
-    this.tileQueue = this.tileQueue.filter((t) => t.groupId !== groupId);
+    this.dropQueued((t) => t.groupId === groupId);
   }
 
   /** Drop every queued tile whose groupId starts with the prefix (e.g. all next-task groups). */
   abortByPrefix(prefix: string): void {
-    this.tileQueue = this.tileQueue.filter((t) => !t.groupId.startsWith(prefix));
+    this.dropQueued((t) => t.groupId.startsWith(prefix));
   }
 
   clear(): void {
     this.tileQueue = [];
+    this.groups.clear();
     this.generation++;
     // Deliberately do NOT abortInflight() here. See pause() for the full reason:
     // Chromium coalesces same-URL <img> fetches, so aborting a preloader img also
@@ -135,6 +154,7 @@ export class TilePreloader {
     // TileState.ERROR. The generation++ above makes loadOne()'s done() callback a
     // no-op for stale completions, so in-flight loads drain naturally without
     // polluting our bookkeeping.
+    this.onProgress?.();
   }
 
   clearCache(): void {
@@ -167,8 +187,15 @@ export class TilePreloader {
   private expandAndEnqueue(jobs: PreloadJob[]): void {
     for (const job of jobs) {
       const crossOrigin = crossOriginForTile(job.urlTemplate, job.tileProvider);
+      const counts = this.countsFor(job.groupId);
       for (const url of tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom)) {
-        if (this.preloaded.has(url)) continue;
+        counts.total++;
+        // Already fetched this cycle: the tile is warm, so it counts towards the
+        // group rather than disappearing from it, and is not requested twice.
+        if (this.preloaded.has(url)) {
+          counts.done++;
+          continue;
+        }
         // Evict when the seen-set grows unbounded; the browser HTTP cache still has the tiles.
         if (this.preloaded.size >= MAX_PRELOADED_CACHE) this.preloaded.clear();
         this.preloaded.add(url);
@@ -176,6 +203,26 @@ export class TilePreloader {
       }
     }
     this.tileQueue.sort((a, b) => a.priority - b.priority);
+    this.onProgress?.();
+  }
+
+  private countsFor(groupId: string): GroupProgress {
+    let counts = this.groups.get(groupId);
+    if (!counts) {
+      counts = { done: 0, total: 0 };
+      this.groups.set(groupId, counts);
+    }
+    return counts;
+  }
+
+  private dropQueued(matches: (tile: QueuedTile) => boolean): void {
+    const kept: QueuedTile[] = [];
+    for (const tile of this.tileQueue) {
+      if (matches(tile)) this.countsFor(tile.groupId).total--;
+      else kept.push(tile);
+    }
+    this.tileQueue = kept;
+    this.onProgress?.();
   }
 
   private drain(): void {
@@ -197,6 +244,12 @@ export class TilePreloader {
 
     const done = (cancelled = false) => {
       this.inflight = Math.max(0, this.inflight - 1);
+      // A stale generation's counters were already discarded by clear(); a
+      // cancelled tile is never coming, so it counts as settled either way.
+      if (gen === this.generation) {
+        this.countsFor(tile.groupId).done++;
+        this.onProgress?.();
+      }
 
       if (cancelled || this.disposed || gen !== this.generation) {
         this.drain();
@@ -222,6 +275,8 @@ export class TilePreloader {
         img.onload = img.onerror = null;
         img.src = '';
         this.inflightCancels.delete(cancel);
+        // Never fetched, so it must not stay in the warm set claiming otherwise.
+        this.preloaded.delete(url);
         done(true);
       };
       this.inflightCancels.set(cancel, url);

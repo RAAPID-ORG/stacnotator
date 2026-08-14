@@ -2139,6 +2139,18 @@ export type ImagerySourceCreate = {
      */
     default_zoom?: number;
     /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
+    /**
+     * Api Key
+     */
+    api_key?: string | null;
+    /**
      * Visualizations
      */
     visualizations: Array<VisualizationTemplateCreate>;
@@ -2172,6 +2184,10 @@ export type ImagerySourceOut = {
      * Default Zoom
      */
     default_zoom: number;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
     /**
      * Display Order
      */
@@ -2586,32 +2602,6 @@ export type OrganizationDirectoryResponse = {
 };
 
 /**
- * OrganizationKeyOut
- *
- * A shared key this campaign's organization offers, by name.
- */
-export type OrganizationKeyOut = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Name
-     */
-    name: string;
-};
-
-/**
- * OrganizationKeysResponse
- */
-export type OrganizationKeysResponse = {
-    /**
-     * Items
-     */
-    items: Array<OrganizationKeyOut>;
-};
-
-/**
  * OrganizationOut
  */
 export type OrganizationOut = {
@@ -2726,6 +2716,106 @@ export type PairwiseAgreement = {
      * Shared Tasks
      */
     shared_tasks: number;
+};
+
+/**
+ * PlanetCredentials
+ *
+ * Which Planet key to browse with, and for which project.
+ *
+ * Sent in a request body rather than a query string: a pasted key is a secret, and
+ * query strings end up in access logs. Same either/or as ``ApiKeyUpdate`` - the
+ * organization's shared key, or one this person is providing for their own campaign.
+ */
+export type PlanetCredentials = {
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
+    /**
+     * Api Key
+     */
+    api_key?: string | null;
+};
+
+/**
+ * PlanetMosaicOut
+ *
+ * One mosaic of a series: a fixed time window with ready-made tiles.
+ */
+export type PlanetMosaicOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * First Acquired
+     */
+    first_acquired: string;
+    /**
+     * Last Acquired
+     */
+    last_acquired: string;
+    /**
+     * Tile Urls
+     */
+    tile_urls?: {
+        [key: string]: string;
+    };
+    /**
+     * Unavailable Reason
+     */
+    unavailable_reason?: string | null;
+};
+
+/**
+ * PlanetSeriesMosaicsOut
+ */
+export type PlanetSeriesMosaicsOut = {
+    /**
+     * Series Id
+     */
+    series_id: string;
+    /**
+     * Renderings
+     */
+    renderings: Array<string>;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
+    /**
+     * Mosaics
+     */
+    mosaics: Array<PlanetMosaicOut>;
+};
+
+/**
+ * PlanetSeriesOut
+ *
+ * A named temporal cadence of basemaps (e.g. global monthly).
+ */
+export type PlanetSeriesOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
 };
 
 /**
@@ -5155,6 +5245,36 @@ export type GetProjectTilersResponses = {
 
 export type GetProjectTilersResponse = GetProjectTilersResponses[keyof GetProjectTilersResponses];
 
+export type GetProjectOrganizationKeysData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/organization-keys';
+};
+
+export type GetProjectOrganizationKeysErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetProjectOrganizationKeysError = GetProjectOrganizationKeysErrors[keyof GetProjectOrganizationKeysErrors];
+
+export type GetProjectOrganizationKeysResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationApiKeysResponse;
+};
+
+export type GetProjectOrganizationKeysResponse = GetProjectOrganizationKeysResponses[keyof GetProjectOrganizationKeysResponses];
+
 export type GetProjectUsersData = {
     body?: never;
     path: {
@@ -7413,7 +7533,7 @@ export type ListCampaignOrganizationKeysResponses = {
     /**
      * Successful Response
      */
-    200: OrganizationKeysResponse;
+    200: OrganizationApiKeysResponse;
 };
 
 export type ListCampaignOrganizationKeysResponse = ListCampaignOrganizationKeysResponses[keyof ListCampaignOrganizationKeysResponses];
@@ -7683,6 +7803,63 @@ export type SearchResponses = {
 };
 
 export type SearchResponse2 = SearchResponses[keyof SearchResponses];
+
+export type ListPlanetSeriesData = {
+    body: PlanetCredentials;
+    path?: never;
+    query?: never;
+    url: '/api/planet/series';
+};
+
+export type ListPlanetSeriesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPlanetSeriesError = ListPlanetSeriesErrors[keyof ListPlanetSeriesErrors];
+
+export type ListPlanetSeriesResponses = {
+    /**
+     * Response Listplanetseries
+     *
+     * Successful Response
+     */
+    200: Array<PlanetSeriesOut>;
+};
+
+export type ListPlanetSeriesResponse = ListPlanetSeriesResponses[keyof ListPlanetSeriesResponses];
+
+export type ListPlanetSeriesMosaicsData = {
+    body: PlanetCredentials;
+    path: {
+        /**
+         * Series Id
+         */
+        series_id: string;
+    };
+    query?: never;
+    url: '/api/planet/series/{series_id}/mosaics';
+};
+
+export type ListPlanetSeriesMosaicsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPlanetSeriesMosaicsError = ListPlanetSeriesMosaicsErrors[keyof ListPlanetSeriesMosaicsErrors];
+
+export type ListPlanetSeriesMosaicsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlanetSeriesMosaicsOut;
+};
+
+export type ListPlanetSeriesMosaicsResponse = ListPlanetSeriesMosaicsResponses[keyof ListPlanetSeriesMosaicsResponses];
 
 export type ListCustomMapsData = {
     body?: never;

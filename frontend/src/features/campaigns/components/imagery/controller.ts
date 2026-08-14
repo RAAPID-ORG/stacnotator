@@ -338,6 +338,7 @@ function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
     name: src.name,
     crosshairHex6: src.crosshair_hex6,
     defaultZoom: src.default_zoom,
+    maxNativeZoom: src.max_native_zoom,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
     generationSeries: (src.generation_series ?? []).map((series) => ({
       id: String(series.id),

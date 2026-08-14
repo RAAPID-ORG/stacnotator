@@ -19,9 +19,8 @@ from src.imagery.schemas import (
     ImageryViewOrderUpdate,
     ImageryViewOut,
     ImageryViewUpdate,
-    OrganizationKeyOut,
-    OrganizationKeysResponse,
 )
+from src.organizations.schemas import OrganizationApiKeyOut, OrganizationApiKeysResponse
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -214,17 +213,16 @@ def delete_imagery_view(
     service.delete_view(db, campaign, view_id)
 
 
-@router.get("/{campaign_id}/imagery/organization-keys", response_model=OrganizationKeysResponse)
+@router.get("/{campaign_id}/imagery/organization-keys", response_model=OrganizationApiKeysResponse)
 def list_campaign_organization_keys(
     campaign_id: int,
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     """The shared provider keys this campaign's organization has set up, so the
     imagery editor can offer them instead of asking for the secret again."""
-    return OrganizationKeysResponse(
+    return OrganizationApiKeysResponse(
         items=[
-            OrganizationKeyOut(id=key.id, name=key.name)
-            for key in service.organization_keys(campaign)
+            OrganizationApiKeyOut.model_validate(key) for key in service.organization_keys(campaign)
         ]
     )
 

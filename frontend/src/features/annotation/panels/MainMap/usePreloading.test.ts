@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedCampaign } from '../../testing/seed';
 import type { CampaignOutFull } from '~/api/client';
@@ -15,6 +15,7 @@ import { TilePreloader } from '../../map/preloader';
 import { useImageryStore } from '../../stores/imagery';
 import {
   PRIORITY_UPCOMING,
+  taskPercents,
   usePreloading,
   visibleAddresses,
   visibleSliceJobs,
@@ -88,7 +89,28 @@ const args = {
   around: [5, 50] as [number, number],
   fallbackZoom: 12,
   priority: 1,
+  taskIndex: 0,
 };
+
+describe('taskPercents', () => {
+  it('aggregates every group belonging to a task into one percentage', () => {
+    const progress = new Map([
+      ['preload-t0-c100-s0', { done: 2, total: 4 }],
+      ['preload-t0-c200-s0', { done: 4, total: 4 }],
+      ['preload-t1-c100-s0', { done: 0, total: 8 }],
+    ]);
+    expect(taskPercents(progress, 2)).toEqual([75, 0]);
+  });
+
+  it('reads a task with nothing queued as not started', () => {
+    expect(taskPercents(new Map(), 3)).toEqual([0, 0, 0]);
+  });
+
+  it('ignores groups beyond the tasks being shown', () => {
+    const progress = new Map([['preload-t2-c100-s0', { done: 1, total: 1 }]]);
+    expect(taskPercents(progress, 1)).toEqual([0]);
+  });
+});
 
 describe('visibleSliceJobs', () => {
   beforeEach(() => useImageryStore.setState({ windowSlices: {}, viewSync: true }));
@@ -170,6 +192,90 @@ describe('usePreloading upcoming centres', () => {
     expect(upcoming.every((job) => job.extent[0] < 6 && job.extent[2] > 6)).toBe(true);
     expect(jobs.every((job) => job.priority === PRIORITY_UPCOMING)).toBe(true);
 
+    unmount();
+  });
+
+  it('gives each upcoming task its own groups so progress reads per task', () => {
+    const enqueueMany = vi
+      .spyOn(TilePreloader.prototype, 'enqueueMany')
+      .mockImplementation(() => {});
+
+    const { unmount } = renderHook(() =>
+      usePreloading({
+        enabled: true,
+        activeLoading: false,
+        focus: [5, 50],
+        upcoming: [
+          [6, 51],
+          [7, 52],
+        ],
+        viewportPx: [800, 600],
+        visibleCollectionIds: [100, 200],
+      })
+    );
+
+    expect(enqueueMany.mock.calls[0][0].map((job) => job.groupId)).toEqual([
+      'preload-t0-c100-s0',
+      'preload-t0-c200-s0',
+      'preload-t1-c100-s0',
+      'preload-t1-c200-s0',
+    ]);
+
+    unmount();
+  });
+
+  it('survives a reflow that nudges the viewport within the same tile span', () => {
+    const enqueueMany = vi
+      .spyOn(TilePreloader.prototype, 'enqueueMany')
+      .mockImplementation(() => {});
+
+    const { rerender, unmount } = renderHook(
+      ({ viewportPx }) =>
+        usePreloading({
+          enabled: true,
+          activeLoading: false,
+          focus: [5, 50],
+          upcoming: [[6, 51]],
+          viewportPx,
+          visibleCollectionIds: [100, 200],
+        }),
+      { initialProps: { viewportPx: [800, 600] as [number, number] } }
+    );
+    expect(enqueueMany).toHaveBeenCalledTimes(1);
+
+    rerender({ viewportPx: [800.4, 600.2] });
+
+    expect(enqueueMany).toHaveBeenCalledTimes(1);
+
+    rerender({ viewportPx: [1100, 600] });
+    expect(enqueueMany).toHaveBeenCalledTimes(2);
+    unmount();
+  });
+
+  it('keeps the warm set while the user browses imagery at the same task', () => {
+    vi.spyOn(TilePreloader.prototype, 'enqueueMany').mockImplementation(() => {});
+    const clearCache = vi.spyOn(TilePreloader.prototype, 'clearCache');
+
+    const { rerender, unmount } = renderHook(
+      ({ focus }) =>
+        usePreloading({
+          enabled: true,
+          activeLoading: false,
+          focus,
+          upcoming: [[6, 51]],
+          viewportPx: [800, 600],
+          visibleCollectionIds: [100, 200],
+        }),
+      { initialProps: { focus: [5, 50] as [number, number] } }
+    );
+    expect(clearCache).toHaveBeenCalledTimes(1);
+
+    act(() => useImageryStore.setState({ address: { ...NDVI, vizId: '10' } }));
+
+    expect(clearCache).toHaveBeenCalledTimes(1);
+
+    rerender({ focus: [9, 40] });
+    expect(clearCache).toHaveBeenCalledTimes(2);
     unmount();
   });
 

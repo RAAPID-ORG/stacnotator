@@ -5,6 +5,7 @@ import { IconStac, IconChevronRight } from '~/shared/ui/Icons';
 import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
 import type { CatalogBrowserPreset, CatalogBrowserResult } from './CatalogBrowser';
 import { CollectionEditor } from './CollectionEditor';
+import { PlanetBrowser } from './PlanetBrowser';
 import type { CollectionItem, ImagerySource, NamedVizParams } from './types';
 import { emptyManualCollection, emptySource } from './types';
 import type { ImageryController } from './controller';
@@ -21,6 +22,7 @@ interface AddSourceWizardProps {
 type WizardStep =
   | { kind: 'pick-preset' }
   | { kind: 'configure-preset'; preset: CatalogBrowserPreset }
+  | { kind: 'planet' }
   | { kind: 'custom-stac-question' }
   | { kind: 'custom-stac-browse' }
   | { kind: 'custom-xyz' };
@@ -48,7 +50,11 @@ export const AddSourceWizard = ({
   const [step, setStep] = useState<WizardStep>({ kind: 'pick-preset' });
 
   const back = () => {
-    if (step.kind === 'configure-preset' || step.kind === 'custom-stac-question') {
+    if (
+      step.kind === 'configure-preset' ||
+      step.kind === 'planet' ||
+      step.kind === 'custom-stac-question'
+    ) {
       setStep({ kind: 'pick-preset' });
     } else if (step.kind === 'custom-stac-browse' || step.kind === 'custom-xyz') {
       setStep({ kind: 'custom-stac-question' });
@@ -101,6 +107,20 @@ export const AddSourceWizard = ({
               ? cols[0].data.stacCollectionId
               : 'Custom imagery';
           finalizeFromCatalog(result, fallback);
+        }}
+        onClose={back}
+      />
+    );
+  }
+
+  if (step.kind === 'planet') {
+    return (
+      <PlanetBrowser
+        projectId={controller.projectId}
+        onAdd={async (source) => {
+          await controller.addSource(source);
+          if (onCreated) onCreated(source.id);
+          else onClose();
         }}
         onClose={back}
       />
@@ -164,6 +184,23 @@ export const AddSourceWizard = ({
                   </p>
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setStep({ kind: 'planet' })}
+                className="text-left px-4 py-3 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <IconStac className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                  <span className="text-sm font-medium text-neutral-900">Planet Basemaps</span>
+                  <span className="ml-auto text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold">
+                    PLANET
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-500 mt-1 leading-snug">
+                  High-resolution optical mosaics, worldwide, monthly or quarterly. Needs your
+                  organization&apos;s Planet key.
+                </p>
+              </button>
               <button
                 type="button"
                 onClick={() => setStep({ kind: 'custom-stac-question' })}

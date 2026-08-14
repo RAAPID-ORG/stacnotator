@@ -246,6 +246,20 @@ def _resolve_tilers(org: Organization, editor_state: ImageryEditorStateCreate) -
             stac.tiler = tiler.name
 
 
+def _validate_organization_keys(org: Organization, editor_state: ImageryEditorStateCreate) -> None:
+    """Reject an unknown shared key before any writes, the way tiler pinning is checked.
+
+    A source names a key only when it is created; the key can never be read back through
+    this payload, so there is nothing to leak by naming one.
+    """
+    known = {key.id for key in org.api_keys}
+    for src in editor_state.sources:
+        if src.organization_api_key_id is not None and src.organization_api_key_id not in known:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Organization API key not found"
+            )
+
+
 def create_imagery_from_editor_state(
     db: Session,
     *,
@@ -290,6 +304,7 @@ def save_imagery_editor_state(
         raise HTTPException(status_code=404, detail="Campaign settings not found")
 
     _resolve_tilers(campaign.project.organization, editor_state)
+    _validate_organization_keys(campaign.project.organization, editor_state)
 
     bbox = [
         campaign.settings.bbox_west,
@@ -512,6 +527,7 @@ def _update_source_in_place(
     db_src.name = src_create.name
     db_src.crosshair_hex6 = src_create.crosshair_hex6
     db_src.default_zoom = src_create.default_zoom
+    db_src.max_native_zoom = src_create.max_native_zoom
     db_src.display_order = src_idx
 
     # Reconcile visualization templates by name.
@@ -784,6 +800,10 @@ def _create_source(
         name=src.name,
         crosshair_hex6=src.crosshair_hex6,
         default_zoom=src.default_zoom,
+        max_native_zoom=src.max_native_zoom,
+        # The schema allows at most one of the two, so these never conflict.
+        encrypted_api_key=encrypt(src.api_key) if src.api_key else None,
+        organization_api_key_id=src.organization_api_key_id,
         display_order=src_idx,
     )
     db.add(source)

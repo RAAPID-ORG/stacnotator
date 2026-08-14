@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   makeCampaign,
   makeCollection,
@@ -68,6 +68,21 @@ describe('tile url resolution', () => {
     expect(isProxiedTileUrl('https://osm/{z}/{x}/{y}.png')).toBe(false);
   });
 
+  it('sends proxied tiles to the configured API origin, not the page origin', () => {
+    // In the dev stack the app is served on :5173 and the API on :8000, where a
+    // root-relative path reaches the dev server and returns index.html.
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
+    try {
+      expect(resolveBasemapUrl(7, { id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' })).toBe(
+        'http://localhost:8000/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}'
+      );
+      expect(isProxiedTileUrl('http://localhost:8000/api/7/imagery/slices/9/tiles/V/{z}/{x}/{y}')) //
+        .toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('routes a basemap through the proxy only when its template needs a key', () => {
     expect(resolveBasemapUrl(7, { id: 3, url: 'https://osm/{z}/{x}/{y}.png' })).toBe(
       'https://osm/{z}/{x}/{y}.png'
@@ -84,6 +99,16 @@ describe('sliceRaster', () => {
   it('assembles a direct (unproxied) tile url for a keyless visualization', () => {
     const spec = sliceRaster(cat, { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' });
     expect(spec).toMatchObject({ url: 'https://tiler/1/{z}/{x}/{y}.png', auth: 'none' });
+  });
+
+  it('carries the source zoom cap so the map stops where the provider does', () => {
+    const capped = buildImageryCatalog(
+      makeCampaign({ imagery_sources: [{ ...source, max_native_zoom: 15 }] })
+    );
+    const address = { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' };
+
+    expect(sliceRaster(capped, address).maxZoom).toBe(15);
+    expect(sliceRaster(cat, address).maxZoom).toBeUndefined();
   });
 
   it('rewrites an {api_key} template to a proxy path', () => {

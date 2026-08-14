@@ -9,7 +9,13 @@ from src.auth.models import User
 from src.auth.schemas import UserOut
 from src.campaigns.schemas import CampaignsListResponse
 from src.database import get_db
-from src.organizations.schemas import AddUsersByEmailResult, InviteOut, InvitesListResponse
+from src.organizations.schemas import (
+    AddUsersByEmailResult,
+    InviteOut,
+    InvitesListResponse,
+    OrganizationApiKeyOut,
+    OrganizationApiKeysResponse,
+)
 from src.organizations.service import list_pending_invites, revoke_invite
 from src.projects import service
 from src.projects.dependencies import require_project_access, require_project_admin
@@ -114,6 +120,24 @@ def get_project_tilers(
     """Tilers the imagery wizard may target for this project (the owning
     organization's allowlist), plus whether internal storage is permitted."""
     return service.get_project_tilers(project)
+
+
+@router.get("/{project_id}/organization-keys", response_model=OrganizationApiKeysResponse)
+def get_project_organization_keys(
+    project_id: int,
+    project: Project = Depends(require_project_admin),
+):
+    """The owning organization's shared provider keys, by name.
+
+    The campaign-scoped listing cannot serve the create wizard, which has to browse a
+    provider (Planet) before any campaign exists. Keys belong to the organization, and
+    the project is what identifies it."""
+    return OrganizationApiKeysResponse(
+        items=[
+            OrganizationApiKeyOut.model_validate(key)
+            for key in sorted(project.organization.api_keys, key=lambda k: k.name.lower())
+        ]
+    )
 
 
 @router.get("/{project_id}/users", response_model=ProjectUsersResponse)

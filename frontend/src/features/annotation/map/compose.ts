@@ -1,5 +1,6 @@
 import { type ImageryCatalog } from '../campaign/imagery';
 import { type ImageryNavState } from '../campaign/imageryNav';
+import { apiUrl } from '~/api/base';
 import { basemapAttribution, resolveBasemapUrl, sliceRaster } from '../campaign/tileUrls';
 import { applyRenderOverride, type LegendOverride } from '../campaign/tileColors';
 import {
@@ -90,7 +91,7 @@ export interface ComposeState extends ImageryNavState {
 
 /** `v` busts the browser and OL tile caches after a write. */
 export const annotationTilesUrl = (campaignId: number, version: number) =>
-  `/api/campaigns/${campaignId}/annotations/tiles/{z}/{x}/{y}.pbf?v=${version}`;
+  apiUrl(`/api/campaigns/${campaignId}/annotations/tiles/{z}/{x}/{y}.pbf?v=${version}`);
 
 function selectedBasemap(cat: ImageryCatalog, selectedBasemapId: string | null) {
   const id = Number(selectedBasemapId?.replace('basemap-', ''));

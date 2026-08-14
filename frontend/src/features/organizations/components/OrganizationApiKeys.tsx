@@ -8,6 +8,7 @@ import {
 } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button, Field, Input } from '~/shared/ui/forms';
+import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export type OrganizationApiKeysProps = {
@@ -24,8 +25,10 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
   const [rotatingId, setRotatingId] = useState<number | null>(null);
   const [rotateValue, setRotateValue] = useState('');
+  const [rotateConfirmed, setRotateConfirmed] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -67,6 +70,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
     if (ok) {
       setName('');
       setValue('');
+      setReadOnlyConfirmed(false);
     }
   };
 
@@ -82,6 +86,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
     if (ok) {
       setRotatingId(null);
       setRotateValue('');
+      setRotateConfirmed(false);
     }
   };
 
@@ -103,9 +108,8 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
     <section className="surface surface-section" data-testid="org-api-keys">
       <h2 className="section-heading">Provider API keys</h2>
       <p className="section-description">
-        Keys for imagery providers that charge per key. Store one here and any campaign in this
-        organization can use it without seeing the secret; replacing it here updates every campaign
-        at once.
+        Provider keys shared across this organization. Store one here and any campaign can use it
+        without seeing the secret; replacing it here updates every campaign at once.
       </p>
 
       {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
@@ -124,6 +128,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                   onClick={() => {
                     setRotatingId(rotatingId === key.id ? null : key.id);
                     setRotateValue('');
+                    setRotateConfirmed(false);
                   }}
                   className="inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md text-neutral-700 hover:bg-neutral-100"
                 >
@@ -139,23 +144,26 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                 </button>
               </div>
               {rotatingId === key.id && (
-                <div className="mt-2 flex items-center gap-2">
-                  <Input
-                    size="sm"
-                    type="password"
-                    autoComplete="off"
-                    value={rotateValue}
-                    onChange={(e) => setRotateValue(e.target.value)}
-                    placeholder="New key value"
-                    className="!w-64 text-[11px] font-mono"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => rotate(key)}
-                    disabled={busy || !rotateValue.trim()}
-                  >
-                    Save
-                  </Button>
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      size="sm"
+                      type="password"
+                      autoComplete="off"
+                      value={rotateValue}
+                      onChange={(e) => setRotateValue(e.target.value)}
+                      placeholder="New key value"
+                      className="!w-64 text-[11px] font-mono"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => rotate(key)}
+                      disabled={busy || !rotateValue.trim() || !rotateConfirmed}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                  <ReadOnlyKeyConsent confirmed={rotateConfirmed} onChange={setRotateConfirmed} />
                 </div>
               )}
             </li>
@@ -163,33 +171,39 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
         </ul>
       )}
 
-      <div className="mt-4 flex flex-wrap items-end gap-3 max-w-xl">
-        <Field label="Name" htmlFor="org-key-name">
-          <Input
-            id="org-key-name"
-            size="sm"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Planet production"
-            disabled={busy}
-          />
-        </Field>
-        <Field label="Key" htmlFor="org-key-value">
-          <Input
-            id="org-key-value"
-            size="sm"
-            type="password"
-            autoComplete="off"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="Paste provider key"
-            className="font-mono"
-            disabled={busy}
-          />
-        </Field>
-        <Button onClick={add} disabled={busy || !name.trim() || !value.trim()}>
-          Add key
-        </Button>
+      <div className="mt-4 max-w-xl space-y-2">
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Name" htmlFor="org-key-name">
+            <Input
+              id="org-key-name"
+              size="sm"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Planet production"
+              disabled={busy}
+            />
+          </Field>
+          <Field label="Key" htmlFor="org-key-value">
+            <Input
+              id="org-key-value"
+              size="sm"
+              type="password"
+              autoComplete="off"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="Paste provider key"
+              className="font-mono"
+              disabled={busy}
+            />
+          </Field>
+          <Button
+            onClick={add}
+            disabled={busy || !name.trim() || !value.trim() || !readOnlyConfirmed}
+          >
+            Add key
+          </Button>
+        </div>
+        <ReadOnlyKeyConsent confirmed={readOnlyConfirmed} onChange={setReadOnlyConfirmed} />
       </div>
     </section>
   );

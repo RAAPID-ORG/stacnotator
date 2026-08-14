@@ -523,6 +523,25 @@ export const SourceEditor = ({
             )}
           </div>
           <div className="flex items-center gap-1.5">
+            <label className="text-xs text-neutral-700 flex items-center gap-1 shrink-0">
+              Max native zoom
+              <Tooltip text="Deepest zoom the provider serves real pixels for. Past it the map upscales instead of requesting tiles that cannot get sharper. Leave empty for no limit." />
+            </label>
+            <Input
+              size="sm"
+              type="number"
+              min="1"
+              max="22"
+              value={source.maxNativeZoom ?? ''}
+              onChange={(e) =>
+                void updateSource({
+                  maxNativeZoom: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              className="!w-14 text-center"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
             <label className="text-xs text-neutral-700 shrink-0">Crosshair</label>
             <div className="relative">
               <input

@@ -1,5 +1,5 @@
 import { useCatalog } from '../../stores/campaign';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { type ImageryCatalog } from '../../campaign/imagery';
 import { type SliceAddress } from '../../campaign/imageryNav';
 import { sliceRaster } from '../../campaign/tileUrls';
@@ -7,7 +7,12 @@ import { addressAtSlice } from '../../campaign/imageryNav';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore, type PreloadTier } from '../../stores/prefs';
 import { mainCamera } from '../../map/camera';
-import { TilePreloader, tileUrlsForExtent, type PreloadJob } from '../../map/preloader';
+import {
+  TilePreloader,
+  tileUrlsForExtent,
+  type GroupProgress,
+  type PreloadJob,
+} from '../../map/preloader';
 import { type Bbox, type LonLat } from '../../map/types';
 
 /** In-flight cap per tier. Heavy suits links where the server, not the pipe,
@@ -70,21 +75,74 @@ export function preloadConcurrency(tier: PreloadTier): number {
   return PRELOAD_TIER_CONCURRENCY[resolvePreloadTier(tier)];
 }
 
-function groupId(collectionId: number, sliceIndex: number): string {
-  return `preload-c${collectionId}-s${sliceIndex}`;
+function groupId(taskIndex: number, collectionId: number, sliceIndex: number): string {
+  return `preload-t${taskIndex}-c${collectionId}-s${sliceIndex}`;
+}
+
+/** Roll the groups of each upcoming task up into one 0-100 figure per task,
+ *  ordered as the caller's `upcoming` centres are: nearest task first. */
+export function taskPercents(progress: Map<string, GroupProgress>, count: number): number[] {
+  const done = new Array<number>(count).fill(0);
+  const total = new Array<number>(count).fill(0);
+
+  for (const [id, counts] of progress) {
+    const taskIndex = Number(/^preload-t(\d+)-/.exec(id)?.[1]);
+    if (!Number.isInteger(taskIndex) || taskIndex >= count) continue;
+    done[taskIndex] += counts.done;
+    total[taskIndex] += counts.total;
+  }
+
+  return done.map((d, i) => (total[i] > 0 ? Math.round((d / total[i]) * 100) : 0));
+}
+
+const NO_PROGRESS: readonly number[] = [];
+let preloadProgress = NO_PROGRESS;
+const progressListeners = new Set<() => void>();
+const readPreloadProgress = () => preloadProgress;
+
+/** Whole percents only, so a run of a few hundred tiles cannot re-render the
+ *  header per tile - equal snapshots never reach a subscriber. */
+function publishPreloadProgress(next: readonly number[]): void {
+  if (next.length === preloadProgress.length && next.every((p, i) => p === preloadProgress[i])) {
+    return;
+  }
+  preloadProgress = next;
+  for (const listener of progressListeners) listener();
+}
+
+function subscribePreloadProgress(listener: () => void): () => void {
+  progressListeners.add(listener);
+  return () => {
+    progressListeners.delete(listener);
+  };
+}
+
+/** How warm each upcoming task's imagery is, for the preload control to show. */
+export function usePreloadProgress(): readonly number[] {
+  return useSyncExternalStore(subscribePreloadProgress, readPreloadProgress, readPreloadProgress);
+}
+
+/** Viewport plus a one-tile border, in whole tiles. Falls back to a
+ *  conservative 6x5 when the viewport size is not known yet. */
+function tileSpan(px: number | undefined, fallback: number): number {
+  return px === undefined ? fallback : Math.ceil(px / TILE_PX) + 2;
 }
 
 /** Tile-aligned box around a point, sized to the viewport plus a one-tile
- *  border so the edges are covered. Falls back to a conservative 6x5 tiles
- *  when the viewport size is not known yet. */
+ *  border so the edges are covered. */
 function extentAround(center: LonLat, zoom: number, viewportPx: [number, number] | null): Bbox {
   const degreesPerTile = 360 / Math.pow(2, zoom);
-  const tilesW = viewportPx ? Math.ceil(viewportPx[0] / TILE_PX) + 2 : 6;
-  const tilesH = viewportPx ? Math.ceil(viewportPx[1] / TILE_PX) + 2 : 5;
-  const halfW = (degreesPerTile * tilesW) / 2;
-  const halfH = (degreesPerTile * tilesH) / 2;
+  const halfW = (degreesPerTile * tileSpan(viewportPx?.[0], 6)) / 2;
+  const halfH = (degreesPerTile * tileSpan(viewportPx?.[1], 5)) / 2;
   const [lon, lat] = center;
   return [lon - halfW, lat - halfH, lon + halfW, lat + halfH];
+}
+
+/** The neighbourhood only grows in whole tiles, so a reflow that nudges the
+ *  viewport by a fraction of a pixel - a longer date label in the header
+ *  relaying the panel out - must not rebuild the queue. */
+function viewportTileKey(viewportPx: [number, number] | null): string {
+  return `${tileSpan(viewportPx?.[0], 6)}x${tileSpan(viewportPx?.[1], 5)}`;
 }
 
 export interface VisibleSliceJobsArgs {
@@ -93,6 +151,8 @@ export interface VisibleSliceJobsArgs {
   around: LonLat;
   fallbackZoom: number;
   priority: number;
+  /** Which upcoming task these jobs warm, so their progress stays separable. */
+  taskIndex: number;
   viewportPx?: [number, number] | null;
 }
 
@@ -104,6 +164,7 @@ export function visibleSliceJobs({
   around,
   fallbackZoom,
   priority,
+  taskIndex,
   viewportPx = null,
 }: VisibleSliceJobsArgs): PreloadJob[] {
   const jobs: PreloadJob[] = [];
@@ -122,7 +183,7 @@ export function visibleSliceJobs({
 
     jobs.push({
       priority,
-      groupId: groupId(address.collectionId, address.sliceIndex),
+      groupId: groupId(taskIndex, address.collectionId, address.sliceIndex),
       urlTemplate: spec.url,
       extent: extentAround(around, zoom, viewportPx),
       zoom,
@@ -191,16 +252,24 @@ export function usePreloading(options: PreloadingOptions): void {
   const preloaderRef = useRef<TilePreloader | null>(null);
   const activeLoadingRef = useRef(activeLoading);
   activeLoadingRef.current = activeLoading;
+  const upcomingCountRef = useRef(0);
+  upcomingCountRef.current = upcoming?.length ?? 0;
 
   useEffect(() => {
-    if (!enabled || concurrency === 0) return;
+    if (!enabled || concurrency === 0) {
+      publishPreloadProgress(NO_PROGRESS);
+      return;
+    }
 
     const preloader = new TilePreloader({ maxConcurrent: concurrency });
+    preloader.onProgress = () =>
+      publishPreloadProgress(taskPercents(preloader.progress(), upcomingCountRef.current));
     preloaderRef.current = preloader;
 
     return () => {
       preloader.dispose();
       preloaderRef.current = null;
+      publishPreloadProgress(NO_PROGRESS);
     };
   }, [enabled, concurrency]);
 
@@ -232,6 +301,9 @@ export function usePreloading(options: PreloadingOptions): void {
   const windowSlices = useImageryStore((s) => s.windowSlices);
   const upcomingKey = JSON.stringify(upcoming ?? []);
   const visibleCollectionsKey = visibleCollectionIds.join(',');
+  const viewportKey = viewportTileKey(viewportPx);
+  const focusKey = focus ? `${focus[0]},${focus[1]}` : '';
+  const lastFocusRef = useRef('');
 
   useEffect(() => {
     const preloader = preloaderRef.current;
@@ -246,11 +318,15 @@ export function usePreloading(options: PreloadingOptions): void {
       if (!activeLoadingRef.current) preloader.resume();
     }, SETTLE_MS);
 
-    // A new focus makes the queued neighbourhood stale. clearCache() as well
-    // as clear(): the seen-URL set is what stops a tile being queued twice,
-    // and leaving it populated turns every later enqueue into a no-op.
+    // Only a new focus makes the warm set stale. Browsing imagery within the
+    // same task rebuilds the queue but keeps what is already fetched, so
+    // stepping back onto a date or visualization already seen reads as warm
+    // instead of re-requesting every tile from zero.
+    if (lastFocusRef.current !== focusKey) {
+      preloader.clearCache();
+      lastFocusRef.current = focusKey;
+    }
     preloader.clear();
-    preloader.clearCache();
 
     const jobs: PreloadJob[] = [];
     // Upcoming centres are prefetched at the source's default zoom, not the
@@ -270,6 +346,7 @@ export function usePreloading(options: PreloadingOptions): void {
       around: focus,
       fallbackZoom: mainCamera.getState().zoom,
       priority: PRIORITY_UPCOMING,
+      taskIndex: 0,
       viewportPx,
     });
     const foregroundUrls = new Set(
@@ -279,7 +356,7 @@ export function usePreloading(options: PreloadingOptions): void {
     // the new viewport can reuse; stale work must not hold the connection while
     // the user waits, but shared URLs must not be aborted (see TilePreloader).
     preloader.cancelInflightExcept(foregroundUrls);
-    for (const center of upcoming ?? []) {
+    (upcoming ?? []).forEach((center, taskIndex) => {
       jobs.push(
         ...visibleSliceJobs({
           catalog: catalog,
@@ -287,10 +364,11 @@ export function usePreloading(options: PreloadingOptions): void {
           around: center,
           fallbackZoom: mainCamera.getState().zoom,
           priority: PRIORITY_UPCOMING,
+          taskIndex,
           viewportPx,
         })
       );
-    }
+    });
     if (jobs.length > 0) preloader.enqueueMany(jobs);
     // upcomingKey stands in for the upcoming array's contents; the array
     // itself is rebuilt by the caller on every render.
@@ -298,9 +376,9 @@ export function usePreloading(options: PreloadingOptions): void {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     catalog,
-    focus,
+    focusKey,
     address,
-    viewportPx,
+    viewportKey,
     upcomingKey,
     visibleCollectionsKey,
     windowSlices,

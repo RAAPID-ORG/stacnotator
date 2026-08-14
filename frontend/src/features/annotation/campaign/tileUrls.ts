@@ -1,3 +1,4 @@
+import { apiUrl } from '~/api/base';
 import type { ImageryCatalog } from './imagery';
 import type { SliceAddress } from './imageryNav';
 import { stampLegendOverride, type LegendOverride } from './tileColors';
@@ -13,7 +14,7 @@ export function isProxiedTileUrl(url: string): boolean {
 
 export function resolveBasemapUrl(campaignId: number, basemap: { id: number; url: string }) {
   return needsKeyProxy(basemap.url)
-    ? `/api/${campaignId}/imagery/basemaps/${basemap.id}/tiles/{z}/{x}/{y}`
+    ? apiUrl(`/api/${campaignId}/imagery/basemaps/${basemap.id}/tiles/{z}/{x}/{y}`)
     : basemap.url;
 }
 
@@ -51,6 +52,8 @@ export interface SliceRaster {
   id: string;
   url: string;
   auth: 'cookie' | 'none';
+  /** The source's native zoom cap, when it declares one. */
+  maxZoom?: number;
 }
 
 /** Throws when the address names something the catalog no longer has - a
@@ -76,7 +79,9 @@ export function sliceRaster(
   if (!entry) throw new Error(`no tile url for "${viz.name}" on slice ${slice.id}`);
 
   const raw = needsKeyProxy(entry.tile_url)
-    ? `/api/${cat.campaignId}/imagery/slices/${slice.id}/tiles/${encodeURIComponent(viz.name)}/{z}/{x}/{y}`
+    ? apiUrl(
+        `/api/${cat.campaignId}/imagery/slices/${slice.id}/tiles/${encodeURIComponent(viz.name)}/{z}/{x}/{y}`
+      )
     : entry.tile_url;
   const url = stampLegendOverride(raw, override);
 
@@ -84,5 +89,6 @@ export function sliceRaster(
     id: `slice-${slice.id}-${viz.id}`,
     url,
     auth: isProxiedTileUrl(url) ? 'cookie' : 'none',
+    maxZoom: source.max_native_zoom ?? undefined,
   };
 }

@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import {
   listCampaignOrganizationKeys,
   type ApiKeyUpdate,
-  type OrganizationKeyOut,
+  type OrganizationApiKeyOut,
 } from '~/api/client';
 import { Input, Select } from '~/shared/ui/forms';
+import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
 import { handleError } from '~/shared/utils/errorHandler';
 
 interface ApiKeyFieldProps {
@@ -36,9 +37,10 @@ export const ApiKeyField = ({
   onSave,
 }: ApiKeyFieldProps) => {
   const [value, setValue] = useState('');
+  const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
   const [configured, setConfigured] = useState(!!hasApiKey);
   const [orgKeyId, setOrgKeyId] = useState<number | null>(organizationApiKeyId ?? null);
-  const [orgKeys, setOrgKeys] = useState<OrganizationKeyOut[]>([]);
+  const [orgKeys, setOrgKeys] = useState<OrganizationApiKeyOut[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +87,7 @@ export const ApiKeyField = ({
     }
     setConfigured(true);
     setValue('');
+    setReadOnlyConfirmed(false);
   };
 
   const pickOrgKey = async (raw: string) => {
@@ -130,6 +133,9 @@ export const ApiKeyField = ({
         </div>
       )}
       {orgKeyId === null && (
+        <ReadOnlyKeyConsent confirmed={readOnlyConfirmed} onChange={setReadOnlyConfirmed} />
+      )}
+      {orgKeyId === null && (
         <div className="flex items-center gap-2">
           <Input
             size="sm"
@@ -143,7 +149,7 @@ export const ApiKeyField = ({
           <button
             type="button"
             onClick={() => void save({ value: value.trim() })}
-            disabled={saving || !value.trim()}
+            disabled={saving || !value.trim() || !readOnlyConfirmed}
             className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving ? 'Saving…' : 'Save key'}

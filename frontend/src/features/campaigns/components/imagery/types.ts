@@ -143,6 +143,9 @@ export interface ImagerySource {
   name: string;
   crosshairHex6: string;
   defaultZoom: number;
+  /** Deepest zoom the provider serves real pixels for. Past it the client upscales
+   *  rather than fetching tiles that cannot get sharper. Undefined = no cap. */
+  maxNativeZoom?: number | null;
   visualizations: VisualizationOption[];
   generationSeries: ImageryGenerationSeries[];
   collections: CollectionItem[];
@@ -150,6 +153,10 @@ export interface ImagerySource {
   hasApiKey?: boolean;
   /** Set when that key is one of the organization's shared ones. */
   organizationApiKeyId?: number | null;
+  /** A key provided for this source alone, carried only as far as the create call -
+   *  it is encrypted server-side and never read back. Rotation goes through the key
+   *  endpoint, so this stays empty for anything loaded from the server. */
+  apiKey?: string;
   /** Registration, as the server sees it: how many of this source's slices
    *  actually have tiles, and whether its STAC search can be re-run. */
   sliceCount?: number;

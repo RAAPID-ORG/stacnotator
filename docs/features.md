@@ -7,7 +7,7 @@ Multi-tenancy: organization → project → campaign.
 - Any signed-in user can browse every approved organization and request access with an optional note; org admins see the requester's email and note and approve or reject. Approval turns the pending membership into an active one; rejection drops the request and they may ask again
 - Projects have `private`/`organization`/`public` visibility and project-scoped members with `admin` and `authoritative reviewer` roles
 - Per-organization tiler allowlists and an `allows_internal_storage` flag (see [tilers.md](tilers.md))
-- Per-organization provider API keys: an org admin stores a named key once and any campaign in the org points its imagery source or basemap at it, so the secret is pasted (and rotated) in one place. A layer holds either its own encrypted key or an org key reference, never both; the tile proxy resolves whichever applies
+- Per-organization provider API keys: an org admin stores a named key once and any campaign in the org points its imagery source or basemap at it, so the secret is pasted (and rotated) in one place. A layer holds either its own encrypted key or an org key reference, never both; the tile proxy resolves whichever applies. Every surface that accepts a typed key - adding or replacing an organization key, a per-layer key, the Planet wizard - requires confirming it is read-only and least-privilege before it can be saved
 
 Imagery registration runs per campaign but succeeds per source: each source reports how many of its slices actually have tiles, and a source built from STAC searches can be re-registered from the source editor to pick up newer imagery as a season progresses.
 
@@ -28,6 +28,14 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Cloud cover filtering with `isNull OR <=` pattern (handles SAR/non-optical collections)
 - Dynamic cloud cover availablility detection from catalog metadata
 
+### Planet Basemaps
+- Add a source straight from a Planet basemap **series** (global monthly, quarterly, NICFI medres): the wizard lists the series the organization's Planet key can see, and expands the chosen one into collections and slices in one step
+- Planet publishes its temporal structure through the Basemaps API rather than STAC, and serves finished XYZ tiles - so these sources need no search, no mosaic registration and no tiler
+- Analytic series offer their renderings as visualizations (Visual, False Color, NDVI) via Planet's `proc` parameter; visual series have the one rendering
+- Group into windows by month, quarter, year, or the whole series; the cover is the nth slice of each window
+- Mosaics Planet cannot serve tiles for are listed with the reason rather than silently skipped
+- The key is either one of the organization's shared keys or one the person setting up the campaign provides for it alone; both are used only by the backend tile proxy. Browse requests carry the credential in the request body, never a query string
+
 ### Temporal Structure of Imagery Sources
 - **Collections** - top-level time windows (e.g. monthly)
 - **Slices** - sub-periods within each collection (e.g. weekly) that annotators can browse
@@ -39,6 +47,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Per-visualization parameters: assets, rescale, colormap, expression, color formula, compositing method, resampling, nodata, pixel masking
 - Presets for common collections (band combinations, rescale ranges)
 - Post-creation editing of viz params from settings page
+- Per-source max native zoom: the deepest zoom the provider serves real pixels for; past it the map upscales instead of requesting tiles that cannot get any sharper (basemaps and custom maps already had this)
 
 ### Campaign duplication
 - Duplicate a campaign from the project campaign list (admin): full setup copy (imagery, views, layouts, labels, forms, policy, time series, basemaps, custom maps, vector layers, embeddings)
@@ -57,6 +66,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 ### Basemaps
 - Multiple basemaps per campaign (CartoDB, ESRI, OpenTopoMap, custom)
 - API-key-protected basemaps/XYZ sources: keys stored encrypted, tiles fetched through a backend proxy so the key never reaches the client
+- Entering a key by hand requires confirming it is read-only and least-privilege (`shared/ui/ReadOnlyKeyConsent`) - the backend only ever reads imagery with it, so nothing more is needed
 - Toggle via keyboard shortcut or layer selector
 
 ### Custom Layers
@@ -68,7 +78,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 Tile providers, selected automatically per visualization:
 - **MPC direct** - fast, for first-valid compositing on MPC collections
 - **Self-hosted TiTiler** - for advanced compositing, masking, non-MPC catalogs; multiple tilers can be registered, allow-listed per organization
-- **XYZ** - direct tile URL passthrough for custom tile servers
+- **XYZ** - direct tile URL passthrough for custom tile servers (this is what Planet basemaps are)
 - **Backend key proxy** - for API-key providers; the key is decrypted server-side
 
 See [tile-serving.md](tile-serving.md) and [tilers.md](tilers.md) for details.

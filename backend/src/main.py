@@ -31,6 +31,7 @@ from src.imagery.proxy_router import router as imagery_proxy_router
 from src.imagery.registration import REGISTRATION_RUN
 from src.imagery.router import router as imagery_router
 from src.organizations.router import router as organizations_router
+from src.planet.router import router as planet_router
 from src.projects.router import router as projects_router
 from src.routing import generate_unique_id
 from src.sampling_design.router import router as sampling_design_router
@@ -283,5 +284,6 @@ app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")
 app.include_router(imagery_proxy_router, prefix="/api")
 app.include_router(stac_browser_router, prefix="/api")
+app.include_router(planet_router, prefix="/api")
 app.include_router(custom_layers_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

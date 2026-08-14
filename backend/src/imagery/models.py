@@ -43,6 +43,10 @@ class ImagerySource(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
     default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="15", nullable=False)
+    # Deepest zoom the provider serves real pixels for. Past it the client upscales
+    # instead of requesting tiles that cannot get any sharper. Null = no cap.
+    # Same contract as Basemap.max_native_zoom.
+    max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
     # AES-256-GCM ciphertext of the provider API key substituted into this source's
     # {api_key} tile-URL templates. Decrypted only by the backend tile proxy.
