@@ -13,11 +13,9 @@ import {
   IconQuestion,
   IconTaskListFilled,
 } from '~/shared/ui/Icons';
-import type { PolicyContext } from '../../domain/annotation';
-import type { Catalog } from '../../domain/catalog';
+import type { PolicyContext } from '../../campaign/annotation';
 import { useCampaignStore } from '../../stores/campaign';
-import type { TaskFilter } from '../../domain/tasks';
-import { fallbackCollectionFor } from '../../viewSelection';
+import type { TaskFilter } from '../../campaign/tasks';
 import { ExportMenu } from './ExportMenu';
 import { GuidePanel } from './GuidePanel';
 import { HelpMenu } from './HelpMenu';
@@ -26,7 +24,6 @@ import { TaskFilterPanel } from './TaskFilterPanel';
 
 export interface ToolbarProps {
   campaign: CampaignOutFull;
-  catalog: Catalog;
   tasks: AnnotationTaskOut[];
   taskSets: TaskSetOut[];
   taskFilter: TaskFilter;
@@ -40,7 +37,7 @@ export interface ToolbarProps {
   onOpenTour?: () => void;
 }
 
-function ViewPicker({ campaign, catalog }: { campaign: CampaignOutFull; catalog: Catalog }) {
+function ViewPicker({ campaign }: { campaign: CampaignOutFull }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedViewId = useCampaignStore((s) => s.view?.id ?? null);
@@ -75,7 +72,7 @@ function ViewPicker({ campaign, catalog }: { campaign: CampaignOutFull; catalog:
             type="button"
             onClick={() => {
               setOpen(false);
-              selectView(view, fallbackCollectionFor(catalog, view.id, view.source_ids));
+              selectView(view);
             }}
             className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 transition-colors ${
               selectedViewId === view.id
@@ -93,7 +90,6 @@ function ViewPicker({ campaign, catalog }: { campaign: CampaignOutFull; catalog:
 
 export function Toolbar({
   campaign,
-  catalog,
   tasks,
   taskSets,
   taskFilter,
@@ -123,7 +119,7 @@ export function Toolbar({
       <div className="flex items-center gap-0.5 desktop:gap-2">
         <ModeSwitch campaign={campaign} hasTasks={tasks.length > 0} policy={policy} />
 
-        <ViewPicker campaign={campaign} catalog={catalog} />
+        <ViewPicker campaign={campaign} />
 
         {workMode === 'tasks' && (
           <div ref={taskFilterRef} className="relative" data-tour="task-filter">

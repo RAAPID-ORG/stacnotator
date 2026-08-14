@@ -1,6 +1,6 @@
 import { capitalizeFirst } from '~/shared/utils/utility';
-import type { FormField, FormValues } from '../../domain/annotation';
-import type { ExtendedLabel } from '../../domain/annotation';
+import type { FormField, FormValues } from '../../campaign/annotation';
+import type { ExtendedLabel } from '../../campaign/annotation';
 import { FormFields } from '../../components/FormFields';
 
 export interface DraftCatalogProps {

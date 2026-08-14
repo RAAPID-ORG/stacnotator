@@ -4,7 +4,7 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { PANEL_DRAG_CANCEL_SELECTOR, PANEL_DRAG_HANDLE_CLASS, PanelHost } from './PanelHost';
 import { GRID_COLS, GRID_MARGIN, ROW_HEIGHT, type LayoutItem } from '../canvas/grid';
-import type { PanelDef } from '../panels';
+import type { PanelDef } from '../panels/panels';
 import { useContainerSize } from './useContainerSize';
 
 export interface CanvasProps {

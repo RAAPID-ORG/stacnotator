@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ImageryCollectionOut } from '~/api/client';
-import { extendedLabels } from '../../domain/annotation';
-import { type Catalog, type SliceAddress } from '../../domain/catalog';
-import { addressAtSlice, collectionAddress } from '../../domain/imageryNav';
+import { extendedLabels } from '../../campaign/annotation';
+import { type Catalog, type SliceAddress } from '../../campaign/catalog';
+import { addressAtSlice, collectionAddress } from '../../campaign/imageryNav';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useImageryStore, type ImageryState } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';

@@ -1,5 +1,5 @@
-import { type Catalog, type SliceAddress } from '../../../domain/catalog';
-import { restoreSnapshot } from '../../../domain/imageryNav';
+import { type Catalog, type SliceAddress } from '../../../campaign/catalog';
+import { restoreSnapshot } from '../../../campaign/imageryNav';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect, type HeaderSelectOption } from '../../../components/HeaderSelect';
 import { rememberLastAddress } from '../../../bindings';

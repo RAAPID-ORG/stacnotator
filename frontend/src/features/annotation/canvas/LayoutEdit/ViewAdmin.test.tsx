@@ -12,7 +12,7 @@ import {
   makeView,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
-import { buildCatalog } from '../../domain/catalog';
+import { buildCatalog } from '../../campaign/catalog';
 import { useCampaignStore } from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
 import { ViewAdmin } from './ViewAdmin';

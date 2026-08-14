@@ -1,6 +1,6 @@
 import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
-import type { TaskStatus } from '../../domain/annotation';
-import { computeTaskProgress, UNASSIGNED, type TaskFilter } from '../../domain/tasks';
+import type { TaskStatus } from '../../campaign/annotation';
+import { computeTaskProgress, UNASSIGNED, type TaskFilter } from '../../campaign/tasks';
 import { useCampaignStore } from '../../stores/campaign';
 import { IconFlag } from '~/shared/ui/Icons';
 

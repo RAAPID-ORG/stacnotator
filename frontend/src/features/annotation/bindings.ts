@@ -10,9 +10,9 @@ import {
   LABEL_FIELD_INDEX,
   type FormField,
   type FormKeyContext,
-} from './domain/annotation';
-import { readyCustomMaps } from './domain/renderConfig';
-import { rememberAddress, type SliceAddress } from './domain/imageryNav';
+} from './campaign/annotation';
+import { readyCustomMaps } from './campaign/renderConfig';
+import { rememberAddress, type SliceAddress } from './campaign/imageryNav';
 import { fitAnnotations, mainCamera, pan, zoom } from './map/camera';
 import { campaignState, formFields, useCampaignStore } from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
@@ -24,7 +24,6 @@ import {
   submitAuthoritative,
   DEFAULT_CONFIDENCE,
 } from './taskActions';
-import { fallbackCollectionFor } from './viewSelection';
 
 const alert = (message: string, kind: 'error' | 'success') =>
   useGlobalLayoutStore.getState().showAlert(message, kind);
@@ -157,8 +156,8 @@ function activeFormField(): FormField | undefined {
 }
 
 /**
- * The domain decides which field a key moves to; the focus call is ours.
- * `handleFormFieldKey` never names a field for Tab (the new slot may be a
+ * `handleFormFieldKey` decides which field a key moves to; the focus call is
+ * ours. It never names a field for Tab (the new slot may be a
  * category field or the label picker, neither with an input) or Escape, so
  * those two are resolved here from the post-move state and the live focus.
  */
@@ -451,7 +450,7 @@ function mapBindings(): Binding[] {
     const { view: current, selectView } = useCampaignStore.getState();
     const index = views.findIndex((v) => v.id === current?.id);
     const next = views[(index + 1) % views.length];
-    selectView(next, fallbackCollectionFor(catalog, next.id, next.source_ids));
+    selectView(next);
   };
 
   const overlays = () => readyCustomMaps([...catalog.customMaps.values()]);

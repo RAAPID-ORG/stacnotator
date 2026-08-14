@@ -8,8 +8,8 @@ import {
   type Catalog,
   type Empties,
   type SliceAddress,
-} from '../../domain/catalog';
-import { addressAtSlice, sliceNavIndices } from '../../domain/imageryNav';
+} from '../../campaign/catalog';
+import { addressAtSlice, sliceNavIndices } from '../../campaign/imageryNav';
 import { ensureTilerSession } from '~/api/tilerToken';
 import type { LonLat } from '../../map/types';
 

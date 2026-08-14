@@ -1,5 +1,5 @@
-import { type Catalog } from '../../../domain/catalog';
-import { readyCustomMaps } from '../../../domain/renderConfig';
+import { type Catalog } from '../../../campaign/catalog';
+import { readyCustomMaps } from '../../../campaign/renderConfig';
 import { useImageryStore } from '../../../stores/imagery';
 import { IconExternalLink } from '~/shared/ui/Icons';
 import { HeaderSelect } from '../../../components/HeaderSelect';
@@ -47,7 +47,7 @@ export function CustomMapControls({
         ]}
         onChange={(v: string | number) => {
           // "No overlay" clears the pick; picking a map is a cycle over the
-          // one-item list holding it. Both go through the domain toggle, so
+          // one-item list holding it. Both go through the same action, so
           // keyboard and mouse cannot drift apart.
           if (v === '') overlayAction(maps, 'deselect');
           else

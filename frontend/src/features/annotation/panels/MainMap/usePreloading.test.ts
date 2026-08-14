@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedCampaign } from '../../testing/seed';
 import type { CampaignOutFull } from '~/api/client';
-import { buildCatalog } from '../../domain/catalog';
+import { buildCatalog } from '../../campaign/catalog';
 import {
   makeCampaign,
   makeCollection,

@@ -10,7 +10,7 @@ import {
   resolveExportFilename,
   parseExportErrorDetail,
   type ExportFormat,
-} from '../../domain/tasks';
+} from '../../campaign/tasks';
 
 export interface ExportMenuProps {
   campaignId: number;

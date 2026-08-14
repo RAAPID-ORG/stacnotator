@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { cellToPixelRect, nextFreeSlot } from '../../canvas/dropCell';
-import type { LayoutItem } from '../../canvas/grid';
+import { cellToPixelRect, nextFreeSlot } from '../dropCell';
+import type { LayoutItem } from '../grid';
 import { step, type DragOutGeometry, type DragOutState } from './dragOut';
 
 const MIN_PANEL_W = 240;

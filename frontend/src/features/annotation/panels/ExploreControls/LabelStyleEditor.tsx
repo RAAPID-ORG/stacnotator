@@ -1,5 +1,5 @@
-import { type ExtendedLabel } from '../../domain/annotation';
-import { resolveLabelStyle, type LabelStyle } from '../../domain/labelStyle';
+import { type ExtendedLabel } from '../../campaign/annotation';
+import { resolveLabelStyle, type LabelStyle } from '../../campaign/labelStyle';
 import { usePrefsStore } from '../../stores/prefs';
 
 export interface LabelStyleEditorProps {

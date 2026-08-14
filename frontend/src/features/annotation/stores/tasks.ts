@@ -1,14 +1,14 @@
 import { create } from 'zustand';
 import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
-import { geometryCentroid, wktToGeometry } from '../domain/annotation';
-import type { Catalog } from '../domain/catalog';
+import { geometryCentroid, wktToGeometry } from '../campaign/annotation';
+import type { Catalog } from '../campaign/catalog';
 import {
   applyTaskFilter,
   nextIndex,
   prevIndex,
   widenFilterForTask,
   type TaskFilter,
-} from '../domain/tasks';
+} from '../campaign/tasks';
 import type { GeoFeature, LonLat } from '../map/types';
 import { useCampaignStore } from './campaign';
 import { useImageryStore } from './imagery';

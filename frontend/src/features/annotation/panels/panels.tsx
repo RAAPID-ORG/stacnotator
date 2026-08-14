@@ -1,16 +1,16 @@
 import type { ReactNode } from 'react';
-import { collectionsInView, groupTimeseriesIntoWindows, type Catalog } from './domain/catalog';
-import type { WorkspaceLayout } from './canvas/grid';
-import { ExploreControls } from './panels/ExploreControls/ExploreControls';
-import { ImageryWindowBody } from './panels/ImageryWindow/ImageryWindow';
-import { ImageryWindowHeader } from './panels/ImageryWindow/ImageryWindowHeader';
-import { MainMapBody, MainMapHeader } from './panels/MainMap/MainMap';
-import { MinimapBody, MinimapHeader } from './panels/Minimap/Minimap';
-import { TaskClaimBadge } from './panels/TaskControls/ClaimBadge';
-import { TaskControls } from './panels/TaskControls/TaskControls';
-import { TimeseriesPanel } from './panels/Timeseries/Timeseries';
-import type { WorkMode } from './stores/campaign';
-import { useImageryStore } from './stores/imagery';
+import { collectionsInView, groupTimeseriesIntoWindows, type Catalog } from '../campaign/catalog';
+import type { WorkspaceLayout } from '../canvas/grid';
+import { ExploreControls } from './ExploreControls/ExploreControls';
+import { ImageryWindowBody } from './ImageryWindow/ImageryWindow';
+import { ImageryWindowHeader } from './ImageryWindow/ImageryWindowHeader';
+import { MainMapBody, MainMapHeader } from './MainMap/MainMap';
+import { MinimapBody, MinimapHeader } from './Minimap/Minimap';
+import { TaskClaimBadge } from './TaskControls/ClaimBadge';
+import { TaskControls } from './TaskControls/TaskControls';
+import { TimeseriesPanel } from './Timeseries/Timeseries';
+import type { WorkMode } from '../stores/campaign';
+import { useImageryStore } from '../stores/imagery';
 import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
 
 export const MAIN_MAP_PANEL = 'main';

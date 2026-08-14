@@ -1,6 +1,6 @@
 import type { ImageryCollectionOut } from '~/api/client';
-import { collectionStartDate, collectionsInView, type Catalog } from '../../domain/catalog';
-import { sliceNavIndices } from '../../domain/imageryNav';
+import { collectionStartDate, collectionsInView, type Catalog } from '../../campaign/catalog';
+import { sliceNavIndices } from '../../campaign/imageryNav';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

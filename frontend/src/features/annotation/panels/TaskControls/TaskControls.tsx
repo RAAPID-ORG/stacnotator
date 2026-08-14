@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { AnnotationTaskOut } from '~/api/client';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { isLabelGroupActive, isRemovingLabel, maySubmitTask } from '../../domain/annotation';
+import { isLabelGroupActive, isRemovingLabel, maySubmitTask } from '../../campaign/annotation';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { activeGroupClass, FormFields } from '../../components/FormFields';

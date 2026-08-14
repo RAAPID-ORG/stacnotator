@@ -1,5 +1,5 @@
 import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
-import { TIMESERIES_KEY_PREFIX } from '../domain/catalog';
+import { TIMESERIES_KEY_PREFIX } from '../campaign/catalog';
 
 export const GRID_COLS = 60;
 export const ROW_HEIGHT = 15;

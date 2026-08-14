@@ -1,15 +1,21 @@
 import { create } from 'zustand';
 import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
-import { buildCatalog, type Catalog } from '../domain/catalog';
+import {
+  buildCatalog,
+  collectionStartDate,
+  collectionsInView,
+  type Catalog,
+} from '../campaign/catalog';
 import {
   extendedLabels,
   type ExtendedLabel,
   type FormField,
   type PolicyContext,
-} from '../domain/annotation';
+} from '../campaign/annotation';
+import { viewWindows, type LayoutItem } from '../canvas/grid';
 import { useImageryStore } from './imagery';
 import { useLayoutStore } from './layout';
-import { fallbackCollectionFor } from '../viewSelection';
+import { usePrefsStore } from './prefs';
 
 export type WorkMode = 'tasks' | 'explore';
 
@@ -37,7 +43,27 @@ interface CampaignState {
   setTaskStartCollection: (collectionId: number) => void;
   /** Make `view` the selected one. Its imagery nav state and its canvas
    *  windows both come with it, so the whole page belongs to one view. */
-  selectView: (view: ImageryViewOut, fallbackCollectionId: number | null) => void;
+  selectView: (view: ImageryViewOut) => void;
+}
+
+/**
+ * Which collection a view opens on: the chronologically first one that has a
+ * window, else the first browsable one - so the map keeps imagery even when
+ * every window is hidden. A pinned start wins inside whichever pool applies.
+ */
+export function startCollectionFor(
+  catalog: Catalog,
+  view: ImageryViewOut | null,
+  windows: Record<number, LayoutItem>
+): number | null {
+  const entries = [...collectionsInView(catalog, view)].sort((a, b) =>
+    collectionStartDate(a).localeCompare(collectionStartDate(b))
+  );
+  const windowed = entries.filter((c) => windows[c.id] !== undefined);
+  const pool = windowed.length > 0 ? windowed : entries;
+  const pinned = view ? usePrefsStore.getState().pinnedStart[view.id] : undefined;
+  if (pinned != null && pool.some((c) => c.id === pinned)) return pinned;
+  return pool[0]?.id ?? null;
 }
 
 export const useCampaignStore = create<CampaignState>((set, get) => ({
@@ -61,14 +87,8 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     // selectView rather than being quietly repointed here.
     if (!kept) {
       const replacement = campaign.imagery_views[0] ?? null;
-      if (replacement) {
-        get().selectView(
-          replacement,
-          fallbackCollectionFor(catalog, replacement.id, replacement.source_ids)
-        );
-      } else {
-        set({ view: null });
-      }
+      if (replacement) get().selectView(replacement);
+      else set({ view: null });
     }
   },
 
@@ -87,14 +107,13 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   setMobile: (isMobile) => set({ isMobile }),
   setTaskStartCollection: (taskStartCollectionId) => set({ taskStartCollectionId }),
 
-  selectView: (view, fallbackCollectionId) => {
+  selectView: (view) => {
     const { catalog, view: previous } = get();
     if (!catalog) return;
-    useImageryStore
-      .getState()
-      .switchView(catalog, previous?.id ?? null, view.id, fallbackCollectionId);
+    const start = startCollectionFor(catalog, view, viewWindows(view));
+    useImageryStore.getState().switchView(catalog, previous?.id ?? null, view.id, start);
     useLayoutStore.getState().loadViewLayout(view);
-    set({ view, taskStartCollectionId: fallbackCollectionId });
+    set({ view, taskStartCollectionId: start });
   },
 }));
 

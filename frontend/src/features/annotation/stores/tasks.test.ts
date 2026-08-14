@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AnnotationTaskOut } from '~/api/client';
-import { buildCatalog } from '../domain/catalog';
+import { buildCatalog } from '../campaign/catalog';
 import {
   makeCampaign,
   makeCollection,

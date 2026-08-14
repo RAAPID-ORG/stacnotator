@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { LabelStyle } from '../domain/labelStyle';
-import type { LegendOverride } from '../domain/renderConfig';
+import type { LabelStyle } from '../campaign/labelStyle';
+import type { LegendOverride } from '../campaign/renderConfig';
 
 export type PreloadTier = 'auto' | 'off' | 'conservative' | 'balanced' | 'heavy';
 

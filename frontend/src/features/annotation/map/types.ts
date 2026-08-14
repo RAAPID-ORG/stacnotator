@@ -1,4 +1,4 @@
-import type { StyleSpec } from '../domain/labelStyle';
+import type { StyleSpec } from '../campaign/labelStyle';
 
 export type { StyleSpec };
 export type LayerId = string;

@@ -1,6 +1,6 @@
 import type { ImagerySliceOut } from '~/api/client';
-import { emptyKey, type Catalog } from '../../../domain/catalog';
-import { addressAtSlice, slicePickerIndices } from '../../../domain/imageryNav';
+import { emptyKey, type Catalog } from '../../../campaign/catalog';
+import { addressAtSlice, slicePickerIndices } from '../../../campaign/imageryNav';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect } from '../../../components/HeaderSelect';
 

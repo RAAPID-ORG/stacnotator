@@ -17,8 +17,8 @@ import {
   type ExtendedLabel,
   type FormValues,
   type GeometryType,
-} from './domain/annotation';
-import { resolveLabelStyle, toDraftStyleSpec, toStyleSpec } from './domain/labelStyle';
+} from './campaign/annotation';
+import { resolveLabelStyle, toDraftStyleSpec, toStyleSpec } from './campaign/labelStyle';
 import { ANNOTATION_LAYER_ID, vectorLayerId } from './map/compose';
 import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from './map/types';
 import { campaignState, formFields, useCampaignStore, useLabels } from './stores/campaign';

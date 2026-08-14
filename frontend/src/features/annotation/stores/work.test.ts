@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FormField } from '../domain/annotation';
+import type { FormField } from '../campaign/annotation';
 import { apiSuccess, makeAnnotation, makeCampaign } from '~/features/annotation/testing/fixtures';
 import { seedCampaign } from '../testing/seed';
 import { useWorkStore } from './work';

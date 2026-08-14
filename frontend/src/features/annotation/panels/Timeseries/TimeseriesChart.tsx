@@ -18,7 +18,7 @@ import {
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
-import { nearestSlice } from '../../domain/imageryNav';
+import { nearestSlice } from '../../campaign/imageryNav';
 import { useImageryStore } from '../../stores/imagery';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { IconInfo, IconSliders } from '~/shared/ui/Icons';

@@ -1,4 +1,4 @@
-import { buildCatalog } from '../domain/catalog';
+import { buildCatalog } from '../campaign/catalog';
 import { layoutForView } from '../canvas/grid';
 import { useCampaignStore, type WorkMode } from '../stores/campaign';
 import { useImageryStore } from '../stores/imagery';
@@ -6,8 +6,8 @@ import { useLayoutStore } from '../stores/layout';
 import { useTasksStore } from '../stores/tasks';
 import { useWorkStore } from '../stores/work';
 import type { AnnotationTaskOut, CampaignOutFull, TaskSetOut } from '~/api/client';
-import type { TaskFilter } from '../domain/tasks';
-import type { Catalog } from '../domain/catalog';
+import type { TaskFilter } from '../campaign/tasks';
+import type { Catalog } from '../campaign/catalog';
 
 const DEFAULT_FILTER: TaskFilter = {
   assignedTo: [],

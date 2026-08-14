@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CampaignOutFull } from '~/api/client';
-import type { ExtendedLabel } from '../domain/annotation';
-import { buildCatalog } from '../domain/catalog';
+import type { ExtendedLabel } from '../campaign/annotation';
+import { buildCatalog } from '../campaign/catalog';
 import {
   makeCampaign,
   makeCollection,

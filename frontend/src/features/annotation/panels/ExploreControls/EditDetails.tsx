@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { updateAnnotationOpenmode, type AnnotationOut } from '~/api/client';
-import type { FormValues } from '../../domain/annotation';
+import type { FormValues } from '../../campaign/annotation';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
@@ -8,7 +8,7 @@ import {
   formValuesEqual,
   labelsWithSameGeometry,
   validateForm,
-} from '../../domain/annotation';
+} from '../../campaign/annotation';
 import { useCampaign } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { FormFields } from '../../components/FormFields';

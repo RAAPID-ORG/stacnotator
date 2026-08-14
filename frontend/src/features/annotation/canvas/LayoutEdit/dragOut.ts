@@ -1,5 +1,5 @@
-import { resolveDropCell, type CanvasRect, type Point } from '../../canvas/dropCell';
-import type { LayoutItem } from '../../canvas/grid';
+import { resolveDropCell, type CanvasRect, type Point } from '../dropCell';
+import type { LayoutItem } from '../grid';
 
 /** Pointer movement below this distance (px) from the origin is a click, not
  *  a drag-out. */

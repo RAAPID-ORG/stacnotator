@@ -7,8 +7,8 @@ import {
   type ImageryNavState,
   type SliceAddress,
   type ViewSnapshot,
-} from '../domain/catalog';
-import { snapshotForView } from '../domain/catalog';
+} from '../campaign/catalog';
+import { snapshotForView } from '../campaign/catalog';
 import {
   collectionAddress,
   cycleSource,
@@ -18,7 +18,7 @@ import {
   stepSlice,
   toggleCycle,
   type OverlayAction,
-} from '../domain/imageryNav';
+} from '../campaign/imageryNav';
 
 export interface ImageryState extends ImageryNavState {
   viewSnapshots: Record<number, ViewSnapshot>;

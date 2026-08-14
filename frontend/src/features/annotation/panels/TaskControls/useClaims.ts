@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { claimAnnotationTask, type AnnotationTaskOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
-import { isClaimable } from '../../domain/tasks';
+import { isClaimable } from '../../campaign/tasks';
 
 export const CLAIM_RENEW_MS = 10 * 60 * 1000;
 

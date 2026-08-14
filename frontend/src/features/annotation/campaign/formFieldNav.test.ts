@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { CategoryFormField } from '~/api/client';
-import type { FormField } from '../domain/annotation';
+import type { FormField } from '../campaign/annotation';
 import {
   cycleFieldIndex,
   handleFormFieldKey,

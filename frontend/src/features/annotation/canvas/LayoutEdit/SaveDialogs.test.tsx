@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { WorkspaceLayout } from '../../canvas/grid';
+import type { WorkspaceLayout } from '../grid';
 import { SaveDialogs } from './SaveDialogs';
 
 const BASE: WorkspaceLayout = {

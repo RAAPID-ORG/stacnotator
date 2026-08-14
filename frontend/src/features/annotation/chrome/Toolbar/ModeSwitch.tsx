@@ -1,10 +1,10 @@
-import { isAudienceMember, type PolicyContext } from '../../domain/annotation';
+import { isAudienceMember, type PolicyContext } from '../../campaign/annotation';
 import { useCampaignStore, type WorkMode } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { IconEyeFilled } from '~/shared/ui/Icons';
 import type { CampaignOutFull } from '~/api/client';
-import type { TaskFilter } from '../../domain/tasks';
+import type { TaskFilter } from '../../campaign/tasks';
 
 export interface ModeSwitchProps {
   campaign: CampaignOutFull;

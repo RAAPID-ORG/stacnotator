@@ -1,4 +1,4 @@
-import type { Catalog } from '../../../domain/catalog';
+import type { Catalog } from '../../../campaign/catalog';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect } from '../../../components/HeaderSelect';
 

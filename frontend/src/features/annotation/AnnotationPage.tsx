@@ -22,17 +22,17 @@ import {
   NotFoundGate,
   RegisteringGate,
 } from './chrome/Gates';
-import { LayoutEditControls } from './chrome/LayoutEdit/LayoutEditControls';
-import { TrayContent } from './chrome/LayoutEdit/TrayContent';
-import { ViewAdmin } from './chrome/LayoutEdit/ViewAdmin';
+import { LayoutEditControls } from './canvas/LayoutEdit/LayoutEditControls';
+import { TrayContent } from './canvas/LayoutEdit/TrayContent';
+import { ViewAdmin } from './canvas/LayoutEdit/ViewAdmin';
 import { MobileSliceNav } from './chrome/MobileSliceNav';
-import { RestoreScreensToast, SendToScreenButton } from './chrome/Screens/ScreenControls';
-import { ScreenWindow } from './chrome/Screens/ScreenWindow';
+import { RestoreScreensToast, SendToScreenButton } from './canvas/Screens/ScreenControls';
+import { ScreenWindow } from './canvas/Screens/ScreenWindow';
 import { Toolbar } from './chrome/Toolbar/Toolbar';
 import { TourOverlay } from './chrome/Tour/TourOverlay';
 import { useHotkeys } from './hotkeys';
-import { groupTimeseriesIntoWindows } from './domain/catalog';
-import { isAudienceMember } from './domain/annotation';
+import { groupTimeseriesIntoWindows } from './campaign/catalog';
+import { isAudienceMember } from './campaign/annotation';
 import {
   coversPanels,
   defaultWindowItem,
@@ -44,22 +44,21 @@ import {
   withoutKeys,
   type LayoutItem,
 } from './canvas/grid';
-import { ALL_TASK_STATUSES, type TaskFilter } from './domain/tasks';
+import { ALL_TASK_STATUSES, type TaskFilter } from './campaign/tasks';
 import { applyCameraTarget, focusFirstViewSetup, loadCameraTarget } from './map/camera';
-import { buildPanels, MAIN_MAP_PANEL, type PanelDef } from './panels';
+import { buildPanels, MAIN_MAP_PANEL, type PanelDef } from './panels/panels';
+import { loadCampaign } from './loadCampaign';
+import { usePolicy, useCampaignStore } from './stores/campaign';
+import { useImageryStore } from './stores/imagery';
 import {
-  loadCampaign,
   SCREEN_DEFAULT_BOUNDS,
-  useCampaignStore,
-  useImageryStore,
   useLayoutStore,
-  usePolicy,
   usePoppedPanels,
-  usePrefsStore,
   useRestorableScreens,
-  useTasksStore,
-  useWorkStore,
-} from './stores';
+} from './stores/layout';
+import { usePrefsStore } from './stores/prefs';
+import { useTasksStore } from './stores/tasks';
+import { useWorkStore } from './stores/work';
 
 type LoadState = 'loading' | 'ready' | 'failed';
 
@@ -408,7 +407,7 @@ export function AnnotationPage() {
               if (!res.data) return;
               setSettingUpFirstView(true);
               useCampaignStore.getState().setCampaign({ ...campaign, imagery_views: [res.data] });
-              useCampaignStore.getState().selectView(res.data, null);
+              useCampaignStore.getState().selectView(res.data);
               focusFirstViewSetup(campaign.imagery_sources[0]?.default_zoom ?? null);
               useLayoutStore.getState().startEditing();
             })
@@ -424,7 +423,6 @@ export function AnnotationPage() {
     <div className="annotation-workspace flex min-h-0 flex-1 flex-col">
       <Toolbar
         campaign={campaign}
-        catalog={catalog}
         tasks={allTasks}
         taskSets={useTasksStore.getState().taskSets}
         taskFilter={taskFilter}

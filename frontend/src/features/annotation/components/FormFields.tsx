@@ -1,11 +1,11 @@
 import type { DateRangeValue } from '~/api/client';
-import type { FormField } from '../domain/annotation';
+import type { FormField } from '../campaign/annotation';
 import {
   applyCategoryOption,
   isDateRangeValue,
   setFieldValue,
   type FormValues,
-} from '../domain/annotation';
+} from '../campaign/annotation';
 
 const REVEAL_OPTIONS: ScrollIntoViewOptions = {
   behavior: 'smooth',

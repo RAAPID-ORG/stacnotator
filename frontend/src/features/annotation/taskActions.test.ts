@@ -8,7 +8,7 @@ import type {
   AnnotationTaskSubmitResponse,
   ValidateLabelSubmissionsResponse,
 } from '~/api/client';
-import type { FormField } from './domain/annotation';
+import type { FormField } from './campaign/annotation';
 import { submitCurrent, type SubmitParams } from './taskActions';
 
 vi.mock('~/api/client', async () => {

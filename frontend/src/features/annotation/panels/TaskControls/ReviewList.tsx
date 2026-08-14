@@ -1,6 +1,6 @@
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { reviewRows, type ReviewRow } from '../../domain/tasks';
+import { reviewRows, type ReviewRow } from '../../campaign/tasks';
 
 export interface ReviewListProps {
   task: AnnotationTaskOut;

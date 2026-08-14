@@ -81,7 +81,8 @@ export default tseslint.config(
           patterns: [
             {
               group: ['~/features/annotation/*', '!~/features/annotation/AnnotationPage'],
-              message: 'Import the annotation feature through ~/features/annotation/AnnotationPage.',
+              message:
+                'Import the annotation feature through ~/features/annotation/AnnotationPage.',
             },
           ],
         },
@@ -89,19 +90,29 @@ export default tseslint.config(
     },
   },
 
-  // domain/ is the campaign's vocabulary as plain data and functions. Keeping
-  // it free of React, OpenLayers and the stores is what makes it testable
-  // without any of them.
+  // campaign/ is what a campaign is made of - imagery catalog, labels, tasks -
+  // as plain data and functions. Keeping it free of React, OpenLayers and the
+  // stores is what makes it testable without any of them.
   {
-    files: ['src/features/annotation/domain/**/*.ts'],
+    files: ['src/features/annotation/campaign/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              group: ['**/stores/*', '**/panels/*', '**/chrome/*', '**/map/*', '**/canvas/*', 'react', 'ol', 'ol/*', 'zustand'],
-              message: 'domain/ is pure: no React, no OpenLayers, no stores.',
+              group: [
+                '**/stores/*',
+                '**/panels/*',
+                '**/chrome/*',
+                '**/map/*',
+                '**/canvas/*',
+                'react',
+                'ol',
+                'ol/*',
+                'zustand',
+              ],
+              message: 'campaign/ is pure: no React, no OpenLayers, no stores.',
             },
           ],
         },

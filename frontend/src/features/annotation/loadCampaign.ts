@@ -1,24 +1,13 @@
-import {
-  getAllAnnotationTasks,
-  getCampaignWithImageryWindows,
-  listTaskSets,
-  type ImageryViewOut,
-} from '~/api/client';
-import {
-  buildCatalog,
-  collectionStartDate,
-  collectionsInView,
-  type Catalog,
-} from '../domain/catalog';
-import { restoreSnapshot } from '../domain/imageryNav';
-import { layoutForView, type WorkspaceLayout } from '../canvas/grid';
-import { seedFilter } from '../domain/tasks';
-import { useCampaignStore, type WorkMode } from './campaign';
-import { useImageryStore } from './imagery';
-import { useLayoutStore } from './layout';
-import { usePrefsStore } from './prefs';
-import { useTasksStore } from './tasks';
-import { useWorkStore } from './work';
+import { getAllAnnotationTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
+import { buildCatalog } from './campaign/catalog';
+import { restoreSnapshot } from './campaign/imageryNav';
+import { layoutForView } from './canvas/grid';
+import { seedFilter } from './campaign/tasks';
+import { startCollectionFor, useCampaignStore, type WorkMode } from './stores/campaign';
+import { useImageryStore } from './stores/imagery';
+import { useLayoutStore } from './stores/layout';
+import { useTasksStore } from './stores/tasks';
+import { useWorkStore } from './stores/work';
 
 export interface LoadOptions {
   now: number;
@@ -30,26 +19,6 @@ export interface LoadOptions {
   /** Deep-linked annotation, meaningful only in Explore. Returned rather than
    *  opened here: opening it belongs to the map's edit tool. */
   annotationId?: number;
-}
-
-/**
- * Chronologically first collection that has a window, else the first
- * browsable one - so the main map keeps imagery even when every window is
- * hidden. A still-valid pinned start wins over both.
- */
-function defaultCollectionId(
-  cat: Catalog,
-  view: ImageryViewOut | null,
-  layout: WorkspaceLayout,
-  pinned: number | undefined
-): number | null {
-  const entries = [...collectionsInView(cat, view)].sort((a, b) =>
-    collectionStartDate(a).localeCompare(collectionStartDate(b))
-  );
-  const windowed = entries.filter((c) => layout.windows[c.id] !== undefined);
-  const pool = windowed.length > 0 ? windowed : entries;
-  if (pinned != null && pool.some((c) => c.id === pinned)) return pinned;
-  return pool[0]?.id ?? null;
 }
 
 /**
@@ -87,8 +56,7 @@ export async function loadCampaign(
     options.workMode ?? (campaign.mode === 'open' || tasks.length === 0 ? 'explore' : 'tasks');
 
   const layout = layoutForView(campaign, view);
-  const pinned = view ? usePrefsStore.getState().pinnedStart[view.id] : undefined;
-  const startCollectionId = defaultCollectionId(catalog, view, layout, pinned);
+  const startCollectionId = startCollectionFor(catalog, view, layout.windows);
 
   useWorkStore.getState().resetAll();
   useCampaignStore.setState({

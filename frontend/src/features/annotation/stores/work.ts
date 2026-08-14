@@ -7,7 +7,12 @@ import {
 } from '~/api/client';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
-import { geometryToWkt, validateForm, wktToGeometry, type FormValues } from '../domain/annotation';
+import {
+  geometryToWkt,
+  validateForm,
+  wktToGeometry,
+  type FormValues,
+} from '../campaign/annotation';
 import type { InteractionSpec, LonLat, MapClickEvent } from '../map/types';
 import { campaignState, formFields, useCampaignStore } from './campaign';
 

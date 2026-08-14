@@ -10,7 +10,7 @@ import { IconLayoutGrid } from '~/shared/ui/Icons';
 import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.store';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { useLayoutStore } from '../../stores/layout';
-import { fromGridLayout } from '../../canvas/grid';
+import { fromGridLayout } from '../grid';
 import { SaveDialogs } from './SaveDialogs';
 
 export interface LayoutEditControlsProps {
@@ -83,7 +83,7 @@ export function LayoutEditControls({
   };
 
   if (!editing) {
-    // The mobile canvas is a static synthetic stack (domain/workspace/mobile),
+    // The mobile canvas is a static synthetic stack (canvas/grid mobileStack),
     // not the draggable grid, so edit mode is unreachable there. Gating on
     // `useIsMobile` rather than a CSS class since there is nothing to fall
     // back to on mobile if editing were somehow entered anyway.

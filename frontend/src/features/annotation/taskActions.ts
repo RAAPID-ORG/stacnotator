@@ -16,7 +16,7 @@ import {
   type PolicyContext,
   type SubmitReadiness,
   type TaskStatus,
-} from './domain/annotation';
+} from './campaign/annotation';
 import { campaignState, formFields, useCampaignStore } from './stores/campaign';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { usePrefsStore } from './stores/prefs';

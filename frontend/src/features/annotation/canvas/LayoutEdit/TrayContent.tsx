@@ -1,13 +1,8 @@
 import type { ImageryViewOut } from '~/api/client';
-import type { Catalog } from '../../domain/catalog';
-import { collectionsInView } from '../../domain/catalog';
+import type { Catalog } from '../../campaign/catalog';
+import { collectionsInView } from '../../campaign/catalog';
 import { useLayoutStore } from '../../stores/layout';
-import {
-  defaultWindowItem,
-  fromGridLayout,
-  toGridLayout,
-  type LayoutItem,
-} from '../../canvas/grid';
+import { defaultWindowItem, fromGridLayout, toGridLayout, type LayoutItem } from '../grid';
 import { HiddenTray, type HiddenTrayItem } from './HiddenTray';
 
 const MIN_PER_ROW = 2;

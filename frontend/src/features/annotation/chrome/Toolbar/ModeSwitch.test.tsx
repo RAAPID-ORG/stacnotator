@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CampaignOutFull } from '~/api/client';
-import type { FormField } from '../../domain/annotation';
+import type { FormField } from '../../campaign/annotation';
 import { apiSuccess, makeAnnotation, makeCampaign } from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useCampaignStore } from '../../stores/campaign';

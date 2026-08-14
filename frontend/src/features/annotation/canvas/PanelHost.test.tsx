@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { PanelHost } from './PanelHost';
-import type { PanelDef } from '../panels';
+import type { PanelDef } from '../panels/panels';
 
 describe('PanelHost', () => {
   it('does not fire onHeaderClick when the header hide button is clicked', () => {

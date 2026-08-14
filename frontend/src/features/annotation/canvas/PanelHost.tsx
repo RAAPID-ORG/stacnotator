@@ -1,5 +1,5 @@
 import { forwardRef, type HTMLAttributes } from 'react';
-import type { PanelDef } from '../panels';
+import type { PanelDef } from '../panels/panels';
 
 /** react-grid-layout's `draggableHandle` / `draggableCancel` selectors: the
  *  header is the only drag surface, and interactive controls inside it never

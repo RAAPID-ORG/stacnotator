@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCatalog } from '../../domain/catalog';
+import { buildCatalog } from '../../campaign/catalog';
 import {
   makeCampaign,
   makeCollection,

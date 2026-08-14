@@ -1,4 +1,4 @@
-import { collectionsInView, type Catalog } from '../../../domain/catalog';
+import { collectionsInView, type Catalog } from '../../../campaign/catalog';
 import { useCampaignStore } from '../../../stores/campaign';
 import { useImageryStore } from '../../../stores/imagery';
 import { usePrefsStore } from '../../../stores/prefs';

@@ -1,4 +1,4 @@
-import type { StyleSpec } from '../../domain/labelStyle';
+import type { StyleSpec } from '../../campaign/labelStyle';
 import type { Bbox, FeatureLayerSpec, LonLat } from '../../map/types';
 
 export const VIEWPORT_RECT_LAYER_ID = 'minimap-viewport';

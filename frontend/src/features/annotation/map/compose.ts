@@ -4,15 +4,15 @@ import {
   sliceRaster,
   type Catalog,
   type ImageryNavState,
-} from '../domain/catalog';
-import { applyRenderOverride, type LegendOverride } from '../domain/renderConfig';
+} from '../campaign/catalog';
+import { applyRenderOverride, type LegendOverride } from '../campaign/renderConfig';
 import {
   resolveLabelStyle,
   toDraftStyleSpec,
   toStyleSpec,
   type LabelStyle,
-} from '../domain/labelStyle';
-import type { ExtendedLabel } from '../domain/annotation';
+} from '../campaign/labelStyle';
+import type { ExtendedLabel } from '../campaign/annotation';
 import type { WorkMode } from '../stores/campaign';
 import type { GeoFeature, LayerSpec, LonLat, StyleSpec } from './types';
 

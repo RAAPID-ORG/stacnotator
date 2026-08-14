@@ -1,7 +1,7 @@
 import { useCatalog } from '../../stores/campaign';
 import { useEffect, useRef } from 'react';
-import { sliceRaster, type Catalog, type SliceAddress } from '../../domain/catalog';
-import { addressAtSlice } from '../../domain/imageryNav';
+import { sliceRaster, type Catalog, type SliceAddress } from '../../campaign/catalog';
+import { addressAtSlice } from '../../campaign/imageryNav';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore, type PreloadTier } from '../../stores/prefs';
 import { mainCamera } from '../../map/camera';

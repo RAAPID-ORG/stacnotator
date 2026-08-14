@@ -1,5 +1,5 @@
 import type { AnnotationTaskOut } from '~/api/client';
-import { claimedByLabel, getActiveClaim } from '../../domain/tasks';
+import { claimedByLabel, getActiveClaim } from '../../campaign/tasks';
 import { useCurrentTask } from '../../stores/tasks';
 import { useCampaignStore } from '../../stores/campaign';
 

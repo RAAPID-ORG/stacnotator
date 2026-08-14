@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { IconChevronDownFilled } from '~/shared/ui/Icons';
-import { mainLayoutChanged, type WorkspaceLayout } from '../../canvas/grid';
+import { mainLayoutChanged, type WorkspaceLayout } from '../grid';
 
 export interface SaveDialogsProps {
   currentLayout: WorkspaceLayout;

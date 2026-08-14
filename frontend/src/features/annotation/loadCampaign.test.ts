@@ -11,13 +11,13 @@ import {
   makeView,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
-import { useLayoutStore } from './layout';
-import { EMPTY_LAYOUT } from '../canvas/grid';
-import { useImageryStore } from './imagery';
-import { useCampaignStore } from './campaign';
-import { usePrefsStore } from './prefs';
-import { useTasksStore } from './tasks';
-import { useWorkStore } from './work';
+import { useLayoutStore } from './stores/layout';
+import { EMPTY_LAYOUT } from './canvas/grid';
+import { useImageryStore } from './stores/imagery';
+import { useCampaignStore } from './stores/campaign';
+import { usePrefsStore } from './stores/prefs';
+import { useTasksStore } from './stores/tasks';
+import { useWorkStore } from './stores/work';
 
 vi.mock('~/api/client', async (importActual) => {
   const actual = await importActual<typeof import('~/api/client')>();
@@ -30,7 +30,7 @@ vi.mock('~/api/client', async (importActual) => {
 });
 
 import { getAllAnnotationTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
-import { loadCampaign } from './load';
+import { loadCampaign } from './loadCampaign';
 
 const source = makeSource({
   id: 1,

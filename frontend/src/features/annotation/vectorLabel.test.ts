@@ -11,7 +11,7 @@ vi.mock('~/api/client', async (importActual) => {
 
 import * as api from '~/api/client';
 import { annotationBody, dedupeHits, labelGeometries } from './drawing';
-import type { FormField, FormValues } from './domain/annotation';
+import type { FormField, FormValues } from './campaign/annotation';
 import type { BoxHit } from './map/types';
 import { useWorkStore } from './stores/work';
 import { apiSuccess, makeAnnotation, makeCampaign } from './testing/fixtures';

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
 import type { AnnotationTaskOut, CampaignOutFull } from '~/api/client';
-import { buildCatalog } from '../../domain/catalog';
+import { buildCatalog } from '../../campaign/catalog';
 import { makeCampaign, makeTask, makeTaskAnnotation } from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useCampaignStore } from '../../stores/campaign';

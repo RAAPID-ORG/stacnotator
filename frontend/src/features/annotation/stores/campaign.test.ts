@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildCatalog } from '../domain/catalog';
+import { buildCatalog } from '../campaign/catalog';
 import {
   makeCampaign,
   makeCollection,
@@ -9,8 +9,9 @@ import {
   makeViz,
 } from '~/features/annotation/testing/fixtures';
 import { useImageryStore } from './imagery';
-import { useCampaignStore } from './campaign';
+import { startCollectionFor, useCampaignStore } from './campaign';
 import { useLayoutStore } from './layout';
+import { usePrefsStore } from './prefs';
 import { EMPTY_LAYOUT } from '../canvas/grid';
 
 const layoutOut = (id: number, collectionIds: number[]) => ({
@@ -43,6 +44,7 @@ beforeEach(() => {
     view: null,
     taskStartCollectionId: null,
   });
+  usePrefsStore.setState({ pinnedStart: {} });
   useLayoutStore.setState({
     currentLayout: EMPTY_LAYOUT,
     savedLayout: EMPTY_LAYOUT,
@@ -78,8 +80,8 @@ describe('setWorkMode', () => {
 });
 
 describe('selectView', () => {
-  it('moves the selection and delegates the snapshot/restore to imagery.switchView', () => {
-    useCampaignStore.getState().selectView(makeView({ id: 1 }), 10);
+  it('opens the view on its start collection and hands the snapshot to imagery.switchView', () => {
+    useCampaignStore.getState().selectView(makeView({ id: 1, source_ids: [1] }));
     expect(useCampaignStore.getState().view?.id).toBe(1);
     expect(useCampaignStore.getState().taskStartCollectionId).toBe(10);
     expect(useImageryStore.getState().address).toEqual({
@@ -90,7 +92,7 @@ describe('selectView', () => {
     });
 
     useImageryStore.setState({ showBasemap: true });
-    useCampaignStore.getState().selectView(makeView({ id: 2 }), null);
+    useCampaignStore.getState().selectView(makeView({ id: 2 }));
     expect(useCampaignStore.getState().view?.id).toBe(2);
     expect(useCampaignStore.getState().taskStartCollectionId).toBeNull();
     expect(useImageryStore.getState().viewSnapshots[1]?.showBasemap).toBe(true);
@@ -104,13 +106,46 @@ describe('selectView', () => {
     });
     const second = makeView({ id: 2, default_canvas_layout: layoutOut(2, [20, 30]) });
 
-    useCampaignStore.getState().selectView(first, 10);
+    useCampaignStore.getState().selectView(first);
     expect(Object.keys(useLayoutStore.getState().currentLayout.windows)).toEqual(['10']);
 
-    useCampaignStore.getState().selectView(second, null);
+    useCampaignStore.getState().selectView(second);
     expect(Object.keys(useLayoutStore.getState().currentLayout.windows)).toEqual(['20', '30']);
 
-    useCampaignStore.getState().selectView(first, 10);
+    useCampaignStore.getState().selectView(first);
     expect(Object.keys(useLayoutStore.getState().currentLayout.windows)).toEqual(['10']);
+  });
+});
+
+describe('startCollectionFor', () => {
+  const dated = (id: number, start: string) =>
+    makeCollection({ id, name: `C${id}`, slices: [makeSlice({ id: id * 10, start_date: start })] });
+  const catalog = buildCatalog(
+    makeCampaign({
+      imagery_sources: [
+        makeSource({
+          id: 1,
+          visualizations: [makeViz({ id: 1 })],
+          collections: [dated(30, '2024-03-01'), dated(10, '2024-01-01'), dated(20, '2024-02-01')],
+        }),
+      ],
+    })
+  );
+  const view = makeView({ id: 7, source_ids: [1] });
+  const window = { i: '', x: 0, y: 0, w: 10, h: 9 };
+
+  it('takes the chronologically first collection when none has a window', () => {
+    expect(startCollectionFor(catalog, view, {})).toBe(10);
+  });
+
+  it('prefers a windowed collection over an earlier one without a window', () => {
+    expect(startCollectionFor(catalog, view, { 20: window })).toBe(20);
+  });
+
+  it('honours a pinned start that is still in the pool', () => {
+    usePrefsStore.getState().setPinnedStart(7, 30);
+    expect(startCollectionFor(catalog, view, {})).toBe(30);
+    // Pinned to a collection the windows exclude: the pin does not apply.
+    expect(startCollectionFor(catalog, view, { 20: window })).toBe(20);
   });
 });

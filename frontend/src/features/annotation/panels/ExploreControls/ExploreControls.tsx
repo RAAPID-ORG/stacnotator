@@ -5,8 +5,8 @@ import {
   isLabelGroupActive,
   type ExtendedLabel,
   type GeometryType,
-} from '../../domain/annotation';
-import { resolveLabelStyle } from '../../domain/labelStyle';
+} from '../../campaign/annotation';
+import { resolveLabelStyle } from '../../campaign/labelStyle';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';
 import { useCampaign } from '../../stores/campaign';
