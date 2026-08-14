@@ -8,6 +8,9 @@ import os
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
+import pytest
+from pydantic import ValidationError
+
 from src.config import Settings
 
 # Keys that pydantic-settings may pick up from the real environment
@@ -99,9 +102,15 @@ class TestCORSOrigins:
         assert "http://localhost:3000" in origins
         assert "http://localhost:5173" in origins
 
-    def test_production_wildcard(self):
-        s = _make_settings_from_env({"CORS_ORIGINS": "*"})
-        assert s.CORS_ORIGINS == ["*"]
+    def test_wildcard_is_rejected(self):
+        # With allow_credentials, Starlette answers a wildcard by echoing the
+        # caller's own Origin, so "*" is authenticated access for every site.
+        with pytest.raises(ValidationError):
+            _make_settings_from_env({"CORS_ORIGINS": "*"})
+
+    def test_wildcard_is_rejected_among_explicit_origins(self):
+        with pytest.raises(ValidationError):
+            _make_settings_from_env({"CORS_ORIGINS": "https://app.example.com,*"})
 
     def test_production_explicit_domain(self):
         s = _make_settings_from_env({"CORS_ORIGINS": "https://myapp.azurewebsites.net"})

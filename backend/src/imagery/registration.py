@@ -645,8 +645,8 @@ def refresh_collection_imagery(
     collection = load_refreshable_collection(db, collection_id, campaign_id)
     stac = collection.stac_config
     # load_refreshable_collection already raised if any of this were falsy.
-    assert stac is not None
-    assert stac.catalog_url and stac.stac_collection_id
+    assert stac is not None  # noqa: S101
+    assert stac.catalog_url and stac.stac_collection_id  # noqa: S101
     slices = (
         db.execute(
             select(ImagerySlice)

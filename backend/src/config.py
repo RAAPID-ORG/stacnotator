@@ -9,6 +9,28 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEFAULT_CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
 
+# Placeholders that let a fresh checkout boot without any secret material. Production
+# refuses to start on either (see _validate_production_config), which only works while
+# the guard and the default are the same string - so they are named here once and both
+# sides read the name.
+DEV_TILER_TOKEN_SECRET = "dev-tiler-secret-change-in-production"  # noqa: S105
+DEV_APIKEY_ENCRYPTION_SECRET = "dev-apikey-secret-change-in-production"  # noqa: S105
+
+
+def _parse_origins(v: str | list[str]) -> list[str]:
+    """CORS_ORIGINS as a JSON array, a comma-separated string, or already a list."""
+    if isinstance(v, list):
+        return v
+    if not v.strip():
+        return _DEFAULT_CORS_ORIGINS
+    try:
+        parsed = json.loads(v)
+        if isinstance(parsed, list):
+            return parsed
+    except (json.JSONDecodeError, ValueError):
+        pass
+    return [origin.strip() for origin in v.split(",") if origin.strip()]
+
 
 class TilerCfg(BaseModel):
     """A titiler-pgstac tiler endpoint.
@@ -71,7 +93,11 @@ class Settings(BaseSettings):
     # multi-MB, multi-hundred-ms query). Keeps low-zoom panning cheap and bounded.
     ANNOTATION_TILE_MIN_ZOOM: int = 11
 
-    ENVIRONMENT: str = "development"  # "development" | "production"
+    # Every hardening decision keys off this - docs are hidden, dev-default secrets are
+    # rejected, AUTH_PROVIDER=local is refused - and each of those tests for "production"
+    # exactly. A typo like "prod" would silently turn all of them off, so the set is closed
+    # and an unrecognised value fails startup.
+    ENVIRONMENT: Literal["development", "testing", "production"] = "development"
 
     AUTH_PROVIDER: str = "firebase"
 
@@ -84,12 +110,24 @@ class Settings(BaseSettings):
         default="http://localhost:3000,http://localhost:5173", validation_alias="CORS_ORIGINS"
     )
 
+    @field_validator("cors_origins_raw", mode="after")
+    @classmethod
+    def _reject_wildcard_origin(cls, v: str | list[str]) -> str | list[str]:
+        # Every browser call carries credentials, and Starlette answers a wildcard
+        # allow-list by echoing back whichever Origin asked while still sending
+        # Access-Control-Allow-Credentials - so "*" hands any site on the internet
+        # authenticated access. There is no environment where it is the right value,
+        # so it is rejected at startup rather than left to differ between dev and prod.
+        if "*" in _parse_origins(v):
+            raise ValueError("CORS_ORIGINS must list explicit origins; '*' is not allowed")
+        return v
+
     # Shared secret for signing tiler access tokens (HS256 JWT). Must match the tilers.
-    TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
+    TILER_TOKEN_SECRET: str = DEV_TILER_TOKEN_SECRET
 
     # AES-256-GCM master key for encrypting imagery provider API keys at rest (base64 of 32 bytes).
     # On Azure this App Setting is a Key Vault reference so the real key lives in Key Vault.
-    APIKEY_ENCRYPTION_SECRET: str = "dev-apikey-secret-change-in-production"
+    APIKEY_ENCRYPTION_SECRET: str = DEV_APIKEY_ENCRYPTION_SECRET
 
     # tiler_token cookie attributes. For sibling-subdomain deployments set
     # TILER_COOKIE_DOMAIN=".example.com" so the cookie reaches the tiler subdomains.
@@ -124,20 +162,7 @@ class Settings(BaseSettings):
 
     @property
     def CORS_ORIGINS(self) -> list[str]:
-        """Parse CORS origins from various formats."""
-        v = self.cors_origins_raw
-        if isinstance(v, list):
-            return v
-        if not v.strip():
-            return _DEFAULT_CORS_ORIGINS
-        # Try to parse as JSON first, else fall back to a comma-separated string.
-        try:
-            parsed = json.loads(v)
-            if isinstance(parsed, list):
-                return parsed
-        except (json.JSONDecodeError, ValueError):
-            pass
-        return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return _parse_origins(self.cors_origins_raw)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

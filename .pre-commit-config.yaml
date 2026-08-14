@@ -18,15 +18,25 @@ repos:
     hooks:
       - id: gitleaks
 
-  # Backend: Python
+  # GitHub Actions: workflow security
+  # The deploy workflow runs on a self-hosted runner with `secrets: inherit` and an
+  # OIDC token, so a template-injection or an unpinned action is a credential leak.
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.10.0
+    hooks:
+      - id: zizmor
+
+  # Backend + SDK: Python
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.9
     hooks:
+      # src + tests of both packages. Not sdk/examples: the demo notebooks are
+      # prose, and rewriting them on every commit is churn with nothing to catch.
       - id: ruff
         args: ["--fix"]
-        files: ^backend/
+        files: ^(backend|sdk)/(src|tests)/
       - id: ruff-format
-        files: ^backend/
+        files: ^(backend|sdk)/(src|tests)/
 
   # Frontend: TypeScript
   - repo: local

@@ -48,6 +48,8 @@ def build_mvt_query(z: int, x: int, y: int, campaign_id: int) -> tuple[str, dict
     ``ST_AsMVTGeom``.
     """
     validate_tile_coords(z, x, y)
+    # S608: the only interpolation is the module constant declared above.
+    # Every caller-supplied value in this statement is bound.
     sql = f"""
         WITH bounds AS (
             SELECT ST_TileEnvelope(:z, :x, :y) AS env_3857
@@ -64,6 +66,6 @@ def build_mvt_query(z: int, x: int, y: int, campaign_id: int) -> tuple[str, dict
             WHERE a.campaign_id = :campaign_id
               AND g.geometry && ST_Transform(bounds.env_3857, 4326)
         ) AS mvt
-    """
+    """  # noqa: S608
     params = {"z": z, "x": x, "y": y, "campaign_id": campaign_id}
     return sql, params

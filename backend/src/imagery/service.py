@@ -100,7 +100,7 @@ def _registration_spec(
     """Snapshot the plain fields `_register_all_stac_browser_collections` needs
     for one collection, decoupling the deferred registration from the ORM
     objects and request session that produced it."""
-    assert col_create.stac_config is not None
+    assert col_create.stac_config is not None  # noqa: S101
     return RegistrationSpec(
         collection_id=collection.id,
         collection_name=collection.name,

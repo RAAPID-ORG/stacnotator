@@ -17,6 +17,24 @@ on:
         description: Argument passed to deploy.sh (prod or dev)
         required: true
         type: string
+    secrets:
+      # Declared rather than inherited: this workflow holds the only credentials
+      # that can change a deployed environment, so what reaches it is a list you
+      # can read, not whatever the caller happens to hold.
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+      AZURE_RESOURCE_GROUP:
+        required: true
+      TILER_REPO_TOKEN:
+        required: true
+      EE_SERVICE_ACCOUNT:
+        required: false
+      CUSTOM_DOMAINS:
+        required: false
 
 jobs:
   deploy:
@@ -28,19 +46,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       # The tiler is its own repo; check it out so deploy.sh can build and deploy it.
       - name: Check out tiler repo
         uses: actions/checkout@v4
         with:
+          persist-credentials: false
           repository: RAAPID-ORG/stacnotator-tiler
           ref: ${{ vars.TILER_REPO_REF || 'main' }}
           token: ${{ secrets.TILER_REPO_TOKEN }}
           path: stacnotator-tiler
 
       - name: Azure Login via OIDC
-        uses: azure/login@v2
+        uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -62,4 +82,5 @@ jobs:
           PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
           EXTRA_TILERS: ${{ vars.EXTRA_TILERS }}
           TILER_AZURE_SIGNING: ${{ vars.TILER_AZURE_SIGNING }}
-        run: ./deployment/azure/deploy.sh ${{ inputs.deploy-env }}
+          DEPLOY_ENV: ${{ inputs.deploy-env }}
+        run: ./deployment/azure/deploy.sh "$DEPLOY_ENV"

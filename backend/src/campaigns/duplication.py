@@ -156,7 +156,7 @@ def duplicate_campaign(
     def cloned_geometry_id(old_id: int) -> int:
         if old_id not in geometry_map:
             geometry = db.get(AnnotationGeometry, old_id)
-            assert geometry is not None  # NOT NULL FK on every referrer
+            assert geometry is not None  # noqa: S101 - NOT NULL FK on every referrer
             new_geometry = AnnotationGeometry(geometry=geometry.geometry)
             db.add(new_geometry)
             db.flush()

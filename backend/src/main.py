@@ -18,7 +18,11 @@ from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
 from src.background import fail_stale_status_runs
 from src.campaigns.router import router as campaigns_router
-from src.config import get_settings
+from src.config import (
+    DEV_APIKEY_ENCRYPTION_SECRET,
+    DEV_TILER_TOKEN_SECRET,
+    get_settings,
+)
 from src.custom_layers.router import router as custom_layers_router
 from src.database import SessionLocal
 from src.earth_engine import initialize_earth_engine
@@ -51,9 +55,9 @@ def _validate_production_config() -> None:
     s = get_settings()
     if s.ENVIRONMENT != "production":
         return
-    if s.TILER_TOKEN_SECRET == "dev-tiler-secret-change-in-production":
+    if s.TILER_TOKEN_SECRET == DEV_TILER_TOKEN_SECRET:
         raise RuntimeError("TILER_TOKEN_SECRET must be changed from the dev default in production")
-    if s.APIKEY_ENCRYPTION_SECRET == "dev-apikey-secret-change-in-production":
+    if s.APIKEY_ENCRYPTION_SECRET == DEV_APIKEY_ENCRYPTION_SECRET:
         raise RuntimeError(
             "APIKEY_ENCRYPTION_SECRET must be changed from the dev default in production"
         )

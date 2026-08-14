@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
+from src.campaigns.models import Campaign
 from src.database import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -46,11 +47,24 @@ STALE_AFTER_SECONDS = 180.0
 @dataclass(frozen=True)
 class StatusField:
     """One kind of background run: its column pair on data.campaigns and the
-    registration_errors entry written when a dead run is swept."""
+    registration_errors entry written when a dead run is swept.
+
+    Column names cannot be bound as query parameters, so this module's statements
+    interpolate them. Construction therefore checks both names against the real
+    campaigns table: a StatusField that could carry anything else into SQL simply
+    cannot be built. Every instance is a module-level constant, so a bad name is a
+    startup failure rather than something a background thread discovers at 3am.
+    """
 
     status_column: str
     heartbeat_column: str
     interrupted_error: str
+
+    def __post_init__(self) -> None:
+        columns = Campaign.__table__.columns.keys()
+        for name in (self.status_column, self.heartbeat_column):
+            if name not in columns:
+                raise ValueError(f"{name!r} is not a column on data.campaigns")
 
 
 def begin_status_run(campaign, field: StatusField) -> None:

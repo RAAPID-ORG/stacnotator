@@ -190,11 +190,23 @@ def find_nearest_labeled_embeddings(
 
 def get_embedding_by_task(
     db: Session,
+    campaign_id: int,
     annotation_task_id: int,
 ) -> EmbeddingRow | None:
-    """Return the embedding row for a given task, or None."""
+    """Return the embedding row for a task of this campaign, or None.
+
+    The task id reaches this module straight off the URL, and the route's gate
+    only proves the caller may see ``campaign_id`` - not that the task belongs to
+    it. Taking the campaign as an argument is what keeps the pair checked here
+    rather than assumed from the caller, as every other query in this module does.
+    """
     return db.scalars(
-        select(EmbeddingRow).where(EmbeddingRow.annotation_task_id == annotation_task_id)
+        select(EmbeddingRow)
+        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
+        .where(
+            EmbeddingRow.annotation_task_id == annotation_task_id,
+            AnnotationTask.campaign_id == campaign_id,
+        )
     ).first()
 
 
@@ -322,7 +334,7 @@ def validate_label_submission(
     distinguish between a genuine mismatch and a skip due to missing data.
     """
 
-    embedding = get_embedding_by_task(db, annotation_task_id)
+    embedding = get_embedding_by_task(db, campaign_id, annotation_task_id)
     if not embedding:
         return ValidateLabelSubmissionsResponse(
             status="skipped_no_embedding",
