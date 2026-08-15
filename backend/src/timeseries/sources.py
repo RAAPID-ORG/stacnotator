@@ -80,6 +80,7 @@ def _modis_collection(start_date: str, end_date: str, point: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 _S2_BANDS: dict[BandRole, str] = {
+    "blue": "B2",
     "green": "B3",
     "red": "B4",
     "rededge1": "B5",
@@ -129,6 +130,7 @@ def _sentinel2_collection(start_date: str, end_date: str, point: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 _LANDSAT_TM_BANDS: dict[BandRole, str] = {
+    "blue": "SR_B1",
     "green": "SR_B2",
     "red": "SR_B3",
     "nir": "SR_B4",
@@ -136,6 +138,7 @@ _LANDSAT_TM_BANDS: dict[BandRole, str] = {
     "swir2": "SR_B7",
 }
 _LANDSAT_OLI_BANDS: dict[BandRole, str] = {
+    "blue": "SR_B2",
     "green": "SR_B3",
     "red": "SR_B4",
     "nir": "SR_B5",

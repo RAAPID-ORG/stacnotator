@@ -30,8 +30,9 @@ import {
   formatDateForTooltip,
   getOptimalMonthLabels,
   parseSeriesDate,
+  axisIdFor,
   referenceLinePlugin,
-  seriesAxis,
+  seriesAxes,
   setSliceMarker,
   sliceMarkerFor,
   sliceMarkerPlugin,
@@ -132,6 +133,20 @@ export function Chart({ series, points }: ChartProps) {
     setHiddenDatasets(new Set());
   }, [pointsKey]);
 
+  const axes = useMemo(() => seriesAxes(series.map((s) => s.index)), [series]);
+
+  // An axis carrying one index takes that series' colour, which is what ties a
+  // line to the scale it is read against; a shared axis stays neutral rather
+  // than claiming one of its series' colours.
+  const axisColor = useCallback(
+    (axisId: string) => {
+      const owned = series.findIndex((ts) => axisIdFor(axes, ts.index) === axisId);
+      const single = axes.find((a) => a.id === axisId)?.indexKeys.length === 1;
+      return single && owned >= 0 ? COLORS[owned % COLORS.length] : '#a3a3a3';
+    },
+    [axes, series]
+  );
+
   const chartData = useMemo(() => {
     // x-axis labels from this chart's own series, so a 2022 window and a
     // 2018 window each span just the years they cover instead of a shared axis.
@@ -166,6 +181,7 @@ export function Chart({ series, points }: ChartProps) {
 
       return {
         label: `${ts.name}${point.label}`,
+        yAxisID: axisIdFor(axes, ts.index),
         borderDash: point.probeIndex === null ? [] : SERIES_DASHES[index % SERIES_DASHES.length],
         data: finalData,
         borderColor: color,
@@ -197,7 +213,7 @@ export function Chart({ series, points }: ChartProps) {
     );
 
     return { labels, datasets, monthLabels };
-  }, [series, points, removeCloudy, showDots, smoothEnabled, smoothing, hiddenDatasets]);
+  }, [series, points, removeCloudy, showDots, smoothEnabled, smoothing, hiddenDatasets, axes]);
 
   // Resolve the slice currently shown on the map so its date range can be
   // highlighted on the chart. Selecting the slice itself, rather than the
@@ -241,8 +257,6 @@ export function Chart({ series, points }: ChartProps) {
     setIsZoomed(chart.isZoomedOrPanned());
   }, []);
 
-  const axis = useMemo(() => seriesAxis(series.map((s) => s.index)), [series]);
-
   // Memoized so its identity stays stable across re-renders that don't
   // actually change anything it reads - react-driven chart.js updates run a
   // full reprocessing pass whenever the options object changes.
@@ -258,7 +272,7 @@ export function Chart({ series, points }: ChartProps) {
       animation: { duration: 400, easing: 'easeInOutQuart' },
       plugins: {
         legend: { display: false },
-        referenceLines: { values: axis.referenceLines },
+        referenceLines: { values: axes[0].referenceLines, axisId: axes[0].id },
         tooltip: {
           callbacks: {
             title: (items) => {
@@ -292,19 +306,36 @@ export function Chart({ series, points }: ChartProps) {
           },
           grid: { display: false },
         },
-        y: {
-          min: axis.min,
-          max: axis.max,
-          ticks: { font: { size: 8 }, maxTicksLimit: 5 },
-          grid: { color: '#e5e5e5' },
-        },
+        ...Object.fromEntries(
+          axes.map((axis) => [
+            axis.id,
+            {
+              position: axis.position,
+              min: axis.min,
+              max: axis.max,
+              ticks: { font: { size: 8 }, maxTicksLimit: 5, color: axisColor(axis.id) },
+              title:
+                axes.length > 1
+                  ? {
+                      display: true,
+                      text: axis.indexKeys.join(', '),
+                      font: { size: 9 },
+                      color: axisColor(axis.id),
+                    }
+                  : undefined,
+              // Only the left axis draws gridlines, so a second scale does not
+              // lay a second set of lines over the same plot.
+              grid: { color: '#e5e5e5', drawOnChartArea: axis.position === 'left' },
+            },
+          ])
+        ),
       },
       elements: {
         point: { radius: 0 },
         line: { borderWidth: 1.5 },
       },
     };
-  }, [handleChartClick, catalog, chartData, handleZoomOrPanComplete, axis]);
+  }, [handleChartClick, catalog, chartData, handleZoomOrPanComplete, axes, axisColor]);
 
   // Create the chart.js instance once; destroy it on unmount.
   useEffect(() => {

@@ -559,10 +559,7 @@ export const MOCK_TIMESERIES_ENTRY = {
   index: {
     key: 'NDVI',
     label: 'NDVI',
-    summary: 'Contrast between near-infrared and red reflectance.',
-    good_for: 'General land cover and vegetation seasonality.',
-    caution: 'Saturates over dense canopy.',
-    citation: 'Rouse et al., 1974',
+    formula: '(NIR - Red) / (NIR + Red)',
     domain_min: -0.2,
     domain_max: 1.0,
     reference_lines: [0.25, 0.75],
@@ -766,10 +763,7 @@ export const MONTHS_TIMESERIES_ENTRY = {
   index: {
     key: 'NDVI',
     label: 'NDVI',
-    summary: 'Contrast between near-infrared and red reflectance.',
-    good_for: 'General land cover and vegetation seasonality.',
-    caution: 'Saturates over dense canopy.',
-    citation: 'Rouse et al., 1974',
+    formula: '(NIR - Red) / (NIR + Red)',
     domain_min: -0.2,
     domain_max: 1.0,
     reference_lines: [0.25, 0.75],

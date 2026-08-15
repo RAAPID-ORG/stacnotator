@@ -104,7 +104,7 @@ class TestOutputCarriesTheIndexDescription:
         )
         assert out.index is not None
         assert (out.index.domain_min, out.index.domain_max) == (0.0, 10.0)
-        assert out.index.summary
+        assert out.index.formula == "NIR / Green - 1"
 
     def test_an_unrecognised_stored_index_lists_instead_of_failing(self):
         out = TimeSeriesOut(

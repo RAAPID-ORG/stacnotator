@@ -4,7 +4,8 @@ import {
   formatDateForTooltip,
   parseSeriesDate,
   getOptimalMonthLabels,
-  seriesAxis,
+  axisIdFor,
+  seriesAxes,
   setSliceMarker,
   sliceMarkerFor,
 } from './chartData';
@@ -140,46 +141,96 @@ describe('getOptimalMonthLabels', () => {
   });
 });
 
-describe('seriesAxis', () => {
+describe('seriesAxes', () => {
   const index = (key: string, min: number, max: number, lines: number[] = []) => ({
     key,
     label: key,
-    summary: '',
-    good_for: '',
-    caution: '',
-    citation: '',
+    formula: '',
     domain_min: min,
     domain_max: max,
     reference_lines: lines,
   });
 
+  const NDVI = index('NDVI', -0.2, 1, [0.25, 0.75]);
+  const EVI2 = index('EVI2', -0.2, 1, [0.25, 0.75]);
+  const GCVI = index('GCVI', 0, 10, [2, 6]);
+  const MNDWI = index('MNDWI', -1, 1, [0]);
+  const TCW = index('TCW', -0.5, 0.2, [0]);
+
   it('uses the index domain rather than a fixed 0-1 axis', () => {
-    expect(seriesAxis([index('GCVI', 0, 10, [2, 6])])).toEqual({
-      min: 0,
-      max: 10,
-      referenceLines: [2, 6],
-    });
+    expect(seriesAxes([GCVI])).toEqual([
+      { id: 'y', position: 'left', min: 0, max: 10, indexKeys: ['GCVI'], referenceLines: [2, 6] },
+    ]);
   });
 
-  it('spans every domain when one window mixes indices', () => {
-    const axis = seriesAxis([index('NDVI', -0.2, 1), index('GCVI', 0, 10)]);
-    expect([axis.min, axis.max]).toEqual([-0.2, 10]);
+  it('keeps indices that share a range on one axis', () => {
+    const axes = seriesAxes([NDVI, EVI2]);
+    expect(axes).toHaveLength(1);
+    expect(axes[0].indexKeys).toEqual(['NDVI', 'EVI2']);
   });
 
-  it('drops reference lines when the series do not share an index', () => {
-    // A threshold that means "water" for MNDWI means nothing plotted against NDVI.
-    expect(
-      seriesAxis([index('MNDWI', -1, 1, [0]), index('NDVI', -0.2, 1, [0.25])]).referenceLines
-    ).toEqual([]);
+  it('gives a differently scaled index its own axis on the right', () => {
+    // Squeezing NDVI onto a 0-10 axis would flatten it into a line.
+    const axes = seriesAxes([NDVI, GCVI]);
+    expect(axes.map((a) => [a.id, a.position, a.indexKeys])).toEqual([
+      ['y', 'left', ['NDVI']],
+      ['y2', 'right', ['GCVI']],
+    ]);
+    expect([axes[0].min, axes[0].max]).toEqual([-0.2, 1]);
+    expect([axes[1].min, axes[1].max]).toEqual([0, 10]);
+  });
+
+  it('keeps the first series on the left whichever scale it has', () => {
+    const axes = seriesAxes([GCVI, NDVI]);
+    expect(axes[0].indexKeys).toEqual(['GCVI']);
+    expect(axes[1].indexKeys).toEqual(['NDVI']);
+  });
+
+  it('splits more than two ranges at the biggest jump in scale', () => {
+    // TCW, NDVI and MNDWI all sit within a couple of units; GCVI is the outlier,
+    // so it is the only one moved across rather than an arbitrary pair.
+    const axes = seriesAxes([NDVI, TCW, GCVI, MNDWI]);
+    expect(axes).toHaveLength(2);
+    expect(axes[0].indexKeys.sort()).toEqual(['MNDWI', 'NDVI', 'TCW']);
+    expect(axes[1].indexKeys).toEqual(['GCVI']);
+    expect([axes[0].min, axes[0].max]).toEqual([-1, 1]);
+  });
+
+  it('drops reference lines from an axis carrying more than one index', () => {
+    // A threshold that means "water" for MNDWI means nothing against NDVI.
+    expect(seriesAxes([NDVI, MNDWI])[0].referenceLines).toEqual([]);
   });
 
   it('keeps the reference lines when several series plot the same index', () => {
-    expect(
-      seriesAxis([index('NDVI', -0.2, 1, [0.25]), index('NDVI', -0.2, 1, [0.25])]).referenceLines
-    ).toEqual([0.25]);
+    expect(seriesAxes([NDVI, NDVI])[0].referenceLines).toEqual([0.25, 0.75]);
   });
 
-  it('falls back to the fixed axis when no index is recognised', () => {
-    expect(seriesAxis([null, undefined])).toEqual({ min: 0, max: 1, referenceLines: [] });
+  it('falls back to a single fixed axis when no index is recognised', () => {
+    expect(seriesAxes([null, undefined])).toEqual([
+      { id: 'y', position: 'left', min: 0, max: 1, indexKeys: [], referenceLines: [] },
+    ]);
+  });
+});
+
+describe('axisIdFor', () => {
+  const index = (key: string, min: number, max: number) => ({
+    key,
+    label: key,
+    formula: '',
+    domain_min: min,
+    domain_max: max,
+    reference_lines: [],
+  });
+
+  it('sends each series to the axis carrying its index', () => {
+    const ndvi = index('NDVI', -0.2, 1);
+    const gcvi = index('GCVI', 0, 10);
+    const axes = seriesAxes([ndvi, gcvi]);
+    expect(axisIdFor(axes, ndvi)).toBe('y');
+    expect(axisIdFor(axes, gcvi)).toBe('y2');
+  });
+
+  it('puts an unrecognised series on the left axis', () => {
+    expect(axisIdFor(seriesAxes([index('NDVI', -0.2, 1)]), null)).toBe('y');
   });
 });

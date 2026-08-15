@@ -5,7 +5,7 @@ import type { TimeSeriesData } from './cache';
 declare module 'chart.js' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required to match chart.js' own signature
   interface PluginOptionsByType<TType extends ChartType> {
-    referenceLines?: { values: number[] };
+    referenceLines?: { values: number[]; axisId: string };
   }
 }
 
@@ -270,28 +270,104 @@ export const sliceMarkerPlugin: Plugin<'line'> = {
   },
 };
 
-/** The y-axis a chart of these series needs.
- *
- *  One window can hold series plotting different indices, and those do not
- *  share a range - NDVI tops out at 1 while GCVI runs to 10 - so the axis spans
- *  every domain present. Reference lines are only drawn when every series plots
- *  the same index, since a threshold that means "water" for one index means
- *  nothing for another. Series whose index the client doesn't recognise fall
- *  back to the old fixed 0-1 axis. */
-export function seriesAxis(indices: (SpectralIndexOut | null | undefined)[]): {
+export interface ChartAxis {
+  /** chart.js scale id; datasets point at it through `yAxisID`. */
+  id: 'y' | 'y2';
+  position: 'left' | 'right';
   min: number;
   max: number;
+  /** The indices this axis carries, for its title. */
+  indexKeys: string[];
   referenceLines: number[];
-} {
-  const known = indices.filter((index): index is SpectralIndexOut => !!index);
-  if (known.length === 0) return { min: 0, max: 1, referenceLines: [] };
+}
 
-  const sharesOneIndex = new Set(known.map((index) => index.key)).size === 1;
+const FALLBACK_AXIS: ChartAxis = {
+  id: 'y',
+  position: 'left',
+  min: 0,
+  max: 1,
+  indexKeys: [],
+  referenceLines: [],
+};
+
+function axisOver(
+  id: ChartAxis['id'],
+  position: ChartAxis['position'],
+  members: SpectralIndexOut[]
+): ChartAxis {
+  const indexKeys = Array.from(new Set(members.map((index) => index.key)));
   return {
-    min: Math.min(...known.map((index) => index.domain_min)),
-    max: Math.max(...known.map((index) => index.domain_max)),
-    referenceLines: sharesOneIndex ? known[0].reference_lines : [],
+    id,
+    position,
+    min: Math.min(...members.map((index) => index.domain_min)),
+    max: Math.max(...members.map((index) => index.domain_max)),
+    indexKeys,
+    // A threshold that means "water" for MNDWI means nothing against NDVI, so
+    // the lines only survive while the axis carries a single index.
+    referenceLines: indexKeys.length === 1 ? members[0].reference_lines : [],
   };
+}
+
+/** How far apart two ranges must be before a second axis is worth its clutter.
+ *  NDVI and MNDWI differ but read fine together; GCVI against either does not. */
+const SEPARATE_AXIS_RATIO = 3;
+
+/** The y-axes a chart of these series needs, at most two.
+ *
+ *  One window can hold indices that do not share a range - NDVI tops out at 1
+ *  while GCVI runs to 10 - and squeezing those onto one axis flattens the
+ *  smaller one into a flat line. A second axis is only worth the clutter when
+ *  the ranges really are of different size, so indices within
+ *  `SEPARATE_AXIS_RATIO` of each other stay together.
+ *
+ *  There is nowhere to put a third scale, which is the common case once a
+ *  window holds several indices. Rather than pick two arbitrarily, the ranges
+ *  are sorted by size and split at their largest jump: indices of similar scale
+ *  stay grouped and only the genuine outlier moves across, with each axis
+ *  spanning everything assigned to it. The chart's first series keeps the
+ *  left-hand axis. Series whose index the client does not recognise fall back
+ *  to a single fixed 0-1 axis. */
+export function seriesAxes(indices: (SpectralIndexOut | null | undefined)[]): ChartAxis[] {
+  const known = indices.filter((index): index is SpectralIndexOut => !!index);
+  if (known.length === 0) return [FALLBACK_AXIS];
+
+  const byDomain = new Map<string, SpectralIndexOut[]>();
+  for (const index of known) {
+    const domain = `${index.domain_min}:${index.domain_max}`;
+    byDomain.set(domain, [...(byDomain.get(domain) ?? []), index]);
+  }
+
+  const domains = Array.from(byDomain.values());
+  const span = (group: SpectralIndexOut[]) => group[0].domain_max - group[0].domain_min;
+  const bySpan = [...domains].sort((a, b) => span(a) - span(b));
+
+  const widest = span(bySpan[bySpan.length - 1]);
+  const narrowest = span(bySpan[0]);
+  if (widest / narrowest <= SEPARATE_AXIS_RATIO) return [axisOver('y', 'left', known)];
+
+  // Split where the ranges grow the most, comparing by ratio so the break lands
+  // on the change in magnitude rather than on the largest absolute range.
+  let splitAt = 1;
+  let widestJump = -Infinity;
+  for (let i = 1; i < bySpan.length; i++) {
+    const jump = span(bySpan[i]) / span(bySpan[i - 1]);
+    if (jump > widestJump) {
+      widestJump = jump;
+      splitAt = i;
+    }
+  }
+
+  let [near, far] = [bySpan.slice(0, splitAt).flat(), bySpan.slice(splitAt).flat()];
+  if (!near.some((index) => index.key === known[0].key)) [near, far] = [far, near];
+  return [axisOver('y', 'left', near), axisOver('y2', 'right', far)];
+}
+
+/** Which axis a series belongs on; the left one for anything unrecognised. */
+export function axisIdFor(
+  axes: ChartAxis[],
+  index: SpectralIndexOut | null | undefined
+): 'y' | 'y2' {
+  return axes.find((axis) => !!index && axis.indexKeys.includes(index.key))?.id ?? axes[0].id;
 }
 
 /** Muted horizontal lines at the values an index calls out, styled to match the
@@ -299,10 +375,10 @@ export function seriesAxis(indices: (SpectralIndexOut | null | undefined)[]): {
  *  chart marks the thresholds that mean something for what it plots. */
 export const referenceLinePlugin: Plugin<'line'> = {
   id: 'referenceLines',
-  defaults: { values: [] as number[] },
-  beforeDatasetsDraw(chart, _args, options: { values?: number[] }) {
+  defaults: { values: [] as number[], axisId: 'y' },
+  beforeDatasetsDraw(chart, _args, options: { values?: number[]; axisId?: string }) {
     const values = options?.values ?? [];
-    const yScale = chart.scales.y;
+    const yScale = chart.scales[options?.axisId ?? 'y'];
     if (values.length === 0 || !yScale) return;
     const { ctx, chartArea } = chart;
     if (!chartArea) return;

@@ -7,7 +7,7 @@ values, with no Earth Engine anywhere.
 
 import pytest
 
-from src.timeseries.indices import INDICES, INDICES_BY_KEY, index_for
+from src.timeseries.indices import INDICES, INDICES_BY_KEY, index_for, render_formula
 from src.timeseries.sources import (
     _LANDSAT_OFFSET,
     _LANDSAT_OLI_BANDS,
@@ -26,6 +26,7 @@ from src.timeseries.sources import (
 
 # A healthy vegetated pixel, in surface reflectance.
 VEGETATION = {
+    "blue": 0.02,
     "green": 0.05,
     "red": 0.04,
     "rededge1": 0.12,
@@ -35,8 +36,9 @@ VEGETATION = {
     "swir2": 0.10,
 }
 
-# Open water: high green, near-zero NIR and SWIR.
+# Open water: high visible, near-zero NIR and SWIR.
 WATER = {
+    "blue": 0.08,
     "green": 0.09,
     "red": 0.06,
     "rededge1": 0.04,
@@ -61,10 +63,35 @@ def evaluate(key: str, bands: dict) -> float:
         ("NBR", 0.30 / 0.50),
         ("MNDWI", -0.15 / 0.25),
         ("NDRE", 0.30 / 0.54),
+        ("TCW", -0.110307),
     ],
 )
 def test_formula_matches_hand_computed_value(key, expected):
     assert evaluate(key, VEGETATION) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("NDVI", "(NIR - Red) / (NIR + Red)"),
+        ("EVI2", "2.5 * (NIR - Red) / (NIR + 2.4 * Red + 1)"),
+        ("GCVI", "NIR / Green - 1"),
+        ("NDMI", "(NIR - SWIR1) / (NIR + SWIR1)"),
+        ("NBR", "(NIR - SWIR2) / (NIR + SWIR2)"),
+        ("MNDWI", "(Green - SWIR1) / (Green + SWIR1)"),
+        ("NDRE", "(NIRnarrow - RedEdge) / (NIRnarrow + RedEdge)"),
+        (
+            "TCW",
+            "0.0315 * Blue + 0.2021 * Green + 0.3102 * Red + 0.1594 * NIR "
+            "- 0.6806 * SWIR1 - 0.6109 * SWIR2",
+        ),
+    ],
+)
+def test_rendered_formula_is_the_expression_that_runs(key, expected):
+    # Rendering evaluates the same callable the app does, with band names in
+    # place of values, so a formula edit that is not mirrored here shows up as a
+    # failure rather than as a UI that quietly lies about the maths.
+    assert render_formula(INDICES_BY_KEY[key]) == expected
 
 
 class TestPhysicalBehaviour:
@@ -97,6 +124,13 @@ class TestPhysicalBehaviour:
     def test_evi2_stays_below_ndvi_over_dense_canopy(self):
         assert evaluate("EVI2", VEGETATION) < evaluate("NDVI", VEGETATION)
 
+    def test_tcw_orders_surfaces_by_wetness(self):
+        """Wetness is the whole point: open water above vegetated ground, and
+        dry bare soil below it. A sign slip in the SWIR terms inverts this."""
+        bare = {"blue": 0.10, "green": 0.15, "red": 0.20, "nir": 0.28, "swir1": 0.35, "swir2": 0.30}
+        assert evaluate("TCW", WATER) > evaluate("TCW", VEGETATION) > evaluate("TCW", bare)
+        assert evaluate("TCW", WATER) > 0 > evaluate("TCW", VEGETATION)
+
 
 class TestRegistry:
     def test_keys_are_unique_and_canonical(self):
@@ -107,12 +141,6 @@ class TestRegistry:
     def test_lookup_ignores_case_and_padding(self):
         assert index_for(" ndvi ") is INDICES_BY_KEY["NDVI"]
         assert index_for("NOPE") is None
-
-    @pytest.mark.parametrize("index", INDICES, ids=lambda i: i.key)
-    def test_every_index_explains_itself(self, index):
-        # These strings are what a campaign designer reads when choosing, so an
-        # index without them is worse than not offering it.
-        assert index.summary and index.good_for and index.caution and index.citation
 
     @pytest.mark.parametrize("index", INDICES, ids=lambda i: i.key)
     def test_chart_domain_is_ordered_and_contains_its_reference_lines(self, index):
@@ -138,7 +166,7 @@ class TestAvailability:
         assert self._keys("SENTINEL2") == {index.key for index in INDICES}
 
     def test_landsat_offers_everything_except_the_red_edge_index(self):
-        assert self._keys("LANDSAT") == {"NDVI", "EVI2", "GCVI", "NDMI", "NBR", "MNDWI"}
+        assert self._keys("LANDSAT") == {"NDVI", "EVI2", "GCVI", "NDMI", "TCW", "NBR", "MNDWI"}
 
     def test_modis_is_limited_to_its_two_bands(self):
         assert self._keys("MODIS") == {"NDVI", "EVI2"}

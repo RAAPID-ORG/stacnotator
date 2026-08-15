@@ -3,7 +3,7 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, computed_field, field_validator, model_validator
 
-from src.timeseries.indices import INDICES, SpectralIndex, index_for
+from src.timeseries.indices import INDICES, SpectralIndex, index_for, render_formula
 from src.timeseries.sources import (
     SOURCES,
     SUPPORTED_TIMESERIES_PROVIDERS,
@@ -41,15 +41,12 @@ def ym_range_to_dates(start_ym: str, end_ym: str) -> tuple[str, str]:
 
 
 class SpectralIndexOut(BaseModel):
-    """An index as the UI needs it: how to label and plot it, and the prose that
-    lets someone choose it deliberately rather than by name recognition."""
+    """An index as the UI needs it: how to label and plot it, and the formula it
+    computes, rendered from the callable itself so the two cannot disagree."""
 
     key: str
     label: str
-    summary: str
-    good_for: str
-    caution: str
-    citation: str
+    formula: str
     domain_min: float
     domain_max: float
     reference_lines: list[float]
@@ -69,10 +66,7 @@ def index_out(index: SpectralIndex) -> SpectralIndexOut:
     return SpectralIndexOut(
         key=index.key,
         label=index.label,
-        summary=index.summary,
-        good_for=index.good_for,
-        caution=index.caution,
-        citation=index.citation,
+        formula=render_formula(index),
         domain_min=index.domain[0],
         domain_max=index.domain[1],
         reference_lines=list(index.reference_lines),

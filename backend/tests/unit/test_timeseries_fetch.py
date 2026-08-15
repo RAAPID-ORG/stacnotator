@@ -51,6 +51,7 @@ class _FakeImage:
 
 
 BANDS = {
+    "blue": 0.02,
     "green": 0.05,
     "red": 0.04,
     "rededge1": 0.12,
@@ -62,7 +63,7 @@ BANDS = {
 
 
 class TestIndexImage:
-    @pytest.mark.parametrize("key", ["NDVI", "EVI2", "GCVI", "NDMI", "NBR", "MNDWI", "NDRE"])
+    @pytest.mark.parametrize("key", ["NDVI", "EVI2", "GCVI", "NDMI", "TCW", "NBR", "MNDWI", "NDRE"])
     def test_operator_adapter_reproduces_the_plain_float_result(self, key):
         index = INDICES_BY_KEY[key]
         built = fetch.index_image(_FakeImage(BANDS), index)
