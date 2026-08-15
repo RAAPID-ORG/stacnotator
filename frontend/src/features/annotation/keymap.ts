@@ -209,19 +209,21 @@ function formFieldBindings(): Binding[] {
     ),
     // Tab and Escape are the way back out of a field the previous Enter or a
     // click focused, so they must survive the typing guard - without that the
-    // form keys go dead the moment they are used.
+    // form keys go dead the moment they are used. Tab stays ours even with no
+    // fields to cycle: handing it back to the browser walks focus onto the
+    // toolbar and panel buttons, which then answer Enter and Space.
     {
       key: 'tab',
       help: 'Cycle form fields',
       allowInInput: true,
-      when: () => formKeyContext().fields.length > 0 && formKeysApply(),
+      when: formKeysApply,
       run: runFormKey,
     },
     {
       key: 'shift+tab',
       help: 'Cycle form fields backward',
       allowInInput: true,
-      when: () => formKeyContext().fields.length > 0 && formKeysApply(),
+      when: formKeysApply,
       run: runFormKey,
     },
     {

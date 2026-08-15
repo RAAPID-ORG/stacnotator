@@ -284,6 +284,7 @@ export function ExploreControls() {
                   <p className="text-xs text-neutral-500 italic">No labels defined</p>
                 ) : (
                   <LabelChips
+                    fill
                     labels={labels.map(swatch)}
                     selectedId={selectedLabelId}
                     onSelect={(label) => useWorkStore.getState().selectLabel(label.id)}
@@ -301,10 +302,10 @@ export function ExploreControls() {
                               title="Customize this label's style"
                               aria-label={`Customize ${label.name} style`}
                               aria-expanded={styleEditorLabelId === label.id}
-                              className={`flex-shrink-0 p-0.5 text-[12px] leading-none transition-colors cursor-pointer ${
+                              className={`flex-shrink-0 px-1.5 py-1 rounded border text-[11px] leading-none transition-colors cursor-pointer ${
                                 styleEditorLabelId === label.id
-                                  ? 'text-brand-700'
-                                  : 'text-neutral-400 hover:text-neutral-700'
+                                  ? 'bg-brand-50 text-brand-700 border-brand-600'
+                                  : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700'
                               }`}
                             >
                               ✎
@@ -312,10 +313,10 @@ export function ExploreControls() {
                           )
                         : undefined
                     }
+                    renderUnder={(label) =>
+                      styleEditorLabelId === label.id ? <LabelStyleEditor label={label} /> : null
+                    }
                   />
-                )}
-                {styleEditorLabelId !== null && labels.some((l) => l.id === styleEditorLabelId) && (
-                  <LabelStyleEditor label={labels.find((l) => l.id === styleEditorLabelId)!} />
                 )}
               </div>
 

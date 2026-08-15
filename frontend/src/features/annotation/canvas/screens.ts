@@ -71,6 +71,13 @@ export function returnPanelFromScreen(state: ScreensState, panelId: string): Scr
   };
 }
 
+/** How many screens a remembered split would reopen: none while any screen is
+ *  already open, and none for a split that holds no panels. */
+export function restorableScreens(open: ScreensState, remembered: ScreensState | null): number {
+  if (open.screens.length > 0 || !remembered) return 0;
+  return Object.keys(remembered.assignment).length > 0 ? remembered.screens.length : 0;
+}
+
 /** Last known OS bounds, so a screen reopens where it was. */
 export function rememberScreenBounds(
   state: ScreensState,

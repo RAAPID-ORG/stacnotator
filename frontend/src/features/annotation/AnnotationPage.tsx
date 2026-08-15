@@ -321,16 +321,17 @@ export function AnnotationPage() {
                   panelId={panel.id}
                   label={panel.title ?? panel.id}
                   screenIds={screens.screens.map((s) => s.id)}
-                  onSend={(target) =>
-                    useLayoutStore.getState().sendToScreen(
+                  currentScreen={screens.assignment[panel.id]}
+                  onSend={(target) => {
+                    const layout = useLayoutStore.getState();
+                    if (target === 'main') return layout.returnPanelToMain(panel.id);
+                    layout.sendToScreen(
                       panel.id,
                       target,
-                      toGridLayout(useLayoutStore.getState().currentLayout).find(
-                        (it) => it.i === panel.id
-                      ),
+                      toGridLayout(layout.currentLayout).find((it) => it.i === panel.id),
                       canvasRef.current?.clientWidth ?? 0
-                    )
-                  }
+                    );
+                  }}
                 />
               </>
             ),
@@ -554,6 +555,7 @@ export function AnnotationPage() {
             layout={screen.layout}
             editing={editing}
             onLayoutChange={(l) => useLayoutStore.getState().setScreenLayout(screen.id, l)}
+            onHidePanel={(id) => useLayoutStore.getState().hideWindow(Number(id))}
             onClose={() => useLayoutStore.getState().closeScreen(screen.id)}
             bounds={screen.bounds ?? SCREEN_DEFAULT_BOUNDS}
             onBounds={(b) => useLayoutStore.getState().rememberScreenBounds(screen.id, b)}
@@ -571,7 +573,7 @@ export function AnnotationPage() {
         <RestoreScreensToast
           count={restorableScreens}
           onRestore={() => useLayoutStore.getState().restoreSavedScreens()}
-          onDismiss={() => useLayoutStore.getState().dismissSavedScreens()}
+          onHide={() => useLayoutStore.getState().hideRestorePrompt()}
         />
       )}
 

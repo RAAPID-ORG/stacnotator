@@ -145,6 +145,18 @@ test.describe('Tools and label selection', () => {
     await expect(list).toContainText('━'); // line (road)
   });
 
+  test('Tab stays with the workspace instead of walking focus onto the chrome', async ({
+    annotationPage,
+  }) => {
+    await annotationPage.keyboard.press('Escape');
+    for (let i = 0; i < 5; i++) await annotationPage.keyboard.press('Tab');
+
+    // A focused button would answer Enter and Space, both of which the page binds.
+    await expect
+      .poll(() => annotationPage.evaluate(() => document.activeElement?.tagName))
+      .toBe('BODY');
+  });
+
   test('Timeseries tool is not offered when the campaign has no time series', async ({
     annotationPage,
     api,

@@ -16,6 +16,7 @@ import {
   EMPTY_SCREENS,
   openScreen,
   rememberScreenBounds,
+  restorableScreens,
   returnPanelFromScreen,
   sendToScreen,
   type ScreenBounds,
@@ -54,6 +55,8 @@ interface LayoutState {
   screens: ScreensState;
   /** A remembered split this scope could reopen, offered by the restore toast. */
   savedScreens: ScreensState | null;
+  /** The toast is hidden for this visit; the split itself stays remembered. */
+  restorePromptHidden: boolean;
 
   setLayout: (layout: WorkspaceLayout) => void;
   /** Swap in another view's windows, leaving the page chrome where it is. */
@@ -73,6 +76,8 @@ interface LayoutState {
     item: LayoutItem | undefined,
     canvasPx: number
   ) => void;
+  /** Move one panel off its screen, back to the main canvas. */
+  returnPanelToMain: (panelId: string) => void;
   closeScreen: (id: number) => void;
   setScreenLayout: (id: number, layout: LayoutItem[]) => void;
   rememberScreenBounds: (id: number, bounds: ScreenBounds) => void;
@@ -80,22 +85,34 @@ interface LayoutState {
    *  collection, settings dropped a time series). */
   pruneScreensTo: (validPanelIds: ReadonlySet<string>) => void;
   restoreSavedScreens: () => void;
-  dismissSavedScreens: () => void;
+  hideRestorePrompt: () => void;
 }
 
 export const useLayoutStore = create<LayoutState>((set, get) => {
-  /** Closing the last screen has to clear the remembered split, or the restore
-   *  toast comes straight back offering what the user just dismantled. */
+  /** The split is remembered as it last stood with a screen open, so closing a
+   *  screen stays undoable. Going empty writes nothing rather than erasing:
+   *  only `forgetScreens` forgets. */
   const persistScreens = (screens: ScreensState) => {
+    if (screens.screens.length === 0) return;
+    set({ savedScreens: screens });
     const { scope } = get();
     if (!scope) return;
     try {
-      if (screens.screens.length === 0) localStorage.removeItem(screensKey(scope));
-      else localStorage.setItem(screensKey(scope), JSON.stringify(screens));
+      localStorage.setItem(screensKey(scope), JSON.stringify(screens));
     } catch {
       // private mode / quota: the split just won't survive a reload
     }
-    if (screens.screens.length === 0) set({ savedScreens: null });
+  };
+
+  const forgetScreens = () => {
+    set({ savedScreens: null, restorePromptHidden: false });
+    const { scope } = get();
+    if (!scope) return;
+    try {
+      localStorage.removeItem(screensKey(scope));
+    } catch {
+      // ignore storage failures
+    }
   };
 
   const updateScreens = (next: (current: ScreensState) => ScreensState) => {
@@ -112,6 +129,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     scope: null,
     screens: EMPTY_SCREENS,
     savedScreens: null,
+    restorePromptHidden: false,
 
     setLayout: (currentLayout) => set({ currentLayout }),
 
@@ -139,13 +157,23 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     hideAllWindows: () => set((s) => ({ currentLayout: hideAllWindows(s.currentLayout) })),
     setNewWindowSize: (newWindowSize) => set({ newWindowSize }),
     startEditing: () => set({ editing: true }),
-    saveLayout: () => set((s) => ({ savedLayout: s.currentLayout, editing: false })),
+    // A layout saved with nothing on a secondary screen is the user saying they
+    // no longer work on one, and is the only thing that forgets the split.
+    saveLayout: () => {
+      if (get().screens.screens.length === 0) forgetScreens();
+      set((s) => ({ savedLayout: s.currentLayout, editing: false }));
+    },
     cancelEditing: () => set((s) => ({ currentLayout: s.savedLayout, editing: false })),
 
     // A scope change is a different campaign or user: drop the live windows
     // and pick up that scope's remembered split instead.
     setScope: (scope) =>
-      set({ scope, screens: EMPTY_SCREENS, savedScreens: readSavedScreens(scope) }),
+      set({
+        scope,
+        screens: EMPTY_SCREENS,
+        savedScreens: readSavedScreens(scope),
+        restorePromptHidden: false,
+      }),
 
     sendToScreen: (panelId, target, item, canvasPx) =>
       updateScreens((current) => {
@@ -165,6 +193,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
           : { w: 20, h: 12 };
         return sendToScreen(seeded, panelId, opened.id, size);
       }),
+
+    returnPanelToMain: (panelId) => updateScreens((c) => returnPanelFromScreen(c, panelId)),
 
     closeScreen: (id) => updateScreens((c) => closeScreen(c, id)),
 
@@ -187,16 +217,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
       if (savedScreens) updateScreens(() => savedScreens);
     },
 
-    dismissSavedScreens: () => {
-      const { scope } = get();
-      set({ savedScreens: null });
-      if (!scope) return;
-      try {
-        localStorage.removeItem(screensKey(scope));
-      } catch {
-        // ignore storage failures
-      }
-    },
+    hideRestorePrompt: () => set({ restorePromptHidden: true }),
   };
 });
 
@@ -209,8 +230,8 @@ export function usePoppedPanels(): ReadonlySet<string> {
 /** How many screens the remembered split would reopen, 0 when there is nothing
  *  to offer. */
 export function useRestorableScreens(): number {
-  const open = useLayoutStore((s) => s.screens.screens.length);
+  const open = useLayoutStore((s) => s.screens);
   const saved = useLayoutStore((s) => s.savedScreens);
-  if (open > 0 || !saved || Object.keys(saved.assignment).length === 0) return 0;
-  return saved.screens.length;
+  const hidden = useLayoutStore((s) => s.restorePromptHidden);
+  return hidden ? 0 : restorableScreens(open, saved);
 }

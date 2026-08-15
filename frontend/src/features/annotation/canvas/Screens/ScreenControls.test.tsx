@@ -1,13 +1,11 @@
-import { act } from '@testing-library/react';
+import { act, render, renderHook, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SCREEN_DEFAULT_BOUNDS, useLayoutStore } from '../../stores/layout';
+import { SCREEN_DEFAULT_BOUNDS, useLayoutStore, useRestorableScreens } from '../../stores/layout';
+import { SendToScreenButton, type ScreenTarget } from './ScreenControls';
 
-/** The restore toast's own count, read off the same state it renders from. */
-const restorable = () => {
-  const { screens, savedScreens } = layout();
-  if (screens.screens.length > 0 || !savedScreens) return 0;
-  return Object.keys(savedScreens.assignment).length > 0 ? savedScreens.screens.length : 0;
-};
+/** What the restore chip would show right now. */
+const restorable = () => renderHook(() => useRestorableScreens()).result.current;
 
 const layout = () => useLayoutStore.getState();
 
@@ -56,14 +54,46 @@ describe('screen split', () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}').screens[0].bounds.width).toBe(900);
   });
 
-  it('forgets the split once the last screen closes, instead of re-offering it', () => {
+  it('offers the split back once the last screen closes, so a close is undoable', () => {
     act(() => layout().sendToScreen('minimap', 'new', ITEM, 1200));
-    expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
 
     act(() => layout().closeScreen(layout().screens.screens[0].id));
 
+    expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
+    expect(restorable()).toBe(1);
+
+    act(() => layout().restoreSavedScreens());
+    expect(layout().screens.assignment).toEqual({ minimap: 2 });
+  });
+
+  it('hides the offer for this visit without forgetting the split', () => {
+    act(() => layout().sendToScreen('minimap', 'new', ITEM, 1200));
+    act(() => layout().closeScreen(layout().screens.screens[0].id));
+
+    act(() => layout().hideRestorePrompt());
+    expect(restorable()).toBe(0);
+
+    // Coming back to the campaign offers it again.
+    act(() => layout().setScope(SCOPE));
+    expect(restorable()).toBe(1);
+  });
+
+  it('forgets the split when a layout is saved with no screen in use', () => {
+    act(() => layout().sendToScreen('minimap', 'new', ITEM, 1200));
+    act(() => layout().closeScreen(layout().screens.screens[0].id));
+
+    act(() => layout().saveLayout());
+
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(restorable()).toBe(0);
+  });
+
+  it('keeps the split when a layout is saved while a screen is in use', () => {
+    act(() => layout().sendToScreen('minimap', 'new', ITEM, 1200));
+
+    act(() => layout().saveLayout());
+
+    expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
   });
 
   it('offers a remembered split back, and does not overwrite it before the user acts', () => {
@@ -81,11 +111,65 @@ describe('screen split', () => {
     expect(restorable()).toBe(0);
   });
 
+  it('sends one card back to the main canvas, leaving the screen open', () => {
+    act(() => layout().sendToScreen('minimap', 'new', ITEM, 1200));
+    act(() => layout().sendToScreen('controls', 2, ITEM, 1200));
+
+    act(() => layout().returnPanelToMain('minimap'));
+
+    expect(layout().screens.assignment).toEqual({ controls: 2 });
+    expect(layout().screens.screens[0].layout.map((it) => it.i)).toEqual(['controls']);
+  });
+
   it('holds nothing when there is no scope to hold it under', () => {
     act(() => layout().setScope(null));
 
     act(() => layout().sendToScreen('minimap', 'new', ITEM, 1200));
 
     expect(localStorage.length).toBe(0);
+  });
+});
+
+describe('the card header move control', () => {
+  const renderButton = (props: Partial<Parameters<typeof SendToScreenButton>[0]>) => {
+    const sent: ScreenTarget[] = [];
+    render(
+      <SendToScreenButton
+        panelId="minimap"
+        label="Minimap"
+        screenIds={[]}
+        onSend={(target) => sent.push(target)}
+        {...props}
+      />
+    );
+    return sent;
+  };
+
+  it('opens a screen straight away when there is nowhere else for a card to go', async () => {
+    const sent = renderButton({});
+
+    await userEvent.click(screen.getByTestId('send-to-screen-minimap'));
+
+    expect(sent).toEqual(['new']);
+  });
+
+  it('offers a card on a screen its way back, and the screens it is not on', async () => {
+    const sent = renderButton({ screenIds: [2, 3], currentScreen: 2 });
+
+    await userEvent.click(screen.getByTestId('send-to-screen-minimap'));
+    expect(screen.queryByTestId('send-to-screen-minimap-2')).toBeNull();
+    expect(screen.getByTestId('send-to-screen-minimap-3')).toBeTruthy();
+
+    await userEvent.click(screen.getByTestId('send-to-screen-minimap-main'));
+    expect(sent).toEqual(['main']);
+  });
+
+  it('keeps the main window out of the menu for a card that is already there', async () => {
+    renderButton({ screenIds: [2] });
+
+    await userEvent.click(screen.getByTestId('send-to-screen-minimap'));
+
+    expect(screen.queryByTestId('send-to-screen-minimap-main')).toBeNull();
+    expect(screen.getByTestId('send-to-screen-minimap-2')).toBeTruthy();
   });
 });

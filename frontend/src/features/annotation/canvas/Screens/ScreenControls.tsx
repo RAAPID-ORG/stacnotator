@@ -1,21 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { IconClose, IconExternalLink } from '~/shared/ui/Icons';
 
+/** Where a card can be sent: a screen already open, the main window it came
+ *  from, or one opened for it. */
+export type ScreenTarget = number | 'new' | 'main';
+
 export interface SendToScreenButtonProps {
   panelId: string;
   label: string;
   screenIds: number[];
-  onSend: (target: number | 'new') => void;
+  /** The screen this card sits on. Set means the card is on a secondary
+   *  screen: that screen is not offered back to itself, and the main window is. */
+  currentScreen?: number;
+  onSend: (target: ScreenTarget) => void;
   darkBg?: boolean;
 }
 
-/** Panel-header control that sends a panel to a secondary screen. With no
- *  screen open a click opens the first one directly; with screens open it
- *  offers the existing ones plus "New screen". */
+/** Panel-header control that moves a panel between screens. With nowhere to go
+ *  but a new screen a click opens one directly; otherwise it offers the main
+ *  window, the other open screens, and "New screen". */
 export function SendToScreenButton({
   panelId,
   label,
   screenIds,
+  currentScreen,
   onSend,
   darkBg,
 }: SendToScreenButtonProps) {
@@ -24,17 +32,26 @@ export function SendToScreenButton({
 
   useEffect(() => {
     if (!open) return;
+    // A card sitting on a screen renders in the popout's document, not the
+    // opener's - listening on the wrong one leaves the menu stuck open.
+    const doc = wrapRef.current?.ownerDocument ?? document;
     const onDown = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
+    doc.addEventListener('mousedown', onDown);
+    return () => doc.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const send = (target: number | 'new') => {
+  const send = (target: ScreenTarget) => {
     setOpen(false);
     onSend(target);
   };
+
+  const otherScreens = screenIds.filter((id) => id !== currentScreen);
+  const onScreen = currentScreen != null;
+  const moveHint = onScreen
+    ? `Move ${label} back to the main window or to another screen`
+    : `Move ${label} to another screen`;
 
   return (
     <div ref={wrapRef} className="relative shrink-0">
@@ -45,11 +62,11 @@ export function SendToScreenButton({
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
-          if (screenIds.length === 0) send('new');
+          if (!onScreen && otherScreens.length === 0) send('new');
           else setOpen((o) => !o);
         }}
-        title={`Move ${label} to another screen`}
-        aria-label={`Move ${label} to another screen`}
+        title={moveHint}
+        aria-label={moveHint}
         data-testid={`send-to-screen-${panelId}`}
         className={`grid h-5 w-5 place-items-center rounded transition-colors ${
           darkBg
@@ -61,7 +78,20 @@ export function SendToScreenButton({
       </button>
       {open && (
         <div className="absolute right-0 top-6 z-[1001] w-36 overflow-hidden rounded-md border border-neutral-200 bg-white py-1 shadow-lg">
-          {screenIds.map((id) => (
+          {onScreen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                send('main');
+              }}
+              data-testid={`send-to-screen-${panelId}-main`}
+              className="block w-full border-b border-neutral-100 px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
+            >
+              Main window
+            </button>
+          )}
+          {otherScreens.map((id) => (
             <button
               key={id}
               type="button"
@@ -95,10 +125,12 @@ export function SendToScreenButton({
 export interface RestoreScreensToastProps {
   count: number;
   onRestore: () => void;
-  onDismiss: () => void;
+  /** Puts the chip away without forgetting the split - it is offered again on
+   *  the next visit, until a layout is saved that uses no extra screen. */
+  onHide: () => void;
 }
 
-export function RestoreScreensToast({ count, onRestore, onDismiss }: RestoreScreensToastProps) {
+export function RestoreScreensToast({ count, onRestore, onHide }: RestoreScreensToastProps) {
   if (count === 0) return null;
   return (
     <div className="fixed bottom-3 right-3 z-[1002] flex items-center gap-1 rounded-full border border-neutral-200 bg-white/95 py-1 pl-1 pr-1.5 shadow-lg">
@@ -114,10 +146,10 @@ export function RestoreScreensToast({ count, onRestore, onDismiss }: RestoreScre
       </button>
       <button
         type="button"
-        onClick={onDismiss}
-        data-testid="dismiss-saved-screens"
-        aria-label="Forget saved screens"
-        title="Forget the saved screen split"
+        onClick={onHide}
+        data-testid="hide-restore-screens"
+        aria-label="Hide for now"
+        title="Hide for now - your screen split stays saved"
         className="grid h-6 w-6 place-items-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
       >
         <IconClose className="h-3 w-3" />

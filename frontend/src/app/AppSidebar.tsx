@@ -4,6 +4,7 @@ import { SidebarProjectNav } from '~/app/SidebarProjectNav';
 import { LEGAL_DOCS, legalPath } from '~/features/legal/docs';
 import { OrgSwitcher } from '~/features/organizations/components/OrgSwitcher';
 import { useAccountStore } from 'src/shared/stores/account.store';
+import { HarvestMark, HARVEST_SITE } from 'src/shared/ui/HarvestMark';
 
 export type AppSidebarProps = {
   collapsed: boolean;
@@ -65,15 +66,39 @@ export const AppSidebar = ({
           transition: 'width 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms ease',
         }}
       >
-        <div className="flex items-center justify-between px-4 h-12 border-b border-neutral-200">
+        <div className="flex items-center justify-between gap-1 px-2.5 min-h-12 py-2 border-b border-neutral-200">
           {!collapsed && (
-            <button
-              onClick={() => handleNavClick('/')}
-              className="text-sm font-semibold text-neutral-900 tracking-tight bg-none border-none p-0 cursor-pointer truncate focus:outline-none hover:text-brand-700 transition-colors"
-              type="button"
-            >
-              STACNotator
-            </button>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <a
+                href={HARVEST_SITE}
+                target="_blank"
+                rel="noreferrer"
+                title="NASA Harvest"
+                className="shrink-0"
+              >
+                <HarvestMark className="h-8 w-8" />
+              </a>
+              <span className="min-w-0 leading-tight">
+                <button
+                  onClick={() => handleNavClick('/')}
+                  className="block max-w-full text-sm font-semibold text-neutral-900 tracking-tight truncate bg-none border-none p-0 cursor-pointer focus:outline-none hover:text-brand-700 transition-colors"
+                  type="button"
+                >
+                  STACNotator
+                </button>
+                <span className="block text-[10px] text-neutral-500 truncate">
+                  by{' '}
+                  <a
+                    href={HARVEST_SITE}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-neutral-800 hover:underline transition-colors"
+                  >
+                    NASA Harvest
+                  </a>
+                </span>
+              </span>
+            </div>
           )}
 
           {showToggle && (

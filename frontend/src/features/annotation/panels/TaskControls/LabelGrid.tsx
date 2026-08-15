@@ -11,6 +11,7 @@ export interface LabelGridProps {
 export function LabelGrid({ labels, selectedId, onSelect, disabled }: LabelGridProps) {
   return (
     <LabelChips
+      fill
       labels={labels}
       selectedId={selectedId}
       onSelect={(label) => onSelect(selectedId === label.id ? null : label.id)}

@@ -248,6 +248,15 @@ button {
   cursor: pointer;
 }
 
+/* Keyboard focus is shown by the controls that ask for it (`focus-visible:`
+   classes); without this every icon button and chip Tab walks past picks up
+   the browser's outline, which reads as a stuck selection. */
+button:focus-visible,
+[role='button']:focus-visible,
+summary:focus-visible {
+  outline: none;
+}
+
 input[type='radio'],
 input[type='checkbox'],
 input[type='range'] {

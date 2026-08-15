@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { HarvestMark } from '~/shared/ui/HarvestMark';
 
 interface AuthCardProps {
   children: ReactNode;
@@ -16,6 +17,14 @@ export const AuthCard = ({ children, className, outerClassName }: AuthCardProps)
         className ?? ''
       }`}
     >
+      <div className="flex items-center gap-3 text-left border-b border-neutral-100 pb-4 mb-6">
+        <HarvestMark className="h-10 w-10 shrink-0" />
+        <div className="leading-tight">
+          <div className="text-[13px] font-semibold text-neutral-900">STACNotator</div>
+          <div className="text-[11px] text-neutral-500">by NASA Harvest</div>
+        </div>
+      </div>
+
       {children}
     </div>
   </div>

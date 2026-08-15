@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
 export interface LabelChipItem {
@@ -25,6 +26,10 @@ export interface LabelChipsProps<L extends LabelChipItem> {
   renderIcon?: (label: L) => React.ReactNode;
   /** Trailing controls outside the chip button, e.g. the style-editor toggle. */
   renderAfter?: (label: L) => React.ReactNode;
+  /** Panel rendered on its own full-width line right under the label's chip. */
+  renderUnder?: (label: L) => React.ReactNode;
+  /** Let the chips stretch across the row instead of keeping a fixed width. */
+  fill?: boolean;
 }
 
 export function LabelChips<L extends LabelChipItem>({
@@ -36,6 +41,8 @@ export function LabelChips<L extends LabelChipItem>({
   showIndex = true,
   renderIcon,
   renderAfter,
+  renderUnder,
+  fill = false,
 }: LabelChipsProps<L>) {
   const visible = isSelectable ? labels.filter(isSelectable) : labels;
 
@@ -43,40 +50,50 @@ export function LabelChips<L extends LabelChipItem>({
     <div className="flex flex-wrap gap-1.5">
       {visible.map((label, index) => {
         const selected = selectedId === label.id;
+        const under = renderUnder?.(label);
         return (
-          <div key={label.id} className="flex items-center gap-1 min-w-0 max-w-full">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onSelect(label)}
-              className={`w-40 min-w-0 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 justify-between ${
-                selected
-                  ? 'bg-brand-50 text-brand-700 border-brand-600 border font-semibold'
-                  : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border-neutral-200 border'
-              } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          <Fragment key={label.id}>
+            <div
+              className={`flex items-center gap-1 min-w-0 max-w-full ${
+                fill ? 'grow shrink basis-40' : ''
+              }`}
             >
-              <span className="flex items-center gap-2 min-w-0">
-                {label.color && (
-                  <span
-                    className="w-3 h-3 rounded-sm border flex-shrink-0"
-                    style={{
-                      backgroundColor: label.color,
-                      borderColor: label.borderColor ?? label.color,
-                    }}
-                  />
-                )}
-                <span className="truncate">
-                  {selected ? '✓ ' : ''}
-                  {capitalizeFirst(label.name)}
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onSelect(label)}
+                className={`${
+                  fill ? 'grow shrink basis-0' : 'w-40'
+                } min-w-0 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 justify-between ${
+                  selected
+                    ? 'bg-brand-50 text-brand-700 border-brand-600 border font-semibold'
+                    : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border-neutral-200 border'
+                } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  {label.color && (
+                    <span
+                      className="w-3 h-3 rounded-sm border flex-shrink-0"
+                      style={{
+                        backgroundColor: label.color,
+                        borderColor: label.borderColor ?? label.color,
+                      }}
+                    />
+                  )}
+                  <span className="min-w-0 break-words">
+                    {selected ? '✓ ' : ''}
+                    {capitalizeFirst(label.name)}
+                  </span>
                 </span>
-              </span>
-              <span className="text-neutral-400 text-[10px] ml-1 flex items-center gap-0.5 tabular-nums">
-                {renderIcon?.(label)}
-                {showIndex && <span>{index + 1}</span>}
-              </span>
-            </button>
-            {renderAfter?.(label)}
-          </div>
+                <span className="text-neutral-400 text-[10px] ml-1 flex flex-shrink-0 items-center gap-0.5 tabular-nums">
+                  {renderIcon?.(label)}
+                  {showIndex && <span>{index + 1}</span>}
+                </span>
+              </button>
+              {renderAfter?.(label)}
+            </div>
+            {under && <div className="basis-full w-full">{under}</div>}
+          </Fragment>
         );
       })}
     </div>

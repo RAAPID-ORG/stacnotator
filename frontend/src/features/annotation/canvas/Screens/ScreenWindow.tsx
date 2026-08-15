@@ -37,6 +37,8 @@ export interface PopoutWindowComponentProps {
   onBlocked?: () => void;
   /** The window's last observed position and size. */
   onBounds?: (bounds: ScreenWindowBounds) => void;
+  /** Label of the window's own close control. */
+  closeLabel?: string;
   children: ReactNode;
 }
 
@@ -47,6 +49,9 @@ export interface ScreenWindowProps {
   layout: LayoutItem[];
   editing: boolean;
   onLayoutChange?: (l: LayoutItem[]) => void;
+  /** Same hide action the main canvas gives a card, so a window can be closed
+   *  from wherever it is sitting. */
+  onHidePanel?: (id: string) => void;
   onClose: () => void;
   bounds: ScreenWindowBounds;
   onBlocked?: () => void;
@@ -56,14 +61,21 @@ export interface ScreenWindowProps {
 
 type ScreenGridProps = Pick<
   ScreenWindowProps,
-  'screenId' | 'panels' | 'layout' | 'editing' | 'onLayoutChange'
+  'screenId' | 'panels' | 'layout' | 'editing' | 'onLayoutChange' | 'onHidePanel'
 >;
 
 /** Its own component because it measures the container it renders: the window
  *  component only mounts its children once the OS window exists, and a
  *  measuring hook living in `ScreenWindow` would run its mount effect one
  *  commit too early, against an element that is not in any document yet. */
-function ScreenGrid({ screenId, panels, layout, editing, onLayoutChange }: ScreenGridProps) {
+function ScreenGrid({
+  screenId,
+  panels,
+  layout,
+  editing,
+  onLayoutChange,
+  onHidePanel,
+}: ScreenGridProps) {
   const { containerRef, width, isMounted } = useContainerSize();
 
   const panelsById = useMemo(() => new Map(panels.map((p) => [p.id, p])), [panels]);
@@ -116,7 +128,9 @@ function ScreenGrid({ screenId, panels, layout, editing, onLayoutChange }: Scree
             {renderableLayout.map((item) => {
               const panel = panelsById.get(item.i);
               if (!panel) return null;
-              return <PanelHost key={item.i} panel={panel} editing={editing} />;
+              return (
+                <PanelHost key={item.i} panel={panel} editing={editing} onHidePanel={onHidePanel} />
+              );
             })}
           </ReactGridLayout>
         )
@@ -135,6 +149,7 @@ export function ScreenWindow({
   layout,
   editing,
   onLayoutChange,
+  onHidePanel,
   onClose,
   bounds,
   onBlocked,
@@ -148,6 +163,7 @@ export function ScreenWindow({
       onUserClose={onClose}
       onBlocked={onBlocked}
       onBounds={onBounds}
+      closeLabel="Return all cards"
     >
       <ScreenGrid
         screenId={screenId}
@@ -155,6 +171,7 @@ export function ScreenWindow({
         layout={layout}
         editing={editing}
         onLayoutChange={onLayoutChange}
+        onHidePanel={onHidePanel}
       />
     </WindowComponent>
   );
