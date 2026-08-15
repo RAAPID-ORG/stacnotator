@@ -2,14 +2,15 @@
 
 Last updated: 2026-08-15
 
-STACNotator (the "Service") is operated by [OPERATOR_NAME], [OPERATOR_ADDRESS],
-USA ("we," "us," or the "Operator"). The Service is made available free of
-charge as a convenience to its users.
+STACNotator (the "Service") is a research software service developed as part of
+work within the NASA Harvest Consortium. [ENTITY] ("we," "us," or the
+"Operator") provides and operates the Service. The Service is made available
+free of charge as a convenience to its users.
 
 By accessing or using the Service, you agree to these Terms of Service. If you
 do not agree to these terms, please do not use the Service.
 
-Questions about these terms may be sent to [CONTACT_EMAIL].
+Questions about these terms may be sent to rsawahn@umd.edu.
 
 ## Permitted Use
 
@@ -130,6 +131,22 @@ security mechanism can guarantee that credentials will never be accessed,
 disclosed, or compromised. Where supported by the relevant provider, we
 recommend using credentials with the minimum permissions necessary for your
 intended use.
+
+## Indemnification
+
+To the maximum extent permitted by applicable law, you agree to indemnify,
+defend, and hold harmless the Operator and its affiliates, officers, directors,
+employees, contributors, volunteers, agents, and contractors from and against
+any claim, demand, proceeding, loss, liability, damage, cost, or expense
+(including reasonable attorneys' fees) arising out of or relating to your use of
+the Service, the content or data you submit, the credentials you provide, your
+violation of these terms, or your violation of any law or of the rights of a
+third party.
+
+We may assume the exclusive defense and control of any matter subject to
+indemnification by you, in which case you agree to cooperate with that defense.
+This section applies only to the extent that indemnification is permitted by the
+law applicable to you.
 
 ## Changes to the Service or These Terms
 
