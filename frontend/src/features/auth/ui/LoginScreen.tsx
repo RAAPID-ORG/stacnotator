@@ -18,6 +18,14 @@ const LegalLink = ({ doc, children }: { doc: LegalKey; children: ReactNode }) =>
   </a>
 );
 
+/** Sits directly under whichever button the user is about to press - courts read a
+ * sign-in wrap as accepted only when the notice is next to the action it binds. */
+const LegalNotice = () => (
+  <p className="text-center text-xs text-brand-500">
+    By continuing you agree to our <LegalLink doc="terms">Terms of Service</LegalLink>.
+  </p>
+);
+
 export function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -233,6 +241,8 @@ export function LoginScreen() {
                 : 'Create account'}
           </Button>
 
+          <LegalNotice />
+
           {mode === 'login' && (
             <button
               type="button"
@@ -269,6 +279,10 @@ export function LoginScreen() {
           >
             {loading ? 'Signing in…' : 'Continue with Google'}
           </button>
+
+          <div className="mt-3">
+            <LegalNotice />
+          </div>
         </>
       )}
 
@@ -300,12 +314,6 @@ export function LoginScreen() {
           </>
         )}
       </p>
-
-      {mode !== 'forgot-password' && (
-        <p className="mt-4 text-center text-xs text-brand-500">
-          By continuing you agree to our <LegalLink doc="terms">Terms of Service</LegalLink>.
-        </p>
-      )}
     </AuthCard>
   );
 }

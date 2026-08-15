@@ -14,18 +14,10 @@ Questions about these terms may be sent to rsawahn@umd.edu.
 
 ## Permitted Use
 
-You may use the Service for any lawful purpose, including commercial purposes,
-subject to these terms.
-
-The Service may not be used by or on behalf of a military, paramilitary, or
-intelligence organization, including by a representative, agent, affiliate, or
-contractor acting in that capacity. The Service may also not be used for the
-design, development, testing, production, deployment, or operation of weapons
-or weapon systems.
+You may use the Service for any lawful purpose, subject to these terms.
 
 You are responsible for ensuring that your use of the Service complies with
-applicable laws and regulations, including applicable United States
-export-control and sanctions laws.
+applicable laws and regulations.
 
 ## Availability
 
@@ -131,22 +123,6 @@ security mechanism can guarantee that credentials will never be accessed,
 disclosed, or compromised. Where supported by the relevant provider, we
 recommend using credentials with the minimum permissions necessary for your
 intended use.
-
-## Indemnification
-
-To the maximum extent permitted by applicable law, you agree to indemnify,
-defend, and hold harmless the Operator and its affiliates, officers, directors,
-employees, contributors, volunteers, agents, and contractors from and against
-any claim, demand, proceeding, loss, liability, damage, cost, or expense
-(including reasonable attorneys' fees) arising out of or relating to your use of
-the Service, the content or data you submit, the credentials you provide, your
-violation of these terms, or your violation of any law or of the rights of a
-third party.
-
-We may assume the exclusive defense and control of any matter subject to
-indemnification by you, in which case you agree to cooperate with that defense.
-This section applies only to the extent that indemnification is permitted by the
-law applicable to you.
 
 ## Changes to the Service or These Terms
 
