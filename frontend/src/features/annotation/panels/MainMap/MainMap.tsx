@@ -245,25 +245,27 @@ export function MainMapBody() {
   const visibleCollectionIds = useMemo(() => Object.keys(windowLayout).map(Number), [windowLayout]);
   useEffect(() => () => setForegroundMapLoading('main', false), []);
 
-  const annotations = useMemo<AnnotationTiles>(
-    () => ({
+  const draftOpen = draft.phase === 'draft' || draft.phase === 'committing';
+  // A shape stored the moment it was drawn is still drawn by the draft layer
+  // while its questions are open, so its tile copy would double it.
+  const draftSavedId = draftOpen ? draft.savedId : null;
+
+  const annotations = useMemo<AnnotationTiles>(() => {
+    // The feature being edited is drawn by the edit interaction instead, so
+    // the tile copy underneath it is hidden rather than doubled.
+    const hidden = [editingId, draftSavedId].filter((id) => id != null);
+    return {
       // Every write the user makes after load has to bust the tile cache too.
       version: (campaign.annotations_version ?? 0) + writes,
       labels: extendedLabels(campaign),
-      // The feature being edited is drawn by the edit interaction instead, so
-      // the tile copy underneath it is hidden rather than doubled.
-      hiddenIds: editingId != null ? [editingId] : undefined,
+      hiddenIds: hidden.length > 0 ? hidden : undefined,
       highlightIds: selection.length > 0 ? selection : undefined,
-    }),
-    [campaign, writes, editingId, selection]
-  );
+    };
+  }, [campaign, writes, editingId, draftSavedId, selection]);
 
   const draftFeatures = useMemo(
-    () =>
-      draft.phase === 'draft' || draft.phase === 'committing'
-        ? [{ id: 'draft', geometry: draft.geometry }]
-        : [],
-    [draft]
+    () => (draftOpen ? [{ id: 'draft', geometry: draft.geometry }] : []),
+    [draftOpen, draft]
   );
 
   const layers = useMemo(() => {

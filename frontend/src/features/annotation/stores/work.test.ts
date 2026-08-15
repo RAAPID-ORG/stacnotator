@@ -6,12 +6,13 @@ import { MAX_PROBES, useWorkStore } from './work';
 
 vi.mock('~/api/client', async (importActual) => {
   const actual = await importActual<typeof import('~/api/client')>();
-  return { ...actual, createAnnotationOpenmode: vi.fn() };
+  return { ...actual, createAnnotationOpenmode: vi.fn(), updateAnnotationOpenmode: vi.fn() };
 });
 
-import { createAnnotationOpenmode } from '~/api/client';
+import { createAnnotationOpenmode, updateAnnotationOpenmode } from '~/api/client';
 
 const requiredField: FormField = { id: 1, title: 'Notes', type: 'text', required: true };
+const optionalField: FormField = { id: 2, title: 'Remarks', type: 'text', required: false };
 const geometry: GeoJSON.Geometry = { type: 'Point', coordinates: [1, 2] };
 const savedAnnotation = makeAnnotation({ id: 999 });
 
@@ -25,6 +26,8 @@ function seedFields(fields: FormField[]): void {
 
 beforeEach(() => {
   vi.mocked(createAnnotationOpenmode).mockReset();
+  vi.mocked(updateAnnotationOpenmode).mockReset();
+  vi.mocked(updateAnnotationOpenmode).mockResolvedValue(apiSuccess(savedAnnotation));
   seedFields([requiredField]);
   useWorkStore.setState({
     selectedLabelId: null,
@@ -47,7 +50,12 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
 
     const outcome = await useWorkStore.getState().drawEnd(geometry);
     expect(outcome).toBe('drafted');
-    expect(useWorkStore.getState().draft).toEqual({ phase: 'draft', labelId: 1, geometry });
+    expect(useWorkStore.getState().draft).toEqual({
+      phase: 'draft',
+      labelId: 1,
+      geometry,
+      savedId: null,
+    });
     expect(createAnnotationOpenmode).not.toHaveBeenCalled();
 
     vi.mocked(createAnnotationOpenmode).mockResolvedValue(apiSuccess(savedAnnotation));
@@ -103,7 +111,12 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
 
     expect(ok).toBe(false);
     expect(createAnnotationOpenmode).not.toHaveBeenCalled();
-    expect(useWorkStore.getState().draft).toEqual({ phase: 'draft', labelId: 1, geometry });
+    expect(useWorkStore.getState().draft).toEqual({
+      phase: 'draft',
+      labelId: 1,
+      geometry,
+      savedId: null,
+    });
 
     vi.mocked(createAnnotationOpenmode).mockResolvedValue(apiSuccess(savedAnnotation));
     useWorkStore.getState().setFormValues({ '1': 'answered' });
@@ -118,7 +131,12 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
 
     const ok = await useWorkStore.getState().commitDraft();
     expect(ok).toBe(false);
-    expect(useWorkStore.getState().draft).toEqual({ phase: 'draft', labelId: 1, geometry });
+    expect(useWorkStore.getState().draft).toEqual({
+      phase: 'draft',
+      labelId: 1,
+      geometry,
+      savedId: null,
+    });
 
     // Retry succeeds once the network recovers.
     vi.mocked(createAnnotationOpenmode).mockResolvedValue(apiSuccess(savedAnnotation));
@@ -149,7 +167,12 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
 
     const outcome = await useWorkStore.getState().drawEnd(geometry);
     expect(outcome).toBe('save-failed');
-    expect(useWorkStore.getState().draft).toEqual({ phase: 'draft', labelId: 2, geometry });
+    expect(useWorkStore.getState().draft).toEqual({
+      phase: 'draft',
+      labelId: 2,
+      geometry,
+      savedId: null,
+    });
     expect(createAnnotationOpenmode).toHaveBeenCalledTimes(1);
 
     // The shape is not lost: a normal commitDraft retry can still save it.
@@ -157,6 +180,55 @@ describe('draft flow: begin -> drawEnd -> commit', () => {
     const retried = await useWorkStore.getState().commitDraft();
     expect(retried).toBe(true);
     expect(useWorkStore.getState().draft).toEqual({ phase: 'idle' });
+  });
+
+  // Nothing required is outstanding, so holding the shape back would only risk
+  // losing it: it is stored as drawn and the answers follow as an update.
+  it('drawEnd stores the shape immediately when every field is optional, keeping the questions open', async () => {
+    seedFields([optionalField]);
+    vi.mocked(createAnnotationOpenmode).mockResolvedValue(apiSuccess(savedAnnotation));
+    useWorkStore.getState().beginDraft(3);
+
+    const outcome = await useWorkStore.getState().drawEnd(geometry);
+
+    expect(outcome).toBe('saved');
+    expect(createAnnotationOpenmode).toHaveBeenCalledTimes(1);
+    expect(useWorkStore.getState().draft).toEqual({
+      phase: 'draft',
+      labelId: 3,
+      geometry,
+      savedId: 999,
+    });
+
+    useWorkStore.getState().setFormValues({ '2': 'answered late' });
+    expect(await useWorkStore.getState().commitDraft()).toBe(true);
+
+    expect(updateAnnotationOpenmode).toHaveBeenCalledWith({
+      path: { campaign_id: 99, annotation_id: 999 },
+      body: expect.objectContaining({ label_id: 3, form_values: { '2': 'answered late' } }),
+    });
+    expect(createAnnotationOpenmode).toHaveBeenCalledTimes(1);
+    expect(useWorkStore.getState().draft).toEqual({ phase: 'idle' });
+    expect(useWorkStore.getState().formValues).toEqual({});
+  });
+
+  it('drawEnd leaves a retryable draft when the immediate save fails', async () => {
+    seedFields([optionalField]);
+    vi.mocked(createAnnotationOpenmode).mockRejectedValueOnce(new Error('network error'));
+    useWorkStore.getState().beginDraft(3);
+
+    const outcome = await useWorkStore.getState().drawEnd(geometry);
+
+    expect(outcome).toBe('save-failed');
+    expect(useWorkStore.getState().draft).toEqual({
+      phase: 'draft',
+      labelId: 3,
+      geometry,
+      savedId: null,
+    });
+
+    vi.mocked(createAnnotationOpenmode).mockResolvedValueOnce(apiSuccess(savedAnnotation));
+    expect(await useWorkStore.getState().commitDraft()).toBe(true);
   });
 
   it('drawEnd is a no-op outside the sketching phase', async () => {
@@ -172,7 +244,12 @@ describe('editDraftGeometry', () => {
     await useWorkStore.getState().drawEnd(geometry);
     const moved: GeoJSON.Geometry = { type: 'Point', coordinates: [5, 6] };
     useWorkStore.getState().editDraftGeometry(moved);
-    expect(useWorkStore.getState().draft).toEqual({ phase: 'draft', labelId: 1, geometry: moved });
+    expect(useWorkStore.getState().draft).toEqual({
+      phase: 'draft',
+      labelId: 1,
+      geometry: moved,
+      savedId: null,
+    });
   });
 
   it('is a no-op outside the draft phase', () => {
@@ -212,7 +289,12 @@ describe('closeDraft', () => {
 
     const outcome = await useWorkStore.getState().closeDraft();
     expect(outcome).toBe('save-failed');
-    expect(useWorkStore.getState().draft).toEqual({ phase: 'draft', labelId: 1, geometry });
+    expect(useWorkStore.getState().draft).toEqual({
+      phase: 'draft',
+      labelId: 1,
+      geometry,
+      savedId: null,
+    });
     expect(useWorkStore.getState().formValues).toEqual({ '1': 'answered' });
 
     // Nothing was lost: a normal commitDraft retry can still save it.
@@ -274,7 +356,12 @@ describe('a commit that resolves after the user has moved on', () => {
     settle();
     expect(await inFlight).toBe(true);
 
-    expect(useWorkStore.getState().draft).toEqual({ phase: 'draft', labelId: 2, geometry: second });
+    expect(useWorkStore.getState().draft).toEqual({
+      phase: 'draft',
+      labelId: 2,
+      geometry: second,
+      savedId: null,
+    });
     expect(useWorkStore.getState().formValues).toEqual({ '1': 'second shape' });
   });
 });

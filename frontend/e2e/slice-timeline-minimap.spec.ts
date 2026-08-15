@@ -7,7 +7,12 @@ import {
   SLICE_2024_01,
   SLICE_2024_06,
 } from './fixtures/mock-data';
-import { assertCrosshairAt, assertMinimapCenterAt, isTileHost } from './fixtures/imagery-helpers';
+import {
+  assertCrosshairAt,
+  assertMinimapCenterAt,
+  getMinimapCenter,
+  isTileHost,
+} from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
 type Locator = import('@playwright/test').Locator;
@@ -419,14 +424,36 @@ test.describe('Minimap center tracks current task', () => {
     await expect(annotationPage.locator('[data-tour="minimap"]')).toBeVisible();
   });
 
-  test('background clicks do not navigate the main map', async ({ annotationPage }) => {
+  test('a background click jumps the main map to that spot', async ({ annotationPage }) => {
+    const before = await getMinimapCenter(annotationPage);
+    const minimapBody = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    await minimapBody.scrollIntoViewIfNeeded();
+    const minimap = await minimapBody.boundingBox();
+    if (!minimap) throw new Error('minimap has no bounding box');
+
+    // Top-left of the minimap is north-west of where the main map currently is.
+    await annotationPage.mouse.click(minimap.x + 8, minimap.y + 8);
+
+    await expect
+      .poll(async () => (await getMinimapCenter(annotationPage)).lat)
+      .toBeGreaterThan(before.lat);
+    expect((await getMinimapCenter(annotationPage)).lon).toBeLessThan(before.lon);
+  });
+
+  test('dragging the minimap background pans it without moving the main map', async ({
+    annotationPage,
+  }) => {
     const center = await annotationPage.locator('[data-testid="viewport-center"]').textContent();
     const minimapBody = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
     await minimapBody.scrollIntoViewIfNeeded();
     const minimap = await minimapBody.boundingBox();
     if (!minimap) throw new Error('minimap has no bounding box');
 
-    await annotationPage.mouse.click(minimap.x + 8, minimap.y + 8);
+    await annotationPage.mouse.move(minimap.x + 8, minimap.y + 8);
+    await annotationPage.mouse.down();
+    await annotationPage.mouse.move(minimap.x + 48, minimap.y + 48, { steps: 8 });
+    await annotationPage.mouse.up();
+
     await expect(annotationPage.locator('[data-testid="viewport-center"]')).toHaveText(center!);
   });
 

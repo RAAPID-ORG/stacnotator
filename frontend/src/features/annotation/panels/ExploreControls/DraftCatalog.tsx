@@ -12,6 +12,8 @@ export interface DraftCatalogProps {
   onSave: () => void;
   onClose: () => void;
   saving: boolean;
+  /** The shape is already stored, so only the answers are outstanding. */
+  saved: boolean;
   error?: string | null;
 }
 
@@ -24,6 +26,7 @@ export function DraftCatalog({
   onSave,
   onClose,
   saving,
+  saved,
   error = null,
 }: DraftCatalogProps) {
   const noun = label?.geometry_type ?? 'polygon';
@@ -38,7 +41,11 @@ export function DraftCatalog({
           type="button"
           data-testid="draft-close"
           onClick={onClose}
-          title="Close (unanswered required fields discard the annotation)"
+          title={
+            saved
+              ? 'Close (the annotation is saved, answers are kept)'
+              : 'Close (unanswered required fields discard the annotation)'
+          }
           className="flex-shrink-0 px-1.5 py-0.5 rounded text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 cursor-pointer transition-colors"
         >
           ✕
@@ -68,9 +75,13 @@ export function DraftCatalog({
         disabled={saving}
         className="w-full px-2.5 py-1.5 rounded text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer transition-colors"
       >
-        {error ? 'Retry save (Enter)' : 'Save annotation (Enter)'}
+        {error ? 'Retry save (Enter)' : saved ? 'Save answers (Enter)' : 'Save annotation (Enter)'}
       </button>
-      <p className="text-[11px] text-neutral-500">Drawing another {noun} saves this one too.</p>
+      <p className="text-[11px] text-neutral-500">
+        {saved
+          ? `The ${noun} is saved. Answers are added when you save.`
+          : `Drawing another ${noun} saves this one too.`}
+      </p>
     </div>
   );
 }

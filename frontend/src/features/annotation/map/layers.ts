@@ -24,6 +24,7 @@ import type {
 import {
   acquireRasterSource,
   attachTileErrorRecovery,
+  bearerVectorTileLoader,
   crossOriginForTile,
   detachTileErrorRecovery,
   foregroundTileLoader,
@@ -206,11 +207,14 @@ function createVectorTileSource(spec: VectorTileLayerSpec): VectorTileSource {
   if (spec.url.startsWith(PMTILES_SCHEME)) {
     return new PMTilesVectorSource({ url: spec.url.slice(PMTILES_SCHEME.length) });
   }
-  return new VectorTileSource({
-    format: new MVT({ idProperty: spec.idProperty, layers: spec.sourceLayers }),
+  const format = new MVT({ idProperty: spec.idProperty, layers: spec.sourceLayers });
+  const source = new VectorTileSource({
+    format,
     url: spec.url,
     tileGrid: createXYZ({ maxZoom: MAX_TILE_ZOOM }),
   });
+  if (spec.auth === 'bearer') source.setTileLoadFunction(bearerVectorTileLoader(format));
+  return source;
 }
 
 function toOlFeatures(specs: GeoFeature[]): Feature[] {
@@ -319,6 +323,7 @@ function needsNewSource(prev: LayerSpec, next: LayerSpec): boolean {
   if (next.kind === 'vector-tiles' && prev.kind === 'vector-tiles') {
     return (
       prev.url !== next.url ||
+      prev.auth !== next.auth ||
       prev.idProperty !== next.idProperty ||
       !sameList(prev.sourceLayers, next.sourceLayers)
     );

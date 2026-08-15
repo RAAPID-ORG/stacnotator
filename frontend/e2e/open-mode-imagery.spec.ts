@@ -199,6 +199,21 @@ test.describe('Imagery in open mode', () => {
       )
       .toBe(true);
   });
+
+  test('the minimap opens on the campaign ROI and holds it while the main map zooms in', async ({
+    annotationPage,
+  }) => {
+    const body = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    const roiZoom = Number(await body.getAttribute('data-minimap-zoom'));
+    expect(Number.isFinite(roiZoom)).toBe(true);
+
+    // Four zoom steps shrink the viewport to 1/256 of its area - enough for the
+    // follow rule to refit on the viewport if the ROI overview were not held.
+    for (let i = 0; i < 4; i++) await annotationPage.keyboard.press('Alt+ArrowUp');
+    await annotationPage.waitForTimeout(800);
+
+    expect(Number(await body.getAttribute('data-minimap-zoom'))).toBe(roiZoom);
+  });
 });
 
 // ---------------------------------------------------------------------------

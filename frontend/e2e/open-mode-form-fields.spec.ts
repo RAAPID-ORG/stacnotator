@@ -128,6 +128,25 @@ test.describe('Open mode custom-field catalog', () => {
     await expect(catalog(annotationPage)).toHaveCount(0);
   });
 
+  // Answering the last question and pressing Enter is how a draft gets
+  // finished; Enter must reach the save from inside the field being typed in.
+  test('Enter saves the draft from inside the last field', async ({ annotationPage, api }) => {
+    await annotationPage.keyboard.press('2');
+    await drawPolygon(annotationPage, POLY);
+    await expect(catalog(annotationPage)).toBeVisible();
+
+    await annotationPage.keyboard.press('1'); // Condition -> Healthy
+    await annotationPage.keyboard.press('Tab'); // focuses the Notes input
+    await expect(annotationPage.locator('[data-form-field-id="101"] input')).toBeFocused();
+    await annotationPage.keyboard.type('all good');
+
+    await Promise.all([waitForCreate(annotationPage), annotationPage.keyboard.press('Enter')]);
+
+    const post = createPosts(api).at(-1);
+    expect(post!.body.form_values).toEqual({ '100': 1001, '101': 'all good' });
+    await expect(catalog(annotationPage)).toHaveCount(0);
+  });
+
   test('Esc discards an incomplete draft (its geometry is not saved)', async ({
     annotationPage,
     api,

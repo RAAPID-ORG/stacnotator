@@ -55,7 +55,18 @@ export function needsRefit(
 
 /** Explore mode's continuous refit decision: the padded box to fit when the
  *  current minimap bounds no longer show the viewport well, else null (no
- *  change - the caller skips the fit entirely). */
-export function exploreRefitTarget(minimapBounds: Bbox, viewportBounds: Bbox): Bbox | null {
-  return needsRefit(minimapBounds, viewportBounds) ? paddedBounds(viewportBounds) : null;
+ *  change - the caller skips the fit entirely).
+ *
+ *  While the minimap still shows the campaign ROI it holds that view until the
+ *  viewport leaves it - seeing the whole ROI is the point, however small the
+ *  viewport looks inside it. */
+export function exploreRefitTarget(
+  minimapBounds: Bbox,
+  viewportBounds: Bbox,
+  roiOverview: boolean
+): Bbox | null {
+  const stale = roiOverview
+    ? !contains(minimapBounds, viewportBounds)
+    : needsRefit(minimapBounds, viewportBounds);
+  return stale ? paddedBounds(viewportBounds) : null;
 }

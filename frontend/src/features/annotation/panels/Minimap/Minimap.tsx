@@ -35,23 +35,41 @@ const MINIMAP_BASEMAP: RasterLayerSpec = {
 
 const REFIT_ANIMATE_MS = 300;
 
+/** Keeps the ROI outline off the minimap's edges when Explore opens on it. */
+const ROI_FIT_PADDING_PX = 12;
+
+/** How far a press may travel and still count as a click rather than a pan. */
+const CLICK_SLOP_PX = 4;
+
 /** Drives the minimap camera off the main one per followTarget.ts's rules,
- *  rather than an exact `.follow()`. Runs the fit/re-centre once on mode
- *  change (so switching mode or mounting gets an immediate correct view)
- *  and again on every main-camera change after that. */
-function useMinimapFollow(mode: WorkMode): void {
+ *  rather than an exact `.follow()`. Explore opens on the campaign ROI, Tasks
+ *  re-centres immediately (so switching mode or mounting gets an immediate
+ *  correct view); both then track every main-camera change after that. */
+function useMinimapFollow(mode: WorkMode, roi: Bbox): void {
   useEffect(() => {
+    let roiOverview = false;
     const sync = () => {
       if (mode === 'tasks') {
         minimapCamera.moveTo(tasksModeTarget(mainCamera.getState().center));
         return;
       }
-      const target = exploreRefitTarget(minimapCamera.getBounds(), mainCamera.getBounds());
-      if (target) minimapCamera.fitBounds(target, { animateMs: REFIT_ANIMATE_MS });
+      const target = exploreRefitTarget(
+        minimapCamera.getBounds(),
+        mainCamera.getBounds(),
+        roiOverview
+      );
+      if (!target) return;
+      roiOverview = false;
+      minimapCamera.fitBounds(target, { animateMs: REFIT_ANIMATE_MS });
     };
-    sync();
+    if (mode === 'explore') {
+      minimapCamera.fitBounds(roi, { paddingPx: ROI_FIT_PADDING_PX });
+      roiOverview = true;
+    } else {
+      sync();
+    }
     return mainCamera.onChange(sync);
-  }, [mode]);
+  }, [mode, roi]);
 }
 
 /** Live bounds of a camera, refreshed on its rAF-coalesced onChange. */
@@ -174,7 +192,7 @@ export function MinimapBody() {
   const dragCleanup = useRef<(() => void) | null>(null);
   const [previewBounds, setPreviewBounds] = useState<Bbox | null>(null);
 
-  useMinimapFollow(mode);
+  useMinimapFollow(mode, catalog.bbox);
   useEffect(() => () => dragCleanup.current?.(), []);
 
   const bounds = useCameraBounds(mainCamera);
@@ -228,17 +246,40 @@ export function MinimapBody() {
     );
   };
 
-  // Only the viewport polygon navigates the main map. Background drags and
-  // wheel events remain OpenLayers interactions for panning/zooming the
-  // minimap itself; controls (especially attribution) are left untouched.
-  // During a viewport drag only the cheap vector preview moves. The main
-  // camera receives one final destination on pointerup, so its imagery never
-  // loads a trail of intermediate locations.
+  // A background press stays an OpenLayers interaction (drag pans the minimap,
+  // wheel zooms it), and only lands the main map somewhere new when it ends
+  // without a real drag - the same destination a viewport drop would give.
+  const watchBackgroundClick = (e: React.PointerEvent, target: LonLat) => {
+    const start = { x: e.clientX, y: e.clientY };
+    const cleanup = () => {
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', cleanup);
+      dragCleanup.current = null;
+    };
+    const onUp = (ev: PointerEvent) => {
+      cleanup();
+      if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) <= CLICK_SLOP_PX) {
+        mainCamera.moveTo({ center: target });
+      }
+    };
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', cleanup);
+    dragCleanup.current = cleanup;
+  };
+
+  // Controls (especially attribution) are left untouched. During a viewport
+  // drag only the cheap vector preview moves. The main camera receives one
+  // final destination on pointerup, so its imagery never loads a trail of
+  // intermediate locations.
   const handlePointerDownCapture = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     if ((e.target as Element).closest?.('.ol-control')) return;
     const startPoint = pointAt(e.clientX, e.clientY);
-    if (!startPoint || !containsPoint(bounds, startPoint)) return;
+    if (!startPoint) return;
+    if (!containsPoint(bounds, startPoint)) {
+      watchBackgroundClick(e, startPoint);
+      return;
+    }
 
     e.stopPropagation();
     e.preventDefault();

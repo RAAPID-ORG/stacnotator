@@ -36,6 +36,9 @@ export interface VectorTileLayerSpec {
   id: LayerId;
   /** `pmtiles://` or an MVT template. */
   url: string;
+  /** 'bearer' loads the tiles like the API client does. Our own MVT endpoints
+   *  need it; PMTiles in storage do not. */
+  auth?: 'bearer' | 'none';
   /** Called per feature per frame: keep it cheap and return few distinct specs. */
   style: StyleSpec | ((featureProps: Record<string, unknown>) => StyleSpec | null);
   zIndex?: number;

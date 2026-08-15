@@ -180,11 +180,19 @@ function runFormKey(e: KeyboardEvent): void {
     }
     return;
   }
-  if (e.key === 'Escape') {
-    const active = document.activeElement;
-    if (active instanceof HTMLElement && active.closest(FORM_INPUT_SELECTOR)) active.blur();
-  }
+  if (e.key === 'Escape') blurFormInput();
 }
+
+/** Leave the field being typed in before its answer is read: a number field
+ *  clamps to its range on blur, so saving straight out of the input would
+ *  store the unclamped value. */
+function blurFormInput(): void {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active.closest(FORM_INPUT_SELECTOR)) active.blur();
+}
+
+/** A multiline answer owns its own Enter - it is a newline there. */
+const typingMultiline = (): boolean => document.activeElement?.tagName === 'TEXTAREA';
 
 /** Digits answer whichever custom field is active. Both modes need these:
  *  Explore's questions catalog highlights a field and renders the same hints. */
@@ -334,8 +342,13 @@ function exploreBindings(): Binding[] {
     {
       key: 'enter',
       help: 'Save the drawn annotation',
-      when: draftIsOpen,
+      // Reachable from inside a field too: answering the last question and
+      // pressing Enter is how a draft gets finished, without reaching for
+      // Escape first.
+      allowInInput: true,
+      when: () => draftIsOpen() && formKeysApply() && !typingMultiline(),
       run: () => {
+        blurFormInput();
         void useWorkStore
           .getState()
           .commitDraft()
@@ -351,7 +364,9 @@ function exploreBindings(): Binding[] {
     },
     {
       key: 'escape',
-      help: 'Close the draft (incomplete answers discard it)',
+      help: (campaign.settings.form_fields ?? []).some((f) => f.required)
+        ? 'Close the draft (incomplete answers discard it)'
+        : 'Close the questions (the annotation is already saved)',
       when: draftIsOpen,
       run: () => void useWorkStore.getState().closeDraft(),
     },

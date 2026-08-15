@@ -64,6 +64,9 @@ const EYE_ICON = 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7zM15 12a3 3 0 1 1-6
 const EYE_OFF_ICON =
   'M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20';
 
+const GEAR_ICON =
+  'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z';
+
 const GEOMETRY_ICONS: Record<GeometryType, string> = { point: '●', polygon: '▰', line: '━' };
 
 function Icon({ path }: { path: string }) {
@@ -115,6 +118,7 @@ function ShortcutLegend() {
 export function ExploreControls() {
   const campaign = useCampaign();
   const tool = useWorkStore((s) => s.tool);
+  const [styling, setStyling] = useState(false);
   const [styleEditorLabelId, setStyleEditorLabelId] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -135,6 +139,7 @@ export function ExploreControls() {
   const draftLabel =
     draft.phase === 'idle' ? null : (labels.find((l) => l.id === draft.labelId) ?? null);
   const draftOpen = draft.phase === 'draft' || draft.phase === 'committing';
+  const draftSaved = draftOpen && draft.savedId !== null;
 
   const availableTools = TOOLS.filter(
     (t) =>
@@ -238,23 +243,43 @@ export function ExploreControls() {
             onSave={() => void saveDraft()}
             onClose={() => void closeDraft()}
             saving={draft.phase === 'committing'}
+            saved={draftSaved}
             error={saveError}
           />
         ) : (
           (tool === 'annotate' || tool === 'labelVector') && (
             <>
               <div
-                className={`flex flex-col gap-1.5 w-full ${
+                className={`flex flex-col gap-1.5 -mx-2 px-2 py-2 ${
                   labelGroupActive ? activeGroupClass : ''
                 }`}
               >
-                <span
-                  className={`font-semibold text-xs tracking-wide ${
-                    labelGroupActive ? 'text-brand-700' : 'text-neutral-700'
-                  }`}
-                >
-                  Labels
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`font-semibold text-xs tracking-wide ${
+                      labelGroupActive ? 'text-brand-700' : 'text-neutral-700'
+                    }`}
+                  >
+                    Labels
+                  </span>
+                  {labels.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStyling(!styling);
+                        setStyleEditorLabelId(null);
+                      }}
+                      title="Customize label styles"
+                      aria-label="Customize label styles"
+                      aria-pressed={styling}
+                      className={`flex-shrink-0 transition-colors cursor-pointer ${
+                        styling ? 'text-brand-700' : 'text-neutral-400 hover:text-neutral-700'
+                      }`}
+                    >
+                      <Icon path={GEAR_ICON} />
+                    </button>
+                  )}
+                </div>
                 {labels.length === 0 ? (
                   <p className="text-xs text-neutral-500 italic">No labels defined</p>
                 ) : (
@@ -263,32 +288,34 @@ export function ExploreControls() {
                     selectedId={selectedLabelId}
                     onSelect={(label) => useWorkStore.getState().selectLabel(label.id)}
                     renderIcon={(label) => <span>{GEOMETRY_ICONS[label.geometry_type]}</span>}
-                    renderAfter={(label) => (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setStyleEditorLabelId(styleEditorLabelId === label.id ? null : label.id)
-                        }
-                        title="Customize this label's style"
-                        aria-expanded={styleEditorLabelId === label.id}
-                        className={`flex-shrink-0 px-1.5 py-1 rounded border text-[11px] transition-colors cursor-pointer ${
-                          styleEditorLabelId === label.id
-                            ? 'bg-brand-50 text-brand-700 border-brand-600'
-                            : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700'
-                        }`}
-                      >
-                        ✎
-                      </button>
-                    )}
+                    renderAfter={
+                      styling
+                        ? (label) => (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setStyleEditorLabelId(
+                                  styleEditorLabelId === label.id ? null : label.id
+                                )
+                              }
+                              title="Customize this label's style"
+                              aria-label={`Customize ${label.name} style`}
+                              aria-expanded={styleEditorLabelId === label.id}
+                              className={`flex-shrink-0 p-0.5 text-[12px] leading-none transition-colors cursor-pointer ${
+                                styleEditorLabelId === label.id
+                                  ? 'text-brand-700'
+                                  : 'text-neutral-400 hover:text-neutral-700'
+                              }`}
+                            >
+                              ✎
+                            </button>
+                          )
+                        : undefined
+                    }
                   />
                 )}
                 {styleEditorLabelId !== null && labels.some((l) => l.id === styleEditorLabelId) && (
                   <LabelStyleEditor label={labels.find((l) => l.id === styleEditorLabelId)!} />
-                )}
-                {!selectedLabel && labels.length > 0 && (
-                  <p className="text-[11px] text-amber-700 mt-1 p-2 bg-amber-50 rounded border border-amber-200">
-                    Select a label to start annotating
-                  </p>
                 )}
               </div>
 

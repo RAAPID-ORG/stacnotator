@@ -251,6 +251,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
       kind: 'vector-tiles',
       id: ANNOTATION_LAYER_ID,
       url: annotationTilesUrl(catalog.campaignId, state.annotations.version),
+      auth: 'bearer',
       idProperty: TILE_PROP_ID,
       minZoom: ANNOTATION_TILE_MIN_ZOOM - 1,
       style: annotationStyle(state.annotations),

@@ -32,6 +32,7 @@ const controls = (page: Page) => page.locator('[data-tour="controls"]');
 /** Open the inline style editor for the first label (Tree) and return its parts. */
 async function openFirstLabelStyleEditor(page: Page) {
   await page.keyboard.press('r'); // annotate -> reveal the label list
+  await controls(page).locator('[title="Customize label styles"]').click(); // per-label pencils
   await controls(page).locator('[title="Customize this label\'s style"]').first().click();
   return {
     fillColorInput: controls(page).getByLabel('Fill color'),
@@ -76,12 +77,12 @@ test.describe('Open mode - per-label styling', () => {
       .toBe('rgb(255, 0, 170)');
   });
 
-  test('Reset to default clears the override', async ({ annotationPage: page }) => {
+  test('Reset clears the override', async ({ annotationPage: page }) => {
     const editor = await openFirstLabelStyleEditor(page);
     await editor.fillColorInput.fill('#123456');
     await expect(editor.fillColorInput).toHaveValue('#123456');
 
-    await controls(page).getByText('Reset to default').click();
+    await controls(page).getByRole('button', { name: 'Reset' }).click();
     await expect(controls(page).getByLabel('Fill color')).toHaveValue('#10b981');
   });
 });

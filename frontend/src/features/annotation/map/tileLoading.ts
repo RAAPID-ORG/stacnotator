@@ -1,13 +1,18 @@
 import { useSyncExternalStore } from 'react';
+import type MVT from 'ol/format/MVT';
 import type ImageTile from 'ol/ImageTile';
+import type { Projection } from 'ol/proj';
+import type RenderFeature from 'ol/render/Feature';
 import type { LoadFunction } from 'ol/Tile';
 import type Tile from 'ol/Tile';
 import TileLayer from 'ol/layer/Tile';
 import type CanvasTileLayerRenderer from 'ol/renderer/canvas/TileLayer';
 import type XYZ from 'ol/source/XYZ';
 import TileState from 'ol/TileState';
+import type VectorTile from 'ol/VectorTile';
 import { unByKey } from 'ol/Observable';
 import { ensureTilerSession } from '~/api/tilerToken';
+import { authManager } from '~/features/auth/index';
 import { isProxiedTileUrl } from '../campaign/tileUrls';
 
 export type CrossOrigin = 'anonymous' | 'use-credentials';
@@ -45,6 +50,36 @@ export const foregroundTileLoader: LoadFunction = (tile, src) => {
   };
   ensureSessionFor(image.crossOrigin).then(load, load);
 };
+
+/**
+ * Loader for MVT served by our own API. OpenLayers fetches vector tiles itself
+ * and sends neither the bearer token nor the cookie, so without this every tile
+ * comes back 401 and the layer renders nothing at all.
+ */
+export function bearerVectorTileLoader(format: MVT): LoadFunction {
+  return (tile, url) => {
+    const vectorTile = tile as VectorTile<RenderFeature>;
+    vectorTile.setLoader(async (extent, _resolution, projection) => {
+      try {
+        const token = await authManager.getIdToken();
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+        });
+        if (!response.ok) throw new Error(`Tile request failed: ${response.status}`);
+        const features = format.readFeatures(await response.arrayBuffer(), {
+          extent,
+          featureProjection: projection as Projection,
+        });
+        vectorTile.setFeatures(features);
+        return features;
+      } catch {
+        vectorTile.onError();
+        return [];
+      }
+    });
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Error recovery. OpenLayers keeps an errored tile terminal for the life of its
