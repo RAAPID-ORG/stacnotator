@@ -135,6 +135,7 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_annotation_id",
     "stacnotator_source_id",
     "stacnotator_comment",
+    "stacnotator_slice_comments",
     "stacnotator_confidence",
     "stacnotator_is_authoritative",
     "stacnotator_flagged_for_review",
@@ -239,6 +240,18 @@ def _compute_task_status_for_export(
     return compute_task_status_value(assignment_list, annotation_list)
 
 
+def _slice_comments_cell(annotation: Annotation) -> str | None:
+    """Per-slice notes as one cell, each prefixed with the imagery it is about
+    so the line still means something outside the app."""
+    lines = []
+    for note in annotation.slice_comments or []:
+        imagery = " ".join(
+            part for part in (note.get("source_name"), note.get("start_date")) if part
+        )
+        lines.append(f"{imagery or 'slice ' + str(note.get('slice_id'))}: {note.get('text')}")
+    return " | ".join(lines) if lines else None
+
+
 def _active_seconds_for(annotation: Annotation) -> int | None:
     """Active seconds the annotation's author spent on its task.
 
@@ -293,6 +306,7 @@ def _build_export_record_for_annotation(
     record["stacnotator_label_name"] = _resolve_label_name(campaign, annotation.label_id)
     record.update(form_schema.cells(annotation.form_values))
     record["stacnotator_comment"] = annotation.comment
+    record["stacnotator_slice_comments"] = _slice_comments_cell(annotation)
     record["stacnotator_confidence"] = annotation.confidence
     record["stacnotator_is_authoritative"] = annotation.is_authoritative
     record["stacnotator_flagged_for_review"] = annotation.flagged_for_review
@@ -365,6 +379,12 @@ def _build_export_record_merged(
     record["stacnotator_label_name"] = _resolve_label_name(campaign, agreed_label_id)
     record.update(form_schema.cells(canonical.form_values))
     record["stacnotator_comment"] = " | ".join(comments) if comments else None
+    slice_comments = [
+        f"{user_email_map.get(a.created_by_user_id, 'unknown')}: {cell}"
+        for a in labeled
+        if (cell := _slice_comments_cell(a))
+    ]
+    record["stacnotator_slice_comments"] = " | ".join(slice_comments) if slice_comments else None
     record["stacnotator_confidence"] = mean_confidence
     record["stacnotator_is_authoritative"] = any(a.is_authoritative for a in labeled)
     record["stacnotator_flagged_for_review"] = any(a.flagged_for_review for a in labeled)

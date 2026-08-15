@@ -36,6 +36,8 @@ from src.annotation.schemas import (
     AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
+    SliceComment,
+    normalize_slice_comments,
 )
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
@@ -254,6 +256,7 @@ def annotation_values(
     confidence: int | None,
     flagged_for_review: bool | None,
     flag_comment: str | None,
+    slice_comments: list[SliceComment] | None = None,
     form_values: dict | None = None,
     is_authoritative: bool | None = None,
 ) -> dict:
@@ -272,6 +275,7 @@ def annotation_values(
         "confidence": confidence,
         "flagged_for_review": flagged,
         "flag_comment": _flag_comment_for(flagged, flag_comment),
+        "slice_comments": normalize_slice_comments(slice_comments),
         "form_values": form_values,
     }
     if is_authoritative is not None:
@@ -304,6 +308,7 @@ def _standalone_annotation(
             confidence=item.confidence,
             flagged_for_review=item.flagged_for_review,
             flag_comment=item.flag_comment,
+            slice_comments=item.slice_comments,
             form_values=form_values,
         ),
     )
@@ -399,6 +404,7 @@ def add_annotation_for_task(
                 confidence=annotation_create.confidence,
                 flagged_for_review=annotation_create.flagged_for_review,
                 flag_comment=annotation_create.flag_comment,
+                slice_comments=annotation_create.slice_comments,
                 form_values=normalized_form_values,
                 is_authoritative=annotation_create.is_authoritative,
             )
@@ -409,8 +415,12 @@ def add_annotation_for_task(
                 assignment.status = ANNOTATION_TASK_STATUS_DONE
             annotation = existing_annotation
     else:  # CREATE
-        # Create new annotation if label or comment provided
-        if annotation_create.label_id is not None or annotation_create.comment is not None:
+        # Create new annotation if label or any comment provided
+        if (
+            annotation_create.label_id is not None
+            or annotation_create.comment is not None
+            or annotation_create.slice_comments
+        ):
             annotation = Annotation(
                 geometry_id=annotation_task.geometry_id,
                 annotation_task_id=annotation_task.id,
@@ -422,6 +432,7 @@ def add_annotation_for_task(
                     confidence=annotation_create.confidence,
                     flagged_for_review=annotation_create.flagged_for_review,
                     flag_comment=annotation_create.flag_comment,
+                    slice_comments=annotation_create.slice_comments,
                     form_values=normalized_form_values,
                     is_authoritative=annotation_create.is_authoritative,
                 ),
@@ -719,6 +730,11 @@ def update_annotation(
         # Update comment if provided (allow empty string to clear)
         if annotation_update.comment is not None:
             annotation.comment = annotation_update.comment
+
+        # Patch semantics: omitting the list keeps the stored notes, sending one
+        # replaces them wholesale (an empty list clears them).
+        if annotation_update.slice_comments is not None:
+            annotation.slice_comments = normalize_slice_comments(annotation_update.slice_comments)
 
         # Update confidence if provided
         if annotation_update.confidence is not None:

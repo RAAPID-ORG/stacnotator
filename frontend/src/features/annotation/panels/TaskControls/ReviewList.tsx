@@ -1,5 +1,6 @@
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { describeSlice } from '../../campaign/sliceComments';
 import { reviewRows, type ReviewRow } from '../../campaign/tasks';
 
 export interface ReviewListProps {
@@ -141,6 +142,14 @@ function AnnotationCard({
           &ldquo;{annotation.comment}&rdquo;
         </div>
       )}
+      {(annotation.slice_comments ?? []).map((note) => (
+        <div key={note.slice_id} className="mt-1 text-neutral-600 whitespace-pre-wrap">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+            {describeSlice(note)}
+          </span>
+          <span className="italic"> &ldquo;{note.text}&rdquo;</span>
+        </div>
+      ))}
       {annotation.flagged_for_review && annotation.flag_comment?.trim() && (
         <div className="mt-1 text-rose-700 italic whitespace-pre-wrap">
           Flag: &ldquo;{annotation.flag_comment}&rdquo;

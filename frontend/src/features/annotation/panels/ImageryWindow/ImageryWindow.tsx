@@ -7,7 +7,7 @@ import { addressAtSlice, collectionAddress } from '../../campaign/imageryNav';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useImageryStore, type ImageryState } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';
-import { useTileVersion } from '../../stores/work';
+import { useTileVersion, useWorkStore } from '../../stores/work';
 import { cameraFor, mainCamera, releaseCamera } from '../../map/camera';
 import { useMapFocus } from '../../stores/tasks';
 import { setForegroundMapLoading } from '../../map/tileLoading';
@@ -208,6 +208,9 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
           wheelZoom="modifier"
           maxTilesLoading={4}
           onModifierHint={onModifierHint}
+          // A window is one date of one place, so a double-click on it can
+          // only mean "say something about this imagery".
+          onDoubleClick={() => useWorkStore.getState().openSliceComment(address)}
           onLoadStateChange={(loading) => {
             setForegroundMapLoading(`window:${collection.id}`, loading);
             if (!loading) setLoadedCoverageKey(coverageKey);

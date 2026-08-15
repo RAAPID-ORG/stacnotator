@@ -275,6 +275,11 @@ class Annotation(Base):
     # Annotation data
     label_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Notes the annotator attached to individual imagery slices, one per slice.
+    # Each entry snapshots the slice's source and dates for the same reason the
+    # columns above do: it stays readable after the slice is re-registered.
+    # Shaped by annotation.schemas.SliceComment.
+    slice_comments: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     form_values: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_authoritative: Mapped[bool] = mapped_column(

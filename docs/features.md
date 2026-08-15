@@ -99,6 +99,12 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Comments/remarks field
 - Annotations can be flagged for review (`F`) with a flag comment, filterable in review
 
+### Imagery Notes
+- A note can be attached to one imagery slice, alongside the annotation's own comment: double-click an imagery window, use the comment button in any map header, or `Shift+C` for what the main map is showing
+- Slices carrying a note are marked in the slice pickers and by a filled comment icon in the header
+- Notes ride on the annotation: they save with it, come back when the task is reopened, and snapshot the source and dates so they stay readable if the imagery is re-registered
+- The reviewer list shows them under the annotation's comment, each labelled with its imagery; export adds a `stacnotator_slice_comments` column
+
 ### Custom Forms
 - Optional per-campaign form fields configured at creation, answered per annotation alongside the label
 - Field types: category, multi category, number (int/float, optional min/max/step, slider rendering), short/long text, date, date range

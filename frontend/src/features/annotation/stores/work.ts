@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import {
   createAnnotationOpenmode,
@@ -13,6 +14,14 @@ import {
   wktToGeometry,
   type FormValues,
 } from '../campaign/annotation';
+import type { SliceAddress } from '../campaign/imageryNav';
+import {
+  listNotes,
+  toNotes,
+  withNote,
+  type SliceComment,
+  type SliceNotes,
+} from '../campaign/sliceComments';
 import type { InteractionSpec, LonLat, MapClickEvent } from '../map/types';
 import { campaignState, formFields, useCampaignStore } from './campaign';
 
@@ -59,6 +68,11 @@ interface WorkState {
   flagComment: string;
   formValues: FormValues;
   activeFieldIndex: number | null;
+  /** Per-slice notes drafted onto the next save. An annotation opened for
+   *  editing keeps its own instead - see `useSliceNotes`. */
+  sliceNotes: SliceNotes;
+  /** The slice whose note dialog is open, or null. */
+  commenting: SliceAddress | null;
 
   draft: Draft;
   selection: number[];
@@ -84,6 +98,13 @@ interface WorkState {
   setFlagComment: (comment: string) => void;
   setFormValues: (values: FormValues) => void;
   setActiveFieldIndex: (index: number | null) => void;
+  setSliceNotes: (notes: SliceNotes) => void;
+  openSliceComment: (address: SliceAddress) => void;
+  closeSliceComment: () => void;
+  /** Store one slice's note. Saves straight away while an annotation is open
+   *  for editing - it has nothing else pending to ride along with - and drafts
+   *  it onto the next save otherwise. */
+  saveSliceComment: (comment: SliceComment) => Promise<void>;
   setSelection: (ids: number[]) => void;
   setInteractions: (
     spec: InteractionSpec | undefined,
@@ -144,6 +165,7 @@ const emptyForm = {
   flagComment: '',
   formValues: {} as FormValues,
   activeFieldIndex: null as number | null,
+  sliceNotes: {} as SliceNotes,
 };
 
 const alert = (message: string, kind: 'error' | 'success') =>
@@ -152,7 +174,7 @@ const alert = (message: string, kind: 'error' | 'success') =>
 export const useWorkStore = create<WorkState>((set, get) => {
   /** Never throws: the caller decides what a failed save means. */
   const persist = async (labelId: number, geometry: GeoJSON.Geometry): Promise<boolean> => {
-    const { comment, confidence, flagged, flagComment, formValues } = get();
+    const { comment, confidence, flagged, flagComment, formValues, sliceNotes } = get();
     try {
       await createAnnotationOpenmode({
         path: { campaign_id: campaignState().campaign.id },
@@ -164,6 +186,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           form_values: Object.keys(formValues).length ? formValues : null,
           flagged_for_review: flagged,
           flag_comment: flagged ? flagComment || null : null,
+          slice_comments: listNotes(sliceNotes),
         },
       });
       return true;
@@ -185,10 +208,11 @@ export const useWorkStore = create<WorkState>((set, get) => {
       if (s.draft !== committing) return {};
       return {
         draft: ok ? { phase: 'idle' } : { phase: 'draft', labelId, geometry },
-        // Only the answers clear. Label, comment, confidence and flags are the
-        // annotator's current settings, not this shape's - clearing them would
-        // disarm the tool after every shape.
-        ...(ok ? { formValues: {}, activeFieldIndex: null } : {}),
+        // Only what this shape said clears - its answers and its slice notes.
+        // Label, comment, confidence and flags are the annotator's current
+        // settings, not this shape's: clearing them would disarm the tool
+        // after every shape.
+        ...(ok ? { formValues: {}, activeFieldIndex: null, sliceNotes: {} } : {}),
       };
     });
     if (ok) get().bumpVersion();
@@ -198,6 +222,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
   return {
     ...emptyForm,
     tool: 'pan',
+    commenting: null,
     draft: { phase: 'idle' },
     selection: [],
     edit: null,
@@ -214,6 +239,9 @@ export const useWorkStore = create<WorkState>((set, get) => {
     setFlagComment: (flagComment) => set({ flagComment }),
     setFormValues: (formValues) => set({ formValues }),
     setActiveFieldIndex: (activeFieldIndex) => set({ activeFieldIndex }),
+    setSliceNotes: (sliceNotes) => set({ sliceNotes }),
+    openSliceComment: (commenting) => set({ commenting }),
+    closeSliceComment: () => set({ commenting: null }),
     setSelection: (selection) => set({ selection }),
     setInteractions: (interactions, onMapClick) => set({ interactions, onMapClick }),
     // At the cap the oldest probe gives way, so the tool keeps working rather
@@ -235,6 +263,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
       set({
         ...emptyForm,
         tool: 'pan',
+        commenting: null,
         draft: { phase: 'idle' },
         selection: [],
         edit: null,
@@ -285,8 +314,16 @@ export const useWorkStore = create<WorkState>((set, get) => {
       if (campaignState().workMode === 'explore') set({ selectedLabelId: null });
     },
 
+    // Slice notes survive the reset: noticing something about an image and
+    // then drawing what it is about is one gesture, and the note belongs to
+    // the shape that follows it.
     beginDraft: (labelId) =>
-      set({ ...emptyForm, draft: { phase: 'sketching', labelId }, selectedLabelId: labelId }),
+      set((s) => ({
+        ...emptyForm,
+        sliceNotes: s.sliceNotes,
+        draft: { phase: 'sketching', labelId },
+        selectedLabelId: labelId,
+      })),
 
     drawEnd: async (geometry) => {
       const { draft } = get();
@@ -347,6 +384,34 @@ export const useWorkStore = create<WorkState>((set, get) => {
 
     clearEdit: () => set({ edit: null, selection: [] }),
 
+    saveSliceComment: async (comment) => {
+      const { edit } = get();
+      if (!edit) {
+        set((s) => ({ sliceNotes: withNote(s.sliceNotes, comment) }));
+        return;
+      }
+
+      const { annotation } = edit;
+      const next = listNotes(withNote(toNotes(annotation.slice_comments), comment));
+      get().setEditAnnotation({ ...annotation, slice_comments: next });
+      try {
+        const result = await updateAnnotationOpenmode({
+          path: { campaign_id: campaignState().campaign.id, annotation_id: annotation.id },
+          body: {
+            label_id: annotation.label_id,
+            comment: annotation.comment ?? null,
+            geometry_wkt: null,
+            is_authoritative: null,
+            slice_comments: next,
+          },
+        });
+        if (result.data) get().setEditAnnotation(result.data);
+      } catch (error) {
+        get().setEditAnnotation(annotation);
+        handleError(error, 'Could not save the slice comment');
+      }
+    },
+
     saveEditFlag: async (flagged, comment) => {
       const { edit } = get();
       if (!edit) return;
@@ -382,6 +447,14 @@ export const useWorkStore = create<WorkState>((set, get) => {
 /** The annotation being edited, which is also the one drawn locally instead of
  *  from the tiles. */
 export const useEditingId = (): number | null => useWorkStore((s) => s.edit?.annotation.id ?? null);
+
+/** The slice notes on screen. An annotation opened for editing shows and
+ *  saves its own; everything else is drafting them onto the next save. */
+export function useSliceNotes(): SliceNotes {
+  const edit = useWorkStore((s) => s.edit);
+  const drafted = useWorkStore((s) => s.sliceNotes);
+  return useMemo(() => (edit ? toNotes(edit.annotation.slice_comments) : drafted), [edit, drafted]);
+}
 
 /** Tile cache buster: the campaign's stored version plus this session's writes. */
 export function useTileVersion(): number {

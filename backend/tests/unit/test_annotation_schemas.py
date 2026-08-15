@@ -14,7 +14,9 @@ from src.annotation.schemas import (
     AnnotationTaskAssignmentOut,
     AnnotationTaskOut,
     AnnotationUpdate,
+    SliceComment,
     compute_task_status_value,
+    normalize_slice_comments,
 )
 
 
@@ -453,3 +455,40 @@ class TestCommentLengthCaps:
             AnnotationCreate(label_id=1, geometry_wkt="POINT (0 0)")
         with pytest.raises(ValidationError):
             AnnotationUpdate(label_id=1, geometry_wkt=None, is_authoritative=None)
+
+
+class TestSliceComments:
+    """One note per slice, blanks dropped - the rule every write path shares."""
+
+    @staticmethod
+    def _note(slice_id: int, text: str) -> SliceComment:
+        return SliceComment(slice_id=slice_id, text=text, source_name="S2")
+
+    def test_last_note_on_a_slice_wins(self):
+        stored = normalize_slice_comments(
+            [self._note(1, "cloudy"), self._note(2, "clear"), self._note(1, "actually clear")]
+        )
+        assert stored is not None
+        assert {note["slice_id"]: note["text"] for note in stored} == {
+            1: "actually clear",
+            2: "clear",
+        }
+
+    def test_blank_notes_are_dropped(self):
+        assert normalize_slice_comments([self._note(1, "   ")]) is None
+
+    def test_nothing_stores_as_null_not_an_empty_list(self):
+        assert normalize_slice_comments([]) is None
+        assert normalize_slice_comments(None) is None
+
+    def test_note_text_capped(self):
+        with pytest.raises(ValidationError):
+            SliceComment(slice_id=1, text="x" * 2001)
+
+    def test_list_length_capped(self):
+        with pytest.raises(ValidationError):
+            AnnotationFromTaskCreate(
+                label_id=1,
+                comment=None,
+                slice_comments=[self._note(i, "note") for i in range(101)],
+            )

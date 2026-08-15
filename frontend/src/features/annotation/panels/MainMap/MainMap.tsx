@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { pageKeymap } from '../../keymap';
+import { SliceCommentButton } from '../../chrome/SliceComments';
 import { useContainerSize } from '../../canvas/useContainerSize';
 import { hotkeyTip } from '../../hotkeys';
 import { extendedLabels } from '../../campaign/annotation';
@@ -137,6 +138,7 @@ export function MainMapHeader() {
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
   const view = useCampaignStore((s) => s.view);
+  const address = useImageryStore((s) => s.address);
   const isTaskMode = mode === 'tasks';
   const sourceIds = view?.source_ids ?? [];
   const windows = useLayoutStore((s) => s.currentLayout.windows);
@@ -171,6 +173,7 @@ export function MainMapHeader() {
           catalog={catalog}
           title={`Select time slice - ${hotkeyTip(bindings, 'd', 'Next slice')}`}
         />
+        <SliceCommentButton address={address} hint={hotkeyTip(bindings, 'shift+c')} />
         <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'o')} />
         <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'v')} />
         <ViewControls

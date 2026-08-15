@@ -46,6 +46,7 @@ def _annotation(
     is_authoritative=False,
     counts_toward_completion=None,
     task=None,
+    slice_comments=None,
 ):
     return SimpleNamespace(
         id=1,
@@ -55,6 +56,7 @@ def _annotation(
         is_authoritative=is_authoritative,
         counts_toward_completion=counts_toward_completion,
         comment=None,
+        slice_comments=slice_comments,
         confidence=None,
         flagged_for_review=False,
         flag_comment=None,

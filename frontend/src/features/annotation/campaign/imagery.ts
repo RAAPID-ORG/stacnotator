@@ -96,6 +96,42 @@ export function byCollectionDate<
   return first.localeCompare(second);
 }
 
+// ---------------------------------------------------------------------------
+// Naming a slice. Every surface that lists slices - the pickers, the window
+// headers, the comment dialog - reads them from here so one slice reads the
+// same everywhere.
+// ---------------------------------------------------------------------------
+
+const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  // Slice dates are plain YYYY-MM-DD, which Date reads as UTC midnight; without
+  // this a browser west of Greenwich renders every one of them a day early.
+  timeZone: 'UTC',
+});
+
+/** '' for a missing or unparseable date rather than 'Invalid Date'. */
+export function formatSliceDate(value: string | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : DATE_FORMAT.format(date);
+}
+
+export function sliceDateRange(slice: {
+  start_date?: string | null;
+  end_date?: string | null;
+}): string {
+  const start = formatSliceDate(slice.start_date);
+  const end = formatSliceDate(slice.end_date);
+  if (start && end && start !== end) return `${start} - ${end}`;
+  return start || end;
+}
+
+export function sliceLabel(slice: ImagerySliceOut, index: number): string {
+  return slice.name || sliceDateRange(slice) || `Slice ${index + 1}`;
+}
+
 /** Custom maps the map can actually draw. Registration is asynchronous, so a
  *  campaign can hold overlays that have no tiles yet. */
 export function readyCustomMaps(maps: CustomMapOut[]): CustomMapOut[] {

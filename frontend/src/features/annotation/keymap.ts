@@ -530,6 +530,15 @@ function mapBindings(): Binding[] {
       help: 'Toggle view link (sync imagery panels)',
       run: () => imagery().toggleViewSync(),
     },
+    {
+      key: 'shift+c',
+      help: 'Comment on the imagery the main map is showing',
+      run: () => {
+        const { address } = imagery();
+        if (address) useWorkStore.getState().openSliceComment(address);
+      },
+    },
+
     { key: 'x', help: 'Toggle crosshair', run: () => imagery().toggleCrosshair() },
     { key: 'shift+x', help: 'Toggle drawn objects', run: () => imagery().toggleAnnotations() },
 

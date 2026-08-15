@@ -4,6 +4,7 @@ import type { AnnotationTaskOut } from '~/api/client';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { isLabelGroupActive, isRemovingLabel, maySubmitTask } from '../../campaign/annotation';
+import { toNotes } from '../../campaign/sliceComments';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { activeGroupClass, FormFields } from '../../components/FormFields';
@@ -30,6 +31,7 @@ function loadTaskIntoForm(task: AnnotationTaskOut | null, currentUserId: string 
   work.setFlagged(mine?.flagged_for_review ?? false);
   work.setFlagComment(mine?.flag_comment ?? '');
   work.setFormValues(mine?.form_values ?? {});
+  work.setSliceNotes(toNotes(mine?.slice_comments));
   work.setActiveFieldIndex(null);
 }
 

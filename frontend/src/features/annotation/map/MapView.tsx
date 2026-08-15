@@ -34,6 +34,9 @@ export interface MapViewProps {
   /** Draw/edit/box-select wiring, applied to a sketch layer this owns. */
   interactions?: InteractionSpec;
   onClick?: (e: MapClickEvent) => void;
+  /** Takes double-click over from OL's zoom, which is why passing it also
+   *  removes that interaction. Decided at mount, like the map itself. */
+  onDoubleClick?: () => void;
   onHoverFeature?: (hit: { layerId: LayerId; featureId: string | number } | null) => void;
   onLoadStateChange?: (loading: boolean) => void;
   wheelZoom?: 'plain' | 'modifier';
@@ -87,6 +90,7 @@ export function MapView({
   layers,
   interactions,
   onClick,
+  onDoubleClick,
   onHoverFeature,
   onLoadStateChange,
   wheelZoom = 'plain',
@@ -105,9 +109,23 @@ export function MapView({
 
   // The map is built once; handlers change on most renders, so they are read
   // through a ref rather than rebuilding it.
-  const handlers = useRef({ onClick, onHoverFeature, onLoadStateChange, wheelZoom, camera });
+  const handlers = useRef({
+    onClick,
+    onDoubleClick,
+    onHoverFeature,
+    onLoadStateChange,
+    wheelZoom,
+    camera,
+  });
   useEffect(() => {
-    handlers.current = { onClick, onHoverFeature, onLoadStateChange, wheelZoom, camera };
+    handlers.current = {
+      onClick,
+      onDoubleClick,
+      onHoverFeature,
+      onLoadStateChange,
+      wheelZoom,
+      camera,
+    };
   });
 
   useEffect(() => {
@@ -123,7 +141,11 @@ export function MapView({
         new ScaleLine({ units: 'metric', minWidth: 48 }),
         new Attribution({ collapsible: true, collapsed: attributionCollapsed }),
       ],
-      interactions: defaultInteractions({ mouseWheelZoom: false, dragPan: false }).extend([
+      interactions: defaultInteractions({
+        mouseWheelZoom: false,
+        dragPan: false,
+        doubleClickZoom: !onDoubleClick,
+      }).extend([
         new MouseWheelZoom({
           // Snappier than OL's 250ms default, which feels sluggish.
           duration: 150,
@@ -157,6 +179,8 @@ export function MapView({
         shiftKey: (event.originalEvent as MouseEvent).shiftKey,
       });
     });
+
+    map.on('dblclick', () => handlers.current.onDoubleClick?.());
 
     map.on('pointermove', (event: MapBrowserEvent) => {
       if (event.dragging || !handlers.current.onHoverFeature) return;

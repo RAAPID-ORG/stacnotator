@@ -71,6 +71,7 @@ const BASE_PARAMS: SubmitParams = {
   flagged: false,
   flagComment: '',
   formValues: {},
+  sliceComments: [],
   knnValidationEnabled: false,
 };
 

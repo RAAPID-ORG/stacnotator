@@ -264,6 +264,18 @@ export const IconKeyboard = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconComment = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M4 4h12a1 1 0 011 1v7a1 1 0 01-1 1H8l-4 3v-3a1 1 0 01-1-1V5a1 1 0 011-1Z" />
+  </svg>
+);
+
+export const IconCommentFilled = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...filled} className={className}>
+    <path d="M4 3.5h12A1.5 1.5 0 0 1 17.5 5v7a1.5 1.5 0 0 1-1.5 1.5H8.4l-3.6 2.7A.5.5 0 0 1 4 15.8v-2.3A1.5 1.5 0 0 1 2.5 12V5A1.5 1.5 0 0 1 4 3.5Z" />
+  </svg>
+);
+
 export const IconChevronDownFilled = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...filled} className={className} viewBox="0 0 16 16">
     <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />

@@ -17,6 +17,7 @@ import {
   type SubmitReadiness,
   type TaskStatus,
 } from './campaign/annotation';
+import { listNotes, type SliceComment } from './campaign/sliceComments';
 import { campaignState, formFields, useCampaignStore } from './stores/campaign';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { usePrefsStore } from './stores/prefs';
@@ -110,6 +111,7 @@ export interface SubmitParams {
   flagged: boolean;
   flagComment: string;
   formValues: FormValues;
+  sliceComments: SliceComment[];
   knnValidationEnabled: boolean;
   /** Set on a resubmit after "submit anyway", so a mismatch shown once does
    *  not ask again. */
@@ -174,6 +176,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         flagged_for_review: params.flagged,
         flag_comment: params.flagged ? params.flagComment || null : null,
         form_values: Object.keys(params.formValues).length ? params.formValues : null,
+        slice_comments: params.sliceComments,
         active_ms: readTaskActiveMs(task.id),
       },
     });
@@ -239,6 +242,7 @@ async function run(options: {
     flagged: work.flagged,
     flagComment: work.flagComment,
     formValues: work.formValues,
+    sliceComments: listNotes(work.sliceNotes),
     knnValidationEnabled: useTasksStore.getState().knnValidationEnabled,
     confirmMismatch: options.confirmMismatch,
   });

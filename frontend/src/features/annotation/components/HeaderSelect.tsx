@@ -11,6 +11,8 @@ export interface HeaderSelectOption {
   label: string;
   /** Known-empty slices stay selectable but are visibly de-emphasised. */
   dimmed?: boolean;
+  /** Marker drawn after the label, e.g. "this slice has a note". */
+  badge?: ReactNode;
 }
 
 export interface HeaderSelectProps {
@@ -150,6 +152,7 @@ export function HeaderSelect({
                       className={`h-1 w-1 shrink-0 rounded-full ${isSelected ? 'bg-brand-500' : 'bg-transparent'}`}
                     />
                     <span className="truncate">{option.label}</span>
+                    {option.badge && <span className="shrink-0">{option.badge}</span>}
                   </button>
                   {onMarkOption && (
                     <button

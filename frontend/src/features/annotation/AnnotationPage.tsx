@@ -26,6 +26,7 @@ import { LayoutEditControls } from './canvas/LayoutEdit/LayoutEditControls';
 import { TrayContent } from './canvas/LayoutEdit/TrayContent';
 import { ViewAdmin } from './canvas/LayoutEdit/ViewAdmin';
 import { MobileSliceNav } from './chrome/MobileSliceNav';
+import { SliceCommentDialog } from './chrome/SliceComments';
 import { RestoreScreensToast, SendToScreenButton } from './canvas/Screens/ScreenControls';
 import { ScreenWindow } from './canvas/Screens/ScreenWindow';
 import { Toolbar } from './chrome/Toolbar/Toolbar';
@@ -530,6 +531,8 @@ export function AnnotationPage() {
       )}
 
       {isMobile ? <MobileSliceNav /> : <EditOverlayControls />}
+
+      <SliceCommentDialog />
 
       {!isMobile && editing && (
         <>
