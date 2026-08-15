@@ -1,7 +1,4 @@
-export const LEGAL_DOCS = [
-  { key: 'terms', title: 'Terms' },
-  { key: 'privacy', title: 'Privacy' },
-] as const;
+export const LEGAL_DOCS = [{ key: 'terms', title: 'Terms of Service' }] as const;
 
 export type LegalKey = (typeof LEGAL_DOCS)[number]['key'];
 
