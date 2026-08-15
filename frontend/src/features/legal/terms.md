@@ -3,8 +3,18 @@
 Last updated: 2026-08-15
 
 STACNotator (the "Service") is operated by [OPERATOR_NAME], [OPERATOR_ADDRESS],
-USA, and offered free of charge to support research and education. By using it
-you agree to these terms. Contact: [CONTACT_EMAIL].
+USA, and offered free of charge. By using it you agree to these terms. Contact:
+[CONTACT_EMAIL].
+
+## Permitted Use
+
+You may use the Service for any lawful purpose, including commercial work.
+
+You may not use the Service if you are a military, paramilitary, or
+intelligence organization, or a representative, agent, affiliate, or contractor
+of one acting in that capacity, and you may not use it in the design,
+development, testing, production, or operation of weapons or weapon systems.
+You must also comply with US export control and sanctions law.
 
 ## Availability
 
