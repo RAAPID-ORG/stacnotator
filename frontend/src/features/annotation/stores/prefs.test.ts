@@ -10,6 +10,28 @@ beforeEach(() => {
     toursSeen: [],
     labelStyles: {},
     legendOverrides: {},
+    timeseriesChart: {
+      removeCloudy: true,
+      showDots: true,
+      smoothEnabled: false,
+      smoothing: { window: 7, order: 3 },
+    },
+  });
+});
+
+describe('timeseries chart options', () => {
+  it('patches one option without disturbing the others', () => {
+    // The panel drops back to a spinner between tasks, unmounting the chart, so
+    // these live here rather than in its own state - a toggle has to outlive it.
+    usePrefsStore.getState().setTimeseriesChart({ showDots: false });
+    usePrefsStore.getState().setTimeseriesChart({ smoothing: { window: 11, order: 2 } });
+
+    expect(usePrefsStore.getState().timeseriesChart).toEqual({
+      removeCloudy: true,
+      showDots: false,
+      smoothEnabled: false,
+      smoothing: { window: 11, order: 2 },
+    });
   });
 });
 

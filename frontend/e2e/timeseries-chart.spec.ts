@@ -20,12 +20,12 @@ async function loadWithTimeseries(page: Page, api: ApiCapture): Promise<void> {
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
-  await page.waitForSelector('[data-tour="timeseries"]', { timeout: 10_000 });
+  await page.waitForSelector('[data-tour^="timeseries:"]', { timeout: 10_000 });
   await waitForNavIdle(page);
   api.clear();
 }
 
-const chart = (page: Page) => page.locator('[data-tour="timeseries"]');
+const chart = (page: Page) => page.locator('[data-tour^="timeseries:"]');
 // The chart options (Remove cloudy / Smooth / Dots) live behind a gear button and
 // render in a portal outside the chart card, so locate them page-wide.
 const optionsBtn = (page: Page) => page.getByRole('button', { name: 'Chart options' });
@@ -52,7 +52,7 @@ test.describe('Timeseries chart renders', () => {
   });
 
   test('chart card is NOT visible when campaign has no time_series', async ({ annotationPage }) => {
-    await expect(annotationPage.locator('[data-tour="timeseries"]')).not.toBeVisible();
+    await expect(annotationPage.locator('[data-tour^="timeseries:"]')).not.toBeVisible();
   });
 
   test('canvas element is rendered inside the chart card', async ({ annotationPage, api }) => {
@@ -80,7 +80,7 @@ test.describe('Timeseries chart renders', () => {
     });
     await loadWithTimeseries(annotationPage, api);
     // Allow chart to finish loading
-    await annotationPage.locator('[data-tour="timeseries"] canvas').waitFor({ timeout: 5000 });
+    await annotationPage.locator('[data-tour^="timeseries:"] canvas').waitFor({ timeout: 5000 });
     expect(tsUrls.length).toBeGreaterThan(0);
     // URL contains the task's longitude (from POINT(lon lat))
     const taskLon = TASK_1.geometry.geometry.match(/POINT\(([^ ]+)/)?.[1] ?? '';
@@ -306,7 +306,7 @@ test.describe('Data fetching with task navigation', () => {
 
     // The request may have fired before the listener was attached (cached prefetch);
     // just verify the chart is still showing data for the new task.
-    await expect(annotationPage.locator('[data-tour="timeseries"] canvas')).toBeVisible({
+    await expect(annotationPage.locator('[data-tour^="timeseries:"] canvas')).toBeVisible({
       timeout: 3000,
     });
   });
@@ -316,5 +316,21 @@ test.describe('Data fetching with task navigation', () => {
     await waitForNavIdle(annotationPage);
     await expect(chart(annotationPage)).toBeVisible();
     await expect(chart(annotationPage).locator('canvas')).toBeVisible({ timeout: 3000 });
+  });
+
+  test('chart options survive task navigation', async ({ annotationPage }) => {
+    // The panel falls back to a spinner while the new location loads, which
+    // unmounts the chart - so these options cannot live in its own state.
+    await openOptions(annotationPage);
+    await dotsToggle(annotationPage).click();
+    await expect(dotsToggle(annotationPage)).toHaveAttribute('aria-checked', 'false');
+    await annotationPage.keyboard.press('Escape');
+
+    await annotationPage.keyboard.press('s');
+    await waitForNavIdle(annotationPage);
+    await chart(annotationPage).locator('canvas').waitFor({ timeout: 5000 });
+
+    await openOptions(annotationPage);
+    await expect(dotsToggle(annotationPage)).toHaveAttribute('aria-checked', 'false');
   });
 });

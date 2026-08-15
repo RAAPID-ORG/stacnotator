@@ -11,8 +11,6 @@ import { handleError } from '~/shared/utils/errorHandler';
 import { MonthPicker } from '~/shared/ui/MonthPicker';
 import { Input, Select, Button } from '~/shared/ui/forms';
 import { IconCheck, IconClose } from '~/shared/ui/Icons';
-import { Tooltip } from '~/shared/ui/Tooltip';
-import { pillCls } from '~/shared/ui/pill';
 import { DEFAULT_TIMESERIES_WINDOW_NAME } from '~/shared/utils/constants';
 
 // Select sentinel for "create a new window" - distinct from any real window
@@ -40,27 +38,6 @@ function availableIndices(
   if (!options || !source) return [];
   return options.indices.filter((index) => source.index_keys.includes(index.key));
 }
-
-/** A choice with its own explanation alongside, so the whole list can be read
- *  before committing to any of it rather than one entry at a time. */
-const Choice = ({
-  label,
-  info,
-  active,
-  onSelect,
-}: {
-  label: string;
-  info: string;
-  active: boolean;
-  onSelect: () => void;
-}) => (
-  <span className="inline-flex items-center gap-1">
-    <button type="button" className={pillCls(active)} onClick={onSelect}>
-      {label}
-    </button>
-    <Tooltip text={info} align="start" />
-  </span>
-);
 
 export const StepAddTimeseries = ({
   form,
@@ -164,6 +141,10 @@ export const StepAddTimeseries = ({
       </p>
 
       {items.map((i, index) => {
+        const source = tsOptions?.sources.find((s) => s.key === i.data_source);
+        const chosenIndex = availableIndices(tsOptions, i.data_source).find(
+          (candidate) => candidate.key === i.ts_type
+        );
         return (
           <div key={index} className="rounded-lg border border-neutral-300 p-4 space-y-4">
             <div className="flex items-center justify-between">
@@ -258,41 +239,53 @@ export const StepAddTimeseries = ({
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-neutral-700">Data source</label>
-              <div className="flex flex-wrap items-center gap-2">
-                {tsOptions?.sources.map((option) => (
-                  <Choice
-                    key={option.key}
-                    label={option.label}
-                    info={`${option.coverage}, ${option.resolution_m} m\n\n${option.description}`}
-                    active={option.key === i.data_source}
-                    onSelect={() => selectSource(index, option.key)}
-                  />
-                ))}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-neutral-700">Data source</label>
+                <Select
+                  size="sm"
+                  value={i.data_source}
+                  onChange={(e) => selectSource(index, e.target.value)}
+                >
+                  <option value="">Select data source</option>
+                  {tsOptions?.sources.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label} ({option.coverage})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-neutral-700">Index</label>
+                <Select
+                  size="sm"
+                  value={i.ts_type}
+                  disabled={!i.data_source}
+                  onChange={(e) => updateItem(index, { ts_type: e.target.value })}
+                >
+                  <option value="">
+                    {i.data_source ? 'Select index' : 'Pick a data source first'}
+                  </option>
+                  {availableIndices(tsOptions, i.data_source).map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-neutral-700">Index</label>
-              {i.data_source ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  {availableIndices(tsOptions, i.data_source).map((option) => (
-                    <Choice
-                      key={option.key}
-                      label={option.label}
-                      info={option.formula}
-                      active={option.key === i.ts_type}
-                      onSelect={() => updateItem(index, { ts_type: option.key })}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-neutral-400">
-                  Pick a data source to see the indices it can compute.
-                </p>
-              )}
-            </div>
+            {source && (
+              <p className="text-xs text-neutral-400">
+                {source.coverage}, {source.resolution_m} m. {source.description}
+              </p>
+            )}
+            {chosenIndex && (
+              <p className="text-xs text-neutral-600 font-mono break-words">
+                {chosenIndex.formula}
+              </p>
+            )}
 
             {tsOptions && tsOptions.providers.length > 1 && (
               <div className="space-y-1">

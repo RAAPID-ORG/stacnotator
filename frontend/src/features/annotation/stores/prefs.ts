@@ -5,6 +5,29 @@ import type { LegendOverride } from '../campaign/tileColors';
 
 export type PreloadTier = 'auto' | 'off' | 'conservative' | 'balanced' | 'heavy';
 
+export interface SmoothingOptions {
+  window: number;
+  order: number;
+}
+
+/** How the timeseries chart is drawn. Held here rather than in the chart
+ *  because the panel drops back to a spinner while a new location loads, which
+ *  unmounts the chart - so anything kept in its own state would reset on every
+ *  task change. */
+export interface TimeseriesChartOptions {
+  removeCloudy: boolean;
+  showDots: boolean;
+  smoothEnabled: boolean;
+  smoothing: SmoothingOptions;
+}
+
+const DEFAULT_TIMESERIES_CHART: TimeseriesChartOptions = {
+  removeCloudy: true,
+  showDots: true,
+  smoothEnabled: false,
+  smoothing: { window: 7, order: 3 },
+};
+
 interface PrefsState {
   preloadTier: PreloadTier;
   /** Whether Skip may proceed without asking. */
@@ -16,8 +39,10 @@ interface PrefsState {
   toursSeen: string[];
   labelStyles: Record<number, Partial<LabelStyle>>;
   legendOverrides: Record<number, LegendOverride>;
+  timeseriesChart: TimeseriesChartOptions;
 
   setPreloadTier: (tier: PreloadTier) => void;
+  setTimeseriesChart: (patch: Partial<TimeseriesChartOptions>) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
   /** `null` clears the pin for that view. */
   setPinnedStart: (viewId: number, collectionId: number | null) => void;
@@ -44,8 +69,11 @@ export const usePrefsStore = create<PrefsState>()(
       toursSeen: [],
       labelStyles: {},
       legendOverrides: {},
+      timeseriesChart: DEFAULT_TIMESERIES_CHART,
 
       setPreloadTier: (preloadTier) => set({ preloadTier }),
+      setTimeseriesChart: (patch) =>
+        set((s) => ({ timeseriesChart: { ...s.timeseriesChart, ...patch } })),
       setSkipConfirmDisabled: (skipConfirmDisabled) => set({ skipConfirmDisabled }),
 
       setPinnedStart: (viewId, collectionId) =>

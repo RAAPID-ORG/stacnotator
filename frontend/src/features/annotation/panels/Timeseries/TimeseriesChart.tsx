@@ -38,7 +38,8 @@ import {
   sliceMarkerPlugin,
 } from './chartData';
 import { savitzkyGolay } from './smoothing';
-import { OptionsPopover, type SmoothingOptions } from './TimeseriesOptions';
+import { OptionsPopover } from './TimeseriesOptions';
+import { usePrefsStore } from '../../stores/prefs';
 
 ChartJS.register(
   LineElement,
@@ -86,10 +87,12 @@ export function Chart({ series, points }: ChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<ChartJS<'line'> | null>(null);
 
-  const [removeCloudy, setRemoveCloudy] = useState(true);
-  const [showDots, setShowDots] = useState(true);
-  const [smoothEnabled, setSmoothEnabled] = useState(false);
-  const [smoothing, setSmoothing] = useState<SmoothingOptions>({ window: 7, order: 3 });
+  // Held in the preference store, not here: switching task drops this chart
+  // back to a spinner and unmounts it, so local state would reset every time.
+  const { removeCloudy, showDots, smoothEnabled, smoothing } = usePrefsStore(
+    (s) => s.timeseriesChart
+  );
+  const setChartOptions = usePrefsStore((s) => s.setTimeseriesChart);
   const [hiddenDatasets, setHiddenDatasets] = useState<Set<number>>(new Set());
   const [isZoomed, setIsZoomed] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -467,13 +470,13 @@ export function Chart({ series, points }: ChartProps) {
         <OptionsPopover
           ref={optionsPanelRef}
           removeCloudy={removeCloudy}
-          onRemoveCloudyChange={setRemoveCloudy}
+          onRemoveCloudyChange={(removeCloudy) => setChartOptions({ removeCloudy })}
           smoothEnabled={smoothEnabled}
-          onSmoothEnabledChange={setSmoothEnabled}
+          onSmoothEnabledChange={(smoothEnabled) => setChartOptions({ smoothEnabled })}
           smoothing={smoothing}
-          onSmoothingChange={setSmoothing}
+          onSmoothingChange={(smoothing) => setChartOptions({ smoothing })}
           showDots={showDots}
-          onShowDotsChange={setShowDots}
+          onShowDotsChange={(showDots) => setChartOptions({ showDots })}
         />
       )}
 

@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import type { SmoothingOptions } from '../../stores/prefs';
 
 interface ToggleRowProps {
   option: string;
@@ -29,11 +30,6 @@ function ToggleRow({ option, label, title, checked, onChange }: ToggleRowProps) 
       </div>
     </button>
   );
-}
-
-export interface SmoothingOptions {
-  window: number;
-  order: number;
 }
 
 export interface OptionsPopoverProps {
