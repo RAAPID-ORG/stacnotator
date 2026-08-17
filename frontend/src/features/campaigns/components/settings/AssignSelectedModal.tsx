@@ -129,7 +129,9 @@ export const AssignSelectedModal = ({
                     <div className="font-medium text-neutral-900 text-sm">
                       {user.user.display_name}
                     </div>
-                    <div className="text-xs text-neutral-500">{user.user.email}</div>
+                    {user.user.email && (
+                      <div className="text-xs text-neutral-500">{user.user.email}</div>
+                    )}
                   </div>
                 </label>
               ))}

@@ -186,7 +186,9 @@ export const TaskAssignmentModal = ({
                       />
                       <div>
                         <div className="font-medium text-neutral-900">{user.user.display_name}</div>
-                        <div className="text-sm text-neutral-500">{user.user.email}</div>
+                        {user.user.email && (
+                          <div className="text-sm text-neutral-500">{user.user.email}</div>
+                        )}
                         {user.is_admin && (
                           <span className="text-xs text-brand-700 font-semibold">Admin</span>
                         )}

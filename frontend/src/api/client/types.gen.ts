@@ -286,6 +286,10 @@ export type AnnotationFromTaskOut = {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
     /**
+     * Active Seconds
+     */
+    active_seconds?: number | null;
+    /**
      * Counts Toward Completion
      */
     counts_toward_completion?: boolean | null;
@@ -370,6 +374,10 @@ export type AnnotationOut = {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
     /**
+     * Active Seconds
+     */
+    active_seconds?: number | null;
+    /**
      * Counts Toward Completion
      */
     counts_toward_completion?: boolean | null;
@@ -396,14 +404,6 @@ export type AnnotationTaskAssignmentOut = {
      * Is Review
      */
     is_review?: boolean;
-    /**
-     * Claimed At
-     */
-    claimed_at?: string | null;
-    /**
-     * Active Seconds
-     */
-    active_seconds?: number | null;
     /**
      * User Email
      */
@@ -458,6 +458,18 @@ export type AnnotationTaskOut = {
      */
     annotations: Array<AnnotationFromTaskOut>;
     /**
+     * Claimed By User Id
+     */
+    claimed_by_user_id?: string | null;
+    /**
+     * Claimed At
+     */
+    claimed_at?: string | null;
+    /**
+     * Claimed By Display Name
+     */
+    claimed_by_display_name?: string | null;
+    /**
      * Has Embedding
      */
     has_embedding?: boolean;
@@ -466,10 +478,12 @@ export type AnnotationTaskOut = {
 /**
  * AnnotationTaskSubmitResponse
  *
- * Response from submitting/skipping an annotation task.
+ * Response from submitting or skipping an annotation task.
+ *
+ * The annotation is always there: a skip is stored as a label-less one, so
+ * every submission leaves a record behind.
  */
 export type AnnotationTaskSubmitResponse = {
-    annotation: AnnotationFromTaskOut | null;
     /**
      * Task Status
      */
@@ -478,6 +492,7 @@ export type AnnotationTaskSubmitResponse = {
      * Assignment Status
      */
     assignment_status: string;
+    annotation: AnnotationFromTaskOut;
 };
 
 /**
@@ -1492,6 +1507,10 @@ export type CategoryFormField = {
  * ClaimTaskResponse
  *
  * Response from soft-claiming a task.
+ *
+ * `claimed` false with a holder means somebody else is on it; false without
+ * one means there was nothing to lease (the task is assigned, or already
+ * worked). Neither is an error - labelling it anyway stays allowed.
  */
 export type ClaimTaskResponse = {
     /**
@@ -1499,9 +1518,21 @@ export type ClaimTaskResponse = {
      */
     task_id: number;
     /**
+     * Claimed
+     */
+    claimed: boolean;
+    /**
      * Claimed At
      */
     claimed_at: string | null;
+    /**
+     * Holder User Id
+     */
+    holder_user_id?: string | null;
+    /**
+     * Holder Display Name
+     */
+    holder_display_name?: string | null;
 };
 
 /**
@@ -3375,6 +3406,22 @@ export type TaskSetRename = {
 };
 
 /**
+ * TaskStatusOut
+ *
+ * Where a task and the acting user stand after a write to it.
+ */
+export type TaskStatusOut = {
+    /**
+     * Task Status
+     */
+    task_status: string;
+    /**
+     * Assignment Status
+     */
+    assignment_status: string;
+};
+
+/**
  * TemporalExtent
  */
 export type TemporalExtent = {
@@ -3768,7 +3815,8 @@ export type UpdateSampleExtentRequest = {
 /**
  * UserOut
  *
- * Basic user information.
+ * A user as other users see them. `email` is filled for platform admins
+ * only; everyone else identifies people by display name.
  */
 export type UserOut = {
     /**
@@ -3778,11 +3826,11 @@ export type UserOut = {
     /**
      * Email
      */
-    email: string;
+    email?: string | null;
     /**
      * Display Name
      */
-    display_name?: string | null;
+    display_name: string;
 };
 
 /**
@@ -6965,7 +7013,7 @@ export type DeleteAnnotationResponses = {
      *
      * Successful Response
      */
-    200: AnnotationTaskSubmitResponse | null;
+    200: TaskStatusOut | null;
 };
 
 export type DeleteAnnotationResponse = DeleteAnnotationResponses[keyof DeleteAnnotationResponses];

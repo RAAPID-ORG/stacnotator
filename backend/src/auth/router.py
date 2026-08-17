@@ -83,13 +83,13 @@ def list_users(
     List users in the system.
 
     Platform admins get the full detailed record (email, issuer, external_uid).
-    Everyone else gets only the plain id/email/display_name - needed so org and
-    project admins can pick members to add, without exposing account details.
+    Everyone else gets id and display name only - enough for org and project
+    admins to pick members to add, without handing out the platform's address book.
     """
     users = service.get_all_users(db)
     if user.is_admin:
         return users
-    return [UserOut.model_validate(u) for u in users]
+    return [UserOut.for_viewer(u, with_email=False) for u in users]
 
 
 @router.patch("/users/{user_id}", response_model=UserOutDetailed)

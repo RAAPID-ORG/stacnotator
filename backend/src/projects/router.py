@@ -144,10 +144,18 @@ def get_project_organization_keys(
 def get_project_users(
     project_id: int,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     project: Project = Depends(require_project_access),
 ):
     project_users = service.get_project_users(db, project_id)
-    users = [ProjectUserOut.model_validate(pu) for pu in project_users]
+    users = [
+        ProjectUserOut(
+            user=UserOut.for_viewer(pu.user, with_email=user.is_admin),
+            is_admin=pu.is_admin,
+            is_authoritative_reviewer=pu.is_authoritative_reviewer,
+        )
+        for pu in project_users
+    ]
     return ProjectUsersResponse(project_id=project_id, users=users)
 
 
@@ -160,7 +168,8 @@ def add_project_users(
     project: Project = Depends(require_project_admin),
 ):
     added, invited = service.add_users_by_email(db, project_id, body.emails, invited_by=user.id)
-    users = [UserOut.model_validate(u) for u in added]
+    # Echoing back the addresses the caller just submitted, so with_email regardless of role.
+    users = [UserOut.for_viewer(u, with_email=True) for u in added]
     return AddUsersByEmailResult(added=users, invited_emails=invited)
 
 

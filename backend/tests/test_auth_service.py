@@ -341,9 +341,9 @@ class TestListUsersVisibility:
 
         assert result == everyone
 
-    def test_non_admin_gets_plain_user_out_not_detailed_fields(self):
-        """Non-admins must not get issuer/external_uid - only the basic
-        id/email/display_name shape, for every registered user."""
+    def test_non_admin_gets_names_without_emails_or_detailed_fields(self):
+        """Non-admins pick members by display name: no issuer/external_uid, and
+        no email either, so the list is not the platform's address book."""
         viewer = _make_user()
         other = _make_user()
 
@@ -352,6 +352,8 @@ class TestListUsersVisibility:
 
         assert [u.id for u in result] == [viewer.id, other.id]
         assert set(type(result[0]).model_fields) == {"id", "email", "display_name"}
+        assert [u.email for u in result] == [None, None]
+        assert all(u.display_name for u in result)
 
 
 class TestEditUserInfoAuthorization:

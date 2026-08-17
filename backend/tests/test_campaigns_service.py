@@ -8,7 +8,6 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.dialects import postgresql
 
-from src.annotation.constants import ANNOTATION_TASK_STATUS_PENDING
 from src.annotation.models import AnnotationTaskAssignment
 from src.campaigns.assignments import (
     _distribute_evenly,
@@ -302,14 +301,12 @@ class TestAssignReviewersPercentage:
             ],
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
+        assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
         assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
         assert {a.task_id for a in assignments} == {10, 20, 30}
         assert all(a.user_id == u1 for a in assignments)
-        assert all(a.status == ANNOTATION_TASK_STATUS_PENDING for a in assignments)
         assert all(a.is_review is True for a in assignments)
         db.commit.assert_called_once()
 
@@ -327,8 +324,7 @@ class TestAssignReviewersPercentage:
             ],
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
+        assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
         assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
@@ -353,10 +349,9 @@ class TestAssignReviewersPercentage:
             ],
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            assign_reviewers_percentage(
-                db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
-            )
+        assign_reviewers_percentage(
+            db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+        )
 
         added = [c.args[0] for c in db.add.call_args_list]
         assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
@@ -386,10 +381,9 @@ class TestAssignReviewersPercentage:
             ],
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            assign_reviewers_percentage(
-                db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
-            )
+        assign_reviewers_percentage(
+            db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+        )
 
         added = [c.args[0] for c in db.add.call_args_list]
         new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
@@ -446,8 +440,7 @@ class TestAssignReviewersFixed:
             ],
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            assign_reviewers_fixed(db, 1, num_tasks=2, num_reviewers=1, reviewer_ids=[u1])
+        assign_reviewers_fixed(db, 1, num_tasks=2, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
         assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
@@ -475,10 +468,9 @@ class TestAssignReviewersFixed:
             ],
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            assign_reviewers_fixed(
-                db, 1, num_tasks=3, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
-            )
+        assign_reviewers_fixed(
+            db, 1, num_tasks=3, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+        )
 
         added = [c.args[0] for c in db.add.call_args_list]
         assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
@@ -507,10 +499,9 @@ class TestAssignReviewersFixed:
             ],
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            assign_reviewers_fixed(
-                db, 1, num_tasks=3, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
-            )
+        assign_reviewers_fixed(
+            db, 1, num_tasks=3, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+        )
 
         added = [c.args[0] for c in db.add.call_args_list]
         new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
@@ -543,10 +534,9 @@ class TestReviewerTopUp:
             ],
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            assign_reviewers_percentage(
-                db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2, r3]
-            )
+        assign_reviewers_percentage(
+            db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2, r3]
+        )
 
         added = [c.args[0] for c in db.add.call_args_list]
         new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
@@ -573,10 +563,9 @@ class TestReviewerTopUp:
             ],
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            assign_reviewers_percentage(
-                db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
-            )
+        assign_reviewers_percentage(
+            db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+        )
 
         added = [c.args[0] for c in db.add.call_args_list]
         new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
@@ -613,8 +602,7 @@ class TestAssignReviewersManual:
         )
         db.execute.return_value.all.return_value = []  # _filter_new_pairs: no existing pairs
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            created = assign_reviewers_manual(db, 1, {10: [u1], 20: [u2]})
+        created = assign_reviewers_manual(db, 1, {10: [u1], 20: [u2]})
 
         added = [c.args[0] for c in db.add.call_args_list]
         assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]

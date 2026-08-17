@@ -13,7 +13,7 @@ export function ClaimBadge({ task, currentUserId, now }: ClaimBadgeProps) {
   const label = claimedByLabel(task, currentUserId, now);
   if (!label) return null;
 
-  const claimedByMe = getActiveClaim(task, now)?.user_id === currentUserId;
+  const claimedByMe = getActiveClaim(task, now)?.userId === currentUserId;
 
   return (
     <span

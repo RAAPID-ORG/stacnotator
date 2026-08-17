@@ -10,6 +10,7 @@ import {
   type AddUsersByEmailResult,
   type OrganizationUserOut,
 } from '~/api/client';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge } from '~/shared/ui/Badge';
 import { Button, Field, Textarea } from '~/shared/ui/forms';
@@ -25,10 +26,10 @@ const rowActionClass =
   'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';
 
-const memberName = (member: OrganizationUserOut) => member.user.display_name || member.user.email;
-
 export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps) => {
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
+  // Emails only reach platform admins; everyone else manages members by name.
+  const showEmails = useAccountStore((s) => s.account?.is_admin ?? false);
 
   const [members, setMembers] = useState<OrganizationUserOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,7 +103,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
 
   const removeMember = async (member: OrganizationUserOut) => {
     const confirmed = await showConfirmDialog({
-      title: `Remove ${memberName(member)}?`,
+      title: `Remove ${member.user.display_name}?`,
       description: 'They lose access to this organization and its projects.',
       confirmText: 'Remove',
       isDangerous: true,
@@ -175,7 +176,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
               <ul className="list-disc pl-4 mt-1 space-y-0.5">
                 {addResult.added.map((user) => (
                   <li key={user.id}>
-                    {user.display_name ? `${user.display_name} (${user.email})` : user.email}
+                    {user.email ? `${user.display_name} (${user.email})` : user.display_name}
                   </li>
                 ))}
               </ul>
@@ -215,11 +216,13 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
             <thead className="bg-neutral-50/50 border-b border-neutral-200">
               <tr>
                 <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                  Email
+                  Name
                 </th>
-                <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                  Display name
-                </th>
+                {showEmails && (
+                  <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                    Email
+                  </th>
+                )}
                 <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
                   Role
                 </th>
@@ -231,23 +234,31 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
             <tbody className="divide-y divide-neutral-100">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-sm text-neutral-500">
+                  <td
+                    colSpan={showEmails ? 4 : 3}
+                    className="px-4 py-10 text-center text-sm text-neutral-500"
+                  >
                     Loading members…
                   </td>
                 </tr>
               ) : members.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-sm text-neutral-500">
+                  <td
+                    colSpan={showEmails ? 4 : 3}
+                    className="px-4 py-10 text-center text-sm text-neutral-500"
+                  >
                     No members yet.
                   </td>
                 </tr>
               ) : (
                 members.map((member) => (
                   <tr key={member.user.id} className="hover:bg-neutral-50/60 transition-colors">
-                    <td className="px-4 py-3 text-sm text-neutral-900">{member.user.email}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-600">
-                      {member.user.display_name || '-'}
+                    <td className="px-4 py-3 text-sm text-neutral-900">
+                      {member.user.display_name}
                     </td>
+                    {showEmails && (
+                      <td className="px-4 py-3 text-sm text-neutral-600">{member.user.email}</td>
+                    )}
                     <td className="px-4 py-3">
                       <Badge tone={member.is_admin ? 'brand' : 'neutral'}>
                         {member.is_admin ? 'Admin' : 'Member'}

@@ -54,7 +54,7 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
 
   const reject = async (request: AccessRequestOut) => {
     const confirmed = await showConfirmDialog({
-      title: `Reject ${request.user.email}?`,
+      title: `Reject ${request.user.display_name}?`,
       description: 'The request is dropped. They can ask again later.',
       confirmText: 'Reject',
       isDangerous: true,
@@ -77,9 +77,9 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
           <li key={request.user.id} data-testid="access-request-row" className="px-4 py-3">
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-neutral-900 truncate">{request.user.email}</p>
-                {request.user.display_name && (
-                  <p className="text-xs text-neutral-500">{request.user.display_name}</p>
+                <p className="text-sm text-neutral-900 truncate">{request.user.display_name}</p>
+                {request.user.email && (
+                  <p className="text-xs text-neutral-500">{request.user.email}</p>
                 )}
                 {request.note && (
                   <p className="mt-1.5 text-sm text-neutral-600 whitespace-pre-wrap">

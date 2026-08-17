@@ -9,8 +9,9 @@ from geoalchemy2.elements import WKTElement
 from src.annotation.schemas import AnnotationTaskOut, compute_task_status_value
 
 
-def _make_assignment(user_id, status="pending"):
-    return {"user_id": user_id, "status": status}
+def _make_assignment(user_id):
+    """Admin intent only - a user's status is derived from their annotation."""
+    return {"user_id": user_id}
 
 
 def _make_annotation(user_id, label_id, is_authoritative=False):
@@ -28,7 +29,7 @@ def _make_task(assignments, annotations, task_id=1):
     directly (see TestComputeTaskStatusValue), so both paths run on
     identical inputs. AnnotationTaskOut is only ever validated from real ORM
     rows in production, hence the attribute-bearing SimpleNamespace wrapper."""
-    assignment_rows = [SimpleNamespace(is_review=False, claimed_at=None, **a) for a in assignments]
+    assignment_rows = [SimpleNamespace(is_review=False, **a) for a in assignments]
     annotation_rows = [
         SimpleNamespace(
             id=i,
@@ -56,6 +57,9 @@ def _make_task(assignments, annotations, task_id=1):
         assignments=assignment_rows,
         annotations=annotation_rows,
         has_embedding=False,
+        claimed_by_user_id=None,
+        claimed_at=None,
+        claimed_by=None,
     )
     return AnnotationTaskOut.model_validate(fake_task)
 
@@ -76,18 +80,18 @@ class TestTaskStatusComputation:
     def test_all_skipped_is_skipped(self):
         u1, u2 = uuid4(), uuid4()
         task = _make_task(
-            assignments=[
-                _make_assignment(u1, "skipped"),
-                _make_assignment(u2, "skipped"),
+            assignments=[_make_assignment(u1), _make_assignment(u2)],
+            annotations=[
+                _make_annotation(u1, label_id=None),
+                _make_annotation(u2, label_id=None),
             ],
-            annotations=[],
         )
         assert task.task_status == "skipped"
 
     def test_pending_when_no_completions(self):
         u1 = uuid4()
         task = _make_task(
-            assignments=[_make_assignment(u1, "pending")],
+            assignments=[_make_assignment(u1)],
             annotations=[],
         )
         assert task.task_status == "pending"
@@ -96,8 +100,8 @@ class TestTaskStatusComputation:
         u1, u2 = uuid4(), uuid4()
         task = _make_task(
             assignments=[
-                _make_assignment(u1, "done"),
-                _make_assignment(u2, "pending"),
+                _make_assignment(u1),
+                _make_assignment(u2),
             ],
             annotations=[_make_annotation(u1, label_id=1)],
         )
@@ -107,8 +111,8 @@ class TestTaskStatusComputation:
         u1, u2 = uuid4(), uuid4()
         task = _make_task(
             assignments=[
-                _make_assignment(u1, "done"),
-                _make_assignment(u2, "done"),
+                _make_assignment(u1),
+                _make_assignment(u2),
             ],
             annotations=[
                 _make_annotation(u1, label_id=1),
@@ -121,8 +125,8 @@ class TestTaskStatusComputation:
         u1, u2 = uuid4(), uuid4()
         task = _make_task(
             assignments=[
-                _make_assignment(u1, "done"),
-                _make_assignment(u2, "done"),
+                _make_assignment(u1),
+                _make_assignment(u2),
             ],
             annotations=[
                 _make_annotation(u1, label_id=1),
@@ -136,11 +140,11 @@ class TestTaskStatusComputation:
         until every assignee has actually labeled it."""
         u1, u2 = uuid4(), uuid4()
         task = _make_task(
-            assignments=[
-                _make_assignment(u1, "done"),
-                _make_assignment(u2, "skipped"),
+            assignments=[_make_assignment(u1), _make_assignment(u2)],
+            annotations=[
+                _make_annotation(u1, label_id=1),
+                _make_annotation(u2, label_id=None),
             ],
-            annotations=[_make_annotation(u1, label_id=1)],
         )
         assert task.task_status == "partial"
 
@@ -150,13 +154,14 @@ class TestTaskStatusComputation:
         u1, u2, u3 = uuid4(), uuid4(), uuid4()
         task = _make_task(
             assignments=[
-                _make_assignment(u1, "done"),
-                _make_assignment(u2, "done"),
-                _make_assignment(u3, "skipped"),
+                _make_assignment(u1),
+                _make_assignment(u2),
+                _make_assignment(u3),
             ],
             annotations=[
                 _make_annotation(u1, label_id=1),
                 _make_annotation(u2, label_id=1),
+                _make_annotation(u3, label_id=None),
             ],
         )
         assert task.task_status == "partial"
@@ -172,8 +177,8 @@ class TestAuthoritativeOverride:
         u1, u2, reviewer = uuid4(), uuid4(), uuid4()
         task = _make_task(
             assignments=[
-                _make_assignment(u1, "done"),
-                _make_assignment(u2, "done"),
+                _make_assignment(u1),
+                _make_assignment(u2),
             ],
             annotations=[
                 _make_annotation(u1, label_id=1),
@@ -189,8 +194,8 @@ class TestAuthoritativeOverride:
         u1, u2, reviewer = uuid4(), uuid4(), uuid4()
         task = _make_task(
             assignments=[
-                _make_assignment(u1, "done"),
-                _make_assignment(u2, "pending"),
+                _make_assignment(u1),
+                _make_assignment(u2),
             ],
             annotations=[
                 _make_annotation(u1, label_id=1),
@@ -204,8 +209,8 @@ class TestAuthoritativeOverride:
         u1, u2, reviewer = uuid4(), uuid4(), uuid4()
         task = _make_task(
             assignments=[
-                _make_assignment(u1, "pending"),
-                _make_assignment(u2, "pending"),
+                _make_assignment(u1),
+                _make_assignment(u2),
             ],
             annotations=[
                 _make_annotation(reviewer, label_id=2, is_authoritative=True),
@@ -219,9 +224,9 @@ class TestAuthoritativeOverride:
         u1, u2, u3 = uuid4(), uuid4(), uuid4()
         task = _make_task(
             assignments=[
-                _make_assignment(u1, "done"),
-                _make_assignment(u2, "done"),
-                _make_assignment(u3, "done"),
+                _make_assignment(u1),
+                _make_assignment(u2),
+                _make_assignment(u3),
             ],
             annotations=[
                 _make_annotation(u1, label_id=1),
@@ -249,30 +254,31 @@ class TestComputeTaskStatusValue:
 
     def test_all_skipped_is_skipped(self):
         u1, u2 = uuid4(), uuid4()
-        assignments = [_make_assignment(u1, "skipped"), _make_assignment(u2, "skipped")]
-        assert compute_task_status_value(assignments, []) == "skipped"
+        assignments = [_make_assignment(u1), _make_assignment(u2)]
+        annotations = [_make_annotation(u1, label_id=None), _make_annotation(u2, label_id=None)]
+        assert compute_task_status_value(assignments, annotations) == "skipped"
 
     def test_partial_when_some_completed(self):
         u1, u2 = uuid4(), uuid4()
-        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "pending")]
+        assignments = [_make_assignment(u1), _make_assignment(u2)]
         annotations = [_make_annotation(u1, label_id=1)]
         assert compute_task_status_value(assignments, annotations) == "partial"
 
     def test_done_when_all_agree(self):
         u1, u2 = uuid4(), uuid4()
-        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "done")]
+        assignments = [_make_assignment(u1), _make_assignment(u2)]
         annotations = [_make_annotation(u1, label_id=1), _make_annotation(u2, label_id=1)]
         assert compute_task_status_value(assignments, annotations) == "done"
 
     def test_conflicting_when_different_labels(self):
         u1, u2 = uuid4(), uuid4()
-        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "done")]
+        assignments = [_make_assignment(u1), _make_assignment(u2)]
         annotations = [_make_annotation(u1, label_id=1), _make_annotation(u2, label_id=2)]
         assert compute_task_status_value(assignments, annotations) == "conflicting"
 
     def test_authoritative_overrides_conflict_to_done(self):
         u1, u2, u3 = uuid4(), uuid4(), uuid4()
-        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "done")]
+        assignments = [_make_assignment(u1), _make_assignment(u2)]
         annotations = [
             _make_annotation(u1, label_id=1),
             _make_annotation(u2, label_id=2),
@@ -283,7 +289,7 @@ class TestComputeTaskStatusValue:
     def test_matches_schema_path_for_partial(self):
         """Helper and full model_validate path agree on the same inputs."""
         u1, u2 = uuid4(), uuid4()
-        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "pending")]
+        assignments = [_make_assignment(u1), _make_assignment(u2)]
         annotations = [_make_annotation(u1, label_id=1)]
         via_schema = _make_task(assignments, annotations).task_status
         via_helper = compute_task_status_value(assignments, annotations)

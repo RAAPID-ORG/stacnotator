@@ -46,8 +46,8 @@ export const getTilerToken = <ThrowOnError extends boolean = false>(options?: Op
  * List users in the system.
  *
  * Platform admins get the full detailed record (email, issuer, external_uid).
- * Everyone else gets only the plain id/email/display_name - needed so org and
- * project admins can pick members to add, without exposing account details.
+ * Everyone else gets id and display name only - enough for org and project
+ * admins to pick members to add, without handing out the platform's address book.
  */
 export const listUsers = <ThrowOnError extends boolean = false>(options?: Options<ListUsersData, ThrowOnError>) => (options?.client ?? client).get<ListUsersResponses, unknown, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

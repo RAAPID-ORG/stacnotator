@@ -116,6 +116,11 @@ export interface SubmitParams {
   /** Set on a resubmit after "submit anyway", so a mismatch shown once does
    *  not ask again. */
   confirmMismatch?: boolean;
+  /** Set by the Skip action. Both it and Remove Label submit without a label,
+   *  and they mean opposite things - skipping records that you looked and
+   *  moved on, removing takes your work off the task - so the intent is passed
+   *  rather than guessed from the absent label. */
+  isSkip?: boolean;
 }
 
 export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome> {
@@ -134,7 +139,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
 
   // "Take my label off this task": nothing chosen, one already there, and no
   // comment being added.
-  if (labelId === null && mine?.label_id != null && !comment) {
+  if (!params.isSkip && labelId === null && mine?.label_id != null && !comment) {
     try {
       const { data } = await deleteAnnotation({
         path: { campaign_id: campaignId, annotation_id: mine.id },
@@ -180,19 +185,21 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         active_ms: readTaskActiveMs(task.id),
       },
     });
+    const result: AnnotationTaskSubmitResponse | undefined = response.data;
+    if (!result) return { kind: 'error', message: 'The task could not be submitted' };
+
     // Only once the backend has it: a failed submit keeps the time for the retry.
     forgetTaskActiveMs(task.id);
-    const result: AnnotationTaskSubmitResponse | undefined = response.data;
-    const added = result?.annotation ?? null;
     return {
       kind: 'submitted',
       task: {
         ...task,
-        annotations: added
-          ? [...task.annotations.filter((a) => a.created_by_user_id !== currentUserId), added]
-          : task.annotations.filter((a) => a.created_by_user_id !== currentUserId),
-        assignments: withAssignmentStatus(task, currentUserId, result?.assignment_status),
-        task_status: toTaskStatus(result?.task_status) ?? task.task_status,
+        annotations: [
+          ...task.annotations.filter((a) => a.created_by_user_id !== currentUserId),
+          result.annotation,
+        ],
+        assignments: withAssignmentStatus(task, currentUserId, result.assignment_status),
+        task_status: toTaskStatus(result.task_status) ?? task.task_status,
       },
     };
   } catch (error) {
@@ -225,6 +232,7 @@ async function run(options: {
   labelId: number | null;
   isAuthoritative?: boolean;
   confirmMismatch?: boolean;
+  isSkip?: boolean;
 }): Promise<SubmitOutcome> {
   const { catalog } = campaignState();
   const task = currentTask();
@@ -245,6 +253,7 @@ async function run(options: {
     sliceComments: listNotes(work.sliceNotes),
     knnValidationEnabled: useTasksStore.getState().knnValidationEnabled,
     confirmMismatch: options.confirmMismatch,
+    isSkip: options.isSkip,
   });
 
   const tasks = useTasksStore.getState();
@@ -319,12 +328,11 @@ export const submitAnnotation = () => submitWith();
  *  the task regardless of consensus. */
 export const submitAuthoritative = () => submitWith(true);
 
-/** Submits with no label, clearing any label of ours. Only an assignee can
- *  skip: it stores a null-label annotation, which only means something
- *  against an assignment. */
+/** Submits with no label, clearing any label of ours. Stores a label-less
+ *  annotation, which is the record that this user looked and moved on. */
 export async function skipCurrent(): Promise<void> {
-  if (!taskLabellingPolicy(currentTask()).isAssignedToTask) {
-    alert('You are not assigned to this task.', 'error');
+  if (!taskLabellingPolicy(currentTask()).mayLabel) {
+    alert('You are not allowed to label this task in this campaign.', 'error');
     return;
   }
   if (!usePrefsStore.getState().skipConfirmDisabled) {
@@ -339,6 +347,6 @@ export async function skipCurrent(): Promise<void> {
     if (!confirmed) return;
   }
   await guarded(async () => {
-    await run({ labelId: null });
+    await run({ labelId: null, isSkip: true });
   });
 }

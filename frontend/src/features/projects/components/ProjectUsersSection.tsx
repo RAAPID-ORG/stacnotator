@@ -19,6 +19,7 @@ import {
   type ProjectUserOut,
   type UserOut,
 } from '~/api/client';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import {
   INVITE_SIGNUP_NOTE,
@@ -30,10 +31,14 @@ interface ProjectUsersSectionProps {
   canManage: boolean;
 }
 
-const userLabel = (user: UserOut) => user.display_name || user.email;
+/** Emails only reach platform admins, so everyone else picks and reads
+ *  members by name. */
+const pickerLabel = (user: UserOut) =>
+  user.email ? `${user.display_name} (${user.email})` : user.display_name;
 
 export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectionProps) => {
   const showAlert = useLayoutStore((state) => state.showAlert);
+  const showEmails = useAccountStore((state) => state.account?.is_admin ?? false);
 
   const [users, setUsers] = useState<ProjectUserOut[]>([]);
   const [allUsers, setAllUsers] = useState<UserOut[]>([]);
@@ -149,7 +154,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
       await refetchAfterMutation();
       setSelectedUserId('');
       setUserQuery('');
-      showAlert(`${userLabel(selectedUser)} added to project`, 'success');
+      showAlert(`${selectedUser.display_name} added to project`, 'success');
     } catch (err) {
       handleError(err, 'Failed to add user');
     } finally {
@@ -188,10 +193,10 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
       setSaving(true);
       if (member.is_admin) {
         await demoteProjectAdmin({ path });
-        showAlert(`${userLabel(member.user)} demoted to member`, 'success');
+        showAlert(`${member.user.display_name} demoted to member`, 'success');
       } else {
         await makeProjectAdmin({ path });
-        showAlert(`${userLabel(member.user)} promoted to admin`, 'success');
+        showAlert(`${member.user.display_name} promoted to admin`, 'success');
       }
       await refetchAfterMutation();
     } catch (err) {
@@ -207,10 +212,10 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
       setSaving(true);
       if (member.is_authoritative_reviewer) {
         await demoteProjectAuthoritativeReviewer({ path });
-        showAlert(`${userLabel(member.user)} removed as authoritative reviewer`, 'success');
+        showAlert(`${member.user.display_name} removed as authoritative reviewer`, 'success');
       } else {
         await makeProjectAuthoritativeReviewer({ path });
-        showAlert(`${userLabel(member.user)} is now an authoritative reviewer`, 'success');
+        showAlert(`${member.user.display_name} is now an authoritative reviewer`, 'success');
       }
       await refetchAfterMutation();
     } catch (err) {
@@ -221,7 +226,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
   };
 
   const handleRemoveUser = async (member: ProjectUserOut) => {
-    if (!window.confirm(`Remove ${userLabel(member.user)} from this project?`)) return;
+    if (!window.confirm(`Remove ${member.user.display_name} from this project?`)) return;
 
     try {
       setSaving(true);
@@ -229,7 +234,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
         path: { project_id: projectId, user_id: member.user.id },
       });
       await refetchAfterMutation();
-      showAlert(`${userLabel(member.user)} removed from project`, 'success');
+      showAlert(`${member.user.display_name} removed from project`, 'success');
     } catch (err) {
       handleError(err, 'Failed to remove user');
     } finally {
@@ -246,7 +251,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
 
   const pickUser = (user: UserOut) => {
     setSelectedUserId(user.id);
-    setUserQuery(`${userLabel(user)} (${user.email})`);
+    setUserQuery(pickerLabel(user));
     setPickerOpen(false);
   };
 
@@ -332,7 +337,9 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                     placeholder={
                       availableUsers.length === 0
                         ? 'No users available'
-                        : 'Search by name or email…'
+                        : showEmails
+                          ? 'Search by name or email…'
+                          : 'Search by name…'
                     }
                     disabled={addingUser || availableUsers.length === 0}
                   />
@@ -360,8 +367,8 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                               index === activeUserIndex ? 'bg-brand-50' : ''
                             } ${user.id === selectedUserId ? 'text-brand-800' : 'text-neutral-900'}`}
                           >
-                            <div className="font-medium">{userLabel(user)}</div>
-                            <div className="text-neutral-500">{user.email}</div>
+                            <div className="font-medium">{user.display_name}</div>
+                            {user.email && <div className="text-neutral-500">{user.email}</div>}
                           </button>
                         ))
                       )}
@@ -419,7 +426,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                   >
                     Added {emailResult.added.length} member
                     {emailResult.added.length === 1 ? '' : 's'}:{' '}
-                    {emailResult.added.map((u) => u.email).join(', ')}
+                    {emailResult.added.map((u) => u.email ?? u.display_name).join(', ')}
                   </div>
                 )}
                 {emailResult && emailResult.invited_emails.length > 0 && (
@@ -460,9 +467,11 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                   <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
                     Name
                   </th>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                    Email
-                  </th>
+                  {showEmails && (
+                    <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                      Email
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
                     Role
                   </th>
@@ -481,9 +490,11 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                     className="hover:bg-neutral-50/60 transition-colors"
                   >
                     <td className="px-4 py-3 text-sm font-medium text-neutral-900">
-                      {userLabel(member.user)}
+                      {member.user.display_name}
                     </td>
-                    <td className="px-4 py-3 text-xs text-neutral-500">{member.user.email}</td>
+                    {showEmails && (
+                      <td className="px-4 py-3 text-xs text-neutral-500">{member.user.email}</td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         <span

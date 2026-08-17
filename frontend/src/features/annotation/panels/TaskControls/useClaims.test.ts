@@ -9,7 +9,7 @@ import {
   makeTaskAnnotation,
 } from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { claimTask, useClaims } from './useClaims';
+import { CLAIM_RENEW_MS, claimTask, useClaims } from './useClaims';
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 describe('claimTask', () => {
-  it('claims an unassigned task and records our soft claim', async () => {
+  it('claims a free task and records us as the holder', async () => {
     vi.mocked(api.claimAnnotationTask).mockResolvedValue(
       apiSuccess(makeClaimTaskResponse({ task_id: 1, claimed_at: '2026-01-01T00:00:00Z' }))
     );
@@ -42,19 +42,22 @@ describe('claimTask', () => {
       now: 0,
     });
 
-    expect(result.status).toBe('claimed');
-    expect(result.task?.assignments).toEqual([
-      { user_id: 'u1', status: 'pending', claimed_at: '2026-01-01T00:00:00Z' },
-    ]);
+    expect(result?.claimed_by_user_id).toBe('u1');
+    expect(result?.claimed_at).toBe('2026-01-01T00:00:00Z');
   });
 
-  it('a 409 (someone else claimed it first) reports skip', async () => {
-    vi.mocked(api.claimAnnotationTask).mockResolvedValue({
-      data: undefined,
-      error: { detail: [] },
-      request: new Request('http://test'),
-      response: new Response(null, { status: 409 }),
-    });
+  it('records who is on it when the claim goes to somebody else', async () => {
+    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+      apiSuccess(
+        makeClaimTaskResponse({
+          task_id: 1,
+          claimed: false,
+          claimed_at: '2026-01-01T00:00:00Z',
+          holder_user_id: 'u2',
+          holder_display_name: 'Ada',
+        })
+      )
+    );
 
     const result = await claimTask({
       campaignId: 1,
@@ -63,8 +66,9 @@ describe('claimTask', () => {
       now: 0,
     });
 
-    expect(result.status).toBe('skip');
-    expect(result.task).toBeUndefined();
+    // Reported, not bounced: the user stays on the task and may still label it.
+    expect(result?.claimed_by_user_id).toBe('u2');
+    expect(result?.claimed_by_display_name).toBe('Ada');
   });
 
   it('is a no-op for a task we neither hold nor can claim (already labeled)', async () => {
@@ -80,14 +84,33 @@ describe('claimTask', () => {
       now: 0,
     });
 
-    expect(result.status).toBe('noop');
+    expect(result).toBeNull();
     expect(api.claimAnnotationTask).not.toHaveBeenCalled();
   });
 
-  it('renews our own soft claim rather than skipping', async () => {
+  it('does not re-request a claim we took moments ago', async () => {
     const heldTask: AnnotationTaskOut = {
       ...UNCLAIMED_TASK,
-      assignments: [{ user_id: 'u1', status: 'pending', claimed_at: '2026-01-01T00:00:00Z' }],
+      claimed_by_user_id: 'u1',
+      claimed_at: new Date(0).toISOString(),
+    };
+
+    const result = await claimTask({
+      campaignId: 1,
+      task: heldTask,
+      currentUserId: 'u1',
+      now: 60_000,
+    });
+
+    expect(result).toBeNull();
+    expect(api.claimAnnotationTask).not.toHaveBeenCalled();
+  });
+
+  it('renews our own claim once it is old enough to be worth refreshing', async () => {
+    const heldTask: AnnotationTaskOut = {
+      ...UNCLAIMED_TASK,
+      claimed_by_user_id: 'u1',
+      claimed_at: new Date(0).toISOString(),
     };
     vi.mocked(api.claimAnnotationTask).mockResolvedValue(
       apiSuccess(makeClaimTaskResponse({ task_id: 1, claimed_at: '2026-01-01T00:10:00Z' }))
@@ -97,13 +120,28 @@ describe('claimTask', () => {
       campaignId: 1,
       task: heldTask,
       currentUserId: 'u1',
-      now: 600_000,
+      now: CLAIM_RENEW_MS,
     });
 
-    expect(result.status).toBe('claimed');
-    expect(result.task?.assignments).toEqual([
-      { user_id: 'u1', status: 'pending', claimed_at: '2026-01-01T00:10:00Z' },
-    ]);
+    expect(result?.claimed_at).toBe('2026-01-01T00:10:00Z');
+  });
+
+  it('leaves a task somebody else holds alone', async () => {
+    const heldByOther: AnnotationTaskOut = {
+      ...UNCLAIMED_TASK,
+      claimed_by_user_id: 'u2',
+      claimed_at: new Date(0).toISOString(),
+    };
+
+    const result = await claimTask({
+      campaignId: 1,
+      task: heldByOther,
+      currentUserId: 'u1',
+      now: 60_000,
+    });
+
+    expect(result).toBeNull();
+    expect(api.claimAnnotationTask).not.toHaveBeenCalled();
   });
 });
 
@@ -115,7 +153,6 @@ describe('useClaims failure handling', () => {
     isReviewMode: false,
     getTask: () => UNCLAIMED_TASK,
     onClaimed: vi.fn(),
-    onSkip: vi.fn(),
     ...overrides,
   });
 
@@ -132,7 +169,6 @@ describe('useClaims failure handling', () => {
     });
 
     expect(opts.onClaimed).not.toHaveBeenCalled();
-    expect(opts.onSkip).not.toHaveBeenCalled();
   });
 
   it('says nothing about a claim that fails after we navigated away', async () => {

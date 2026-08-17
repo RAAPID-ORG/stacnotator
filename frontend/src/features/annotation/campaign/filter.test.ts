@@ -26,6 +26,14 @@ const task = (
   task_status: TaskStatus = 'pending'
 ) => makeTask({ id, task_status, assignments });
 
+/** A claim is a lease on the task, never an assignment row. */
+const claimedTask = (
+  id: number,
+  by: string,
+  at: string = fresh(),
+  task_status: TaskStatus = 'pending'
+) => makeTask({ id, task_status, assignments: [], claimed_by_user_id: by, claimed_at: at });
+
 const mineFilter: TaskFilter = {
   assignedTo: [USER],
   statuses: ['pending'],
@@ -35,28 +43,20 @@ const mineFilter: TaskFilter = {
 };
 
 describe('applyTaskFilter - claims vs assignments', () => {
-  it("counts a hard assignment (claimed_at null) as the user's task", () => {
-    const tasks = [task(1, [{ user_id: USER, status: 'pending', claimed_at: null }])];
+  it("counts an admin assignment as the user's task", () => {
+    const tasks = [task(1, [{ user_id: USER, status: 'pending' }])];
     expect(applyTaskFilter(tasks, mineFilter, USER, NOW).visibleTasks.map((t) => t.id)).toEqual([
       1,
     ]);
   });
 
-  it("does NOT count a pending soft claim as the user's task (transient hold)", () => {
-    const tasks = [task(1, [{ user_id: USER, status: 'pending', claimed_at: fresh() }])];
+  it("does NOT count a task the user merely holds as the user's assigned task", () => {
+    const tasks = [claimedTask(1, USER)];
     expect(applyTaskFilter(tasks, mineFilter, USER, NOW).visibleTasks).toEqual([]);
   });
 
-  it("still counts a completed claim (the user's finished open-mode work)", () => {
-    const tasks = [task(1, [{ user_id: USER, status: 'done', claimed_at: fresh() }], 'done')];
-    const doneFilter: TaskFilter = { ...mineFilter, statuses: ['done'] };
-    expect(applyTaskFilter(tasks, doneFilter, USER, NOW).visibleTasks.map((t) => t.id)).toEqual([
-      1,
-    ]);
-  });
-
   it('keeps a task the current user actively claimed in the unassigned pool', () => {
-    const tasks = [task(1, [{ user_id: USER, status: 'pending', claimed_at: fresh() }])];
+    const tasks = [claimedTask(1, USER)];
     const poolFilter: TaskFilter = { ...mineFilter, assignedTo: [UNASSIGNED] };
     expect(applyTaskFilter(tasks, poolFilter, USER, NOW).visibleTasks.map((t) => t.id)).toEqual([
       1,
@@ -64,22 +64,19 @@ describe('applyTaskFilter - claims vs assignments', () => {
   });
 
   it('excludes a task actively claimed by someone else from the pool', () => {
-    const tasks = [task(1, [{ user_id: OTHER, status: 'pending', claimed_at: fresh() }])];
+    const tasks = [claimedTask(1, OTHER)];
     const poolFilter: TaskFilter = { ...mineFilter, assignedTo: [UNASSIGNED] };
     expect(applyTaskFilter(tasks, poolFilter, USER, NOW).visibleTasks).toEqual([]);
   });
 
   it("without a current user, an active claim is not treated as the pool viewer's own", () => {
-    const tasks = [task(1, [{ user_id: USER, status: 'pending', claimed_at: fresh() }])];
+    const tasks = [claimedTask(1, USER)];
     const poolFilter: TaskFilter = { ...mineFilter, assignedTo: [UNASSIGNED] };
     expect(applyTaskFilter(tasks, poolFilter, null, NOW).visibleTasks).toEqual([]);
   });
 
   it("the pool shows the user's own claim alongside genuinely free tasks (no mine-pin)", () => {
-    const tasks = [
-      task(1, [{ user_id: USER, status: 'pending', claimed_at: fresh() }]),
-      task(2, []),
-    ];
+    const tasks = [claimedTask(1, USER), task(2, [])];
     expect(applyTaskFilter(tasks, mineFilter, USER, NOW).visibleTasks).toEqual([]);
     const poolFilter: TaskFilter = { ...mineFilter, assignedTo: [UNASSIGNED] };
     expect(applyTaskFilter(tasks, poolFilter, USER, NOW).visibleTasks.map((t) => t.id)).toEqual([
@@ -252,7 +249,7 @@ describe('seedFilter - 5-level fallback chain', () => {
   const taskSets = [makeTaskSet({ id: 10, name: 'Set A' })];
 
   it("level 1: lands on the user's own pending assignments", () => {
-    const tasks = [pendingTask(1, [{ user_id: USER, status: 'pending', claimed_at: null }])];
+    const tasks = [pendingTask(1, [{ user_id: USER, status: 'pending' }])];
     const filter = seedFilter(tasks, [], USER, NOW);
     expect(filter).toEqual({
       assignedTo: [USER],
@@ -302,7 +299,7 @@ describe('seedFilter - 5-level fallback chain', () => {
   it('level 4: no deep-linked set, user has nothing pending, broadens to the unassigned pool overall', () => {
     const tasks = [
       // Hard-assigned to someone else: excluded from "mine" and from the pool.
-      pendingTask(1, [{ user_id: OTHER, status: 'pending', claimed_at: null }]),
+      pendingTask(1, [{ user_id: OTHER, status: 'pending' }]),
       // Genuinely free: only this one surfaces once the search broadens to the pool.
       pendingTask(2, []),
     ];
@@ -317,7 +314,7 @@ describe('seedFilter - 5-level fallback chain', () => {
   });
 
   it('level 5: even the unassigned pool is empty, falls back to every pending task', () => {
-    const tasks = [pendingTask(1, [{ user_id: OTHER, status: 'pending', claimed_at: null }])];
+    const tasks = [pendingTask(1, [{ user_id: OTHER, status: 'pending' }])];
     const filter = seedFilter(tasks, [], USER, NOW);
     expect(filter).toEqual({
       assignedTo: [],
@@ -329,7 +326,7 @@ describe('seedFilter - 5-level fallback chain', () => {
   });
 
   it('an unknown deep-linked task set id is ignored (falls through to the set-less chain)', () => {
-    const tasks = [pendingTask(1, [{ user_id: USER, status: 'pending', claimed_at: null }])];
+    const tasks = [pendingTask(1, [{ user_id: USER, status: 'pending' }])];
     const filter = seedFilter(tasks, taskSets, USER, NOW, { taskSetId: 999 });
     expect(filter.taskSetId).toBeNull();
     expect(filter.assignedTo).toEqual([USER]);
@@ -341,7 +338,7 @@ describe('widenFilterForTask', () => {
     applyTaskFilter(tasks, filter, USER, NOW).visibleTasks.map((t) => t.id);
 
   it('leaves a filter that already shows the task untouched', () => {
-    const tasks = [task(1, [{ user_id: USER, status: 'pending', claimed_at: null }])];
+    const tasks = [task(1, [{ user_id: USER, status: 'pending' }])];
     expect(widenFilterForTask(tasks, mineFilter, USER, NOW, 1)).toBe(mineFilter);
   });
 
@@ -349,8 +346,8 @@ describe('widenFilterForTask', () => {
   // on "my pending work": without widening the link lands on task 1 instead.
   it('widens the statuses to reach a done task of the same user', () => {
     const tasks = [
-      task(1, [{ user_id: USER, status: 'pending', claimed_at: null }]),
-      task(2, [{ user_id: USER, status: 'done', claimed_at: null }], 'done'),
+      task(1, [{ user_id: USER, status: 'pending' }]),
+      task(2, [{ user_id: USER, status: 'done' }], 'done'),
     ];
     const widened = widenFilterForTask(tasks, mineFilter, USER, NOW, 2);
     expect(widened.assignedTo).toEqual([USER]);
@@ -360,8 +357,8 @@ describe('widenFilterForTask', () => {
 
   it('drops the user scoping for a task assigned to somebody else', () => {
     const tasks = [
-      task(1, [{ user_id: USER, status: 'pending', claimed_at: null }]),
-      task(2, [{ user_id: OTHER, status: 'done', claimed_at: null }], 'done'),
+      task(1, [{ user_id: USER, status: 'pending' }]),
+      task(2, [{ user_id: OTHER, status: 'done' }], 'done'),
     ];
     const widened = widenFilterForTask(tasks, mineFilter, USER, NOW, 2);
     expect(widened.assignedTo).toEqual([]);
@@ -369,7 +366,7 @@ describe('widenFilterForTask', () => {
   });
 
   it('drops a confidence/flag narrowing when nothing else reaches the task', () => {
-    const tasks = [task(1, [{ user_id: USER, status: 'done', claimed_at: null }], 'done')];
+    const tasks = [task(1, [{ user_id: USER, status: 'done' }], 'done')];
     const narrow: TaskFilter = { ...mineFilter, flaggedOnly: true, selectedConfidences: [5] };
     const widened = widenFilterForTask(tasks, narrow, USER, NOW, 1);
     expect(widened.flaggedOnly).toBe(false);
@@ -378,7 +375,7 @@ describe('widenFilterForTask', () => {
   });
 
   it('returns the filter unchanged for a task that is not in the list at all', () => {
-    const tasks = [task(1, [{ user_id: USER, status: 'pending', claimed_at: null }])];
+    const tasks = [task(1, [{ user_id: USER, status: 'pending' }])];
     expect(widenFilterForTask(tasks, mineFilter, USER, NOW, 404)).toBe(mineFilter);
   });
 });

@@ -35,7 +35,7 @@ import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
  *  nobody's time was measured. Median rather than sum so that a task annotated
  *  three times is comparable with one annotated once. */
 const taskActiveSeconds = (task: AnnotationTaskOut): number | null => {
-  const measured = (task.assignments ?? [])
+  const measured = (task.annotations ?? [])
     .map((a) => a.active_seconds)
     .filter((s): s is number => s != null)
     .sort((x, y) => x - y);
@@ -874,11 +874,11 @@ export const TaskModeReview = ({
                                         >
                                           {confidence}
                                         </span>
-                                        {annotator?.active_seconds != null && (
+                                        {ann.active_seconds != null && (
                                           <>
                                             <span className="text-neutral-400">|</span>
                                             <span title="Active time spent on this task">
-                                              {formatDuration(annotator.active_seconds)}
+                                              {formatDuration(ann.active_seconds)}
                                             </span>
                                           </>
                                         )}

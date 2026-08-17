@@ -80,10 +80,12 @@ policy along with the settings row.
 - Enforcement: 403s in `annotation/service.py` on annotation-creating paths;
   annotation updates gate on the `explore` axis. Deletion is not
   policy-gated (only the public-campaign ownership rule applies), and
-  claiming a task is not policy-gated either - a claim creates an
-  assignment, moving the task from the `unassigned_tasks` axis to the
-  assigned axes. The server is the authority; frontend gating (disabled
-  Explore toggle, task notices) is UX only.
+  claiming a task is not policy-gated either. A claim is a lease held on the
+  task itself (`annotation_tasks.claimed_by_user_id`), not an assignment, so
+  picking a task out of the unassigned pool leaves it on the
+  `unassigned_tasks` axis for everyone, however long it is held. The server
+  is the authority; frontend gating (disabled Explore toggle, task notices)
+  is UX only.
 - Editing: campaign wizard and the settings "Labelling access" card, via
   `PATCH /campaigns/{id}/labelling-policy` (admin only). The PATCH replaces
   the whole policy (all four axes required); `anyone` on a non-public

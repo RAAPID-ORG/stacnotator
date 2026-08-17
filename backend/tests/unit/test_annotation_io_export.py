@@ -47,9 +47,11 @@ def _annotation(
     counts_toward_completion=None,
     task=None,
     slice_comments=None,
+    active_seconds=None,
 ):
     return SimpleNamespace(
         id=1,
+        active_seconds=active_seconds,
         source_id=None,
         label_id=label_id,
         created_by_user_id=created_by_user_id or uuid4(),
@@ -94,12 +96,8 @@ class TestTaskStatusInExportRecords:
         user_a, user_b = uuid4(), uuid4()
         task = _task(
             assignments=[
-                SimpleNamespace(
-                    user_id=user_a, status="done", is_review=False, active_seconds=None
-                ),
-                SimpleNamespace(
-                    user_id=user_b, status="done", is_review=False, active_seconds=None
-                ),
+                SimpleNamespace(user_id=user_a, is_review=False),
+                SimpleNamespace(user_id=user_b, is_review=False),
             ]
         )
         anns = [
@@ -121,13 +119,7 @@ class TestTaskStatusInExportRecords:
         counts_toward_completion flags must reach compute_task_status_value."""
         assignee = uuid4()
         extra_labeler = uuid4()
-        task = _task(
-            assignments=[
-                SimpleNamespace(
-                    user_id=assignee, status="done", is_review=False, active_seconds=None
-                )
-            ]
-        )
+        task = _task(assignments=[SimpleNamespace(user_id=assignee, is_review=False)])
         anns = [
             _annotation(
                 label_id=1, created_by_user_id=assignee, counts_toward_completion=True, task=task
@@ -150,12 +142,8 @@ class TestTaskStatusInExportRecords:
         reviewer = uuid4()
         task = _task(
             assignments=[
-                SimpleNamespace(
-                    user_id=primary, status="done", is_review=False, active_seconds=None
-                ),
-                SimpleNamespace(
-                    user_id=reviewer, status="pending", is_review=True, active_seconds=None
-                ),
+                SimpleNamespace(user_id=primary, is_review=False),
+                SimpleNamespace(user_id=reviewer, is_review=True),
             ]
         )
         anns = [

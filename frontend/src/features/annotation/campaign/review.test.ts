@@ -70,12 +70,12 @@ describe('reviewRows', () => {
     expect(rows[0]).toMatchObject({ isExtra: true });
   });
 
-  it('flags a skipped assignment on an annotation row', () => {
-    const rows = reviewRows(
-      [annotation({ created_by_user_id: 'u1' })],
-      [assignment({ user_id: 'u1', status: 'skipped' })],
-      'partial'
-    );
-    expect(rows[0]).toMatchObject({ isSkipped: true });
+  it('flags a label-less annotation as a skip, assigned or not', () => {
+    const skipped = annotation({ created_by_user_id: 'u1', label_id: null });
+    expect(reviewRows([skipped], [assignment({ user_id: 'u1' })], 'partial')[0]).toMatchObject({
+      isSkipped: true,
+    });
+    // Whoever took this out of the free pool has no assignment row to read.
+    expect(reviewRows([skipped], [], 'partial')[0]).toMatchObject({ isSkipped: true });
   });
 });

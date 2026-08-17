@@ -228,7 +228,9 @@ export function ReviewerAssignmentModal({
                   />
                   <div>
                     <div className="font-medium text-neutral-900">{cu.user.display_name}</div>
-                    <div className="text-sm text-neutral-500">{cu.user.email}</div>
+                    {cu.user.email && (
+                      <div className="text-sm text-neutral-500">{cu.user.email}</div>
+                    )}
                     {cu.is_admin && (
                       <span className="text-xs text-brand-700 font-semibold">Admin</span>
                     )}

@@ -18,18 +18,26 @@ const AXES: {
   key: AxisKey;
   title: string;
   description: string;
+  example: string;
   allowedKinds: PolicyKind[];
 }[] = [
   {
     key: 'explore',
     title: 'Explorative labelling',
     description: 'Who may create free-form, standalone annotations that are not tied to a task.',
+    example:
+      'With Members, any project member can draw their own polygon anywhere on the map and ' +
+      'label it. Everyone else can still browse the imagery, but their drawing tools stay off.',
     allowedKinds: ['admins', 'members', 'anyone'],
   },
   {
     key: 'unassigned_tasks',
     title: 'Unassigned tasks',
-    description: 'Whose labels on tasks with no assignment count toward completing that task.',
+    description:
+      'Who may label a task nobody is assigned to, and whose label counts toward completing it.',
+    example:
+      'A campaign of 500 points that annotators work through first come, first served. With ' +
+      'Members, any project member can pick one up and their label completes it on its own.',
     allowedKinds: ['admins', 'authoritative', 'members', 'anyone'],
   },
   {
@@ -38,6 +46,10 @@ const AXES: {
     description:
       'Who may add extra labels to a task that is already assigned to someone else. Extra ' +
       'labels are shown alongside the assignee’s but do not necessarily count toward completion.',
+    example:
+      'Point #42 is assigned to Alice. With Authoritative reviewers, a reviewer can add a ' +
+      'second label beside hers for comparison. Picking up a task from the unassigned pool ' +
+      'assigns it as well, so this rule applies to it from then on.',
     allowedKinds: ['admins', 'authoritative', 'assignees', 'members', 'anyone'],
   },
   {
@@ -46,13 +58,17 @@ const AXES: {
     description:
       'Whose labels on an assigned task count toward completing it, including satisfying ' +
       'review requirements.',
+    example:
+      'Point #42 is assigned to Alice and needs one review. Her label plus a reviewer’s marks ' +
+      'it done. A label from anyone outside this list is still stored and shown, but the task ' +
+      'stays open.',
     allowedKinds: ['admins', 'authoritative', 'assignees', 'members'],
   },
 ];
 
 const emptyAudience: PolicyAudience = { kinds: [], user_ids: [] };
 
-const memberName = (u: ProjectUserOut) => u.user.display_name || u.user.email;
+const memberName = (u: ProjectUserOut) => u.user.display_name;
 
 interface LabellingPolicyEditorProps {
   value: LabellingPolicy;
@@ -161,6 +177,9 @@ export const LabellingPolicyEditor = ({
             <div>
               <h3 className="text-sm font-medium text-neutral-900">{axis.title}</h3>
               <p className="text-xs text-neutral-500 mt-0.5">{axis.description}</p>
+              <p className="text-xs text-neutral-400 mt-1">
+                <span className="font-medium">Example:</span> {axis.example}
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-x-5 gap-y-2">

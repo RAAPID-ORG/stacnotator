@@ -279,8 +279,8 @@ export function isRemovingLabel(
 }
 
 /** Behind both the Submit button and the Enter key, so a keystroke can never
- *  record what the button refuses. An empty submission is a skip, which has
- *  its own assignee check. */
+ *  record what the button refuses. Skipping is a separate action with the
+ *  same permission check. */
 export function maySubmitTask(state: SubmitReadiness): boolean {
   if (state.isSubmitting || !state.mayLabel) return false;
   return state.selectedLabelId !== null || isRemovingLabel(state);

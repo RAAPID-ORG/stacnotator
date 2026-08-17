@@ -9,11 +9,6 @@ from fastapi import HTTPException
 from sqlalchemy import CursorResult, Result, delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from src.annotation.constants import (
-    ANNOTATION_TASK_STATUS_DONE,
-    ANNOTATION_TASK_STATUS_PENDING,
-    ANNOTATION_TASK_STATUS_SKIPPED,
-)
 from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
 from src.auth.models import User
 from src.campaigns.models import Campaign
@@ -37,46 +32,6 @@ USERS_CSV_COLUMNS = ["email", "display_name", "is_admin", "is_authoritative_revi
 _IMPORT_REQUIRED_COLUMNS = {"annotation_number", "assignees", "reviewers"}
 _MAX_REPORTED_ERRORS = 50
 _SKIPPED_LABEL = "SKIPPED"
-
-
-def _seed_assignment_status(
-    db: Session, pairs: list[tuple[int, UUID]]
-) -> dict[tuple[int, UUID], str]:
-    """
-    For each (task_id, user_id) pair, return the assignment status that
-    reflects an existing annotation by that user on that task. Pairs without
-    a pre-existing annotation are omitted (caller defaults to 'pending').
-
-    Reconciles the case where a user labeled a task before being assigned
-    (or was unassigned then re-assigned) - without this, the new assignment
-    would falsely read 'pending' even though their work is already on file.
-    """
-    if not pairs:
-        return {}
-
-    task_ids = {tid for tid, _ in pairs}
-    user_ids = {uid for _, uid in pairs}
-    pair_set = set(pairs)
-
-    rows = db.execute(
-        select(
-            Annotation.annotation_task_id,
-            Annotation.created_by_user_id,
-            Annotation.label_id,
-        ).where(
-            Annotation.annotation_task_id.in_(task_ids),
-            Annotation.created_by_user_id.in_(user_ids),
-        )
-    ).all()
-
-    seeded: dict[tuple[int, UUID], str] = {}
-    for task_id, user_id, label_id in rows:
-        if (task_id, user_id) not in pair_set:
-            continue
-        seeded[(task_id, user_id)] = (
-            ANNOTATION_TASK_STATUS_DONE if label_id is not None else ANNOTATION_TASK_STATUS_SKIPPED
-        )
-    return seeded
 
 
 def _deleted_rows(result: Result[Any]) -> int:
@@ -226,13 +181,11 @@ def assign_tasks_to_users(
     new_pairs = _filter_new_pairs(db, pairs)
 
     if new_pairs:
-        seeded_status = _seed_assignment_status(db, new_pairs)
         for task_id, user_id in new_pairs:
             db.add(
                 AnnotationTaskAssignment(
                     task_id=task_id,
                     user_id=user_id,
-                    status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
                 )
             )
         db.commit()
@@ -368,14 +321,11 @@ def _top_up_review_assignments(
         for user_id in selected_reviewers:
             new_pairs.append((task.id, user_id))
 
-    seeded_status = _seed_assignment_status(db, new_pairs)
-
     for task_id, user_id in new_pairs:
         db.add(
             AnnotationTaskAssignment(
                 task_id=task_id,
                 user_id=user_id,
-                status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
                 is_review=True,
             )
         )
@@ -528,13 +478,11 @@ def assign_reviewers_manual(
     new_pairs = _filter_new_pairs(db, pairs)
 
     if new_pairs:
-        seeded_status = _seed_assignment_status(db, new_pairs)
         for task_id, user_id in new_pairs:
             db.add(
                 AnnotationTaskAssignment(
                     task_id=task_id,
                     user_id=user_id,
-                    status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
                     is_review=True,
                 )
             )
@@ -778,13 +726,11 @@ def import_task_assignments(db: Session, campaign_id: int, file_bytes: bytes) ->
         assignees_created += len(assignee_users)
         reviewers_created += len(reviewer_users)
 
-    seeded_status = _seed_assignment_status(db, [(tid, uid) for tid, uid, _ in new_assignments])
     for task_id, user_id, is_review in new_assignments:
         db.add(
             AnnotationTaskAssignment(
                 task_id=task_id,
                 user_id=user_id,
-                status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
                 is_review=is_review,
             )
         )

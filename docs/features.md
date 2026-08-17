@@ -4,8 +4,9 @@
 
 Multi-tenancy: organization → project → campaign.
 - Organization signup requests are approved/rejected by a platform admin; org admins manage members and can pre-authorize emails via invites consumed at registration
-- Any signed-in user can browse every approved organization and request access with an optional note; org admins see the requester's email and note and approve or reject. Approval turns the pending membership into an active one; rejection drops the request and they may ask again
+- Any signed-in user can browse every approved organization and request access with an optional note; org admins see the requester's name and note and approve or reject. Approval turns the pending membership into an active one; rejection drops the request and they may ask again
 - Projects have `private`/`organization`/`public` visibility and project-scoped members with `admin` and `authoritative reviewer` roles
+- People are identified by display name everywhere members are listed or picked - the platform user directory, member tables and access requests. Email addresses reach platform admins only, so org and project admins run their membership by name; adding someone by a known address still works through the add-by-email box
 - Per-organization tiler allowlists and an `allows_internal_storage` flag (see [tilers.md](tilers.md))
 - Per-organization provider API keys: an org admin stores a named key once and any campaign in the org points its imagery source or basemap at it, so the secret is pasted (and rotated) in one place. A layer holds either its own encrypted key or an org key reference, never both; the tile proxy resolves whichever applies. Every surface that accepts a typed key - adding or replacing an organization key, a per-layer key, the Planet wizard - requires confirming it is read-only and least-privilege before it can be saved
 
@@ -173,7 +174,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Task sets: named task groups per campaign with stats; generation, assignment, and annotation can be scoped to a set
 - Task assignment strategies: distribute evenly, fixed number per user, or explicit per-task; a task can have multiple assignees (redundant labeling), plus reviewer assignments (per task or percentage-based)
 - Assignment CSV export/import (round-trips assignees + reviewers by email)
-- Soft claims: dwelling on an unassigned task auto-claims it with a 30-minute lease, one active claim per user per campaign
+- Soft claims: opening an unassigned task takes a 30-minute lease on it, one per user per campaign (enforced by the database). Claimed tasks are kept out of everyone else's unassigned pool so two people do not label the same point, but the lease is advisory: reach one deliberately and you can still label it, and it never changes who the labelling policy allows
 
 ## Campaign Settings
 

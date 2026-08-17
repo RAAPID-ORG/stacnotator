@@ -13,15 +13,19 @@ const UNKNOWN_EMAIL = 'nobody@example.org';
 const membersUrl = `/projects/${MOCK_PROJECT.id}?tab=members`;
 
 test.describe('Project members', () => {
-  test('the members tab lists the project members', async ({ appPage }) => {
+  test('the members tab lists the project members by name, without emails', async ({ appPage }) => {
     await Promise.all([appPage.waitForResponse(ROUTE.projectUsers), appPage.goto(membersUrl)]);
 
     await expect(appPage.getByTestId('project-member-row')).toHaveCount(
       MOCK_PROJECT_USERS.users.length
     );
     await expect(appPage.getByTestId('project-member-row')).toContainText(
-      MOCK_PROJECT_USERS.users.map((member) => member.user.email)
+      MOCK_PROJECT_USERS.users.map((member) => member.user.display_name)
     );
+    // The viewer is not a platform admin, so addresses stay out of the table
+    // even when the response still carries them.
+    const rows = await appPage.getByTestId('project-member-row').allInnerTexts();
+    expect(rows.join(' ')).not.toContain('@');
   });
 
   test('adding by email adds the known address and invites the unknown one', async ({
@@ -115,7 +119,9 @@ test.describe('Project members', () => {
 
     await Promise.all([appPage.waitForResponse(ROUTE.projectUsers), appPage.goto(membersUrl)]);
 
-    const row = appPage.getByTestId('project-member-row').filter({ hasText: leaving.user.email });
+    const row = appPage
+      .getByTestId('project-member-row')
+      .filter({ hasText: leaving.user.display_name });
 
     appPage.once('dialog', (dialog) => dialog.dismiss());
     await row.getByRole('button', { name: 'Remove' }).click();
@@ -127,6 +133,8 @@ test.describe('Project members', () => {
     await row.getByRole('button', { name: 'Remove' }).click();
 
     await expect(appPage.getByTestId('project-member-row')).toHaveCount(1);
-    await expect(appPage.getByTestId('project-member-row')).toContainText(staying.user.email);
+    await expect(appPage.getByTestId('project-member-row')).toContainText(
+      staying.user.display_name
+    );
   });
 });

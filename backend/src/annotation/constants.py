@@ -1,6 +1,6 @@
 from typing import Literal
 
-# Assignment-level statuses (per user)
+# Per-user statuses on a task, derived from that user's annotation
 ANNOTATION_TASK_STATUS_PENDING = "pending"
 ANNOTATION_TASK_STATUS_DONE = "done"
 ANNOTATION_TASK_STATUS_SKIPPED = "skipped"

@@ -1,13 +1,12 @@
 """Tests for task-assignment export/import (campaigns/service.py)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pandas as pd
 import pytest
 from fastapi import HTTPException
 
-from src.annotation.constants import ANNOTATION_TASK_STATUS_PENDING
 from src.annotation.models import AnnotationTaskAssignment
 from src.campaigns.assignments import (
     USERS_CSV_COLUMNS,
@@ -259,8 +258,7 @@ class TestImportApply:
             [{"annotation_number": 1001, "assignees": "alice@x.com", "reviewers": "bob@x.com"}]
         )
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            result = import_task_assignments(db, 1, contents)
+        result = import_task_assignments(db, 1, contents)
 
         # Existing assignments for the task are cleared first.
         assert db.execute.call_count == 1
@@ -271,7 +269,6 @@ class TestImportApply:
             (bob.id, True),
         }
         assert all(a.task_id == 10 for a in assignments)
-        assert all(a.status == ANNOTATION_TASK_STATUS_PENDING for a in assignments)
         db.commit.assert_called_once()
         assert result == {
             "tasks_updated": 1,
@@ -284,8 +281,7 @@ class TestImportApply:
         _stub_scalars(db, [[_task(1001, 10)], [], []])
         contents = _csv_bytes([{"annotation_number": 1001, "assignees": "", "reviewers": ""}])
 
-        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
-            result = import_task_assignments(db, 1, contents)
+        result = import_task_assignments(db, 1, contents)
 
         # Task still gets its assignments deleted, but nothing is added.
         assert db.execute.call_count == 1

@@ -6,6 +6,7 @@ import type {
   AnnotationFromTaskOut,
   AnnotationTaskOut,
   AnnotationTaskSubmitResponse,
+  TaskStatusOut,
   ValidateLabelSubmissionsResponse,
 } from '~/api/client';
 import type { FormField } from './campaign/annotation';
@@ -48,6 +49,11 @@ const submitted = (overrides: Partial<AnnotationTaskSubmitResponse> = {}) =>
     task_status: 'done',
     ...overrides,
   });
+
+/** The delete endpoint reports where the task landed; it has no annotation to
+ *  return, unlike a submit. */
+const deleted = () =>
+  envelope<TaskStatusOut>({ assignment_status: 'pending', task_status: 'pending' });
 
 const validated = (status: ValidateLabelSubmissionsResponse['status']) =>
   envelope<ValidateLabelSubmissionsResponse>({ status });
@@ -134,7 +140,11 @@ describe('submitCurrent', () => {
 
   it('a skip (no label, no existing annotation) still goes through completeAnnotationTask and submits', async () => {
     vi.mocked(api.completeAnnotationTask).mockResolvedValue(
-      submitted({ annotation: null, assignment_status: 'skipped', task_status: 'pending' })
+      submitted({
+        annotation: annotation({ label_id: null }),
+        assignment_status: 'skipped',
+        task_status: 'skipped',
+      })
     );
 
     const outcome = await submitCurrent({ ...BASE_PARAMS, labelId: null });
@@ -160,9 +170,7 @@ describe('submitCurrent', () => {
       ...TASK,
       annotations: [annotation({ id: 7 })],
     };
-    vi.mocked(api.deleteAnnotation).mockResolvedValue(
-      submitted({ annotation: null, assignment_status: 'pending', task_status: 'pending' })
-    );
+    vi.mocked(api.deleteAnnotation).mockResolvedValue(deleted());
 
     const outcome = await submitCurrent({
       ...BASE_PARAMS,
@@ -175,6 +183,33 @@ describe('submitCurrent', () => {
     if (outcome.kind !== 'removed') throw new Error('expected removed');
     expect(outcome.task.annotations).toEqual([]);
     expect(api.completeAnnotationTask).not.toHaveBeenCalled();
+  });
+
+  it('skipping a task you already labelled records the skip instead of deleting it', async () => {
+    const taskWithAnnotation: AnnotationTaskOut = {
+      ...TASK,
+      annotations: [annotation({ id: 7 })],
+    };
+    vi.mocked(api.completeAnnotationTask).mockResolvedValue(
+      submitted({
+        annotation: annotation({ label_id: null }),
+        assignment_status: 'skipped',
+        task_status: 'skipped',
+      })
+    );
+
+    const outcome = await submitCurrent({
+      ...BASE_PARAMS,
+      task: taskWithAnnotation,
+      labelId: null,
+      comment: '',
+      isSkip: true,
+    });
+
+    // Skip and Remove Label both submit without a label; only the second one
+    // is allowed to take the work off the task.
+    expect(outcome.kind).toBe('submitted');
+    expect(api.deleteAnnotation).not.toHaveBeenCalled();
   });
 
   it('returns an error outcome when completeAnnotationTask rejects', async () => {

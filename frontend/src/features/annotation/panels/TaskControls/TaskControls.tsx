@@ -111,13 +111,9 @@ export function TaskControls() {
     currentUserId,
     isReviewMode,
     getTask: currentTask,
+    // Including the case where somebody else holds it: the badge says so and
+    // the user decides, rather than the page moving them off it.
     onClaimed: (claimed) => replaceTask(claimed, catalog),
-    onSkip: () => {
-      // A 409 means someone else claimed this task first. Advancing silently
-      // looks like the app skipping tasks at random.
-      showAlert('Someone else is already working on that task - moving to the next one.');
-      next(catalog);
-    },
   });
 
   if (!loaded) {
@@ -136,7 +132,9 @@ export function TaskControls() {
   const readiness = { selectedLabelId, hasExistingLabel, mayLabel, isSubmitting: isBusy };
   const removingLabel = isRemovingLabel(readiness);
   const isSubmitDisabled = !maySubmitTask(readiness);
-  const isSkipDisabled = isBusy || !isAssignedToTask;
+  // Skipping is labelling with no label, so it is gated the same way. Keying
+  // it on assignment would put it out of reach on the whole unassigned pool.
+  const isSkipDisabled = isBusy || !mayLabel;
   const submitLabel = isBusy
     ? 'Submitting…'
     : removingLabel
@@ -308,7 +306,7 @@ export function TaskControls() {
             <button
               type="button"
               disabled={isSkipDisabled}
-              title={!isAssignedToTask ? 'You are not assigned to this task' : undefined}
+              title={!mayLabel ? 'You are not allowed to label this task' : undefined}
               onClick={() => void skipCurrent()}
               className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >

@@ -25,20 +25,17 @@ def _base_assignment(status: str) -> dict:
         "user_id": str(uuid4()),
         "status": status,
         "is_review": False,
-        "claimed_at": None,
         "user_email": None,
         "user_display_name": None,
     }
 
 
-def _assignment_row(status: str, *, user_id=None, is_review: bool = False) -> SimpleNamespace:
+def _assignment_row(*, user_id=None, is_review: bool = False) -> SimpleNamespace:
     """An ORM-shaped `AnnotationTaskAssignment` stand-in: `AnnotationTaskOut`
     is only ever validated from real ORM rows in production, so tests that
     exercise its `compute_task_status` validator build attribute-bearing
-    fakes rather than dicts."""
-    return SimpleNamespace(
-        user_id=user_id or uuid4(), status=status, is_review=is_review, claimed_at=None, user=None
-    )
+    fakes rather than dicts. No status: it is derived from the annotations."""
+    return SimpleNamespace(user_id=user_id or uuid4(), is_review=is_review, user=None)
 
 
 def _annotation_row(
@@ -83,6 +80,9 @@ def _make_task_out_with_computed_status(assignments_data, annotations_data) -> A
         assignments=assignments_data,
         annotations=annotations_data,
         has_embedding=False,
+        claimed_by_user_id=None,
+        claimed_at=None,
+        claimed_by=None,
     )
     with patch("src.annotation.schemas.to_shape", return_value=mock_shape):
         return AnnotationTaskOut.model_validate(fake_task)
@@ -121,12 +121,49 @@ def test_task_status_done_when_no_assignments_but_labeled():
     assert obj.task_status == "done"
 
 
-def test_task_status_skipped_when_all_assignments_skipped():
+def test_task_status_skipped_when_all_assignees_skipped():
+    """A skip is a label-less annotation, which is the whole record of it."""
+    user = uuid4()
     obj = _make_task_out_with_computed_status(
-        assignments_data=[_assignment_row("skipped")],
-        annotations_data=[],
+        assignments_data=[_assignment_row(user_id=user)],
+        annotations_data=[_annotation_row(user, label_id=None)],
     )
     assert obj.task_status == "skipped"
+
+
+def test_task_status_pending_while_the_assignee_has_not_acted():
+    obj = _make_task_out_with_computed_status(
+        assignments_data=[_assignment_row()],
+        annotations_data=[],
+    )
+    assert obj.task_status == "pending"
+
+
+def test_unassigned_task_skipped_by_whoever_picked_it_up():
+    """Nobody was assigned, so the label-less annotation settles it - without
+    this the task would drop back into the pool the moment it was skipped."""
+    obj = _make_task_out_with_computed_status(
+        assignments_data=[],
+        annotations_data=[_annotation_row(uuid4(), label_id=None)],
+    )
+    assert obj.task_status == "skipped"
+
+
+def test_assignment_status_is_derived_from_the_annotation():
+    labeler, skipper, idle = uuid4(), uuid4(), uuid4()
+    obj = _make_task_out_with_computed_status(
+        assignments_data=[
+            _assignment_row(user_id=labeler),
+            _assignment_row(user_id=skipper),
+            _assignment_row(user_id=idle),
+        ],
+        annotations_data=[
+            _annotation_row(labeler, label_id=1),
+            _annotation_row(skipper, label_id=None),
+        ],
+    )
+    by_user = {a.user_id: a.status for a in obj.assignments or []}
+    assert by_user == {labeler: "done", skipper: "skipped", idle: "pending"}
 
 
 def test_task_status_is_literal_type():
@@ -165,8 +202,8 @@ def _annotation(user_id, label_id, *, counts=True, is_authoritative=False):
     }
 
 
-def _assignment(user_id, status="pending", is_review=False):
-    return {"user_id": user_id, "status": status, "is_review": is_review}
+def _assignment(user_id, is_review=False):
+    return {"user_id": user_id, "is_review": is_review}
 
 
 def test_non_counting_label_alone_leaves_task_pending():
@@ -391,7 +428,7 @@ def test_annotation_task_out_computes_status_from_counting_flag():
     serializing AnnotationTaskOut."""
     user = uuid4()
     obj = _make_task_out_with_computed_status(
-        assignments_data=[_assignment_row("done")],
+        assignments_data=[_assignment_row(user_id=user)],
         annotations_data=[_annotation_row(user, label_id=1, counts_toward_completion=False)],
     )
     assert obj.task_status == "pending"
@@ -406,8 +443,8 @@ def test_annotation_task_out_threads_is_review_through_assignment_rows():
     reviewer = uuid4()
     obj = _make_task_out_with_computed_status(
         assignments_data=[
-            _assignment_row("pending", user_id=primary),
-            _assignment_row("pending", user_id=reviewer, is_review=True),
+            _assignment_row(user_id=primary),
+            _assignment_row(user_id=reviewer, is_review=True),
         ],
         annotations_data=[
             _annotation_row(primary, label_id=1, counts_toward_completion=True),

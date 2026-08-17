@@ -24,6 +24,7 @@ from src.annotation.schemas import (
     BatchDeleteAnnotationsResponse,
     ClaimTaskResponse,
     KnnValidationStatusOut,
+    TaskStatusOut,
     ValidateLabelSubmissionsResponse,
 )
 from src.annotation.tiles import InvalidBBoxError, InvalidTileError, parse_bbox
@@ -92,13 +93,19 @@ def claim_annotation_task(
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> ClaimTaskResponse:
-    assignment = claims.claim_task_for_user(
+    outcome = claims.claim_task(
         db=db,
         campaign_id=campaign_id,
         task_id=annotation_task_id,
         user_id=user.id,
     )
-    return ClaimTaskResponse(task_id=annotation_task_id, claimed_at=assignment.claimed_at)
+    return ClaimTaskResponse(
+        task_id=annotation_task_id,
+        claimed=outcome.claimed,
+        claimed_at=outcome.claimed_at,
+        holder_user_id=outcome.holder_user_id,
+        holder_display_name=outcome.holder_display_name,
+    )
 
 
 @router.get(
@@ -291,7 +298,7 @@ def update_annotation_openmode(
 
 @router.delete(
     "/campaigns/{campaign_id}/annotations/{annotation_id}",
-    response_model=AnnotationTaskSubmitResponse | None,
+    response_model=TaskStatusOut | None,
 )
 def delete_annotation(
     campaign_id: int,

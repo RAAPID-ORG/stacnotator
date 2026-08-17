@@ -4,8 +4,8 @@ The full setup is always copied: settings, imagery sources/collections/slices
 with their registered tile URLs (pgstac/MPC mosaic searches are content
 addressed, so both campaigns can safely point at the same mosaics), basemaps,
 views, default canvas layouts, time series and overlay layers. Tasks,
-annotations and personal canvas layouts are opt-in. Soft task claims are
-runtime state of the original campaign and are never copied.
+annotations and personal canvas layouts are opt-in. Task claims are runtime
+state of the original campaign and are never copied.
 """
 
 from sqlalchemy import inspect as sa_inspect
@@ -181,6 +181,8 @@ def duplicate_campaign(
                 campaign_id=dup.id,
                 geometry_id=cloned_geometry_id(task.geometry_id),
                 task_set_id=set_map[task.task_set_id],
+                claimed_by_user_id=None,
+                claimed_at=None,
             )
             db.add(new_task)
             db.flush()
@@ -191,15 +193,9 @@ def duplicate_campaign(
             select(AnnotationTaskAssignment).where(AnnotationTaskAssignment.task_id.in_(task_ids))
         ).all()
         for assignment in assignments:
-            if include_annotations:
-                # Full clone: the copied annotations keep the statuses true.
-                db.add(clone_row(assignment, task_id=task_map[assignment.task_id]))
-            elif assignment.claimed_at is None:
-                # Explicit assignments are setup - keep them, reset progress.
-                # Soft claims are runtime state and die with the annotations.
-                db.add(
-                    clone_row(assignment, task_id=task_map[assignment.task_id], status="pending")
-                )
+            # An assignment is setup, so it is always copied. Progress rides on
+            # the annotations, which means it comes along only when they do.
+            db.add(clone_row(assignment, task_id=task_map[assignment.task_id]))
 
         for embedding in db.scalars(
             select(Embedding).where(Embedding.annotation_task_id.in_(task_ids))

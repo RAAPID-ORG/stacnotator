@@ -100,13 +100,14 @@ def request_organization_access(
 def list_organization_access_requests(
     organization_id: int,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     org: Organization = Depends(require_org_admin),
 ):
     requests = service.list_access_requests(db, organization_id)
     return AccessRequestsResponse(
         items=[
             AccessRequestOut(
-                user=UserOut.model_validate(r.user),
+                user=UserOut.for_viewer(r.user, with_email=user.is_admin),
                 note=r.request_note,
                 requested_at=r.created_at,
             )
@@ -181,10 +182,18 @@ def update_internal_storage(
 def get_organization_users(
     organization_id: int,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     org: Organization = Depends(require_org_member),
 ):
     org_users = service.get_org_users(db, organization_id)
-    users = [OrganizationUserOut.model_validate(ou) for ou in org_users]
+    users = [
+        OrganizationUserOut(
+            user=UserOut.for_viewer(ou.user, with_email=user.is_admin),
+            is_admin=ou.is_admin,
+            status=ou.status,
+        )
+        for ou in org_users
+    ]
     return OrganizationUsersResponse(organization_id=organization_id, users=users)
 
 
@@ -199,7 +208,8 @@ def add_organization_users(
     added, invited = service.add_users_by_email(
         db, organization_id, body.emails, invited_by=user.id
     )
-    users = [UserOut.model_validate(u) for u in added]
+    # Echoing back the addresses the caller just submitted, so with_email regardless of role.
+    users = [UserOut.for_viewer(u, with_email=True) for u in added]
     return AddUsersByEmailResult(added=users, invited_emails=invited)
 
 

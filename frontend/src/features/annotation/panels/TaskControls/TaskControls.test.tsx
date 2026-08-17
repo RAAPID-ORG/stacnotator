@@ -3,7 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
 import type { AnnotationTaskOut, CampaignOutFull } from '~/api/client';
 import { buildImageryCatalog } from '../../campaign/imagery';
-import { makeCampaign, makeTask, makeTaskAnnotation } from '~/features/annotation/testing/fixtures';
+import {
+  apiSuccess,
+  makeCampaign,
+  makeClaimTaskResponse,
+  makeTask,
+  makeTaskAnnotation,
+} from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useCampaignStore } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
@@ -127,23 +133,26 @@ const OPEN_POLICY = makeCampaign({
   },
 });
 
-// A claim conflict needs a toast: a 409 means someone else took the task
-// first, and advancing without saying so reads as the app skipping tasks at
-// random.
+// A claim is advisory. Somebody else holding the task is worth showing, but
+// it must not move the user off a task they are entitled to label.
 describe('TaskControls claim conflict', () => {
-  it('tells the user why it moved on when someone else claimed the task first', async () => {
-    vi.mocked(api.claimAnnotationTask).mockResolvedValue({
-      data: undefined,
-      error: { detail: [] },
-      request: new Request('http://test'),
-      response: new Response(null, { status: 409 }),
-    });
+  it('stays on a task somebody else holds instead of skipping past it', async () => {
+    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+      apiSuccess(
+        makeClaimTaskResponse({
+          task_id: OPEN_TASK.id,
+          claimed: false,
+          holder_user_id: 'someone-else',
+          holder_display_name: 'Ada',
+        })
+      )
+    );
     seed(OPEN_POLICY, [OPEN_TASK]);
 
     render(<TaskControls />);
 
-    await waitFor(() =>
-      expect(alerts).toContainEqual(expect.stringContaining('already working on that task'))
-    );
+    await waitFor(() => expect(api.claimAnnotationTask).toHaveBeenCalled());
+    expect(alerts).toEqual([]);
+    expect(useTasksStore.getState().currentIndex).toBe(0);
   });
 });

@@ -9,11 +9,6 @@ from src.annotation.completion import (
     attach_counts_toward_completion_flat,
     attach_counts_toward_completion_tree,
 )
-from src.annotation.constants import (
-    ANNOTATION_TASK_STATUS_DONE,
-    ANNOTATION_TASK_STATUS_PENDING,
-    ANNOTATION_TASK_STATUS_SKIPPED,
-)
 from src.annotation.forms import (
     FormValidationError,
     campaign_form_fields,
@@ -37,7 +32,10 @@ from src.annotation.schemas import (
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
     SliceComment,
+    TaskStatusOut,
+    derive_assignment_status,
     normalize_slice_comments,
+    task_status_inputs,
 )
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
@@ -54,12 +52,9 @@ logger = logging.getLogger(__name__)
 
 
 def get_user_assignment_status(task: AnnotationTask, user_id: UUID) -> str:
-    """Get a user's assignment status for a task."""
-    if task and task.assignments:
-        for a in task.assignments:
-            if a.user_id == user_id:
-                return a.status
-    return "pending"
+    """Get a user's status on a task, derived from what they annotated."""
+    _, annotation_list = task_status_inputs([], task.annotations or [])
+    return derive_assignment_status(annotation_list, user_id)
 
 
 def _is_campaign_admin(db: Session, user_id: UUID, campaign_id: int) -> bool:
@@ -157,6 +152,7 @@ def get_annotation_task_by_id(
             joinedload(AnnotationTask.geometry),
             joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
             joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
+            joinedload(AnnotationTask.claimed_by),
         )
     )
 
@@ -192,6 +188,7 @@ def get_annotation_tasks_for_campaign(
             joinedload(AnnotationTask.geometry),
             joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
             joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
+            joinedload(AnnotationTask.claimed_by),
         )
         .order_by(AnnotationTask.annotation_number)
     )
@@ -319,17 +316,14 @@ def add_annotation_for_task(
     annotation_task: AnnotationTask,
     annotation_create: AnnotationFromTaskCreate,
     user_id: UUID,
-) -> Annotation | None:
+) -> Annotation:
     """
-    Create or update annotation for a task item and update task status.
+    Create or update this user's annotation on a task.
 
-    If annotation exists (same task, same user):
-    - Delete it if no new label provided and mark assignment as skipped
-    - Update it if new label/comment is provided
-
-    If annotation doesn't exist:
-    - Create annotation record if label or comment is provided
-    - If from assignment: Update assignment status to 'done' (with label) or 'skipped' (without label)
+    One row per (task, user), created or updated in place. A submission with
+    no label is a skip and is stored as a label-less annotation rather than
+    left out: it is the only record that the user acted, and what the task's
+    status and the annotator's time are read from.
 
     Args:
         db: Database session
@@ -381,86 +375,39 @@ def add_annotation_for_task(
         )
     ).scalar_one_or_none()
 
-    assignment = db.execute(
-        select(AnnotationTaskAssignment).where(
-            AnnotationTaskAssignment.task_id == annotation_task.id,
-            AnnotationTaskAssignment.user_id == user_id,
+    values = annotation_values(
+        label_id=annotation_create.label_id,
+        comment=annotation_create.comment,
+        confidence=annotation_create.confidence,
+        flagged_for_review=annotation_create.flagged_for_review,
+        flag_comment=annotation_create.flag_comment,
+        slice_comments=annotation_create.slice_comments,
+        form_values=normalized_form_values,
+        is_authoritative=annotation_create.is_authoritative,
+    )
+
+    # A submission with no label takes the same path: it is a skip, and the
+    # label-less row is the only record that this user acted on the task.
+    if existing_annotation:
+        for field, value in values.items():
+            setattr(existing_annotation, field, value)
+        annotation = existing_annotation
+    else:
+        annotation = Annotation(
+            geometry_id=annotation_task.geometry_id,
+            annotation_task_id=annotation_task.id,
+            campaign_id=annotation_task.campaign_id,
+            created_by_user_id=user_id,
+            **values,
         )
-    ).scalar_one_or_none()
+        db.add(annotation)
 
-    annotation = None
-
-    if existing_annotation:  # UPDATE
-        # If no new label provided, delete existing annotation and mark as skipped
-        if annotation_create.label_id is None:
-            db.delete(existing_annotation)
-            if assignment:
-                assignment.status = ANNOTATION_TASK_STATUS_SKIPPED
-        else:
-            # Update existing annotation with new label/comment
-            values = annotation_values(
-                label_id=annotation_create.label_id,
-                comment=annotation_create.comment,
-                confidence=annotation_create.confidence,
-                flagged_for_review=annotation_create.flagged_for_review,
-                flag_comment=annotation_create.flag_comment,
-                slice_comments=annotation_create.slice_comments,
-                form_values=normalized_form_values,
-                is_authoritative=annotation_create.is_authoritative,
-            )
-            for field, value in values.items():
-                setattr(existing_annotation, field, value)
-            existing_annotation.created_by_user_id = user_id
-            if assignment:
-                assignment.status = ANNOTATION_TASK_STATUS_DONE
-            annotation = existing_annotation
-    else:  # CREATE
-        # Create new annotation if label or any comment provided
-        if (
-            annotation_create.label_id is not None
-            or annotation_create.comment is not None
-            or annotation_create.slice_comments
-        ):
-            annotation = Annotation(
-                geometry_id=annotation_task.geometry_id,
-                annotation_task_id=annotation_task.id,
-                campaign_id=annotation_task.campaign_id,
-                created_by_user_id=user_id,
-                **annotation_values(
-                    label_id=annotation_create.label_id,
-                    comment=annotation_create.comment,
-                    confidence=annotation_create.confidence,
-                    flagged_for_review=annotation_create.flagged_for_review,
-                    flag_comment=annotation_create.flag_comment,
-                    slice_comments=annotation_create.slice_comments,
-                    form_values=normalized_form_values,
-                    is_authoritative=annotation_create.is_authoritative,
-                ),
-            )
-            db.add(annotation)
-
-        # Update assigment status if from assignment
-        if assignment:
-            assignment.status = (
-                ANNOTATION_TASK_STATUS_SKIPPED
-                if annotation_create.label_id is None
-                else ANNOTATION_TASK_STATUS_DONE
-            )
-
-    # Time rides on the assignment rather than the annotation so that a skip,
-    # which may leave no annotation behind, still records the effort it cost.
-    if assignment is not None and annotation_create.active_ms:
-        assignment.active_seconds = (assignment.active_seconds or 0) + round(
+    if annotation_create.active_ms:
+        annotation.active_seconds = (annotation.active_seconds or 0) + round(
             annotation_create.active_ms / 1000
         )
 
     db.commit()
-
-    if annotation is None:
-        # A skip with no comment leaves no annotation behind, only the
-        # assignment status the branches above set.
-        return None
-
     db.refresh(annotation)
     annotation.counts_toward_completion = counts_toward_completion(policy, has_assignments, ctx)
     return annotation
@@ -875,19 +822,8 @@ def delete_annotation(
         )
 
     try:
-        # If linked to a task, reset task status to pending
-        if annotation.annotation_task_id is not None:
-            assignment = db.execute(
-                select(AnnotationTaskAssignment).where(
-                    AnnotationTaskAssignment.task_id == annotation.annotation_task_id,
-                    AnnotationTaskAssignment.user_id == annotation.created_by_user_id,
-                )
-            ).scalar_one_or_none()
-
-            if assignment:
-                assignment.status = ANNOTATION_TASK_STATUS_PENDING
-                db.add(assignment)  # Explicitly add to session to ensure update is tracked
-
+        # Nothing to reset alongside it: the annotation was the record, so
+        # removing it puts the author back to pending on the task by itself.
         delete_rows_and_orphan_geometries(db, [annotation])
         bump_campaign_annotations_version(db, campaign.id)
         db.commit()
@@ -903,7 +839,7 @@ def delete_annotation_with_status(
     annotation_id: int,
     campaign: Campaign,
     user_id: UUID,
-) -> AnnotationTaskSubmitResponse | None:
+) -> TaskStatusOut | None:
     """Delete an annotation and, if it was task-linked, report the task's
     resulting status; otherwise None.
 
@@ -923,8 +859,7 @@ def delete_annotation_with_status(
         return None
 
     task_out = AnnotationTaskOut.model_validate(refreshed_task)
-    return AnnotationTaskSubmitResponse(
-        annotation=None,
+    return TaskStatusOut(
         task_status=task_out.task_status,
         assignment_status=get_user_assignment_status(refreshed_task, user_id),
     )
@@ -940,8 +875,9 @@ def delete_annotations_bulk(
     Delete multiple annotations from a campaign in one transaction.
 
     Mirrors `delete_annotation` semantics: in public campaigns, non-admins can
-    only delete their own annotations. Task-linked annotations have their
-    per-user assignment status reset to 'pending' so the task re-opens.
+    only delete their own annotations. Deleting a task-linked annotation
+    re-opens the task for its author, since the annotation was the record of
+    their work.
 
     Returns the number of annotations actually deleted.
     """
@@ -973,27 +909,6 @@ def delete_annotations_bulk(
             )
 
     try:
-        # Reset assignment.status -> pending for any task-linked deletions, in
-        # one round trip rather than N.
-        task_user_pairs = [
-            (a.annotation_task_id, a.created_by_user_id)
-            for a in annotations
-            if a.annotation_task_id is not None
-        ]
-        if task_user_pairs:
-            task_ids = {tid for tid, _ in task_user_pairs}
-            user_ids = {uid for _, uid in task_user_pairs}
-            pair_set = set(task_user_pairs)
-            assignments = db.scalars(
-                select(AnnotationTaskAssignment).where(
-                    AnnotationTaskAssignment.task_id.in_(task_ids),
-                    AnnotationTaskAssignment.user_id.in_(user_ids),
-                )
-            ).all()
-            for assignment in assignments:
-                if (assignment.task_id, assignment.user_id) in pair_set:
-                    assignment.status = ANNOTATION_TASK_STATUS_PENDING
-
         delete_rows_and_orphan_geometries(db, annotations)
 
         bump_campaign_annotations_version(db, campaign.id)

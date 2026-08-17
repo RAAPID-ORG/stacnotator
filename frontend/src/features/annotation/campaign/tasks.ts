@@ -16,30 +16,30 @@ export const UNASSIGNED = '__unassigned__';
 /** Mirrors the backend's CLAIM_TTL_MINUTES. */
 export const CLAIM_TTL_MS = 30 * 60 * 1000;
 
-const isStaleClaim = (a: AnnotationTaskAssignmentOut, now: number): boolean =>
-  a.claimed_at != null &&
-  a.status === 'pending' &&
-  now - new Date(a.claimed_at).getTime() > CLAIM_TTL_MS;
-
-/** Claimable when nobody has worked it and every assignment is a stale soft
- *  claim. Truly unassigned tasks satisfy `[].every(...)`. */
-export function isClaimable(task: AnnotationTaskOut, now: number): boolean {
-  if ((task.annotations || []).length > 0) return false;
-  return (task.assignments || []).every((a) => isStaleClaim(a, now));
+export interface Claim {
+  userId: string;
+  displayName: string | null;
+  heldForMs: number;
 }
 
-export function getActiveClaim(
-  task: AnnotationTaskOut,
-  now: number
-): AnnotationTaskAssignmentOut | null {
-  return (
-    (task.assignments || []).find(
-      (a) =>
-        a.claimed_at != null &&
-        a.status === 'pending' &&
-        now - new Date(a.claimed_at).getTime() <= CLAIM_TTL_MS
-    ) ?? null
-  );
+/** Who is working on this task right now, if anyone. A claim is a lease and
+ *  expires, which is why the caller passes the time. */
+export function getActiveClaim(task: AnnotationTaskOut, now: number): Claim | null {
+  if (!task.claimed_by_user_id || !task.claimed_at) return null;
+  const heldForMs = now - new Date(task.claimed_at).getTime();
+  if (heldForMs > CLAIM_TTL_MS) return null;
+  return {
+    userId: task.claimed_by_user_id,
+    displayName: task.claimed_by_display_name ?? null,
+    heldForMs,
+  };
+}
+
+/** Free work: nobody assigned to it, nobody has worked it, nobody holds it. */
+export function isClaimable(task: AnnotationTaskOut, now: number): boolean {
+  if ((task.annotations || []).length > 0) return false;
+  if ((task.assignments || []).length > 0) return false;
+  return getActiveClaim(task, now) === null;
 }
 
 export function claimedByLabel(
@@ -49,8 +49,8 @@ export function claimedByLabel(
 ): string | null {
   const claim = getActiveClaim(task, now);
   if (!claim) return null;
-  if (claim.user_id === currentUserId) return 'Claimed by you';
-  return `Claimed by ${claim.user_display_name || claim.user_email || 'another user'}`;
+  if (claim.userId === currentUserId) return 'Claimed by you';
+  return `${claim.displayName || 'Someone else'} is working on this`;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ export function computeTaskProgress(
 /** Held by this user via their own live claim, so a task they just claimed
  *  does not drop out of their unassigned pool on re-entry. */
 const isHeldBy = (task: AnnotationTaskOut, userId: string | null | undefined, now: number) =>
-  userId != null && getActiveClaim(task, now)?.user_id === userId;
+  userId != null && getActiveClaim(task, now)?.userId === userId;
 
 export interface FilteredTasks {
   visibleTasks: AnnotationTaskOut[];
@@ -142,10 +142,7 @@ export function applyTaskFilter(
       const matchesUser =
         selectedUserIds.length > 0 &&
         assignments.some(
-          (a) =>
-            selectedUserIds.includes(a.user_id) &&
-            filter.statuses.includes(a.status) &&
-            !(a.claimed_at != null && a.status === 'pending')
+          (a) => selectedUserIds.includes(a.user_id) && filter.statuses.includes(a.status)
         );
       const matchesUnassigned =
         wantUnassigned &&
@@ -314,7 +311,9 @@ export function reviewRows(
       isConflict: isConflicting && !annotation.is_authoritative,
       isAuthoritative: annotation.is_authoritative ?? false,
       isExtra: annotation.counts_toward_completion === false,
-      isSkipped: assignment?.status === 'skipped',
+      // Read off the annotation, not an assignment: somebody who took the
+      // task out of the free pool and skipped it has no assignment row.
+      isSkipped: annotation.label_id == null,
     };
   });
 }

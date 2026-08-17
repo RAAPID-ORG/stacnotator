@@ -185,7 +185,7 @@ export function makeVectorLayer(overrides: Partial<VectorLayerOut> = {}): Vector
 export function makeClaimTaskResponse(
   overrides: Partial<ClaimTaskResponse> = {}
 ): ClaimTaskResponse {
-  return { task_id: 1, claimed_at: '2024-01-01T00:00:00Z', ...overrides };
+  return { task_id: 1, claimed: true, claimed_at: '2024-01-01T00:00:00Z', ...overrides };
 }
 
 export function makeTaskSet(overrides: Partial<TaskSetOut> = {}): TaskSetOut {

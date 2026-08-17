@@ -1,124 +1,120 @@
-"""Soft-claim/lease protocol for unassigned annotation tasks.
+"""Soft claims: who is working on a task right now.
 
-`claim_task_for_user` and its private helper form one self-contained locking
-protocol (row lock + TTL-based lease takeover) and belong together.
+A claim is a lease, not an assignment. It expires after CLAIM_TTL_MINUTES, it
+never decides who may label a task or whose label counts, and it lives on the
+task rather than in annotation_tasks_assignment so that nothing reading
+assignments can mistake it for admin intent.
+
+Contention is an ordinary outcome, not an error: claiming a task somebody else
+holds reports the holder so the caller can show "Alice is working on this" and
+decide for itself whether to move on. Labelling it anyway stays allowed.
 """
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from src.annotation.constants import ANNOTATION_TASK_STATUS_PENDING, CLAIM_TTL_MINUTES
+from src.annotation.constants import CLAIM_TTL_MINUTES
 from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
 
 
-def _release_other_soft_claims(
-    db: Session, campaign_id: int, user_id: UUID, keep_task_id: int
+@dataclass(frozen=True)
+class ClaimOutcome:
+    """The result of trying to claim a task: either it is now yours, or it
+    tells you who is on it (nobody, for a task that is assigned or already
+    worked and therefore has nothing to lease)."""
+
+    claimed: bool
+    claimed_at: datetime | None
+    holder_user_id: UUID | None = None
+    holder_display_name: str | None = None
+
+
+def live_claim_holder(task: AnnotationTask, now: datetime) -> UUID | None:
+    """Who holds an unexpired claim on `task`, if anyone."""
+    if task.claimed_by_user_id is None or task.claimed_at is None:
+        return None
+    if task.claimed_at <= now - timedelta(minutes=CLAIM_TTL_MINUTES):
+        return None
+    return task.claimed_by_user_id
+
+
+def release_claims_for_user(
+    db: Session, campaign_id: int, user_id: UUID, keep_task_id: int | None = None
 ) -> None:
-    """Enforce one active soft claim per user per campaign.
+    """Drop this user's claims across the campaign, optionally keeping one.
 
-    Drops the caller's other un-worked pending soft claims so that claiming a new task
-    moves the claim. Worked tasks (an annotation exists) and explicit admin assignments
-    (claimed_at is NULL) are left untouched.
+    Called as part of claiming, so the one-claim-per-user rule holds without a
+    release call anyone can forget; the partial unique index on
+    (campaign_id, claimed_by_user_id) is the backstop if they do.
     """
-    has_annotation = (
-        select(Annotation.id)
+    stmt = (
+        update(AnnotationTask)
         .where(
-            Annotation.annotation_task_id == AnnotationTaskAssignment.task_id,
-            Annotation.created_by_user_id == user_id,
+            AnnotationTask.campaign_id == campaign_id,
+            AnnotationTask.claimed_by_user_id == user_id,
         )
-        .exists()
+        .values(claimed_by_user_id=None, claimed_at=None)
     )
-    others = (
-        db.execute(
-            select(AnnotationTaskAssignment)
-            .join(AnnotationTask, AnnotationTask.id == AnnotationTaskAssignment.task_id)
-            .where(
-                AnnotationTask.campaign_id == campaign_id,
-                AnnotationTaskAssignment.user_id == user_id,
-                AnnotationTaskAssignment.task_id != keep_task_id,
-                AnnotationTaskAssignment.claimed_at.is_not(None),
-                AnnotationTaskAssignment.status == ANNOTATION_TASK_STATUS_PENDING,
-                ~has_annotation,
-            )
-        )
-        .scalars()
-        .all()
-    )
-    for assignment in others:
-        db.delete(assignment)
+    if keep_task_id is not None:
+        stmt = stmt.where(AnnotationTask.id != keep_task_id)
+    db.execute(stmt)
 
 
-def claim_task_for_user(
-    db: Session,
-    campaign_id: int,
-    task_id: int,
-    user_id: UUID,
-) -> AnnotationTaskAssignment:
-    """Atomically soft-claim an unassigned task for a user.
+def claim_task(db: Session, campaign_id: int, task_id: int, user_id: UUID) -> ClaimOutcome:
+    """Take (or refresh) the lease on a task, reporting who has it otherwise.
 
-    Idempotent, and guarantees the caller holds exactly one active soft claim in the
-    campaign afterwards: any prior soft claim of theirs is released in the same
-    transaction. Refreshes the lease if the user already holds this task. Raises 409 if the
-    task is already annotated, explicitly assigned, or actively claimed by someone else; a
-    stale soft claim by another user is taken over.
+    Idempotent, and leaves the caller holding exactly one claim in the
+    campaign. A task that is assigned or already worked has nothing to lease
+    and comes back unclaimed with no holder.
     """
-    # Row lock serializes concurrent claims on the same task; skip_locked makes a
-    # race a clean 409 instead of a block.
+    # The row lock serializes concurrent claims on the same task, so the loser
+    # reads the winner's claim rather than overwriting it.
     task = db.execute(
         select(AnnotationTask)
-        .where(
-            AnnotationTask.id == task_id,
-            AnnotationTask.campaign_id == campaign_id,
-        )
-        .with_for_update(skip_locked=True)
+        .where(AnnotationTask.id == task_id, AnnotationTask.campaign_id == campaign_id)
+        .with_for_update()
     ).scalar_one_or_none()
     if task is None:
-        raise HTTPException(status_code=409, detail="Task is no longer available")
+        raise HTTPException(status_code=404, detail="Annotation task not found in this campaign")
 
-    has_annotation = db.execute(
+    holder = live_claim_holder(task, datetime.now(UTC))
+    if holder is not None and holder != user_id:
+        return ClaimOutcome(
+            claimed=False,
+            claimed_at=task.claimed_at,
+            holder_user_id=holder,
+            holder_display_name=task.claimed_by.display_name if task.claimed_by else None,
+        )
+
+    if not _is_leasable(db, task_id):
+        return ClaimOutcome(claimed=False, claimed_at=None)
+
+    # Release first: the unique index rejects a second claim, and autoflush is
+    # off, so the ORM update below must not reach the database before this one.
+    release_claims_for_user(db, campaign_id, user_id, keep_task_id=task_id)
+    task.claimed_by_user_id = user_id
+    task.claimed_at = func.now()
+    db.commit()
+    db.refresh(task)
+    return ClaimOutcome(claimed=True, claimed_at=task.claimed_at, holder_user_id=user_id)
+
+
+def _is_leasable(db: Session, task_id: int) -> bool:
+    """Whether a task is free work: nobody assigned to it, nobody has labelled
+    or skipped it yet."""
+    assigned = db.execute(
+        select(AnnotationTaskAssignment.id)
+        .where(AnnotationTaskAssignment.task_id == task_id)
+        .limit(1)
+    ).first()
+    if assigned is not None:
+        return False
+    worked = db.execute(
         select(Annotation.id).where(Annotation.annotation_task_id == task_id).limit(1)
     ).first()
-    if has_annotation is not None:
-        raise HTTPException(status_code=409, detail="Task has already been annotated")
-
-    assignments = (
-        db.execute(
-            select(AnnotationTaskAssignment).where(AnnotationTaskAssignment.task_id == task_id)
-        )
-        .scalars()
-        .all()
-    )
-
-    mine = next((a for a in assignments if a.user_id == user_id), None)
-    if mine is not None:
-        mine.claimed_at = func.now()
-        result = mine
-    else:
-        cutoff = datetime.now(UTC) - timedelta(minutes=CLAIM_TTL_MINUTES)
-        for assignment in assignments:
-            is_stale_claim = (
-                assignment.claimed_at is not None
-                and assignment.status == ANNOTATION_TASK_STATUS_PENDING
-                and assignment.claimed_at <= cutoff
-            )
-            if not is_stale_claim:
-                raise HTTPException(status_code=409, detail="Task is no longer available")
-            db.delete(assignment)
-
-        result = AnnotationTaskAssignment(
-            task_id=task_id,
-            user_id=user_id,
-            status=ANNOTATION_TASK_STATUS_PENDING,
-            claimed_at=func.now(),
-        )
-        db.add(result)
-
-    # Move the claim: no separate release call to lose, TTL is the real backstop.
-    _release_other_soft_claims(db, campaign_id, user_id, keep_task_id=task_id)
-    db.commit()
-    db.refresh(result)
-    return result
+    return worked is None

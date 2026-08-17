@@ -23,9 +23,10 @@ instead of merging the screens mechanically.
 ## Task filtering
 
 Review has a separate task-filter implementation from annotation's tested
-`core/tasks/filter.ts`. The review copy is not claim-aware, so reviewers and
-annotators can disagree about which tasks are assigned. Move both consumers to
-one claim-aware filtering core and add cross-surface contract tests.
+`campaign/tasks.ts`. The two now agree about who is assigned - a claim is no
+longer an assignment row, so neither can mistake one for the other - but the
+confidence, flagged and task-set predicates are still written twice. Move both
+consumers onto one core and add cross-surface contract tests.
 
 ## Shared presentation vocabulary
 

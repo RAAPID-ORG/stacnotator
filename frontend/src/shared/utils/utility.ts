@@ -31,11 +31,11 @@ export const capitalizeFirst = (str: string): string => {
   return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
-type SearchableUser = { display_name?: string | null; email: string };
+type SearchableUser = { display_name?: string | null; email?: string | null };
 
 const userMatchRank = (user: SearchableUser, query: string): number => {
   const name = (user.display_name ?? '').toLowerCase();
-  const email = user.email.toLowerCase();
+  const email = (user.email ?? '').toLowerCase();
   if (name.startsWith(query) || email.startsWith(query)) return 0;
   if (name.split(/\s+/).some((word) => word.startsWith(query))) return 1;
   if (name.includes(query) || email.includes(query)) return 2;
@@ -43,10 +43,10 @@ const userMatchRank = (user: SearchableUser, query: string): number => {
 };
 
 /**
- * Case-insensitive user search over display name and email. Results are
- * ranked: full prefix matches first, then name-word prefixes, then substring
- * matches, preserving the incoming order within each tier. An empty query
- * returns all items unchanged.
+ * Case-insensitive user search over display name and, where the viewer is
+ * given it, email. Results are ranked: full prefix matches first, then
+ * name-word prefixes, then substring matches, preserving the incoming order
+ * within each tier. An empty query returns all items unchanged.
  */
 export const searchUsers = <T>(
   items: T[],

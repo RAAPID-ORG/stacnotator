@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
+from src.annotation.models import Annotation
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
@@ -135,10 +135,10 @@ class AnnotatorDurations(NamedTuple):
 def summarize_annotator_durations(
     rows: Iterable[tuple[UUID, int | None]],
 ) -> dict[UUID, AnnotatorDurations]:
-    """Summarize (user_id, active_seconds) assignment rows per annotator.
+    """Summarize (user_id, active_seconds) annotation rows per annotator.
 
-    Rows without a measurement are dropped rather than counted as zero, so
-    assignments predating the measurement do not deflate the result. The median
+    Rows without a measurement are dropped rather than counted as zero, so work
+    predating the measurement does not deflate the result. The median
     is reported rather than the mean because a single tab left open on one task
     would otherwise dominate an annotator's figure.
     """
@@ -159,11 +159,10 @@ def summarize_annotator_durations(
 
 def _fetch_annotator_durations(campaign_id: int, db: Session) -> dict[UUID, AnnotatorDurations]:
     rows = db.execute(
-        select(AnnotationTaskAssignment.user_id, AnnotationTaskAssignment.active_seconds)
-        .join(AnnotationTask, AnnotationTask.id == AnnotationTaskAssignment.task_id)
-        .where(
-            AnnotationTask.campaign_id == campaign_id,
-            AnnotationTaskAssignment.active_seconds.is_not(None),
+        select(Annotation.created_by_user_id, Annotation.active_seconds).where(
+            Annotation.campaign_id == campaign_id,
+            Annotation.annotation_task_id.is_not(None),
+            Annotation.active_seconds.is_not(None),
         )
     ).all()
     return summarize_annotator_durations([(row[0], row[1]) for row in rows])
