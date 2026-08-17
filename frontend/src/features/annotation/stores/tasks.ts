@@ -64,6 +64,7 @@ export interface TasksState {
   next: (catalog: ImageryCatalog) => void;
   previous: (catalog: ImageryCatalog) => void;
   replaceTask: (updated: AnnotationTaskOut, catalog: ImageryCatalog) => void;
+  adoptTask: (claimed: AnnotationTaskOut, catalog: ImageryCatalog) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   reset: () => void;
@@ -202,6 +203,27 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     const swap = (tasks: AnnotationTaskOut[]) =>
       tasks.map((task) => (task.id === updated.id ? updated : task));
     set((s) => ({ allTasks: swap(s.allTasks), visibleTasks: swap(s.visibleTasks) }));
+    publishSelection(catalog);
+  },
+
+  adoptTask: (claimed, catalog) => {
+    const { allTasks, filter } = get();
+    const known = allTasks.some((task) => task.id === claimed.id);
+    // Upsert, not replace: the server can hand back a task created after this
+    // session loaded, and one somebody else was holding at load time was
+    // filtered out of the visible list, so re-filtering is what surfaces it.
+    const merged = known
+      ? allTasks.map((task) => (task.id === claimed.id ? claimed : task))
+      : [...allTasks, claimed];
+    const currentUserId = useCampaignStore.getState().currentUserId;
+    const { visibleTasks, suggestedIndex } = applyTaskFilter(
+      merged,
+      filter,
+      currentUserId,
+      Date.now(),
+      claimed.id
+    );
+    set({ allTasks: merged, visibleTasks, currentIndex: suggestedIndex });
     publishSelection(catalog);
   },
 

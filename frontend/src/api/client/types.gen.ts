@@ -1504,6 +1504,15 @@ export type CategoryFormField = {
 };
 
 /**
+ * ClaimNextResponse
+ *
+ * The task the server picked and claimed, or null once the pool is dry.
+ */
+export type ClaimNextResponse = {
+    task: AnnotationTaskOut | null;
+};
+
+/**
  * ClaimTaskResponse
  *
  * Response from soft-claiming a task.
@@ -6734,6 +6743,45 @@ export type ClaimAnnotationTaskResponses = {
 };
 
 export type ClaimAnnotationTaskResponse = ClaimAnnotationTaskResponses[keyof ClaimAnnotationTaskResponses];
+
+export type ClaimNextAnnotationTaskData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Task Set Id
+         */
+        task_set_id?: number | null;
+        /**
+         * After Annotation Number
+         */
+        after_annotation_number?: number | null;
+    };
+    url: '/api/campaigns/{campaign_id}/annotation-tasks/claim-next';
+};
+
+export type ClaimNextAnnotationTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimNextAnnotationTaskError = ClaimNextAnnotationTaskErrors[keyof ClaimNextAnnotationTaskErrors];
+
+export type ClaimNextAnnotationTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClaimNextResponse;
+};
+
+export type ClaimNextAnnotationTaskResponse = ClaimNextAnnotationTaskResponses[keyof ClaimNextAnnotationTaskResponses];
 
 export type ValidateAnnotationSubmissionData = {
     body?: never;

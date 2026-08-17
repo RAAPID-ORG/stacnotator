@@ -1,4 +1,5 @@
 import {
+  claimNextAnnotationTask,
   completeAnnotationTask,
   deleteAnnotation,
   validateAnnotationSubmission,
@@ -7,7 +8,7 @@ import {
   type AnnotationTaskSubmitResponse,
 } from '~/api/client';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
-import { extractErrorMessage } from '~/shared/utils/errorHandler';
+import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 import {
   isAudienceMember,
   maySubmitTask,
@@ -18,6 +19,7 @@ import {
   type TaskStatus,
 } from './campaign/annotation';
 import { listNotes, type SliceComment } from './campaign/sliceComments';
+import { usesClaimPool } from './campaign/tasks';
 import { campaignState, formFields, useCampaignStore } from './stores/campaign';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { usePrefsStore } from './stores/prefs';
@@ -261,11 +263,44 @@ async function run(options: {
   else if (outcome.kind === 'error') alert(outcome.message, 'error');
   else if (outcome.kind === 'submitted') {
     tasks.replaceTask(outcome.task, catalog);
-    tasks.next(catalog);
+    await advance();
   } else if (outcome.kind === 'removed') {
     tasks.replaceTask(outcome.task, catalog);
   }
   return outcome;
+}
+
+/**
+ * Move to the next task to work on.
+ *
+ * In the unassigned pool the server picks it: only it knows what is still
+ * free, and it claims the task in the same transaction, so annotators working
+ * the same campaign are handed different tasks instead of each walking the
+ * list and colliding on every one somebody already took. Every other filter is
+ * a fixed list of tasks, where stepping locally is both correct and instant.
+ */
+export async function advance(): Promise<void> {
+  const { catalog } = campaignState();
+  const tasks = useTasksStore.getState();
+  if (!usesClaimPool(tasks.filter)) {
+    tasks.next(catalog);
+    return;
+  }
+
+  const current = currentTask();
+  try {
+    const { data } = await claimNextAnnotationTask({
+      path: { campaign_id: campaignState().campaign.id },
+      query: {
+        task_set_id: tasks.filter.taskSetId,
+        after_annotation_number: current?.annotation_number,
+      },
+    });
+    if (data?.task) useTasksStore.getState().adoptTask(data.task, catalog);
+    else alert('No unassigned tasks left to work on.', 'success');
+  } catch (error) {
+    handleError(error, 'Could not get the next task');
+  }
 }
 
 const MISMATCH_CONFIRM = {

@@ -24,6 +24,7 @@ import { useImageryStore } from './stores/imagery';
 import { useTasksStore } from './stores/tasks';
 import { useWorkStore, type Tool } from './stores/work';
 import {
+  advance,
   skipCurrent,
   submitAnnotation,
   submitAuthoritative,
@@ -424,7 +425,7 @@ function taskBindings(): Binding[] {
     ),
 
     { key: 'w', help: 'Previous task', run: () => useTasksStore.getState().previous(catalog) },
-    { key: 's', help: 'Next task', run: () => useTasksStore.getState().next(catalog) },
+    { key: 's', help: 'Next task', run: () => void advance() },
     { key: 'q', help: 'Decrease confidence', run: () => adjustConfidence(-1) },
     { key: 'e', help: 'Increase confidence', run: () => adjustConfidence(1) },
     {

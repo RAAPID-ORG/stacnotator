@@ -381,6 +381,12 @@ class ClaimTaskResponse(BaseModel):
     holder_user_id: UUID | None = None
     holder_display_name: str | None = None
 
+
+class ClaimNextResponse(BaseModel):
+    """The task the server picked and claimed, or null once the pool is dry."""
+
+    task: AnnotationTaskOut | None
+
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -9,6 +9,7 @@ import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign
 import { useWorkStore } from '../../stores/work';
 import { activeGroupClass, FormFields } from '../../components/FormFields';
 import {
+  advance,
   DEFAULT_CONFIDENCE,
   skipCurrent,
   submitAnnotation,
@@ -57,7 +58,6 @@ export function TaskControls() {
     isSubmitting,
     knnValidationEnabled,
     goToAnnotationNumber,
-    next,
     previous,
     replaceTask,
     setKnnValidationEnabled,
@@ -69,7 +69,6 @@ export function TaskControls() {
       isSubmitting: state.isSubmitting,
       knnValidationEnabled: state.knnValidationEnabled,
       goToAnnotationNumber: state.goToAnnotationNumber,
-      next: state.next,
       previous: state.previous,
       replaceTask: state.replaceTask,
       setKnnValidationEnabled: state.setKnnValidationEnabled,
@@ -376,7 +375,7 @@ export function TaskControls() {
             <button
               type="button"
               disabled={isBusy}
-              onClick={() => next(catalog)}
+              onClick={() => void advance()}
               className={navButtonClass}
             >
               Next

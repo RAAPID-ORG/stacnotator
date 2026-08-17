@@ -116,6 +116,15 @@ export function computeTaskProgress(
 const isHeldBy = (task: AnnotationTaskOut, userId: string | null | undefined, now: number) =>
   userId != null && getActiveClaim(task, now)?.userId === userId;
 
+/** Whether "next" means "ask the server for a free task".
+ *
+ *  Only the unassigned pool works that way. A filter naming real users is a
+ *  view over their assigned work, where nothing is being raced for; and no
+ *  other filter dimension can coexist with a claimable task, so a pool with
+ *  one of those set renders empty and never gets here. */
+export const usesClaimPool = (filter: TaskFilter): boolean =>
+  filter.assignedTo.length === 1 && filter.assignedTo[0] === UNASSIGNED;
+
 export interface FilteredTasks {
   visibleTasks: AnnotationTaskOut[];
   suggestedIndex: number;

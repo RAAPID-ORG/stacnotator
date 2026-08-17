@@ -4,6 +4,7 @@ import {
   applyTaskFilter,
   computeTaskProgress,
   seedFilter,
+  usesClaimPool,
   widenFilterForTask,
   type TaskFilter,
 } from './tasks';
@@ -377,5 +378,26 @@ describe('widenFilterForTask', () => {
   it('returns the filter unchanged for a task that is not in the list at all', () => {
     const tasks = [task(1, [{ user_id: USER, status: 'pending' }])];
     expect(widenFilterForTask(tasks, mineFilter, USER, NOW, 404)).toBe(mineFilter);
+  });
+});
+
+describe('usesClaimPool', () => {
+  const pool: TaskFilter = { ...mineFilter, assignedTo: [UNASSIGNED] };
+
+  it('is the unassigned pool, where the server owns which task is free', () => {
+    expect(usesClaimPool(pool)).toBe(true);
+  });
+
+  it('is not a filter naming real users - their work is already theirs', () => {
+    expect(usesClaimPool(mineFilter)).toBe(false);
+    expect(usesClaimPool({ ...pool, assignedTo: [UNASSIGNED, USER] })).toBe(false);
+  });
+
+  it('is not "everyone", which is a fixed list to step through', () => {
+    expect(usesClaimPool({ ...mineFilter, assignedTo: [] })).toBe(false);
+  });
+
+  it('stays true with a task set, which the server filters on too', () => {
+    expect(usesClaimPool({ ...pool, taskSetId: 3 })).toBe(true);
   });
 });

@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
 
+from src.annotation import claims
 from src.annotation.completion import (
     attach_counts_toward_completion_flat,
     attach_counts_toward_completion_tree,
@@ -197,6 +198,31 @@ def get_annotation_tasks_for_campaign(
     _attach_has_embedding(db, tasks)
     attach_counts_toward_completion_tree(db, campaign, tasks)
     return tasks
+
+
+def claim_next_task(
+    db: Session,
+    campaign: Campaign,
+    user_id: UUID,
+    task_set_id: int | None = None,
+    after_annotation_number: int | None = None,
+) -> AnnotationTask | None:
+    """Claim the next free task and return it with the tree the client needs.
+
+    Composes the pick-and-claim with the same decorated fetch every other task
+    read goes through, so the caller can drop the task straight into its list
+    instead of reloading the campaign to find out what it just got.
+    """
+    claimed = claims.claim_next_task(
+        db,
+        campaign_id=campaign.id,
+        user_id=user_id,
+        task_set_id=task_set_id,
+        after_annotation_number=after_annotation_number,
+    )
+    if claimed is None:
+        return None
+    return get_annotation_task_by_id(db, claimed.id, campaign)
 
 
 def _attach_has_embedding(db: Session, tasks: list[AnnotationTask]) -> None:

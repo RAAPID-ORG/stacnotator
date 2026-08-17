@@ -10,8 +10,10 @@ import numpy as np
 import pytest
 from fastapi import HTTPException
 from geoalchemy2.elements import WKTElement
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 
-from src.annotation.claims import claim_task
+from src.annotation.claims import _is_free_work, claim_next_task, claim_task
 from src.annotation.constants import (
     CLAIM_TTL_MINUTES,
 )
@@ -25,7 +27,12 @@ from src.annotation.ingest import (
     create_annotation_tasks_from_csv,
     create_annotations_from_geojson,
 )
-from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTaskAssignment
+from src.annotation.models import (
+    Annotation,
+    AnnotationGeometry,
+    AnnotationTask,
+    AnnotationTaskAssignment,
+)
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
     add_annotation_for_task,
@@ -1572,6 +1579,12 @@ def _result(scalar=None, first=None, all_=None):
     return r
 
 
+def _compiled(statement):
+    """Postgres dialect, since that is what renders SKIP LOCKED and is what
+    these statements actually run against."""
+    return statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
+
+
 def _claimable_task(task_id=1, holder=None, claimed_at=None, holder_name=None):
     task = _make_task(task_id=task_id)
     task.claimed_by_user_id = holder
@@ -1589,8 +1602,7 @@ class TestClaimTask:
         task = _claimable_task()
         db.execute.side_effect = [
             _result(scalar=task),  # lock task row
-            _result(first=None),  # nobody assigned
-            _result(first=None),  # nobody has worked it
+            _result(first=(1,)),  # it is free work
             _result(),  # release the caller's other claims
         ]
 
@@ -1634,8 +1646,7 @@ class TestClaimTask:
         )
         db.execute.side_effect = [
             _result(scalar=task),
-            _result(first=None),
-            _result(first=None),
+            _result(first=(1,)),
             _result(),
         ]
 
@@ -1651,8 +1662,7 @@ class TestClaimTask:
         task = _claimable_task(holder=user_id, claimed_at=earlier)
         db.execute.side_effect = [
             _result(scalar=task),
-            _result(first=None),
-            _result(first=None),
+            _result(first=(1,)),
             _result(),
         ]
 
@@ -1661,13 +1671,10 @@ class TestClaimTask:
         assert outcome.claimed is True
         assert task.claimed_at is not earlier
 
-    def test_assigned_task_has_nothing_to_lease(self):
+    def test_a_task_that_is_not_free_work_has_nothing_to_lease(self):
         db = _mock_db()
         task = _claimable_task()
-        db.execute.side_effect = [
-            _result(scalar=task),
-            _result(first=(1,)),  # an admin assignment exists
-        ]
+        db.execute.side_effect = [_result(scalar=task), _result(first=None)]
 
         outcome = claim_task(db, campaign_id=1, task_id=1, user_id=uuid4())
 
@@ -1675,19 +1682,13 @@ class TestClaimTask:
         assert outcome.holder_user_id is None
         assert task.claimed_by_user_id is None
 
-    def test_worked_task_has_nothing_to_lease(self):
-        db = _mock_db()
-        task = _claimable_task()
-        db.execute.side_effect = [
-            _result(scalar=task),
-            _result(first=None),
-            _result(first=(1,)),  # somebody already labelled or skipped it
-        ]
-
-        outcome = claim_task(db, campaign_id=1, task_id=1, user_id=uuid4())
-
-        assert outcome.claimed is False
-        assert task.claimed_by_user_id is None
+    def test_free_work_means_neither_assigned_nor_worked(self):
+        """Both halves matter and neither is checked anywhere else, so losing
+        one would silently start handing out other people's tasks."""
+        sql = str(_compiled(select(AnnotationTask.id).where(_is_free_work())))
+        assert "annotation_tasks_assignment" in sql
+        assert "annotations" in sql
+        assert sql.count("NOT (EXISTS") == 2
 
     def test_claiming_releases_the_callers_other_claims_first(self):
         """One claim per user per campaign, and the release has to reach the
@@ -1697,18 +1698,84 @@ class TestClaimTask:
         task = _claimable_task(task_id=2)
         db.execute.side_effect = [
             _result(scalar=task),
-            _result(first=None),
-            _result(first=None),
+            _result(first=(1,)),
             _result(),
         ]
 
         claim_task(db, campaign_id=1, task_id=2, user_id=user_id)
 
-        release = db.execute.call_args_list[-1][0][0]
-        compiled = str(release.compile(compile_kwargs={"literal_binds": True}))
-        assert "UPDATE data.annotation_tasks" in compiled
-        assert "claimed_by_user_id=NULL" in compiled.replace(" = ", "=")
-        assert "id != 2" in compiled
+        release = str(_compiled(db.execute.call_args_list[-1][0][0]))
+        assert "UPDATE data.annotation_tasks" in release
+        assert "claimed_by_user_id=NULL" in release.replace(" = ", "=")
+        assert "id != 2" in release
+
+
+class TestClaimNextTask:
+    """Picking a free task and claiming it in one transaction, so five people
+    starting at once get five different tasks instead of walking the list."""
+
+    def test_returns_none_when_the_pool_is_drained(self):
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        assert claim_next_task(db, campaign_id=1, user_id=uuid4()) is None
+        db.commit.assert_not_called()
+
+    def test_claims_the_task_it_picked(self):
+        db = _mock_db()
+        user_id = uuid4()
+        task = _claimable_task(task_id=4)
+        db.execute.side_effect = [_result(scalar=task), _result()]
+
+        claimed = claim_next_task(db, campaign_id=1, user_id=user_id)
+
+        assert claimed is task
+        assert task.claimed_by_user_id == user_id
+        assert task.claimed_at is not None
+        db.commit.assert_called_once()
+
+    def test_the_pick_locks_and_skips_rows_another_claim_is_holding(self):
+        """SKIP LOCKED is what makes simultaneous callers get different tasks
+        rather than queueing on the same one."""
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        claim_next_task(db, campaign_id=1, user_id=uuid4())
+
+        pick = str(_compiled(db.execute.call_args_list[0][0][0]))
+        assert "FOR UPDATE SKIP LOCKED" in pick
+        assert "LIMIT 1" in pick
+
+    def test_only_offers_free_work_in_this_campaign(self):
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        claim_next_task(db, campaign_id=9, user_id=uuid4(), task_set_id=3)
+
+        pick = str(_compiled(db.execute.call_args_list[0][0][0]))
+        assert "campaign_id = 9" in pick
+        assert "task_set_id = 3" in pick
+        assert pick.count("NOT (EXISTS") == 2
+        assert "claimed_by_user_id IS NULL" in pick
+
+    def test_the_cursor_looks_forward_first_then_wraps(self):
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        claim_next_task(db, campaign_id=1, user_id=uuid4(), after_annotation_number=12)
+
+        pick = str(_compiled(db.execute.call_args_list[0][0][0]))
+        # False sorts first, so tasks past the cursor come before the wrap.
+        assert "ORDER BY data.annotation_tasks.annotation_number <= 12" in pick
+
+    def test_without_a_cursor_it_starts_at_the_front(self):
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        claim_next_task(db, campaign_id=1, user_id=uuid4())
+
+        pick = str(_compiled(db.execute.call_args_list[0][0][0]))
+        assert "<=" not in pick.split("ORDER BY")[1]
 
 
 class TestCreateAnnotationsFromGeojson:

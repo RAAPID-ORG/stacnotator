@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, update
+from sqlalchemy import ColumnElement, exists, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from src.annotation.constants import CLAIM_TTL_MINUTES
@@ -104,17 +104,65 @@ def claim_task(db: Session, campaign_id: int, task_id: int, user_id: UUID) -> Cl
     return ClaimOutcome(claimed=True, claimed_at=task.claimed_at, holder_user_id=user_id)
 
 
+def _is_free_work() -> ColumnElement[bool]:
+    """Nobody assigned to the task, nobody has labelled or skipped it.
+
+    One definition, used both to check a task the caller named and to pick one
+    they did not, so "what can be leased" cannot drift between the two.
+    """
+    return ~exists().where(AnnotationTaskAssignment.task_id == AnnotationTask.id) & ~exists().where(
+        Annotation.annotation_task_id == AnnotationTask.id
+    )
+
+
 def _is_leasable(db: Session, task_id: int) -> bool:
-    """Whether a task is free work: nobody assigned to it, nobody has labelled
-    or skipped it yet."""
-    assigned = db.execute(
-        select(AnnotationTaskAssignment.id)
-        .where(AnnotationTaskAssignment.task_id == task_id)
-        .limit(1)
-    ).first()
-    if assigned is not None:
-        return False
-    worked = db.execute(
-        select(Annotation.id).where(Annotation.annotation_task_id == task_id).limit(1)
-    ).first()
-    return worked is None
+    return (
+        db.execute(
+            select(AnnotationTask.id).where(AnnotationTask.id == task_id, _is_free_work())
+        ).first()
+        is not None
+    )
+
+
+def claim_next_task(
+    db: Session,
+    campaign_id: int,
+    user_id: UUID,
+    task_set_id: int | None = None,
+    after_annotation_number: int | None = None,
+) -> AnnotationTask | None:
+    """Claim the next task nobody is on, or None when the pool is drained.
+
+    The pick and the claim happen in one transaction, so concurrent callers
+    each get a different task instead of colliding on the first one and
+    walking the list a request at a time. `after_annotation_number` keeps an
+    annotator moving forward through the campaign, wrapping to the start once
+    nothing is left ahead of them.
+    """
+    now = datetime.now(UTC)
+    free = select(AnnotationTask).where(
+        AnnotationTask.campaign_id == campaign_id,
+        or_(
+            AnnotationTask.claimed_by_user_id.is_(None),
+            AnnotationTask.claimed_at <= now - timedelta(minutes=CLAIM_TTL_MINUTES),
+        ),
+        _is_free_work(),
+    )
+    if task_set_id is not None:
+        free = free.where(AnnotationTask.task_set_id == task_set_id)
+    if after_annotation_number is not None:
+        # Everything ahead of the cursor first (False sorts before True), then
+        # back round to the start of the campaign.
+        free = free.order_by(AnnotationTask.annotation_number <= after_annotation_number)
+    free = free.order_by(AnnotationTask.annotation_number)
+
+    task = db.execute(free.limit(1).with_for_update(skip_locked=True)).scalar_one_or_none()
+    if task is None:
+        return None
+
+    release_claims_for_user(db, campaign_id, user_id, keep_task_id=task.id)
+    task.claimed_by_user_id = user_id
+    task.claimed_at = func.now()
+    db.commit()
+    db.refresh(task)
+    return task

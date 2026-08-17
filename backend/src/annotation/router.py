@@ -16,12 +16,14 @@ from src.annotation.schemas import (
     AnnotationOut,
     AnnotationsExtentOut,
     AnnotationTaskListOut,
+    AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
     BatchCreateAnnotationsRequest,
     BatchCreateAnnotationsResponse,
     BatchDeleteAnnotationsRequest,
     BatchDeleteAnnotationsResponse,
+    ClaimNextResponse,
     ClaimTaskResponse,
     KnnValidationStatusOut,
     TaskStatusOut,
@@ -106,6 +108,34 @@ def claim_annotation_task(
         holder_user_id=outcome.holder_user_id,
         holder_display_name=outcome.holder_display_name,
     )
+
+
+@router.post(
+    "/campaigns/{campaign_id}/annotation-tasks/claim-next",
+    response_model=ClaimNextResponse,
+)
+def claim_next_annotation_task(
+    campaign_id: int,
+    task_set_id: int | None = None,
+    after_annotation_number: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> ClaimNextResponse:
+    """Hand out the next task nobody is working on, claimed in the same
+    transaction so simultaneous callers get different ones.
+
+    `after_annotation_number` keeps the caller moving forward through the
+    campaign and wraps once nothing is left ahead of them.
+    """
+    task = service.claim_next_task(
+        db=db,
+        campaign=campaign,
+        user_id=user.id,
+        task_set_id=task_set_id,
+        after_annotation_number=after_annotation_number,
+    )
+    return ClaimNextResponse(task=AnnotationTaskOut.model_validate(task) if task else None)
 
 
 @router.get(
