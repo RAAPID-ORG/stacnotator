@@ -1,12 +1,15 @@
 export const TEST_USER_ID = 'test-user-abc-123';
 
+// The two terms versions only have to match for the acceptance gate to let the
+// suite through, so the literal never needs updating when the real terms change.
 export const MOCK_USER = {
   id: TEST_USER_ID,
   email: 'test@example.com',
   display_name: 'Test User',
-  is_approved: true,
   is_admin: false,
   issuer: 'firebase',
+  terms_version: 'test-terms',
+  terms_accepted_version: 'test-terms',
 };
 
 // Labels for the campaign
@@ -102,15 +105,26 @@ const SOURCE = {
   collections: [COLLECTION_S2, COLLECTION_NDVI],
 };
 
+// A view's windows are exactly the collection keys in its canvas layout;
+// source_ids only says which sources are browsable in the view.
+const viewWindowLayout = (id: number, collectionIds: number[]) => ({
+  id,
+  user_id: null,
+  layout_data: collectionIds.map((cid, idx) => ({
+    i: String(cid),
+    x: (idx % 6) * 10,
+    y: 40 + Math.floor(idx / 6) * 11,
+    w: 10,
+    h: 11,
+  })),
+});
+
 const VIEW_DEFAULT = {
   id: 1,
   name: 'Default View',
   display_order: 0,
-  collection_refs: [
-    { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
-    { collection_id: 20, source_id: 1, show_as_window: true, display_order: 1 },
-  ],
-  default_canvas_layout: null,
+  source_ids: [1],
+  default_canvas_layout: viewWindowLayout(11, [10, 20]),
   personal_canvas_layout: null,
 };
 
@@ -131,9 +145,18 @@ const DEFAULT_LAYOUT = {
 // Full campaign object
 export const MOCK_CAMPAIGN = {
   id: 42,
+  project_id: 7,
   name: 'Test Campaign',
   created_at: '2024-01-01T00:00:00Z',
   mode: 'tasks',
+  // Viewer roles are stamped on the campaign response; the default user is a
+  // plain project member. `elevateToAuthoritativeReviewer` overrides them.
+  viewer_is_admin: false,
+  viewer_is_member: true,
+  viewer_is_authoritative_reviewer: false,
+  // Answered already, so the research-sharing prompt stays out of every spec
+  // that is not about it.
+  viewer_data_sharing: 'none',
   settings: {
     labels: LABELS,
     bbox_west: 30.0,
@@ -141,7 +164,7 @@ export const MOCK_CAMPAIGN = {
     bbox_east: 31.0,
     bbox_north: 51.0,
     embedding_year: null,
-    // Mirrors DEFAULT_LABELLING_POLICY (LabellingPolicyEditor.tsx) / backend
+    // Mirrors DEFAULT_LABELLING_POLICY (campaigns/utils/labellingPolicy.ts) / backend
     // default_labelling_policy(): AnnotationPage/AnnotationToolbar read
     // campaign.settings.labelling_policy.explore unconditionally.
     labelling_policy: {
@@ -194,8 +217,25 @@ function makeTask(
 // Task 1: pending, no annotations
 export const TASK_1 = makeTask(100, 1, 50.45, 30.52);
 
-// Task 2: pending, no annotations (different location)
-export const TASK_2 = makeTask(200, 2, 50.65, 30.75);
+// Task 2: pending review assignment - shared with a co-assignee who has not
+// acted yet, so a submission by our user leaves the task-level status at
+// 'partial' (see makeSubmitResponse).
+export const TASK_2 = makeTask(200, 2, 50.65, 30.75, {
+  assignments: [
+    {
+      user_id: TEST_USER_ID,
+      status: 'pending',
+      user_email: 'test@example.com',
+      user_display_name: 'Test User',
+    },
+    {
+      user_id: 'other-user-xyz',
+      status: 'pending',
+      user_email: 'other@example.com',
+      user_display_name: 'Other User',
+    },
+  ],
+});
 
 // Task 3: done, has an existing annotation from our user
 export const TASK_3 = makeTask(300, 3, 50.3, 30.9, {
@@ -314,74 +354,114 @@ export const MOCK_TASK_SETS = [
   },
 ];
 
-export const MOCK_CAMPAIGN_USERS = {
-  campaign_id: 42,
+export const MOCK_ORG = {
+  id: 3,
+  name: 'Test Org',
+  description: null,
+  status: 'approved',
+  allows_internal_storage: false,
+  is_admin: true,
+};
+
+export const MOCK_PROJECT = {
+  id: 7,
+  organization_id: MOCK_ORG.id,
+  name: 'Test Project',
+  description: 'Holds the test campaign',
+  visibility: 'private',
+  created_at: '2024-01-01T00:00:00Z',
+  is_admin: true,
+  is_member: true,
+  has_access: true,
+  campaign_count: 1,
+};
+
+/** Same organization, no membership: the row is listed but cannot be opened. */
+export const MOCK_PROJECT_LISTED = {
+  id: 8,
+  organization_id: MOCK_ORG.id,
+  name: 'Neighbour Project',
+  description: null,
+  visibility: 'private',
+  created_at: '2024-01-02T00:00:00Z',
+  is_admin: false,
+  is_member: false,
+  has_access: false,
+  campaign_count: 2,
+};
+
+/** Org-public: open to active org members without a membership row, so the
+ *  backend reports access but no member/admin standing. */
+export const MOCK_PROJECT_ORG_PUBLIC = {
+  id: 9,
+  organization_id: MOCK_ORG.id,
+  name: 'Org Shared Project',
+  description: 'Open to everyone in the organization',
+  visibility: 'organization',
+  created_at: '2024-01-03T00:00:00Z',
+  is_admin: false,
+  is_member: false,
+  has_access: true,
+  campaign_count: 0,
+};
+
+export const MOCK_PROJECT_CAMPAIGNS = {
+  items: [
+    {
+      id: 42,
+      name: 'Test Campaign',
+      created_at: '2024-01-01T00:00:00Z',
+      project_id: MOCK_PROJECT.id,
+      is_admin: true,
+      is_member: true,
+      is_public: false,
+      registration_status: 'ready',
+      embedding_status: 'ready',
+    },
+  ],
+};
+
+export const MOCK_PROJECT_USERS = {
+  project_id: 7,
   users: [
     {
       user: {
         id: TEST_USER_ID,
         email: 'test@example.com',
         display_name: 'Test User',
-        is_approved: true,
         is_admin: false,
         issuer: 'firebase',
       },
       is_admin: false,
-      is_authorative_reviewer: false,
+      is_authoritative_reviewer: false,
     },
     {
       user: {
         id: 'other-user-xyz',
         email: 'other@example.com',
         display_name: 'Other User',
-        is_approved: true,
         is_admin: false,
         issuer: 'firebase',
       },
       is_admin: false,
-      is_authorative_reviewer: false,
+      is_authoritative_reviewer: false,
     },
   ],
 };
 
-/** Variant where the current user is an authoritative reviewer. */
-export const MOCK_CAMPAIGN_USERS_AUTHORITATIVE = {
-  campaign_id: 42,
-  users: [
-    {
-      user: {
-        id: TEST_USER_ID,
-        email: 'test@example.com',
-        display_name: 'Test User',
-        is_approved: true,
-        is_admin: false,
-        issuer: 'firebase',
-      },
-      is_admin: false,
-      is_authorative_reviewer: true,
-    },
-    {
-      user: {
-        id: 'other-user-xyz',
-        email: 'other@example.com',
-        display_name: 'Other User',
-        is_approved: true,
-        is_admin: false,
-        issuer: 'firebase',
-      },
-      is_admin: false,
-      is_authorative_reviewer: false,
-    },
-  ],
-};
-
-/** Standard submit response after annotating a task */
+/** Standard submit response after annotating a task. Mirrors the backend's
+ * aggregation: a label submission resolves the task only when no co-assignee
+ * is still pending, otherwise the task-level status stays 'partial'. */
 export function makeSubmitResponse(
   taskId: number,
   labelId: number | null,
   comment: string | null,
   confidence: number
 ) {
+  const task = ALL_TASKS.find((t) => t.id === taskId);
+  const coAssigneePending = (task?.assignments ?? []).some(
+    (a: { user_id: string; status: string }) => a.user_id !== TEST_USER_ID && a.status === 'pending'
+  );
   return {
     annotation:
       labelId !== null
@@ -396,7 +476,14 @@ export function makeSubmitResponse(
             geometry: { id: taskId * 10 + 2, geometry: 'POINT(0 0)' },
           }
         : null,
-    task_status: labelId !== null ? 'done' : 'pending',
+    task_status:
+      labelId === null
+        ? coAssigneePending
+          ? 'pending'
+          : 'skipped'
+        : coAssigneePending
+          ? 'partial'
+          : 'done',
     assignment_status: labelId !== null ? 'done' : 'skipped',
   };
 }
@@ -456,11 +543,8 @@ export const MOCK_CAMPAIGN_MULTI_SOURCE = {
       id: 1,
       name: 'Default View',
       display_order: 0,
-      collection_refs: [
-        { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
-        { collection_id: 30, source_id: 2, show_as_window: true, display_order: 1 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [1, 2],
+      default_canvas_layout: viewWindowLayout(11, [10, 30]),
       personal_canvas_layout: null,
     },
   ],
@@ -478,7 +562,15 @@ export const MOCK_TIMESERIES_ENTRY = {
   end_ym: '202406',
   data_source: 'Sentinel-2',
   provider: 'planetary',
-  ts_type: 'ndvi',
+  ts_type: 'NDVI',
+  index: {
+    key: 'NDVI',
+    label: 'NDVI',
+    formula: '(NIR - Red) / (NIR + Red)',
+    domain_min: -0.2,
+    domain_max: 1.0,
+    reference_lines: [0.25, 0.75],
+  },
 };
 
 // Bi-weekly NDVI observations over a growing season with some cloud-flagged entries.
@@ -575,11 +667,8 @@ export const MOCK_CAMPAIGN_MULTI_SOURCE_WITH_TIMESERIES = {
       id: 1,
       name: 'Default View',
       display_order: 0,
-      collection_refs: [
-        { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
-        { collection_id: 40, source_id: 2, show_as_window: true, display_order: 1 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [1, 2],
+      default_canvas_layout: viewWindowLayout(11, [10, 40]),
       personal_canvas_layout: null,
     },
   ],
@@ -677,7 +766,15 @@ export const MONTHS_TIMESERIES_ENTRY = {
   end_ym: '202212',
   data_source: 'Imagery',
   provider: 'planetary',
-  ts_type: 'ndvi',
+  ts_type: 'NDVI',
+  index: {
+    key: 'NDVI',
+    label: 'NDVI',
+    formula: '(NIR - Red) / (NIR + Red)',
+    domain_min: -0.2,
+    domain_max: 1.0,
+    reference_lines: [0.25, 0.75],
+  },
 };
 
 export const MOCK_CAMPAIGN_MONTHS = {
@@ -688,11 +785,8 @@ export const MOCK_CAMPAIGN_MONTHS = {
       id: 1,
       name: 'Months View',
       display_order: 0,
-      collection_refs: [
-        { collection_id: 7001, source_id: 700, show_as_window: true, display_order: 0 },
-        { collection_id: 7002, source_id: 700, show_as_window: true, display_order: 1 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [700],
+      default_canvas_layout: viewWindowLayout(11, [7001, 7002]),
       personal_canvas_layout: null,
     },
   ],
@@ -711,21 +805,16 @@ export const MOCK_CAMPAIGN_MULTI_VIEW = {
       id: 1,
       name: 'Sentinel-2 View',
       display_order: 0,
-      collection_refs: [
-        { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
-        { collection_id: 20, source_id: 1, show_as_window: true, display_order: 1 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [1],
+      default_canvas_layout: viewWindowLayout(11, [10, 20]),
       personal_canvas_layout: null,
     },
     {
       id: 2,
       name: 'VHR View',
       display_order: 1,
-      collection_refs: [
-        { collection_id: 30, source_id: 2, show_as_window: true, display_order: 0 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [2],
+      default_canvas_layout: viewWindowLayout(12, [30]),
       personal_canvas_layout: null,
     },
   ],

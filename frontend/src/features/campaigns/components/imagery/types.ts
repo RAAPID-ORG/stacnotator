@@ -52,6 +52,43 @@ export interface NamedVizParams {
   vizParams: VizParams;
 }
 
+/** Lossless, versioned snapshot of the inputs used to produce a temporal
+ * collection series. Runtime rendering uses the normalized collection data;
+ * this exists so the same generator can be reopened later. */
+export interface ImageryGenerationConfig {
+  version: 1;
+  catalogUrl: string;
+  stacCollectionId: string;
+  collectionTitle: string;
+  isMpc: boolean;
+  hasCloudCover: boolean;
+  tiler?: string | null;
+  startDate: string;
+  endDate: string;
+  collectionPeriodInterval: number;
+  collectionPeriodUnit: 'weeks' | 'months' | 'years';
+  slicePeriodInterval: number;
+  slicePeriodUnit: 'days' | 'weeks' | 'months' | 'years';
+  coverMode: 'nth' | 'custom';
+  coverSliceNth: number;
+  maxCloudCover: number;
+  itemSort: ItemSortOption;
+  coverMaxCloudCover: number;
+  coverItemSort: ItemSortOption;
+  visualizations: NamedVizParams[];
+  coverVisualizations: NamedVizParams[];
+  searchQuery?: Record<string, unknown>;
+  coverSearchQuery?: Record<string, unknown>;
+  internalStorage?: boolean;
+}
+
+/** One persisted or draft generator run. Configuration has one owner here;
+ * collections refer to it by id. */
+export interface ImageryGenerationSeries {
+  id: string;
+  config: ImageryGenerationConfig;
+}
+
 export const ITEM_SORT_OPTIONS = ['date_desc', 'date_asc', 'cloud_cover_asc'] as const;
 export type ItemSortOption = (typeof ITEM_SORT_OPTIONS)[number];
 export const isItemSortOption = (v: string): v is ItemSortOption =>
@@ -97,14 +134,8 @@ export interface CollectionItem {
   /** True when the slice at coverSliceIndex is an out-of-band dedicated cover with override viz params / search query. */
   hasDedicatedCover: boolean;
   data: ManualCollectionData | StacBrowserCollectionData;
-  /** Temporal window grouping interval (maps to ImageryCreate.window_interval) */
-  windowInterval?: number | null;
-  /** Temporal window grouping unit (maps to ImageryCreate.window_unit) */
-  windowUnit?: string | null;
-  /** Slice interval within each window (maps to ImageryCreate.slicing_interval) */
-  slicingInterval?: number | null;
-  /** Slice unit within each window (maps to ImageryCreate.slicing_unit) */
-  slicingUnit?: string | null;
+  /** Source-local generation-series id; null/absent means manually authored. */
+  generationSeriesId?: string | null;
 }
 
 export interface ImagerySource {
@@ -112,22 +143,25 @@ export interface ImagerySource {
   name: string;
   crosshairHex6: string;
   defaultZoom: number;
+  /** Deepest zoom the provider serves real pixels for. Past it the client upscales
+   *  rather than fetching tiles that cannot get sharper. Undefined = no cap. */
+  maxNativeZoom?: number | null;
   visualizations: VisualizationOption[];
+  generationSeries: ImageryGenerationSeries[];
   collections: CollectionItem[];
   /** Whether a provider API key is configured server-side (persisted sources only). */
   hasApiKey?: boolean;
-}
-
-export interface ViewCollectionRef {
-  collectionId: string;
-  sourceId: string;
-  showAsWindow: boolean;
-}
-
-export interface ImageryView {
-  id: string;
-  name: string;
-  collectionRefs: ViewCollectionRef[];
+  /** Set when that key is one of the organization's shared ones. */
+  organizationApiKeyId?: number | null;
+  /** A key provided for this source alone, carried only as far as the create call -
+   *  it is encrypted server-side and never read back. Rotation goes through the key
+   *  endpoint, so this stays empty for anything loaded from the server. */
+  apiKey?: string;
+  /** Registration, as the server sees it: how many of this source's slices
+   *  actually have tiles, and whether its STAC search can be re-run. */
+  sliceCount?: number;
+  registeredSliceCount?: number;
+  refreshable?: boolean;
 }
 
 export interface Basemap {
@@ -138,11 +172,12 @@ export interface Basemap {
   maxNativeZoom?: number;
   /** Whether a provider API key is configured server-side (persisted basemaps only). */
   hasApiKey?: boolean;
+  /** Set when that key is one of the organization's shared ones. */
+  organizationApiKeyId?: number | null;
 }
 
 export interface ImageryStepState {
   sources: ImagerySource[];
-  views: ImageryView[];
   basemaps: Basemap[];
 }
 
@@ -167,6 +202,7 @@ export const emptySource = (): ImagerySource => ({
   crosshairHex6: 'ff0000',
   defaultZoom: 15,
   visualizations: [{ name: 'True Color' }],
+  generationSeries: [],
   collections: [],
 });
 
@@ -180,12 +216,6 @@ export const emptyManualCollection = (vizNames: string[]): CollectionItem => ({
     type: 'manual',
     vizUrls: vizNames.map((name) => ({ vizName: name, url: '' })),
   },
-});
-
-export const emptyView = (): ImageryView => ({
-  id: createId(),
-  name: '',
-  collectionRefs: [],
 });
 
 export const emptyBasemap = (): Basemap => ({
@@ -225,17 +255,6 @@ export const DEFAULT_BASEMAPS: Basemap[] = [
     maxNativeZoom: 19,
   },
 ];
-
-export function resolveCollection(
-  sources: ImagerySource[],
-  ref: ViewCollectionRef
-): { source: ImagerySource; collection: CollectionItem } | null {
-  const source = sources.find((s) => s.id === ref.sourceId);
-  if (!source) return null;
-  const collection = source.collections.find((c) => c.id === ref.collectionId);
-  if (!collection) return null;
-  return { source, collection };
-}
 
 export function swap<T>(arr: T[], i: number, j: number): T[] {
   if (i < 0 || j < 0 || i >= arr.length || j >= arr.length) return arr;

@@ -4,14 +4,13 @@ from shapely.geometry import MultiPolygon, Polygon
 from shapely.geometry import box as shapely_box
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.sampling_design import service
 from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategyConfig
-from src.utils import FunctionNameOperationIdRoute
 
 
 def _intersect_region_with_bbox(
@@ -46,8 +45,7 @@ bearer = HTTPBearer()
 router = APIRouter(
     prefix="/campaigns/{campaign_id}/sampling",
     tags=["Sampling Design"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 

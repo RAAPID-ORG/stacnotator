@@ -4,9 +4,13 @@ Tests both clean-slate defaults (as if fresh deploy) and explicit overrides
 (as would be set in Azure App Service environment variables).
 """
 
+import base64
 import os
 from unittest.mock import patch
 from urllib.parse import urlsplit
+
+import pytest
+from pydantic import ValidationError
 
 from src.config import Settings
 
@@ -99,13 +103,40 @@ class TestCORSOrigins:
         assert "http://localhost:3000" in origins
         assert "http://localhost:5173" in origins
 
-    def test_production_wildcard(self):
-        s = _make_settings_from_env({"CORS_ORIGINS": "*"})
-        assert s.CORS_ORIGINS == ["*"]
+    def test_wildcard_is_rejected(self):
+        # With allow_credentials, Starlette answers a wildcard by echoing the
+        # caller's own Origin, so "*" is authenticated access for every site.
+        with pytest.raises(ValidationError):
+            _make_settings_from_env({"CORS_ORIGINS": "*"})
+
+    def test_wildcard_is_rejected_among_explicit_origins(self):
+        with pytest.raises(ValidationError):
+            _make_settings_from_env({"CORS_ORIGINS": "https://app.example.com,*"})
 
     def test_production_explicit_domain(self):
         s = _make_settings_from_env({"CORS_ORIGINS": "https://myapp.azurewebsites.net"})
         assert s.CORS_ORIGINS == ["https://myapp.azurewebsites.net"]
+
+
+class TestApiKeyEncryptionSecret:
+    def test_the_dev_default_is_usable(self):
+        """A placeholder that cannot be decoded just defers the failure to the first
+        request that encrypts a provider key."""
+        key = base64.b64decode(_make_settings().APIKEY_ENCRYPTION_SECRET, validate=True)
+        assert len(key) == 32
+
+    def test_non_base64_is_rejected(self):
+        with pytest.raises(ValidationError):
+            _make_settings(APIKEY_ENCRYPTION_SECRET="not-base64-at-all!!")
+
+    def test_wrong_length_is_rejected(self):
+        short = base64.b64encode(b"too-short").decode()
+        with pytest.raises(ValidationError):
+            _make_settings(APIKEY_ENCRYPTION_SECRET=short)
+
+    def test_a_real_key_is_accepted(self):
+        good = base64.b64encode(b"x" * 32).decode()
+        assert good == _make_settings(APIKEY_ENCRYPTION_SECRET=good).APIKEY_ENCRYPTION_SECRET
 
 
 class TestOptionalFields:

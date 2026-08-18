@@ -15,7 +15,8 @@ SAMPLE_COLUMNS = [
     "geometry",
 ]
 
-_INT_COLUMNS = ("annotation_id", "task_id", "label_id", "confidence")
+# confidence stays Float64: merged exports average it across annotators.
+_INT_COLUMNS = ("annotation_id", "task_id", "label_id")
 
 
 def samples_frame(feature_collection: dict[str, Any]) -> pd.DataFrame:
@@ -50,6 +51,7 @@ def samples_frame(feature_collection: dict[str, Any]) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=SAMPLE_COLUMNS)
     for column in _INT_COLUMNS:
         df[column] = df[column].astype("Int64")
+    df["confidence"] = df["confidence"].astype("Float64")
     for column in ("lat", "lon"):
         df[column] = df[column].astype("float64")
     df["created_at"] = pd.to_datetime(df["created_at"], utc=True, format="ISO8601")

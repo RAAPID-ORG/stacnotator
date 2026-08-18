@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
     TIMESTAMP,
-    Boolean,
     CheckConstraint,
     ForeignKey,
     Identity,
@@ -17,7 +17,17 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.campaigns.schemas import default_labelling_policy
 from src.database import Base
+from src.projects.access import VISIBILITY_PUBLIC
+
+if TYPE_CHECKING:
+    from src.annotation.models import Annotation, AnnotationTask
+    from src.canvas.models import CanvasLayout
+    from src.custom_layers.models import CustomMap, VectorLayer
+    from src.imagery.models import Basemap, ImagerySource, ImageryView
+    from src.projects.models import Project
+    from src.timeseries.models import TimeSeries
 
 
 class Campaign(Base):
@@ -26,7 +36,10 @@ class Campaign(Base):
     """
 
     __tablename__ = "campaigns"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_campaigns_project_id", "project_id"),
+        {"schema": "data"},
+    )
 
     # Primary key
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -34,12 +47,11 @@ class Campaign(Base):
     # Campaign metadata
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=False),
+        TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
         nullable=False,
     )
     mode: Mapped[str] = mapped_column(String(20), nullable=False)  # tasks or open
-    is_public: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     # Mosaic registration status: pending, registering, ready, failed
     registration_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
@@ -48,58 +60,73 @@ class Campaign(Base):
     embedding_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
     )
-    # Errors from background registration (JSON array, null when no errors)
-    registration_errors: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # Liveness stamps for the background runs behind the two statuses; a
+    # "registering" campaign whose stamp goes stale is swept to "failed"
+    # (see src/background.py).
+    registration_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    embedding_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    # Errors from background registration (JSON array, null when no errors).
+    # none_as_null: without it SQLAlchemy stores a cleared value as the JSON
+    # scalar 'null' rather than SQL NULL, and finish_status_run's jsonb `||`
+    # then appends to it as if it were a one-element array, yielding [null].
+    registration_errors: Mapped[list | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     # Monotonic counter bumped on every annotation create/update/delete. Used as
     # a cache-busting key in annotation vector-tile URLs so edits invalidate the
     # affected tiles without a manual purge.
     annotations_version: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
 
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("data.projects.id", ondelete="CASCADE"), nullable=False
+    )
+
     # Relationships
+    project: Mapped["Project"] = relationship(back_populates="campaigns")
     settings: Mapped["CampaignSettings"] = relationship(
         back_populates="campaign",
         uselist=False,
         cascade="all, delete-orphan",
     )
-    time_series: Mapped[list["TimeSeries"]] = relationship(  # noqa: F821
+    time_series: Mapped[list["TimeSeries"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    users = relationship(
-        "CampaignUser",
-        cascade="all, delete-orphan",
-    )
-    task_items: Mapped[list["AnnotationTask"]] = relationship(  # noqa: F821
+    task_items: Mapped[list["AnnotationTask"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    annotations: Mapped[list["Annotation"]] = relationship(  # noqa: F821
+    annotations: Mapped[list["Annotation"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    imagery_sources: Mapped[list["ImagerySource"]] = relationship(  # noqa: F821
+    imagery_sources: Mapped[list["ImagerySource"]] = relationship(
         "ImagerySource",
         back_populates="campaign",
         cascade="all, delete-orphan",
         order_by="ImagerySource.display_order",
     )
-    basemaps: Mapped[list["Basemap"]] = relationship(  # noqa: F821
+    basemaps: Mapped[list["Basemap"]] = relationship(
         "Basemap", back_populates="campaign", cascade="all, delete-orphan"
     )
-    custom_maps: Mapped[list["CustomMap"]] = relationship(  # noqa: F821
+    custom_maps: Mapped[list["CustomMap"]] = relationship(
         "CustomMap",
         back_populates="campaign",
         cascade="all, delete-orphan",
         order_by="CustomMap.display_order",
     )
-    vector_layers: Mapped[list["VectorLayer"]] = relationship(  # noqa: F821
+    vector_layers: Mapped[list["VectorLayer"]] = relationship(
         "VectorLayer",
         back_populates="campaign",
         cascade="all, delete-orphan",
         order_by="VectorLayer.display_order",
     )
-    imagery_views: Mapped[list["ImageryView"]] = relationship(  # noqa: F821
+    imagery_views: Mapped[list["ImageryView"]] = relationship(
         "ImageryView",
         back_populates="campaign",
         cascade="all, delete-orphan",
@@ -115,6 +142,13 @@ class Campaign(Base):
         "TaskSet",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def is_public(self) -> bool:
+        """Platform-public standing, resolved through the owning project.
+        Org-public visibility deliberately does not count: the 'anyone'
+        audience stays tied to platform-public projects only."""
+        return self.project.visibility == VISIBILITY_PUBLIC
 
 
 class TaskSet(Base):
@@ -137,7 +171,7 @@ class TaskSet(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=False),
+        TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
         nullable=False,
     )
@@ -197,13 +231,7 @@ class CampaignSettings(Base):
     # docs/labelling-policy.md.
     labelling_policy: Mapped[dict] = mapped_column(
         JSONB,
-        server_default=text(
-            '\'{"explore": {"kinds": ["members"], "user_ids": []}, '
-            '"unassigned_tasks": {"kinds": ["members"], "user_ids": []}, '
-            '"assigned_tasks": {"kinds": ["members"], "user_ids": []}, '
-            '"complete_assigned": {"kinds": ["assignees", "admins", "authoritative"], '
-            '"user_ids": []}}\'::jsonb'
-        ),
+        server_default=text(f"'{default_labelling_policy().model_dump_json()}'::jsonb"),
         nullable=False,
     )
 
@@ -211,82 +239,31 @@ class CampaignSettings(Base):
     campaign: Mapped["Campaign"] = relationship(back_populates="settings")
 
 
-class CanvasLayout(Base):
-    """
-    Stores UI canvas layout configuration for views or campaign settings.
-    Can be user-specific (personal layout) or serve as a default layout (is_default=True).
-
-    Layout types:
-    - Campaign main layout: campaign_id set, view_id NULL
-    - View-specific layout: campaign_id set, view_id set
+class CampaignDataSharing(Base):
+    """One annotator's answer to whether the annotations they create in a campaign
+    may be published for research. No row means they have not been asked yet, which
+    is treated the same as "none" - we publish nothing without an explicit choice.
     """
 
-    __tablename__ = "canvas_layouts"
+    __tablename__ = "campaign_data_sharing"
     __table_args__ = (
         CheckConstraint(
-            "(is_default = false) OR (is_default = true AND user_id IS NULL)",
-            name="canvas_layouts_default_check",
+            "choice IN ('none', 'anonymous', 'attributed')",
+            name="campaign_data_sharing_choice_check",
         ),
         {"schema": "data"},
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-
-    user_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-
-    campaign_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-
-    view_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.imagery_views.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-
-    is_default: Mapped[bool] = mapped_column(
-        server_default="false",
-        nullable=False,
-    )
-
-    layout_data: Mapped[list] = mapped_column(
-        JSONB,
-        server_default="[]",
-        nullable=False,
-    )
-
-    campaign: Mapped["Campaign | None"] = relationship(
-        back_populates="canvas_layouts",
-    )
-    imagery_view: Mapped["ImageryView | None"] = relationship(  # noqa: F821
-        back_populates="canvas_layouts",
-    )
-
-
-class CampaignUser(Base):
-    """
-    Association table linking users to campaigns with role-based access.
-    """
-
-    __tablename__ = "campaign_users"
-    __table_args__ = ({"schema": "data"},)
-
-    # Composite primary key
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
     campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"), primary_key=True
     )
-
-    # User roles in campaign
-    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    is_authorative_reviewer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-    # Relationships
-    user: Mapped["User"] = relationship()  # noqa: F821
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="CASCADE"), primary_key=True
+    )
+    choice: Mapped[str] = mapped_column(String(20), nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        nullable=False,
+    )

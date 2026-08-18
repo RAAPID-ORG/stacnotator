@@ -39,6 +39,18 @@ class TestKnnLabelAgrees:
 
 class TestValidateLabelSubmission:
     @patch("src.annotation.embeddings_service.get_embedding_by_task")
+    def test_embedding_lookup_is_scoped_to_the_campaign(self, mock_get_emb):
+        """The route proves the caller may see the campaign, never that the task
+        is in it. If the campaign stops reaching the lookup, a task id from any
+        other campaign resolves again."""
+        mock_get_emb.return_value = None
+        db = MagicMock()
+
+        validate_label_submission(db, campaign_id=7, annotation_task_id=42, label_id=1)
+
+        assert mock_get_emb.call_args.args == (db, 7, 42)
+
+    @patch("src.annotation.embeddings_service.get_embedding_by_task")
     def test_no_embedding_returns_skipped(self, mock_get_emb):
         mock_get_emb.return_value = None
         db = MagicMock()

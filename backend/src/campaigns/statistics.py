@@ -1,5 +1,7 @@
 import logging
 from collections import defaultdict
+from collections.abc import Iterable
+from typing import NamedTuple
 from uuid import UUID
 
 import krippendorff
@@ -11,7 +13,12 @@ from sqlalchemy.orm import Session, joinedload
 from src.annotation.models import Annotation
 from src.auth.models import User
 from src.campaigns.models import Campaign
-from src.campaigns.schemas import AnnotatorInfo, CampaignStatistics, PairwiseAgreement
+from src.campaigns.schemas import (
+    AnnotatorInfo,
+    CampaignStatistics,
+    PairwiseAgreement,
+    label_id_to_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +126,48 @@ def _calculate_pairwise_agreement(
     return agreement_pct, len(shared_annotations)
 
 
+class AnnotatorDurations(NamedTuple):
+    timed_tasks: int
+    median_seconds_per_task: int
+    total_active_seconds: int
+
+
+def summarize_annotator_durations(
+    rows: Iterable[tuple[UUID, int | None]],
+) -> dict[UUID, AnnotatorDurations]:
+    """Summarize (user_id, active_seconds) annotation rows per annotator.
+
+    Rows without a measurement are dropped rather than counted as zero, so work
+    predating the measurement does not deflate the result. The median
+    is reported rather than the mean because a single tab left open on one task
+    would otherwise dominate an annotator's figure.
+    """
+    by_user: defaultdict[UUID, list[int]] = defaultdict(list)
+    for user_id, seconds in rows:
+        if seconds is not None:
+            by_user[user_id].append(seconds)
+
+    return {
+        user_id: AnnotatorDurations(
+            timed_tasks=len(values),
+            median_seconds_per_task=round(float(np.median(values))),
+            total_active_seconds=sum(values),
+        )
+        for user_id, values in by_user.items()
+    }
+
+
+def _fetch_annotator_durations(campaign_id: int, db: Session) -> dict[UUID, AnnotatorDurations]:
+    rows = db.execute(
+        select(Annotation.created_by_user_id, Annotation.active_seconds).where(
+            Annotation.campaign_id == campaign_id,
+            Annotation.annotation_task_id.is_not(None),
+            Annotation.active_seconds.is_not(None),
+        )
+    ).all()
+    return summarize_annotator_durations([(row[0], row[1]) for row in rows])
+
+
 def get_campaign_statistics(
     campaign_id: int,
     db: Session,
@@ -166,21 +215,7 @@ def get_campaign_statistics(
         )
 
     # Get label mapping
-    labels = campaign.settings.labels or {}
-    label_id_to_name = {}
-    if isinstance(labels, dict):
-        for label_id, label_data in labels.items():
-            if isinstance(label_data, dict):
-                label_id_to_name[int(label_id)] = label_data.get("name", f"Label {label_id}")
-            else:
-                label_id_to_name[int(label_id)] = str(label_data)
-    elif isinstance(labels, list):
-        for label_data in labels:
-            if isinstance(label_data, dict):
-                lid = label_data.get("id")
-                lname = label_data.get("name", f"Label {lid}")
-                if lid is not None:
-                    label_id_to_name[int(lid)] = lname
+    label_names = label_id_to_name(campaign.settings.labels if campaign.settings else None)
 
     # Batch fetch users
     user_ids = {ann.created_by_user_id for ann in annotations}
@@ -198,6 +233,8 @@ def get_campaign_statistics(
                 (ann.created_by_user_id, ann.label_id)
             )
 
+    durations = _fetch_annotator_durations(campaign_id, db)
+
     # Build annotator info list
     annotator_list = []
     user_ids_list = sorted(list(annotations_by_user.keys()))
@@ -210,11 +247,13 @@ def get_campaign_statistics(
         user_annots = annotations_by_user[user_id]
 
         # Calculate label distribution for this user
-        label_dist = defaultdict(int)
+        label_dist: defaultdict[str, int] = defaultdict(int)
         for ann in user_annots:
             if ann.label_id is not None:
-                label_name = label_id_to_name.get(ann.label_id, f"Unknown ({ann.label_id})")
+                label_name = label_names.get(ann.label_id, f"Unknown ({ann.label_id})")
                 label_dist[label_name] += 1
+
+        timing = durations.get(user_id)
 
         annotator_list.append(
             AnnotatorInfo(
@@ -223,6 +262,9 @@ def get_campaign_statistics(
                 user_display_name=user.display_name,
                 total_annotations=len(user_annots),
                 label_distribution=dict(label_dist),
+                timed_tasks=timing.timed_tasks if timing else 0,
+                median_seconds_per_task=timing.median_seconds_per_task if timing else None,
+                total_active_seconds=timing.total_active_seconds if timing else None,
             )
         )
 
@@ -230,10 +272,10 @@ def get_campaign_statistics(
     annotator_list.sort(key=lambda x: x.total_annotations, reverse=True)
 
     # Calculate overall label distribution
-    overall_label_dist = defaultdict(int)
+    overall_label_dist: defaultdict[str, int] = defaultdict(int)
     for ann in annotations:
         if ann.label_id is not None:
-            label_name = label_id_to_name.get(ann.label_id, f"Unknown ({ann.label_id})")
+            label_name = label_names.get(ann.label_id, f"Unknown ({ann.label_id})")
             overall_label_dist[label_name] += 1
 
     # Count tasks with multiple annotations

@@ -59,9 +59,13 @@ df = campaign.get_samples()
 | `geometry` | the unchanged GeoJSON geometry |
 
 Geometries are **never** reduced for you: polygon and box samples keep their full geometry and
-it is up to you whether to rasterize, take centroids, or sample within them. Skipped tasks
-(no label) are excluded. `get_samples(merge_on_agreement=True)` collapses multi-annotator tasks
-to one agreed row (the server rejects the export if annotators conflict).
+it is up to you whether to rasterize, take centroids, or sample within them. Skipped tasks and
+features without geometry are excluded. `get_samples(merge_on_agreement=True)` collapses
+multi-annotator tasks to one agreed row (the server rejects the export if annotators
+conflict). Merged rows are aggregates, not single annotations: `annotation_id` is NA,
+`confidence` is the mean across annotators, and `annotator` joins all contributing emails -
+so merged frames cannot be used with `update_samples`, which de-duplicates on
+`annotation_id`.
 
 ## The active-learning loop
 
@@ -93,8 +97,10 @@ in `train` yet; columns you added yourself (features, embeddings, split flags) s
 rows get NA there. Anything passed as `exclude` (here the held-out test set) is never appended,
 so the split stays clean while train grows.
 
-`register_overlay` shows your prediction COG as an overlay to annotators. Names are unique
-per campaign (a duplicate raises `ApiError` 409); without a `name` it auto-numbers
+`register_overlay` shows your prediction COG as an overlay to annotators. It returns the
+created layer, which starts in `status="registering"` (`tile_url` null) until server-side
+registration finishes - `campaign.overlays()` exposes the `status` column. COG overlay names
+are unique per campaign (a duplicate raises `ApiError` 409); without a `name` it auto-numbers
 (`overlay-1`, `overlay-2`, ...) and skips names that are already taken. `mlops_link`
 ties the layer to the experiment that produced it (with MLflow, the run URL - see
 [`examples/active-learning-mlflow.ipynb`](examples/active-learning-mlflow.ipynb)); annotators
@@ -129,6 +135,9 @@ campaign.register_vector_overlay(
 )
 campaign.vector_overlays()        # id, name, pmtiles_url, source_layer, color
 ```
+
+Unlike COG overlays, vector overlay names are not checked for uniqueness. Registering
+overlays and uploading tasks require campaign admin, not just access.
 
 ## Uploading tasks
 
@@ -212,6 +221,7 @@ snt.logout()
 snt.whoami()
 snt.campaigns()           # DataFrame: id, name, created_at, is_admin, is_member, is_public
 snt.campaign(id)          # -> Campaign
+snt.Client(url)           # explicit client targeting a URL, bypassing the cached login
 
 Campaign.get_samples(merge_on_agreement=False)      # -> DataFrame
 Campaign.update_samples(train, exclude=None)        # -> train + new rows (exclude stays out)
@@ -231,6 +241,7 @@ utils.to_cog(src, dst=None, resampling="nearest")            # -> Path
 utils.merge_to_cog(sources, dst, resampling="nearest")       # folder/list of chips -> Path
 utils.to_pmtiles(src, dst=None, layer=None, min_zoom=0, max_zoom=14)  # -> Path
 Campaign.labels                                     # {label_id: name}
+Campaign.extent                                     # (west, south, east, north)
 ```
 
 Errors are typed: `NotLoggedInError`, `AuthenticationError` (re-login needed), and

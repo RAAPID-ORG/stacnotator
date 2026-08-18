@@ -1,7 +1,7 @@
 /**
  * Tests for the two "marker" submit paths:
  *   - Authoritative submit: only available to users flagged
- *     `is_authorative_reviewer` on the campaign. Goes through a confirm
+ *     `is_authoritative_reviewer` on the project. Goes through a confirm
  *     dialog and POSTs `is_authoritative: true` in the body.
  *   - Flag for review: any user can flag their own annotation. The submit
  *     body must include `flagged_for_review: true` and the typed
@@ -25,7 +25,7 @@ test.describe('Authoritative submit', () => {
   test('button is hidden when the current user is not an authoritative reviewer', async ({
     annotationPage,
   }) => {
-    // Default mock: current user has is_authorative_reviewer=false.
+    // Default mock: current user has is_authoritative_reviewer=false.
     await expect(annotationPage.locator('button', { hasText: 'Submit authoritative' })).toHaveCount(
       0
     );

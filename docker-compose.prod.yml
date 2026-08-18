@@ -43,12 +43,16 @@ services:
       DBPORT: 5432
       DBDRIVER: psycopg2
       DBSCHEME: postgresql
+      # "production" arms the startup guard that rejects dev-default secrets.
+      ENVIRONMENT: ${ENVIRONMENT:-production}
       AUTH_PROVIDER: ${AUTH_PROVIDER:-firebase}
       FIREBASE_CREDENTIALS_PATH: /app/config/firebase-credentials.json
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
       EE_SERVICE_ACCOUNT: ${EE_SERVICE_ACCOUNT:-}
       EE_PRIVATE_KEY_PATH: /app/config/ee-private-key.json
       TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:?Tiler token secret required}
+      # Encrypts stored provider API keys at rest (base64 of 32 bytes, e.g. `openssl rand -base64 32`).
+      APIKEY_ENCRYPTION_SECRET: ${APIKEY_ENCRYPTION_SECRET:?API key encryption secret required}
       # No tiler runs here (it's a separate repo / deployment). Only MPC imagery
       # with first-valid compositing works without one. To use non-MPC catalogs or
       # compositing/masking, run the tiler and register it (URL must be reachable

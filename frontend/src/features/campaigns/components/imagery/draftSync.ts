@@ -2,10 +2,18 @@ import type {
   BasemapCreate,
   CampaignCreate,
   ImageryCollectionCreate,
+  ImageryGenerationConfigV1,
   ImagerySourceCreate,
   VizParamsCreate,
 } from '~/api/client';
-import type { Basemap, CollectionItem, ImagerySource, ImageryStepState, VizParams } from './types';
+import type {
+  Basemap,
+  CollectionItem,
+  ImageryGenerationConfig,
+  ImagerySource,
+  ImageryStepState,
+  VizParams,
+} from './types';
 import { emptyVizParams } from './types';
 
 /** Local IDs are strings: real DB rows are decimal-integer strings (from
@@ -40,6 +48,39 @@ const toVizParamsPayload = (v: VizParams): VizParamsCreate => ({
   max_items: v.maxItems,
 });
 
+const generationConfigToBackend = (config: ImageryGenerationConfig): ImageryGenerationConfigV1 => ({
+  version: 1,
+  catalog_url: config.catalogUrl,
+  stac_collection_id: config.stacCollectionId,
+  collection_title: config.collectionTitle,
+  is_mpc: config.isMpc,
+  has_cloud_cover: config.hasCloudCover,
+  tiler: config.tiler,
+  start_date: config.startDate,
+  end_date: config.endDate,
+  collection_period_interval: config.collectionPeriodInterval,
+  collection_period_unit: config.collectionPeriodUnit,
+  slice_period_interval: config.slicePeriodInterval,
+  slice_period_unit: config.slicePeriodUnit,
+  cover_mode: config.coverMode,
+  cover_slice_nth: config.coverSliceNth,
+  max_cloud_cover: config.maxCloudCover,
+  item_sort: config.itemSort,
+  cover_max_cloud_cover: config.coverMaxCloudCover,
+  cover_item_sort: config.coverItemSort,
+  visualizations: config.visualizations.map((viz) => ({
+    name: viz.name,
+    viz_params: toVizParamsPayload(viz.vizParams),
+  })),
+  cover_visualizations: config.coverVisualizations.map((viz) => ({
+    name: viz.name,
+    viz_params: toVizParamsPayload(viz.vizParams),
+  })),
+  search_query: config.searchQuery,
+  cover_search_query: config.coverSearchQuery,
+  internal_storage: config.internalStorage ?? false,
+});
+
 export function collectionToBackend(
   col: CollectionItem,
   sourceVizNames: string[] = []
@@ -49,6 +90,7 @@ export function collectionToBackend(
     name: col.name,
     cover_slice_index: col.coverSliceIndex,
     has_dedicated_cover: col.hasDedicatedCover,
+    generation_series_key: col.generationSeriesId ?? null,
     slices: col.slices.map((sl) => ({
       id: toIdField(sl.id),
       name: sl.name || undefined,
@@ -99,7 +141,16 @@ export function sourceToBackend(src: ImagerySource): ImagerySourceCreate {
     name: src.name,
     crosshair_hex6: src.crosshairHex6,
     default_zoom: src.defaultZoom,
+    max_native_zoom: src.maxNativeZoom ?? null,
+    // Both honoured on create only; rotating a key goes through the key endpoint.
+    organization_api_key_id: src.organizationApiKeyId ?? null,
+    api_key: src.apiKey || null,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
+    generation_series: src.generationSeries.map((series) => ({
+      key: series.id,
+      id: toIdField(series.id),
+      config: generationConfigToBackend(series.config),
+    })),
     collections: src.collections.map((c) =>
       collectionToBackend(
         c,
@@ -124,28 +175,10 @@ export function syncToForm(
   setForm: (f: CampaignCreate) => void
 ) {
   const sources = state.sources.map(sourceToBackend);
-  const views = state.views.map((v) => ({
-    name: v.name,
-    collection_refs: v.collectionRefs
-      .map((ref) => {
-        const srcIdx = state.sources.findIndex((src) => src.id === ref.sourceId);
-        if (srcIdx === -1) return null;
-        const colIdx = state.sources[srcIdx].collections.findIndex(
-          (c) => c.id === ref.collectionId
-        );
-        if (colIdx === -1) return null;
-        return {
-          collection_id: String(colIdx),
-          source_id: String(srcIdx),
-          show_as_window: ref.showAsWindow,
-        };
-      })
-      .filter((r): r is NonNullable<typeof r> => r !== null),
-  }));
   const basemaps = state.basemaps.map(basemapToBackend);
 
   setForm({
     ...form,
-    imagery_editor_state: sources.length > 0 ? { sources, views, basemaps } : null,
+    imagery_editor_state: sources.length > 0 ? { sources, basemaps } : null,
   });
 }

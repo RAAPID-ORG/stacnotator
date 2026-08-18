@@ -2,7 +2,7 @@
 // ahead of navigation.
 
 export const importCreateCampaign = () => import('~/features/campaigns/pages/CreateCampaignPage');
-export const importAnnotation = () => import('~/features/annotation/pages/AnnotationPage');
+export const importAnnotation = () => import('~/features/annotation/AnnotationPage');
 export const importCampaignOverview = () =>
   import('~/features/campaigns/pages/CampaignOverviewPage');
 export const importCampaignSettings = () =>
@@ -11,6 +11,13 @@ export const importCampaignTasks = () => import('~/features/campaigns/pages/Camp
 export const importReview = () => import('~/features/campaigns/pages/ReviewPage');
 export const importSettings = () => import('~/features/settings/pages/SettingsPage');
 export const importSdkAuth = () => import('~/features/auth/pages/SdkAuthPage');
+export const importNewProject = () => import('~/features/projects/pages/NewProjectPage');
+export const importProject = () => import('~/features/projects/pages/ProjectPage');
+export const importNewOrganization = () =>
+  import('~/features/organizations/pages/NewOrganizationPage');
+export const importOrganization = () => import('~/features/organizations/pages/OrganizationPage');
+export const importBrowseOrganizations = () =>
+  import('~/features/organizations/pages/BrowseOrganizationsPage');
 
 /** Warm the campaign-cluster chunks (New campaign, overview, settings, tasks,
  *  review). These are the common next hops from the home/campaigns pages and are
@@ -21,6 +28,18 @@ export function prefetchCampaignChunks(): void {
   void importCampaignSettings();
   void importCampaignTasks();
   void importReview();
+}
+
+/** Warm the workspace page chunks (project, organization and settings pages).
+ *  Together with the campaign cluster this covers every route except the heavy
+ *  annotation chunk, so in-app navigation never waits on a chunk download. */
+export function prefetchWorkspaceChunks(): void {
+  void importProject();
+  void importNewProject();
+  void importOrganization();
+  void importNewOrganization();
+  void importBrowseOrganizations();
+  void importSettings();
 }
 
 /** Warm the annotation chunk (OpenLayers, Chart.js). */

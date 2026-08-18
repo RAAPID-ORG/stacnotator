@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { exportTaskAssignments, importTaskAssignments } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 
 interface Props {

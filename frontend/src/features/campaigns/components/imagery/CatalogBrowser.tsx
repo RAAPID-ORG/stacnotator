@@ -12,9 +12,14 @@ import type {
   VizParams,
   NamedVizParams,
   ItemSortOption,
+  ImageryGenerationConfig,
+  ImageryGenerationSeries,
 } from './types';
 import { createId, emptyVizParams, isItemSortOption } from './types';
+import { buildStacAutoQuery } from './stacQuery';
 import { VizTabs } from './VizTabs';
+import { compositingMethods, servingTiler, NO_TILER_NOTE } from './tilerCapabilities';
+import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { CoverSearchParams } from './CoverSearchParams';
 import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
 import type { BandPreset } from './collectionPresets';
@@ -112,7 +117,8 @@ export const MPC_PRESETS: CatalogBrowserPreset[] = [
 const MPC_API_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1';
 
 interface CatalogBrowserProps {
-  onAdd: (collections: CollectionItem[]) => void;
+  projectId: number;
+  onAdd: (result: CatalogBrowserResult) => void;
   onClose: () => void;
   campaignBbox?: number[] | null;
   /** Initial mode: 'mosaic' for temporal series, 'single-item' for single item */
@@ -124,6 +130,15 @@ interface CatalogBrowserProps {
   /** Editing an existing collection defaults the advanced disclosure to expanded
    *  (post-creation edits are intentional power-user actions). */
   initialAdvanced?: boolean;
+  /** Reopen an existing temporal generator with its saved inputs. Catalog and
+   * collection selection stay fixed; onAdd returns the replacement series. */
+  initialGeneration?: ImageryGenerationConfig;
+  generationSeriesId?: string;
+}
+
+export interface CatalogBrowserResult {
+  collections: CollectionItem[];
+  generationSeries?: ImageryGenerationSeries;
 }
 
 const AdvancedToggle = ({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) => (
@@ -172,6 +187,7 @@ const CatalogSection = ({
 };
 
 export const CatalogBrowser = ({
+  projectId,
   onAdd,
   onClose,
   campaignBbox,
@@ -179,8 +195,10 @@ export const CatalogBrowser = ({
   singleCollection = false,
   preset = null,
   initialAdvanced = false,
+  initialGeneration,
+  generationSeriesId,
 }: CatalogBrowserProps) => {
-  const [step, setStep] = useState<Step>('catalog');
+  const [step, setStep] = useState<Step>(initialGeneration ? 'configure' : 'catalog');
   const [catalogs, setCatalogs] = useState<StacCatalogOut[]>([]);
   const [collections, setCollections] = useState<StacCollectionOut[]>([]);
   const [items, setItems] = useState<StacItemOut[]>([]);
@@ -188,16 +206,48 @@ export const CatalogBrowser = ({
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const [selectedCatalog, setSelectedCatalog] = useState<StacCatalogOut | null>(null);
-  const [selectedCollection, setSelectedCollection] = useState<StacCollectionOut | null>(null);
+  const [selectedCatalog, setSelectedCatalog] = useState<StacCatalogOut | null>(() =>
+    initialGeneration
+      ? {
+          id: 'saved-generation',
+          title: initialGeneration.catalogUrl,
+          url: initialGeneration.catalogUrl,
+          summary: '',
+          is_mpc: initialGeneration.isMpc,
+          auth_required: false,
+          tiler_name: initialGeneration.tiler ?? undefined,
+        }
+      : null
+  );
+  const [selectedCollection, setSelectedCollection] = useState<StacCollectionOut | null>(() =>
+    initialGeneration
+      ? {
+          id: initialGeneration.stacCollectionId,
+          title: initialGeneration.collectionTitle,
+          description: '',
+          keywords: [],
+          has_cloud_cover: initialGeneration.hasCloudCover,
+        }
+      : null
+  );
 
   const [query, setQuery] = useState('');
   const [customCatalogUrl, setCustomCatalogUrl] = useState('');
+  const { tilers } = useProjectTilers(projectId);
+  // A catalog can only be offered if some tiler the organization may use can render it,
+  // and that same tiler decides which compositing methods are on the table.
+  const catalogTiler = (cat: StacCatalogOut) => servingTiler(cat.url, cat.tiler_name, tilers);
+  // A catalog nobody hosts for us has to be ingested, so an arbitrary URL is only an
+  // option when some allowed tiler can ingest.
+  const hasIngestTiler = tilers.some((t) => t.kind === 'hosted' && t.allows_ingest);
+  const availableCompositing = compositingMethods(
+    selectedCatalog ? catalogTiler(selectedCatalog) : undefined
+  );
   const [mode, setMode] = useState<'single-item' | 'mosaic'>(initialMode);
 
   // Date range - default to 2024-01 through 2024-12
-  const [startDate, setStartDateRaw] = useState('2024-01');
-  const [endDate, setEndDateRaw] = useState('2024-12');
+  const [startDate, setStartDateRaw] = useState(initialGeneration?.startDate ?? '2024-01');
+  const [endDate, setEndDateRaw] = useState(initialGeneration?.endDate ?? '2024-12');
 
   /** Set start date, bumping end date forward if it would be before start */
   const setStartDate = (val: string) => {
@@ -214,31 +264,51 @@ export const CatalogBrowser = ({
       setStartDateRaw(val);
     }
   };
-  const [maxCloudCover, setMaxCloudCover] = useState<number>(90);
-  const [itemSort, setItemSort] = useState<ItemSortOption>('date_desc');
+  const [maxCloudCover, setMaxCloudCover] = useState<number>(
+    initialGeneration?.maxCloudCover ?? 90
+  );
+  const [itemSort, setItemSort] = useState<ItemSortOption>(
+    initialGeneration?.itemSort ?? 'date_desc'
+  );
 
   // Temporal slicing (mosaic mode)
-  const [collectionPeriodInterval, setCollectionPeriodInterval] = useState(1);
+  const [collectionPeriodInterval, setCollectionPeriodInterval] = useState(
+    initialGeneration?.collectionPeriodInterval ?? 1
+  );
   const [collectionPeriodUnit, setCollectionPeriodUnit] = useState<'weeks' | 'months' | 'years'>(
-    'months'
+    initialGeneration?.collectionPeriodUnit ?? 'months'
   );
-  const [slicePeriodInterval, setSlicePeriodInterval] = useState(1);
+  const [slicePeriodInterval, setSlicePeriodInterval] = useState(
+    initialGeneration?.slicePeriodInterval ?? 1
+  );
   const [slicePeriodUnit, setSlicePeriodUnit] = useState<'days' | 'weeks' | 'months' | 'years'>(
-    'weeks'
+    initialGeneration?.slicePeriodUnit ?? 'weeks'
   );
-  const [coverSliceNth, setCoverSliceNth] = useState(1);
-  const [coverMode, setCoverMode] = useState<'nth' | 'custom'>('nth');
+  const [coverSliceNth, setCoverSliceNth] = useState(initialGeneration?.coverSliceNth ?? 1);
+  const [coverMode, setCoverMode] = useState<'nth' | 'custom'>(
+    initialGeneration?.coverMode ?? 'nth'
+  );
   /** Per-viz params for the custom cover slice (e.g. different compositing) */
-  const [coverVisualizations, setCoverVisualizations] = useState<NamedVizParams[]>([]);
+  const [coverVisualizations, setCoverVisualizations] = useState<NamedVizParams[]>(
+    initialGeneration?.coverVisualizations ?? []
+  );
   /** Cover slice search parameters */
-  const [coverMaxCloudCover, setCoverMaxCloudCover] = useState<number>(90);
-  const [coverItemSort, setCoverItemSort] = useState<ItemSortOption>('cloud_cover_asc');
+  const [coverMaxCloudCover, setCoverMaxCloudCover] = useState<number>(
+    initialGeneration?.coverMaxCloudCover ?? 90
+  );
+  const [coverItemSort, setCoverItemSort] = useState<ItemSortOption>(
+    initialGeneration?.coverItemSort ?? 'cloud_cover_asc'
+  );
   /** Active viz tab index for cover slice */
   const [activeCoverVizIndex, setActiveCoverVizIndex] = useState(0);
   /** Custom CQL2-JSON search query (null = auto-generated) */
-  const [searchQuery, setSearchQuery] = useState<Record<string, unknown> | null>(null);
+  const [searchQuery, setSearchQuery] = useState<Record<string, unknown> | null>(
+    initialGeneration?.searchQuery ?? null
+  );
   /** Custom search query for cover slice (null = same as regular) */
-  const [coverSearchQuery, setCoverSearchQuery] = useState<Record<string, unknown> | null>(null);
+  const [coverSearchQuery, setCoverSearchQuery] = useState<Record<string, unknown> | null>(
+    initialGeneration?.coverSearchQuery ?? null
+  );
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -268,47 +338,14 @@ export const CatalogBrowser = ({
     setSlicePeriodUnit(p.sliceUnit);
   };
 
-  const SORTBY_MAP: Record<ItemSortOption, Array<{ field: string; direction: string }>> = {
-    date_desc: [{ field: 'datetime', direction: 'desc' }],
-    date_asc: [{ field: 'datetime', direction: 'asc' }],
-    cloud_cover_asc: [
-      { field: 'eo:cloud_cover', direction: 'asc' },
-      { field: 'datetime', direction: 'desc' },
-    ],
-  };
-
   /** Build a search query from given parameters. */
   const buildQuery = (cloudCover: number, sort: ItemSortOption): Record<string, unknown> | null => {
     if (!selectedCollection) return null;
     const hasCloudCover = selectedCollection.has_cloud_cover ?? false;
-    const cloudCoverFilter =
-      hasCloudCover && cloudCover < 100
-        ? [
-            {
-              op: 'or',
-              args: [
-                { op: 'isNull', args: [{ property: 'eo:cloud_cover' }] },
-                { op: '<=', args: [{ property: 'eo:cloud_cover' }, cloudCover] },
-              ],
-            },
-          ]
-        : [];
-
-    return {
-      collections: [selectedCollection.id],
-      filter: {
-        op: 'and',
-        args: [
-          {
-            op: 'anyinteracts',
-            args: [{ property: 'datetime' }, { interval: ['{sliceStart}', '{sliceEnd}'] }],
-          },
-          ...cloudCoverFilter,
-        ],
-      },
-      filterLang: 'cql2-json',
-      sortby: SORTBY_MAP[sort],
-    };
+    return buildStacAutoQuery(selectedCollection.id, {
+      maxCloudCover: hasCloudCover ? cloudCover : undefined,
+      itemSort: sort,
+    });
   };
 
   /** Build the canonical search query from UI state. Single source of truth for queries. */
@@ -322,13 +359,36 @@ export const CatalogBrowser = ({
 
   // Multiple named visualizations
   const [visualizations, setVisualizations] = useState<NamedVizParams[]>([
-    { name: 'True Color', vizParams: emptyVizParams() },
+    ...(initialGeneration?.visualizations ?? [{ name: 'True Color', vizParams: emptyVizParams() }]),
   ]);
   const [activeVizIndex, setActiveVizIndex] = useState(0);
   const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
 
   // Load catalogs on mount (skip if preset provided)
   useEffect(() => {
+    if (initialGeneration) {
+      // Refresh only catalog metadata needed by the band picker. Saved
+      // generator inputs remain untouched even when the upstream catalog is
+      // temporarily unavailable.
+      setLoading(true);
+      getCollections({
+        query: { catalog_url: initialGeneration.catalogUrl, project_id: projectId },
+      })
+        .then(({ data, error }) => {
+          if (error) throw new Error('Failed to refresh collection metadata');
+          const match = data?.find((c) => c.id === initialGeneration.stacCollectionId);
+          if (!match) return;
+          setSelectedCollection(match);
+          setAvailableAssets(match.item_assets ?? {});
+        })
+        .catch((e: unknown) => {
+          setError(
+            `Saved settings loaded, but current catalog metadata is unavailable: ${extractErrorMessage(e)}`
+          );
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
     if (preset) {
       // Auto-navigate: set MPC as catalog, fetch collection details, jump to configure
       const mpcCatalog: StacCatalogOut = {
@@ -342,7 +402,7 @@ export const CatalogBrowser = ({
       setSelectedCatalog(mpcCatalog);
       setLoading(true);
       // Fetch full collection list to get item_assets metadata
-      getCollections({ query: { catalog_url: MPC_API_URL } })
+      getCollections({ query: { catalog_url: MPC_API_URL, project_id: projectId } })
         .then(({ data, error }) => {
           if (error) throw new Error('Failed to fetch collections');
           const cols = data!;
@@ -392,7 +452,7 @@ export const CatalogBrowser = ({
       return;
     }
     setLoading(true);
-    listCatalogs()
+    listCatalogs({ query: { project_id: projectId } })
       .then(({ data, error }) => {
         if (error) throw new Error('Failed to fetch catalogs');
         setCatalogs(data!);
@@ -410,7 +470,7 @@ export const CatalogBrowser = ({
     setCollections([]);
     setLoading(true);
     setError('');
-    getCollections({ query: { catalog_url: cat.url } })
+    getCollections({ query: { catalog_url: cat.url, project_id: projectId } })
       .then(({ data, error }) => {
         if (error) {
           const detail =
@@ -552,6 +612,7 @@ export const CatalogBrowser = ({
       const dtRange =
         startDate && endDate ? `${startDate}-01T00:00:00Z/${endDate}-28T23:59:59Z` : undefined;
       const { data, error } = await search({
+        query: { project_id: projectId },
         body: {
           catalog_url: selectedCatalog.url,
           collection_id: selectedCollection.id,
@@ -670,6 +731,7 @@ export const CatalogBrowser = ({
     endRaw.setUTCMonth(endRaw.getUTCMonth() + 1);
     const end = endRaw;
     const result: CollectionItem[] = [];
+    const nextGenerationSeriesId = generationSeriesId ?? createId();
 
     // For singleCollection mode, use the entire range as one collection period
     const effectiveColInterval = singleCollection ? 999 : collectionPeriodInterval;
@@ -750,13 +812,10 @@ export const CatalogBrowser = ({
       result.push({
         id: createId(),
         name: formatWindowLabel(toDateStr(colStart), toDateStr(colEndDate), collectionPeriodUnit),
+        generationSeriesId: nextGenerationSeriesId,
         slices: finalSlices,
         coverSliceIndex: finalCoverIndex,
         hasDedicatedCover: coverMode === 'custom',
-        windowInterval: collectionPeriodInterval,
-        windowUnit: collectionPeriodUnit,
-        slicingInterval: slicePeriodInterval,
-        slicingUnit: slicePeriodUnit,
         data: {
           type: 'stac_browser' as const,
           catalogUrl: selectedCatalog.url,
@@ -780,6 +839,7 @@ export const CatalogBrowser = ({
           coverItemSort: coverMode === 'custom' ? coverItemSort : undefined,
           searchQuery: effectiveQuery ?? undefined,
           coverSearchQuery: coverMode === 'custom' ? (effectiveCoverQuery ?? undefined) : undefined,
+          internalStorage: initialGeneration?.internalStorage,
           vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
         },
       });
@@ -817,13 +877,47 @@ export const CatalogBrowser = ({
         vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
       },
     };
-    onAdd([col]);
+    onAdd({ collections: [col] });
   };
 
   const handleGenerate = () => {
     if (mode === 'mosaic') {
       const cols = generateMosaicCollections();
-      if (cols.length > 0) onAdd(cols);
+      if (cols.length > 0) {
+        const id = generationSeriesId ?? cols[0].generationSeriesId ?? createId();
+        onAdd({
+          collections: cols.map((collection) => ({ ...collection, generationSeriesId: id })),
+          generationSeries: {
+            id,
+            config: {
+              version: 1,
+              catalogUrl: selectedCatalog!.url,
+              stacCollectionId: selectedCollection!.id,
+              collectionTitle: selectedCollection!.title,
+              isMpc: selectedCatalog!.is_mpc,
+              hasCloudCover: selectedCollection!.has_cloud_cover ?? false,
+              tiler: selectedCatalog!.is_mpc ? null : (selectedCatalog!.tiler_name ?? null),
+              startDate,
+              endDate,
+              collectionPeriodInterval,
+              collectionPeriodUnit,
+              slicePeriodInterval,
+              slicePeriodUnit,
+              coverMode,
+              coverSliceNth,
+              maxCloudCover,
+              itemSort,
+              coverMaxCloudCover,
+              coverItemSort,
+              visualizations,
+              coverVisualizations,
+              searchQuery: searchQuery ?? undefined,
+              coverSearchQuery: coverSearchQuery ?? undefined,
+              internalStorage: initialGeneration?.internalStorage,
+            },
+          },
+        });
+      }
     }
   };
 
@@ -911,57 +1005,63 @@ export const CatalogBrowser = ({
   const providedCatalogs = catalogs.filter((c) => c.provided);
   const stacIndexCatalogs = catalogs.filter((c) => !c.provided);
 
-  const renderCatalogCard = (cat: StacCatalogOut) => (
-    <div key={cat.id} className="flex items-start gap-1.5">
-      <button
-        type="button"
-        onClick={() => selectCatalog(cat)}
-        disabled={!cat.selectable}
-        className={`flex-1 text-left px-3 py-2.5 rounded-lg border transition-colors ${
-          cat.selectable
-            ? 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
-            : 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
-        }`}
-      >
-        <span className="text-sm font-medium flex items-center gap-1.5">
-          {cat.title}
-          {cat.is_mpc && (
-            <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
-              MPC
-            </span>
-          )}
-          {cat.auth_required && (
-            <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
-              Auth required
-            </span>
-          )}
-        </span>
-        <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
-        {!cat.selectable && cat.unavailable_reason && !cat.auth_required && (
-          <p className="text-[11px] text-amber-600 mt-1">{cat.unavailable_reason}</p>
-        )}
-      </button>
-      <div className="mt-2.5">
-        <InfoPopover>
-          <div className="space-y-1.5">
-            {cat.summary ? (
-              <p>{cat.summary}</p>
-            ) : (
-              <p className="text-neutral-400 italic">No description available.</p>
+  const renderCatalogCard = (cat: StacCatalogOut) => {
+    const untileable = !cat.is_mpc && !catalogTiler(cat);
+    const selectable = cat.selectable !== false && !untileable;
+    const unavailableReason = untileable ? NO_TILER_NOTE : cat.unavailable_reason;
+    return (
+      <div key={cat.id} className="flex items-start gap-1.5">
+        <button
+          type="button"
+          onClick={() => selectCatalog(cat)}
+          disabled={!selectable}
+          className={`flex-1 text-left px-3 py-2.5 rounded-lg border transition-colors ${
+            selectable
+              ? 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
+              : 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
+          }`}
+        >
+          <span className="text-sm font-medium flex items-center gap-1.5">
+            {cat.title}
+            {cat.is_mpc && (
+              <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
+                MPC
+              </span>
             )}
-            <a
-              href={cat.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand-600 hover:underline block truncate"
-            >
-              {cat.url}
-            </a>
-          </div>
-        </InfoPopover>
+            {cat.auth_required && (
+              <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
+                Auth required
+              </span>
+            )}
+          </span>
+          <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
+          {!selectable && unavailableReason && !cat.auth_required && (
+            <p className="text-[11px] text-amber-600 mt-1">{unavailableReason}</p>
+          )}
+        </button>
+        <div className="mt-2.5">
+          <InfoPopover>
+            <div className="space-y-1.5">
+              {cat.summary ? (
+                <p>{cat.summary}</p>
+              ) : (
+                <p className="text-neutral-400 italic">No description available.</p>
+              )}
+              <a
+                href={cat.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-600 hover:underline block truncate"
+              >
+                {cat.url}
+              </a>
+            </div>
+          </InfoPopover>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
   const filteredCollections = fuzzy(
     collections,
     query,
@@ -983,8 +1083,9 @@ export const CatalogBrowser = ({
   const isValid =
     mode === 'mosaic' ? startDate && endDate && startDate <= endDate && hasVizConfig : hasVizConfig;
 
-  const stepTitle =
-    step === 'catalog'
+  const stepTitle = initialGeneration
+    ? `Edit ${initialGeneration.collectionTitle} series`
+    : step === 'catalog'
       ? 'Select STAC Catalog'
       : step === 'collection'
         ? selectedCatalog?.title || 'Collections'
@@ -1001,9 +1102,11 @@ export const CatalogBrowser = ({
           Cancel
         </button>
         <Button variant="primary" onClick={handleGenerate} disabled={!isValid}>
-          {singleCollection
-            ? 'Add Collection'
-            : `Generate ${preview ? `${preview.collections} Collection${preview.collections !== 1 ? 's' : ''}` : 'Collections'}`}
+          {initialGeneration
+            ? `Regenerate ${preview?.collections ?? ''} Collection${preview?.collections === 1 ? '' : 's'}`
+            : singleCollection
+              ? 'Add Collection'
+              : `Generate ${preview ? `${preview.collections} Collection${preview.collections !== 1 ? 's' : ''}` : 'Collections'}`}
         </Button>
       </div>
     ) : undefined;
@@ -1023,32 +1126,34 @@ export const CatalogBrowser = ({
         {!(loading && preset) && (
           <>
             {/* Step indicator */}
-            <div className="flex items-center gap-1 text-[11px] text-neutral-400">
-              <button
-                type="button"
-                onClick={() => setStep('catalog')}
-                className={`cursor-pointer hover:text-neutral-600 ${step === 'catalog' ? 'text-brand-600 font-medium' : ''}`}
-              >
-                Catalog
-              </button>
-              <span>/</span>
-              <span className={step === 'collection' ? 'text-brand-600 font-medium' : ''}>
-                Collection
-              </span>
-              <span>/</span>
-              <span className={step === 'configure' ? 'text-brand-600 font-medium' : ''}>
-                Configure
-              </span>
-              {step !== 'catalog' && (
+            {!initialGeneration && (
+              <div className="flex items-center gap-1 text-[11px] text-neutral-400">
                 <button
                   type="button"
-                  onClick={goBack}
-                  className="ml-auto text-neutral-500 hover:text-neutral-700 cursor-pointer text-xs"
+                  onClick={() => setStep('catalog')}
+                  className={`cursor-pointer hover:text-neutral-600 ${step === 'catalog' ? 'text-brand-600 font-medium' : ''}`}
                 >
-                  ← Back
+                  Catalog
                 </button>
-              )}
-            </div>
+                <span>/</span>
+                <span className={step === 'collection' ? 'text-brand-600 font-medium' : ''}>
+                  Collection
+                </span>
+                <span>/</span>
+                <span className={step === 'configure' ? 'text-brand-600 font-medium' : ''}>
+                  Configure
+                </span>
+                {step !== 'catalog' && (
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    className="ml-auto text-neutral-500 hover:text-neutral-700 cursor-pointer text-xs"
+                  >
+                    ← Back
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Collection search (the catalog step has its own search in the StacIndex section) */}
             {step === 'collection' && (
@@ -1099,16 +1204,20 @@ export const CatalogBrowser = ({
                       value={customCatalogUrl}
                       onChange={(e) => setCustomCatalogUrl(e.target.value)}
                       placeholder="https://earth-search.aws.element84.com/v1"
+                      disabled={!hasIngestTiler}
                     />
                     <Button
                       variant="primary"
                       size="sm"
                       onClick={loadCustomCatalog}
-                      disabled={!customCatalogUrl.trim()}
+                      disabled={!hasIngestTiler || !customCatalogUrl.trim()}
                     >
                       Load
                     </Button>
                   </div>
+                  {!hasIngestTiler && (
+                    <p className="text-[11px] text-amber-600 mt-1.5">{NO_TILER_NOTE}</p>
+                  )}
                 </CatalogSection>
 
                 <CatalogSection
@@ -1362,123 +1471,124 @@ export const CatalogBrowser = ({
                   </div>
                 </div>
 
-                {mode === 'mosaic' && Object.keys(availableAssets).length > 0 && (
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
-                    <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
-                      <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                        Temporal Structure
-                        <Tooltip text="Controls how the date range is divided into collections and slices. Collections are top-level time windows (e.g. months). Each collection is split into slices (e.g. weeks) that annotators can browse to find the best imagery." />
-                      </h4>
-                      <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
-                        {singleCollection
-                          ? 'The full date range becomes one collection, divided into slices that annotators can switch between.'
-                          : 'The date range is split into collections (e.g. one per month). Each collection is further divided into slices (e.g. weeks) for annotators to browse.'}
-                      </p>
-                    </div>
-                    <div className="p-3 space-y-3">
-                      {!showAdvanced && !singleCollection && (
-                        <div className="space-y-1">
-                          <label className="text-xs text-neutral-700 flex items-center gap-1">
-                            Pattern
-                            <Tooltip text="How the date range is divided into collections and slices. Pick a preset or switch to Advanced for custom intervals." />
-                          </label>
-                          <Select
-                            size="sm"
-                            value={matchingPattern}
-                            onChange={(e) =>
-                              applyTemporalPattern(e.target.value as TemporalPattern)
-                            }
-                          >
-                            {TEMPORAL_PATTERNS.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.label}
-                              </option>
-                            ))}
-                            <option value="custom">Custom…</option>
-                          </Select>
-                        </div>
-                      )}
-
-                      {/* Collection period - only for temporal series (multiple collections) */}
-                      {showAdvanced && !singleCollection && (
-                        <div className="grid grid-cols-2 gap-3">
+                {mode === 'mosaic' &&
+                  (Object.keys(availableAssets).length > 0 || initialGeneration) && (
+                    <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
+                      <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
+                        <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
+                          Temporal Structure
+                          <Tooltip text="Controls how the date range is divided into collections and slices. Collections are top-level time windows (e.g. months). Each collection is split into slices (e.g. weeks) that annotators can browse to find the best imagery." />
+                        </h4>
+                        <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
+                          {singleCollection
+                            ? 'The full date range becomes one collection, divided into slices that annotators can switch between.'
+                            : 'The date range is split into collections (e.g. one per month). Each collection is further divided into slices (e.g. weeks) for annotators to browse.'}
+                        </p>
+                      </div>
+                      <div className="p-3 space-y-3">
+                        {!showAdvanced && !singleCollection && (
                           <div className="space-y-1">
                             <label className="text-xs text-neutral-700 flex items-center gap-1">
-                              Collection Period
-                              <Tooltip text="How often to create a new collection. E.g. 1 month = each month becomes its own collection." />
+                              Pattern
+                              <Tooltip text="How the date range is divided into collections and slices. Pick a preset or switch to Advanced for custom intervals." />
                             </label>
-                            <Input
-                              type="number"
-                              size="sm"
-                              min="1"
-                              value={collectionPeriodInterval}
-                              onChange={(e) =>
-                                setCollectionPeriodInterval(Math.max(1, Number(e.target.value)))
-                              }
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-xs text-neutral-700">Collection Unit</label>
                             <Select
                               size="sm"
-                              value={collectionPeriodUnit}
+                              value={matchingPattern}
                               onChange={(e) =>
-                                setCollectionPeriodUnit(
-                                  e.target.value as 'weeks' | 'months' | 'years'
-                                )
+                                applyTemporalPattern(e.target.value as TemporalPattern)
                               }
                             >
-                              <option value="weeks">Weeks</option>
-                              <option value="months">Months</option>
-                              <option value="years">Years</option>
+                              {TEMPORAL_PATTERNS.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.label}
+                                </option>
+                              ))}
+                              <option value="custom">Custom…</option>
                             </Select>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {showAdvanced && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-xs text-neutral-700 flex items-center gap-1">
-                              Slice Period
-                              <Tooltip text="How to divide each collection into slices. Annotators switch between slices to find cloud-free imagery." />
-                            </label>
-                            <Input
-                              type="number"
-                              size="sm"
-                              min="1"
-                              value={slicePeriodInterval}
-                              onChange={(e) =>
-                                setSlicePeriodInterval(Math.max(1, Number(e.target.value)))
-                              }
-                            />
+                        {/* Collection period - only for temporal series (multiple collections) */}
+                        {showAdvanced && !singleCollection && (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-xs text-neutral-700 flex items-center gap-1">
+                                Collection Period
+                                <Tooltip text="How often to create a new collection. E.g. 1 month = each month becomes its own collection." />
+                              </label>
+                              <Input
+                                type="number"
+                                size="sm"
+                                min="1"
+                                value={collectionPeriodInterval}
+                                onChange={(e) =>
+                                  setCollectionPeriodInterval(Math.max(1, Number(e.target.value)))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-neutral-700">Collection Unit</label>
+                              <Select
+                                size="sm"
+                                value={collectionPeriodUnit}
+                                onChange={(e) =>
+                                  setCollectionPeriodUnit(
+                                    e.target.value as 'weeks' | 'months' | 'years'
+                                  )
+                                }
+                              >
+                                <option value="weeks">Weeks</option>
+                                <option value="months">Months</option>
+                                <option value="years">Years</option>
+                              </Select>
+                            </div>
                           </div>
-                          <div className="space-y-1">
-                            <label className="text-xs text-neutral-700">Slice Unit</label>
-                            <Select
-                              size="sm"
-                              value={slicePeriodUnit}
-                              onChange={(e) =>
-                                setSlicePeriodUnit(
-                                  e.target.value as 'days' | 'weeks' | 'months' | 'years'
-                                )
-                              }
-                            >
-                              <option value="days">Days</option>
-                              <option value="weeks">Weeks</option>
-                              <option value="months">Months</option>
-                              <option value="years">Years</option>
-                            </Select>
+                        )}
+
+                        {showAdvanced && (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-xs text-neutral-700 flex items-center gap-1">
+                                Slice Period
+                                <Tooltip text="How to divide each collection into slices. Annotators switch between slices to find cloud-free imagery." />
+                              </label>
+                              <Input
+                                type="number"
+                                size="sm"
+                                min="1"
+                                value={slicePeriodInterval}
+                                onChange={(e) =>
+                                  setSlicePeriodInterval(Math.max(1, Number(e.target.value)))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-xs text-neutral-700">Slice Unit</label>
+                              <Select
+                                size="sm"
+                                value={slicePeriodUnit}
+                                onChange={(e) =>
+                                  setSlicePeriodUnit(
+                                    e.target.value as 'days' | 'weeks' | 'months' | 'years'
+                                  )
+                                }
+                              >
+                                <option value="days">Days</option>
+                                <option value="weeks">Weeks</option>
+                                <option value="months">Months</option>
+                                <option value="years">Years</option>
+                              </Select>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      <AdvancedToggle
-                        expanded={showAdvanced}
-                        onToggle={() => setShowAdvanced((v) => !v)}
-                      />
+                        )}
+                        <AdvancedToggle
+                          expanded={showAdvanced}
+                          onToggle={() => setShowAdvanced((v) => !v)}
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Explicit search trigger: filters only take effect on click, so
                     editing the date range doesn't fire a search on every change. */}
@@ -1563,90 +1673,94 @@ export const CatalogBrowser = ({
                     </div>
                   )}
 
-                {Object.keys(availableAssets).length > 0 && selectedCollection && (
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
-                    <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
-                      <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                        Visualizations
-                        <Tooltip text="Named rendering configurations for the imagery. Each defines which assets/bands to use and how to display them. Annotators can switch between them in the viewer." />
-                      </h4>
-                      <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
-                        Pre-configured renderings for this dataset (e.g. True Color, False Color).
-                        Add new ones with{' '}
-                        <span className="inline-flex items-center">
-                          <IconPlus className="w-2.5 h-2.5" />
-                        </span>
-                        , or expand advanced options to edit compositing.
-                      </p>
+                {(Object.keys(availableAssets).length > 0 || initialGeneration) &&
+                  selectedCollection && (
+                    <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
+                      <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
+                        <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
+                          Visualizations
+                          <Tooltip text="Named rendering configurations for the imagery. Each defines which assets/bands to use and how to display them. Annotators can switch between them in the viewer." />
+                        </h4>
+                        <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
+                          Pre-configured renderings for this dataset (e.g. True Color, False Color).
+                          Add new ones with{' '}
+                          <span className="inline-flex items-center">
+                            <IconPlus className="w-2.5 h-2.5" />
+                          </span>
+                          , or expand advanced options to edit compositing.
+                        </p>
+                      </div>
+                      <div className="p-3 space-y-3 bg-white">
+                        <VizTabs
+                          visualizations={visualizations}
+                          activeIndex={activeVizIndex}
+                          onActiveIndexChange={setActiveVizIndex}
+                          collectionId={selectedCollection.id}
+                          availableAssets={availableAssets}
+                          showCompositing={mode === 'mosaic' && showAdvanced}
+                          compositingMethods={availableCompositing}
+                          onParamsChange={(_, params) => updateVizParams(params)}
+                          onNameChange={initialGeneration ? undefined : updateVizName}
+                          onAdd={initialGeneration ? undefined : addVisualization}
+                          onRemove={initialGeneration ? undefined : removeVisualization}
+                        />
+                        <AdvancedToggle
+                          expanded={showAdvanced}
+                          onToggle={() => setShowAdvanced((v) => !v)}
+                        />
+                      </div>
                     </div>
-                    <div className="p-3 space-y-3 bg-white">
-                      <VizTabs
-                        visualizations={visualizations}
-                        activeIndex={activeVizIndex}
-                        onActiveIndexChange={setActiveVizIndex}
-                        collectionId={selectedCollection.id}
-                        availableAssets={availableAssets}
-                        showCompositing={mode === 'mosaic' && showAdvanced}
-                        onParamsChange={(_, params) => updateVizParams(params)}
-                        onNameChange={updateVizName}
-                        onAdd={addVisualization}
-                        onRemove={removeVisualization}
-                      />
-                      <AdvancedToggle
-                        expanded={showAdvanced}
-                        onToggle={() => setShowAdvanced((v) => !v)}
-                      />
-                    </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Cover Slice - basic UI always visible in mosaic mode, advanced settings gated */}
-                {mode === 'mosaic' && Object.keys(availableAssets).length > 0 && (
-                  <CoverSliceSection
-                    coverMode={coverMode}
-                    setCoverMode={(m) => {
-                      setCoverMode(m);
-                      if (m === 'custom' && coverVisualizations.length === 0) {
-                        syncCoverVisualizationsFromRegular();
+                {mode === 'mosaic' &&
+                  (Object.keys(availableAssets).length > 0 || initialGeneration) && (
+                    <CoverSliceSection
+                      coverMode={coverMode}
+                      setCoverMode={(m) => {
+                        setCoverMode(m);
+                        if (m === 'custom' && coverVisualizations.length === 0) {
+                          syncCoverVisualizationsFromRegular();
+                        }
+                      }}
+                      coverSliceNth={coverSliceNth}
+                      setCoverSliceNth={setCoverSliceNth}
+                      examples={(() => {
+                        const cols = generateMosaicCollections();
+                        return cols.slice(0, 2).map((c) => ({
+                          name: c.name,
+                          slices: c.slices.map((s, i) => ({
+                            name: s.name,
+                            startDate: s.startDate,
+                            endDate: s.endDate,
+                            isPreviewCover: i === c.coverSliceIndex,
+                          })),
+                        }));
+                      })()}
+                      showAdvanced={showAdvanced}
+                      onToggleAdvanced={() => setShowAdvanced((v) => !v)}
+                      advanced={
+                        coverMode === 'custom' && showAdvanced ? (
+                          <CoverSliceAdvancedPanel
+                            selectedCollection={selectedCollection!}
+                            availableAssets={availableAssets}
+                            compositingMethods={availableCompositing}
+                            coverVisualizations={coverVisualizations}
+                            setCoverVisualizations={setCoverVisualizations}
+                            activeCoverVizIndex={activeCoverVizIndex}
+                            setActiveCoverVizIndex={setActiveCoverVizIndex}
+                            coverMaxCloudCover={coverMaxCloudCover}
+                            setCoverMaxCloudCover={setCoverMaxCloudCover}
+                            coverItemSort={coverItemSort}
+                            setCoverItemSort={setCoverItemSort}
+                            coverSearchQuery={coverSearchQuery}
+                            setCoverSearchQuery={setCoverSearchQuery}
+                            buildCoverAutoQuery={buildCoverAutoQuery}
+                          />
+                        ) : null
                       }
-                    }}
-                    coverSliceNth={coverSliceNth}
-                    setCoverSliceNth={setCoverSliceNth}
-                    examples={(() => {
-                      const cols = generateMosaicCollections();
-                      return cols.slice(0, 2).map((c) => ({
-                        name: c.name,
-                        slices: c.slices.map((s, i) => ({
-                          name: s.name,
-                          startDate: s.startDate,
-                          endDate: s.endDate,
-                          isPreviewCover: i === c.coverSliceIndex,
-                        })),
-                      }));
-                    })()}
-                    showAdvanced={showAdvanced}
-                    onToggleAdvanced={() => setShowAdvanced((v) => !v)}
-                    advanced={
-                      coverMode === 'custom' && showAdvanced ? (
-                        <CoverSliceAdvancedPanel
-                          selectedCollection={selectedCollection!}
-                          availableAssets={availableAssets}
-                          coverVisualizations={coverVisualizations}
-                          setCoverVisualizations={setCoverVisualizations}
-                          activeCoverVizIndex={activeCoverVizIndex}
-                          setActiveCoverVizIndex={setActiveCoverVizIndex}
-                          coverMaxCloudCover={coverMaxCloudCover}
-                          setCoverMaxCloudCover={setCoverMaxCloudCover}
-                          coverItemSort={coverItemSort}
-                          setCoverItemSort={setCoverItemSort}
-                          coverSearchQuery={coverSearchQuery}
-                          setCoverSearchQuery={setCoverSearchQuery}
-                          buildCoverAutoQuery={buildCoverAutoQuery}
-                        />
-                      ) : null
-                    }
-                  />
-                )}
+                    />
+                  )}
 
                 {/* Preview */}
                 {mode === 'mosaic' && preview && preview.collections > 0 && (
@@ -1838,6 +1952,7 @@ const CoverSliceSection = ({
 interface CoverSliceAdvancedPanelProps {
   selectedCollection: StacCollectionOut;
   availableAssets: Record<string, AssetInfo>;
+  compositingMethods: string[];
   coverVisualizations: NamedVizParams[];
   setCoverVisualizations: React.Dispatch<React.SetStateAction<NamedVizParams[]>>;
   activeCoverVizIndex: number;
@@ -1854,6 +1969,7 @@ interface CoverSliceAdvancedPanelProps {
 const CoverSliceAdvancedPanel = ({
   selectedCollection,
   availableAssets,
+  compositingMethods,
   coverVisualizations,
   setCoverVisualizations,
   activeCoverVizIndex,
@@ -1895,6 +2011,7 @@ const CoverSliceAdvancedPanel = ({
             collectionId={selectedCollection.id}
             availableAssets={availableAssets}
             showCompositing
+            compositingMethods={compositingMethods}
             onParamsChange={(i, params) =>
               setCoverVisualizations((prev) =>
                 prev.map((v, idx) => (idx === i ? { ...v, vizParams: params } : v))

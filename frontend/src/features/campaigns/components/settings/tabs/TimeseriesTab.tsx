@@ -64,9 +64,9 @@ export const TimeseriesTab: React.FC<Props> = ({
         <div>
           <h2 className="section-heading">Add timeseries</h2>
           <p className="section-description">
-            Time series show how a location changes over time using spectral indices (e.g. NDVI,
-            NDWI). They are displayed as interactive charts alongside imagery during annotation to
-            provide temporal context.
+            Time series show how a location changes over time using a spectral index. They are
+            displayed as interactive charts alongside imagery during annotation to provide temporal
+            context.
           </p>
         </div>
         <StepAddTimeseries
@@ -115,7 +115,8 @@ export const TimeseriesTab: React.FC<Props> = ({
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-neutral-900">{ts.name}</div>
                       <div className="text-xs text-neutral-500 mt-0.5">
-                        {ts.start_ym} – {ts.end_ym}
+                        {ts.index?.label ?? ts.ts_type} · {ts.data_source} · {ts.start_ym} –{' '}
+                        {ts.end_ym}
                       </div>
                     </div>
                     <button

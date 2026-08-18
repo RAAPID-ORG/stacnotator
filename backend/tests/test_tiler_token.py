@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import jwt
 import pytest
 
-from src.tiling import tiler_token
+from src.tilers import tokens as tiler_token
 
 
 @pytest.fixture()

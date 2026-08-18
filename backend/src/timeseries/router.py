@@ -1,34 +1,28 @@
-import re
-from calendar import monthrange
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
+from src.earth_engine import ensure_earth_engine
 from src.timeseries import service
-from src.timeseries.constants import (
-    SUPPORTED_TIMESERIES_PROVIDERS,
-    SUPPORTED_TIMESERIES_SOURCES,
-    SUPPORTED_TIMESERIES_TYPES,
-)
+from src.timeseries.fetch import RateLimited, UpstreamFailed
 from src.timeseries.schemas import (
     TimeseriesBulkCreateRequest,
     TimeseriesBulkCreateResponse,
     TimeseriesDataResponse,
     TimeseriesListResponse,
     TimeSeriesOptionsOut,
+    timeseries_options,
+    ym_range_to_dates,
 )
-from src.utils import FunctionNameOperationIdRoute
 
 router = APIRouter(
     tags=["Time Series"],
-    dependencies=[Depends(HTTPBearer()), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
+    dependencies=[Depends(HTTPBearer()), Depends(require_authenticated_user)],
 )
 
 
@@ -57,12 +51,9 @@ def create_timeseries_for_campaign(
 
 @router.get("/timeseries/create-options", response_model=TimeSeriesOptionsOut)
 def get_timeseries_creation_options():
-    """Get options for registering new timeseries for a campaign, such as supported data sources, providers, and types."""
-    return TimeSeriesOptionsOut(
-        data_sources=SUPPORTED_TIMESERIES_SOURCES,
-        providers=SUPPORTED_TIMESERIES_PROVIDERS,
-        ts_types=SUPPORTED_TIMESERIES_TYPES,
-    )
+    """Get options for registering new timeseries for a campaign: the satellite
+    sources, the spectral indices each one can compute, and what they are for."""
+    return timeseries_options()
 
 
 @router.get(
@@ -73,43 +64,51 @@ def get_timeseries_data(
     latitude: float,
     longitude: float,
     db: Session = Depends(get_db),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
 ):
     """Fetch the actual timeseries data from an external provider based on the timeseries config."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)
-
-    # Verify the user has access to the campaign this timeseries belongs to
     require_campaign_access(campaign_id=timeseries.campaign_id, db=db, user=user)
 
-    ym_pattern = re.compile(r"^\d{4}(0[1-9]|1[0-2])$")
-    if (
-        not timeseries.start_ym
-        or not timeseries.end_ym
-        or not ym_pattern.match(timeseries.start_ym)
-        or not ym_pattern.match(timeseries.end_ym)
-    ):
+    try:
+        start, end = ym_range_to_dates(timeseries.start_ym, timeseries.end_ym)
+    except ValueError as exc:
         raise HTTPException(
-            status_code=400,
-            detail="Timeseries has no valid date range configured (start_ym / end_ym must be YYYYMM format with valid month 01-12)",
-        )
+            status_code=400, detail=f"Timeseries has an invalid date range: {exc}"
+        ) from exc
 
-    start_year, start_month = int(timeseries.start_ym[:4]), int(timeseries.start_ym[4:6])
-    end_year, end_month = int(timeseries.end_ym[:4]), int(timeseries.end_ym[4:6])
-    start = f"{start_year}-{start_month:02d}-01"
-    end = f"{end_year}-{end_month:02d}-{monthrange(end_year, end_month)[1]}"
-
-    # Hand the pooled connection back before the Earth Engine call.
-    ts_type, source = timeseries.ts_type, timeseries.data_source
+    # Free the pooled connection back before the slow Earth Engine call.
+    ts_type = timeseries.ts_type
+    data_source = timeseries.data_source
     db.close()
 
-    timeseries_data_df = service.get_timeseries_data(
-        ts_type=ts_type,
-        source=source,
-        latitude=latitude,
-        longitude=longitude,
-        start_date=start,
-        end_date=end,
-    )
+    if not ensure_earth_engine():
+        raise HTTPException(
+            status_code=503,
+            detail="Earth Engine is currently unavailable. Please retry in a moment.",
+        )
+
+    try:
+        timeseries_data_df = service.get_timeseries_data(
+            ts_type=ts_type,
+            data_source=data_source,
+            latitude=latitude,
+            longitude=longitude,
+            start_date=start,
+            end_date=end,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RateLimited as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Earth Engine is rate-limiting requests. Please retry in a moment.",
+        ) from exc
+    except UpstreamFailed as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Earth Engine request failed: {exc}",
+        ) from exc
 
     return TimeseriesDataResponse(
         timeseries_id=timeseries_id, data=timeseries_data_df.to_dict(orient="records")

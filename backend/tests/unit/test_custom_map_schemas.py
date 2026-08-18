@@ -1,16 +1,15 @@
 import pytest
 from pydantic import ValidationError
 
-from src.custom_maps.schemas import CustomMapCreate, RenderConfig
+from src.custom_layers.schemas import CustomMapCreate, RenderConfig
 
 
-def test_unrenderable_config_still_parses_so_legacy_rows_stay_readable():
-    """Renderability is enforced by the service, not here. RenderConfig also types CustomMapOut,
-    so a validator on it would make rows written before that check unreadable - 500ing the whole
-    campaign GET, and leaving the offending map undeletable through the UI."""
-    assert (
-        RenderConfig.model_validate({"mode": "continuous", "rescale": [0, 1]}).colormap_name is None
-    )
+def test_unrenderable_config_is_rejected_at_parse():
+    """build_viz_params is the authority on renderability and runs as a schema
+    validator, so an unrenderable config never parses. Stored rows conform
+    since migration aa8rendfix, so reads share the strict schema."""
+    with pytest.raises(ValidationError):
+        RenderConfig.model_validate({"mode": "continuous", "rescale": [0, 1]})
 
 
 def test_continuous_create_valid():
@@ -38,14 +37,14 @@ def test_mlops_url_round_trips_and_defaults_to_none():
     bare = CustomMapCreate(
         name="preds",
         cog_url="https://example.com/pred.tif",
-        render_config={"mode": "continuous", "rescale": [0, 1]},
+        render_config={"mode": "continuous", "colormap_name": "viridis", "rescale": [0, 1]},
     )
     assert bare.mlops_url is None
 
     linked = CustomMapCreate(
         name="preds",
         cog_url="https://example.com/pred.tif",
-        render_config={"mode": "continuous", "rescale": [0, 1]},
+        render_config={"mode": "continuous", "colormap_name": "viridis", "rescale": [0, 1]},
         mlops_url="https://mlflow.example.com/#/experiments/7",
     )
     assert linked.mlops_url == "https://mlflow.example.com/#/experiments/7"

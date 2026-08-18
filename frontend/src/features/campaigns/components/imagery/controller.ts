@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   saveImagery as apiSaveImagery,
   refreshCollectionImagery as apiRefreshCollection,
+  refreshSourceImagery as apiRefreshSource,
 } from '~/api/client';
 import type {
   ImageryEditorStateCreate,
+  ImageryGenerationConfigV1,
   ImagerySourceOut,
   ImageryCollectionOut,
-  ImageryViewOut,
 } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
@@ -16,10 +17,10 @@ import type {
   CollectionItem,
   ImagerySource,
   ImageryStepState,
-  ImageryView,
   ManualCollectionData,
   StacBrowserCollectionData,
   VizParams,
+  ImageryGenerationConfig,
 } from './types';
 
 export type ControllerMode = 'draft' | 'persisted';
@@ -32,6 +33,9 @@ export interface ImageryController {
   /** Persisted-mode campaign id (undefined in draft/wizard mode, where entities aren't saved
    *  yet). Used by the API-key controls, which act on persisted basemaps/sources only. */
   readonly campaignId?: number;
+  /** Owning project. Scopes tiler discovery and STAC catalog listing, which are
+   *  organization-level capabilities rather than per-user ones. */
+  readonly projectId: number;
 
   /** Persisted mode only: true when local state differs from server truth. */
   readonly isDirty: boolean;
@@ -54,13 +58,23 @@ export interface ImageryController {
   ): Promise<void>;
   removeCollection(sourceId: string, collectionId: string): Promise<void>;
   refreshCollection(sourceId: string, collectionId: string): Promise<void>;
-
-  addView(view: ImageryView): Promise<void>;
-  updateView(id: string, patch: Partial<ImageryView>): Promise<void>;
-  removeView(id: string): Promise<void>;
-  reorderViews(ids: string[]): Promise<void>;
+  /** Re-run every STAC search behind a source and re-ingest what comes back. */
+  refreshSource(sourceId: string): Promise<void>;
 
   setBasemaps(basemaps: Basemap[]): Promise<void>;
+}
+
+function withoutCollection(source: ImagerySource, collectionId: string): Partial<ImagerySource> {
+  const collections = source.collections.filter((collection) => collection.id !== collectionId);
+  const referencedSeries = new Set(
+    collections.flatMap((collection) =>
+      collection.generationSeriesId ? [collection.generationSeriesId] : []
+    )
+  );
+  return {
+    collections,
+    generationSeries: source.generationSeries.filter((series) => referencedSeries.has(series.id)),
+  };
 }
 
 // viz_params serialization (VizParams -> API payload) lives in draftSync.ts as
@@ -88,13 +102,40 @@ export function vizParamsToFrontend(d: Record<string, unknown> | null | undefine
   };
 }
 
+export interface SourceRegistrationProgress {
+  registered: number;
+  total: number;
+  percent: number;
+  complete: boolean;
+}
+
+/** How far a source's slices have got with the tiler, or null when the question
+ *  doesn't apply yet: an unsaved source has nothing registered by definition,
+ *  and a source without slices has nothing to register. */
+export function sourceRegistration(
+  source: ImagerySource,
+  campaignId: number | undefined
+): SourceRegistrationProgress | null {
+  const total = source.sliceCount ?? 0;
+  if (campaignId == null || !isRealId(source.id) || total === 0) return null;
+  const registered = source.registeredSliceCount ?? 0;
+  return {
+    registered,
+    total,
+    percent: Math.round((registered / total) * 100),
+    complete: registered === total,
+  };
+}
+
 export interface DraftControllerOptions {
+  projectId: number;
   state: ImageryStepState;
   setState: (next: ImageryStepState) => void;
   campaignBbox?: number[] | null;
 }
 
 export function useDraftController({
+  projectId,
   state,
   setState,
   campaignBbox = null,
@@ -115,34 +156,10 @@ export function useDraftController({
   const patchSource = useCallback(
     (id: string, patch: Partial<ImagerySource>) => {
       const cur = stateRef.current;
-      const oldSource = cur.sources.find((s) => s.id === id);
-      const nextSources = cur.sources.map((s) => (s.id === id ? { ...s, ...patch } : s));
-      let nextViews = cur.views;
-
-      if (patch.collections && oldSource) {
-        const oldIds = new Set(oldSource.collections.map((c) => c.id));
-        const newIds = new Set(patch.collections.map((c) => c.id));
-        const added = patch.collections.filter((c) => !oldIds.has(c.id)).map((c) => c.id);
-        const removed = [...oldIds].filter((cid) => !newIds.has(cid));
-
-        if (added.length > 0 || removed.length > 0) {
-          nextViews = cur.views.map((v) => {
-            let refs = v.collectionRefs;
-            if (removed.length > 0) {
-              refs = refs.filter((r) => r.sourceId !== id || !removed.includes(r.collectionId));
-            }
-            if (added.length > 0 && refs.some((r) => r.sourceId === id)) {
-              refs = [
-                ...refs,
-                ...added.map((cid) => ({ collectionId: cid, sourceId: id, showAsWindow: true })),
-              ];
-            }
-            return refs !== v.collectionRefs ? { ...v, collectionRefs: refs } : v;
-          });
-        }
-      }
-
-      update({ ...cur, sources: nextSources, views: nextViews });
+      update({
+        ...cur,
+        sources: cur.sources.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      });
     },
     [update]
   );
@@ -151,6 +168,7 @@ export function useDraftController({
     () => ({
       state,
       campaignBbox,
+      projectId,
       mode: 'draft',
       pending: false,
       // Draft mode persists at form submit; controller-level save/dirty are
@@ -167,14 +185,7 @@ export function useDraftController({
 
       removeSource: async (id) => {
         const cur = stateRef.current;
-        update({
-          ...cur,
-          sources: cur.sources.filter((s) => s.id !== id),
-          views: cur.views.map((v) => ({
-            ...v,
-            collectionRefs: v.collectionRefs.filter((r) => r.sourceId !== id),
-          })),
-        });
+        update({ ...cur, sources: cur.sources.filter((s) => s.id !== id) });
       },
 
       addCollection: async (sourceId, collection) => {
@@ -193,43 +204,22 @@ export function useDraftController({
       removeCollection: async (sourceId, collectionId) => {
         const src = stateRef.current.sources.find((s) => s.id === sourceId);
         if (!src) return;
-        patchSource(sourceId, {
-          collections: src.collections.filter((c) => c.id !== collectionId),
-        });
+        patchSource(sourceId, withoutCollection(src, collectionId));
       },
 
       refreshCollection: async () => {
         // No-op in draft - collections resolve at campaign-create time.
       },
 
-      addView: async (view) => {
-        update({ ...stateRef.current, views: [...stateRef.current.views, view] });
-      },
-
-      updateView: async (id, patch) => {
-        const cur = stateRef.current;
-        update({ ...cur, views: cur.views.map((v) => (v.id === id ? { ...v, ...patch } : v)) });
-      },
-
-      removeView: async (id) => {
-        const cur = stateRef.current;
-        update({ ...cur, views: cur.views.filter((v) => v.id !== id) });
-      },
-
-      reorderViews: async (ids) => {
-        const cur = stateRef.current;
-        const idx = new Map(ids.map((id, i) => [id, i]));
-        update({
-          ...cur,
-          views: [...cur.views].sort((a, b) => (idx.get(a.id) ?? 0) - (idx.get(b.id) ?? 0)),
-        });
+      refreshSource: async () => {
+        // No-op in draft - nothing is registered yet.
       },
 
       setBasemaps: async (basemaps) => {
         update({ ...stateRef.current, basemaps });
       },
     }),
-    [state, campaignBbox, update, patchSource]
+    [state, campaignBbox, projectId, update, patchSource]
   );
 }
 
@@ -244,6 +234,41 @@ function isMpcCatalogUrl(url: string | null | undefined): boolean {
   } catch {
     return false;
   }
+}
+
+function generationConfigToFrontend(config: ImageryGenerationConfigV1): ImageryGenerationConfig {
+  return {
+    version: 1,
+    catalogUrl: config.catalog_url,
+    stacCollectionId: config.stac_collection_id,
+    collectionTitle: config.collection_title,
+    isMpc: config.is_mpc,
+    hasCloudCover: config.has_cloud_cover,
+    tiler: config.tiler,
+    startDate: config.start_date,
+    endDate: config.end_date,
+    collectionPeriodInterval: config.collection_period_interval,
+    collectionPeriodUnit: config.collection_period_unit,
+    slicePeriodInterval: config.slice_period_interval,
+    slicePeriodUnit: config.slice_period_unit,
+    coverMode: config.cover_mode,
+    coverSliceNth: config.cover_slice_nth,
+    maxCloudCover: config.max_cloud_cover,
+    itemSort: config.item_sort,
+    coverMaxCloudCover: config.cover_max_cloud_cover,
+    coverItemSort: config.cover_item_sort,
+    visualizations: config.visualizations.map((viz) => ({
+      name: viz.name,
+      vizParams: vizParamsToFrontend(viz.viz_params),
+    })),
+    coverVisualizations: (config.cover_visualizations ?? []).map((viz) => ({
+      name: viz.name,
+      vizParams: vizParamsToFrontend(viz.viz_params),
+    })),
+    searchQuery: config.search_query ?? undefined,
+    coverSearchQuery: config.cover_search_query ?? undefined,
+    internalStorage: config.internal_storage,
+  };
 }
 
 function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[]): CollectionItem {
@@ -292,6 +317,7 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
   return {
     id: String(col.id),
     name: col.name,
+    generationSeriesId: col.generation_series_id != null ? String(col.generation_series_id) : null,
     coverSliceIndex: col.cover_slice_index ?? 0,
     hasDedicatedCover: col.has_dedicated_cover ?? false,
     slices: col.slices.map((sl) => ({
@@ -312,64 +338,42 @@ function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
     name: src.name,
     crosshairHex6: src.crosshair_hex6,
     defaultZoom: src.default_zoom,
+    maxNativeZoom: src.max_native_zoom,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
+    generationSeries: (src.generation_series ?? []).map((series) => ({
+      id: String(series.id),
+      config: generationConfigToFrontend(series.config),
+    })),
     collections: src.collections.map((col) => mapCollectionOutToFe(col, vizNames)),
     hasApiKey: src.has_api_key,
-  };
-}
-
-function mapViewOutToFe(view: ImageryViewOut): ImageryView {
-  return {
-    id: String(view.id),
-    name: view.name,
-    collectionRefs: view.collection_refs.map((ref) => ({
-      collectionId: String(ref.collection_id),
-      sourceId: String(ref.source_id),
-      showAsWindow: ref.show_as_window ?? true,
-    })),
+    organizationApiKeyId: src.organization_api_key_id,
+    sliceCount: src.slice_count,
+    registeredSliceCount: src.registered_slice_count,
+    refreshable: src.refreshable,
   };
 }
 
 /** Serialize the local editor state into the upsert payload. Existing
  *  entities pass their real numeric IDs through; freshly-added entities omit
- *  `id` (server treats as create). View refs to new entities are rewritten to
- *  positional keys (`"<src_idx>"`, `"<src_idx>:<col_idx>"`) so the backend can
- *  resolve them after creating the corresponding rows. */
+ *  `id` (server treats as create). */
 function stateToEditorPayload(state: ImageryStepState): ImageryEditorStateCreate {
-  const tempToPosKey = new Map<string, string>();
-  state.sources.forEach((src, si) => {
-    if (!isRealId(src.id)) tempToPosKey.set(src.id, String(si));
-    src.collections.forEach((col, ci) => {
-      if (!isRealId(col.id)) tempToPosKey.set(col.id, `${si}:${ci}`);
-    });
-  });
-  const mapRefId = (id: string): string => tempToPosKey.get(id) ?? id;
-
   return {
     sources: state.sources.map(sourceToBackend),
-    views: state.views.map((v) => ({
-      id: isRealId(v.id) ? Number(v.id) : undefined,
-      name: v.name,
-      collection_refs: v.collectionRefs.map((r) => ({
-        collection_id: mapRefId(r.collectionId),
-        source_id: mapRefId(r.sourceId),
-        show_as_window: r.showAsWindow,
-      })),
-    })),
     basemaps: state.basemaps.map(basemapToBackend),
   };
 }
 
 export interface PersistedControllerOptions {
   campaignId: number;
+  projectId: number;
   imagery: ImagerySourceOut[];
-  views: ImageryViewOut[];
   basemaps?: {
     id?: number;
     name: string;
     url: string;
     max_native_zoom?: number | null;
     has_api_key?: boolean;
+    organization_api_key_id?: number | null;
   }[];
   campaignBbox?: number[] | null;
   /** Called after any mutation succeeds so the parent can refetch. */
@@ -378,8 +382,8 @@ export interface PersistedControllerOptions {
 
 export function usePersistedController({
   campaignId,
+  projectId,
   imagery,
-  views,
   basemaps,
   campaignBbox = null,
   refetch,
@@ -387,16 +391,16 @@ export function usePersistedController({
   const initialState = useMemo<ImageryStepState>(
     () => ({
       sources: imagery.map(mapSourceOutToFe),
-      views: views.map(mapViewOutToFe),
       basemaps: (basemaps ?? []).map((b, i) => ({
         id: b.id !== undefined ? String(b.id) : `local-${i}`,
         name: b.name,
         url: b.url,
         maxNativeZoom: b.max_native_zoom ?? undefined,
         hasApiKey: b.has_api_key,
+        organizationApiKeyId: b.organization_api_key_id,
       })),
     }),
-    [imagery, views, basemaps]
+    [imagery, basemaps]
   );
 
   const [state, setState] = useState<ImageryStepState>(initialState);
@@ -472,6 +476,7 @@ export function usePersistedController({
     () => ({
       state,
       campaignBbox,
+      projectId,
       mode: 'persisted',
       pending,
       isDirty,
@@ -491,14 +496,7 @@ export function usePersistedController({
       },
 
       removeSource: async (id) => {
-        mutate((s) => ({
-          ...s,
-          sources: s.sources.filter((src) => src.id !== id),
-          views: s.views.map((v) => ({
-            ...v,
-            collectionRefs: v.collectionRefs.filter((r) => r.sourceId !== id),
-          })),
-        }));
+        mutate((s) => ({ ...s, sources: s.sources.filter((src) => src.id !== id) }));
       },
 
       addCollection: async (sourceId, collection) => {
@@ -506,20 +504,6 @@ export function usePersistedController({
           ...s,
           sources: s.sources.map((src) =>
             src.id === sourceId ? { ...src, collections: [...src.collections, collection] } : src
-          ),
-          // Auto-attach the new collection to any view that already shows this
-          // source - otherwise the View Layout tab wouldn't list the new
-          // collection until the user manually toggled it in.
-          views: s.views.map((v) =>
-            v.collectionRefs.some((r) => r.sourceId === sourceId)
-              ? {
-                  ...v,
-                  collectionRefs: [
-                    ...v.collectionRefs,
-                    { collectionId: collection.id, sourceId, showAsWindow: true },
-                  ],
-                }
-              : v
           ),
         }));
       },
@@ -544,15 +528,32 @@ export function usePersistedController({
         mutate((s) => ({
           ...s,
           sources: s.sources.map((src) =>
-            src.id === sourceId
-              ? { ...src, collections: src.collections.filter((c) => c.id !== collectionId) }
-              : src
+            src.id === sourceId ? { ...src, ...withoutCollection(src, collectionId) } : src
           ),
-          views: s.views.map((v) => ({
-            ...v,
-            collectionRefs: v.collectionRefs.filter((r) => r.collectionId !== collectionId),
-          })),
         }));
+      },
+
+      refreshSource: async (sourceId) => {
+        // Same rule as refreshCollection: this re-runs the saved search
+        // server-side, so unsaved edits would be ignored and confuse the result.
+        if (isDirty) {
+          handleError(
+            new Error('Save your changes before re-registering this source.'),
+            'Cannot re-register'
+          );
+          return;
+        }
+        setPending(true);
+        try {
+          await apiRefreshSource({
+            path: { campaign_id: campaignId, source_id: Number(sourceId) },
+          });
+          refetch?.();
+        } catch (e) {
+          handleError(e, 'Failed to re-register source');
+        } finally {
+          setPending(false);
+        }
       },
 
       refreshCollection: async (_sourceId, collectionId) => {
@@ -579,35 +580,10 @@ export function usePersistedController({
         }
       },
 
-      addView: async (view) => {
-        mutate((s) => ({ ...s, views: [...s.views, view] }));
-      },
-
-      updateView: async (id, patch) => {
-        mutate((s) => ({
-          ...s,
-          views: s.views.map((v) => (v.id === id ? { ...v, ...patch } : v)),
-        }));
-      },
-
-      removeView: async (id) => {
-        mutate((s) => ({ ...s, views: s.views.filter((v) => v.id !== id) }));
-      },
-
-      reorderViews: async (ids) => {
-        mutate((s) => {
-          const idx = new Map(ids.map((id, i) => [id, i]));
-          return {
-            ...s,
-            views: [...s.views].sort((a, b) => (idx.get(a.id) ?? 0) - (idx.get(b.id) ?? 0)),
-          };
-        });
-      },
-
       setBasemaps: async (basemaps) => {
         mutate((s) => ({ ...s, basemaps }));
       },
     }),
-    [state, campaignBbox, pending, isDirty, save, discard, mutate, campaignId, refetch]
+    [state, campaignBbox, projectId, pending, isDirty, save, discard, mutate, campaignId, refetch]
   );
 }

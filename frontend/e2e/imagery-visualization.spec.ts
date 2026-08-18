@@ -14,7 +14,7 @@ test.describe('Imagery and Visualization', () => {
     annotationPage,
   }) => {
     const page = annotationPage;
-    const header = page.locator('[data-tour="main-map"]');
+    const header = page.locator('[data-panel-role="main-map"]');
 
     // Press D to go to next slice
     await page.keyboard.press('d');
@@ -28,7 +28,7 @@ test.describe('Imagery and Visualization', () => {
 
   test('navigation resets slice index to 0', async ({ annotationPage }) => {
     const page = annotationPage;
-    const header = page.locator('[data-tour="main-map"]');
+    const header = page.locator('[data-panel-role="main-map"]');
 
     // Switch to slice 2 (Jun 2024)
     await page.keyboard.press('d');
@@ -47,18 +47,38 @@ test.describe('Imagery and Visualization', () => {
   }) => {
     const page = annotationPage;
 
-    // Header renders "<done> of <total> done" within data-tour="main-map".
+    // Header renders "<done> of <total> done" within data-panel-role="main-map".
     // Scope is the assignedTo filter (default: current user). Our user is
     // assigned to all 5 tasks, of which TASK_3/4/5 are done/skipped/conflicting
     // (all counted as completed). So the counter must show 3 of 5.
-    const counter = page.locator('[data-tour="main-map"]').getByText(/\d+\s+of\s+\d+\s+done/i);
+    const counter = page
+      .locator('[data-panel-role="main-map"]')
+      .getByText(/\d+\s+of\s+\d+\s+done/i);
     await expect(counter).toContainText('3');
     await expect(counter).toContainText('5');
   });
 
-  test('a grid card is rendered for each collection_ref with show_as_window=true', async ({
+  test('completing a review assignment advances the counter while the task stays partial', async ({
     annotationPage,
   }) => {
+    const page = annotationPage;
+    const counter = page
+      .locator('[data-panel-role="main-map"]')
+      .getByText(/\d+\s+of\s+\d+\s+done/i);
+    await expect(counter).toContainText('3 of 5');
+
+    // TASK_2 is shared with a co-assignee who has not acted, so submitting
+    // leaves the task-level status at 'partial'. The user's own progress
+    // counter must still move.
+    await page.keyboard.press('s');
+    await waitForNavIdle(page);
+    await page.locator('button', { hasText: 'Forest' }).first().click();
+    await page.locator('button', { hasText: 'Submit' }).first().click();
+
+    await expect(counter).toContainText('4 of 5');
+  });
+
+  test('a grid card is rendered for each window in the view layout', async ({ annotationPage }) => {
     const page = annotationPage;
 
     // Mock declares two windows (Sentinel-2 L2A and NDVI) plus three fixed
@@ -74,9 +94,28 @@ test.describe('Imagery and Visualization', () => {
     await expect(cards.filter({ hasText: 'NDVI' }).first()).toBeVisible();
   });
 
+  test('map and minimap attribution controls stay compact', async ({ annotationPage }) => {
+    const buttons = annotationPage.locator(
+      '[data-panel-role="main-map"] .ol-attribution button, [data-tour="minimap"] .ol-attribution button'
+    );
+    await expect(buttons).toHaveCount(2);
+
+    for (const button of await buttons.all()) {
+      // OL hides the entire attribution control when the current mocked layer
+      // has no attribution, but the button must still have compact dimensions
+      // ready for a layer that does publish one.
+      const size = await button.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { width: parseFloat(style.width), height: parseFloat(style.height) };
+      });
+      expect(size.width).toBeLessThanOrEqual(14);
+      expect(size.height).toBeLessThanOrEqual(14);
+    }
+  });
+
   test('keyboard Shift+I cycles visualization layer', async ({ annotationPage }) => {
     const page = annotationPage;
-    const header = page.locator('[data-tour="main-map"]');
+    const header = page.locator('[data-panel-role="main-map"]');
 
     // Initial layer should be "True Color" (first viz)
     await expect(header).toContainText('True Color');

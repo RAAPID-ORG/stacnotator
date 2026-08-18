@@ -1,22 +1,23 @@
 import io
 import random
 from collections import defaultdict
+from typing import Any, cast
 from uuid import UUID
 
 import pandas as pd
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import CursorResult, Result, delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from src.annotation.constants import (
-    ANNOTATION_TASK_STATUS_DONE,
-    ANNOTATION_TASK_STATUS_PENDING,
-    ANNOTATION_TASK_STATUS_SKIPPED,
-)
 from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
 from src.auth.models import User
-from src.campaigns.models import Campaign, CampaignUser
-from src.campaigns.schemas import AssignTasksToUsersRequest, AssignTasksToUsersResult
+from src.campaigns.models import Campaign
+from src.campaigns.schemas import (
+    AssignTasksToUsersRequest,
+    AssignTasksToUsersResult,
+    label_id_to_name,
+)
+from src.projects.models import ProjectUser
 
 ASSIGNMENTS_CSV_COLUMNS = [
     "annotation_number",
@@ -33,87 +34,38 @@ _MAX_REPORTED_ERRORS = 50
 _SKIPPED_LABEL = "SKIPPED"
 
 
-def get_campaign_users_with_roles(db: Session, campaign_id: int) -> list[CampaignUser]:
-    """
-    Args:
-        db: Database session
-        campaign_id: ID of the campaign
-
-    Returns:
-        List of campaign user associations with user data loaded
-    """
-    stmt = (
-        select(CampaignUser)
-        .where(CampaignUser.campaign_id == campaign_id)
-        .options(joinedload(CampaignUser.user))
-    )
-
-    return db.scalars(stmt).unique().all()
+def _deleted_rows(result: Result[Any]) -> int:
+    """Session.execute is typed as returning a plain Result; a DELETE always
+    produces a CursorResult, which is what carries rowcount."""
+    return cast("CursorResult[Any]", result).rowcount
 
 
-def _seed_assignment_status(
-    db: Session, pairs: list[tuple[int, UUID]]
-) -> dict[tuple[int, UUID], str]:
-    """
-    For each (task_id, user_id) pair, return the assignment status that
-    reflects an existing annotation by that user on that task. Pairs without
-    a pre-existing annotation are omitted (caller defaults to 'pending').
-
-    Reconciles the case where a user labeled a task before being assigned
-    (or was unassigned then re-assigned) - without this, the new assignment
-    would falsely read 'pending' even though their work is already on file.
-    """
-    if not pairs:
-        return {}
-
-    task_ids = {tid for tid, _ in pairs}
-    user_ids = {uid for _, uid in pairs}
-    pair_set = set(pairs)
-
-    rows = db.execute(
-        select(
-            Annotation.annotation_task_id,
-            Annotation.created_by_user_id,
-            Annotation.label_id,
-        ).where(
-            Annotation.annotation_task_id.in_(task_ids),
-            Annotation.created_by_user_id.in_(user_ids),
-        )
-    ).all()
-
-    seeded: dict[tuple[int, UUID], str] = {}
-    for task_id, user_id, label_id in rows:
-        if (task_id, user_id) not in pair_set:
-            continue
-        seeded[(task_id, user_id)] = (
-            ANNOTATION_TASK_STATUS_DONE if label_id is not None else ANNOTATION_TASK_STATUS_SKIPPED
-        )
-    return seeded
-
-
-def _verify_campaign_members(db: Session, campaign_id: int, user_ids: set[UUID]) -> None:
+def _verify_campaign_members(
+    db: Session, campaign_id: int, user_ids: set[UUID], role: str = "Users"
+) -> None:
     if not user_ids:
         return
     found = set(
         db.scalars(
-            select(CampaignUser.user_id).where(
-                CampaignUser.campaign_id == campaign_id,
-                CampaignUser.user_id.in_(user_ids),
-            )
+            select(ProjectUser.user_id)
+            .join(Campaign, Campaign.project_id == ProjectUser.project_id)
+            .where(Campaign.id == campaign_id, ProjectUser.user_id.in_(user_ids))
         ).all()
     )
     missing = user_ids - found
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Users not assigned to campaign: {', '.join(str(uid) for uid in missing)}",
+            detail=f"{role} not assigned to campaign: {', '.join(str(uid) for uid in missing)}",
         )
 
 
-def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]) -> None:
+def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]) -> list[int]:
+    """Raise 404 if any task_id isn't in the campaign; otherwise return the
+    (unique) found ids so callers who already need them skip a second query."""
     if not task_ids:
-        return
-    found = set(
+        return []
+    found = list(
         db.scalars(
             select(AnnotationTask.id).where(
                 AnnotationTask.id.in_(task_ids),
@@ -121,12 +73,13 @@ def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]
             )
         ).all()
     )
-    missing = set(task_ids) - found
+    missing = set(task_ids) - set(found)
     if missing:
         raise HTTPException(
             status_code=404,
             detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing)}",
         )
+    return found
 
 
 def _eligible_task_ids(db: Session, campaign_id: int, task_set_id: int | None = None) -> list[int]:
@@ -210,7 +163,10 @@ def assign_tasks_to_users(
         if req.strategy == "fixed_per_user" and not req.user_task_counts:
             raise HTTPException(status_code=400, detail="No users selected")
 
-        target_users = req.user_ids if req.strategy == "even" else list(req.user_task_counts)
+        # The two branches above already rejected the empty half of each
+        # strategy, which is what makes these non-null here.
+        counts = req.user_task_counts or {}
+        target_users = req.user_ids if req.strategy == "even" else list(counts)
         _verify_campaign_members(db, campaign_id, set(target_users))
 
         eligible_ids = _eligible_task_ids(db, campaign_id, req.task_set_id)
@@ -218,20 +174,18 @@ def assign_tasks_to_users(
         mapping = (
             _distribute_evenly(eligible_ids, req.user_ids)
             if req.strategy == "even"
-            else _distribute_fixed(eligible_ids, req.user_task_counts)
+            else _distribute_fixed(eligible_ids, counts)
         )
 
     pairs = [(task_id, user_id) for task_id, user_ids in mapping.items() for user_id in user_ids]
     new_pairs = _filter_new_pairs(db, pairs)
 
     if new_pairs:
-        seeded_status = _seed_assignment_status(db, new_pairs)
         for task_id, user_id in new_pairs:
             db.add(
                 AnnotationTaskAssignment(
                     task_id=task_id,
                     user_id=user_id,
-                    status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
                 )
             )
         db.commit()
@@ -255,12 +209,16 @@ def unassign_user_from_task(db: Session, campaign_id: int, task_id: int, user_id
         )
 
     # Delete the assignment
-    stmt = delete(AnnotationTaskAssignment).where(
-        AnnotationTaskAssignment.task_id == task_id, AnnotationTaskAssignment.user_id == user_id
+    deleted = _deleted_rows(
+        db.execute(
+            delete(AnnotationTaskAssignment).where(
+                AnnotationTaskAssignment.task_id == task_id,
+                AnnotationTaskAssignment.user_id == user_id,
+            )
+        )
     )
-    result = db.execute(stmt)
 
-    if result.rowcount == 0:
+    if deleted == 0:
         raise HTTPException(
             status_code=404, detail=f"User {user_id} is not assigned to task {task_id}"
         )
@@ -285,18 +243,7 @@ def unassign_users_from_tasks(
     if not task_ids:
         return 0
 
-    # Verify all tasks belong to the campaign
-    stmt = select(AnnotationTask.id).where(
-        AnnotationTask.id.in_(task_ids), AnnotationTask.campaign_id == campaign_id
-    )
-    found_task_ids = set(db.scalars(stmt).all())
-    missing_task_ids = set(task_ids) - found_task_ids
-
-    if missing_task_ids:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing_task_ids)}",
-        )
+    _verify_tasks_in_campaign(db, campaign_id, task_ids)
 
     where_clauses = [AnnotationTaskAssignment.task_id.in_(task_ids)]
     if user_ids is not None:
@@ -304,27 +251,9 @@ def unassign_users_from_tasks(
             return 0
         where_clauses.append(AnnotationTaskAssignment.user_id.in_(user_ids))
 
-    result = db.execute(delete(AnnotationTaskAssignment).where(*where_clauses))
+    deleted = _deleted_rows(db.execute(delete(AnnotationTaskAssignment).where(*where_clauses)))
     db.commit()
-    return result.rowcount or 0
-
-
-def _verify_reviewers_are_campaign_members(
-    db: Session, campaign_id: int, reviewer_ids: list[UUID]
-) -> None:
-    stmt = select(CampaignUser).where(
-        CampaignUser.campaign_id == campaign_id, CampaignUser.user_id.in_(reviewer_ids)
-    )
-    campaign_users = db.scalars(stmt).all()
-
-    found_user_ids = {cu.user_id for cu in campaign_users}
-    missing_user_ids = set(reviewer_ids) - found_user_ids
-
-    if missing_user_ids:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Reviewers not assigned to campaign: {', '.join(str(uid) for uid in missing_user_ids)}",
-        )
+    return deleted
 
 
 def _reviewable_tasks(
@@ -392,14 +321,11 @@ def _top_up_review_assignments(
         for user_id in selected_reviewers:
             new_pairs.append((task.id, user_id))
 
-    seeded_status = _seed_assignment_status(db, new_pairs)
-
     for task_id, user_id in new_pairs:
         db.add(
             AnnotationTaskAssignment(
                 task_id=task_id,
                 user_id=user_id,
-                status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
                 is_review=True,
             )
         )
@@ -442,7 +368,7 @@ def assign_reviewers_percentage(
             detail=f"Not enough reviewers in pool. Need at least {num_reviewers}, got {len(reviewer_ids)}",
         )
 
-    _verify_reviewers_are_campaign_members(db, campaign_id, reviewer_ids)
+    _verify_campaign_members(db, campaign_id, set(reviewer_ids), role="Reviewers")
 
     reviewable_tasks = _reviewable_tasks(db, campaign_id, task_set_id)
     if not reviewable_tasks:
@@ -492,7 +418,7 @@ def assign_reviewers_fixed(
             detail=f"Not enough reviewers in pool. Need at least {num_reviewers}, got {len(reviewer_ids)}",
         )
 
-    _verify_reviewers_are_campaign_members(db, campaign_id, reviewer_ids)
+    _verify_campaign_members(db, campaign_id, set(reviewer_ids), role="Reviewers")
 
     reviewable_tasks = _reviewable_tasks(db, campaign_id, task_set_id)
     if not reviewable_tasks:
@@ -552,13 +478,11 @@ def assign_reviewers_manual(
     new_pairs = _filter_new_pairs(db, pairs)
 
     if new_pairs:
-        seeded_status = _seed_assignment_status(db, new_pairs)
         for task_id, user_id in new_pairs:
             db.add(
                 AnnotationTaskAssignment(
                     task_id=task_id,
                     user_id=user_id,
-                    status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
                     is_review=True,
                 )
             )
@@ -568,13 +492,7 @@ def assign_reviewers_manual(
 
 
 def _label_id_to_name(campaign: Campaign) -> dict[int, str]:
-    labels = (campaign.settings.labels if campaign.settings else None) or {}
-    mapping: dict[int, str] = {}
-    if isinstance(labels, dict):
-        for label_id, data in labels.items():
-            name = data.get("name") if isinstance(data, dict) else str(data)
-            mapping[int(label_id)] = name or f"Label {label_id}"
-    return mapping
+    return label_id_to_name(campaign.settings.labels if campaign.settings else None)
 
 
 def build_task_assignments_export(
@@ -646,19 +564,26 @@ def build_task_assignments_export(
 
     assignments_df = pd.DataFrame(assignment_records, columns=ASSIGNMENTS_CSV_COLUMNS)
 
-    campaign_users = get_campaign_users_with_roles(db, campaign_id)
-    user_records = sorted(
-        (
-            {
-                "email": cu.user.email,
-                "display_name": cu.user.display_name or "",
-                "is_admin": cu.is_admin,
-                "is_authoritative_reviewer": cu.is_authorative_reviewer,
-            }
-            for cu in campaign_users
-        ),
-        key=lambda record: record["email"],
+    campaign_users: list[ProjectUser] = sorted(
+        db.scalars(
+            select(ProjectUser)
+            .join(Campaign, Campaign.project_id == ProjectUser.project_id)
+            .where(Campaign.id == campaign_id)
+            .options(joinedload(ProjectUser.user))
+        )
+        .unique()
+        .all(),
+        key=lambda pu: pu.user.email,
     )
+    user_records = [
+        {
+            "email": pu.user.email,
+            "display_name": pu.user.display_name or "",
+            "is_admin": pu.is_admin,
+            "is_authoritative_reviewer": pu.is_authoritative_reviewer,
+        }
+        for pu in campaign_users
+    ]
     users_df = pd.DataFrame(user_records, columns=USERS_CSV_COLUMNS)
 
     return assignments_df, users_df
@@ -750,7 +675,9 @@ def import_task_assignments(db: Session, campaign_id: int, file_bytes: bytes) ->
 
     member_ids = set(
         db.scalars(
-            select(CampaignUser.user_id).where(CampaignUser.campaign_id == campaign_id)
+            select(ProjectUser.user_id)
+            .join(Campaign, Campaign.project_id == ProjectUser.project_id)
+            .where(Campaign.id == campaign_id)
         ).all()
     )
     non_members = sorted(
@@ -799,13 +726,11 @@ def import_task_assignments(db: Session, campaign_id: int, file_bytes: bytes) ->
         assignees_created += len(assignee_users)
         reviewers_created += len(reviewer_users)
 
-    seeded_status = _seed_assignment_status(db, [(tid, uid) for tid, uid, _ in new_assignments])
     for task_id, user_id, is_review in new_assignments:
         db.add(
             AnnotationTaskAssignment(
                 task_id=task_id,
                 user_id=user_id,
-                status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
                 is_review=is_review,
             )
         )

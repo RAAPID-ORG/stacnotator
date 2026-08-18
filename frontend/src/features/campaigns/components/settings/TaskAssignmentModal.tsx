@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
+import type { AnnotationTaskOut, ProjectUserOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export type BulkAssignIntent =
@@ -10,7 +10,7 @@ interface TaskAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   tasks: AnnotationTaskOut[];
-  campaignUsers: CampaignUserOut[];
+  projectUsers: ProjectUserOut[];
   onAssign: (intent: BulkAssignIntent) => Promise<void>;
 }
 
@@ -20,7 +20,7 @@ export const TaskAssignmentModal = ({
   isOpen,
   onClose,
   tasks,
-  campaignUsers,
+  projectUsers,
   onAssign,
 }: TaskAssignmentModalProps) => {
   const [mode, setMode] = useState<AssignmentMode>('distribute-evenly');
@@ -53,10 +53,10 @@ export const TaskAssignmentModal = ({
   };
 
   const handleSelectAllUsers = () => {
-    if (selectedUsers.length === campaignUsers.length) {
+    if (selectedUsers.length === projectUsers.length) {
       setSelectedUsers([]);
     } else {
-      const allUserIds = campaignUsers.map((u) => u.user.id);
+      const allUserIds = projectUsers.map((u) => u.user.id);
       setSelectedUsers(allUserIds);
       const newTasksPerUser: { [userId: string]: number } = {};
       allUserIds.forEach((id) => {
@@ -168,11 +168,11 @@ export const TaskAssignmentModal = ({
                 onClick={handleSelectAllUsers}
                 className="text-sm text-brand-700 hover:text-brand-600 mb-3"
               >
-                {selectedUsers.length === campaignUsers.length ? 'Deselect All' : 'Select All'}
+                {selectedUsers.length === projectUsers.length ? 'Deselect All' : 'Select All'}
               </button>
 
               <div className="space-y-2 max-h-96 overflow-y-auto border border-neutral-300 rounded-lg p-3">
-                {campaignUsers.map((user) => (
+                {projectUsers.map((user) => (
                   <div
                     key={user.user.id}
                     className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg"
@@ -186,11 +186,13 @@ export const TaskAssignmentModal = ({
                       />
                       <div>
                         <div className="font-medium text-neutral-900">{user.user.display_name}</div>
-                        <div className="text-sm text-neutral-500">{user.user.email}</div>
+                        {user.user.email && (
+                          <div className="text-sm text-neutral-500">{user.user.email}</div>
+                        )}
                         {user.is_admin && (
                           <span className="text-xs text-brand-700 font-semibold">Admin</span>
                         )}
-                        {user.is_authorative_reviewer && (
+                        {user.is_authoritative_reviewer && (
                           <span className="text-xs text-purple-500 font-semibold ml-2">
                             Authoritative Reviewer
                           </span>

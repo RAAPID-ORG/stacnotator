@@ -49,7 +49,7 @@ def _backfill_embeddings() -> None:
     from sqlalchemy.orm import Session
 
     from src.annotation import embeddings_service
-    from src.utils import initialize_earth_engine
+    from src.earth_engine import initialize_earth_engine
 
     _ensure_stdout_logging()
     initialize_earth_engine()

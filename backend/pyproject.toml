@@ -28,6 +28,7 @@ dependencies = [
     # STAC catalog browsing & MPC token signing
     "pystac-client>=0.8.0",
     "planetary-computer>=1.0.0",
+    "email-validator>=2.3.0",
 ]
 
 [dependency-groups]
@@ -54,6 +55,7 @@ select = [
     "B",    # flake8-bugbear
     "SIM",  # flake8-simplify
     "T20",  # flake8-print (no leftover prints)
+    "S",    # flake8-bandit (security)
 ]
 ignore = [
     "E501",   # line length (handled by formatter)
@@ -65,10 +67,20 @@ known-first-party = ["src"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/env.py" = ["F403"]
-"tests/**" = ["T20"]
+# Every statement here interpolates a column name, which no driver can bind. What
+# may be interpolated is constrained instead: StatusField checks both names against
+# the campaigns table at construction, so S608 has nothing left to catch.
+"src/background.py" = ["S608"]
+# Asserts are what a test is, and test fixtures are full of throwaway credentials
+# and localhost URLs that the security rules are right to flag in src/ and wrong to
+# flag here.
+"tests/**" = ["T20", "S101", "S104", "S105", "S106", "S107", "S311", "S608"]
 
 [tool.mypy]
 python_version = "3.12"
+# Settings() is populated from the environment, and computed_field/validators
+# only type-check with pydantic's own plugin.
+plugins = ["pydantic.mypy"]
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

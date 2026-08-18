@@ -1,7 +1,10 @@
-"""Unit test for register_cog_on_tiler — no network, mirrors test_tiling_providers style."""
+"""Unit test for register_cog_on_tiler - no network, mirrors test_tilers_providers style."""
 
+import pytest
+
+from src import net_guard
 from src.config import TilerCfg
-from src.tiling import providers
+from src.tilers import providers
 
 TILER = TilerCfg(url="https://tiler.test", allows_ingest=True)
 
@@ -28,6 +31,7 @@ def _fake_post(monkeypatch, payload):
 
 def test_register_cog_posts_and_returns_id(monkeypatch):
     monkeypatch.setattr(providers, "mint_tiler_token", lambda *a, **k: "tok")
+    monkeypatch.setattr(providers, "assert_public_url", lambda url: None)
     monkeypatch.setattr(providers, "_register_base", lambda tiler: "https://tiler.test")
     captured = _fake_post(monkeypatch, {"id": "search-123"})
 
@@ -43,9 +47,23 @@ def test_register_cog_posts_and_returns_id(monkeypatch):
 
 def test_register_cog_forwards_internal_storage(monkeypatch):
     monkeypatch.setattr(providers, "mint_tiler_token", lambda *a, **k: "tok")
+    monkeypatch.setattr(providers, "assert_public_url", lambda url: None)
     monkeypatch.setattr(providers, "_register_base", lambda tiler: "https://tiler.test")
     captured = _fake_post(monkeypatch, {"id": "s"})
 
     providers.register_cog_on_tiler(TILER, "https://x/y.tif", 42, internal_storage=True)
 
     assert captured["json"]["internal_storage"] is True
+
+
+def test_an_internal_cog_url_is_never_forwarded(monkeypatch):
+    """The tiler would fetch it for us, so the guard has to run before the handoff."""
+    monkeypatch.setattr(providers, "mint_tiler_token", lambda *a, **k: "tok")
+
+    def _no_post(*args, **kwargs):
+        raise AssertionError("must not reach the tiler")
+
+    monkeypatch.setattr(providers.httpx, "post", _no_post)
+
+    with pytest.raises(net_guard.UnsafeUrlError):
+        providers.register_cog_on_tiler(TILER, "http://169.254.169.254/latest/meta-data/", 42)

@@ -5,7 +5,7 @@ endpoints authenticate via the campaign-scoped ``tiler_token`` HttpOnly cookie i
 usual Firebase bearer. The provider key is decrypted here and never reaches the client.
 
 This is a separate router (not ``imagery.router``) precisely so it is *not* under that
-router's ``require_approved_user`` bearer dependency.
+router's ``require_authenticated_user`` bearer dependency.
 """
 
 from collections.abc import Callable
@@ -17,17 +17,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from src import net_guard
 from src.crypto import DecryptionError, decrypt
 from src.database import SessionLocal
 from src.imagery.models import Basemap, ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
 from src.imagery.proxy import build_upstream_tile_url
+from src.organizations.models import OrganizationApiKey
 from src.tile_bulkhead import tile_db_slot
-from src.tiling import tiler_token
-from src.utils import FunctionNameOperationIdRoute
+from src.tilers import tokens
 
-router = APIRouter(tags=["Imagery Tiles"], route_class=FunctionNameOperationIdRoute)
+router = APIRouter(tags=["Imagery Tiles"])
 
-_client = httpx.AsyncClient(timeout=15.0)
+# Guarded: the template is a stored, campaign-admin-supplied URL, so the fetch is
+# only as trustworthy as whatever that admin typed.
+_client = net_guard.guarded_async_client(timeout=15.0)
 
 
 async def _read[T](lookup: Callable[[Session], T]) -> T:
@@ -50,11 +53,22 @@ def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
     if not token:
         raise HTTPException(status_code=401, detail="Missing tiler session")
     try:
-        claims = tiler_token.verify(token)
+        claims = tokens.verify(token)
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid tiler session") from None
     if str(campaign_id) not in claims.get("campaigns", []):
         raise HTTPException(status_code=403, detail="No access to this campaign")
+
+
+def _resolve_key(db: Session, layer: Basemap | ImagerySource) -> str | None:
+    """The layer's own key, or the organization key it points at. Both are the
+    same ciphertext; only where it is stored differs."""
+    if layer.encrypted_api_key is not None:
+        return layer.encrypted_api_key
+    if layer.organization_api_key_id is None:
+        return None
+    key = db.get(OrganizationApiKey, layer.organization_api_key_id)
+    return key.encrypted_key if key else None
 
 
 async def _proxy(template: str, encrypted_api_key: str | None, z: int, x: int, y: int) -> Response:
@@ -68,13 +82,23 @@ async def _proxy(template: str, encrypted_api_key: str | None, z: int, x: int, y
     try:
         resp = await _client.get(url)
         resp.raise_for_status()
+    except net_guard.UnsafeUrlError as e:
+        raise HTTPException(status_code=502, detail=f"Upstream tile URL rejected: {e}") from e
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail="Upstream tile fetch failed") from e
     return Response(
         content=resp.content,
-        media_type=resp.headers.get("content-type", "image/png"),
+        media_type=_image_media_type(resp.headers.get("content-type")),
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+def _image_media_type(upstream: str | None) -> str:
+    """Never echo a non-image content type back from an image endpoint - the body
+    is upstream-controlled, so HTML here would render in the user's origin."""
+    if upstream and upstream.split(";")[0].strip().lower().startswith("image/"):
+        return upstream
+    return "application/octet-stream"
 
 
 @router.get(
@@ -92,7 +116,7 @@ async def proxy_basemap_tile(
         basemap = db.get(Basemap, basemap_id)
         if basemap is None or basemap.campaign_id != campaign_id:
             raise HTTPException(status_code=404, detail="Basemap not found")
-        return basemap.url, basemap.encrypted_api_key
+        return basemap.url, _resolve_key(db, basemap)
 
     url, encrypted_api_key = await _read(lookup)
     return await _proxy(url, encrypted_api_key, z, x, y)
@@ -127,7 +151,7 @@ async def proxy_slice_tile(
         ).scalar_one_or_none()
         if tile is None:
             raise HTTPException(status_code=404, detail="Tile URL not found")
-        return tile.tile_url, source.encrypted_api_key
+        return tile.tile_url, _resolve_key(db, source)
 
     tile_url, encrypted_api_key = await _read(lookup)
     return await _proxy(tile_url, encrypted_api_key, z, x, y)

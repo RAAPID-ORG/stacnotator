@@ -6,7 +6,7 @@
  * - Skip (null label) sends the right payload
  */
 import { test, expect, waitForNavIdle, type CapturedRequest } from './fixtures/annotator-fixture';
-import { LABELS } from './fixtures/mock-data';
+import { LABELS, MOCK_CAMPAIGN } from './fixtures/mock-data';
 
 /** Return the last POST to /annotate */
 function lastAnnotateRequest(requests: CapturedRequest[]): CapturedRequest | undefined {
@@ -109,5 +109,90 @@ test.describe('Annotation Submission', () => {
     await page.keyboard.press('Enter');
     await waitForNavIdle(page);
     expect(lastAnnotateRequest(api.requests)).toBeUndefined();
+  });
+
+  test('form hotkeys reveal fields, comment, and confidence inside task controls', async ({
+    annotationPage,
+  }) => {
+    const formFields = Array.from({ length: 12 }, (_, index) => ({
+      id: 700 + index,
+      title: `Question ${index + 1}`,
+      required: false,
+      type: 'text' as const,
+    }));
+    await annotationPage.route('**/api/campaigns/*/detailed', async (route) => {
+      await route.fulfill({
+        json: {
+          ...MOCK_CAMPAIGN,
+          settings: { ...MOCK_CAMPAIGN.settings, form_fields: formFields },
+        },
+      });
+    });
+    await annotationPage.reload();
+    await annotationPage.waitForSelector('[data-tour="controls"]', { timeout: 10_000 });
+
+    const scroller = annotationPage.locator('[data-tour="controls"] .panel-body > div').first();
+    const lastField = annotationPage.locator('[data-form-field-id="711"]');
+    const isFullyVisible = async (target: typeof lastField) => {
+      const [viewport, element] = await Promise.all([scroller.boundingBox(), target.boundingBox()]);
+      return (
+        viewport !== null &&
+        element !== null &&
+        element.y >= viewport.y &&
+        element.y + element.height <= viewport.y + viewport.height
+      );
+    };
+    await expect(lastField).toBeAttached();
+    expect(await scroller.evaluate((element) => element.scrollTop)).toBe(0);
+
+    for (let index = 0; index < formFields.length; index++) {
+      await annotationPage.keyboard.press('Tab');
+    }
+
+    await expect(lastField).toHaveClass(/ring-1/);
+    await expect
+      .poll(
+        async () => {
+          const scrollTop = await scroller.evaluate((element) => element.scrollTop);
+          return scrollTop > 0 && (await isFullyVisible(lastField));
+        },
+        { timeout: 5000 }
+      )
+      .toBe(true);
+
+    await annotationPage.keyboard.press('Escape');
+    await annotationPage.keyboard.press('c');
+    const commentSection = annotationPage.locator('[data-task-comment]');
+    await expect(annotationPage.locator('[data-task-comment-input]')).toBeFocused();
+    await expect.poll(() => isFullyVisible(commentSection), { timeout: 5000 }).toBe(true);
+
+    await annotationPage.keyboard.press('Escape');
+    await annotationPage.keyboard.press('Shift+3');
+    const confidenceSection = annotationPage.locator('[data-task-confidence]');
+    const confidenceSlider = annotationPage.locator('[data-task-confidence-input]');
+    await expect(confidenceSlider).not.toBeFocused();
+    await expect(confidenceSlider).toHaveValue('3');
+    await expect.poll(() => isFullyVisible(confidenceSection), { timeout: 5000 }).toBe(true);
+
+    // Q remains a hotkey because revealing confidence does not turn the
+    // range input into the page's typing target.
+    await annotationPage.keyboard.press('q');
+    await expect(confidenceSlider).toHaveValue('2');
+    expect(
+      await confidenceSlider.evaluate((element) => getComputedStyle(element).outlineStyle)
+    ).toBe('none');
+    // Setting confidence must not strand focus on an input and suppress the
+    // rest of the annotation hotkey table.
+    await annotationPage.keyboard.press('c');
+    await expect(annotationPage.locator('[data-task-comment-input]')).toBeFocused();
+
+    // One more Tab wraps from the final field back to the label section.
+    await annotationPage.keyboard.press('Escape');
+    for (let index = 0; index <= formFields.length; index++) {
+      await annotationPage.keyboard.press('Tab');
+    }
+    const labelSection = annotationPage.locator('[data-task-labels]');
+    await expect(labelSection).toHaveClass(/ring-1/);
+    await expect.poll(() => isFullyVisible(labelSection), { timeout: 5000 }).toBe(true);
   });
 });

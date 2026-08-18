@@ -2,8 +2,8 @@
 
 Stores the full list of named visualization params per collection so a
 roundtrip-save no longer collapses every visualization onto the first one's
-params. The legacy viz_params / cover_viz_params blobs are kept for backward
-compat (first viz) and existing readers.
+params. The viz_params / cover_viz_params blobs were kept at the time for
+existing readers; p3droplegacy later dropped them.
 
 Revision ID: e2f3a4b5c6d7
 Revises: d1f2a3b4c5e6

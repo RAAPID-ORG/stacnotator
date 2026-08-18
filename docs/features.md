@@ -1,9 +1,23 @@
 # Feature Overview
 
+## Organizations & Projects
+
+Multi-tenancy: organization → project → campaign.
+- Organization signup requests are approved/rejected by a platform admin; org admins manage members and can pre-authorize emails via invites consumed at registration
+- Any signed-in user can browse every approved organization and request access with an optional note; org admins see the requester's name and note and approve or reject. Approval turns the pending membership into an active one; rejection drops the request and they may ask again
+- Projects have `private`/`organization`/`public` visibility and project-scoped members with `admin` and `authoritative reviewer` roles
+- People are identified by display name everywhere members are listed or picked - the platform user directory, member tables and access requests. Email addresses reach platform admins only, so org and project admins run their membership by name; adding someone by a known address still works through the add-by-email box
+- Per-organization tiler allowlists and an `allows_internal_storage` flag (see [tilers.md](tilers.md))
+- Per-organization provider API keys: an org admin stores a named key once and any campaign in the org points its imagery source or basemap at it, so the secret is pasted (and rotated) in one place. A layer holds either its own encrypted key or an org key reference, never both; the tile proxy resolves whichever applies. Every surface that accepts a typed key - adding or replacing an organization key, a per-layer key, the Planet wizard - requires confirming it is read-only and least-privilege before it can be saved
+
+Imagery registration runs per campaign but succeeds per source: each source reports how many of its slices actually have tiles, and a source built from STAC searches can be re-registered from the source editor to pick up newer imagery as a season progresses.
+
 ## Campaign Modes
 
 - **Task Mode** - Predefined annotation locations (points/polygons). Tasks are assigned to annotators who visit each location and label it.
 - **Open Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
+
+Every campaign supports both; who may do what is governed by the labelling policy (four audience axes: explore, unassigned tasks, assigned tasks, counting toward completion). See [labelling-policy.md](labelling-policy.md). The campaign `mode` is the default work mode the UI opens in.
 
 ## Imagery Configuration
 
@@ -14,6 +28,14 @@
 - CQL2-JSON search query builder with `{sliceStart}`/`{sliceEnd}` datetime placeholders
 - Cloud cover filtering with `isNull OR <=` pattern (handles SAR/non-optical collections)
 - Dynamic cloud cover availablility detection from catalog metadata
+
+### Planet Basemaps
+- Add a source straight from a Planet basemap **series** (global monthly, quarterly, NICFI medres): the wizard lists the series the organization's Planet key can see, and expands the chosen one into collections and slices in one step
+- Planet publishes its temporal structure through the Basemaps API rather than STAC, and serves finished XYZ tiles - so these sources need no search, no mosaic registration and no tiler
+- Analytic series offer their renderings as visualizations (Visual, False Color, NDVI) via Planet's `proc` parameter; visual series have the one rendering
+- Group into windows by month, quarter, year, or the whole series; the cover is the nth slice of each window
+- Mosaics Planet cannot serve tiles for are listed with the reason rather than silently skipped
+- The key is either one of the organization's shared keys or one the person setting up the campaign provides for it alone; both are used only by the backend tile proxy. Browse requests carry the credential in the request body, never a query string
 
 ### Temporal Structure of Imagery Sources
 - **Collections** - top-level time windows (e.g. monthly)
@@ -26,27 +48,41 @@
 - Per-visualization parameters: assets, rescale, colormap, expression, color formula, compositing method, resampling, nodata, pixel masking
 - Presets for common collections (band combinations, rescale ranges)
 - Post-creation editing of viz params from settings page
+- Per-source max native zoom: the deepest zoom the provider serves real pixels for; past it the map upscales instead of requesting tiles that cannot get any sharper (basemaps and custom maps already had this)
+
+### Campaign duplication
+- Duplicate a campaign from the project campaign list (admin): full setup copy (imagery, views, layouts, labels, forms, policy, time series, basemaps, custom maps, vector layers, embeddings)
+- Tasks (with task sets and explicit assignments, reset to pending), annotations, and personal user layouts are each copied only on explicit opt-in; task-linked annotations require the tasks to be copied too
 
 ### Views & Canvas
-- Multiple views per campaign - each view selects which collections to display
+- Multiple views per campaign - each view is an ordered set of imagery sources; all their collections are browsable in it
+- Views are authored by campaign admins in the annotation page's edit mode (create, rename, reorder, delete, source membership); a campaign is annotatable once its first view exists
 - Drag-and-resize grid layout (react-grid-layout)
 - Split between (Main map + minimap + control panel) and  imagery windows items on the canvas. Prior are constant, latter may change.
-- Personal layouts saved per user, default layouts per campaign
-- View-independent state (active slice, empty detection, selected viz)
-- Preview Windows (ImageryContainer) can be hidden as dedicated windows but will still appear in the timeline per collection.
+- Personal layouts saved per user, default layouts per campaign; a collection is a window exactly when its key is in the layout
+- Per-view state (active slice, empty detection, selected viz), saved and restored when switching views
+- Imagery windows (ImageryContainer) can be hidden from the canvas; the timeline sidebar lists the active source's collections within the selected view
+- Multi-monitor pop-out: canvas cards can be sent to secondary browser windows, one grid per screen, persisted per user + campaign and restored with one click
 
 ### Basemaps
 - Multiple basemaps per campaign (CartoDB, ESRI, OpenTopoMap, custom)
+- API-key-protected basemaps/XYZ sources: keys stored encrypted, tiles fetched through a backend proxy so the key never reaches the client
+- Entering a key by hand requires confirming it is read-only and least-privilege (`shared/ui/ReadOnlyKeyConsent`) - the backend only ever reads imagery with it, so nothing more is needed
 - Toggle via keyboard shortcut or layer selector
+
+### Custom Layers
+- **Custom maps (COG overlays)** - e.g. model predictions, rendered by the hosted tiler; continuous or categorical render config, colormaps, editable legend, optional MLOps link, internal-storage support
+- **Vector layers (PMTiles)** - toggleable overlay layers fetched straight from storage; hover highlight, and a label-vector tool (`B`) that creates annotations from clicked vector features (single or batch)
 
 ## Tile Serving
 
-Three tile providers, selected automatically per slice:
+Tile providers, selected automatically per visualization:
 - **MPC direct** - fast, for first-valid compositing on MPC collections
-- **Self-hosted TiTiler** - for advanced compositing, masking, non-MPC catalogs
-- **XYZ** - direct tile URL passthrough for custom tile servers
+- **Self-hosted TiTiler** - for advanced compositing, masking, non-MPC catalogs; multiple tilers can be registered, allow-listed per organization
+- **XYZ** - direct tile URL passthrough for custom tile servers (this is what Planet basemaps are)
+- **Backend key proxy** - for API-key providers; the key is decrypted server-side
 
-See [tile-serving.md](tile-serving.md) for details.
+See [tile-serving.md](tile-serving.md) and [tilers.md](tilers.md) for details.
 
 ## Annotation
 
@@ -58,10 +94,17 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Pan/navigate mode
 
 ### Labels
-- Custom label definitions with name, color, and geometry type constraint
-- Number keys (1-9) for quick label selection
+- Custom label definitions with name and geometry type constraint (colors are auto-derived per label)
+- Number keys for quick label selection (two-digit input buffered for lists longer than 9)
 - Confidence scoring per annotation
 - Comments/remarks field
+- Annotations can be flagged for review (`F`) with a flag comment, filterable in review
+
+### Imagery Notes
+- A note can be attached to one imagery slice, alongside the annotation's own comment: double-click an imagery window, use the comment button in any map header, or `Shift+C` for what the main map is showing
+- Slices carrying a note are marked in the slice pickers and by a filled comment icon in the header
+- Notes ride on the annotation: they save with it, come back when the task is reopened, and snapshot the source and dates so they stay readable if the imagery is re-registered
+- The reviewer list shows them under the annotation's comment, each labelled with its imagery; export adds a `stacnotator_slice_comments` column
 
 ### Custom Forms
 - Optional per-campaign form fields configured at creation, answered per annotation alongside the label
@@ -69,14 +112,15 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Each field has a title, optional description (shown on hover of a "?" icon), and a required flag
 - Required fields block submission while a label is selected; skipping stays ungated
 - Hotkeys: Tab/Shift+Tab cycle fields, number keys toggle options or focus the active input, Esc leaves the field
-- Open mode reveals the fields only after a geometry is drawn: the label list is replaced by the questions catalog for that shape, committed by drawing the next shape, Enter, Esc, or the Save button, and discarded with the x. Campaigns without fields keep the instant-save draw. Edit mode can change an annotation's answers and its label (same geometry type)
+- Open mode reveals the fields only after a geometry is drawn: the label list is replaced by the questions catalog for that shape, committed by drawing the next shape, Enter, or the Save button; Esc or the x close the draft, committing it when all required fields are answered and discarding it otherwise. Campaigns without fields keep the instant-save draw. Edit mode can change an annotation's answers and its label (same geometry type)
 - Export adds one column per field (`stacnotator_field_<slug>`); multi category values join into one cell; GeoJSON export carries raw values for lossless re-import
 
 ### Navigation
 - Keyboard-driven workflow: submit, skip, next/previous task
-- Collection cycling (J/K), slice cycling, visualization switching (I/Shift+I), view switching (V)
+- Slice cycling (A/D), collection cycling (Shift+A/Shift+D), imagery source cycling incl. basemaps (I), visualization switching (Shift+I), view switching (U), vector layer toggle/cycle (V/Shift+V)
 - Crosshair for task location with configurable color per source
 - Sample extent polygon display
+- Location search in the minimap (Photon geocoder); guided tour auto-shown on first established-workspace open (deferred while an admin creates the first view)
 
 ### Empty Tile Detection
 - Tiles returning 204 show diagonal hatching pattern
@@ -88,14 +132,16 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Background prefetching of cover slices for upcoming tasks
 - Priority-based: current task's other collections → next task → task after next
 - Scoped to active view only, pauses during active loading
+- User-selectable preload tier (off/conservative/balanced/heavy) with automatic network/mobile detection
 
 ## Time Series
 
-- MODIS and Landsat time series via Google Earth Engine
+- Three sources via Google Earth Engine: Sentinel-2 (10 m, CloudScore+ and SCL masking), Landsat 5/7/8/9 merged into one 30 m record back to 1984 (QA_PIXEL masking), and MODIS MOD09Q1 (250 m, 8-day)
+- Eight spectral indices, each scoped to the sources carrying the bands it needs: NDVI, EVI2, GCVI, NDMI, TCW (tasseled cap wetness, Crist 1985), NBR, MNDWI, and NDRE (Sentinel-2 only, red edge). Every choice carries a hover showing the exact formula, rendered from the callable that computes it so the two cannot disagree
+- Charts scale to the index rather than a fixed 0-1 axis, and give a differently scaled index (GCVI against NDVI, say) its own right-hand axis coloured to match its line; beyond two scales the ranges are grouped so only genuine outliers move across
 - Point-based querying - click on map to see temporal profile
 - Chart with Savitzky-Golay smoothing
-- Configurable per campaign
-- Will be extended to any form of TS from GEE
+- Configurable per campaign; series are grouped into named canvas windows (`window_name`)
 
 ## Embeddings & Similarity
 
@@ -109,34 +155,38 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - **Task Mode Review** - per-task annotation overview, filtering, statistics. Multiple annotators per task possible.
 - **Open Mode Review** - annotation distribution map, location-based browsing
 - **Inter-Annotator Agreement** - Krippendorff's Alpha, pairwise agreement, per-user statistics
-- Authoritative reviewer role for validation: Disagreement can be resolved by authorative reviewer or by the users changing their labels to agreement.
+- Authoritative reviewer role (project-scoped) for validation: disagreement can be resolved by an authoritative label (which alone completes the task) or by the users changing their labels to agreement.
 
 ## User Management
 
 - Authentication: Firebase (multi-user) or local mode (single-user, no setup required)
-- Roles: system admin, campaign admin, authoritative reviewer, approved user
-- Campaign-specific membership and admin assignment
-- User approval workflow (approve/revoke/deny)
-- Bulk operations for user management
+- Platform roles: `user` and `admin`; access control otherwise runs through organizations and projects (see above)
+- Project-scoped membership with per-member admin and authoritative-reviewer flags, applying to every campaign in the project
+- Organization approval by platform admins; email invites pre-authorize signups
 - Firebase mode: signup with email+pw (requires email validation) or via GoogleAuth
+- Terms of Service acceptance: the version accepted is stored per user, and a full-page gate blocks the app until the version in force (`TERMS_VERSION` in `backend/src/auth/constants.py`) is accepted - bumping it makes everyone accept again
+- Research data sharing: annotators are asked once per campaign whether the annotations they create there may be published as research data, anonymously or credited to their display name. Opt-in only, changed any time under Settings > Profile
 
 ## Task Management
 
 - CSV upload (id, lon, lat)
-- GeoJSON upload (Point, Polygon, MultiPolygon)
-- Sampling design: random and stratified random sampling within regions
+- GeoJSON upload (Point, Polygon, MultiPolygon); GeoJSON annotation import into existing campaigns
+- Sampling design: random sampling within regions (stratified planned, currently disabled)
 - Region upload: shapefile (.zip) or GeoJSON with automatic CRS conversion
-- Task assignment: percentage-based, manual, or fixed pattern distribution
-- Reviewer assignment per task or percetnage based.
+- Task sets: named task groups per campaign with stats; generation, assignment, and annotation can be scoped to a set
+- Task assignment strategies: distribute evenly, fixed number per user, or explicit per-task; a task can have multiple assignees (redundant labeling), plus reviewer assignments (per task or percentage-based)
+- Assignment CSV export/import (round-trips assignees + reviewers by email)
+- Soft claims: opening an unassigned task takes a 30-minute lease on it, one per user per campaign (enforced by the database). Claimed tasks are kept out of everyone else's unassigned pool so two people do not label the same point, but the lease is advisory: reach one deliberately and you can still label it, and it never changes who the labelling policy allows
+- Working the unassigned pool: Next and submitting both ask the server for the next task nobody is on, which picks and claims it in one transaction. Annotators sharing a campaign are handed different tasks rather than each walking the list and colliding on everything already taken; the pick moves forward from where you are and wraps at the end
 
 ## Campaign Settings
 
-Post-creation editing via settings page:
-- General: name, visibility, guide markdown, bounding box, embedding year, sample extent
-- Imagery: source display settings, visualization params (same UI as creation), collection refresh, add/remove visualizations
-- Tasks: upload, generate, assign, delete
-- Users: add/remove members, grant/revoke admin
+Post-creation editing via the settings page (three tabs):
+- General: name, guide markdown, bounding box, sample extent, labels, custom form fields, labelling access, embedding year, danger zone
+- Imagery: source display settings, visualization params, collection refresh, add/remove visualizations, and independently reopening any saved temporal generator to regenerate its series (unrelated/manual collections are preserved by default after an explicit choice)
 - Time Series: add/remove configurations
+
+Tasks (upload, generate, assign, move between sets, delete) live on the campaign's separate Tasks page; members and roles are managed in the project settings. Project visibility is a project attribute, not a campaign one.
 
 ## Python SDK (Active Learning)
 
@@ -145,6 +195,7 @@ Post-creation editing via settings page:
 - **`campaign.get_samples()`** - all labeled annotations as a DataFrame (lat/lon for points, unchanged GeoJSON geometry for everything else, resolved label names).
 - **`campaign.update_samples(train)`** - appends newly annotated samples to an existing training set (deduped by `annotation_id`, user-added columns preserved).
 - **`campaign.register_overlay(cog_url, ...)`** - registers a COG (e.g. model predictions) as an overlay layer, with auto-numbered names and an optional `mlops_link` (e.g. MLflow experiment).
+- Also: `upload_tasks()`, `register_vector_overlay()`, `overlays`/`vector_overlays`/`task_sets` listings, and conversion helpers (`to_cog`, `array_to_cog`, `merge_to_cog`, `to_pmtiles`).
 
 See `sdk/README.md` for the full API and active-learning loop examples.
 
@@ -154,12 +205,12 @@ Campaign creation kicks off async background threads for:
 - **Mosaic registration** - STAC searches, item storage, tile URL generation
 - **Embedding computation** - Earth Engine calls for satellite embeddings
 
-Both run independently with status tracking (`registering` → `ready`/`failed`). Annotation access is blocked until completion. Errors are stored and displayed in settings.
+Both run independently with status tracking (`registering` → `ready`/`failed`). Annotation access is blocked until completion (campaign admins can still enter edit mode via "Set up layout anyway" to author views and layout). Errors are stored and displayed in settings.
 
 ## Deployment
 
 - Azure Container Apps (backend, tiler) + Static Web App (frontend)
-- Self-managed via `deploy-app.sh` - creates apps, identities, RBAC, secrets
+- Self-managed via `deployment/azure/deploy.sh` - creates apps, identities, RBAC, secrets
 - PostgreSQL with private endpoint for security
 - Infrastructure shell (RG, KV, ACR, CAE) managed by Terraform
 - Per-project resource group isolation with Contributor RBAC

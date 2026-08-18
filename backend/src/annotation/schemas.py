@@ -1,17 +1,21 @@
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Literal, TypedDict
+from typing import Literal, Protocol, TypedDict
 from uuid import UUID
 
 from geoalchemy2.shape import to_shape
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.annotation.constants import (
+    ANNOTATION_TASK_STATUS_DONE,
+    ANNOTATION_TASK_STATUS_PENDING,
     ANNOTATION_TASK_STATUS_SKIPPED,
     TASK_STATUS_CONFLICTING,
     TASK_STATUS_DONE,
     TASK_STATUS_PARTIAL,
     TASK_STATUS_PENDING,
     TASK_STATUS_SKIPPED,
+    TaskStatus,
 )
 
 
@@ -23,6 +27,26 @@ class DateRangeValue(TypedDict):
 # A TypedDict, not a BaseModel: form values stay plain JSON containers so
 # annotation.forms.validate_form_values remains the single authority on shape.
 FormValue = int | float | str | list[int] | DateRangeValue
+
+
+class SliceComment(BaseModel):
+    """A note about one imagery slice, kept alongside the annotation it was
+    written on. The imagery fields are a snapshot, taken for the same reason
+    `Annotation.imagery_*` is: the note has to stay readable once the slice it
+    names has been re-registered or dropped."""
+
+    slice_id: int
+    text: str = Field(max_length=2000)
+    source_name: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+
+
+def normalize_slice_comments(comments: list[SliceComment] | None) -> list[dict] | None:
+    """One note per slice, blank ones dropped, `None` when nothing is left - so
+    clearing the last note leaves a NULL column rather than an empty list."""
+    by_slice = {c.slice_id: c for c in comments or [] if c.text.strip()}
+    return [c.model_dump() for c in by_slice.values()] or None
 
 
 class GeometryOut(BaseModel):
@@ -57,7 +81,9 @@ class AnnotationFromTaskOut(BaseModel):
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    slice_comments: list[SliceComment] | None = None
     form_values: dict[str, FormValue] | None = None
+    active_seconds: int | None = None
     # Computed per request from the labelling policy (campaigns/policy.py),
     # never stored. None for standalone annotations.
     counts_toward_completion: bool | None = None
@@ -78,15 +104,20 @@ class AnnotationFromTaskOut(BaseModel):
 
 class AnnotationOut(AnnotationFromTaskOut):
     geometry: GeometryOut
+    # Origin: set for task-bound annotations, None for standalone (explore)
+    # ones. Lets the annotations page open the matching work mode on "View".
+    annotation_task_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AnnotationTaskAssignmentOut(BaseModel):
     user_id: UUID
+    # Derived, not stored: attached to the ORM row by AnnotationTaskOut's
+    # validator, which is the only place holding both the assignments and the
+    # annotations they are read from.
     status: Literal["pending", "done", "skipped"]
     is_review: bool = False
-    claimed_at: datetime | None = None
     user_email: str | None = None
     user_display_name: str | None = None
 
@@ -100,7 +131,6 @@ class AnnotationTaskAssignmentOut(BaseModel):
                 "user_id": data.user_id,
                 "status": data.status,
                 "is_review": data.is_review,
-                "claimed_at": data.claimed_at,
                 "user_email": user.email,
                 "user_display_name": user.display_name,
             }
@@ -110,15 +140,36 @@ class AnnotationTaskAssignmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-def compute_task_status_value(assignment_list: list[dict], annotation_list: list[dict]) -> str:
+def derive_assignment_status(annotation_list: list[dict], user_id: UUID) -> str:
+    """A user's state on a task, read off their annotation.
+
+    A label means done, a label-less annotation means they looked and skipped,
+    and no annotation at all means they have not acted. Stored nowhere: the
+    annotation is the record of the work, so there is no second copy to keep
+    in step with it.
+    """
+    for annotation in annotation_list:
+        if annotation["created_by_user_id"] == user_id:
+            return (
+                ANNOTATION_TASK_STATUS_DONE
+                if annotation.get("label_id") is not None
+                else ANNOTATION_TASK_STATUS_SKIPPED
+            )
+    return ANNOTATION_TASK_STATUS_PENDING
+
+
+def compute_task_status_value(
+    assignment_list: list[dict], annotation_list: list[dict]
+) -> TaskStatus:
     """Derive a task's status from its assignments and annotations.
 
-    Only counting annotations (`counts_toward_completion` is not False;
-    missing means counting) drive done/partial/conflicting. Review
-    assignments set a required review-label count, satisfiable by a counting
-    label from any non-primary user, not just the assigned reviewer(s).
+    Only counting annotations (`counts_toward_completion` is True; every
+    task-linked read path attaches the boolean before this runs) drive
+    done/partial/conflicting. Review assignments set a required review-label
+    count, satisfiable by a counting label from any non-primary user, not
+    just the assigned reviewer(s).
     """
-    counting = [a for a in annotation_list if a.get("counts_toward_completion") is not False]
+    counting = [a for a in annotation_list if a["counts_toward_completion"]]
     labeled = [a for a in counting if a.get("label_id") is not None]
     has_authoritative_label = any(a.get("is_authoritative") for a in labeled)
 
@@ -127,10 +178,16 @@ def compute_task_status_value(assignment_list: list[dict], annotation_list: list
         # overriding assignment-based aggregation.
         return TASK_STATUS_DONE
     if not assignment_list:
-        # No assignment table entries - treat any label as done.
-        return TASK_STATUS_DONE if labeled else TASK_STATUS_PENDING
+        # Nobody was assigned, so whoever picked it up settles it: a label
+        # completes it, a label-less annotation is the skip they left behind.
+        if labeled:
+            return TASK_STATUS_DONE
+        return TASK_STATUS_SKIPPED if annotation_list else TASK_STATUS_PENDING
 
-    all_skipped = all(a.get("status") == ANNOTATION_TASK_STATUS_SKIPPED for a in assignment_list)
+    all_skipped = all(
+        derive_assignment_status(annotation_list, a["user_id"]) == ANNOTATION_TASK_STATUS_SKIPPED
+        for a in assignment_list
+    )
     if all_skipped:
         return TASK_STATUS_SKIPPED
 
@@ -171,16 +228,57 @@ def compute_task_status_value(assignment_list: list[dict], annotation_list: list
     return TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
 
 
+class _AssignmentRow(Protocol):
+    user_id: UUID
+    is_review: bool
+
+
+class _AnnotationRow(Protocol):
+    label_id: int | None
+    created_by_user_id: UUID
+    is_authoritative: bool
+    counts_toward_completion: bool | None
+
+
+def task_status_inputs(
+    assignments: Sequence[_AssignmentRow], annotations: Sequence[_AnnotationRow]
+) -> tuple[list[dict], list[dict]]:
+    """Convert ORM assignment/annotation rows into the plain-dict shape
+    `compute_task_status_value` consumes.
+
+    The single seam between ORM rows and that pure function - shared by
+    `AnnotationTaskOut`'s validator below and the export path
+    (annotation/export.py), so neither hand-rolls its own conversion.
+    `counts_toward_completion` is an attribute attached at request time
+    (annotation/completion.py), not a mapped column; a caller that skipped
+    the attach fails here with AttributeError rather than silently counting.
+    """
+    assignment_list = [{"user_id": a.user_id, "is_review": a.is_review} for a in assignments]
+    annotation_list = [
+        {
+            "label_id": a.label_id,
+            "created_by_user_id": a.created_by_user_id,
+            "is_authoritative": a.is_authoritative,
+            "counts_toward_completion": a.counts_toward_completion,
+        }
+        for a in annotations
+    ]
+    return assignment_list, annotation_list
+
+
 class AnnotationTaskOut(BaseModel):
     id: int
     annotation_number: int
     task_set_id: int
-    task_status: Literal["pending", "partial", "done", "skipped", "conflicting"] = (
-        TASK_STATUS_PENDING
-    )
+    task_status: TaskStatus = TASK_STATUS_PENDING
     geometry: GeometryOut
     assignments: list[AnnotationTaskAssignmentOut] | None
     annotations: list[AnnotationFromTaskOut]
+    # The soft claim on this task. Concurrency only: it says who is working on
+    # it right now, never who may label it.
+    claimed_by_user_id: UUID | None = None
+    claimed_at: datetime | None = None
+    claimed_by_display_name: str | None = None
     # Whether a satellite embedding vector exists for this task. Populated by
     # the task list/fetch query (extra attribute on the ORM instance). Used by
     # the frontend to show why KNN label validation is unavailable on a task.
@@ -204,63 +302,28 @@ class AnnotationTaskOut(BaseModel):
                        authoritative reviewer has submitted a label that
                        overrides the assignment-based aggregation.
         - conflicting: Every assignee labeled and labels disagree
+
+        Also attaches each assignee's derived status, since this is the only
+        place holding both the assignments and the annotations they are read
+        from.
+
+        Only reachable via `model_validate` on an ORM `AnnotationTask` (the
+        only way this model is ever built in production - see
+        service.py's `AnnotationTaskOut.model_validate` calls). Anything
+        without an `assignments` attribute is passed through untouched and
+        keeps the field's `pending` default.
         """
-        # Handle both ORM objects and dicts
-        if hasattr(data, "assignments"):
-            assignments = data.assignments or []
-            annotations = data.annotations or []
-            # Access ORM attributes
-            assignment_list = [
-                {"user_id": a.user_id, "status": a.status, "is_review": a.is_review}
-                for a in assignments
-            ]
-            annotation_list = [
-                {
-                    "label_id": a.label_id,
-                    "created_by_user_id": a.created_by_user_id,
-                    "is_authoritative": a.is_authoritative,
-                    "counts_toward_completion": getattr(a, "counts_toward_completion", None),
-                }
-                for a in annotations
-            ]
-        elif isinstance(data, dict):
-            assignment_list = [
-                (
-                    {
-                        "user_id": a.user_id,
-                        "status": a.status,
-                        "is_review": getattr(a, "is_review", False),
-                    }
-                    if hasattr(a, "user_id")
-                    else a
-                )
-                for a in (data.get("assignments") or [])
-            ]
-            annotation_list = [
-                (
-                    {
-                        "label_id": a.label_id,
-                        "created_by_user_id": a.created_by_user_id,
-                        "is_authoritative": getattr(a, "is_authoritative", False),
-                        "counts_toward_completion": getattr(a, "counts_toward_completion", None),
-                    }
-                    if hasattr(a, "label_id")
-                    else a
-                )
-                for a in (data.get("annotations") or [])
-            ]
-        else:
+        if not hasattr(data, "assignments"):
             return data
-
-        status = compute_task_status_value(assignment_list, annotation_list)
-
-        # Set the computed status on the data
-        if hasattr(data, "__dict__"):
-            # ORM model - inject into the dict that pydantic will use
-            data.__dict__["task_status"] = status
-        elif isinstance(data, dict):
-            data["task_status"] = status
-
+        assignment_list, annotation_list = task_status_inputs(
+            data.assignments or [], data.annotations or []
+        )
+        for assignment in data.assignments or []:
+            assignment.status = derive_assignment_status(annotation_list, assignment.user_id)
+        data.__dict__["task_status"] = compute_task_status_value(assignment_list, annotation_list)
+        data.__dict__["claimed_by_display_name"] = (
+            data.claimed_by.display_name if data.claimed_by else None
+        )
         return data
 
     model_config = ConfigDict(from_attributes=True)
@@ -278,24 +341,51 @@ class AnnotationFromTaskCreate(BaseModel):
     is_authoritative: bool | None = None
     flagged_for_review: bool | None = None
     flag_comment: str | None = Field(default=None, max_length=5000)
+    slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
     form_values: dict[str, FormValue] | None = None
+    # Active time the client measured for this task since the last submit. Capped
+    # at an hour so a misbehaving client cannot distort the duration statistics.
+    active_ms: int | None = Field(default=None, ge=0, le=3_600_000)
 
 
-class AnnotationTaskSubmitResponse(BaseModel):
-    """Response from submitting/skipping an annotation task."""
+class TaskStatusOut(BaseModel):
+    """Where a task and the acting user stand after a write to it."""
 
-    annotation: AnnotationFromTaskOut | None
     task_status: str
     assignment_status: str
 
     model_config = ConfigDict(from_attributes=True)
 
 
+class AnnotationTaskSubmitResponse(TaskStatusOut):
+    """Response from submitting or skipping an annotation task.
+
+    The annotation is always there: a skip is stored as a label-less one, so
+    every submission leaves a record behind.
+    """
+
+    annotation: AnnotationFromTaskOut
+
+
 class ClaimTaskResponse(BaseModel):
-    """Response from soft-claiming a task."""
+    """Response from soft-claiming a task.
+
+    `claimed` false with a holder means somebody else is on it; false without
+    one means there was nothing to lease (the task is assigned, or already
+    worked). Neither is an error - labelling it anyway stays allowed.
+    """
 
     task_id: int
+    claimed: bool
     claimed_at: datetime | None
+    holder_user_id: UUID | None = None
+    holder_display_name: str | None = None
+
+
+class ClaimNextResponse(BaseModel):
+    """The task the server picked and claimed, or null once the pool is dry."""
+
+    task: AnnotationTaskOut | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -311,6 +401,7 @@ class AnnotationCreate(BaseModel):
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
     form_values: dict[str, FormValue] | None = None
 
 
@@ -363,6 +454,7 @@ class AnnotationUpdate(BaseModel):
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
     form_values: dict[str, FormValue] | None = None
 
 

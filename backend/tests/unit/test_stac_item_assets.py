@@ -1,6 +1,6 @@
 import pystac
 
-from src.tiling.stac_client import _asset_defs_from_item
+from src.stac_browser.client import _asset_defs_from_item
 
 
 def _item(assets: dict) -> pystac.Item:

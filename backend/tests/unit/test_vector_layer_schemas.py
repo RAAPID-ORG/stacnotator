@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.vector_layers.schemas import VectorLayerCreate, VectorLayerUpdate
+from src.custom_layers.schemas import VectorLayerCreate, VectorLayerUpdate
 
 
 def test_create_valid_with_defaults():

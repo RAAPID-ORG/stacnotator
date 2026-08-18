@@ -9,6 +9,7 @@ GiST index on annotation_geometries.geometry can be used.
 import pytest
 
 from src.annotation.tiles import (
+    TILE_QUERY_MARGIN,
     InvalidBBoxError,
     InvalidTileError,
     build_mvt_query,
@@ -86,6 +87,23 @@ def test_build_mvt_query_uses_index_friendly_filter():
     where = sql[sql.index("WHERE") :]
     assert "g.geometry &&" in where
     assert "ST_Transform(g.geometry" not in where
+
+
+def test_build_mvt_query_selects_wider_than_it_clips():
+    """Rows are picked with the margin-expanded envelope so features just
+    outside the tile still fill ST_AsMVTGeom's buffer, while the clip envelope
+    stays unexpanded."""
+    sql, _ = build_mvt_query(z=5, x=10, y=12, campaign_id=42)
+    assert f"margin => {TILE_QUERY_MARGIN}" in sql
+    clip = sql[sql.index("ST_AsMVTGeom") : sql.index("AS geom")]
+    assert "margin" not in clip
+
+
+def test_build_mvt_query_drops_geometry_that_misses_the_tile():
+    """`&&` is a bbox test, so ST_AsMVTGeom can still return NULL; those rows
+    must not reach ST_AsMVT as attribute-only features."""
+    sql, _ = build_mvt_query(z=5, x=10, y=12, campaign_id=42)
+    assert "WHERE mvt.geom IS NOT NULL" in sql
 
 
 def test_build_mvt_query_emits_mvt_pipeline():

@@ -73,31 +73,3 @@ export function countTasksByStatus(
   }
   return counts;
 }
-
-/**
- * Get user-specific completion status for a task.
- * Returns the status for each assigned user based on assignments and annotations.
- */
-export function getUserTaskStatuses(
-  task: AnnotationTaskOut
-): Map<string, 'pending' | 'completed' | 'skipped'> {
-  const statusMap = new Map<string, 'pending' | 'completed' | 'skipped'>();
-  const assignments = task.assignments || [];
-  const annotations = task.annotations || [];
-  // Only labeled annotations count as completions
-  const completedUserIds = new Set(
-    annotations.filter((a) => a.label_id != null).map((a) => a.created_by_user_id)
-  );
-
-  assignments.forEach((assignment) => {
-    if (assignment.status === 'skipped') {
-      statusMap.set(assignment.user_id, 'skipped');
-    } else if (completedUserIds.has(assignment.user_id)) {
-      statusMap.set(assignment.user_id, 'completed');
-    } else {
-      statusMap.set(assignment.user_id, 'pending');
-    }
-  });
-
-  return statusMap;
-}

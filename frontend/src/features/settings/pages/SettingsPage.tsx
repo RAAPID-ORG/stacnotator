@@ -1,27 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '~/app/providers/AuthProvider';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
-import { Skeleton, SkeletonPage } from 'src/shared/ui/Skeleton';
+import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
+import { DataSharingSection } from '~/features/settings/components/DataSharingSection';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Button, Field, Input } from '~/shared/ui/forms';
-import { useLayoutStore } from 'src/features/layout/layout.store';
+import { useLayoutStore } from 'src/shared/stores/layout.store';
 import {
   listUsers,
-  approveUsersBulk,
-  revokeUsersBulk,
-  denyUsersBulk,
   grantAdmin,
   revokeAdmin,
-  grantVisitor,
-  revokeVisitor,
   editUserInfo,
-  grantTilerSingle,
-  revokeTilerSingle,
-  grantInternalSingle,
-  revokeInternalSingle,
   listGrantableTilers,
+  listOrganizations,
+  approveOrganization,
+  rejectOrganization,
+  updateInternalStorage,
+  getOrganizationTilers,
+  setOrganizationTilers,
+  type OrganizationOut,
+  type UserOut,
   type UserOutDetailed,
 } from '~/api/client';
-import { useAccountStore } from '~/features/account/account.store';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
 import {
   PasswordRequirementsList,
@@ -30,9 +32,45 @@ import {
 import { FadeIn } from '~/shared/ui/motion';
 import { handleError } from '~/shared/utils/errorHandler';
 
+/** /auth/users returns the detailed shape only to platform admins. */
+const isDetailedUser = (user: UserOut | UserOutDetailed): user is UserOutDetailed =>
+  'is_admin' in user;
+
+const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }) => (
+  <Button
+    variant="secondary"
+    onClick={onClick}
+    disabled={busy}
+    leading={
+      busy ? (
+        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
+        </svg>
+      ) : undefined
+    }
+  >
+    Refresh
+  </Button>
+);
+
 export const SettingsPage = () => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
+  const navigate = useNavigate();
+  const { auth } = useAuth();
+  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'organizations'>('profile');
   const [users, setUsers] = useState<UserOutDetailed[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationOut[]>([]);
   const [allTilers, setAllTilers] = useState<string[]>([]);
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,32 +94,24 @@ export const SettingsPage = () => {
   const account = useAccountStore((s) => s.account);
   const fetchAccount = useAccountStore((s) => s.fetchAccount);
 
-  // Fetch account on mount if not already loaded
-  useEffect(() => {
-    if (!account) {
-      fetchAccount();
-    }
-  }, [account, fetchAccount]);
-
   // Set breadcrumbs
   useEffect(() => {
     setBreadcrumbs([{ label: 'Settings' }]);
   }, [setBreadcrumbs]);
 
-  // Load users when switching to users tab (if admin)
+  // Load admin-tab data on first visit to each tab
   useEffect(() => {
-    if (activeTab === 'users' && account?.is_admin && users.length === 0) {
-      loadUsers();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadUsers is a stable callback
-  }, [activeTab, account, users.length]);
+    if (!account?.is_admin) return;
+    if (activeTab === 'users' && users.length === 0) loadUsers();
+    if (activeTab === 'organizations' && organizations.length === 0) loadOrganizations();
+  }, [activeTab, account, users.length, organizations.length]);
 
   const loadUsers = async () => {
     try {
       setIsPageLoading(true);
-      const [usersRes, tilersRes] = await Promise.all([listUsers(), listGrantableTilers()]);
-      setUsers(usersRes.data as UserOutDetailed[]);
-      setAllTilers((tilersRes.data as string[]) ?? []);
+      const { data } = await listUsers({ throwOnError: true });
+      const listed: Array<UserOut | UserOutDetailed> = data;
+      setUsers(listed.filter(isDetailedUser));
     } catch (err) {
       handleError(err, 'Failed to load users');
     } finally {
@@ -89,66 +119,19 @@ export const SettingsPage = () => {
     }
   };
 
-  const handleApprove = async (userIds: string[]) => {
+  const loadOrganizations = async () => {
     try {
-      setSaving(true);
-      const { data } = await approveUsersBulk({
-        body: { user_ids: userIds },
-      });
-
-      setUsers((prevUsers) =>
-        prevUsers.map((user) => {
-          const updated = data?.success.find((u) => u.id === user.id);
-          return updated || user;
-        })
-      );
-
-      showAlert(`${data?.success.length || 0} user(s) approved successfully`, 'success');
+      setIsPageLoading(true);
+      const [orgsRes, tilersRes] = await Promise.all([
+        listOrganizations({ throwOnError: true }),
+        listGrantableTilers({ throwOnError: true }),
+      ]);
+      setOrganizations(orgsRes.data.items);
+      setAllTilers(tilersRes.data);
     } catch (err) {
-      handleError(err, 'Failed to approve users');
+      handleError(err, 'Failed to load organizations');
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRevoke = async (userIds: string[]) => {
-    try {
-      setSaving(true);
-      const { data } = await revokeUsersBulk({
-        body: { user_ids: userIds },
-      });
-
-      setUsers((prevUsers) =>
-        prevUsers.map((user) => {
-          const updated = data?.success.find((u) => u.id === user.id);
-          return updated || user;
-        })
-      );
-
-      showAlert(`${data?.success.length || 0} user approval(s) revoked successfully`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to revoke user approvals');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeny = async (userIds: string[]) => {
-    try {
-      setSaving(true);
-      const { data } = await denyUsersBulk({
-        body: { user_ids: userIds },
-      });
-
-      setUsers((prevUsers) =>
-        prevUsers.filter((user) => !data?.success.some((u) => u.id === user.id))
-      );
-
-      showAlert(`${data?.success.length || 0} user(s) denied successfully`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to deny users');
-    } finally {
-      setSaving(false);
+      setIsPageLoading(false);
     }
   };
 
@@ -196,83 +179,54 @@ export const SettingsPage = () => {
     }
   };
 
-  const applyUpdatedUser = (updated: UserOutDetailed | undefined) => {
-    if (!updated) return;
-    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+  // Org handlers let failures propagate: PlatformOrganizationsTable reports them
+  // and keeps the row's busy/editor state consistent.
+  const applyOrganization = (updated: OrganizationOut) =>
+    setOrganizations((prev) => prev.map((org) => (org.id === updated.id ? updated : org)));
+
+  const handleApproveOrganization = async (organizationId: number) => {
+    const { data } = await approveOrganization({
+      path: { organization_id: organizationId },
+      throwOnError: true,
+    });
+    applyOrganization(data);
+    showAlert(`Organization '${data.name}' approved`, 'success');
   };
 
-  const handleGrantTiler = async (userId: string, tilerName: string) => {
-    try {
-      const { data } = await grantTilerSingle({ path: { user_id: userId, tiler_name: tilerName } });
-      applyUpdatedUser(data as UserOutDetailed | undefined);
-    } catch (err) {
-      handleError(err, `Failed to grant tiler '${tilerName}'`);
-    }
+  const handleRejectOrganization = async (organizationId: number) => {
+    const { data } = await rejectOrganization({
+      path: { organization_id: organizationId },
+      throwOnError: true,
+    });
+    applyOrganization(data);
+    showAlert(`Organization '${data.name}' rejected`, 'success');
   };
 
-  const handleRevokeTiler = async (userId: string, tilerName: string) => {
-    try {
-      const { data } = await revokeTilerSingle({
-        path: { user_id: userId, tiler_name: tilerName },
-      });
-      applyUpdatedUser(data as UserOutDetailed | undefined);
-    } catch (err) {
-      handleError(err, `Failed to revoke tiler '${tilerName}'`);
-    }
+  const handleSetInternalStorage = async (organizationId: number, allowed: boolean) => {
+    const { data } = await updateInternalStorage({
+      path: { organization_id: organizationId },
+      body: { allows_internal_storage: allowed },
+      throwOnError: true,
+    });
+    applyOrganization(data);
+    showAlert('Internal storage updated', 'success');
   };
 
-  const handleSetInternal = async (userId: string, internal: boolean) => {
-    const call = internal ? grantInternalSingle : revokeInternalSingle;
-    try {
-      const { data } = await call({ path: { user_id: userId } });
-      applyUpdatedUser(data as UserOutDetailed | undefined);
-    } catch (err) {
-      handleError(err, internal ? 'Failed to mark user internal' : 'Failed to unmark user');
-    }
+  const handleLoadOrganizationTilers = async (organizationId: number) => {
+    const { data } = await getOrganizationTilers({
+      path: { organization_id: organizationId },
+      throwOnError: true,
+    });
+    return data.tiler_names;
   };
 
-  const handleGrantVisitor = async (userIds: string[]) => {
-    try {
-      setSaving(true);
-      const { data } = await grantVisitor({
-        body: { user_ids: userIds },
-      });
-
-      setUsers((prevUsers) =>
-        prevUsers.map((user) => {
-          const updated = data?.success.find((u) => u.id === user.id);
-          return updated || user;
-        })
-      );
-
-      showAlert(`${data?.success.length || 0} user(s) set as visitor`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to set users as visitor');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRevokeVisitor = async (userIds: string[]) => {
-    try {
-      setSaving(true);
-      const { data } = await revokeVisitor({
-        body: { user_ids: userIds },
-      });
-
-      setUsers((prevUsers) =>
-        prevUsers.map((user) => {
-          const updated = data?.success.find((u) => u.id === user.id);
-          return updated || user;
-        })
-      );
-
-      showAlert(`${data?.success.length || 0} user(s) set as standard`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to set users as standard');
-    } finally {
-      setSaving(false);
-    }
+  const handleSaveOrganizationTilers = async (organizationId: number, tilerNames: string[]) => {
+    await setOrganizationTilers({
+      path: { organization_id: organizationId },
+      body: { tiler_names: tilerNames },
+      throwOnError: true,
+    });
+    showAlert('Tile access updated', 'success');
   };
 
   const handleSaveDisplayName = async () => {
@@ -346,6 +300,15 @@ export const SettingsPage = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await auth.logout();
+      navigate('/');
+    } catch (err) {
+      handleError(err, 'Sign out failed');
+    }
+  };
+
   const handleStartEditDisplayName = () => {
     setDisplayNameInput(account?.display_name || '');
     setIsEditingDisplayName(true);
@@ -356,27 +319,8 @@ export const SettingsPage = () => {
     setDisplayNameInput('');
   };
 
-  // Show a skeleton while the account is being fetched.
-  if (!account) {
-    return (
-      <SkeletonPage action={false}>
-        <div className="surface">
-          <div className="flex gap-4 px-6 py-2 border-b border-neutral-200">
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-8 w-16" />
-          </div>
-          <div className="surface-section space-y-6">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="space-y-3">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-9 w-full" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </SkeletonPage>
-    );
-  }
+  // AuthGate only renders the app once the account is loaded.
+  if (!account) return null;
 
   const sectionCls =
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
@@ -407,17 +351,30 @@ export const SettingsPage = () => {
                 Profile
               </button>
               {account.is_admin && (
-                <button
-                  onClick={() => setActiveTab('users')}
-                  className={`px-1 py-3 border-b-2 transition-colors ${
-                    activeTab === 'users'
-                      ? 'border-brand-600 text-brand-700 font-medium'
-                      : 'border-transparent text-neutral-500 hover:text-brand-700'
-                  }`}
-                  type="button"
-                >
-                  User management
-                </button>
+                <>
+                  <button
+                    onClick={() => setActiveTab('users')}
+                    className={`px-1 py-3 border-b-2 transition-colors ${
+                      activeTab === 'users'
+                        ? 'border-brand-600 text-brand-700 font-medium'
+                        : 'border-transparent text-neutral-500 hover:text-brand-700'
+                    }`}
+                    type="button"
+                  >
+                    User management
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('organizations')}
+                    className={`px-1 py-3 border-b-2 transition-colors ${
+                      activeTab === 'organizations'
+                        ? 'border-brand-600 text-brand-700 font-medium'
+                        : 'border-transparent text-neutral-500 hover:text-brand-700'
+                    }`}
+                    type="button"
+                  >
+                    Organizations
+                  </button>
+                </>
               )}
             </div>
 
@@ -493,26 +450,17 @@ export const SettingsPage = () => {
                           </div>
                         )}
                       </Field>
-                      <Field label="Account status">
-                        <div className="flex gap-2">
-                          <span
-                            className={`inline-flex px-3 py-1.5 text-xs font-medium rounded-full ${
-                              account.is_approved
-                                ? 'bg-brand-50 text-brand-800 border border-brand-200'
-                                : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
-                            }`}
-                          >
-                            {account.is_approved ? 'Approved' : 'Pending approval'}
+                      {account.is_admin && (
+                        <Field label="Role">
+                          <span className="inline-flex px-3 py-1.5 text-xs font-medium rounded-full bg-brand-100 text-brand-800 border border-brand-200">
+                            Administrator
                           </span>
-                          {account.is_admin && (
-                            <span className="inline-flex px-3 py-1.5 text-xs font-medium rounded-full bg-brand-100 text-brand-800 border border-brand-200">
-                              Administrator
-                            </span>
-                          )}
-                        </div>
-                      </Field>
+                        </Field>
+                      )}
                     </div>
                   </section>
+
+                  <DataSharingSection />
 
                   {/* Change Password - only for email/password-authenticated users */}
                   {supportsChangePassword && authManager.getActiveProviderId() === 'email' && (
@@ -590,61 +538,63 @@ export const SettingsPage = () => {
                       )}
                     </section>
                   )}
+
+                  <section className={sectionCls}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h2 className="section-heading">Sign out</h2>
+                        <p className="section-description">Ends your session on this device.</p>
+                      </div>
+                      <Button
+                        variant="dangerQuiet"
+                        data-testid="sign-out-button"
+                        onClick={handleSignOut}
+                      >
+                        Sign out
+                      </Button>
+                    </div>
+                  </section>
                 </div>
               )}
 
               {activeTab === 'users' && account.is_admin && (
-                <div>
-                  <section className={sectionCls}>
-                    <div className="flex items-center justify-between">
-                      <h2 className="section-heading">
-                        Platform users{' '}
-                        <span className="text-neutral-400 font-normal">({users.length})</span>
-                      </h2>
-                      <Button
-                        variant="secondary"
-                        onClick={loadUsers}
-                        disabled={isPageLoading}
-                        leading={
-                          isPageLoading ? (
-                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              />
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              />
-                            </svg>
-                          ) : undefined
-                        }
-                      >
-                        Refresh
-                      </Button>
-                    </div>
-                    <PlatformUsersTable
-                      users={users}
-                      onApprove={handleApprove}
-                      onRevoke={handleRevoke}
-                      onDeny={handleDeny}
-                      onGrantAdmin={handleGrantAdmin}
-                      onRevokeAdmin={handleRevokeAdmin}
-                      onGrantVisitor={handleGrantVisitor}
-                      onRevokeVisitor={handleRevokeVisitor}
-                      onSetInternal={handleSetInternal}
-                      allTilers={allTilers}
-                      onGrantTiler={handleGrantTiler}
-                      onRevokeTiler={handleRevokeTiler}
-                      loading={isPageLoading}
-                    />
-                  </section>
-                </div>
+                <section className={sectionCls}>
+                  <div className="flex items-center justify-between">
+                    <h2 className="section-heading">
+                      Platform users{' '}
+                      <span className="text-neutral-400 font-normal">({users.length})</span>
+                    </h2>
+                    <RefreshButton onClick={loadUsers} busy={isPageLoading} />
+                  </div>
+                  <PlatformUsersTable
+                    users={users}
+                    onGrantAdmin={handleGrantAdmin}
+                    onRevokeAdmin={handleRevokeAdmin}
+                    loading={isPageLoading}
+                  />
+                </section>
+              )}
+
+              {activeTab === 'organizations' && account.is_admin && (
+                <section className={sectionCls}>
+                  <div className="flex items-center justify-between">
+                    <h2 className="section-heading">
+                      Organizations{' '}
+                      <span className="text-neutral-400 font-normal">({organizations.length})</span>
+                    </h2>
+                    <RefreshButton onClick={loadOrganizations} busy={isPageLoading} />
+                  </div>
+                  <PlatformOrganizationsTable
+                    organizations={organizations}
+                    allTilers={allTilers}
+                    onApprove={handleApproveOrganization}
+                    onReject={handleRejectOrganization}
+                    onSetInternalStorage={handleSetInternalStorage}
+                    onLoadTilers={handleLoadOrganizationTilers}
+                    onSaveTilers={handleSaveOrganizationTilers}
+                    loading={isPageLoading}
+                  />
+                </section>
               )}
             </div>
           </div>

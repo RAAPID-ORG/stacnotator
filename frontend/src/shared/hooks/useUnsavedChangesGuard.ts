@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useBlocker } from 'react-router-dom';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 
 interface GuardOptions {
   title?: string;

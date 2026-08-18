@@ -1,22 +1,16 @@
 name: Deploy Dev
 
-# Manual-only deploy to the dev Azure environment.
+# Manual-only deploy of code to the dev Azure environment (backend, tiler, frontend).
+# It does NOT touch any database, dev or prod.
 #
-# This workflow ONLY deploys code to dev (backend, tiler, frontend).
-# It does NOT touch any database - neither dev nor prod.
+# Prod credentials are intentionally absent: the dev OIDC identity has zero prod
+# RBAC, and no prod secrets are mirrored into the dev Key Vault. The only way to
+# refresh dev data from prod is `make az-sync-prod-to-dev`, run manually from a
+# developer laptop on VPN, where prod creds are read from the prod Key Vault at
+# runtime and never leave it.
 #
-# Prod credentials are intentionally absent: the dev OIDC identity has zero
-# prod RBAC, and no prod secrets are mirrored into the dev Key Vault. The
-# only way to refresh dev data from prod is to run `make az-sync-prod-to-dev`
-# manually from a developer laptop on VPN. That path uses interactive Azure
-# CLI auth and pulls prod creds from the prod KV at runtime, so the prod
-# admin password never leaves the prod vault.
-#
-# Deploy gating:
-#   * Triggered by workflow_dispatch only (manual click).
-#   * `if: github.ref == 'refs/heads/develop'` skips runs on other branches.
-#   * `environment: dev` requires reviewer approval (mirror the production
-#     reviewer list - see azure_deploy/README.md).
+# Gating: workflow_dispatch only, restricted to `develop`, and the `dev` GitHub
+# Environment requires reviewer approval.
 
 on:
   workflow_dispatch:
@@ -32,45 +26,15 @@ permissions:
 jobs:
   deploy-dev:
     if: github.ref == 'refs/heads/develop'
-    runs-on: [self-hosted, linux, x64, azure]
-    environment: dev
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # The tiler is its own repo; check it out so deploy-app.sh can build +
-      # deploy it. Needs a token with read access to the private tiler repo.
-      - name: Check out tiler repo
-        uses: actions/checkout@v4
-        with:
-          repository: RAAPID-ORG/stacnotator-tiler
-          ref: ${{ vars.TILER_REPO_REF || 'main' }}
-          token: ${{ secrets.TILER_REPO_TOKEN }}
-          path: stacnotator-tiler
-
-      - name: Azure Login via OIDC (dev identity)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID_DEV }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Deploy to Azure (dev)
-        env:
-          CI: "true"
-          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP_DEV }}
-          EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT_DEV }}
-          TILER_REPO_DIR: ${{ github.workspace }}/stacnotator-tiler
-          PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN_DEV }}
-          EXTRA_TILERS: ${{ vars.EXTRA_TILERS_DEV }}
-          # Opt-in: set the `TILER_AZURE_SIGNING_DEV` env variable to "true" to let the tiler
-          # read internal-storage custom-map COGs via its managed identity. Unset => off.
-          TILER_AZURE_SIGNING: ${{ vars.TILER_AZURE_SIGNING_DEV }}
-        run: ./azure_deploy/deploy-app.sh dev
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: dev
+      deploy-env: dev
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+      TILER_REPO_TOKEN: ${{ secrets.TILER_REPO_TOKEN }}
+      EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT }}
+      CUSTOM_DOMAINS: ${{ secrets.CUSTOM_DOMAINS }}

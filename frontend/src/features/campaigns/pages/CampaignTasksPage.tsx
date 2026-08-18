@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAccountStore } from '~/features/account/account.store';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
 import { ImportFeaturesSection } from '~/features/campaigns/components/settings/ImportFeaturesSection';
 import { Button } from '~/shared/ui/forms';
@@ -15,11 +15,15 @@ import {
   ReviewerAssignmentModal,
   type AssignmentPattern,
 } from '~/features/campaigns/components/settings/ReviewerAssignmentModal';
-import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
+import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
+import { Delayed } from '~/shared/ui/Delayed';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
-import { useCampaignIdParam } from '~/features/campaigns/hooks/useCampaignIdParam';
+import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { campaignPath } from '~/app/routes';
+import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { FadeIn } from '~/shared/ui/motion';
@@ -27,7 +31,7 @@ import { FadeIn } from '~/shared/ui/motion';
 import {
   getAllAnnotationTasks,
   getCampaign,
-  getCampaignUsers,
+  getProjectUsers,
   ingestAnnotationTasksFromCsv,
   ingestAnnotationTasksFromGeojson,
   assignTasksToUsers,
@@ -41,13 +45,14 @@ import {
   moveTasksToSet,
   type AnnotationTaskOut,
   type CampaignOut,
-  type CampaignUserOut,
   type GenerateTasksResponse,
+  type ProjectUserOut,
   type TaskSetOut,
 } from '~/api/client';
 
 export const CampaignTasksPage = () => {
   const campaignId = useCampaignIdParam();
+  const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
   const currentUser = useAccountStore((state) => state.account);
   const [showImport, setShowImport] = useState(false);
@@ -59,25 +64,19 @@ export const CampaignTasksPage = () => {
 
   const [annotationTasks, setAnnotationTasks] = useState<AnnotationTaskOut[]>([]);
   const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
-  const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
+  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
   const [uploadingTasks, setUploadingTasks] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [showReviewerModal, setShowReviewerModal] = useState(false);
   const [assignSelectedTaskIds, setAssignSelectedTaskIds] = useState<number[]>([]);
 
-  const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
   const showAlert = useLayoutStore((state) => state.showAlert);
 
-  useEffect(() => {
-    if (campaign) {
-      setBreadcrumbs([
-        { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaign.id}` },
-        { label: 'Tasks' },
-      ]);
-    }
-  }, [campaign, setBreadcrumbs]);
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Tasks');
 
   const reloadTaskSets = useCallback(async () => {
     const { data, error } = await listTaskSets({ path: { campaign_id: campaignId } });
@@ -96,14 +95,20 @@ export const CampaignTasksPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [campaignRes, tasksRes, usersRes] = await Promise.all([
+        const [campaignRes, tasksRes] = await Promise.all([
           getCampaign({ path: { campaign_id: campaignId } }),
           getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
-          getCampaignUsers({ path: { campaign_id: campaignId } }),
         ]);
         setCampaign(campaignRes.data ?? null);
         setAnnotationTasks(tasksRes.data?.tasks ?? []);
-        setCampaignUsers(usersRes.data?.users ?? []);
+        // Assignable users are the owning project's members, so this has to
+        // wait for the campaign to know which project to ask about.
+        if (campaignRes.data) {
+          const usersRes = await getProjectUsers({
+            path: { project_id: campaignRes.data.project_id },
+          });
+          setProjectUsers(usersRes.data?.users ?? []);
+        }
         await reloadTaskSets();
       } catch (err) {
         handleError(err, 'Failed to load campaign');
@@ -115,18 +120,21 @@ export const CampaignTasksPage = () => {
     load();
   }, [campaignId, reloadTaskSets]);
 
+  // Without a URL param the scope starts on the campaign's first (default) set;
+  // "All tasks" is an explicit choice carried as taskSet=all.
   const taskSetParam = searchParams.get('taskSet');
   const requestedSetId = taskSetParam !== null ? Number(taskSetParam) : null;
   const taskScope: TaskScope =
     requestedSetId !== null && taskSets.some((s) => s.id === requestedSetId)
       ? requestedSetId
-      : 'all';
+      : taskSetParam === 'all' || taskSets.length === 0
+        ? 'all'
+        : taskSets[0].id;
 
   const handleSelectScope = (scope: TaskScope) => {
     setSearchParams(
       (params) => {
-        if (scope === 'all') params.delete('taskSet');
-        else params.set('taskSet', String(scope));
+        params.set('taskSet', String(scope));
         return params;
       },
       { replace: true }
@@ -134,8 +142,8 @@ export const CampaignTasksPage = () => {
   };
 
   const isAdmin = useMemo(
-    () => campaignUsers.some((u) => u.user.id === currentUser?.id && u.is_admin),
-    [campaignUsers, currentUser]
+    () => projectUsers.some((u) => u.user.id === currentUser?.id && u.is_admin),
+    [projectUsers, currentUser]
   );
 
   const scopedAnnotationTasks = useMemo(
@@ -445,15 +453,7 @@ export const CampaignTasksPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <SkeletonPage>
-        <SkeletonForm sections={3} />
-      </SkeletonPage>
-    );
-  }
-
-  if (!campaign) return null;
+  if (!loading && !campaign) return null;
 
   return (
     <>
@@ -461,77 +461,90 @@ export const CampaignTasksPage = () => {
         <FadeIn className="page">
           <header className="page-header">
             <div>
-              <h1 className="page-title">{capitalizeFirst(campaign.name)} tasks</h1>
+              {campaign ? (
+                <h1 className="page-title">{capitalizeFirst(campaign.name)} tasks</h1>
+              ) : (
+                <Skeleton className="h-7 w-52" />
+              )}
               <p className="page-subtitle">
                 Upload or generate annotation tasks and manage assignments.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              {isAdmin && (
-                <Button variant="secondary" onClick={() => setShowImport((v) => !v)}>
-                  {showImport ? (
-                    <IconChevronDown className="w-4 h-4" />
-                  ) : (
-                    <IconChevronRight className="w-4 h-4" />
-                  )}
-                  Import annotations
+            {campaign && (
+              <div className="flex items-center gap-3">
+                {isAdmin && (
+                  <Button variant="secondary" onClick={() => setShowImport((v) => !v)}>
+                    {showImport ? (
+                      <IconChevronDown className="w-4 h-4" />
+                    ) : (
+                      <IconChevronRight className="w-4 h-4" />
+                    )}
+                    Import annotations
+                  </Button>
+                )}
+                <ExportDropdown
+                  campaignId={campaignId}
+                  campaign={campaign}
+                  disabled={annotationTasks.length === 0}
+                  hasConflicts={annotationTasks.some((t) => t.task_status === 'conflicting')}
+                />
+                <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}>
+                  Start annotating
                 </Button>
-              )}
-              <ExportDropdown
-                campaignId={campaignId}
-                campaign={campaign}
-                disabled={annotationTasks.length === 0}
-                hasConflicts={annotationTasks.some((t) => t.task_status === 'conflicting')}
-              />
-              <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
-                Start annotating
-              </Button>
-            </div>
+              </div>
+            )}
           </header>
 
-          {isAdmin && showImport && (
-            <div className="surface mb-6">
-              <div className="surface-section">
-                <ImportFeaturesSection
-                  campaignId={campaignId}
-                  labels={campaign.settings.labels}
-                  onSuccess={(msg) => showAlert(msg, 'success')}
-                  onError={(msg) => showAlert(msg, 'error')}
-                />
-              </div>
-            </div>
-          )}
+          {campaign ? (
+            <>
+              {isAdmin && showImport && (
+                <div className="surface mb-6">
+                  <div className="surface-section">
+                    <ImportFeaturesSection
+                      campaignId={campaignId}
+                      labels={campaign.settings.labels}
+                      onSuccess={(msg) => showAlert(msg, 'success')}
+                      onError={(msg) => showAlert(msg, 'error')}
+                    />
+                  </div>
+                </div>
+              )}
 
-          <div className="surface surface-unclipped">
-            <div className="p-6">
-              <TasksTab
-                scopedTasks={scopedAnnotationTasks}
-                totalTasks={annotationTasks.length}
-                taskFile={taskFile}
-                setTaskFile={setTaskFile}
-                uploadingTasks={uploadingTasks}
-                handleUploadAnnotationTasks={handleUploadAnnotationTasks}
-                handleTasksGenerated={handleTasksGenerated}
-                onTaskGenerationError={(msg) => showAlert(msg, 'error')}
-                onOpenBulkAssign={() => setShowAssignmentModal(true)}
-                onOpenReviewerAssign={() => setShowReviewerModal(true)}
-                onAssignSelected={setAssignSelectedTaskIds}
-                handleBatchUnassignTasks={handleBatchUnassignTasks}
-                handleDeleteTasks={handleDeleteTasks}
-                campaignId={campaignId}
-                campaignName={campaign.name}
-                onAssignmentsImported={reloadAnnotationTasks}
-                taskSets={taskSets}
-                taskScope={taskScope}
-                onSelectScope={handleSelectScope}
-                onCreateSetScoped={handleCreateTaskSet}
-                onRenameTaskSet={handleRenameTaskSet}
-                onDeleteTaskSet={handleDeleteTaskSet}
-                onMoveTasks={handleMoveTasks}
-                bbox={taskMapBbox}
-              />
-            </div>
-          </div>
+              <div className="surface surface-unclipped">
+                <div className="p-6">
+                  <TasksTab
+                    campaign={campaign}
+                    scopedTasks={scopedAnnotationTasks}
+                    totalTasks={annotationTasks.length}
+                    taskFile={taskFile}
+                    setTaskFile={setTaskFile}
+                    uploadingTasks={uploadingTasks}
+                    handleUploadAnnotationTasks={handleUploadAnnotationTasks}
+                    handleTasksGenerated={handleTasksGenerated}
+                    onTaskGenerationError={(msg) => showAlert(msg, 'error')}
+                    onOpenBulkAssign={() => setShowAssignmentModal(true)}
+                    onOpenReviewerAssign={() => setShowReviewerModal(true)}
+                    onAssignSelected={setAssignSelectedTaskIds}
+                    handleBatchUnassignTasks={handleBatchUnassignTasks}
+                    handleDeleteTasks={handleDeleteTasks}
+                    onAssignmentsImported={reloadAnnotationTasks}
+                    taskSets={taskSets}
+                    taskScope={taskScope}
+                    onSelectScope={handleSelectScope}
+                    onCreateSetScoped={handleCreateTaskSet}
+                    onRenameTaskSet={handleRenameTaskSet}
+                    onDeleteTaskSet={handleDeleteTaskSet}
+                    onMoveTasks={handleMoveTasks}
+                    bbox={taskMapBbox}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <Delayed>
+              <SkeletonForm sections={3} />
+            </Delayed>
+          )}
         </FadeIn>
       </div>
 
@@ -542,14 +555,14 @@ export const CampaignTasksPage = () => {
         isOpen={showAssignmentModal}
         onClose={() => setShowAssignmentModal(false)}
         tasks={scopedAnnotationTasks}
-        campaignUsers={campaignUsers}
+        projectUsers={projectUsers}
         onAssign={handleBulkAssignTasks}
       />
 
       <AssignSelectedModal
         isOpen={assignSelectedTaskIds.length > 0}
         numTasks={assignSelectedTaskIds.length}
-        campaignUsers={campaignUsers}
+        projectUsers={projectUsers}
         taskIds={assignSelectedTaskIds}
         onAssign={handleAssignSelected}
         onCancel={() => setAssignSelectedTaskIds([])}
@@ -558,7 +571,7 @@ export const CampaignTasksPage = () => {
       <ReviewerAssignmentModal
         show={showReviewerModal}
         onClose={() => setShowReviewerModal(false)}
-        campaignUsers={campaignUsers}
+        projectUsers={projectUsers}
         onAssign={handleAssignReviewers}
         totalTasks={scopedAnnotationTasks.length}
       />

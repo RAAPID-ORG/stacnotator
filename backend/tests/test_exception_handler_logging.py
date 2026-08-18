@@ -4,8 +4,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from src.annotation import service
-from src.auth.dependencies import require_approved_user
+from src.annotation import spatial
+from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_access
 from src.database import get_db
 from src.main import app
@@ -18,9 +18,9 @@ def client(monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError("underlying cause we need to see")
 
-    monkeypatch.setattr(service, "render_annotation_tile", boom)
+    monkeypatch.setattr(spatial, "render_annotation_tile", boom)
     app.dependency_overrides[get_db] = lambda: None
-    app.dependency_overrides[require_approved_user] = lambda: SimpleNamespace(id=1)
+    app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(id=1)
     app.dependency_overrides[require_campaign_access] = lambda: SimpleNamespace(id=CAMPAIGN_ID)
     yield TestClient(
         app,
@@ -48,3 +48,11 @@ def test_unhandled_exception_logs_traceback(client, caplog):
 
     assert record.exc_info is not None, "traceback dropped - cause is unrecoverable from logs"
     assert "underlying cause we need to see" in record.exc_text
+
+
+def test_security_headers_are_stamped_on_every_response(client):
+    """Including error responses, which the handlers build themselves."""
+    for response in (client.get("/healthz"), client.get("/api/campaigns/nope/annotations")):
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["x-frame-options"] == "DENY"
+        assert response.headers["referrer-policy"] == "no-referrer"

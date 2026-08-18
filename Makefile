@@ -5,8 +5,8 @@
 	test-backend test-e2e test-backend-docker test-e2e-docker test-dockerized \
 	ci-check ci-check-docker pre-commit-install pre-commit-run \
 	dev-restore-backup \
-	az-deploy-prod az-deploy-dev az-sync-prod-to-dev \
-	az-logs-prod az-logs-dev az-upload-secrets-prod az-upload-secrets-dev
+	az-deploy-prod az-deploy-dev az-deploy-dev-dry-run az-sync-prod-to-dev \
+	az-logs-prod az-logs-dev az-bootstrap-prod az-bootstrap-dev
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -113,7 +113,7 @@ dev-restore-backup: ## Restore dev DB from a local SQL backup (use FILE="db/back
 		ls -1t db/backups/*.sql 2>/dev/null || echo "  (none found in db/backups/)"; \
 		exit 1; \
 	fi
-	./scripts/dev-restore-backup.sh $(FILE)
+	./deployment/azure/utils/dev-restore-backup.sh $(FILE)
 
 dev-init: ## Initialize the application for development (first time setup; use FIREBASE_UID="your-uid" to specify user)
 	@echo "Setting up STAC Notator (Development Mode with Hot Reload)..."
@@ -278,7 +278,7 @@ typecheck-sdk: ## Run mypy on the Python SDK
 typecheck: typecheck-backend typecheck-frontend typecheck-sdk ## Run all type checkers
 
 ci-check: test lint format-check typecheck ## Run all CI checks locally
-ci-check-docker: test-docker lint format-check typecheck ## Run all CI checks (tests in Docker)
+ci-check-docker: test-dockerized lint format-check typecheck ## Run all CI checks (tests in Docker)
 
 ###################################################
 # Pre-commit
@@ -295,22 +295,25 @@ pre-commit-run: ## Run pre-commit on all files
 ###################################################
 
 az-deploy-prod: ## Deploy to Azure production
-	./azure_deploy/deploy-app.sh prod
+	./deployment/azure/deploy.sh prod
 
-az-deploy-dev: ## Deploy to Azure dev (smaller resources, min 0 replicas)
-	./azure_deploy/deploy-app.sh dev
+az-deploy-dev: ## Deploy to Azure dev
+	./deployment/azure/deploy.sh dev
+
+az-deploy-dev-dry-run: ## Print the resolved dev deploy config without writing anything
+	./deployment/azure/deploy.sh dev --dry-run
 
 az-sync-prod-to-dev: ## Sync production database into dev Azure Postgres + run migrations
-	./azure_deploy/sync-prod-data-to-dev.sh
+	./deployment/azure/utils/sync-prod-data-to-dev.sh
 
 az-logs-prod: ## View prod container app logs (use APP=tiler for tiler)
-	./azure_deploy/view-logs.sh prod $(APP)
+	./deployment/azure/utils/view-logs.sh prod $(APP)
 
 az-logs-dev: ## View dev container app logs (use APP=tiler for tiler)
-	./azure_deploy/view-logs.sh dev $(APP)
+	./deployment/azure/utils/view-logs.sh dev $(APP)
 
-az-upload-secrets-prod: ## Upload secrets to prod Key Vault
-	./azure_deploy/upload-secrets.sh prod
+az-bootstrap-prod: ## One-time prod setup: Key Vault secrets, Static Web App, workload profile
+	./deployment/azure/bootstrap.sh prod
 
-az-upload-secrets-dev: ## Upload secrets to dev Key Vault
-	./azure_deploy/upload-secrets.sh dev
+az-bootstrap-dev: ## One-time dev setup: Key Vault secrets, Static Web App, workload profile
+	./deployment/azure/bootstrap.sh dev

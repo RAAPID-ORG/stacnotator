@@ -1,9 +1,19 @@
 """Unit tests for Campaign Pydantic schema validation."""
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
+
 import pytest
 from pydantic import ValidationError
 
-from src.campaigns.schemas import AssignReviewersRequest, CampaignCreate, CampaignSettingsCreate
+from src.campaigns.schemas import (
+    AssignReviewersRequest,
+    CampaignCreate,
+    CampaignOut,
+    CampaignOutFull,
+    CampaignSettingsCreate,
+    default_labelling_policy,
+)
 
 
 def _minimal_settings() -> dict:
@@ -18,14 +28,14 @@ def _minimal_settings() -> dict:
 
 def test_campaign_create_mode_tasks_accepted():
     data = CampaignCreate(
-        name="x", mode="tasks", settings=CampaignSettingsCreate(**_minimal_settings())
+        name="x", mode="tasks", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
     )
     assert data.mode == "tasks"
 
 
 def test_campaign_create_mode_open_accepted():
     data = CampaignCreate(
-        name="x", mode="open", settings=CampaignSettingsCreate(**_minimal_settings())
+        name="x", mode="open", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
     )
     assert data.mode == "open"
 
@@ -33,25 +43,90 @@ def test_campaign_create_mode_open_accepted():
 def test_campaign_create_mode_invalid_rejected():
     with pytest.raises(ValidationError):
         CampaignCreate(
-            name="x", mode="open-world", settings=CampaignSettingsCreate(**_minimal_settings())
+            name="x",
+            mode="open-world",
+            project_id=1,
+            settings=CampaignSettingsCreate(**_minimal_settings()),
         )
 
 
 def test_campaign_create_mode_arbitrary_string_rejected():
     with pytest.raises(ValidationError):
         CampaignCreate(
-            name="x", mode="bogus", settings=CampaignSettingsCreate(**_minimal_settings())
+            name="x",
+            mode="bogus",
+            project_id=1,
+            settings=CampaignSettingsCreate(**_minimal_settings()),
         )
 
 
 def test_campaign_create_mode_defaults_to_tasks():
-    data = CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
+    data = CampaignCreate(
+        name="x", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
+    )
     assert data.mode == "tasks"
 
 
 def test_campaign_create_labelling_policy_defaults_to_none():
-    data = CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
+    data = CampaignCreate(
+        name="x", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
+    )
     assert data.labelling_policy is None
+
+
+def test_campaign_create_requires_project_id():
+    with pytest.raises(ValidationError):
+        CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
+
+
+def test_campaign_create_project_id_round_trips():
+    data = CampaignCreate(
+        name="x", project_id=3, settings=CampaignSettingsCreate(**_minimal_settings())
+    )
+    assert data.project_id == 3
+
+
+def _campaign_orm_stub(project_id: int = 7) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=1,
+        project_id=project_id,
+        name="Campaign",
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        mode="open",
+        is_public=False,
+        annotations_version=0,
+        settings=SimpleNamespace(
+            **_minimal_settings(),
+            labelling_policy=default_labelling_policy(),
+            form_fields=[],
+            embedding_year=None,
+            guide_markdown=None,
+            sample_extent_meters=None,
+        ),
+        time_series=[],
+        imagery_sources=[],
+        imagery_views=[],
+        basemaps=[],
+        custom_maps=[],
+        vector_layers=[],
+        canvas_layouts=[],
+    )
+
+
+def test_campaign_out_exposes_project_id():
+    assert "project_id" in CampaignOut.model_fields
+
+
+def test_campaign_out_full_from_orm_carries_project_id():
+    out = CampaignOutFull.from_orm(_campaign_orm_stub(project_id=7))
+    assert out.project_id == 7
+
+
+def test_campaign_out_full_viewer_role_flags_default_to_false():
+    out = CampaignOutFull.from_orm(_campaign_orm_stub())
+    assert not out.viewer_is_admin
+    assert not out.viewer_is_member
+    assert not out.viewer_is_authoritative_reviewer
 
 
 def test_assign_reviewers_pattern_percentage_accepted():

@@ -5,15 +5,94 @@ export type ClientOptions = {
 };
 
 /**
- * AllowedTilersOut
+ * AcceptTermsRequest
  *
- * Hosted tilers selectable in the imagery wizard (default first).
+ * The version the user was shown, so acceptance names what they read.
  */
-export type AllowedTilersOut = {
+export type AcceptTermsRequest = {
     /**
-     * Tilers
+     * Version
      */
-    tilers: Array<TilerOption>;
+    version: string;
+};
+
+/**
+ * AccessRequestCreate
+ */
+export type AccessRequestCreate = {
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * AccessRequestOut
+ */
+export type AccessRequestOut = {
+    user: UserOut;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Requested At
+     */
+    requested_at: string;
+};
+
+/**
+ * AccessRequestsResponse
+ */
+export type AccessRequestsResponse = {
+    /**
+     * Items
+     */
+    items: Array<AccessRequestOut>;
+};
+
+/**
+ * AddProjectUsersByEmailRequest
+ */
+export type AddProjectUsersByEmailRequest = {
+    /**
+     * Emails
+     */
+    emails: Array<string>;
+};
+
+/**
+ * AddProjectUsersByIdsRequest
+ */
+export type AddProjectUsersByIdsRequest = {
+    /**
+     * User Ids
+     */
+    user_ids: Array<string>;
+};
+
+/**
+ * AddUsersByEmailRequest
+ */
+export type AddUsersByEmailRequest = {
+    /**
+     * Emails
+     */
+    emails: Array<string>;
+};
+
+/**
+ * AddUsersByEmailResult
+ */
+export type AddUsersByEmailResult = {
+    /**
+     * Added
+     */
+    added: Array<UserOut>;
+    /**
+     * Invited Emails
+     */
+    invited_emails: Array<string>;
 };
 
 /**
@@ -60,6 +139,10 @@ export type AnnotationCreate = {
      * Imagery End Date
      */
     imagery_end_date?: string | null;
+    /**
+     * Slice Comments
+     */
+    slice_comments?: Array<SliceComment> | null;
     /**
      * Form Values
      */
@@ -121,11 +204,19 @@ export type AnnotationFromTaskCreate = {
      */
     flag_comment?: string | null;
     /**
+     * Slice Comments
+     */
+    slice_comments?: Array<SliceComment> | null;
+    /**
      * Form Values
      */
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
+    /**
+     * Active Ms
+     */
+    active_ms?: number | null;
 };
 
 /**
@@ -197,11 +288,19 @@ export type AnnotationFromTaskOut = {
      */
     imagery_end_date?: string | null;
     /**
+     * Slice Comments
+     */
+    slice_comments?: Array<SliceComment> | null;
+    /**
      * Form Values
      */
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
+    /**
+     * Active Seconds
+     */
+    active_seconds?: number | null;
     /**
      * Counts Toward Completion
      */
@@ -277,16 +376,28 @@ export type AnnotationOut = {
      */
     imagery_end_date?: string | null;
     /**
+     * Slice Comments
+     */
+    slice_comments?: Array<SliceComment> | null;
+    /**
      * Form Values
      */
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
     /**
+     * Active Seconds
+     */
+    active_seconds?: number | null;
+    /**
      * Counts Toward Completion
      */
     counts_toward_completion?: boolean | null;
     geometry: GeometryOut;
+    /**
+     * Annotation Task Id
+     */
+    annotation_task_id?: number | null;
 };
 
 /**
@@ -305,10 +416,6 @@ export type AnnotationTaskAssignmentOut = {
      * Is Review
      */
     is_review?: boolean;
-    /**
-     * Claimed At
-     */
-    claimed_at?: string | null;
     /**
      * User Email
      */
@@ -363,6 +470,18 @@ export type AnnotationTaskOut = {
      */
     annotations: Array<AnnotationFromTaskOut>;
     /**
+     * Claimed By User Id
+     */
+    claimed_by_user_id?: string | null;
+    /**
+     * Claimed At
+     */
+    claimed_at?: string | null;
+    /**
+     * Claimed By Display Name
+     */
+    claimed_by_display_name?: string | null;
+    /**
      * Has Embedding
      */
     has_embedding?: boolean;
@@ -371,10 +490,12 @@ export type AnnotationTaskOut = {
 /**
  * AnnotationTaskSubmitResponse
  *
- * Response from submitting/skipping an annotation task.
+ * Response from submitting or skipping an annotation task.
+ *
+ * The annotation is always there: a skip is stored as a label-less one, so
+ * every submission leaves a record behind.
  */
 export type AnnotationTaskSubmitResponse = {
-    annotation: AnnotationFromTaskOut | null;
     /**
      * Task Status
      */
@@ -383,6 +504,7 @@ export type AnnotationTaskSubmitResponse = {
      * Assignment Status
      */
     assignment_status: string;
+    annotation: AnnotationFromTaskOut;
 };
 
 /**
@@ -433,6 +555,10 @@ export type AnnotationUpdate = {
      * Imagery End Date
      */
     imagery_end_date?: string | null;
+    /**
+     * Slice Comments
+     */
+    slice_comments?: Array<SliceComment> | null;
     /**
      * Form Values
      */
@@ -487,6 +613,18 @@ export type AnnotatorInfo = {
     label_distribution: {
         [key: string]: number;
     };
+    /**
+     * Timed Tasks
+     */
+    timed_tasks?: number;
+    /**
+     * Median Seconds Per Task
+     */
+    median_seconds_per_task?: number | null;
+    /**
+     * Total Active Seconds
+     */
+    total_active_seconds?: number | null;
 };
 
 /**
@@ -497,18 +635,28 @@ export type ApiKeyStatusOut = {
      * Has Api Key
      */
     has_api_key: boolean;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
 };
 
 /**
  * ApiKeyUpdate
  *
- * Write-only provider API key value (campaign-admin sets it; never read back).
+ * Where this layer's provider key comes from: a literal value to encrypt
+ * and keep on the row, or one of the owning organization's shared keys.
+ * Write-only either way - a stored value is never read back.
  */
 export type ApiKeyUpdate = {
     /**
      * Value
      */
-    value: string;
+    value?: string | null;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
 };
 
 /**
@@ -627,16 +775,6 @@ export type AssignTasksToUsersResult = {
 };
 
 /**
- * AssignUsersToCampaignRequest
- */
-export type AssignUsersToCampaignRequest = {
-    /**
-     * User Ids
-     */
-    user_ids: Array<string>;
-};
-
-/**
  * BandInfo
  */
 export type BandInfo = {
@@ -696,6 +834,10 @@ export type BasemapOut = {
      * Has Api Key
      */
     has_api_key?: boolean;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
 };
 
 /**
@@ -853,9 +995,9 @@ export type CampaignCreate = {
      */
     mode?: 'tasks' | 'open';
     /**
-     * Is Public
+     * Project Id
      */
-    is_public?: boolean;
+    project_id: number;
     settings: CampaignSettingsCreate;
     imagery_editor_state?: ImageryEditorStateCreate | null;
     /**
@@ -863,6 +1005,26 @@ export type CampaignCreate = {
      */
     timeseries_configs?: Array<TimeSeriesCreate> | null;
     labelling_policy?: LabellingPolicy | null;
+};
+
+/**
+ * CampaignDuplicateRequest
+ *
+ * Tasks and annotations are deliberate decisions - no defaults.
+ */
+export type CampaignDuplicateRequest = {
+    /**
+     * Include Tasks
+     */
+    include_tasks: boolean;
+    /**
+     * Include Annotations
+     */
+    include_annotations: boolean;
+    /**
+     * Include User Layouts
+     */
+    include_user_layouts?: boolean;
 };
 
 /**
@@ -881,6 +1043,10 @@ export type CampaignListItemOut = {
      * Created At
      */
     created_at: string;
+    /**
+     * Project Id
+     */
+    project_id: number;
     /**
      * Is Admin
      */
@@ -911,6 +1077,10 @@ export type CampaignOut = {
      * Id
      */
     id: number;
+    /**
+     * Project Id
+     */
+    project_id: number;
     /**
      * Name
      */
@@ -945,6 +1115,22 @@ export type CampaignOut = {
      * Annotations Version
      */
     annotations_version?: number;
+    /**
+     * Viewer Is Admin
+     */
+    viewer_is_admin?: boolean;
+    /**
+     * Viewer Is Member
+     */
+    viewer_is_member?: boolean;
+    /**
+     * Viewer Is Authoritative Reviewer
+     */
+    viewer_is_authoritative_reviewer?: boolean;
+    /**
+     * Viewer Data Sharing
+     */
+    viewer_data_sharing?: 'none' | 'anonymous' | 'attributed' | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -983,6 +1169,10 @@ export type CampaignOutFull = {
      */
     id: number;
     /**
+     * Project Id
+     */
+    project_id: number;
+    /**
      * Name
      */
     name: string;
@@ -1016,6 +1206,22 @@ export type CampaignOutFull = {
      * Annotations Version
      */
     annotations_version?: number;
+    /**
+     * Viewer Is Admin
+     */
+    viewer_is_admin?: boolean;
+    /**
+     * Viewer Is Member
+     */
+    viewer_is_member?: boolean;
+    /**
+     * Viewer Is Authoritative Reviewer
+     */
+    viewer_is_authoritative_reviewer?: boolean;
+    /**
+     * Viewer Data Sharing
+     */
+    viewer_data_sharing?: 'none' | 'anonymous' | 'attributed' | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -1185,35 +1391,6 @@ export type CampaignStatistics = {
 };
 
 /**
- * CampaignUserOut
- */
-export type CampaignUserOut = {
-    user: UserOut;
-    /**
-     * Is Admin
-     */
-    is_admin: boolean;
-    /**
-     * Is Authorative Reviewer
-     */
-    is_authorative_reviewer: boolean;
-};
-
-/**
- * CampaignUsersResponse
- */
-export type CampaignUsersResponse = {
-    /**
-     * Campaign Id
-     */
-    campaign_id: number;
-    /**
-     * Users
-     */
-    users: Array<CampaignUserOut>;
-};
-
-/**
  * CampaignsListResponse
  */
 export type CampaignsListResponse = {
@@ -1230,15 +1407,11 @@ export type CanvasLayoutCreate = {
     /**
      * Main Layout Data
      */
-    main_layout_data: Array<unknown>;
+    main_layout_data: Array<CanvasLayoutItem>;
     /**
      * View Layout Data
      */
-    view_layout_data?: Array<unknown> | null;
-    /**
-     * View Id
-     */
-    view_id?: number | null;
+    view_layout_data?: Array<CanvasLayoutItem> | null;
 };
 
 /**
@@ -1351,9 +1524,22 @@ export type CategoryFormField = {
 };
 
 /**
+ * ClaimNextResponse
+ *
+ * The task the server picked and claimed, or null once the pool is dry.
+ */
+export type ClaimNextResponse = {
+    task: AnnotationTaskOut | null;
+};
+
+/**
  * ClaimTaskResponse
  *
  * Response from soft-claiming a task.
+ *
+ * `claimed` false with a holder means somebody else is on it; false without
+ * one means there was nothing to lease (the task is assigned, or already
+ * worked). Neither is an error - labelling it anyway stays allowed.
  */
 export type ClaimTaskResponse = {
     /**
@@ -1361,9 +1547,21 @@ export type ClaimTaskResponse = {
      */
     task_id: number;
     /**
+     * Claimed
+     */
+    claimed: boolean;
+    /**
      * Claimed At
      */
     claimed_at: string | null;
+    /**
+     * Holder User Id
+     */
+    holder_user_id?: string | null;
+    /**
+     * Holder Display Name
+     */
+    holder_display_name?: string | null;
 };
 
 /**
@@ -1598,6 +1796,24 @@ export type CustomMapUpdate = {
 };
 
 /**
+ * DataSharingOut
+ */
+export type DataSharingOut = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Campaign Name
+     */
+    campaign_name: string;
+    /**
+     * Choice
+     */
+    choice: 'none' | 'anonymous' | 'attributed';
+};
+
+/**
  * DateFormField
  */
 export type DateFormField = {
@@ -1744,6 +1960,10 @@ export type ImageryCollectionCreate = {
      */
     has_dedicated_cover?: boolean;
     /**
+     * Generation Series Key
+     */
+    generation_series_key?: string | null;
+    /**
      * Slices
      */
     slices: Array<ImagerySliceCreate>;
@@ -1775,6 +1995,10 @@ export type ImageryCollectionOut = {
      */
     display_order: number;
     /**
+     * Generation Series Id
+     */
+    generation_series_id?: number | null;
+    /**
      * Slices
      */
     slices: Array<ImagerySliceOut>;
@@ -1792,13 +2016,148 @@ export type ImageryEditorStateCreate = {
      */
     sources: Array<ImagerySourceCreate>;
     /**
-     * Views
-     */
-    views: Array<ImageryViewCreate>;
-    /**
      * Basemaps
      */
     basemaps: Array<BasemapCreate>;
+};
+
+/**
+ * ImageryGenerationConfigV1
+ *
+ * Lossless, versioned input for the temporal imagery generator.
+ */
+export type ImageryGenerationConfigV1 = {
+    /**
+     * Version
+     */
+    version?: 1;
+    /**
+     * Catalog Url
+     */
+    catalog_url: string;
+    /**
+     * Stac Collection Id
+     */
+    stac_collection_id: string;
+    /**
+     * Collection Title
+     */
+    collection_title: string;
+    /**
+     * Is Mpc
+     */
+    is_mpc: boolean;
+    /**
+     * Has Cloud Cover
+     */
+    has_cloud_cover: boolean;
+    /**
+     * Tiler
+     */
+    tiler?: string | null;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Collection Period Interval
+     */
+    collection_period_interval: number;
+    /**
+     * Collection Period Unit
+     */
+    collection_period_unit: 'weeks' | 'months' | 'years';
+    /**
+     * Slice Period Interval
+     */
+    slice_period_interval: number;
+    /**
+     * Slice Period Unit
+     */
+    slice_period_unit: 'days' | 'weeks' | 'months' | 'years';
+    /**
+     * Cover Mode
+     */
+    cover_mode: 'nth' | 'custom';
+    /**
+     * Cover Slice Nth
+     */
+    cover_slice_nth: number;
+    /**
+     * Max Cloud Cover
+     */
+    max_cloud_cover: number;
+    /**
+     * Item Sort
+     */
+    item_sort: 'date_desc' | 'date_asc' | 'cloud_cover_asc';
+    /**
+     * Cover Max Cloud Cover
+     */
+    cover_max_cloud_cover: number;
+    /**
+     * Cover Item Sort
+     */
+    cover_item_sort: 'date_desc' | 'date_asc' | 'cloud_cover_asc';
+    /**
+     * Visualizations
+     */
+    visualizations: Array<NamedVizParamsCreate>;
+    /**
+     * Cover Visualizations
+     */
+    cover_visualizations?: Array<NamedVizParamsCreate>;
+    /**
+     * Search Query
+     */
+    search_query?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Cover Search Query
+     */
+    cover_search_query?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean;
+};
+
+/**
+ * ImageryGenerationSeriesCreate
+ *
+ * One source-level series in the full-editor write model.
+ *
+ * ``key`` is a request-local identity used by collections in the same
+ * payload. ``id`` preserves an existing database row when editing.
+ */
+export type ImageryGenerationSeriesCreate = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Id
+     */
+    id?: number | null;
+    config: ImageryGenerationConfigV1;
+};
+
+/**
+ * ImageryGenerationSeriesOut
+ */
+export type ImageryGenerationSeriesOut = {
+    /**
+     * Id
+     */
+    id: number;
+    config: ImageryGenerationConfigV1;
 };
 
 /**
@@ -1878,9 +2237,25 @@ export type ImagerySourceCreate = {
      */
     default_zoom?: number;
     /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
+    /**
+     * Api Key
+     */
+    api_key?: string | null;
+    /**
      * Visualizations
      */
     visualizations: Array<VisualizationTemplateCreate>;
+    /**
+     * Generation Series
+     */
+    generation_series?: Array<ImageryGenerationSeriesCreate>;
     /**
      * Collections
      */
@@ -1908,6 +2283,10 @@ export type ImagerySourceOut = {
      */
     default_zoom: number;
     /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
+    /**
      * Display Order
      */
     display_order: number;
@@ -1920,9 +2299,29 @@ export type ImagerySourceOut = {
      */
     collections: Array<ImageryCollectionOut>;
     /**
+     * Generation Series
+     */
+    generation_series?: Array<ImageryGenerationSeriesOut>;
+    /**
      * Has Api Key
      */
     has_api_key?: boolean;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
+    /**
+     * Slice Count
+     */
+    slice_count?: number;
+    /**
+     * Registered Slice Count
+     */
+    registered_slice_count?: number;
+    /**
+     * Refreshable
+     */
+    refreshable?: boolean;
 };
 
 /**
@@ -1930,17 +2329,25 @@ export type ImagerySourceOut = {
  */
 export type ImageryViewCreate = {
     /**
-     * Id
-     */
-    id?: number | null;
-    /**
      * Name
      */
     name?: string;
     /**
-     * Collection Refs
+     * Source Ids
      */
-    collection_refs?: Array<ViewCollectionRefCreate>;
+    source_ids?: Array<number>;
+};
+
+/**
+ * ImageryViewOrderUpdate
+ *
+ * Full campaign view ordering; must list every view id exactly once.
+ */
+export type ImageryViewOrderUpdate = {
+    /**
+     * View Ids
+     */
+    view_ids: Array<number>;
 };
 
 /**
@@ -1960,11 +2367,27 @@ export type ImageryViewOut = {
      */
     display_order: number;
     /**
-     * Collection Refs
+     * Source Ids
      */
-    collection_refs: Array<ViewCollectionRefItem>;
+    source_ids: Array<number>;
     readonly default_canvas_layout: CanvasLayoutOut | null;
     readonly personal_canvas_layout: CanvasLayoutOut | null;
+};
+
+/**
+ * ImageryViewUpdate
+ *
+ * Partial update: only the provided fields change.
+ */
+export type ImageryViewUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Source Ids
+     */
+    source_ids?: Array<number> | null;
 };
 
 /**
@@ -1985,6 +2408,44 @@ export type ImportTaskAssignmentsResult = {
      * Reviewers Created
      */
     reviewers_created: number;
+};
+
+/**
+ * InternalStorageUpdateRequest
+ */
+export type InternalStorageUpdateRequest = {
+    /**
+     * Allows Internal Storage
+     */
+    allows_internal_storage: boolean;
+};
+
+/**
+ * InviteOut
+ */
+export type InviteOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * InvitesListResponse
+ */
+export type InvitesListResponse = {
+    /**
+     * Items
+     */
+    items: Array<InviteOut>;
 };
 
 /**
@@ -2053,6 +2514,47 @@ export type LabellingPolicy = {
     unassigned_tasks?: PolicyAudience;
     assigned_tasks?: PolicyAudience;
     complete_assigned?: PolicyAudience;
+};
+
+/**
+ * MeOut
+ *
+ * The signed-in user's own record. Carries both terms versions so the client
+ * can tell whether this user still has to accept.
+ */
+export type MeOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Is Admin
+     */
+    is_admin: boolean;
+    /**
+     * Issuer
+     */
+    issuer: string;
+    /**
+     * External Uid
+     */
+    external_uid: string;
+    /**
+     * Terms Accepted Version
+     */
+    terms_accepted_version?: string | null;
+    /**
+     * Terms Version
+     */
+    readonly terms_version: string;
 };
 
 /**
@@ -2134,6 +2636,204 @@ export type NumberFormField = {
 };
 
 /**
+ * OrganizationApiKeyCreate
+ */
+export type OrganizationApiKeyCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Value
+     */
+    value: string;
+};
+
+/**
+ * OrganizationApiKeyOut
+ *
+ * A stored provider key, named. The secret itself is never returned.
+ */
+export type OrganizationApiKeyOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * OrganizationApiKeyUpdate
+ *
+ * Rotation: the same key under the same name.
+ */
+export type OrganizationApiKeyUpdate = {
+    /**
+     * Value
+     */
+    value: string;
+};
+
+/**
+ * OrganizationApiKeysResponse
+ */
+export type OrganizationApiKeysResponse = {
+    /**
+     * Items
+     */
+    items: Array<OrganizationApiKeyOut>;
+};
+
+/**
+ * OrganizationCreate
+ */
+export type OrganizationCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+};
+
+/**
+ * OrganizationDirectoryEntry
+ *
+ * An organization as a non-member sees it, with where they stand: not in
+ * it, waiting on an access request, or already a member.
+ */
+export type OrganizationDirectoryEntry = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Membership
+     */
+    membership: 'none' | 'pending' | 'active';
+};
+
+/**
+ * OrganizationDirectoryResponse
+ */
+export type OrganizationDirectoryResponse = {
+    /**
+     * Items
+     */
+    items: Array<OrganizationDirectoryEntry>;
+};
+
+/**
+ * OrganizationOut
+ */
+export type OrganizationOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Allows Internal Storage
+     */
+    allows_internal_storage: boolean;
+    /**
+     * Is Admin
+     */
+    is_admin?: boolean;
+};
+
+/**
+ * OrganizationTilersOut
+ */
+export type OrganizationTilersOut = {
+    /**
+     * Tiler Names
+     */
+    tiler_names: Array<string>;
+};
+
+/**
+ * OrganizationUpdateRequest
+ */
+export type OrganizationUpdateRequest = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Description
+     */
+    description?: string | null;
+};
+
+/**
+ * OrganizationUserOut
+ */
+export type OrganizationUserOut = {
+    user: UserOut;
+    /**
+     * Is Admin
+     */
+    is_admin: boolean;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * OrganizationUsersResponse
+ */
+export type OrganizationUsersResponse = {
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Users
+     */
+    users: Array<OrganizationUserOut>;
+};
+
+/**
+ * OrganizationsListResponse
+ */
+export type OrganizationsListResponse = {
+    /**
+     * Items
+     */
+    items: Array<OrganizationOut>;
+};
+
+/**
  * PairwiseAgreement
  *
  * Agreement percentage between two annotators.
@@ -2158,6 +2858,106 @@ export type PairwiseAgreement = {
 };
 
 /**
+ * PlanetCredentials
+ *
+ * Which Planet key to browse with, and for which project.
+ *
+ * Sent in a request body rather than a query string: a pasted key is a secret, and
+ * query strings end up in access logs. Same either/or as ``ApiKeyUpdate`` - the
+ * organization's shared key, or one this person is providing for their own campaign.
+ */
+export type PlanetCredentials = {
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
+    /**
+     * Api Key
+     */
+    api_key?: string | null;
+};
+
+/**
+ * PlanetMosaicOut
+ *
+ * One mosaic of a series: a fixed time window with ready-made tiles.
+ */
+export type PlanetMosaicOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * First Acquired
+     */
+    first_acquired: string;
+    /**
+     * Last Acquired
+     */
+    last_acquired: string;
+    /**
+     * Tile Urls
+     */
+    tile_urls?: {
+        [key: string]: string;
+    };
+    /**
+     * Unavailable Reason
+     */
+    unavailable_reason?: string | null;
+};
+
+/**
+ * PlanetSeriesMosaicsOut
+ */
+export type PlanetSeriesMosaicsOut = {
+    /**
+     * Series Id
+     */
+    series_id: string;
+    /**
+     * Renderings
+     */
+    renderings: Array<string>;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
+    /**
+     * Mosaics
+     */
+    mosaics: Array<PlanetMosaicOut>;
+};
+
+/**
+ * PlanetSeriesOut
+ *
+ * A named temporal cadence of basemaps (e.g. global monthly).
+ */
+export type PlanetSeriesOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+};
+
+/**
  * PolicyAudience
  *
  * An audience selector for one labelling-policy axis: a set of role
@@ -2173,6 +2973,148 @@ export type PolicyAudience = {
      * User Ids
      */
     user_ids?: Array<string>;
+};
+
+/**
+ * ProjectCreate
+ */
+export type ProjectCreate = {
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Visibility
+     */
+    visibility?: 'private' | 'organization' | 'public';
+};
+
+/**
+ * ProjectOut
+ */
+export type ProjectOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Visibility
+     */
+    visibility: 'private' | 'organization' | 'public';
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Is Admin
+     */
+    is_admin?: boolean;
+    /**
+     * Is Member
+     */
+    is_member?: boolean;
+    /**
+     * Has Access
+     */
+    has_access?: boolean;
+    /**
+     * Campaign Count
+     */
+    campaign_count?: number;
+};
+
+/**
+ * ProjectTilersOut
+ *
+ * What the imagery wizard may configure for a project: the organization's
+ * tiler allowlist and whether its imagery may sit in internal storage.
+ */
+export type ProjectTilersOut = {
+    /**
+     * Tilers
+     */
+    tilers: Array<TilerOption>;
+    /**
+     * Allows Internal Storage
+     */
+    allows_internal_storage: boolean;
+};
+
+/**
+ * ProjectUpdateRequest
+ */
+export type ProjectUpdateRequest = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Visibility
+     */
+    visibility?: 'private' | 'organization' | 'public' | null;
+};
+
+/**
+ * ProjectUserOut
+ */
+export type ProjectUserOut = {
+    user: UserOut;
+    /**
+     * Is Admin
+     */
+    is_admin: boolean;
+    /**
+     * Is Authoritative Reviewer
+     */
+    is_authoritative_reviewer: boolean;
+};
+
+/**
+ * ProjectUsersResponse
+ */
+export type ProjectUsersResponse = {
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Users
+     */
+    users: Array<ProjectUserOut>;
+};
+
+/**
+ * ProjectsListResponse
+ */
+export type ProjectsListResponse = {
+    /**
+     * Items
+     */
+    items: Array<ProjectOut>;
 };
 
 /**
@@ -2257,6 +3199,57 @@ export type SearchResponse = {
 };
 
 /**
+ * SetDataSharingRequest
+ */
+export type SetDataSharingRequest = {
+    /**
+     * Choice
+     */
+    choice: 'none' | 'anonymous' | 'attributed';
+};
+
+/**
+ * SetOrganizationTilersRequest
+ */
+export type SetOrganizationTilersRequest = {
+    /**
+     * Tiler Names
+     */
+    tiler_names: Array<string>;
+};
+
+/**
+ * SliceComment
+ *
+ * A note about one imagery slice, kept alongside the annotation it was
+ * written on. The imagery fields are a snapshot, taken for the same reason
+ * `Annotation.imagery_*` is: the note has to stay readable once the slice it
+ * names has been re-registered or dropped.
+ */
+export type SliceComment = {
+    /**
+     * Slice Id
+     */
+    slice_id: number;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Source Name
+     */
+    source_name?: string | null;
+    /**
+     * Start Date
+     */
+    start_date?: string | null;
+    /**
+     * End Date
+     */
+    end_date?: string | null;
+};
+
+/**
  * SliceTileUrlCreate
  */
 export type SliceTileUrlCreate = {
@@ -2294,6 +3287,39 @@ export type SliceTileUrlOut = {
      * Mosaic Id
      */
     mosaic_id?: string | null;
+};
+
+/**
+ * SpectralIndexOut
+ *
+ * An index as the UI needs it: how to label and plot it, and the formula it
+ * computes, rendered from the callable itself so the two cannot disagree.
+ */
+export type SpectralIndexOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Formula
+     */
+    formula: string;
+    /**
+     * Domain Min
+     */
+    domain_min: number;
+    /**
+     * Domain Max
+     */
+    domain_max: number;
+    /**
+     * Reference Lines
+     */
+    reference_lines: Array<number>;
 };
 
 /**
@@ -2478,6 +3504,22 @@ export type TaskSetRename = {
 };
 
 /**
+ * TaskStatusOut
+ *
+ * Where a task and the acting user stand after a write to it.
+ */
+export type TaskStatusOut = {
+    /**
+     * Task Status
+     */
+    task_status: string;
+    /**
+     * Assignment Status
+     */
+    assignment_status: string;
+};
+
+/**
  * TemporalExtent
  */
 export type TemporalExtent = {
@@ -2524,7 +3566,7 @@ export type TextFormField = {
 /**
  * TilerOption
  *
- * A tiler the user may use, from the unified registry.
+ * A tiler the owning organization may use, from the unified registry.
  */
 export type TilerOption = {
     /**
@@ -2543,6 +3585,14 @@ export type TilerOption = {
      * Is Default
      */
     is_default: boolean;
+    /**
+     * Stac Url
+     */
+    stac_url?: string | null;
+    /**
+     * Allows Ingest
+     */
+    allows_ingest?: boolean;
 };
 
 /**
@@ -2584,23 +3634,35 @@ export type TimeSeriesCreate = {
  */
 export type TimeSeriesOptionsOut = {
     /**
-     * Data Sources
+     * Sources
      */
-    data_sources: Array<string>;
+    sources: Array<TimeseriesSourceOut>;
+    /**
+     * Indices
+     */
+    indices: Array<SpectralIndexOut>;
     /**
      * Providers
      */
     providers: Array<string>;
-    /**
-     * Ts Types
-     */
-    ts_types: Array<string>;
 };
 
 /**
  * TimeSeriesOut
+ *
+ * Deliberately not a subclass of the create schema: what comes back carries
+ * the resolved index description, and a row written before an index was renamed
+ * should still list rather than fail validation.
  */
 export type TimeSeriesOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
     /**
      * Name
      */
@@ -2608,7 +3670,7 @@ export type TimeSeriesOut = {
     /**
      * Window Name
      */
-    window_name?: string;
+    window_name: string;
     /**
      * Start Ym
      */
@@ -2630,13 +3692,10 @@ export type TimeSeriesOut = {
      */
     ts_type: string;
     /**
-     * Id
+     * The index this series plots, so the chart can scale its axis and
+     * explain itself without a second request.
      */
-    id: number;
-    /**
-     * Campaign Id
-     */
-    campaign_id: number;
+    readonly index: SpectralIndexOut | null;
 };
 
 /**
@@ -2683,6 +3742,36 @@ export type TimeseriesListResponse = {
      * Items
      */
     items: Array<TimeSeriesOut>;
+};
+
+/**
+ * TimeseriesSourceOut
+ */
+export type TimeseriesSourceOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Coverage
+     */
+    coverage: string;
+    /**
+     * Resolution M
+     */
+    resolution_m: number;
+    /**
+     * Index Keys
+     */
+    index_keys: Array<string>;
 };
 
 /**
@@ -2781,16 +3870,6 @@ export type UpdateCampaignNameRequest = {
 };
 
 /**
- * UpdateCampaignVisibilityRequest
- */
-export type UpdateCampaignVisibilityRequest = {
-    /**
-     * Is Public
-     */
-    is_public: boolean;
-};
-
-/**
  * UpdateEmbeddingYearRequest
  *
  * Set or change the year from which satellite embeddings are sourced.
@@ -2834,7 +3913,8 @@ export type UpdateSampleExtentRequest = {
 /**
  * UserOut
  *
- * Basic user information.
+ * A user as other users see them. `email` is filled for platform admins
+ * only; everyone else identifies people by display name.
  */
 export type UserOut = {
     /**
@@ -2844,17 +3924,17 @@ export type UserOut = {
     /**
      * Email
      */
-    email: string;
+    email?: string | null;
     /**
      * Display Name
      */
-    display_name?: string | null;
+    display_name: string;
 };
 
 /**
  * UserOutDetailed
  *
- * Detailed user information.
+ * Detailed user information (platform admins only).
  */
 export type UserOutDetailed = {
     /**
@@ -2870,21 +3950,9 @@ export type UserOutDetailed = {
      */
     display_name: string;
     /**
-     * Is Approved
-     */
-    is_approved: boolean;
-    /**
-     * Is Visitor
-     */
-    is_visitor: boolean;
-    /**
      * Is Admin
      */
     is_admin: boolean;
-    /**
-     * Is Internal
-     */
-    is_internal: boolean;
     /**
      * Issuer
      */
@@ -2893,10 +3961,6 @@ export type UserOutDetailed = {
      * External Uid
      */
     external_uid: string;
-    /**
-     * Allowed Tilers
-     */
-    allowed_tilers?: Array<string>;
 };
 
 /**
@@ -3034,42 +4098,6 @@ export type VectorLayerUpdate = {
 };
 
 /**
- * ViewCollectionRefCreate
- */
-export type ViewCollectionRefCreate = {
-    /**
-     * Collection Id
-     */
-    collection_id: string;
-    /**
-     * Source Id
-     */
-    source_id: string;
-    /**
-     * Show As Window
-     */
-    show_as_window?: boolean;
-};
-
-/**
- * ViewCollectionRefItem
- */
-export type ViewCollectionRefItem = {
-    /**
-     * Collection Id
-     */
-    collection_id: number;
-    /**
-     * Source Id
-     */
-    source_id: number;
-    /**
-     * Show As Window
-     */
-    show_as_window?: boolean;
-};
-
-/**
  * VisualizationTemplateCreate
  */
 export type VisualizationTemplateCreate = {
@@ -3180,6 +4208,10 @@ export type CampaignOutWritable = {
      */
     id: number;
     /**
+     * Project Id
+     */
+    project_id: number;
+    /**
      * Name
      */
     name: string;
@@ -3213,6 +4245,22 @@ export type CampaignOutWritable = {
      * Annotations Version
      */
     annotations_version?: number;
+    /**
+     * Viewer Is Admin
+     */
+    viewer_is_admin?: boolean;
+    /**
+     * Viewer Is Member
+     */
+    viewer_is_member?: boolean;
+    /**
+     * Viewer Is Authoritative Reviewer
+     */
+    viewer_is_authoritative_reviewer?: boolean;
+    /**
+     * Viewer Data Sharing
+     */
+    viewer_data_sharing?: 'none' | 'anonymous' | 'attributed' | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -3237,7 +4285,7 @@ export type CampaignOutWritable = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOut>;
+    time_series: Array<TimeSeriesOutWritable>;
 };
 
 /**
@@ -3251,6 +4299,10 @@ export type CampaignOutFullWritable = {
      */
     id: number;
     /**
+     * Project Id
+     */
+    project_id: number;
+    /**
      * Name
      */
     name: string;
@@ -3284,6 +4336,22 @@ export type CampaignOutFullWritable = {
      * Annotations Version
      */
     annotations_version?: number;
+    /**
+     * Viewer Is Admin
+     */
+    viewer_is_admin?: boolean;
+    /**
+     * Viewer Is Member
+     */
+    viewer_is_member?: boolean;
+    /**
+     * Viewer Is Authoritative Reviewer
+     */
+    viewer_is_authoritative_reviewer?: boolean;
+    /**
+     * Viewer Data Sharing
+     */
+    viewer_data_sharing?: 'none' | 'anonymous' | 'attributed' | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -3308,7 +4376,7 @@ export type CampaignOutFullWritable = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOut>;
+    time_series: Array<TimeSeriesOutWritable>;
 };
 
 /**
@@ -3328,9 +4396,112 @@ export type ImageryViewOutWritable = {
      */
     display_order: number;
     /**
-     * Collection Refs
+     * Source Ids
      */
-    collection_refs: Array<ViewCollectionRefItem>;
+    source_ids: Array<number>;
+};
+
+/**
+ * MeOut
+ *
+ * The signed-in user's own record. Carries both terms versions so the client
+ * can tell whether this user still has to accept.
+ */
+export type MeOutWritable = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Is Admin
+     */
+    is_admin: boolean;
+    /**
+     * Issuer
+     */
+    issuer: string;
+    /**
+     * External Uid
+     */
+    external_uid: string;
+    /**
+     * Terms Accepted Version
+     */
+    terms_accepted_version?: string | null;
+};
+
+/**
+ * TimeSeriesOut
+ *
+ * Deliberately not a subclass of the create schema: what comes back carries
+ * the resolved index description, and a row written before an index was renamed
+ * should still list rather than fail validation.
+ */
+export type TimeSeriesOutWritable = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Window Name
+     */
+    window_name: string;
+    /**
+     * Start Ym
+     */
+    start_ym: string;
+    /**
+     * End Ym
+     */
+    end_ym: string;
+    /**
+     * Data Source
+     */
+    data_source: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Ts Type
+     */
+    ts_type: string;
+};
+
+/**
+ * TimeseriesBulkCreateResponse
+ */
+export type TimeseriesBulkCreateResponseWritable = {
+    /**
+     * New Items
+     */
+    new_items: Array<TimeSeriesOutWritable>;
+};
+
+/**
+ * TimeseriesListResponse
+ */
+export type TimeseriesListResponseWritable = {
+    /**
+     * Items
+     */
+    items: Array<TimeSeriesOutWritable>;
 };
 
 export type MeData = {
@@ -3344,10 +4515,53 @@ export type MeResponses = {
     /**
      * Successful Response
      */
-    200: UserOutDetailed;
+    200: MeOut;
 };
 
 export type MeResponse = MeResponses[keyof MeResponses];
+
+export type AcceptTermsData = {
+    body: AcceptTermsRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/me/accept-terms';
+};
+
+export type AcceptTermsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AcceptTermsError = AcceptTermsErrors[keyof AcceptTermsErrors];
+
+export type AcceptTermsResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeOut;
+};
+
+export type AcceptTermsResponse = AcceptTermsResponses[keyof AcceptTermsResponses];
+
+export type ListMyDataSharingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/auth/me/data-sharing';
+};
+
+export type ListMyDataSharingResponses = {
+    /**
+     * Response Listmydatasharing
+     *
+     * Successful Response
+     */
+    200: Array<DataSharingOut>;
+};
+
+export type ListMyDataSharingResponse = ListMyDataSharingResponses[keyof ListMyDataSharingResponses];
 
 export type GetTilerTokenData = {
     body?: never;
@@ -3376,7 +4590,7 @@ export type ListUsersResponses = {
      *
      * Successful Response
      */
-    200: Array<UserOutDetailed>;
+    200: Array<UserOutDetailed> | Array<UserOut>;
 };
 
 export type ListUsersResponse = ListUsersResponses[keyof ListUsersResponses];
@@ -3415,171 +4629,6 @@ export type EditUserInfoResponses = {
 };
 
 export type EditUserInfoResponse = EditUserInfoResponses[keyof EditUserInfoResponses];
-
-export type ApproveUserData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/approve';
-};
-
-export type ApproveUserErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ApproveUserError = ApproveUserErrors[keyof ApproveUserErrors];
-
-export type ApproveUserResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type ApproveUserResponse = ApproveUserResponses[keyof ApproveUserResponses];
-
-export type RevokeUserData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/revoke';
-};
-
-export type RevokeUserErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeUserError = RevokeUserErrors[keyof RevokeUserErrors];
-
-export type RevokeUserResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type RevokeUserResponse = RevokeUserResponses[keyof RevokeUserResponses];
-
-export type DenyUserData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/deny';
-};
-
-export type DenyUserErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DenyUserError = DenyUserErrors[keyof DenyUserErrors];
-
-export type DenyUserResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type DenyUserResponse = DenyUserResponses[keyof DenyUserResponses];
-
-export type ApproveUsersBulkData = {
-    body: BulkUserActionRequest;
-    path?: never;
-    query?: never;
-    url: '/api/auth/users/approve';
-};
-
-export type ApproveUsersBulkErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ApproveUsersBulkError = ApproveUsersBulkErrors[keyof ApproveUsersBulkErrors];
-
-export type ApproveUsersBulkResponses = {
-    /**
-     * Successful Response
-     */
-    200: BulkUserActionResponse;
-};
-
-export type ApproveUsersBulkResponse = ApproveUsersBulkResponses[keyof ApproveUsersBulkResponses];
-
-export type RevokeUsersBulkData = {
-    body: BulkUserActionRequest;
-    path?: never;
-    query?: never;
-    url: '/api/auth/users/revoke';
-};
-
-export type RevokeUsersBulkErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeUsersBulkError = RevokeUsersBulkErrors[keyof RevokeUsersBulkErrors];
-
-export type RevokeUsersBulkResponses = {
-    /**
-     * Successful Response
-     */
-    200: BulkUserActionResponse;
-};
-
-export type RevokeUsersBulkResponse = RevokeUsersBulkResponses[keyof RevokeUsersBulkResponses];
-
-export type DenyUsersBulkData = {
-    body: BulkUserActionRequest;
-    path?: never;
-    query?: never;
-    url: '/api/auth/users/deny';
-};
-
-export type DenyUsersBulkErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DenyUsersBulkError = DenyUsersBulkErrors[keyof DenyUsersBulkErrors];
-
-export type DenyUsersBulkResponses = {
-    /**
-     * Successful Response
-     */
-    200: BulkUserActionResponse;
-};
-
-export type DenyUsersBulkResponse = DenyUsersBulkResponses[keyof DenyUsersBulkResponses];
 
 export type GrantAdminSingleData = {
     body?: never;
@@ -3659,74 +4708,6 @@ export type ListGrantableTilersResponses = {
 
 export type ListGrantableTilersResponse = ListGrantableTilersResponses[keyof ListGrantableTilersResponses];
 
-export type RevokeTilerSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-        /**
-         * Tiler Name
-         */
-        tiler_name: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/tilers/{tiler_name}';
-};
-
-export type RevokeTilerSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeTilerSingleError = RevokeTilerSingleErrors[keyof RevokeTilerSingleErrors];
-
-export type RevokeTilerSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type RevokeTilerSingleResponse = RevokeTilerSingleResponses[keyof RevokeTilerSingleResponses];
-
-export type GrantTilerSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-        /**
-         * Tiler Name
-         */
-        tiler_name: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/tilers/{tiler_name}';
-};
-
-export type GrantTilerSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GrantTilerSingleError = GrantTilerSingleErrors[keyof GrantTilerSingleErrors];
-
-export type GrantTilerSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type GrantTilerSingleResponse = GrantTilerSingleResponses[keyof GrantTilerSingleResponses];
-
 export type GrantAdminData = {
     body: BulkUserActionRequest;
     path?: never;
@@ -3777,175 +4758,1267 @@ export type RevokeAdminResponses = {
 
 export type RevokeAdminResponse = RevokeAdminResponses[keyof RevokeAdminResponses];
 
-export type GrantVisitorSingleData = {
+export type ListOrganizationsData = {
     body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/grant-visitor';
-};
-
-export type GrantVisitorSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GrantVisitorSingleError = GrantVisitorSingleErrors[keyof GrantVisitorSingleErrors];
-
-export type GrantVisitorSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type GrantVisitorSingleResponse = GrantVisitorSingleResponses[keyof GrantVisitorSingleResponses];
-
-export type RevokeVisitorSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/revoke-visitor';
-};
-
-export type RevokeVisitorSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeVisitorSingleError = RevokeVisitorSingleErrors[keyof RevokeVisitorSingleErrors];
-
-export type RevokeVisitorSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type RevokeVisitorSingleResponse = RevokeVisitorSingleResponses[keyof RevokeVisitorSingleResponses];
-
-export type GrantVisitorData = {
-    body: BulkUserActionRequest;
     path?: never;
     query?: never;
-    url: '/api/auth/users/grant-visitor';
+    url: '/api/organizations/';
 };
 
-export type GrantVisitorErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GrantVisitorError = GrantVisitorErrors[keyof GrantVisitorErrors];
-
-export type GrantVisitorResponses = {
+export type ListOrganizationsResponses = {
     /**
      * Successful Response
      */
-    200: BulkUserActionResponse;
+    200: OrganizationsListResponse;
 };
 
-export type GrantVisitorResponse = GrantVisitorResponses[keyof GrantVisitorResponses];
+export type ListOrganizationsResponse = ListOrganizationsResponses[keyof ListOrganizationsResponses];
 
-export type RevokeVisitorData = {
-    body: BulkUserActionRequest;
+export type RequestOrganizationData = {
+    body: OrganizationCreate;
     path?: never;
     query?: never;
-    url: '/api/auth/users/revoke-visitor';
+    url: '/api/organizations/';
 };
 
-export type RevokeVisitorErrors = {
+export type RequestOrganizationErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type RevokeVisitorError = RevokeVisitorErrors[keyof RevokeVisitorErrors];
+export type RequestOrganizationError = RequestOrganizationErrors[keyof RequestOrganizationErrors];
 
-export type RevokeVisitorResponses = {
+export type RequestOrganizationResponses = {
     /**
      * Successful Response
      */
-    200: BulkUserActionResponse;
+    201: OrganizationOut;
 };
 
-export type RevokeVisitorResponse = RevokeVisitorResponses[keyof RevokeVisitorResponses];
+export type RequestOrganizationResponse = RequestOrganizationResponses[keyof RequestOrganizationResponses];
 
-export type GrantInternalSingleData = {
+export type ListOrganizationDirectoryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/organizations/directory';
+};
+
+export type ListOrganizationDirectoryResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationDirectoryResponse;
+};
+
+export type ListOrganizationDirectoryResponse = ListOrganizationDirectoryResponses[keyof ListOrganizationDirectoryResponses];
+
+export type RequestOrganizationAccessData = {
+    body: AccessRequestCreate;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/access-request';
+};
+
+export type RequestOrganizationAccessErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestOrganizationAccessError = RequestOrganizationAccessErrors[keyof RequestOrganizationAccessErrors];
+
+export type RequestOrganizationAccessResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RequestOrganizationAccessResponse = RequestOrganizationAccessResponses[keyof RequestOrganizationAccessResponses];
+
+export type ListOrganizationAccessRequestsData = {
     body?: never;
     path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/access-requests';
+};
+
+export type ListOrganizationAccessRequestsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListOrganizationAccessRequestsError = ListOrganizationAccessRequestsErrors[keyof ListOrganizationAccessRequestsErrors];
+
+export type ListOrganizationAccessRequestsResponses = {
+    /**
+     * Successful Response
+     */
+    200: AccessRequestsResponse;
+};
+
+export type ListOrganizationAccessRequestsResponse = ListOrganizationAccessRequestsResponses[keyof ListOrganizationAccessRequestsResponses];
+
+export type ApproveOrganizationAccessRequestData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
         /**
          * User Id
          */
         user_id: string;
     };
     query?: never;
-    url: '/api/auth/users/{user_id}/grant-internal';
+    url: '/api/organizations/{organization_id}/access-requests/{user_id}/approve';
 };
 
-export type GrantInternalSingleErrors = {
+export type ApproveOrganizationAccessRequestErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GrantInternalSingleError = GrantInternalSingleErrors[keyof GrantInternalSingleErrors];
+export type ApproveOrganizationAccessRequestError = ApproveOrganizationAccessRequestErrors[keyof ApproveOrganizationAccessRequestErrors];
 
-export type GrantInternalSingleResponses = {
+export type ApproveOrganizationAccessRequestResponses = {
     /**
      * Successful Response
      */
-    200: UserOutDetailed;
+    204: void;
 };
 
-export type GrantInternalSingleResponse = GrantInternalSingleResponses[keyof GrantInternalSingleResponses];
+export type ApproveOrganizationAccessRequestResponse = ApproveOrganizationAccessRequestResponses[keyof ApproveOrganizationAccessRequestResponses];
 
-export type RevokeInternalSingleData = {
+export type RejectOrganizationAccessRequestData = {
     body?: never;
     path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
         /**
          * User Id
          */
         user_id: string;
     };
     query?: never;
-    url: '/api/auth/users/{user_id}/revoke-internal';
+    url: '/api/organizations/{organization_id}/access-requests/{user_id}/reject';
 };
 
-export type RevokeInternalSingleErrors = {
+export type RejectOrganizationAccessRequestErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type RevokeInternalSingleError = RevokeInternalSingleErrors[keyof RevokeInternalSingleErrors];
+export type RejectOrganizationAccessRequestError = RejectOrganizationAccessRequestErrors[keyof RejectOrganizationAccessRequestErrors];
 
-export type RevokeInternalSingleResponses = {
+export type RejectOrganizationAccessRequestResponses = {
     /**
      * Successful Response
      */
-    200: UserOutDetailed;
+    204: void;
 };
 
-export type RevokeInternalSingleResponse = RevokeInternalSingleResponses[keyof RevokeInternalSingleResponses];
+export type RejectOrganizationAccessRequestResponse = RejectOrganizationAccessRequestResponses[keyof RejectOrganizationAccessRequestResponses];
+
+export type ApproveOrganizationData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/approve';
+};
+
+export type ApproveOrganizationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveOrganizationError = ApproveOrganizationErrors[keyof ApproveOrganizationErrors];
+
+export type ApproveOrganizationResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationOut;
+};
+
+export type ApproveOrganizationResponse = ApproveOrganizationResponses[keyof ApproveOrganizationResponses];
+
+export type RejectOrganizationData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/reject';
+};
+
+export type RejectOrganizationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectOrganizationError = RejectOrganizationErrors[keyof RejectOrganizationErrors];
+
+export type RejectOrganizationResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationOut;
+};
+
+export type RejectOrganizationResponse = RejectOrganizationResponses[keyof RejectOrganizationResponses];
+
+export type UpdateOrganizationData = {
+    body: OrganizationUpdateRequest;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}';
+};
+
+export type UpdateOrganizationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateOrganizationError = UpdateOrganizationErrors[keyof UpdateOrganizationErrors];
+
+export type UpdateOrganizationResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationOut;
+};
+
+export type UpdateOrganizationResponse = UpdateOrganizationResponses[keyof UpdateOrganizationResponses];
+
+export type UpdateInternalStorageData = {
+    body: InternalStorageUpdateRequest;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/internal-storage';
+};
+
+export type UpdateInternalStorageErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateInternalStorageError = UpdateInternalStorageErrors[keyof UpdateInternalStorageErrors];
+
+export type UpdateInternalStorageResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationOut;
+};
+
+export type UpdateInternalStorageResponse = UpdateInternalStorageResponses[keyof UpdateInternalStorageResponses];
+
+export type GetOrganizationUsersData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/users';
+};
+
+export type GetOrganizationUsersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetOrganizationUsersError = GetOrganizationUsersErrors[keyof GetOrganizationUsersErrors];
+
+export type GetOrganizationUsersResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationUsersResponse;
+};
+
+export type GetOrganizationUsersResponse = GetOrganizationUsersResponses[keyof GetOrganizationUsersResponses];
+
+export type AddOrganizationUsersData = {
+    body: AddUsersByEmailRequest;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/users';
+};
+
+export type AddOrganizationUsersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddOrganizationUsersError = AddOrganizationUsersErrors[keyof AddOrganizationUsersErrors];
+
+export type AddOrganizationUsersResponses = {
+    /**
+     * Successful Response
+     */
+    200: AddUsersByEmailResult;
+};
+
+export type AddOrganizationUsersResponse = AddOrganizationUsersResponses[keyof AddOrganizationUsersResponses];
+
+export type ListOrganizationInvitesData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/invites';
+};
+
+export type ListOrganizationInvitesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListOrganizationInvitesError = ListOrganizationInvitesErrors[keyof ListOrganizationInvitesErrors];
+
+export type ListOrganizationInvitesResponses = {
+    /**
+     * Successful Response
+     */
+    200: InvitesListResponse;
+};
+
+export type ListOrganizationInvitesResponse = ListOrganizationInvitesResponses[keyof ListOrganizationInvitesResponses];
+
+export type RevokeOrganizationInviteData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * Invite Id
+         */
+        invite_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/invites/{invite_id}';
+};
+
+export type RevokeOrganizationInviteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeOrganizationInviteError = RevokeOrganizationInviteErrors[keyof RevokeOrganizationInviteErrors];
+
+export type RevokeOrganizationInviteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RevokeOrganizationInviteResponse = RevokeOrganizationInviteResponses[keyof RevokeOrganizationInviteResponses];
+
+export type MakeOrganizationAdminData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/users/{user_id}/make-admin';
+};
+
+export type MakeOrganizationAdminErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MakeOrganizationAdminError = MakeOrganizationAdminErrors[keyof MakeOrganizationAdminErrors];
+
+export type MakeOrganizationAdminResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type MakeOrganizationAdminResponse = MakeOrganizationAdminResponses[keyof MakeOrganizationAdminResponses];
+
+export type DemoteOrganizationAdminData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/users/{user_id}/demote-admin';
+};
+
+export type DemoteOrganizationAdminErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DemoteOrganizationAdminError = DemoteOrganizationAdminErrors[keyof DemoteOrganizationAdminErrors];
+
+export type DemoteOrganizationAdminResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DemoteOrganizationAdminResponse = DemoteOrganizationAdminResponses[keyof DemoteOrganizationAdminResponses];
+
+export type RemoveOrganizationMemberData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/users/{user_id}';
+};
+
+export type RemoveOrganizationMemberErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveOrganizationMemberError = RemoveOrganizationMemberErrors[keyof RemoveOrganizationMemberErrors];
+
+export type RemoveOrganizationMemberResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RemoveOrganizationMemberResponse = RemoveOrganizationMemberResponses[keyof RemoveOrganizationMemberResponses];
+
+export type ListOrganizationApiKeysData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/api-keys';
+};
+
+export type ListOrganizationApiKeysErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListOrganizationApiKeysError = ListOrganizationApiKeysErrors[keyof ListOrganizationApiKeysErrors];
+
+export type ListOrganizationApiKeysResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationApiKeysResponse;
+};
+
+export type ListOrganizationApiKeysResponse = ListOrganizationApiKeysResponses[keyof ListOrganizationApiKeysResponses];
+
+export type CreateOrganizationApiKeyData = {
+    body: OrganizationApiKeyCreate;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/api-keys';
+};
+
+export type CreateOrganizationApiKeyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateOrganizationApiKeyError = CreateOrganizationApiKeyErrors[keyof CreateOrganizationApiKeyErrors];
+
+export type CreateOrganizationApiKeyResponses = {
+    /**
+     * Successful Response
+     */
+    201: OrganizationApiKeyOut;
+};
+
+export type CreateOrganizationApiKeyResponse = CreateOrganizationApiKeyResponses[keyof CreateOrganizationApiKeyResponses];
+
+export type DeleteOrganizationApiKeyData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * Key Id
+         */
+        key_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/api-keys/{key_id}';
+};
+
+export type DeleteOrganizationApiKeyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteOrganizationApiKeyError = DeleteOrganizationApiKeyErrors[keyof DeleteOrganizationApiKeyErrors];
+
+export type DeleteOrganizationApiKeyResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteOrganizationApiKeyResponse = DeleteOrganizationApiKeyResponses[keyof DeleteOrganizationApiKeyResponses];
+
+export type RotateOrganizationApiKeyData = {
+    body: OrganizationApiKeyUpdate;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * Key Id
+         */
+        key_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/api-keys/{key_id}';
+};
+
+export type RotateOrganizationApiKeyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RotateOrganizationApiKeyError = RotateOrganizationApiKeyErrors[keyof RotateOrganizationApiKeyErrors];
+
+export type RotateOrganizationApiKeyResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RotateOrganizationApiKeyResponse = RotateOrganizationApiKeyResponses[keyof RotateOrganizationApiKeyResponses];
+
+export type GetOrganizationTilersData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/tilers';
+};
+
+export type GetOrganizationTilersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetOrganizationTilersError = GetOrganizationTilersErrors[keyof GetOrganizationTilersErrors];
+
+export type GetOrganizationTilersResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationTilersOut;
+};
+
+export type GetOrganizationTilersResponse = GetOrganizationTilersResponses[keyof GetOrganizationTilersResponses];
+
+export type SetOrganizationTilersData = {
+    body: SetOrganizationTilersRequest;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/tilers';
+};
+
+export type SetOrganizationTilersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetOrganizationTilersError = SetOrganizationTilersErrors[keyof SetOrganizationTilersErrors];
+
+export type SetOrganizationTilersResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationTilersOut;
+};
+
+export type SetOrganizationTilersResponse = SetOrganizationTilersResponses[keyof SetOrganizationTilersResponses];
+
+export type ListProjectsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/projects/';
+};
+
+export type ListProjectsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProjectsListResponse;
+};
+
+export type ListProjectsResponse = ListProjectsResponses[keyof ListProjectsResponses];
+
+export type CreateProjectData = {
+    body: ProjectCreate;
+    path?: never;
+    query?: never;
+    url: '/api/projects/';
+};
+
+export type CreateProjectErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateProjectError = CreateProjectErrors[keyof CreateProjectErrors];
+
+export type CreateProjectResponses = {
+    /**
+     * Successful Response
+     */
+    201: ProjectOut;
+};
+
+export type CreateProjectResponse = CreateProjectResponses[keyof CreateProjectResponses];
+
+export type DeleteProjectData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}';
+};
+
+export type DeleteProjectErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteProjectError = DeleteProjectErrors[keyof DeleteProjectErrors];
+
+export type DeleteProjectResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteProjectResponse = DeleteProjectResponses[keyof DeleteProjectResponses];
+
+export type GetProjectData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}';
+};
+
+export type GetProjectErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetProjectError = GetProjectErrors[keyof GetProjectErrors];
+
+export type GetProjectResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProjectOut;
+};
+
+export type GetProjectResponse = GetProjectResponses[keyof GetProjectResponses];
+
+export type UpdateProjectData = {
+    body: ProjectUpdateRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}';
+};
+
+export type UpdateProjectErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateProjectError = UpdateProjectErrors[keyof UpdateProjectErrors];
+
+export type UpdateProjectResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProjectOut;
+};
+
+export type UpdateProjectResponse = UpdateProjectResponses[keyof UpdateProjectResponses];
+
+export type ListProjectCampaignsData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/campaigns';
+};
+
+export type ListProjectCampaignsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListProjectCampaignsError = ListProjectCampaignsErrors[keyof ListProjectCampaignsErrors];
+
+export type ListProjectCampaignsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignsListResponse;
+};
+
+export type ListProjectCampaignsResponse = ListProjectCampaignsResponses[keyof ListProjectCampaignsResponses];
+
+export type GetProjectTilersData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tilers';
+};
+
+export type GetProjectTilersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetProjectTilersError = GetProjectTilersErrors[keyof GetProjectTilersErrors];
+
+export type GetProjectTilersResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProjectTilersOut;
+};
+
+export type GetProjectTilersResponse = GetProjectTilersResponses[keyof GetProjectTilersResponses];
+
+export type GetProjectOrganizationKeysData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/organization-keys';
+};
+
+export type GetProjectOrganizationKeysErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetProjectOrganizationKeysError = GetProjectOrganizationKeysErrors[keyof GetProjectOrganizationKeysErrors];
+
+export type GetProjectOrganizationKeysResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationApiKeysResponse;
+};
+
+export type GetProjectOrganizationKeysResponse = GetProjectOrganizationKeysResponses[keyof GetProjectOrganizationKeysResponses];
+
+export type GetProjectUsersData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/users';
+};
+
+export type GetProjectUsersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetProjectUsersError = GetProjectUsersErrors[keyof GetProjectUsersErrors];
+
+export type GetProjectUsersResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProjectUsersResponse;
+};
+
+export type GetProjectUsersResponse = GetProjectUsersResponses[keyof GetProjectUsersResponses];
+
+export type AddProjectUsersData = {
+    body: AddProjectUsersByEmailRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/users';
+};
+
+export type AddProjectUsersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddProjectUsersError = AddProjectUsersErrors[keyof AddProjectUsersErrors];
+
+export type AddProjectUsersResponses = {
+    /**
+     * Successful Response
+     */
+    200: AddUsersByEmailResult;
+};
+
+export type AddProjectUsersResponse = AddProjectUsersResponses[keyof AddProjectUsersResponses];
+
+export type ListProjectInvitesData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/invites';
+};
+
+export type ListProjectInvitesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListProjectInvitesError = ListProjectInvitesErrors[keyof ListProjectInvitesErrors];
+
+export type ListProjectInvitesResponses = {
+    /**
+     * Successful Response
+     */
+    200: InvitesListResponse;
+};
+
+export type ListProjectInvitesResponse = ListProjectInvitesResponses[keyof ListProjectInvitesResponses];
+
+export type RevokeProjectInviteData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+        /**
+         * Invite Id
+         */
+        invite_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/invites/{invite_id}';
+};
+
+export type RevokeProjectInviteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeProjectInviteError = RevokeProjectInviteErrors[keyof RevokeProjectInviteErrors];
+
+export type RevokeProjectInviteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RevokeProjectInviteResponse = RevokeProjectInviteResponses[keyof RevokeProjectInviteResponses];
+
+export type AddProjectUsersByIdsData = {
+    body: AddProjectUsersByIdsRequest;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/users/by-ids';
+};
+
+export type AddProjectUsersByIdsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddProjectUsersByIdsError = AddProjectUsersByIdsErrors[keyof AddProjectUsersByIdsErrors];
+
+export type AddProjectUsersByIdsResponses = {
+    /**
+     * Successful Response
+     */
+    201: unknown;
+};
+
+export type MakeProjectAdminData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/users/{user_id}/make-admin';
+};
+
+export type MakeProjectAdminErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MakeProjectAdminError = MakeProjectAdminErrors[keyof MakeProjectAdminErrors];
+
+export type MakeProjectAdminResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type MakeProjectAdminResponse = MakeProjectAdminResponses[keyof MakeProjectAdminResponses];
+
+export type DemoteProjectAdminData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/users/{user_id}/demote-admin';
+};
+
+export type DemoteProjectAdminErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DemoteProjectAdminError = DemoteProjectAdminErrors[keyof DemoteProjectAdminErrors];
+
+export type DemoteProjectAdminResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DemoteProjectAdminResponse = DemoteProjectAdminResponses[keyof DemoteProjectAdminResponses];
+
+export type MakeProjectAuthoritativeReviewerData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/users/{user_id}/make-authoritative-reviewer';
+};
+
+export type MakeProjectAuthoritativeReviewerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MakeProjectAuthoritativeReviewerError = MakeProjectAuthoritativeReviewerErrors[keyof MakeProjectAuthoritativeReviewerErrors];
+
+export type MakeProjectAuthoritativeReviewerResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type MakeProjectAuthoritativeReviewerResponse = MakeProjectAuthoritativeReviewerResponses[keyof MakeProjectAuthoritativeReviewerResponses];
+
+export type DemoteProjectAuthoritativeReviewerData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/users/{user_id}/demote-authoritative-reviewer';
+};
+
+export type DemoteProjectAuthoritativeReviewerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DemoteProjectAuthoritativeReviewerError = DemoteProjectAuthoritativeReviewerErrors[keyof DemoteProjectAuthoritativeReviewerErrors];
+
+export type DemoteProjectAuthoritativeReviewerResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DemoteProjectAuthoritativeReviewerResponse = DemoteProjectAuthoritativeReviewerResponses[keyof DemoteProjectAuthoritativeReviewerResponses];
+
+export type RemoveProjectUserData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/users/{user_id}';
+};
+
+export type RemoveProjectUserErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveProjectUserError = RemoveProjectUserErrors[keyof RemoveProjectUserErrors];
+
+export type RemoveProjectUserResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RemoveProjectUserResponse = RemoveProjectUserResponses[keyof RemoveProjectUserResponses];
 
 export type ListAllCampaignsData = {
     body?: never;
@@ -4048,8 +6121,8 @@ export type GetCampaignResponses = {
 
 export type GetCampaignResponse = GetCampaignResponses[keyof GetCampaignResponses];
 
-export type AddUsersToCampaignData = {
-    body: AssignUsersToCampaignRequest;
+export type DuplicateCampaignData = {
+    body: CampaignDuplicateRequest;
     path: {
         /**
          * Campaign Id
@@ -4057,24 +6130,26 @@ export type AddUsersToCampaignData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/assign-users';
+    url: '/api/campaigns/{campaign_id}/duplicate';
 };
 
-export type AddUsersToCampaignErrors = {
+export type DuplicateCampaignErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type AddUsersToCampaignError = AddUsersToCampaignErrors[keyof AddUsersToCampaignErrors];
+export type DuplicateCampaignError = DuplicateCampaignErrors[keyof DuplicateCampaignErrors];
 
-export type AddUsersToCampaignResponses = {
+export type DuplicateCampaignResponses = {
     /**
      * Successful Response
      */
-    201: unknown;
+    201: CampaignOut;
 };
+
+export type DuplicateCampaignResponse = DuplicateCampaignResponses[keyof DuplicateCampaignResponses];
 
 export type GetCampaignWithImageryWindowsData = {
     body?: never;
@@ -4106,74 +6181,8 @@ export type GetCampaignWithImageryWindowsResponses = {
 
 export type GetCampaignWithImageryWindowsResponse = GetCampaignWithImageryWindowsResponses[keyof GetCampaignWithImageryWindowsResponses];
 
-export type MakeUserCampaignAdminData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query: {
-        /**
-         * New Admin User Id
-         */
-        new_admin_user_id: string;
-    };
-    url: '/api/campaigns/{campaign_id}/make-user-admin';
-};
-
-export type MakeUserCampaignAdminErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type MakeUserCampaignAdminError = MakeUserCampaignAdminErrors[keyof MakeUserCampaignAdminErrors];
-
-export type MakeUserCampaignAdminResponses = {
-    /**
-     * Successful Response
-     */
-    201: unknown;
-};
-
-export type MakeUserAuthorativeReviewerData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query: {
-        /**
-         * New Authorative Reviewer Id
-         */
-        new_authorative_reviewer_id: string;
-    };
-    url: '/api/campaigns/{campaign_id}/make-user-authorative-reviewer';
-};
-
-export type MakeUserAuthorativeReviewerErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type MakeUserAuthorativeReviewerError = MakeUserAuthorativeReviewerErrors[keyof MakeUserAuthorativeReviewerErrors];
-
-export type MakeUserAuthorativeReviewerResponses = {
-    /**
-     * Successful Response
-     */
-    201: unknown;
-};
-
-export type GetCampaignUsersData = {
-    body?: never;
+export type SetDataSharingData = {
+    body: SetDataSharingRequest;
     path: {
         /**
          * Campaign Id
@@ -4181,26 +6190,26 @@ export type GetCampaignUsersData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/users';
+    url: '/api/campaigns/{campaign_id}/data-sharing';
 };
 
-export type GetCampaignUsersErrors = {
+export type SetDataSharingErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetCampaignUsersError = GetCampaignUsersErrors[keyof GetCampaignUsersErrors];
+export type SetDataSharingError = SetDataSharingErrors[keyof SetDataSharingErrors];
 
-export type GetCampaignUsersResponses = {
+export type SetDataSharingResponses = {
     /**
      * Successful Response
      */
-    200: CampaignUsersResponse;
+    200: DataSharingOut;
 };
 
-export type GetCampaignUsersResponse = GetCampaignUsersResponses[keyof GetCampaignUsersResponses];
+export type SetDataSharingResponse = SetDataSharingResponses[keyof SetDataSharingResponses];
 
 export type UpdateCampaignNameData = {
     body: UpdateCampaignNameRequest;
@@ -4231,36 +6240,6 @@ export type UpdateCampaignNameResponses = {
 };
 
 export type UpdateCampaignNameResponse = UpdateCampaignNameResponses[keyof UpdateCampaignNameResponses];
-
-export type UpdateCampaignVisibilityData = {
-    body: UpdateCampaignVisibilityRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/visibility';
-};
-
-export type UpdateCampaignVisibilityErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignVisibilityError = UpdateCampaignVisibilityErrors[keyof UpdateCampaignVisibilityErrors];
-
-export type UpdateCampaignVisibilityResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignVisibilityResponse = UpdateCampaignVisibilityResponses[keyof UpdateCampaignVisibilityResponses];
 
 export type UpdateCampaignGuideData = {
     body: UpdateCampaignGuideRequest;
@@ -4471,106 +6450,6 @@ export type UpdateLabellingPolicyResponses = {
 };
 
 export type UpdateLabellingPolicyResponse = UpdateLabellingPolicyResponses[keyof UpdateLabellingPolicyResponses];
-
-export type RemoveUserFromCampaignData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/users/{user_id}';
-};
-
-export type RemoveUserFromCampaignErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RemoveUserFromCampaignError = RemoveUserFromCampaignErrors[keyof RemoveUserFromCampaignErrors];
-
-export type RemoveUserFromCampaignResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type RemoveUserFromCampaignResponse = RemoveUserFromCampaignResponses[keyof RemoveUserFromCampaignResponses];
-
-export type DemoteCampaignAdminData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    url: '/api/campaigns/{campaign_id}/demote-admin';
-};
-
-export type DemoteCampaignAdminErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DemoteCampaignAdminError = DemoteCampaignAdminErrors[keyof DemoteCampaignAdminErrors];
-
-export type DemoteCampaignAdminResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type DemoteAuthorativeReviewerData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    url: '/api/campaigns/{campaign_id}/demote-auth-reviewer';
-};
-
-export type DemoteAuthorativeReviewerErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DemoteAuthorativeReviewerError = DemoteAuthorativeReviewerErrors[keyof DemoteAuthorativeReviewerErrors];
-
-export type DemoteAuthorativeReviewerResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
 
 export type AssignTasksToUsersData = {
     body: AssignTasksToUsersRequest;
@@ -5072,6 +6951,45 @@ export type ClaimAnnotationTaskResponses = {
 
 export type ClaimAnnotationTaskResponse = ClaimAnnotationTaskResponses[keyof ClaimAnnotationTaskResponses];
 
+export type ClaimNextAnnotationTaskData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Task Set Id
+         */
+        task_set_id?: number | null;
+        /**
+         * After Annotation Number
+         */
+        after_annotation_number?: number | null;
+    };
+    url: '/api/campaigns/{campaign_id}/annotation-tasks/claim-next';
+};
+
+export type ClaimNextAnnotationTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimNextAnnotationTaskError = ClaimNextAnnotationTaskErrors[keyof ClaimNextAnnotationTaskErrors];
+
+export type ClaimNextAnnotationTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClaimNextResponse;
+};
+
+export type ClaimNextAnnotationTaskResponse = ClaimNextAnnotationTaskResponses[keyof ClaimNextAnnotationTaskResponses];
+
 export type ValidateAnnotationSubmissionData = {
     body?: never;
     path: {
@@ -5350,7 +7268,7 @@ export type DeleteAnnotationResponses = {
      *
      * Successful Response
      */
-    200: AnnotationTaskSubmitResponse | null;
+    200: TaskStatusOut | null;
 };
 
 export type DeleteAnnotationResponse = DeleteAnnotationResponses[keyof DeleteAnnotationResponses];
@@ -5834,50 +7752,6 @@ export type GenerateTasksFromSamplingResponses = {
 
 export type GenerateTasksFromSamplingResponse = GenerateTasksFromSamplingResponses[keyof GenerateTasksFromSamplingResponses];
 
-export type ListTilersData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/imagery/tilers';
-};
-
-export type ListTilersResponses = {
-    /**
-     * Successful Response
-     */
-    200: AllowedTilersOut;
-};
-
-export type ListTilersResponse = ListTilersResponses[keyof ListTilersResponses];
-
-export type CreateImageryData = {
-    body: ImageryEditorStateCreate;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery';
-};
-
-export type CreateImageryErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateImageryError = CreateImageryErrors[keyof CreateImageryErrors];
-
-export type CreateImageryResponses = {
-    /**
-     * Successful Response
-     */
-    201: unknown;
-};
-
 export type SaveImageryData = {
     body: ImageryEditorStateCreate;
     path: {
@@ -5965,6 +7839,196 @@ export type RefreshCollectionImageryResponses = {
      */
     200: unknown;
 };
+
+export type RefreshSourceImageryData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Source Id
+         */
+        source_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/sources/{source_id}/refresh';
+};
+
+export type RefreshSourceImageryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshSourceImageryError = RefreshSourceImageryErrors[keyof RefreshSourceImageryErrors];
+
+export type RefreshSourceImageryResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type CreateImageryViewData = {
+    body: ImageryViewCreate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views';
+};
+
+export type CreateImageryViewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateImageryViewError = CreateImageryViewErrors[keyof CreateImageryViewErrors];
+
+export type CreateImageryViewResponses = {
+    /**
+     * Successful Response
+     */
+    201: ImageryViewOut;
+};
+
+export type CreateImageryViewResponse = CreateImageryViewResponses[keyof CreateImageryViewResponses];
+
+export type ReorderImageryViewsData = {
+    body: ImageryViewOrderUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views/order';
+};
+
+export type ReorderImageryViewsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReorderImageryViewsError = ReorderImageryViewsErrors[keyof ReorderImageryViewsErrors];
+
+export type ReorderImageryViewsResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type ReorderImageryViewsResponse = ReorderImageryViewsResponses[keyof ReorderImageryViewsResponses];
+
+export type DeleteImageryViewData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * View Id
+         */
+        view_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views/{view_id}';
+};
+
+export type DeleteImageryViewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteImageryViewError = DeleteImageryViewErrors[keyof DeleteImageryViewErrors];
+
+export type DeleteImageryViewResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteImageryViewResponse = DeleteImageryViewResponses[keyof DeleteImageryViewResponses];
+
+export type UpdateImageryViewData = {
+    body: ImageryViewUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * View Id
+         */
+        view_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views/{view_id}';
+};
+
+export type UpdateImageryViewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateImageryViewError = UpdateImageryViewErrors[keyof UpdateImageryViewErrors];
+
+export type UpdateImageryViewResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImageryViewOut;
+};
+
+export type UpdateImageryViewResponse = UpdateImageryViewResponses[keyof UpdateImageryViewResponses];
+
+export type ListCampaignOrganizationKeysData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/organization-keys';
+};
+
+export type ListCampaignOrganizationKeysErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCampaignOrganizationKeysError = ListCampaignOrganizationKeysErrors[keyof ListCampaignOrganizationKeysErrors];
+
+export type ListCampaignOrganizationKeysResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizationApiKeysResponse;
+};
+
+export type ListCampaignOrganizationKeysResponse = ListCampaignOrganizationKeysResponses[keyof ListCampaignOrganizationKeysResponses];
 
 export type SetBasemapApiKeyData = {
     body: ApiKeyUpdate;
@@ -6129,9 +8193,25 @@ export type ProxySliceTileResponses = {
 export type ListCatalogsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query: {
+        /**
+         * Project Id
+         *
+         * Project the wizard is configuring imagery for
+         */
+        project_id: number;
+    };
     url: '/api/stac/catalogs';
 };
+
+export type ListCatalogsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCatalogsError = ListCatalogsErrors[keyof ListCatalogsErrors];
 
 export type ListCatalogsResponses = {
     /**
@@ -6154,6 +8234,12 @@ export type GetCollectionsData = {
          * STAC API URL
          */
         catalog_url: string;
+        /**
+         * Project Id
+         *
+         * Project the wizard is configuring imagery for
+         */
+        project_id: number;
     };
     url: '/api/stac/collections';
 };
@@ -6181,7 +8267,14 @@ export type GetCollectionsResponse = GetCollectionsResponses[keyof GetCollection
 export type SearchData = {
     body: SearchRequest;
     path?: never;
-    query?: never;
+    query: {
+        /**
+         * Project Id
+         *
+         * Project the wizard is configuring imagery for
+         */
+        project_id: number;
+    };
     url: '/api/stac/search';
 };
 
@@ -6202,6 +8295,63 @@ export type SearchResponses = {
 };
 
 export type SearchResponse2 = SearchResponses[keyof SearchResponses];
+
+export type ListPlanetSeriesData = {
+    body: PlanetCredentials;
+    path?: never;
+    query?: never;
+    url: '/api/planet/series';
+};
+
+export type ListPlanetSeriesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPlanetSeriesError = ListPlanetSeriesErrors[keyof ListPlanetSeriesErrors];
+
+export type ListPlanetSeriesResponses = {
+    /**
+     * Response Listplanetseries
+     *
+     * Successful Response
+     */
+    200: Array<PlanetSeriesOut>;
+};
+
+export type ListPlanetSeriesResponse = ListPlanetSeriesResponses[keyof ListPlanetSeriesResponses];
+
+export type ListPlanetSeriesMosaicsData = {
+    body: PlanetCredentials;
+    path: {
+        /**
+         * Series Id
+         */
+        series_id: string;
+    };
+    query?: never;
+    url: '/api/planet/series/{series_id}/mosaics';
+};
+
+export type ListPlanetSeriesMosaicsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPlanetSeriesMosaicsError = ListPlanetSeriesMosaicsErrors[keyof ListPlanetSeriesMosaicsErrors];
+
+export type ListPlanetSeriesMosaicsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlanetSeriesMosaicsOut;
+};
+
+export type ListPlanetSeriesMosaicsResponse = ListPlanetSeriesMosaicsResponses[keyof ListPlanetSeriesMosaicsResponses];
 
 export type ListCustomMapsData = {
     body?: never;

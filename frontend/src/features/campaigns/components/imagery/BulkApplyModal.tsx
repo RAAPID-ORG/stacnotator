@@ -13,9 +13,12 @@ import type {
   VizParams,
 } from './types';
 import { emptyVizParams } from './types';
+import { buildStacAutoQuery } from './stacQuery';
 import { VizConfigPanel } from './VizConfigPanel';
 import { CoverSearchParams } from './CoverSearchParams';
 import type { ImageryController } from './controller';
+import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
+import { compositingMethods, servingTiler } from './tilerCapabilities';
 
 export type BulkFocus = { kind: 'viz'; name: string } | { kind: 'search' };
 
@@ -159,27 +162,6 @@ const applyCoverSearch = (source: ImagerySource, s: SearchValue): CollectionItem
       : c
   );
 
-const buildAutoQuery = (
-  stacCollectionId: string,
-  cloudCover: number | undefined
-): Record<string, unknown> => {
-  const cc = cloudCover ?? 100;
-  return {
-    collections: [stacCollectionId],
-    filter: {
-      op: 'and',
-      args: [
-        {
-          op: 'anyinteracts',
-          args: [{ property: 'datetime' }, { interval: ['{sliceStart}', '{sliceEnd}'] }],
-        },
-        ...(cc < 100 ? [{ op: '<=', args: [{ property: 'eo:cloud_cover' }, cc] }] : []),
-      ],
-    },
-    filterLang: 'cql2-json',
-  };
-};
-
 interface AspectSectionProps {
   title: string;
   uniform: boolean;
@@ -209,6 +191,7 @@ interface BulkApplyModalProps {
 export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApplyModalProps) => {
   const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
   const [hasCloudCover, setHasCloudCover] = useState(false);
+  const { tilers } = useProjectTilers(controller.projectId);
 
   const cols = stacCols(source);
   const first = cols[0];
@@ -221,7 +204,7 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
     const d = sbData(first);
     if (!d.catalogUrl || !d.stacCollectionId) return;
     let cancelled = false;
-    getCollections({ query: { catalog_url: d.catalogUrl } })
+    getCollections({ query: { catalog_url: d.catalogUrl, project_id: controller.projectId } })
       .then(({ data, error }) => {
         if (cancelled || error || !data) return;
         const match = data.find((c) => c.id === d.stacCollectionId);
@@ -232,7 +215,7 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
     return () => {
       cancelled = true;
     };
-  }, [first]);
+  }, [first, controller.projectId]);
 
   if (focus.kind === 'viz') {
     return (
@@ -243,6 +226,9 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
         collectionId={collectionId}
         availableAssets={availableAssets}
         showCompositing={allMosaic}
+        compositingMethods={compositingMethods(
+          first ? servingTiler(sbData(first).catalogUrl, sbData(first).tiler, tilers) : undefined
+        )}
         hasCover={hasCover}
         onClose={onClose}
       />
@@ -279,6 +265,7 @@ interface VizFocusProps {
   collectionId: string;
   availableAssets: Record<string, AssetInfo>;
   showCompositing: boolean;
+  compositingMethods: string[];
   hasCover: boolean;
   onClose: () => void;
 }
@@ -290,6 +277,7 @@ const VizFocus = ({
   collectionId,
   availableAssets,
   showCompositing,
+  compositingMethods,
   hasCover,
   onClose,
 }: VizFocusProps) => {
@@ -325,6 +313,7 @@ const VizFocus = ({
             vizParams={regularDraft}
             onChange={setRegularDraft}
             showCompositing={showCompositing}
+            compositingMethods={compositingMethods}
           />
         </AspectSection>
 
@@ -336,6 +325,7 @@ const VizFocus = ({
               vizParams={coverDraft}
               onChange={setCoverDraft}
               showCompositing
+              compositingMethods={compositingMethods}
             />
           </AspectSection>
         )}
@@ -390,7 +380,10 @@ const SearchFocus = ({
       onItemSortChange={(v) => setDraft({ ...draft, itemSort: v })}
       searchQuery={draft.searchQuery ?? null}
       onSearchQueryChange={(q) => setDraft({ ...draft, searchQuery: q ?? undefined })}
-      autoQuery={buildAutoQuery(collectionId, draft.maxCloudCover)}
+      autoQuery={buildStacAutoQuery(collectionId, {
+        maxCloudCover: draft.maxCloudCover,
+        itemSort: draft.itemSort,
+      })}
       queryLabel={queryLabel}
     />
   );

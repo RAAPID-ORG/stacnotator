@@ -1,10 +1,12 @@
+from functools import lru_cache
+
 from src.auth.providers.base import AuthProvider
 from src.config import get_settings
 
-settings = get_settings()
 
-
+@lru_cache
 def get_auth_provider() -> AuthProvider:
+    settings = get_settings()
     match settings.AUTH_PROVIDER:
         case "firebase":
             from src.auth.providers.firebase import FirebaseAuthProvider

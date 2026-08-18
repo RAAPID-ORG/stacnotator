@@ -7,9 +7,10 @@ import pytest
 from fastapi import HTTPException
 
 
-def _build_db(campaign_result, membership_result):
+def _build_db(campaign_result, membership_result, org_membership=None):
     """Build a mock db where successive db.execute().scalar_one_or_none()
-    calls return campaign_result, then membership_result."""
+    calls return campaign_result, then membership_result. The active-org
+    membership lookup (is_active_org_member) reads db.scalars().first()."""
     results = [campaign_result, membership_result]
     call_index = {"i": 0}
 
@@ -22,6 +23,7 @@ def _build_db(campaign_result, membership_result):
 
     db = MagicMock()
     db.execute.side_effect = _execute_side_effect
+    db.scalars.return_value.first.return_value = org_membership
     return db
 
 
@@ -29,6 +31,17 @@ def _user(is_admin=False):
     """A stand-in for the authenticated User. Platform-admin status is read off
     user.is_admin (roles are selectin-loaded), not a separate query."""
     return MagicMock(id=uuid4(), is_admin=is_admin)
+
+
+def _campaign(visibility="private"):
+    """A stand-in for Campaign, spec'd so that accessing `.is_public` directly
+    (the pre-project-membership shape) raises AttributeError instead of
+    silently auto-creating a MagicMock - access must go through
+    `campaign.project.visibility`."""
+    campaign = MagicMock(spec=["project_id", "project", "id"])
+    campaign.project_id = 1
+    campaign.project = MagicMock(visibility=visibility, organization_id=5)
+    return campaign
 
 
 class TestRequireCampaignAccess:
@@ -44,7 +57,7 @@ class TestRequireCampaignAccess:
     def test_user_not_member_raises_403(self):
         from src.campaigns.dependencies import require_campaign_access
 
-        campaign = MagicMock(is_public=False)
+        campaign = _campaign(visibility="private")
         db = _build_db(campaign, None)
 
         with pytest.raises(HTTPException) as exc_info:
@@ -54,16 +67,35 @@ class TestRequireCampaignAccess:
     def test_public_campaign_grants_access_to_non_member(self):
         from src.campaigns.dependencies import require_campaign_access
 
-        campaign = MagicMock(is_public=True)
+        campaign = _campaign(visibility="public")
         db = _build_db(campaign, None)
 
         result = require_campaign_access(campaign_id=1, db=db, user=_user())
         assert result is campaign
 
+    def test_org_public_campaign_grants_access_to_active_org_member(self):
+        from src.campaigns.dependencies import require_campaign_access
+
+        campaign = _campaign(visibility="organization")
+        db = _build_db(campaign, None, org_membership=MagicMock())
+
+        result = require_campaign_access(campaign_id=1, db=db, user=_user())
+        assert result is campaign
+
+    def test_org_public_campaign_denies_non_org_member(self):
+        from src.campaigns.dependencies import require_campaign_access
+
+        campaign = _campaign(visibility="organization")
+        db = _build_db(campaign, None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_campaign_access(campaign_id=1, db=db, user=_user())
+        assert exc_info.value.status_code == 403
+
     def test_global_admin_bypasses_membership(self):
         from src.campaigns.dependencies import require_campaign_access
 
-        campaign = MagicMock(is_public=False)
+        campaign = _campaign(visibility="private")
         db = _build_db(campaign, None)
 
         result = require_campaign_access(campaign_id=1, db=db, user=_user(is_admin=True))
@@ -72,7 +104,7 @@ class TestRequireCampaignAccess:
     def test_campaign_member_gets_access(self):
         from src.campaigns.dependencies import require_campaign_access
 
-        campaign = MagicMock(is_public=False)
+        campaign = _campaign(visibility="private")
         membership = MagicMock()
         db = _build_db(campaign, membership)
 
@@ -93,7 +125,7 @@ class TestRequireCampaignAdmin:
     def test_non_admin_member_raises_403(self):
         from src.campaigns.dependencies import require_campaign_admin
 
-        campaign = MagicMock(is_public=False)
+        campaign = _campaign(visibility="private")
         db = _build_db(campaign, None)
 
         with pytest.raises(HTTPException) as exc_info:
@@ -103,7 +135,7 @@ class TestRequireCampaignAdmin:
     def test_global_admin_bypasses_campaign_role(self):
         from src.campaigns.dependencies import require_campaign_admin
 
-        campaign = MagicMock(is_public=False)
+        campaign = _campaign(visibility="private")
         db = _build_db(campaign, None)
 
         result = require_campaign_admin(campaign_id=1, db=db, user=_user(is_admin=True))
@@ -112,7 +144,7 @@ class TestRequireCampaignAdmin:
     def test_campaign_admin_gets_access(self):
         from src.campaigns.dependencies import require_campaign_admin
 
-        campaign = MagicMock(is_public=False)
+        campaign = _campaign(visibility="private")
         admin_record = MagicMock()
         db = _build_db(campaign, admin_record)
 

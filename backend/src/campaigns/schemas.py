@@ -7,22 +7,19 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    computed_field,
     field_validator,
 )
 
-from src.auth.schemas import UserOut
 from src.campaigns.form_fields import FormField, validate_form_fields
-from src.custom_maps.schemas import CustomMapOut
+from src.canvas.schemas import CanvasLayoutOut
+from src.custom_layers.schemas import CustomMapOut, VectorLayerOut
 from src.imagery.schemas import (
     BasemapOut,
-    CanvasLayoutOut,
     ImageryEditorStateCreate,
     ImagerySourceOut,
     ImageryViewOut,
 )
 from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
-from src.vector_layers.schemas import VectorLayerOut
 
 
 # ============================================================================
@@ -44,6 +41,14 @@ class LabelBase(BaseModel):
     id: int  # ID that is used for annotation
     name: str
     geometry_type: Literal["point", "polygon", "line"] | None = None
+
+
+def label_id_to_name(labels: dict | None) -> dict[int, str]:
+    """Decode a campaign's labels JSONB ({"1": {"name": "Forest", ...}}) into
+    {label_id: display_name}."""
+    if not isinstance(labels, dict):
+        return {}
+    return {int(label_id): data["name"] for label_id, data in labels.items()}
 
 
 PolicyAudienceKind = Literal["admins", "authoritative", "assignees", "members", "anyone"]
@@ -169,27 +174,18 @@ class CampaignSettingsOut(BaseModel):
     @field_validator("labels", mode="before")
     @classmethod
     def convert_labels(cls, v):
-        """
-        Convert JSONB dict from DB to -> list[Label]
-        New format: {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, name: "Forest", geometry_type: "polygon"}]
-        Legacy format: {"1": "Forest"} -> [{id: 1, name: "Forest", geometry_type: None}]
-        """
-        if isinstance(v, dict):
-            result = []
-            for k, vv in v.items():
-                if isinstance(vv, dict):
-                    result.append(
-                        LabelBase(
-                            id=int(k),
-                            name=vv.get("name", ""),
-                            geometry_type=vv.get("geometry_type"),
-                        )
-                    )
-                else:
-                    # Legacy format: value is just the name string
-                    result.append(LabelBase(id=int(k), name=str(vv)))
-            return result
-        return v
+        """Convert the labels JSONB dict from the DB into list[LabelBase]:
+        {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, ...}]."""
+        if not isinstance(v, dict):
+            return v
+        return [
+            LabelBase(
+                id=int(k),
+                name=vv["name"],
+                geometry_type=vv.get("geometry_type"),
+            )
+            for k, vv in v.items()
+        ]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -224,8 +220,24 @@ class CampaignSettingsCreate(BaseModel):
         }
 
 
+DataSharingChoice = Literal["none", "anonymous", "attributed"]
+"""Whether an annotator lets us publish the annotations they create in a campaign:
+not at all, without their name, or credited to their display name."""
+
+
+class SetDataSharingRequest(BaseModel):
+    choice: DataSharingChoice
+
+
+class DataSharingOut(BaseModel):
+    campaign_id: int
+    campaign_name: str
+    choice: DataSharingChoice
+
+
 class CampaignOut(BaseModel):
     id: int
+    project_id: int
     name: str
     created_at: datetime
     mode: Literal["tasks", "open"]
@@ -234,6 +246,12 @@ class CampaignOut(BaseModel):
     embedding_status: str = "ready"
     registration_errors: list[dict] | None = None
     annotations_version: int = 0
+
+    viewer_is_admin: bool = False
+    viewer_is_member: bool = False
+    viewer_is_authoritative_reviewer: bool = False
+    # None means the viewer has not been asked yet; the prompt keys on that.
+    viewer_data_sharing: DataSharingChoice | None = None
 
     settings: CampaignSettingsOut
     imagery_sources: list[ImagerySourceOut]
@@ -249,7 +267,7 @@ class CampaignOut(BaseModel):
 class CampaignCreate(BaseModel):
     name: str
     mode: Literal["tasks", "open"] = "tasks"  # for default mode. actual ACL in labelling_policy
-    is_public: bool = False
+    project_id: int
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
     timeseries_configs: list[TimeSeriesCreate] | None = None
@@ -260,6 +278,7 @@ class CampaignListItemOut(BaseModel):
     id: int
     name: str
     created_at: datetime
+    project_id: int
     is_admin: bool = False
     is_member: bool = False
     is_public: bool = False
@@ -272,19 +291,12 @@ class CampaignListItemOut(BaseModel):
 class CampaignOutFull(CampaignOut):
     """Campaign with canvas layout information extracted."""
 
-    @computed_field
-    @property
-    def default_main_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_default_main_canvas_layout"):
-            return self._default_main_canvas_layout
-        return None
-
-    @computed_field
-    @property
-    def personal_main_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_personal_main_canvas_layout"):
-            return self._personal_main_canvas_layout
-        return None
+    default_main_canvas_layout: Annotated[
+        CanvasLayoutOut | None, Field(json_schema_extra={"readOnly": True})
+    ]
+    personal_main_canvas_layout: Annotated[
+        CanvasLayoutOut | None, Field(json_schema_extra={"readOnly": True})
+    ]
 
     @classmethod
     def from_orm(cls, obj, user_id: UUID | None = None):
@@ -304,34 +316,26 @@ class CampaignOutFull(CampaignOut):
             for view in obj.imagery_views:
                 views_list.append(ImageryViewOut.from_orm(view, user_id=user_id))
 
-        base_data = {
-            "id": obj.id,
-            "name": obj.name,
-            "created_at": obj.created_at,
-            "mode": obj.mode,
-            "is_public": obj.is_public,
-            "annotations_version": obj.annotations_version,
-            "settings": obj.settings,
-            "time_series": obj.time_series,
-            "imagery_sources": obj.imagery_sources,
-            "imagery_views": views_list,
-            "basemaps": obj.basemaps,
-            "custom_maps": obj.custom_maps,
-            "vector_layers": obj.vector_layers,
-        }
-
-        instance = cls.model_validate(base_data)
-        instance._default_main_canvas_layout = default_layout
-        instance._personal_main_canvas_layout = personal_layout
-        return instance
-
-
-class CampaignUserOut(BaseModel):
-    user: UserOut
-    is_admin: bool
-    is_authorative_reviewer: bool
-
-    model_config = ConfigDict(from_attributes=True)
+        return cls.model_validate(
+            {
+                "id": obj.id,
+                "project_id": obj.project_id,
+                "name": obj.name,
+                "created_at": obj.created_at,
+                "mode": obj.mode,
+                "is_public": obj.is_public,
+                "annotations_version": obj.annotations_version,
+                "settings": obj.settings,
+                "time_series": obj.time_series,
+                "imagery_sources": obj.imagery_sources,
+                "imagery_views": views_list,
+                "basemaps": obj.basemaps,
+                "custom_maps": obj.custom_maps,
+                "vector_layers": obj.vector_layers,
+                "default_main_canvas_layout": default_layout,
+                "personal_main_canvas_layout": personal_layout,
+            }
+        )
 
 
 # ============================================================================
@@ -339,25 +343,20 @@ class CampaignUserOut(BaseModel):
 # ============================================================================
 
 
-class AssignUsersToCampaignRequest(BaseModel):
-    user_ids: list[UUID]
-
-
 class CampaignsListResponse(BaseModel):
     items: list[CampaignListItemOut]
-
-
-class CampaignUsersResponse(BaseModel):
-    campaign_id: int
-    users: list[CampaignUserOut]
 
 
 class UpdateCampaignNameRequest(BaseModel):
     name: str
 
 
-class UpdateCampaignVisibilityRequest(BaseModel):
-    is_public: bool
+class CampaignDuplicateRequest(BaseModel):
+    """Tasks and annotations are deliberate decisions - no defaults."""
+
+    include_tasks: bool
+    include_annotations: bool
+    include_user_layouts: bool = True
 
 
 class UpdateCampaignGuideRequest(BaseModel):
@@ -493,6 +492,9 @@ class AnnotatorInfo(BaseModel):
     user_display_name: str | None
     total_annotations: int
     label_distribution: dict[str, int]  # label name -> count
+    timed_tasks: int = 0  # tasks with a measured duration
+    median_seconds_per_task: int | None = None
+    total_active_seconds: int | None = None
 
 
 class PairwiseAgreement(BaseModel):

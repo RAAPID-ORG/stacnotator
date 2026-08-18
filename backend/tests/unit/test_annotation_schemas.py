@@ -1,5 +1,7 @@
 """Unit tests for annotation Pydantic schema validation of status fields."""
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -12,7 +14,9 @@ from src.annotation.schemas import (
     AnnotationTaskAssignmentOut,
     AnnotationTaskOut,
     AnnotationUpdate,
+    SliceComment,
     compute_task_status_value,
+    normalize_slice_comments,
 )
 
 
@@ -21,25 +25,67 @@ def _base_assignment(status: str) -> dict:
         "user_id": str(uuid4()),
         "status": status,
         "is_review": False,
-        "claimed_at": None,
         "user_email": None,
         "user_display_name": None,
     }
 
 
+def _assignment_row(*, user_id=None, is_review: bool = False) -> SimpleNamespace:
+    """An ORM-shaped `AnnotationTaskAssignment` stand-in: `AnnotationTaskOut`
+    is only ever validated from real ORM rows in production, so tests that
+    exercise its `compute_task_status` validator build attribute-bearing
+    fakes rather than dicts. No status: it is derived from the annotations."""
+    return SimpleNamespace(user_id=user_id or uuid4(), is_review=is_review, user=None)
+
+
+def _annotation_row(
+    user_id, label_id, *, is_authoritative: bool = False, counts_toward_completion=True
+) -> SimpleNamespace:
+    """An ORM-shaped `Annotation` stand-in, matching `_assignment_row`. The
+    counts flag defaults to True: production rows always carry the attached
+    boolean by the time task status is computed."""
+    return SimpleNamespace(
+        id=1,
+        label_id=label_id,
+        created_by_user_id=user_id,
+        is_authoritative=is_authoritative,
+        comment=None,
+        confidence=None,
+        flagged_for_review=False,
+        flag_comment=None,
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
+        updated_at=datetime(2024, 1, 1, tzinfo=UTC),
+        counts_toward_completion=counts_toward_completion,
+        form_values=None,
+        imagery_slice_id=None,
+        imagery_source_name=None,
+        imagery_start_date=None,
+        imagery_end_date=None,
+        creator=None,
+    )
+
+
 def _make_task_out_with_computed_status(assignments_data, annotations_data) -> AnnotationTaskOut:
-    """Construct AnnotationTaskOut and let compute_task_status derive task_status from data."""
+    """Validate an ORM-shaped fake task and let compute_task_status derive
+    task_status from it - the only path `AnnotationTaskOut` is built through
+    in production (`AnnotationTaskOut.model_validate` on a real
+    `AnnotationTask` row)."""
     mock_shape = MagicMock()
     mock_shape.wkt = "POINT (0 0)"
+    fake_task = SimpleNamespace(
+        id=1,
+        annotation_number=1,
+        task_set_id=1,
+        geometry=SimpleNamespace(id=1, geometry=object()),
+        assignments=assignments_data,
+        annotations=annotations_data,
+        has_embedding=False,
+        claimed_by_user_id=None,
+        claimed_at=None,
+        claimed_by=None,
+    )
     with patch("src.annotation.schemas.to_shape", return_value=mock_shape):
-        return AnnotationTaskOut(
-            id=1,
-            annotation_number=1,
-            task_set_id=1,
-            geometry={"id": 1, "geometry": object()},
-            assignments=assignments_data,
-            annotations=annotations_data,
-        )
+        return AnnotationTaskOut.model_validate(fake_task)
 
 
 def test_assignment_status_pending_accepted():
@@ -68,40 +114,56 @@ def test_task_status_pending_when_no_assignments():
 
 
 def test_task_status_done_when_no_assignments_but_labeled():
-    annotation = {
-        "id": 1,
-        "label_id": 1,
-        "created_by_user_id": str(uuid4()),
-        "is_authoritative": False,
-        "comment": None,
-        "confidence": None,
-        "flagged_for_review": False,
-        "flag_comment": None,
-        "created_at": "2024-01-01T00:00:00Z",
-        "updated_at": "2024-01-01T00:00:00Z",
-    }
     obj = _make_task_out_with_computed_status(
         assignments_data=[],
-        annotations_data=[annotation],
+        annotations_data=[_annotation_row(uuid4(), label_id=1)],
     )
     assert obj.task_status == "done"
 
 
-def test_task_status_skipped_when_all_assignments_skipped():
-    user_id = str(uuid4())
-    assignment = {
-        "user_id": user_id,
-        "status": "skipped",
-        "is_review": False,
-        "claimed_at": None,
-        "user_email": None,
-        "user_display_name": None,
-    }
+def test_task_status_skipped_when_all_assignees_skipped():
+    """A skip is a label-less annotation, which is the whole record of it."""
+    user = uuid4()
     obj = _make_task_out_with_computed_status(
-        assignments_data=[assignment],
-        annotations_data=[],
+        assignments_data=[_assignment_row(user_id=user)],
+        annotations_data=[_annotation_row(user, label_id=None)],
     )
     assert obj.task_status == "skipped"
+
+
+def test_task_status_pending_while_the_assignee_has_not_acted():
+    obj = _make_task_out_with_computed_status(
+        assignments_data=[_assignment_row()],
+        annotations_data=[],
+    )
+    assert obj.task_status == "pending"
+
+
+def test_unassigned_task_skipped_by_whoever_picked_it_up():
+    """Nobody was assigned, so the label-less annotation settles it - without
+    this the task would drop back into the pool the moment it was skipped."""
+    obj = _make_task_out_with_computed_status(
+        assignments_data=[],
+        annotations_data=[_annotation_row(uuid4(), label_id=None)],
+    )
+    assert obj.task_status == "skipped"
+
+
+def test_assignment_status_is_derived_from_the_annotation():
+    labeler, skipper, idle = uuid4(), uuid4(), uuid4()
+    obj = _make_task_out_with_computed_status(
+        assignments_data=[
+            _assignment_row(user_id=labeler),
+            _assignment_row(user_id=skipper),
+            _assignment_row(user_id=idle),
+        ],
+        annotations_data=[
+            _annotation_row(labeler, label_id=1),
+            _annotation_row(skipper, label_id=None),
+        ],
+    )
+    by_user = {a.user_id: a.status for a in obj.assignments or []}
+    assert by_user == {labeler: "done", skipper: "skipped", idle: "pending"}
 
 
 def test_task_status_is_literal_type():
@@ -140,8 +202,8 @@ def _annotation(user_id, label_id, *, counts=True, is_authoritative=False):
     }
 
 
-def _assignment(user_id, status="pending", is_review=False):
-    return {"user_id": user_id, "status": status, "is_review": is_review}
+def _assignment(user_id, is_review=False):
+    return {"user_id": user_id, "is_review": is_review}
 
 
 def test_non_counting_label_alone_leaves_task_pending():
@@ -203,24 +265,26 @@ def test_counting_conflict_unaffected_by_agreeing_non_counting_label():
     assert status == "conflicting"
 
 
-def test_missing_counts_toward_completion_key_defaults_to_counting():
-    """Callers that don't pass the flag at all (pre-policy shape) keep the
-    original behavior: the label counts."""
+def test_missing_counts_toward_completion_key_raises():
+    """The flag is mandatory on every task-linked annotation dict; a caller
+    that never attached it fails loudly instead of silently counting."""
     user = uuid4()
-    status = compute_task_status_value(
-        [_assignment(user)],
-        [{"label_id": 1, "created_by_user_id": user, "is_authoritative": False}],
-    )
-    assert status == "done"
+    with pytest.raises(KeyError):
+        compute_task_status_value(
+            [_assignment(user)],
+            [{"label_id": 1, "created_by_user_id": user, "is_authoritative": False}],
+        )
 
 
-def test_none_counts_toward_completion_value_defaults_to_counting():
+def test_none_counts_toward_completion_value_does_not_count():
+    """Only an explicit True counts; None is reserved for standalone
+    annotations and never reaches task-status computation."""
     user = uuid4()
     status = compute_task_status_value(
         [_assignment(user)],
         [_annotation(user, label_id=1, counts=None)],
     )
-    assert status == "done"
+    assert status == "pending"
 
 
 # ============================================================================
@@ -357,76 +421,34 @@ def test_no_review_assignments_drive_by_label_ignored_as_before():
     assert status == "done"
 
 
-def test_annotation_task_out_computes_status_from_counting_flag_via_dict_annotations():
+def test_annotation_task_out_computes_status_from_counting_flag():
     """End-to-end through the pydantic model_validator (not just the pure
-    function): a dict-shaped annotation carrying counts_toward_completion=False
-    must not resolve the task, exercising the same code path the API uses
-    when serializing AnnotationTaskOut."""
+    function): an annotation carrying counts_toward_completion=False must
+    not resolve the task, exercising the same code path the API uses when
+    serializing AnnotationTaskOut."""
     user = uuid4()
     obj = _make_task_out_with_computed_status(
-        assignments_data=[_base_assignment("done")],
-        annotations_data=[
-            {
-                "id": 1,
-                "label_id": 1,
-                "created_by_user_id": str(user),
-                "comment": None,
-                "confidence": None,
-                "is_authoritative": False,
-                "flagged_for_review": False,
-                "flag_comment": None,
-                "created_at": "2024-01-01T00:00:00Z",
-                "updated_at": "2024-01-01T00:00:00Z",
-                "counts_toward_completion": False,
-            }
-        ],
+        assignments_data=[_assignment_row(user_id=user)],
+        annotations_data=[_annotation_row(user, label_id=1, counts_toward_completion=False)],
     )
     assert obj.task_status == "pending"
 
 
-def test_annotation_task_out_threads_is_review_through_object_shaped_assignments():
-    """End-to-end regression for the model_validator's object-shaped
-    assignment branch (`hasattr(a, "user_id")`): is_review must be carried
-    into the assignment dict it builds, not just the already-dict path, or a
-    drive-by reviewer's counting label would never satisfy a review slot
-    when assignments arrive as objects (e.g. AnnotationTaskAssignmentOut)."""
+def test_annotation_task_out_threads_is_review_through_assignment_rows():
+    """End-to-end regression for `task_status_inputs`: is_review must be
+    carried from each ORM-shaped assignment row into the dict
+    `compute_task_status_value` consumes, or a drive-by reviewer's counting
+    label would never satisfy a review slot."""
     primary, drive_by = uuid4(), uuid4()
     reviewer = uuid4()
-    primary_assignment = AnnotationTaskAssignmentOut(
-        user_id=primary, status="pending", is_review=False
-    )
-    reviewer_assignment = AnnotationTaskAssignmentOut(
-        user_id=reviewer, status="pending", is_review=True
-    )
     obj = _make_task_out_with_computed_status(
-        assignments_data=[primary_assignment, reviewer_assignment],
+        assignments_data=[
+            _assignment_row(user_id=primary),
+            _assignment_row(user_id=reviewer, is_review=True),
+        ],
         annotations_data=[
-            {
-                "id": 1,
-                "label_id": 1,
-                "created_by_user_id": primary,
-                "comment": None,
-                "confidence": None,
-                "is_authoritative": False,
-                "flagged_for_review": False,
-                "flag_comment": None,
-                "created_at": "2024-01-01T00:00:00Z",
-                "updated_at": "2024-01-01T00:00:00Z",
-                "counts_toward_completion": True,
-            },
-            {
-                "id": 2,
-                "label_id": 1,
-                "created_by_user_id": drive_by,
-                "comment": None,
-                "confidence": None,
-                "is_authoritative": False,
-                "flagged_for_review": False,
-                "flag_comment": None,
-                "created_at": "2024-01-01T00:00:00Z",
-                "updated_at": "2024-01-01T00:00:00Z",
-                "counts_toward_completion": True,
-            },
+            _annotation_row(primary, label_id=1, counts_toward_completion=True),
+            _annotation_row(drive_by, label_id=1, counts_toward_completion=True),
         ],
     )
     assert obj.task_status == "done"
@@ -470,3 +492,40 @@ class TestCommentLengthCaps:
             AnnotationCreate(label_id=1, geometry_wkt="POINT (0 0)")
         with pytest.raises(ValidationError):
             AnnotationUpdate(label_id=1, geometry_wkt=None, is_authoritative=None)
+
+
+class TestSliceComments:
+    """One note per slice, blanks dropped - the rule every write path shares."""
+
+    @staticmethod
+    def _note(slice_id: int, text: str) -> SliceComment:
+        return SliceComment(slice_id=slice_id, text=text, source_name="S2")
+
+    def test_last_note_on_a_slice_wins(self):
+        stored = normalize_slice_comments(
+            [self._note(1, "cloudy"), self._note(2, "clear"), self._note(1, "actually clear")]
+        )
+        assert stored is not None
+        assert {note["slice_id"]: note["text"] for note in stored} == {
+            1: "actually clear",
+            2: "clear",
+        }
+
+    def test_blank_notes_are_dropped(self):
+        assert normalize_slice_comments([self._note(1, "   ")]) is None
+
+    def test_nothing_stores_as_null_not_an_empty_list(self):
+        assert normalize_slice_comments([]) is None
+        assert normalize_slice_comments(None) is None
+
+    def test_note_text_capped(self):
+        with pytest.raises(ValidationError):
+            SliceComment(slice_id=1, text="x" * 2001)
+
+    def test_list_length_capped(self):
+        with pytest.raises(ValidationError):
+            AnnotationFromTaskCreate(
+                label_id=1,
+                comment=None,
+                slice_comments=[self._note(i, "note") for i in range(101)],
+            )

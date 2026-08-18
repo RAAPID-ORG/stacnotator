@@ -7,8 +7,8 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.annotation import embeddings_service, service
-from src.annotation import io as annotation_io
+from src.annotation import claims, embeddings_service, export, ingest, service, spatial
+from src.annotation.models import Annotation
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationDensityCell,
@@ -23,25 +23,26 @@ from src.annotation.schemas import (
     BatchCreateAnnotationsResponse,
     BatchDeleteAnnotationsRequest,
     BatchDeleteAnnotationsResponse,
+    ClaimNextResponse,
     ClaimTaskResponse,
     KnnValidationStatusOut,
+    TaskStatusOut,
     ValidateLabelSubmissionsResponse,
 )
 from src.annotation.tiles import InvalidBBoxError, InvalidTileError, parse_bbox
-from src.auth.dependencies import require_approved_user, require_authenticated_user
+from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
+from src.filenames import clean_filename
 from src.tile_bulkhead import tile_slot
-from src.utils import FunctionNameOperationIdRoute, clean_filename
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     tags=["Annotations"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 logger = logging.getLogger(__name__)
@@ -74,40 +75,12 @@ def complete_annotation_task(
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AnnotationTaskSubmitResponse:
-    # Get the specific task efficiently
-    annotation_task = service.get_annotation_task_by_id(
+    return service.submit_task_annotation(
         db=db,
-        task_id=annotation_task_id,
         campaign=campaign,
-    )
-
-    if annotation_task is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Annotation task not found in this campaign",
-        )
-
-    # Persist annotation
-    result_annotation = service.add_annotation_for_task(
-        db=db,
-        annotation_task=annotation_task,
+        task_id=annotation_task_id,
         annotation_create=annotation,
         user_id=user.id,
-    )
-
-    # Re-fetch the task with all relationships for accurate status computation
-    refreshed_task = service.get_annotation_task_by_id(
-        db=db,
-        task_id=annotation_task_id,
-        campaign=campaign,
-    )
-
-    task_out = AnnotationTaskOut.model_validate(refreshed_task)
-
-    return AnnotationTaskSubmitResponse(
-        annotation=result_annotation,
-        task_status=task_out.task_status,
-        assignment_status=service.get_user_assignment_status(refreshed_task, user.id),
     )
 
 
@@ -122,13 +95,47 @@ def claim_annotation_task(
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> ClaimTaskResponse:
-    assignment = service.claim_task_for_user(
+    outcome = claims.claim_task(
         db=db,
         campaign_id=campaign_id,
         task_id=annotation_task_id,
         user_id=user.id,
     )
-    return ClaimTaskResponse(task_id=annotation_task_id, claimed_at=assignment.claimed_at)
+    return ClaimTaskResponse(
+        task_id=annotation_task_id,
+        claimed=outcome.claimed,
+        claimed_at=outcome.claimed_at,
+        holder_user_id=outcome.holder_user_id,
+        holder_display_name=outcome.holder_display_name,
+    )
+
+
+@router.post(
+    "/campaigns/{campaign_id}/annotation-tasks/claim-next",
+    response_model=ClaimNextResponse,
+)
+def claim_next_annotation_task(
+    campaign_id: int,
+    task_set_id: int | None = None,
+    after_annotation_number: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> ClaimNextResponse:
+    """Hand out the next task nobody is working on, claimed in the same
+    transaction so simultaneous callers get different ones.
+
+    `after_annotation_number` keeps the caller moving forward through the
+    campaign and wraps once nothing is left ahead of them.
+    """
+    task = service.claim_next_task(
+        db=db,
+        campaign=campaign,
+        user_id=user.id,
+        task_set_id=task_set_id,
+        after_annotation_number=after_annotation_number,
+    )
+    return ClaimNextResponse(task=AnnotationTaskOut.model_validate(task) if task else None)
 
 
 @router.get(
@@ -193,12 +200,12 @@ async def ingest_annotation_tasks_from_csv(
     file: UploadFile = File(...),
     task_set_id: int = Form(...),
 ):
-    if not file.filename.endswith(".csv"):
+    if not (file.filename or "").endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
     require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    annotation_io.create_annotation_tasks_from_csv(db, campaign.id, contents, task_set_id)
+    ingest.create_annotation_tasks_from_csv(db, campaign.id, contents, task_set_id)
 
 
 @router.post("/campaigns/{campaign_id}/ingest-annotation-task-geojson")
@@ -221,7 +228,7 @@ async def ingest_annotation_tasks_from_geojson(
 
     require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    num_created = annotation_io.create_annotation_tasks_from_geojson(
+    num_created = ingest.create_annotation_tasks_from_geojson(
         db, campaign.id, contents, task_set_id
     )
     return {"num_tasks_created": num_created}
@@ -246,7 +253,7 @@ async def ingest_annotations_from_geojson(
         raise HTTPException(status_code=400, detail="File must be a .geojson or .json file")
 
     contents = await file.read()
-    num_created = annotation_io.create_annotations_from_geojson(db, campaign, contents, user.id)
+    num_created = ingest.create_annotations_from_geojson(db, campaign, contents, user.id)
     return {"num_annotations_created": num_created}
 
 
@@ -262,15 +269,13 @@ def create_annotation_openmode(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> AnnotationOut:
-    annotation = service.create_annotation(
+) -> Annotation:
+    return service.create_annotation(
         db=db,
         campaign=campaign,
         annotation_create=annotation,
         user_id=user.id,
     )
-
-    return annotation
 
 
 @router.post(
@@ -306,16 +311,14 @@ def update_annotation_openmode(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> AnnotationOut:
-    annotation = service.update_annotation(
+) -> Annotation:
+    return service.update_annotation(
         db=db,
         annotation_id=annotation_id,
         annotation_update=annotation_update,
         user_id=user.id,
         campaign=campaign,
     )
-
-    return annotation
 
 
 # ============================================================================
@@ -325,7 +328,7 @@ def update_annotation_openmode(
 
 @router.delete(
     "/campaigns/{campaign_id}/annotations/{annotation_id}",
-    response_model=AnnotationTaskSubmitResponse | None,
+    response_model=TaskStatusOut | None,
 )
 def delete_annotation(
     campaign_id: int,
@@ -340,33 +343,12 @@ def delete_annotation(
     If the annotation is linked to a task, returns updated task_status and
     assignment_status. Otherwise returns null.
     """
-    # Look up the annotation first to find its task_id before deleting
-    task_id = service.get_annotation_task_id_for_annotation(db, annotation_id, campaign.id)
-
-    service.delete_annotation(
+    return service.delete_annotation_with_status(
         db=db,
         annotation_id=annotation_id,
         campaign=campaign,
         user_id=user.id,
     )
-
-    # If it was linked to a task, return updated statuses
-    if task_id is not None:
-        refreshed_task = service.get_annotation_task_by_id(
-            db=db,
-            task_id=task_id,
-            campaign=campaign,
-        )
-        if refreshed_task:
-            task_out = AnnotationTaskOut.model_validate(refreshed_task)
-
-            return AnnotationTaskSubmitResponse(
-                annotation=None,
-                task_status=task_out.task_status,
-                assignment_status=service.get_user_assignment_status(refreshed_task, user.id),
-            )
-
-    return None
 
 
 @router.post(
@@ -408,7 +390,7 @@ def export_annotations(
     row. Tasks with disagreement (conflict) cause the request to fail
     with HTTP 400 - resolve the conflicts first.
     """
-    annotations_df = annotation_io.build_annotations_export(
+    annotations_df = export.build_annotations_export(
         db, campaign, merge_on_agreement=merge_on_agreement
     )
     campaign_name_cleaned = clean_filename(campaign.name)
@@ -436,7 +418,7 @@ def export_annotations_geojson(
 
     See ``export_annotations`` for the meaning of ``merge_on_agreement``.
     """
-    geojson = annotation_io.build_annotations_geojson_export(
+    geojson = export.build_annotations_geojson_export(
         db, campaign, merge_on_agreement=merge_on_agreement
     )
     campaign_name_cleaned = clean_filename(campaign.name)
@@ -492,7 +474,7 @@ def get_annotation_tile(
     styles by label and fetches full geometry by id when a feature is edited.
     """
     try:
-        tile = service.render_annotation_tile(db, campaign.id, z, x, y)
+        tile = spatial.render_annotation_tile(db, campaign.id, z, x, y)
     except InvalidTileError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return Response(
@@ -515,7 +497,7 @@ def get_annotation_ids_in_bbox(
         minx, miny, maxx, maxy = parse_bbox(bbox)
     except InvalidBBoxError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return service.get_annotation_ids_in_bbox(db, campaign.id, minx, miny, maxx, maxy)
+    return spatial.get_annotation_ids_in_bbox(db, campaign.id, minx, miny, maxx, maxy)
 
 
 @router.get(
@@ -528,7 +510,7 @@ def get_annotations_extent(
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AnnotationsExtentOut:
     """Return the bounding box of a campaign's annotations for fit-to-bounds."""
-    bbox = service.get_campaign_annotations_extent(db, campaign.id)
+    bbox = spatial.get_campaign_annotations_extent(db, campaign.id)
     return AnnotationsExtentOut(bbox=bbox)
 
 
@@ -542,7 +524,7 @@ def get_annotation_density(
     campaign: Campaign = Depends(require_campaign_access),
 ) -> list[AnnotationDensityCell]:
     """Return a coarse grid of annotation counts for the minimap overview."""
-    cells = service.get_annotation_density(db, campaign.id)
+    cells = spatial.get_annotation_density(db, campaign.id)
     return [AnnotationDensityCell(**cell) for cell in cells]
 
 
@@ -555,7 +537,7 @@ def get_annotation(
     annotation_id: int,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
-) -> AnnotationOut:
+) -> Annotation:
     """Fetch one annotation's full-resolution geometry for click-to-edit."""
     annotation = service.get_annotation_by_id(db, annotation_id, campaign)
     if annotation is None:

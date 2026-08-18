@@ -1,7 +1,10 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     String,
@@ -13,6 +16,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 
+if TYPE_CHECKING:
+    from src.campaigns.models import Campaign
+    from src.canvas.models import CanvasLayout
+    from src.organizations.models import OrganizationApiKey
+
 
 class ImagerySource(Base):
     """
@@ -23,6 +31,7 @@ class ImagerySource(Base):
     __tablename__ = "imagery_sources"
     __table_args__ = (
         CheckConstraint("default_zoom BETWEEN 0 AND 22", name="source_zoom_check"),
+        Index("idx_imagery_sources_campaign_id", "campaign_id"),
         {"schema": "data"},
     )
 
@@ -33,13 +42,23 @@ class ImagerySource(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
-    default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="14", nullable=False)
+    default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="15", nullable=False)
+    # Deepest zoom the provider serves real pixels for. Past it the client upscales
+    # instead of requesting tiles that cannot get any sharper. Null = no cap.
+    # Same contract as Basemap.max_native_zoom.
+    max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
     # AES-256-GCM ciphertext of the provider API key substituted into this source's
     # {api_key} tile-URL templates. Decrypted only by the backend tile proxy.
     encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set instead of `encrypted_api_key` when this source uses one of the
+    # organization's shared keys. Exactly one of the two is ever set.
+    organization_api_key_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
+    )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="imagery_sources")  # noqa: F821
+    campaign: Mapped["Campaign"] = relationship(back_populates="imagery_sources")
+    organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
     visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
         back_populates="source",
         cascade="all, delete-orphan",
@@ -50,17 +69,48 @@ class ImagerySource(Base):
         cascade="all, delete-orphan",
         order_by="ImageryCollection.display_order",
     )
+    generation_series: Mapped[list["ImageryGenerationSeries"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="ImageryGenerationSeries.id",
+    )
 
     @property
     def has_api_key(self) -> bool:
-        return self.encrypted_api_key is not None
+        return self.encrypted_api_key is not None or self.organization_api_key_id is not None
+
+    # Registration state, per source rather than per campaign: one source can be
+    # fully registered while another is still missing tiles, and the campaign's
+    # single status cannot say which.
+    @property
+    def slice_count(self) -> int:
+        return sum(len(c.slices) for c in self.collections)
+
+    @property
+    def registered_slice_count(self) -> int:
+        """Slices that actually have a tile URL, i.e. that an annotator can see."""
+        return sum(1 for c in self.collections for s in c.slices if s.tile_urls)
+
+    @property
+    def refreshable(self) -> bool:
+        """Whether re-running the STAC search could pick up newer imagery -
+        true once any collection carries the search that produced it."""
+        return any(
+            c.stac_config is not None
+            and c.stac_config.catalog_url
+            and c.stac_config.stac_collection_id
+            for c in self.collections
+        )
 
 
 class VisualizationTemplate(Base):
     """Named visualization option belonging to a source (e.g. 'True Color', 'NDVI')."""
 
     __tablename__ = "visualization_templates"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        UniqueConstraint("source_id", "name", name="uq_visualization_templates_source_name"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_id: Mapped[int] = mapped_column(
@@ -73,6 +123,33 @@ class VisualizationTemplate(Base):
     source: Mapped["ImagerySource"] = relationship(back_populates="visualizations")
 
 
+class ImageryGenerationSeries(Base):
+    """Saved input for one temporal-generator run.
+
+    The normalized collection/slice rows remain authoritative for rendering.
+    This record owns the versioned authoring input needed to regenerate that
+    series; collections reference it instead of duplicating the snapshot.
+    """
+
+    __tablename__ = "imagery_generation_series"
+    __table_args__ = (
+        Index("idx_imagery_generation_series_source_id", "source_id"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_sources.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    config: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    source: Mapped["ImagerySource"] = relationship(back_populates="generation_series")
+    collections: Mapped[list["ImageryCollection"]] = relationship(
+        back_populates="generation_series"
+    )
+
+
 class ImageryCollection(Base):
     """
     Temporal grouping of slices within a source.
@@ -80,7 +157,11 @@ class ImageryCollection(Base):
     """
 
     __tablename__ = "imagery_collections"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_imagery_collections_source_id", "source_id"),
+        Index("idx_imagery_collections_generation_series_id", "generation_series_id"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_id: Mapped[int] = mapped_column(
@@ -96,8 +177,15 @@ class ImageryCollection(Base):
         Boolean, server_default="false", nullable=False
     )
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+    generation_series_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.imagery_generation_series.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     source: Mapped["ImagerySource"] = relationship(back_populates="collections")
+    generation_series: Mapped["ImageryGenerationSeries | None"] = relationship(
+        back_populates="collections"
+    )
     slices: Mapped[list["ImagerySlice"]] = relationship(
         back_populates="collection",
         cascade="all, delete-orphan",
@@ -176,7 +264,10 @@ class ImagerySlice(Base):
     """
 
     __tablename__ = "imagery_slices"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_imagery_slices_collection_id", "collection_id"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     collection_id: Mapped[int] = mapped_column(
@@ -199,7 +290,10 @@ class SliceTileUrl(Base):
     """Resolved XYZ tile URL for a specific slice + visualization combination."""
 
     __tablename__ = "slice_tile_urls"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        UniqueConstraint("slice_id", "visualization_name", name="uq_slice_tile_urls_slice_viz"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     slice_id: Mapped[int] = mapped_column(
@@ -220,7 +314,10 @@ class Basemap(Base):
     """Static XYZ basemap layer for a campaign (e.g. OSM, satellite)."""
 
     __tablename__ = "basemaps"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_basemaps_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     campaign_id: Mapped[int] = mapped_column(
@@ -236,22 +333,31 @@ class Basemap(Base):
     # AES-256-GCM ciphertext of the provider API key substituted into this basemap's
     # {api_key} URL template. Decrypted only by the backend tile proxy.
     encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # As on ImagerySource: the org's shared key instead of this row's own.
+    organization_api_key_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
+    )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")  # noqa: F821
+    campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")
+    organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
 
     @property
     def has_api_key(self) -> bool:
-        return self.encrypted_api_key is not None
+        return self.encrypted_api_key is not None or self.organization_api_key_id is not None
 
 
 class ImageryView(Base):
     """
-    Named view that references a set of collections from various sources.
-    Collection membership and visibility are stored in JSONB.
+    Named view over an ordered set of the campaign's imagery sources.
+    Which collections appear as canvas windows is expressed solely by
+    membership in the view's canvas layouts, not stored here.
     """
 
     __tablename__ = "imagery_views"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_imagery_views_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     campaign_id: Mapped[int] = mapped_column(
@@ -261,11 +367,11 @@ class ImageryView(Base):
     name: Mapped[str] = mapped_column(String, nullable=False, server_default="")
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
 
-    # [{ "collection_id": int, "source_id": int, "show_as_window": bool }, ...]
-    collection_refs: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
+    # Ordered source ids whose collections are browsable in this view.
+    source_ids: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="imagery_views")  # noqa: F821
-    canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(  # noqa: F821
+    campaign: Mapped["Campaign"] = relationship(back_populates="imagery_views")
+    canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(
         "CanvasLayout",
         foreign_keys="[CanvasLayout.view_id]",
         back_populates="imagery_view",

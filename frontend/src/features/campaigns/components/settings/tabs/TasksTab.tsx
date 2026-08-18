@@ -1,16 +1,23 @@
 import React from 'react';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
 import { TaskModeReview } from '~/features/campaigns/components/review/TaskModeReview';
+import Statistics from '~/features/campaigns/components/review/Statistics';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
 import { TaskAssignmentsExportImport } from '~/features/campaigns/components/settings/TaskAssignmentsExportImport';
 import {
   TaskScopeBar,
   type TaskScope,
 } from '~/features/campaigns/components/settings/TaskScopeBar';
-import type { AnnotationTaskOut, GenerateTasksResponse, TaskSetOut } from '~/api/client';
+import type {
+  AnnotationTaskOut,
+  CampaignOut,
+  GenerateTasksResponse,
+  TaskSetOut,
+} from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 
 interface Props {
+  campaign: CampaignOut;
   // Already filtered to the active scope by the page (single source of truth).
   scopedTasks: AnnotationTaskOut[];
   totalTasks: number;
@@ -25,8 +32,6 @@ interface Props {
   onAssignSelected: (taskIds: number[]) => void;
   handleBatchUnassignTasks: (taskIds: number[]) => Promise<void>;
   handleDeleteTasks: (taskIds: number[]) => Promise<void>;
-  campaignId: number;
-  campaignName: string;
   onAssignmentsImported: () => Promise<void>;
   taskSets: TaskSetOut[];
   taskScope: TaskScope;
@@ -44,6 +49,7 @@ interface Props {
 }
 
 export const TasksTab: React.FC<Props> = ({
+  campaign,
   scopedTasks,
   totalTasks,
   taskFile,
@@ -57,8 +63,6 @@ export const TasksTab: React.FC<Props> = ({
   onAssignSelected,
   handleBatchUnassignTasks,
   handleDeleteTasks,
-  campaignId,
-  campaignName,
   onAssignmentsImported,
   taskSets,
   taskScope,
@@ -69,6 +73,7 @@ export const TasksTab: React.FC<Props> = ({
   onMoveTasks,
   bbox,
 }) => {
+  const campaignId = campaign.id;
   const sectionCls =
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
 
@@ -179,6 +184,7 @@ export const TasksTab: React.FC<Props> = ({
     <section className={sectionCls}>
       {scopedTasks.length > 0 ? (
         <TaskModeReview
+          campaign={campaign}
           campaignId={campaignId}
           tasks={scopedTasks}
           taskSets={taskSets}
@@ -224,23 +230,33 @@ export const TasksTab: React.FC<Props> = ({
         />
       </section>
 
-      {totalTasks > 0 && bbox && (
-        <section className={sectionCls}>
-          <TaskLocationsMap tasks={scopedTasks} bbox={bbox} />
-        </section>
-      )}
+      {/* The wrapper makes `first:` strip the border of whichever section comes
+          right below the scope bar, which already draws its own bottom line. */}
+      <div>
+        {totalTasks > 0 && bbox && (
+          <section className={sectionCls}>
+            <TaskLocationsMap tasks={scopedTasks} bbox={bbox} />
+          </section>
+        )}
 
-      {taskScope !== 'all' && addTasksSection}
+        {totalTasks > 0 && (
+          <section className={sectionCls}>
+            <Statistics campaignId={campaignId} />
+          </section>
+        )}
 
-      {taskScope === 'all' && totalTasks > 0 && (
-        <TaskAssignmentsExportImport
-          campaignId={campaignId}
-          campaignName={campaignName}
-          onImported={onAssignmentsImported}
-        />
-      )}
+        {taskScope !== 'all' && addTasksSection}
 
-      {tasksTable}
+        {taskScope === 'all' && totalTasks > 0 && (
+          <TaskAssignmentsExportImport
+            campaignId={campaignId}
+            campaignName={campaign.name}
+            onImported={onAssignmentsImported}
+          />
+        )}
+
+        {tasksTable}
+      </div>
     </div>
   );
 };

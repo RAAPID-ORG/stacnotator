@@ -334,4 +334,10 @@ def _annotation_ids(frame: pd.DataFrame | None, name: str) -> pd.Series:
             f"{name} has no 'annotation_id' column - update_samples only works "
             "with frames produced by get_samples() (merged exports are not supported)."
         )
+    if frame["annotation_id"].isna().all():
+        raise ValueError(
+            f"{name} has no annotation ids - it looks like a merged export "
+            "(get_samples(merge_on_agreement=True)), which update_samples cannot "
+            "de-duplicate against."
+        )
     return frame["annotation_id"]

@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
-from src.vector_layers import service
-from src.vector_layers.models import VectorLayer
-from src.vector_layers.schemas import VectorLayerUpdate
+from src.custom_layers import service
+from src.custom_layers.models import VectorLayer
+from src.custom_layers.schemas import VectorLayerUpdate
 
 
 def _layer(**kw):
@@ -20,7 +20,7 @@ def _layer(**kw):
 
 def test_update_applies_only_provided_fields(monkeypatch):
     layer = _layer()
-    monkeypatch.setattr(service, "_get", lambda *a, **k: layer)
+    monkeypatch.setattr(service, "_get_vector_layer", lambda *a, **k: layer)
 
     service.update_vector_layer(
         MagicMock(), 5, 1, VectorLayerUpdate(name="renamed", color="#ff0000")
@@ -35,7 +35,7 @@ def test_update_applies_only_provided_fields(monkeypatch):
 
 def test_update_can_set_source_layer(monkeypatch):
     layer = _layer()
-    monkeypatch.setattr(service, "_get", lambda *a, **k: layer)
+    monkeypatch.setattr(service, "_get_vector_layer", lambda *a, **k: layer)
 
     service.update_vector_layer(MagicMock(), 5, 1, VectorLayerUpdate(source_layer="parcels"))
 
@@ -43,7 +43,7 @@ def test_update_can_set_source_layer(monkeypatch):
 
 
 def test_update_returns_none_when_missing(monkeypatch):
-    monkeypatch.setattr(service, "_get", lambda *a, **k: None)
+    monkeypatch.setattr(service, "_get_vector_layer", lambda *a, **k: None)
 
     result = service.update_vector_layer(MagicMock(), 5, 99, VectorLayerUpdate(name="x"))
 

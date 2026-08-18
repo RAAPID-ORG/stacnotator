@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import type { CampaignUserOut } from '~/api/client';
-import { Button } from '~/shared/ui/forms';
+import type { ProjectUserOut } from '~/api/client';
+import { Button, Input } from '~/shared/ui/forms';
+import { searchUsers } from '~/shared/utils/utility';
 
 type AssignSelectedMode = 'every-user-every-task' | 'distribute-evenly';
 
 interface Props {
   isOpen: boolean;
   numTasks: number;
-  campaignUsers: CampaignUserOut[];
+  projectUsers: ProjectUserOut[];
   taskIds: number[];
   onAssign: (mapping: Record<number, string[]>) => Promise<void>;
   onCancel: () => void;
@@ -16,23 +17,27 @@ interface Props {
 export const AssignSelectedModal = ({
   isOpen,
   numTasks,
-  campaignUsers,
+  projectUsers,
   taskIds,
   onAssign,
   onCancel,
 }: Props) => {
   const [mode, setMode] = useState<AssignSelectedMode>('every-user-every-task');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [userQuery, setUserQuery] = useState('');
   const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setMode('every-user-every-task');
       setSelectedUsers([]);
+      setUserQuery('');
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const matchingUsers = searchUsers(projectUsers, (cu) => cu.user, userQuery);
 
   const handleToggleUser = (userId: string) => {
     setSelectedUsers((prev) =>
@@ -100,8 +105,17 @@ export const AssignSelectedModal = ({
 
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-2">Select users</label>
+            <Input
+              value={userQuery}
+              onChange={(e) => setUserQuery(e.target.value)}
+              placeholder="Search by name or email…"
+              className="mb-2"
+            />
             <div className="space-y-2 max-h-72 overflow-y-auto border border-neutral-300 rounded-lg p-3">
-              {campaignUsers.map((user) => (
+              {matchingUsers.length === 0 && (
+                <p className="px-1 py-2 text-xs text-neutral-500">No users match your search</p>
+              )}
+              {matchingUsers.map((user) => (
                 <label
                   key={user.user.id}
                   className="flex items-center gap-3 p-2 bg-neutral-50 rounded-lg cursor-pointer"
@@ -115,7 +129,9 @@ export const AssignSelectedModal = ({
                     <div className="font-medium text-neutral-900 text-sm">
                       {user.user.display_name}
                     </div>
-                    <div className="text-xs text-neutral-500">{user.user.email}</div>
+                    {user.user.email && (
+                      <div className="text-xs text-neutral-500">{user.user.email}</div>
+                    )}
                   </div>
                 </label>
               ))}

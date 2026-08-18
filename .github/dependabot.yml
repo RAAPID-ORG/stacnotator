@@ -1,0 +1,13 @@
+version: 2
+
+updates:
+  # Third-party actions are pinned to commit hashes (see .github/zizmor.yml), which
+  # is only safe with something moving the pins. One grouped PR a week, so a pinned
+  # action never quietly ages into a known-bad version.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

@@ -6,6 +6,8 @@ export const SORT_OPTIONS = [
   'confidence-desc',
   'id-asc',
   'id-desc',
+  'time-desc',
+  'time-asc',
 ] as const;
 export type SortOption = (typeof SORT_OPTIONS)[number];
 export const isSortOption = (v: string): v is SortOption =>

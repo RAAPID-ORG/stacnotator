@@ -1,4 +1,4 @@
-from src.custom_maps.models import CustomMap
+from src.custom_layers.models import CustomMap
 
 
 def test_custom_map_table_and_defaults():

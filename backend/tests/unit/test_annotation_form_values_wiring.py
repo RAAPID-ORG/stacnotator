@@ -21,6 +21,7 @@ from src.annotation.service import (
     update_annotation,
     validate_annotation_form_values,
 )
+from src.campaigns.schemas import LabellingPolicy, PolicyAudience
 
 REQUIRED_CATEGORY_FIELD = [
     {
@@ -38,7 +39,12 @@ def _campaign(form_fields=None, *, campaign_id=1, is_public=False):
     campaign.id = campaign_id
     campaign.is_public = is_public
     campaign.settings.labels = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
-    campaign.settings.labelling_policy = None
+    campaign.settings.labelling_policy = LabellingPolicy(
+        explore=PolicyAudience(kinds=["members"]),
+        unassigned_tasks=PolicyAudience(kinds=["members"]),
+        assigned_tasks=PolicyAudience(kinds=["members"]),
+        complete_assigned=PolicyAudience(kinds=["members"]),
+    ).model_dump(mode="json")
     campaign.settings.form_fields = form_fields if form_fields is not None else []
     return campaign
 
@@ -51,7 +57,7 @@ def _db(cu=None):
     return db
 
 
-_MEMBER = SimpleNamespace(is_admin=False, is_authorative_reviewer=False)
+_MEMBER = SimpleNamespace(is_admin=False, is_authoritative_reviewer=False)
 
 
 class TestValidateAnnotationFormValuesHelper:

@@ -8,6 +8,7 @@ from geoalchemy2.shape import to_shape
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from src import background
 from src.annotation.constants import EMBD_MIN_N_NEIGHBOURS
 from src.annotation.models import (
     Annotation,
@@ -18,6 +19,8 @@ from src.annotation.models import (
     Embedding as EmbeddingRow,
 )
 from src.annotation.schemas import KnnValidationStatusOut, ValidateLabelSubmissionsResponse
+from src.earth_engine import ensure_earth_engine
+from src.imagery.registration import sanitize_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +30,6 @@ class FetchedEmbedding:
     """Raw embedding fetched from an external provider (not yet persisted)."""
 
     vector: list[float]
-    period_start: datetime
-    period_end: datetime
-    lat: float
-    lon: float
 
 
 _ALPHAEARTH_BANDS = [f"A{i:02d}" for i in range(64)]
@@ -128,13 +127,7 @@ def _fetch_alphaearth_gee_batch(
             zero_vector_points.append({"id": pid, "lat": coords[1], "lon": coords[0]})
             continue
 
-        results[pid] = FetchedEmbedding(
-            vector=vector,
-            period_start=start_date,
-            period_end=end_date,
-            lat=coords[1],
-            lon=coords[0],
-        )
+        results[pid] = FetchedEmbedding(vector=vector)
 
     # Diagnostic: distinguish "dropped by sampleRegions" from "all-zero vector".
     # Both are deterministic "no data" - retrying won't help; these are real
@@ -167,25 +160,6 @@ def _fetch_alphaearth_gee_batch(
     return results
 
 
-def store_embedding(
-    db: Session,
-    annotation_task_id: int,
-    fetched: FetchedEmbedding,
-) -> EmbeddingRow:
-    """Persist a fetched embedding and link it to an annotation task."""
-    row = EmbeddingRow(
-        annotation_task_id=annotation_task_id,
-        vector=fetched.vector,
-        lat=fetched.lat,
-        lon=fetched.lon,
-        period_start=fetched.period_start,
-        period_end=fetched.period_end,
-    )
-    db.add(row)
-    db.flush()
-    return row
-
-
 def find_nearest_labeled_embeddings(
     db: Session,
     campaign_id: int,
@@ -216,11 +190,23 @@ def find_nearest_labeled_embeddings(
 
 def get_embedding_by_task(
     db: Session,
+    campaign_id: int,
     annotation_task_id: int,
 ) -> EmbeddingRow | None:
-    """Return the embedding row for a given task, or None."""
+    """Return the embedding row for a task of this campaign, or None.
+
+    The task id reaches this module straight off the URL, and the route's gate
+    only proves the caller may see ``campaign_id`` - not that the task belongs to
+    it. Taking the campaign as an argument is what keeps the pair checked here
+    rather than assumed from the caller, as every other query in this module does.
+    """
     return db.scalars(
-        select(EmbeddingRow).where(EmbeddingRow.annotation_task_id == annotation_task_id)
+        select(EmbeddingRow)
+        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
+        .where(
+            EmbeddingRow.annotation_task_id == annotation_task_id,
+            AnnotationTask.campaign_id == campaign_id,
+        )
     ).first()
 
 
@@ -238,7 +224,7 @@ def knn_label_agrees(
 
     neighbor_labels = [lbl for _, lbl, _ in nearest]
     most_common = max(set(neighbor_labels), key=neighbor_labels.count)
-    logger.info("Neighbor labels: %s, most common: %s", neighbor_labels, most_common)
+    logger.debug("Neighbor labels: %s, most common: %s", neighbor_labels, most_common)
     return most_common == label_id
 
 
@@ -348,7 +334,7 @@ def validate_label_submission(
     distinguish between a genuine mismatch and a skip due to missing data.
     """
 
-    embedding = get_embedding_by_task(db, annotation_task_id)
+    embedding = get_embedding_by_task(db, campaign_id, annotation_task_id)
     if not embedding:
         return ValidateLabelSubmissionsResponse(
             status="skipped_no_embedding",
@@ -455,10 +441,6 @@ def populate_campaign_embeddings(
         EmbeddingRow(
             annotation_task_id=int(task_id_str),
             vector=fetched.vector,
-            lat=fetched.lat,
-            lon=fetched.lon,
-            period_start=fetched.period_start,
-            period_end=fetched.period_end,
         )
         for task_id_str, fetched in all_fetched.items()
     ]
@@ -483,3 +465,50 @@ def populate_campaign_embeddings(
         total,
     )
     return summary
+
+
+def _sanitize_embedding_error(exc: Exception) -> str:
+    """Extract a user-facing message from an embedding computation failure.
+
+    Never exposes stack traces or internal file paths (mirrors
+    imagery.registration._sanitize_stac_error for the equivalent mosaic-side errors).
+    """
+    return sanitize_error_message(exc, fallback="Embedding computation failed")
+
+
+# The embeddings domain's background run on the campaign.
+EMBEDDING_RUN = background.StatusField(
+    status_column="embedding_status",
+    heartbeat_column="embedding_heartbeat_at",
+    interrupted_error=(
+        "Embedding computation was interrupted by a server restart. "
+        "Trigger it again from the campaign settings to retry."
+    ),
+)
+
+
+def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
+    """Run embedding computation off the request path (see src/background.py).
+
+    The caller commits begin_status_run(campaign, EMBEDDING_RUN) in its own
+    transaction before calling this; the spawned run flips the status to
+    ready/failed once populate_campaign_embeddings finishes (or fails).
+    """
+    start_date = datetime(year, 1, 1)
+    end_date = datetime(year, 12, 31)
+
+    def work(db: Session) -> None:
+        if not ensure_earth_engine():
+            raise RuntimeError(
+                "Earth Engine is unavailable (initialization failed); "
+                "retry the embedding computation"
+            )
+        populate_campaign_embeddings(db, campaign_id, start_date, end_date)
+
+    background.spawn_status_run(
+        campaign_id,
+        EMBEDDING_RUN,
+        name="embedding computation",
+        work=work,
+        sanitize_error=lambda exc: f"Embeddings: {_sanitize_embedding_error(exc)}",
+    )

@@ -1,16 +1,16 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { Delayed } from '~/shared/ui/Delayed';
+import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import {
   batchDeleteAnnotations,
   getAllAnnotationsForCampaign,
-  getCampaignUsers,
   type AnnotationOut,
   type CampaignOut,
-  type CampaignUserOut,
 } from '~/api/client';
-import { useAccountStore } from '~/features/account/account.store';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { campaignPath } from '~/app/routes';
+import { useAccountStore } from '~/shared/stores/account.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst, extractCentroidFromWKT } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { OpenModeDistributionMap } from './OpenModeDistributionMap';
@@ -41,11 +41,11 @@ export const OpenModeReview = ({
   subHeader,
 }: OpenModeReviewProps) => {
   const navigate = useNavigate();
+  const annotatePath = campaignPath(campaign.project_id, campaignId, 'annotate');
   const currentUser = useAccountStore((state) => state.account);
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   const [annotations, setAnnotations] = useState<AnnotationOut[]>([]);
-  const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightedAnnotationId, setHighlightedAnnotationId] = useState<number | null>(null);
 
@@ -68,13 +68,6 @@ export const OpenModeReview = ({
           path: { campaign_id: campaignId },
         });
         setAnnotations(annotationsRes.data || []);
-
-        try {
-          const usersRes = await getCampaignUsers({ path: { campaign_id: campaignId } });
-          setCampaignUsers(usersRes.data?.users || []);
-        } catch {
-          /* empty */
-        }
       } catch (err) {
         handleError(err, 'Failed to load annotations');
       } finally {
@@ -152,10 +145,7 @@ export const OpenModeReview = ({
     return { total: annotations.length, withConfidence };
   }, [annotations]);
 
-  const isCampaignAdmin = useMemo(
-    () => !!campaignUsers.find((cu) => cu.user.id === currentUser?.id && cu.is_admin),
-    [campaignUsers, currentUser?.id]
-  );
+  const isCampaignAdmin = campaign.viewer_is_admin ?? false;
 
   // Mirror backend rule (annotation/service.py:delete_annotations_bulk):
   // public campaigns require ownership unless admin; private campaigns let any
@@ -237,14 +227,22 @@ export const OpenModeReview = ({
     }
   };
 
+  // Open the annotator where the annotation came from: task-bound ones jump
+  // to their task in Tasks mode, standalone ones open Explore centred on the
+  // annotation. Without an explicit mode the annotator would seed from
+  // campaign.mode and open the first task regardless of origin.
   const handleNavigateToAnnotation = (ann: AnnotationOut) => {
+    if (ann.annotation_task_id != null) {
+      navigate(`${annotatePath}?task=${ann.annotation_task_id}&review=true`);
+      return;
+    }
     const centroid = extractCentroidFromWKT(ann.geometry.geometry);
     if (centroid) {
       navigate(
-        `/campaigns/${campaignId}/annotate?lat=${centroid.lat}&lon=${centroid.lon}&annotation=${ann.id}&review=true`
+        `${annotatePath}?mode=explore&lat=${centroid.lat}&lon=${centroid.lon}&annotation=${ann.id}`
       );
     } else {
-      navigate(`/campaigns/${campaignId}/annotate?review=true`);
+      navigate(`${annotatePath}?mode=explore`);
     }
   };
 
@@ -264,23 +262,20 @@ export const OpenModeReview = ({
     return label?.name || `Label #${labelId}`;
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading annotations..." />
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 overflow-auto">
       <FadeIn className="page">
         <header className="page-header">
           <div>
             <h1 className="page-title">{capitalizeFirst(campaign.name)} - Annotations</h1>
-            <p className="page-subtitle">
-              {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in this campaign.
-            </p>
+            {loading ? (
+              <Skeleton className="h-4 w-56 mt-2" />
+            ) : (
+              <p className="page-subtitle">
+                {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in this
+                campaign.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {headerActions}
@@ -290,9 +285,7 @@ export const OpenModeReview = ({
               disabled={annotations.length === 0}
               showMergeToggle={false}
             />
-            <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
-              Start annotating
-            </Button>
+            <Button onClick={() => navigate(annotatePath)}>Start annotating</Button>
           </div>
         </header>
 
@@ -488,13 +481,23 @@ export const OpenModeReview = ({
             </div>
 
             <div className="pt-3 border-t border-neutral-100 text-xs text-neutral-500">
-              Showing {filteredAnnotations.length} of {annotations.length} annotations
+              {loading ? (
+                <Skeleton className="h-3.5 w-44" />
+              ) : (
+                <>
+                  Showing {filteredAnnotations.length} of {annotations.length} annotations
+                </>
+              )}
             </div>
           </div>
         </div>
 
         {/* Annotations Table */}
-        {filteredAnnotations.length === 0 ? (
+        {loading ? (
+          <Delayed>
+            <SkeletonRows count={8} />
+          </Delayed>
+        ) : filteredAnnotations.length === 0 ? (
           <div className="text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm">
             <svg
               className="w-12 h-12 text-neutral-400 mx-auto mb-4"

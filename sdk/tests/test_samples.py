@@ -108,3 +108,12 @@ def test_merged_export_without_annotation_id_still_parses():
     df = samples_frame(collection(f))
 
     assert pd.isna(df.iloc[0]["annotation_id"])
+
+
+def test_merged_export_with_fractional_mean_confidence_parses():
+    f = feature(POINT, confidence=7.33)
+    del f["properties"]["stacnotator_annotation_id"]
+
+    df = samples_frame(collection(f))
+
+    assert df.iloc[0]["confidence"] == 7.33

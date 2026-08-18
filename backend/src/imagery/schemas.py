@@ -1,6 +1,17 @@
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    computed_field,
+    field_validator,
+    model_validator,
+)
+
+from src.canvas.schemas import CanvasLayoutOut
 
 # ============================================================================
 # Slice / Collection / Source - Output Schemas
@@ -54,27 +65,13 @@ class CollectionStacConfigOut(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
-class TilerOption(BaseModel):
-    """A tiler the user may use, from the unified registry."""
-
-    name: str
-    kind: str  # "mpc" | "hosted"
-    url: str | None = None  # browser-facing URL (hosted only; null for MPC)
-    is_default: bool  # default hosted pick for non-MPC collections
-
-
-class AllowedTilersOut(BaseModel):
-    """Hosted tilers selectable in the imagery wizard (default first)."""
-
-    tilers: list[TilerOption]
-
-
 class ImageryCollectionOut(BaseModel):
     id: int
     name: str
     cover_slice_index: int
     has_dedicated_cover: bool = False
     display_order: int
+    generation_series_id: int | None = None
     slices: list[ImagerySliceOut]
     stac_config: CollectionStacConfigOut | None = None
 
@@ -89,17 +86,65 @@ class VisualizationTemplateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ImageryGenerationConfigV1(BaseModel):
+    """Lossless, versioned input for the temporal imagery generator."""
+
+    version: Literal[1] = 1
+    catalog_url: str
+    stac_collection_id: str
+    collection_title: str
+    is_mpc: bool
+    has_cloud_cover: bool
+    tiler: str | None = None
+    start_date: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    end_date: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    collection_period_interval: int = Field(ge=1)
+    collection_period_unit: Literal["weeks", "months", "years"]
+    slice_period_interval: int = Field(ge=1)
+    slice_period_unit: Literal["days", "weeks", "months", "years"]
+    cover_mode: Literal["nth", "custom"]
+    cover_slice_nth: int = Field(ge=1)
+    max_cloud_cover: float = Field(ge=0, le=100)
+    item_sort: Literal["date_desc", "date_asc", "cloud_cover_asc"]
+    cover_max_cloud_cover: float = Field(ge=0, le=100)
+    cover_item_sort: Literal["date_desc", "date_asc", "cloud_cover_asc"]
+    visualizations: list["NamedVizParamsCreate"]
+    cover_visualizations: list["NamedVizParamsCreate"] = []
+    search_query: dict | None = None
+    cover_search_query: dict | None = None
+    internal_storage: bool = False
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ImageryGenerationSeriesOut(BaseModel):
+    id: int
+    config: ImageryGenerationConfigV1
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ImagerySourceOut(BaseModel):
     id: int
     name: str
     crosshair_hex6: str
     default_zoom: int
+    max_native_zoom: int | None = None
     display_order: int
     visualizations: list[VisualizationTemplateOut]
     collections: list[ImageryCollectionOut]
-    # Whether an encrypted provider API key is configured (drives the admin UI). The key
-    # value/ciphertext is never serialized.
+    generation_series: list[ImageryGenerationSeriesOut] = []
+    # Whether a provider API key is configured (drives the admin UI), and which
+    # shared org key it is when the source uses one. The key value/ciphertext is
+    # never serialized.
     has_api_key: bool = False
+    organization_api_key_id: int | None = None
+    # Per-source registration, read off the rows themselves: how much of this
+    # source an annotator can actually see, and whether re-searching its
+    # catalog could bring in newer imagery.
+    slice_count: int = 0
+    registered_slice_count: int = 0
+    refreshable: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -110,78 +155,61 @@ class BasemapOut(BaseModel):
     url: str
     max_native_zoom: int | None = None
     has_api_key: bool = False
+    organization_api_key_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class ApiKeyUpdate(BaseModel):
-    """Write-only provider API key value (campaign-admin sets it; never read back)."""
+    """Where this layer's provider key comes from: a literal value to encrypt
+    and keep on the row, or one of the owning organization's shared keys.
+    Write-only either way - a stored value is never read back."""
 
-    value: str = Field(min_length=1)
+    value: str | None = Field(default=None, min_length=1)
+    organization_api_key_id: int | None = None
+
+    @model_validator(mode="after")
+    def exactly_one_source(self) -> "ApiKeyUpdate":
+        if (self.value is None) == (self.organization_api_key_id is None):
+            raise ValueError("Set exactly one of value or organization_api_key_id")
+        return self
 
 
 class ApiKeyStatusOut(BaseModel):
     has_api_key: bool
-
-
-class ViewCollectionRefItem(BaseModel):
-    collection_id: int
-    source_id: int
-    show_as_window: bool = True
-
-
-class CanvasLayoutItem(BaseModel):
-    """One react-grid-layout tile: grid id and position/size in grid units."""
-
-    i: str
-    x: int
-    y: int
-    w: int
-    h: int
-
-
-class CanvasLayoutOut(BaseModel):
-    id: int
-    user_id: UUID | None
-    layout_data: list[CanvasLayoutItem]
-
-    model_config = ConfigDict(from_attributes=True)
+    organization_api_key_id: int | None = None
 
 
 class ImageryViewOut(BaseModel):
     id: int
     name: str
     display_order: int
-    collection_refs: list[ViewCollectionRefItem]
+    source_ids: list[int]
 
-    @computed_field
+    # Populated by from_orm; stay None on any other construction path (e.g. a
+    # plain ImageryViewOut(**kwargs) in a test). Read-only computed fields so
+    # they don't reappear as writable input fields on this output-only schema.
+    _default_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
+    _personal_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
+
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def default_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_default_canvas_layout"):
-            return self._default_canvas_layout
-        return None
+        return self._default_canvas_layout
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def personal_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_personal_canvas_layout"):
-            return self._personal_canvas_layout
-        return None
+        return self._personal_canvas_layout
 
     @classmethod
-    def from_orm(cls, obj, user_id: UUID | None = None):
-        default_layout = None
-        personal_layout = None
-        if hasattr(obj, "canvas_layouts"):
-            for layout in obj.canvas_layouts:
-                if layout.is_default and layout.user_id is None:
-                    default_layout = CanvasLayoutOut.model_validate(layout)
-                elif user_id and layout.user_id == user_id:
-                    personal_layout = CanvasLayoutOut.model_validate(layout)
-
+    def from_orm(cls, obj, user_id: UUID | None = None) -> "ImageryViewOut":
         instance = cls.model_validate(obj)
-        instance._default_canvas_layout = default_layout
-        instance._personal_canvas_layout = personal_layout
+        for layout in getattr(obj, "canvas_layouts", []):
+            if layout.is_default and layout.user_id is None:
+                instance._default_canvas_layout = CanvasLayoutOut.model_validate(layout)
+            elif user_id and layout.user_id == user_id:
+                instance._personal_canvas_layout = CanvasLayoutOut.model_validate(layout)
         return instance
 
     model_config = ConfigDict(from_attributes=True)
@@ -250,8 +278,21 @@ class ImageryCollectionCreate(BaseModel):
     name: str
     cover_slice_index: int = 0
     has_dedicated_cover: bool = False
+    generation_series_key: str | None = None
     slices: list[ImagerySliceCreate]
     stac_config: CollectionStacConfigCreate | None = None
+
+
+class ImageryGenerationSeriesCreate(BaseModel):
+    """One source-level series in the full-editor write model.
+
+    ``key`` is a request-local identity used by collections in the same
+    payload. ``id`` preserves an existing database row when editing.
+    """
+
+    key: str = Field(min_length=1)
+    id: int | None = None
+    config: ImageryGenerationConfigV1
 
 
 class VisualizationTemplateCreate(BaseModel):
@@ -261,10 +302,62 @@ class VisualizationTemplateCreate(BaseModel):
 class ImagerySourceCreate(BaseModel):
     id: int | None = None
     name: str
-    crosshair_hex6: str = "ff0000"
-    default_zoom: int = 14
+    # Reaches the frontend as a colour, so it stays six hex digits and nothing else.
+    crosshair_hex6: str = Field(default="ff0000", pattern=r"^[0-9a-fA-F]{6}$")
+    default_zoom: int = 15
+    max_native_zoom: int | None = Field(default=None, ge=0, le=22)
+    # Where this source's provider key comes from, honoured on create only, so a source
+    # added through the wizard renders without a second trip to settings: one of the
+    # organization's shared keys, or a write-only value encrypted on arrival. Changing or
+    # clearing the key afterwards stays on the dedicated key endpoint.
+    organization_api_key_id: int | None = None
+    api_key: str | None = Field(default=None, min_length=1)
     visualizations: list[VisualizationTemplateCreate]
+    generation_series: list[ImageryGenerationSeriesCreate] = []
     collections: list[ImageryCollectionCreate]
+
+    @model_validator(mode="after")
+    def one_key_source_at_most(self) -> "ImagerySourceCreate":
+        if self.api_key is not None and self.organization_api_key_id is not None:
+            raise ValueError("Set at most one of api_key or organization_api_key_id")
+        return self
+
+    @field_validator("visualizations")
+    @classmethod
+    def visualization_names_unique(
+        cls, v: list[VisualizationTemplateCreate]
+    ) -> list[VisualizationTemplateCreate]:
+        names = [viz.name for viz in v]
+        if len(names) != len(set(names)):
+            raise ValueError("visualization names must be unique per source")
+        return v
+
+    @model_validator(mode="after")
+    def generation_series_references_are_valid(self) -> "ImagerySourceCreate":
+        keys = [series.key for series in self.generation_series]
+        if len(keys) != len(set(keys)):
+            raise ValueError("generation series keys must be unique per source")
+        ids = [series.id for series in self.generation_series if series.id is not None]
+        if len(ids) != len(set(ids)):
+            raise ValueError("generation series ids must be unique per source")
+        known = set(keys)
+        unknown = {
+            collection.generation_series_key
+            for collection in self.collections
+            if collection.generation_series_key is not None
+            and collection.generation_series_key not in known
+        }
+        if unknown:
+            raise ValueError(f"unknown generation series keys: {sorted(unknown)}")
+        referenced = {
+            collection.generation_series_key
+            for collection in self.collections
+            if collection.generation_series_key is not None
+        }
+        unreferenced = known - referenced
+        if unreferenced:
+            raise ValueError(f"unreferenced generation series keys: {sorted(unreferenced)}")
+        return self
 
 
 class BasemapCreate(BaseModel):
@@ -274,80 +367,31 @@ class BasemapCreate(BaseModel):
     max_native_zoom: int | None = None
 
 
-class ViewCollectionRefCreate(BaseModel):
-    collection_id: str  # frontend temp id - mapped by service
-    source_id: str  # frontend temp id - mapped by service
-    show_as_window: bool = True
-
-
-class ImageryViewCreate(BaseModel):
-    id: int | None = None
-    name: str = ""
-    collection_refs: list[ViewCollectionRefCreate] = []
-
-
 class ImageryEditorStateCreate(BaseModel):
     """Full imagery editor state sent from the frontend on campaign creation."""
 
     sources: list[ImagerySourceCreate]
-    views: list[ImageryViewCreate]
     basemaps: list[BasemapCreate]
 
 
 # ============================================================================
-# Update / Layout Request Schemas
+# View Request Schemas
 # ============================================================================
 
 
-class VisualizationUpdate(BaseModel):
-    name: str
-
-
-class ImagerySourceUpdate(BaseModel):
-    """Partial update for an imagery source's display settings."""
-
-    name: str | None = None
-    crosshair_hex6: str | None = None
-    default_zoom: int | None = None
-    visualizations: list[VisualizationUpdate] | None = None
-
-
-class ImageryCollectionUpdate(BaseModel):
-    """Partial update for an imagery collection."""
-
-    name: str | None = None
-    cover_slice_index: int | None = None
-    has_dedicated_cover: bool | None = None
+class ImageryViewCreate(BaseModel):
+    name: str = ""
+    source_ids: list[int] = []
 
 
 class ImageryViewUpdate(BaseModel):
-    """Partial update for an imagery view."""
+    """Partial update: only the provided fields change."""
 
     name: str | None = None
-    display_order: int | None = None
-    collection_refs: list[ViewCollectionRefItem] | None = None
+    source_ids: list[int] | None = None
 
 
-class ImageryViewAddRequest(BaseModel):
-    """Create a new view on an existing campaign."""
+class ImageryViewOrderUpdate(BaseModel):
+    """Full campaign view ordering; must list every view id exactly once."""
 
-    name: str = ""
-    collection_refs: list[ViewCollectionRefItem] = []
-
-
-class CanvasLayoutCreate(BaseModel):
-    main_layout_data: list
-    view_layout_data: list | None = None
-    view_id: int | None = None
-
-
-class CanvasLayoutCreateRequest(BaseModel):
-    layout: CanvasLayoutCreate
-    should_be_default: bool = False
-    view_id: int
-
-
-class CreateImageryResponse(BaseModel):
-    sources: list[ImagerySourceOut]
-    views: list[ImageryViewOut]
-    basemaps: list[BasemapOut]
+    view_ids: list[int]

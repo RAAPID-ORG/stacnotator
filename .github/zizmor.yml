@@ -1,0 +1,9 @@
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        # GitHub's own actions live in the same trust domain as the runner, so a
+        # tag is enough. Anything else runs third-party code next to our Azure
+        # OIDC token and the tiler repo PAT, and has to be pinned to a hash.
+        actions/*: ref-pin
+        "*": hash-pin

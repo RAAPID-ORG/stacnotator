@@ -9,24 +9,35 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from starlette.datastructures import MutableHeaders
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import src.models  # noqa: F401 -- side-effect import: ensures all ORM models are registered before any mapper configures  # isort: skip
 
+from src.annotation.embeddings_service import EMBEDDING_RUN
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
+from src.background import fail_stale_status_runs
 from src.campaigns.router import router as campaigns_router
-from src.config import get_settings
-from src.custom_maps.router import router as custom_maps_router
+from src.config import (
+    DEV_APIKEY_ENCRYPTION_SECRET,
+    DEV_TILER_TOKEN_SECRET,
+    get_settings,
+)
+from src.custom_layers.router import router as custom_layers_router
 from src.database import SessionLocal
+from src.earth_engine import initialize_earth_engine
 from src.imagery.proxy_router import router as imagery_proxy_router
+from src.imagery.registration import REGISTRATION_RUN
 from src.imagery.router import router as imagery_router
+from src.organizations.router import router as organizations_router
+from src.planet.router import router as planet_router
+from src.projects.router import router as projects_router
+from src.routing import generate_unique_id
 from src.sampling_design.router import router as sampling_design_router
+from src.stac_browser.router import router as stac_browser_router
 from src.tile_bulkhead import TileCapacityError
-from src.tiling.router import router as tiling_router
 from src.timeseries.router import router as timeseries_router
-from src.utils import generate_unique_id, initialize_earth_engine
-from src.vector_layers.router import router as vector_layers_router
 
 settings = get_settings()
 
@@ -46,9 +57,9 @@ def _validate_production_config() -> None:
     s = get_settings()
     if s.ENVIRONMENT != "production":
         return
-    if s.TILER_TOKEN_SECRET == "dev-tiler-secret-change-in-production":
+    if s.TILER_TOKEN_SECRET == DEV_TILER_TOKEN_SECRET:
         raise RuntimeError("TILER_TOKEN_SECRET must be changed from the dev default in production")
-    if s.APIKEY_ENCRYPTION_SECRET == "dev-apikey-secret-change-in-production":
+    if s.APIKEY_ENCRYPTION_SECRET == DEV_APIKEY_ENCRYPTION_SECRET:
         raise RuntimeError(
             "APIKEY_ENCRYPTION_SECRET must be changed from the dev default in production"
         )
@@ -73,7 +84,25 @@ async def lifespan(app: FastAPI):
 
     to_thread.current_default_thread_limiter().total_tokens = settings.THREAD_POOL_MAX
     initialize_earth_engine()
+    _sweep_stale_background_runs()
     yield
+
+
+def _sweep_stale_background_runs() -> None:
+    """Recover campaigns whose background run died with a previous worker.
+
+    Guarded: a DB hiccup at boot must not keep the worker from serving - the
+    sweep re-runs on every worker start and from the polled campaign read.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            fail_stale_status_runs(db, (REGISTRATION_RUN, EMBEDDING_RUN))
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        logger.warning("Stale background-run sweep failed at startup", exc_info=True)
 
 
 # Initialize the FastAPI app
@@ -101,7 +130,43 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         return response
 
 
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+}
+
+
+class SecurityHeadersMiddleware:
+    """Stamp response hardening headers on every API response.
+
+    The SWA frontend gets these from staticwebapp.config.json, but API responses come
+    from a different origin and had none of their own. nosniff is the one that earns
+    its keep: the tile proxy returns bytes an upstream we don't own chose.
+
+    Plain ASGI rather than BaseHTTPMiddleware - this sits on the tile path.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_stamped(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for name, value in SECURITY_HEADERS.items():
+                    headers.setdefault(name, value)
+            await send(message)
+
+        await self.app(scope, receive, send_stamped)
+
+
 app.add_middleware(RequestIDMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
@@ -210,13 +275,15 @@ def readyz():
 
 # Include actual routers from each module with /api prefix
 app.include_router(auth_router, prefix="/api")
+app.include_router(organizations_router, prefix="/api")
+app.include_router(projects_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
 app.include_router(annotations_router, prefix="/api")
 app.include_router(timeseries_router, prefix="/api")
 app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")
 app.include_router(imagery_proxy_router, prefix="/api")
-app.include_router(tiling_router, prefix="/api")
-app.include_router(custom_maps_router, prefix="/api")
-app.include_router(vector_layers_router, prefix="/api")
+app.include_router(stac_browser_router, prefix="/api")
+app.include_router(planet_router, prefix="/api")
+app.include_router(custom_layers_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

@@ -1,20 +1,21 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type {
   CampaignOut,
   CampaignSettingsCreate,
-  CampaignUserOut,
   LabelBase,
   LabellingPolicy,
+  ProjectUserOut,
 } from '~/api/client';
 import {
   updateCampaignFormFields,
   updateCampaignGuide,
   updateCampaignLabels,
-  updateCampaignVisibility,
   updateEmbeddingYear,
   updateLabellingPolicy,
   updateSampleExtent,
 } from '~/api/client';
+import { projectPath } from '~/app/routes';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
@@ -24,7 +25,7 @@ import {
   type FormField,
 } from '~/features/campaigns/utils/formFields';
 import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
 
@@ -40,7 +41,7 @@ interface Props {
   onUpdateSettings: (updates: Partial<CampaignSettingsCreate>) => void;
   onOpenDelete: () => void;
   onCampaignUpdated?: (campaign: CampaignOut) => void;
-  campaignUsers: CampaignUserOut[];
+  projectUsers: ProjectUserOut[];
 }
 
 export const GeneralSettingsTab: React.FC<Props> = ({
@@ -53,7 +54,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   onUpdateSettings,
   onOpenDelete,
   onCampaignUpdated,
-  campaignUsers,
+  projectUsers,
 }) => {
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
@@ -521,14 +522,22 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         <div>
           <h2 className="section-heading">Labelling access</h2>
           <p className="section-description">
-            Control who may label what, and whose labels count toward completing a task.
+            Control who may label what, and whose labels count toward completing a task. Members and
+            visibility are managed at the project level -{' '}
+            <Link
+              to={`${projectPath(campaign.project_id)}?tab=members`}
+              className="text-brand-700 underline underline-offset-4 hover:text-brand-600"
+            >
+              open project members
+            </Link>
+            .
           </p>
         </div>
         <LabellingPolicyEditor
           value={policyDraft}
           onChange={setPolicyDraft}
           isPublic={campaign.is_public ?? false}
-          members={campaignUsers}
+          members={projectUsers}
         />
         <div className="flex items-center gap-3 mt-3">
           <Button
@@ -614,51 +623,6 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
       <section className="pt-6 mt-6 border-t border-red-200">
         <h2 className="text-sm font-semibold text-red-700 mb-4">Danger zone</h2>
-        <div className="flex items-start justify-between gap-4 py-3 border-b border-red-100">
-          <div className="min-w-0">
-            <h3 className="text-sm font-medium text-neutral-900">Campaign visibility</h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              {campaign.is_public
-                ? 'This campaign is public. Anyone can view and annotate it.'
-                : 'This campaign is private. Only members can access it.'}
-            </p>
-          </div>
-          <Button
-            variant={campaign.is_public ? 'danger' : 'secondary'}
-            onClick={async () => {
-              const newValue = !campaign.is_public;
-              const confirmed = await showConfirmDialog({
-                title: newValue ? 'Make Campaign Public?' : 'Make Campaign Private?',
-                description: newValue
-                  ? 'This will allow any user to view and add annotations to this campaign. They can only edit or delete their own annotations.'
-                  : 'This will restrict access to campaign members only. Non-members will lose access immediately.',
-                confirmText: newValue ? 'Make Public' : 'Make Private',
-                cancelText: 'Cancel',
-                isDangerous: true,
-              });
-              if (!confirmed) return;
-              try {
-                const res = await updateCampaignVisibility({
-                  path: { campaign_id: campaign.id },
-                  body: { is_public: newValue },
-                });
-                if (res.error || !res.data) {
-                  handleError(res.error, 'Failed to update visibility');
-                  return;
-                }
-                if (onCampaignUpdated) onCampaignUpdated(res.data);
-                showAlert(
-                  newValue ? 'Campaign is now public' : 'Campaign is now private',
-                  'success'
-                );
-              } catch (err) {
-                handleError(err, 'Failed to update visibility');
-              }
-            }}
-          >
-            {campaign.is_public ? 'Make private' : 'Make public'}
-          </Button>
-        </div>
         <div className="flex items-start justify-between gap-4 py-3">
           <div className="min-w-0">
             <h3 className="text-sm font-medium text-neutral-900">Delete campaign</h3>

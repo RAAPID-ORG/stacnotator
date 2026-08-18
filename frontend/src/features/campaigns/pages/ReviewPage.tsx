@@ -1,48 +1,38 @@
 import { Fragment, useEffect, useState } from 'react';
-import { SkeletonPage, SkeletonRows } from '~/shared/ui/Skeleton';
-import { getCampaign, listAllCampaigns, type CampaignOut } from '~/api/client';
-import { useLayoutStore } from '~/features/layout/layout.store';
-import { capitalizeFirst } from '~/shared/utils/utility';
+import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
+import { Delayed } from '~/shared/ui/Delayed';
+import { getCampaign, type CampaignOut } from '~/api/client';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
+import { FadeIn } from '~/shared/ui/motion';
 import { OpenModeReview } from '../components/review/OpenModeReview';
 import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSection';
-import { useCampaignIdParam } from '../hooks/useCampaignIdParam';
+import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
+  const routeProjectId = useProjectIdParam();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
 
-  const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
   const showAlert = useLayoutStore((state) => state.showAlert);
 
-  useEffect(() => {
-    if (campaign) {
-      setBreadcrumbs([
-        { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaignId}` },
-        { label: 'Annotations' },
-      ]);
-    }
-  }, [campaign, campaignId, setBreadcrumbs]);
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Annotations');
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const [campaignRes, campaignsListRes] = await Promise.all([
-          getCampaign({ path: { campaign_id: campaignId } }),
-          listAllCampaigns(),
-        ]);
+        const campaignRes = await getCampaign({ path: { campaign_id: campaignId } });
         setCampaign(campaignRes.data!);
-        // CampaignOut has no is_admin flag; the campaigns list endpoint does,
-        // so we cross-reference it here rather than adding a backend field.
-        const listEntry = campaignsListRes.data?.items.find((c) => c.id === campaignId);
-        setIsAdmin(listEntry?.is_admin ?? false);
       } catch (err) {
         handleError(err, 'Failed to load campaign');
       } finally {
@@ -52,15 +42,7 @@ export const ReviewPage = () => {
     load();
   }, [campaignId]);
 
-  if (loading) {
-    return (
-      <SkeletonPage>
-        <SkeletonRows count={8} />
-      </SkeletonPage>
-    );
-  }
-
-  if (!campaign) {
+  if (!loading && !campaign) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-neutral-700">Campaign not found</p>
@@ -68,43 +50,60 @@ export const ReviewPage = () => {
     );
   }
 
+  const isAdmin = campaign?.viewer_is_admin ?? false;
+
   return (
     <Fragment>
-      <OpenModeReview
-        campaign={campaign}
-        campaignId={campaignId}
-        headerActions={
-          isAdmin ? (
-            <button
-              type="button"
-              onClick={() => setShowImport((v) => !v)}
-              className="flex items-center gap-1.5 px-3 h-8 rounded-full text-sm border border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400 transition-colors"
-              aria-expanded={showImport}
-            >
-              {showImport ? (
-                <IconChevronDown className="w-4 h-4" />
-              ) : (
-                <IconChevronRight className="w-4 h-4" />
-              )}
-              Import annotations
-            </button>
-          ) : undefined
-        }
-        subHeader={
-          isAdmin && showImport ? (
-            <div className="surface mb-6">
-              <div className="surface-section">
-                <ImportFeaturesSection
-                  campaignId={campaignId}
-                  labels={campaign.settings.labels}
-                  onSuccess={(msg) => showAlert(msg, 'success')}
-                  onError={(msg) => showAlert(msg, 'error')}
-                />
+      {campaign ? (
+        <OpenModeReview
+          campaign={campaign}
+          campaignId={campaignId}
+          headerActions={
+            isAdmin ? (
+              <button
+                type="button"
+                onClick={() => setShowImport((v) => !v)}
+                className="flex items-center gap-1.5 px-3 h-8 rounded-full text-sm border border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400 transition-colors"
+                aria-expanded={showImport}
+              >
+                {showImport ? (
+                  <IconChevronDown className="w-4 h-4" />
+                ) : (
+                  <IconChevronRight className="w-4 h-4" />
+                )}
+                Import annotations
+              </button>
+            ) : undefined
+          }
+          subHeader={
+            isAdmin && showImport ? (
+              <div className="surface mb-6">
+                <div className="surface-section">
+                  <ImportFeaturesSection
+                    campaignId={campaignId}
+                    labels={campaign.settings.labels}
+                    onSuccess={(msg) => showAlert(msg, 'success')}
+                    onError={(msg) => showAlert(msg, 'error')}
+                  />
+                </div>
               </div>
-            </div>
-          ) : undefined
-        }
-      />
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="flex-1 overflow-auto">
+          <FadeIn className="page">
+            <header className="page-header">
+              <div>
+                <Skeleton className="h-7 w-52" />
+              </div>
+            </header>
+            <Delayed>
+              <SkeletonRows count={8} />
+            </Delayed>
+          </FadeIn>
+        </div>
+      )}
     </Fragment>
   );
 };

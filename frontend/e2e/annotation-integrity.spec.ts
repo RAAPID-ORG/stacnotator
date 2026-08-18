@@ -78,8 +78,10 @@ async function doSubmit(page: Page): Promise<void> {
   await waitForNavIdle(page);
 }
 
-async function activeWindowTitle(page: Page): Promise<string | null> {
-  return page.locator('.active-window .card-header').getAttribute('title');
+/** Name of the imagery window whose collection is the active one - its header
+ *  title span carries data-window-active. */
+async function activeWindowTitle(page: Page): Promise<string> {
+  return page.locator('[data-window-active="true"]').first().innerText();
 }
 
 async function assertTimelineShowsCollection(page: Page, collectionName: string): Promise<void> {
@@ -570,7 +572,7 @@ test.describe('Real-world sequences', () => {
     expect(req!.body.label_id).toBe(2);
   });
 
-  test('Enter immediately after S is dropped while isNavigating (debounce guard)', async ({
+  test('Enter immediately after S does not submit TASK_1s label onto TASK_2', async ({
     annotationPage,
     api,
   }) => {
@@ -579,15 +581,17 @@ test.describe('Real-world sequences', () => {
     await pressLabel(page, 1);
     await expectLabelSelected(page, 1);
 
+    // Navigating clears the form, so TASK_2 has no label chosen - its Submit
+    // button is disabled, and Enter must be equally inert. It must certainly
+    // not carry TASK_1's label across, nor record an empty annotation.
     await page.keyboard.press('s');
-    // 80ms: enough for React to re-render with isNavigating=true, within the 500ms debounce.
     await page.waitForTimeout(80);
     await page.keyboard.press('Enter');
     await waitForNavIdle(page);
 
-    expect(await readGoToValue(page)).toBe(String(TASK_2.annotation_number));
-    await assertCrosshairAt(page, TASK_2.id, 'crosshair after debounce');
     expect(lastAnnotate(api.requests)).toBeUndefined();
+    expect(await readGoToValue(page)).toBe(String(TASK_2.annotation_number));
+    await expectNoLabelSelected(page);
   });
 
   test('GoTo 2 then override with GoTo 1 - submit goes to TASK_1', async ({

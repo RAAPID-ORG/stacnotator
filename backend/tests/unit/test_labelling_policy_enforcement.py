@@ -13,11 +13,13 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
+from src.annotation.completion import (
+    attach_counts_toward_completion_flat,
+    attach_counts_toward_completion_tree,
+)
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
-    _attach_counts_toward_completion,
     add_annotation_for_task,
-    attach_counts_toward_completion_flat,
     create_annotation,
     create_annotations_bulk,
     update_annotation,
@@ -25,14 +27,12 @@ from src.annotation.service import (
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience
 
 
-def _campaign(policy: LabellingPolicy | None = None, *, campaign_id=1, is_public=False):
+def _campaign(policy: LabellingPolicy, *, campaign_id=1, is_public=False):
     campaign = MagicMock()
     campaign.id = campaign_id
     campaign.is_public = is_public
     campaign.settings.labels = {"1": {"name": "Forest"}}
-    campaign.settings.labelling_policy = (
-        policy.model_dump(mode="json") if policy is not None else None
-    )
+    campaign.settings.labelling_policy = policy.model_dump(mode="json")
     return campaign
 
 
@@ -49,8 +49,8 @@ def _db(cu=None):
     return db
 
 
-_MEMBER = SimpleNamespace(is_admin=False, is_authorative_reviewer=False)
-_ADMIN = SimpleNamespace(is_admin=True, is_authorative_reviewer=False)
+_MEMBER = SimpleNamespace(is_admin=False, is_authoritative_reviewer=False)
+_ADMIN = SimpleNamespace(is_admin=True, is_authoritative_reviewer=False)
 
 
 class TestExploreAxisEnforcement:
@@ -83,20 +83,6 @@ class TestExploreAxisEnforcement:
     def test_create_annotation_denied_when_explore_is_no_one_even_for_admin(self):
         campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=[])))
         db = _db(cu=_ADMIN)
-        payload = AnnotationCreate(
-            label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None
-        )
-
-        with pytest.raises(HTTPException) as exc:
-            create_annotation(db, campaign, payload, uuid4())
-
-        assert exc.value.status_code == 403
-
-    def test_create_annotation_denied_falls_back_to_default_policy_when_unset(self):
-        """No labelling_policy stored (legacy campaign) -> default policy
-        (explore=members) applies; a non-member is still denied."""
-        campaign = _campaign(policy=None)
-        db = _db(cu=None)
         payload = AnnotationCreate(
             label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None
         )
@@ -332,7 +318,7 @@ class TestAttachCountsTowardCompletion:
         ]
         db.scalars.return_value.all.return_value = []  # no extra platform admins
 
-        _attach_counts_toward_completion(db, campaign, [assigned_task, unassigned_task])
+        attach_counts_toward_completion_tree(db, campaign, [assigned_task, unassigned_task])
 
         assert (
             assigned_task.annotations[0].counts_toward_completion is True
@@ -346,7 +332,7 @@ class TestAttachCountsTowardCompletion:
 
     def test_no_tasks_is_a_noop(self):
         db = MagicMock()
-        _attach_counts_toward_completion(db, _campaign(LabellingPolicy()), [])
+        attach_counts_toward_completion_tree(db, _campaign(LabellingPolicy()), [])
         db.execute.assert_not_called()
         db.scalars.assert_not_called()
 

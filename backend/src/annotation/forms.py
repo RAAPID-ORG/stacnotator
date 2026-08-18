@@ -7,6 +7,8 @@ into a 400 response.
 import math
 from datetime import date
 
+from pydantic import TypeAdapter
+
 from src.campaigns.form_fields import (
     CategoryFormField,
     DateFormField,
@@ -14,6 +16,16 @@ from src.campaigns.form_fields import (
     NumberFormField,
     TextFormField,
 )
+from src.campaigns.models import Campaign
+
+FORM_FIELDS_ADAPTER: TypeAdapter[list[FormField]] = TypeAdapter(list[FormField])
+
+
+def campaign_form_fields(campaign: Campaign) -> list[FormField]:
+    """Parse a campaign's field definitions, guarding the case where the
+    campaign has no settings row at all (not just an empty form_fields)."""
+    raw = campaign.settings.form_fields if campaign.settings else []
+    return FORM_FIELDS_ADAPTER.validate_python(raw or [])
 
 
 class FormValidationError(ValueError):

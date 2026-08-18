@@ -12,15 +12,16 @@ Usage:
     python seed_dev_data.py FIREBASE_UID # Seed with specific Firebase UID for initial user
 """
 
-import json
 import logging
 import sys
 
 from shapely.geometry import box as shapely_box
 from sqlalchemy import insert, select
 
+import src.models  # noqa: F401 -- side-effect import: ensures all ORM models are registered before any mapper configures  # isort: skip
+
 from src.annotation.models import AnnotationGeometry, AnnotationTask, AnnotationTaskAssignment
-from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER
+from src.auth.constants import ROLE_ADMIN, ROLE_USER
 from src.auth.models import User, UserRole
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import CampaignSettingsCreate, LabelBase
@@ -34,12 +35,21 @@ from src.imagery.schemas import (
     ImagerySliceCreate,
     ImagerySourceCreate,
     ImageryViewCreate,
-    SliceTileUrlCreate,
-    ViewCollectionRefCreate,
+    NamedVizParamsCreate,
     VisualizationTemplateCreate,
+    VizParamsCreate,
 )
+from src.imagery.service import create_view
+from src.organizations.models import (
+    MEMBER_STATUS_ACTIVE,
+    ORG_STATUS_APPROVED,
+    Organization,
+    OrganizationTiler,
+    OrganizationUser,
+)
+from src.projects.models import Project, ProjectUser
 from src.sampling_design.service import generate_random_points
-from src.timeseries.models import TimeSeries  # noqa: F401 - keeps SQLAlchemy mapper happy
+from src.tilers import registry
 from src.timeseries.schemas import TimeSeriesCreate
 
 logger = logging.getLogger(__name__)
@@ -47,41 +57,14 @@ logger = logging.getLogger(__name__)
 # Ukraine bounding box (WGS-84)
 UKRAINE_BBOX = dict(bbox_west=22.1, bbox_south=44.3, bbox_east=40.2, bbox_north=52.4)
 
-# Sentinel-2 Planetary Computer search body template (placeholders filled at query time)
-SENTINEL2_SEARCH_BODY = json.dumps(
-    {
-        "bbox": "{campaignBBoxPlaceholder}",
-        "filter": {
-            "op": "and",
-            "args": [
-                {
-                    "op": "anyinteracts",
-                    "args": [
-                        {"property": "datetime"},
-                        {"interval": ["{startDatetimePlaceholder}", "{endDatetimePlaceholder}"]},
-                    ],
-                },
-                {"op": "<=", "args": [{"property": "eo:cloud_cover"}, 70]},
-                {"op": "=", "args": [{"property": "collection"}, "sentinel-2-l2a"]},
-            ],
-        },
-        "metadata": {
-            "type": "mosaic",
-            "maxzoom": 24,
-            "minzoom": 0,
-            "pixel_selection": "median",
-        },
-        "filterLang": "cql2-json",
-        "collections": ["sentinel-2-l2a"],
-    }
-)
+MPC_CATALOG_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
 CAMPAIGN_NAME = "Ukraine Dev Campaign"
 OPEN_CAMPAIGN_NAME = "Ukraine Open-Mode Dev Campaign"
 
 
 def _ensure_user(db, firebase_uid: str | None = None) -> User:
-    """Return existing user or create a new one with admin + approved roles.
+    """Return existing user or create a new one with the user + admin roles.
 
     In local auth mode, creates the fixed local user (issuer="local",
     external_uid="local-user") so that it matches the LocalAuthProvider.
@@ -115,18 +98,77 @@ def _ensure_user(db, firebase_uid: str | None = None) -> User:
         db.add(user)
         db.flush()
         db.add(UserRole(user_id=user.id, role=ROLE_USER))
-        db.add(UserRole(user_id=user.id, role=ROLE_APPROVED))
         db.add(UserRole(user_id=user.id, role=ROLE_ADMIN))
         db.flush()
     else:
         logger.info("Using existing user: %s", user.email)
-        if not user.is_approved:
-            db.add(UserRole(user_id=user.id, role=ROLE_APPROVED))
         if not user.is_admin:
             db.add(UserRole(user_id=user.id, role=ROLE_ADMIN))
         db.flush()
 
     return user
+
+
+def _ensure_dev_org_and_project(db, user) -> Project:
+    """Create or retrieve the Dev Org and its project.
+
+    Returns the Project so campaigns can be created under it.
+    """
+    org = db.scalar(select(Organization).where(Organization.name == "Dev Org"))
+    if org is None:
+        org = Organization(
+            name="Dev Org",
+            description="Local development organization",
+            status=ORG_STATUS_APPROVED,
+            allows_internal_storage=True,
+            created_by=user.id,
+        )
+        db.add(org)
+        db.flush()
+        db.add(
+            OrganizationUser(
+                user_id=user.id,
+                organization_id=org.id,
+                is_admin=True,
+                status=MEMBER_STATUS_ACTIVE,
+            )
+        )
+        for tiler_name in registry.all_names():
+            db.add(OrganizationTiler(organization_id=org.id, tiler_name=tiler_name))
+    project = db.scalar(select(Project).where(Project.organization_id == org.id))
+    if project is None:
+        project = Project(
+            organization_id=org.id,
+            name="Ukraine Crops",
+            description="Seeded sample project",
+            created_by=user.id,
+        )
+        db.add(project)
+        db.flush()
+        db.add(
+            ProjectUser(
+                user_id=user.id,
+                project_id=project.id,
+                is_admin=True,
+                is_authoritative_reviewer=True,
+            )
+        )
+    db.commit()
+    return project
+
+
+def _seed_default_view(db, campaign_id: int) -> None:
+    """Give a seeded campaign one view spanning every source, so annotation
+    works without first authoring a view in edit mode."""
+    campaign = db.get(Campaign, campaign_id)
+    create_view(
+        db,
+        campaign,
+        ImageryViewCreate(
+            name="Default View",
+            source_ids=[source.id for source in campaign.imagery_sources],
+        ),
+    )
 
 
 def seed_dev_data(firebase_uid: str | None = None):
@@ -151,41 +193,19 @@ def seed_dev_data(firebase_uid: str | None = None):
         db.commit()
 
         user = _ensure_user(db, firebase_uid)
+        project = _ensure_dev_org_and_project(db, user)
 
-        # One Sentinel-2 imagery source spanning all of 2024.
-        # One collection with 12 monthly slices, each with two visualization URL templates.
-        true_color_url = (
-            "https://planetarycomputer.microsoft.com/api/data/v1/mosaic"
-            "/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
-            "?assets=B04&assets=B03&assets=B02&nodata=0"
-            "&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35"
-            "&collection=sentinel-2-l2a&pixel_selection=median"
-        )
-        false_color_url = (
-            "https://planetarycomputer.microsoft.com/api/data/v1/mosaic"
-            "/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
-            "?assets=B08&assets=B04&assets=B03&nodata=0"
-            "&color_formula=Gamma+RGB+3.7+Saturation+1.5+Sigmoidal+RGB+15+0.35"
-            "&collection=sentinel-2-l2a&pixel_selection=median"
-        )
-
+        # One Sentinel-2 imagery source spanning all of 2024: one MPC stac-browser
+        # collection with 12 monthly slices and two named visualizations. Tile URLs
+        # are built by the background mosaic registration, not seeded.
         monthly_slices = []
         for month in range(1, 13):
             end_month = month + 1 if month < 12 else 12
-            end_year = 2024 if month < 12 else 2024
             monthly_slices.append(
                 ImagerySliceCreate(
                     name=f"2024-{month:02d}",
                     start_date=f"2024-{month:02d}-01",
-                    end_date=f"{end_year}-{end_month:02d}-{'28' if month == 12 else '01'}",
-                    tile_urls=[
-                        SliceTileUrlCreate(
-                            visualization_name="True Color", tile_url=true_color_url
-                        ),
-                        SliceTileUrlCreate(
-                            visualization_name="False Color Infrared", tile_url=false_color_url
-                        ),
-                    ],
+                    end_date=f"2024-{end_month:02d}-{'28' if month == 12 else '01'}",
                 )
             )
 
@@ -204,20 +224,33 @@ def seed_dev_data(firebase_uid: str | None = None):
                             name="2024 Monthly Mosaics",
                             cover_slice_index=5,
                             stac_config=CollectionStacConfigCreate(
-                                registration_url="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register",
-                                search_body=SENTINEL2_SEARCH_BODY,
+                                catalog_url=MPC_CATALOG_URL,
+                                stac_collection_id="sentinel-2-l2a",
+                                max_cloud_cover=70,
+                                visualizations=[
+                                    NamedVizParamsCreate(
+                                        name="True Color",
+                                        viz_params=VizParamsCreate(
+                                            assets=["B04", "B03", "B02"],
+                                            nodata=0,
+                                            color_formula=(
+                                                "Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35"
+                                            ),
+                                        ),
+                                    ),
+                                    NamedVizParamsCreate(
+                                        name="False Color Infrared",
+                                        viz_params=VizParamsCreate(
+                                            assets=["B08", "B04", "B03"],
+                                            nodata=0,
+                                            color_formula=(
+                                                "Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35"
+                                            ),
+                                        ),
+                                    ),
+                                ],
                             ),
                             slices=monthly_slices,
-                        ),
-                    ],
-                ),
-            ],
-            views=[
-                ImageryViewCreate(
-                    name="Default View",
-                    collection_refs=[
-                        ViewCollectionRefCreate(
-                            source_id="0", collection_id="0", show_as_window=True
                         ),
                     ],
                 ),
@@ -255,12 +288,14 @@ def seed_dev_data(firebase_uid: str | None = None):
             db,
             name=CAMPAIGN_NAME,
             mode="tasks",
+            project_id=project.id,
             settings=settings,
             user_id=user.id,
             imagery_editor_state=imagery_editor_state,
             timeseries_configs=timeseries_configs,
         )
         logger.info("Campaign created: id=%d", campaign.id)
+        _seed_default_view(db, campaign.id)
 
         # Generate 100 random points within Ukraine bbox and create tasks
         logger.info("Generating 100 random sample points within Ukraine bounding box...")
@@ -314,12 +349,14 @@ def seed_dev_data(firebase_uid: str | None = None):
             db,
             name=OPEN_CAMPAIGN_NAME,
             mode="open",
+            project_id=project.id,
             settings=settings,
             user_id=user.id,
             imagery_editor_state=imagery_editor_state,
             timeseries_configs=timeseries_configs,
         )
         logger.info("Open-mode campaign created: id=%d", open_campaign.id)
+        _seed_default_view(db, open_campaign.id)
 
         logger.info("\nDatabase seeding complete!")
         logger.info("  Task-mode Campaign  : id=%d  name=%s", campaign.id, campaign.name)
@@ -341,16 +378,12 @@ def clear_dev_data():
     try:
         logger.info("Clearing development data...")
 
-        for name in (CAMPAIGN_NAME, OPEN_CAMPAIGN_NAME):
-            campaign = db.execute(
-                select(Campaign).where(Campaign.name == name)
-            ).scalar_one_or_none()
-
-            if campaign:
-                db.delete(campaign)
-                logger.info("Deleted campaign: %s", name)
-            else:
-                logger.info("No campaign found: %s", name)
+        org = db.scalar(select(Organization).where(Organization.name == "Dev Org"))
+        if org:
+            db.delete(org)
+            logger.info("Deleted Dev Org (cascade removes projects and campaigns)")
+        else:
+            logger.info("No Dev Org found")
 
         db.commit()
         logger.info("Development data cleared.")

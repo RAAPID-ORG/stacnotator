@@ -12,11 +12,10 @@ async function loadOpenModeForms(page: Page, api: ApiCapture): Promise<void> {
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
-  await page.waitForFunction(
-    () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
-    undefined,
-    { timeout: 10_000 }
-  );
+  await page
+    .locator('[data-testid="viewport-center"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 10_000 });
   api.clear();
 }
 
@@ -85,8 +84,8 @@ test.describe('Open mode custom-field catalog', () => {
     await expect(catalog(annotationPage)).toBeVisible();
 
     // Field 100 (Condition) is required and first, so its cell carries the
-    // active-field highlight ring; pressing a digit answers it immediately.
-    await expect(annotationPage.locator('[data-form-field-id="100"]')).toHaveClass(/ring-2/);
+    // subtle active-field highlight ring; pressing a digit answers it immediately.
+    await expect(annotationPage.locator('[data-form-field-id="100"]')).toHaveClass(/ring-1/);
     await annotationPage.keyboard.press('1'); // picks "Healthy"
     await expect(
       catalog(annotationPage)
@@ -126,6 +125,25 @@ test.describe('Open mode custom-field catalog', () => {
 
     const post = createPosts(api).at(-1);
     expect(post!.body.form_values).toEqual({ '100': 1001 });
+    await expect(catalog(annotationPage)).toHaveCount(0);
+  });
+
+  // Answering the last question and pressing Enter is how a draft gets
+  // finished; Enter must reach the save from inside the field being typed in.
+  test('Enter saves the draft from inside the last field', async ({ annotationPage, api }) => {
+    await annotationPage.keyboard.press('2');
+    await drawPolygon(annotationPage, POLY);
+    await expect(catalog(annotationPage)).toBeVisible();
+
+    await annotationPage.keyboard.press('1'); // Condition -> Healthy
+    await annotationPage.keyboard.press('Tab'); // focuses the Notes input
+    await expect(annotationPage.locator('[data-form-field-id="101"] input')).toBeFocused();
+    await annotationPage.keyboard.type('all good');
+
+    await Promise.all([waitForCreate(annotationPage), annotationPage.keyboard.press('Enter')]);
+
+    const post = createPosts(api).at(-1);
+    expect(post!.body.form_values).toEqual({ '100': 1001, '101': 'all good' });
     await expect(catalog(annotationPage)).toHaveCount(0);
   });
 

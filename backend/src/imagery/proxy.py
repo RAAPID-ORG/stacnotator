@@ -30,7 +30,7 @@ def build_upstream_tile_url(template: str, z: int, x: int, y: int, api_key: str)
     Unknown placeholders are left intact; ``{a-c}``/``{1-3}`` subdomain ranges resolve to
     their first option (the proxy fetches a single deterministic upstream URL)."""
 
-    def repl(match: re.Match) -> str:
+    def repl(match: re.Match[str]) -> str:
         name = match.group(1)
         if name == "z":
             return str(z)

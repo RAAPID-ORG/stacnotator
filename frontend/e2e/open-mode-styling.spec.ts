@@ -12,11 +12,10 @@ type Page = import('@playwright/test').Page;
 async function waitOpenModeReady(page: Page): Promise<void> {
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
-  await page.waitForFunction(
-    () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
-    undefined,
-    { timeout: 10_000 }
-  );
+  await page
+    .locator('[data-testid="viewport-center"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 10_000 });
 }
 
 async function loadOpenMode(page: Page, api: ApiCapture): Promise<void> {
@@ -33,9 +32,10 @@ const controls = (page: Page) => page.locator('[data-tour="controls"]');
 /** Open the inline style editor for the first label (Tree) and return its parts. */
 async function openFirstLabelStyleEditor(page: Page) {
   await page.keyboard.press('r'); // annotate -> reveal the label list
+  await controls(page).locator('[title="Customize label styles"]').click(); // per-label pencils
   await controls(page).locator('[title="Customize this label\'s style"]').first().click();
   return {
-    fillColorInput: controls(page).locator('[title="Fill color"]'),
+    fillColorInput: controls(page).getByLabel('Fill color'),
     swatch: controls(page).locator('span.rounded-sm').first(),
   };
 }
@@ -77,13 +77,13 @@ test.describe('Open mode - per-label styling', () => {
       .toBe('rgb(255, 0, 170)');
   });
 
-  test('Reset to default clears the override', async ({ annotationPage: page }) => {
+  test('Reset clears the override', async ({ annotationPage: page }) => {
     const editor = await openFirstLabelStyleEditor(page);
     await editor.fillColorInput.fill('#123456');
     await expect(editor.fillColorInput).toHaveValue('#123456');
 
-    await controls(page).getByText('Reset to default').click();
-    await expect(controls(page).locator('[title="Fill color"]')).toHaveValue('#10b981');
+    await controls(page).getByRole('button', { name: 'Reset' }).click();
+    await expect(controls(page).getByLabel('Fill color')).toHaveValue('#10b981');
   });
 });
 
@@ -96,11 +96,11 @@ test.describe('Open mode - drawn object visibility', () => {
     await loadOpenMode(annotationPage, api);
   });
 
-  test('the eye button and the X hotkey both toggle visibility', async ({
+  test('the eye button and the Shift+X hotkey both toggle visibility', async ({
     annotationPage: page,
   }) => {
-    const hideBtn = page.locator('[title="Hide drawn objects (X)"]');
-    const showBtn = page.locator('[title="Show drawn objects (X)"]');
+    const hideBtn = page.locator('[title="Hide drawn objects (Shift+X)"]');
+    const showBtn = page.locator('[title="Show drawn objects (Shift+X)"]');
 
     // Default: objects shown -> button offers to Hide.
     await expect(hideBtn).toBeVisible();
@@ -122,7 +122,7 @@ test.describe('Open mode - drawn object visibility', () => {
     // `a`/`d` drive slice navigation (live in open mode via the task-mode
     // keyboard hook), `p` is Pan, `e` is Edit. None of them may toggle
     // annotation visibility - regression guard against a key collision.
-    const hideBtn = page.locator('[title="Hide drawn objects (X)"]');
+    const hideBtn = page.locator('[title="Hide drawn objects (Shift+X)"]');
     await expect(hideBtn).toBeVisible();
 
     for (const key of ['d', 'a', 'p', 'e']) {

@@ -5,40 +5,6 @@ export interface LatLon {
   lon: number;
 }
 
-/**
- * Compute a square extent polygon (GeoJSON) around a lat/lon point given a size in meters.
- * Returns a closed ring polygon in WGS84 coordinates.
- */
-export const computeExtentGeoJSON = (
-  lat: number,
-  lon: number,
-  sizeMeters: number
-): GeoJSON.Polygon => {
-  const half = sizeMeters / 2;
-  // Approximate degree offsets from meters
-  const dLat = half / 111_320;
-  const dLon = half / (111_320 * Math.cos((lat * Math.PI) / 180));
-  return {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [lon - dLon, lat - dLat],
-        [lon + dLon, lat - dLat],
-        [lon + dLon, lat + dLat],
-        [lon - dLon, lat + dLat],
-        [lon - dLon, lat - dLat],
-      ],
-    ],
-  };
-};
-
-export interface TimeSlice {
-  index: number;
-  startDate: string;
-  endDate: string;
-  label: string;
-}
-
 const MONTH_ABBREV = [
   'Jan',
   'Feb',
@@ -63,6 +29,63 @@ const MONTH_ABBREV = [
 export const capitalizeFirst = (str: string): string => {
   if (!str) return str;
   return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
+type SearchableUser = { display_name?: string | null; email?: string | null };
+
+const userMatchRank = (user: SearchableUser, query: string): number => {
+  const name = (user.display_name ?? '').toLowerCase();
+  const email = (user.email ?? '').toLowerCase();
+  if (name.startsWith(query) || email.startsWith(query)) return 0;
+  if (name.split(/\s+/).some((word) => word.startsWith(query))) return 1;
+  if (name.includes(query) || email.includes(query)) return 2;
+  return -1;
+};
+
+/**
+ * Case-insensitive user search over display name and, where the viewer is
+ * given it, email. Results are ranked: full prefix matches first, then
+ * name-word prefixes, then substring matches, preserving the incoming order
+ * within each tier. An empty query returns all items unchanged.
+ */
+export const searchUsers = <T>(
+  items: T[],
+  getUser: (item: T) => SearchableUser,
+  rawQuery: string
+): T[] => {
+  const query = rawQuery.trim().toLowerCase();
+  if (!query) return items;
+  return items
+    .map((item) => ({ item, rank: userMatchRank(getUser(item), query) }))
+    .filter(({ rank }) => rank >= 0)
+    .sort((a, b) => a.rank - b.rank)
+    .map(({ item }) => item);
+};
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export interface ParsedEmails {
+  emails: string[];
+  invalid: string[];
+}
+
+/** Splits pasted text on commas/semicolons/whitespace, dedupes
+ *  case-insensitively and separates entries that cannot be an address. */
+export const parseEmailList = (raw: string): ParsedEmails => {
+  const seen = new Set<string>();
+  const emails: string[] = [];
+  const invalid: string[] = [];
+
+  for (const token of raw.split(/[\s,;]+/)) {
+    if (!token) continue;
+    const key = token.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (EMAIL_PATTERN.test(token)) emails.push(token);
+    else invalid.push(token);
+  }
+
+  return { emails, invalid };
 };
 
 /**
@@ -234,108 +257,6 @@ export const inputMonthToYYYYMM = (inputMonth: string): string => {
 };
 
 /**
- * Convert GeoJSON geometry to WKT string format
- */
-export const convertGeoJSONToWKT = (geometry: GeoJSON.Geometry): string => {
-  switch (geometry.type) {
-    case 'Point': {
-      const [lon, lat] = geometry.coordinates as [number, number];
-      return `POINT (${lon} ${lat})`;
-    }
-    case 'LineString': {
-      const coords = (geometry.coordinates as [number, number][])
-        .map(([lon, lat]) => `${lon} ${lat}`)
-        .join(', ');
-      return `LINESTRING (${coords})`;
-    }
-    case 'Polygon': {
-      const rings = (geometry.coordinates as [number, number][][])
-        .map((ring) => {
-          const coords = ring.map(([lon, lat]) => `${lon} ${lat}`).join(', ');
-          return `(${coords})`;
-        })
-        .join(', ');
-      return `POLYGON (${rings})`;
-    }
-    default:
-      throw new Error(`Unsupported geometry type: ${geometry.type}`);
-  }
-};
-
-/**
- * Convert WKT string to GeoJSON geometry
- */
-export const convertWKTToGeoJSON = (wkt: string): GeoJSON.Geometry | null => {
-  if (!wkt) return null;
-
-  const normalized = wkt.trim().toUpperCase();
-
-  // Parse POINT
-  const pointMatch = normalized.match(/^POINT\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)$/);
-  if (pointMatch) {
-    return {
-      type: 'Point',
-      coordinates: [parseFloat(pointMatch[1]), parseFloat(pointMatch[2])],
-    };
-  }
-
-  // Parse LINESTRING
-  const lineMatch = normalized.match(/^LINESTRING\s*\((.+)\)$/);
-  if (lineMatch) {
-    const coords = lineMatch[1].split(',').map((pair) => {
-      const [lon, lat] = pair.trim().split(/\s+/);
-      return [parseFloat(lon), parseFloat(lat)];
-    });
-    return {
-      type: 'LineString',
-      coordinates: coords,
-    };
-  }
-
-  // Parse POLYGON
-  const polygonMatch = normalized.match(/^POLYGON\s*\((.+)\)$/);
-  if (polygonMatch) {
-    const rings = polygonMatch[1].split(/\)\s*,\s*\(/).map((ring, i, arr) => {
-      // Remove leading/trailing parens from first/last ring
-      let cleanRing = ring;
-      if (i === 0) cleanRing = cleanRing.replace(/^\(/, '');
-      if (i === arr.length - 1) cleanRing = cleanRing.replace(/\)$/, '');
-
-      return cleanRing.split(',').map((pair) => {
-        const [lon, lat] = pair.trim().split(/\s+/);
-        return [parseFloat(lon), parseFloat(lat)];
-      });
-    });
-    return {
-      type: 'Polygon',
-      coordinates: rings,
-    };
-  }
-
-  // Parse MULTIPOLYGON
-  const multiPolyMatch = normalized.match(/^MULTIPOLYGON\s*\(\(\((.+)\)\)\)$/);
-  if (multiPolyMatch) {
-    const polygonsRaw = multiPolyMatch[1].split(/\)\)\s*,\s*\(\(/);
-    const polygons = polygonsRaw.map((polyStr) => {
-      const rings = polyStr.split(/\)\s*,\s*\(/).map((ring) => {
-        const cleanRing = ring.replace(/^\(/, '').replace(/\)$/, '');
-        return cleanRing.split(',').map((pair) => {
-          const [lon, lat] = pair.trim().split(/\s+/);
-          return [parseFloat(lon), parseFloat(lat)];
-        });
-      });
-      return rings;
-    });
-    return {
-      type: 'MultiPolygon',
-      coordinates: polygons,
-    };
-  }
-
-  return null;
-};
-
-/**
  * Extract the centroid (lat/lon) from any WKT geometry string.
  * Supports POINT, LINESTRING, and POLYGON.
  * For POINT: returns the point itself.
@@ -404,41 +325,19 @@ export const extractCentroidFromWKT = (wkt: string): LatLon | null => {
   return extractLatLonFromWKT(wkt);
 };
 
-/**
- * Mock API function for magic wand auto-segmentation
- * In production, this would call a backend AI model for semantic segmentation
- * For now, returns a bounding box polygon around the clicked point
- *
- * @param lat - Latitude of the clicked point
- * @param lon - Longitude of the clicked point
- * @param bufferSize - Size of the bounding box buffer (default: 0.001 degrees ~= 100m)
- * @returns Promise resolving to a GeoJSON Polygon geometry
- */
-export const mockMagicWandSegmentation = async (
-  lat: number,
-  lon: number,
-  bufferSize: number = 0.001
-): Promise<GeoJSON.Polygon> => {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 300));
+/** Compact duration for the annotation-time columns: "45s", "3m 20s", "1h 12m".
+ *  Null means never measured, which reads as an em-free dash rather than 0. */
+export const formatDuration = (seconds: number | null | undefined): string => {
+  if (seconds == null) return '-';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
 
-  // Create a bounding box around the point
-  const minLon = lon - bufferSize;
-  const maxLon = lon + bufferSize;
-  const minLat = lat - bufferSize;
-  const maxLat = lat + bufferSize;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    const rest = Math.round(seconds % 60);
+    return rest ? `${minutes}m ${rest}s` : `${minutes}m`;
+  }
 
-  // Return a GeoJSON polygon (bbox as a closed ring)
-  return {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [minLon, minLat],
-        [maxLon, minLat],
-        [maxLon, maxLat],
-        [minLon, maxLat],
-        [minLon, minLat], // Close the ring
-      ],
-    ],
-  };
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return restMinutes ? `${hours}h ${restMinutes}m` : `${hours}h`;
 };

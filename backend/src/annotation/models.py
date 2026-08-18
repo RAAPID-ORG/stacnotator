@@ -1,8 +1,10 @@
 from datetime import datetime as dt_datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import sqlalchemy as sa
 from geoalchemy2 import Geometry as GeoAlchemyGeometry
+from geoalchemy2.elements import WKBElement
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
@@ -40,7 +42,9 @@ class AnnotationGeometry(Base):
     )
 
     # Geometry data (PostGIS)
-    geometry: Mapped[str] = mapped_column(
+    # geoalchemy2 hands back a WKBElement on read; writes accept an
+    # "SRID=4326;<wkt>" string, which is why every insert here passes one.
+    geometry: Mapped[WKBElement] = mapped_column(
         GeoAlchemyGeometry(geometry_type="GEOMETRY", srid=4326),
         nullable=False,
     )
@@ -52,11 +56,26 @@ class AnnotationTask(Base):
     Each task item has a unique annotation number within its campaign.
     """
 
+    if TYPE_CHECKING:
+        # Not a column: attached per request by annotation/service.py, which
+        # looks the embeddings up in one query rather than per task.
+        has_embedding: bool
+
     __tablename__ = "annotation_tasks"
     __table_args__ = (
         Index("idx_task_items_campaign_id", "campaign_id"),
         UniqueConstraint("campaign_id", "annotation_number"),
         Index("idx_annotation_tasks_task_set_id", "task_set_id"),
+        Index("idx_annotation_tasks_geometry_id", "geometry_id"),
+        # One live claim per user per campaign, enforced by the database rather
+        # than by remembering to release the previous one.
+        Index(
+            "uq_annotation_tasks_one_claim_per_user",
+            "campaign_id",
+            "claimed_by_user_id",
+            unique=True,
+            postgresql_where=text("claimed_by_user_id IS NOT NULL"),
+        ),
         {"schema": "data"},
     )
 
@@ -95,9 +114,23 @@ class AnnotationTask(Base):
         nullable=True,
     )
 
+    # The soft claim: who is working on this task right now, and since when.
+    # A lease, not an assignment - it expires (CLAIM_TTL_MINUTES), it never
+    # decides who may label, and it is deliberately not a row in
+    # annotation_tasks_assignment so that nothing reading assignments sees it.
+    claimed_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    claimed_at: Mapped[dt_datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="task_items")
     geometry: Mapped[AnnotationGeometry] = relationship()
+    claimed_by: Mapped["User | None"] = relationship(foreign_keys=[claimed_by_user_id])
     assignments: Mapped[list["AnnotationTaskAssignment"]] = relationship(
         "AnnotationTaskAssignment",
         foreign_keys="[AnnotationTaskAssignment.task_id]",
@@ -112,13 +145,19 @@ class AnnotationTask(Base):
 
 
 class AnnotationTaskAssignment(Base):
-    """
-    Assignment from annotation task to a user.
+    """A user an admin put on a task.
+
+    Admin intent only. A user who picks a task out of the unassigned pool
+    never gets a row here - their claim lives on the task and their work
+    lives on the annotation - which is what keeps `bool(task.assignments)`
+    an honest answer to "is this task assigned" for the labelling policy.
+    Per-assignee status is derived from the annotations, not stored.
     """
 
     __tablename__ = "annotation_tasks_assignment"
     __table_args__ = (
         Index("idx_annotation_tasks_assignment_task_id", "task_id"),
+        Index("idx_annotation_tasks_assignment_user_id", "user_id"),
         UniqueConstraint("task_id", "user_id"),
         {"schema": "data"},
     )
@@ -139,12 +178,6 @@ class AnnotationTaskAssignment(Base):
         ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False
     )
 
-    status: Mapped[str] = mapped_column(
-        String(32),
-        nullable=False,
-        server_default="pending",
-    )
-
     # True if this assignment is a review of another user's annotation work,
     # rather than a primary annotation assignment. Reviewers are only added to
     # tasks that already have a primary (non-review) assignment.
@@ -152,13 +185,6 @@ class AnnotationTaskAssignment(Base):
         Boolean,
         nullable=False,
         server_default=text("false"),
-    )
-
-    # Set when the assignment is a soft claim (auto-created when a user dwells on an
-    # unassigned task). NULL for explicit admin assignments, which never expire.
-    claimed_at: Mapped[dt_datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
     )
 
     # Relationships
@@ -176,10 +202,18 @@ class Annotation(Base):
     If no label is set, it indicates that the annotation was skipped with a comment.
     """
 
+    if TYPE_CHECKING:
+        # Not a column: attached per request by annotation/completion.py on
+        # task-linked rows (bool); standalone rows never get it.
+        counts_toward_completion: bool | None
+
     __tablename__ = "annotations"
     __table_args__ = (
         Index("idx_annotations_campaign_id", "campaign_id"),
         Index("idx_annotations_task_id", "annotation_task_id"),
+        Index("idx_annotations_geometry_id", "geometry_id"),
+        Index("idx_annotations_created_by_user_id", "created_by_user_id"),
+        Index("idx_annotations_imagery_slice_id", "imagery_slice_id"),
         UniqueConstraint(
             "annotation_task_id",
             "created_by_user_id",
@@ -248,6 +282,11 @@ class Annotation(Base):
     # Annotation data
     label_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Notes the annotator attached to individual imagery slices, one per slice.
+    # Each entry snapshots the slice's source and dates for the same reason the
+    # columns above do: it stays readable after the slice is re-registered.
+    # Shaped by annotation.schemas.SliceComment.
+    slice_comments: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     form_values: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_authoritative: Mapped[bool] = mapped_column(
@@ -262,14 +301,19 @@ class Annotation(Base):
     )
     flag_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Active seconds the author spent on this task, accumulated across submits.
+    # NULL means never measured, which keeps rows predating the measurement out
+    # of the duration statistics rather than averaging them in as zero.
+    active_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Audit fields
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[dt_datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
     )
 
-    updated_at: Mapped[DateTime] = mapped_column(
+    updated_at: Mapped[dt_datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
@@ -297,6 +341,7 @@ class Embedding(Base):
             postgresql_with={"m": 16, "ef_construction": 64},
             postgresql_ops={"vector": "vector_cosine_ops"},
         ),
+        Index("idx_embeddings_annotation_task_id", "annotation_task_id"),
         {"schema": "data"},
     )
 
@@ -315,12 +360,6 @@ class Embedding(Base):
 
     # 64-D embedding vector (pgvector)
     vector = mapped_column(Vector(64), nullable=False)
-
-    # Location & time metadata (for provenance / cache lookups)
-    lat: Mapped[float] = mapped_column(sa.Float, nullable=False)
-    lon: Mapped[float] = mapped_column(sa.Float, nullable=False)
-    period_start: Mapped[dt_datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    period_end: Mapped[dt_datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # Relationships
     annotation_task: Mapped["AnnotationTask"] = relationship()

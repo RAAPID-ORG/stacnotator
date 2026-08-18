@@ -1,0 +1,86 @@
+name: Deploy
+
+# Shared deploy mechanics for both environments.
+#
+# Identifiers come from the calling job's GitHub Environment as environment-scoped
+# secrets and variables, so this file holds no environment-specific names and both
+# callers stay identical apart from which environment they select.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub Environment providing secrets, variables and approval
+        required: true
+        type: string
+      deploy-env:
+        description: Argument passed to deploy.sh (prod or dev)
+        required: true
+        type: string
+    secrets:
+      # Declared rather than inherited: this workflow holds the only credentials
+      # that can change a deployed environment, so what reaches it is a list you
+      # can read, not whatever the caller happens to hold.
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+      AZURE_RESOURCE_GROUP:
+        required: true
+      TILER_REPO_TOKEN:
+        required: true
+      EE_SERVICE_ACCOUNT:
+        required: false
+      CUSTOM_DOMAINS:
+        required: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, linux, x64, azure]
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # The tiler is its own repo; check it out so deploy.sh can build and deploy it.
+      - name: Check out tiler repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          repository: RAAPID-ORG/stacnotator-tiler
+          ref: ${{ vars.TILER_REPO_REF || 'main' }}
+          token: ${{ secrets.TILER_REPO_TOKEN }}
+          path: stacnotator-tiler
+
+      - name: Azure Login via OIDC
+        uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Deploy
+        env:
+          CI: "true"
+          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT }}
+          CUSTOM_DOMAINS: ${{ secrets.CUSTOM_DOMAINS }}
+          TILER_REPO_DIR: ${{ github.workspace }}/stacnotator-tiler
+          PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
+          EXTRA_TILERS: ${{ vars.EXTRA_TILERS }}
+          TILER_AZURE_SIGNING: ${{ vars.TILER_AZURE_SIGNING }}
+          DEPLOY_ENV: ${{ inputs.deploy-env }}
+        run: ./deployment/azure/deploy.sh "$DEPLOY_ENV"

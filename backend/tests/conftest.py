@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-# Some modules (src.utils) call get_settings() at import time,
+# Some modules call get_settings() at import time,
 # so we need DB env vars present before any src imports happen.
 os.environ.setdefault("DBNAME", "testdb")
 os.environ.setdefault("DBUSER", "testuser")

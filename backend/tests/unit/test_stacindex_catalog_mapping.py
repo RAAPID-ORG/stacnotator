@@ -1,9 +1,9 @@
-from src.tiling.router import _map_stacindex_catalog
+from src.stac_browser.catalogs import map_stacindex_catalog
 
 
 def test_uses_slug_as_id_not_numeric_id():
     # StacIndex now returns a numeric `id`; the output id must be the string slug.
-    out = _map_stacindex_catalog(
+    out = map_stacindex_catalog(
         {
             "isApi": True,
             "id": 16,
@@ -18,7 +18,7 @@ def test_uses_slug_as_id_not_numeric_id():
 
 
 def test_auth_required_matches_on_slug():
-    out = _map_stacindex_catalog(
+    out = map_stacindex_catalog(
         {"isApi": True, "id": 99, "slug": "maxar", "title": "Maxar", "url": "https://m"}
     )
     assert out is not None
@@ -26,18 +26,18 @@ def test_auth_required_matches_on_slug():
 
 
 def test_falls_back_to_stringified_id_when_no_slug():
-    out = _map_stacindex_catalog({"isApi": True, "id": 42, "title": "x", "url": "https://x"})
+    out = map_stacindex_catalog({"isApi": True, "id": 42, "title": "x", "url": "https://x"})
     assert out is not None
     assert out["id"] == "42"
 
 
 def test_skips_non_api_catalogs():
-    assert _map_stacindex_catalog({"isApi": False, "slug": "static-thing"}) is None
+    assert map_stacindex_catalog({"isApi": False, "slug": "static-thing"}) is None
 
 
 def test_skips_planetary_computer():
     assert (
-        _map_stacindex_catalog(
+        map_stacindex_catalog(
             {"isApi": True, "slug": "mpc", "url": "https://planetarycomputer.microsoft.com/api"}
         )
         is None

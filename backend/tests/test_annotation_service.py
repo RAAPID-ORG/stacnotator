@@ -10,31 +10,38 @@ import numpy as np
 import pytest
 from fastapi import HTTPException
 from geoalchemy2.elements import WKTElement
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 
+from src.annotation.claims import _is_free_work, claim_next_task, claim_task
 from src.annotation.constants import (
-    ANNOTATION_TASK_STATUS_DONE,
-    ANNOTATION_TASK_STATUS_PENDING,
-    ANNOTATION_TASK_STATUS_SKIPPED,
     CLAIM_TTL_MINUTES,
 )
-from src.annotation.io import (
+from src.annotation.export import (
     FormExportSchema,
     _build_annotation_records,
     build_annotations_export,
     build_annotations_geojson_export,
+)
+from src.annotation.ingest import (
     create_annotation_tasks_from_csv,
     create_annotations_from_geojson,
 )
-from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTaskAssignment
+from src.annotation.models import (
+    Annotation,
+    AnnotationGeometry,
+    AnnotationTask,
+    AnnotationTaskAssignment,
+)
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
     add_annotation_for_task,
-    claim_task_for_user,
     create_annotation,
     create_annotations_bulk,
     delete_annotation,
     update_annotation,
 )
+from src.campaigns.schemas import default_labelling_policy
 
 
 def _mock_db():
@@ -50,14 +57,13 @@ def _mock_db():
 def _make_campaign(label_ids=(1, 2, 3, 4, 5, 6, 7)):
     """Return a MagicMock campaign whose label set contains the given ids.
 
-    `settings.labelling_policy = None` so `get_labelling_policy` falls back to
-    the default policy (members-everywhere) instead of trying to validate a
-    MagicMock as a LabellingPolicy - policy-enforcement tests below override
-    it explicitly where they need a specific policy.
+    Carries the default labelling policy (members-everywhere) as its stored
+    dict, matching what every real settings row holds - policy-enforcement
+    tests below override it explicitly where they need a specific policy.
     """
     campaign = MagicMock()
     campaign.settings.labels = {str(lid): {"name": f"Label {lid}"} for lid in label_ids}
-    campaign.settings.labelling_policy = None
+    campaign.settings.labelling_policy = default_labelling_policy().model_dump(mode="json")
     campaign.is_public = False
     return campaign
 
@@ -87,11 +93,10 @@ def _make_annotation(ann_id=1, task_id=1, campaign_id=1, user_id=None, label_id=
     return ann
 
 
-def _make_assignment(task_id=1, user_id=None, status="pending"):
+def _make_assignment(task_id=1, user_id=None):
     a = MagicMock(spec=AnnotationTaskAssignment)
     a.task_id = task_id
     a.user_id = user_id or uuid4()
-    a.status = status
     return a
 
 
@@ -121,8 +126,9 @@ class TestAddAnnotationForTask:
         assert added.created_by_user_id == user_id
         db.commit.assert_called_once()
 
-    def test_create_skip_no_label_no_comment(self):
-        """No label and no comment -> nothing created, nothing committed."""
+    def test_bare_skip_is_stored_as_a_label_less_annotation(self):
+        """No label and no comment still leaves a record: it is the only trace
+        that this user looked at the task, and what its status is read from."""
         db = _mock_db()
         user_id = uuid4()
         task = _make_task()
@@ -132,36 +138,41 @@ class TestAddAnnotationForTask:
         payload = AnnotationFromTaskCreate(label_id=None, comment=None, confidence=None)
         result = add_annotation_for_task(db, task, payload, user_id)
 
-        db.add.assert_not_called()
-        assert result is None
+        added = db.add.call_args[0][0]
+        assert isinstance(added, Annotation)
+        assert added.label_id is None
+        assert added.created_by_user_id == user_id
+        assert result is added
 
-    def test_create_with_assignment_marks_done(self):
+    def test_submitting_never_touches_an_assignment_row(self):
+        """Assignments are admin intent; the annotation carries the progress."""
         db = _mock_db()
         db.get.return_value = _make_campaign()
         user_id = uuid4()
-        task = _make_task()
-        assignment = _make_assignment(task_id=task.id, user_id=user_id)
+        assignment = _make_assignment(task_id=1, user_id=user_id)
+        task = _make_task(assignments=[assignment])
 
-        # first call: no existing annotation; second call: assignment found
-        db.execute.return_value.scalar_one_or_none.side_effect = [None, assignment]
+        db.execute.return_value.scalar_one_or_none.return_value = None
 
         payload = AnnotationFromTaskCreate(label_id=2, comment=None, confidence=None)
         add_annotation_for_task(db, task, payload, user_id)
 
-        assert assignment.status == ANNOTATION_TASK_STATUS_DONE
+        assert not hasattr(assignment, "status")
 
-    def test_create_skip_with_assignment_marks_skipped(self):
+    def test_active_time_accumulates_on_the_annotation(self):
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
-        assignment = _make_assignment(task_id=task.id, user_id=user_id)
 
-        db.execute.return_value.scalar_one_or_none.side_effect = [None, assignment]
+        db.execute.return_value.scalar_one_or_none.return_value = None
 
-        payload = AnnotationFromTaskCreate(label_id=None, comment=None, confidence=None)
+        payload = AnnotationFromTaskCreate(
+            label_id=1, comment=None, confidence=None, active_ms=90_000
+        )
         add_annotation_for_task(db, task, payload, user_id)
 
-        assert assignment.status == ANNOTATION_TASK_STATUS_SKIPPED
+        assert db.add.call_args[0][0].active_seconds == 90
 
     def test_update_existing_annotation(self):
         db = _mock_db()
@@ -173,7 +184,7 @@ class TestAddAnnotationForTask:
         # is_authoritative=True triggers a CampaignUser lookup before the
         # existing-annotation / assignment lookups.
         reviewer_cu = MagicMock()
-        reviewer_cu.is_authorative_reviewer = True
+        reviewer_cu.is_authoritative_reviewer = True
         db.execute.return_value.scalar_one_or_none.side_effect = [
             reviewer_cu,
             existing,
@@ -191,36 +202,22 @@ class TestAddAnnotationForTask:
         assert existing.is_authoritative is True
         db.commit.assert_called_once()
 
-    def test_update_existing_remove_label_deletes(self):
-        """Submitting label_id=None on an existing annotation deletes it."""
+    def test_resubmitting_without_a_label_turns_it_into_a_skip(self):
+        """The row survives rather than being deleted: the skip has to stay on
+        file or the task drops back into the pool as untouched."""
         db = _mock_db()
         user_id = uuid4()
         task = _make_task()
         existing = _make_annotation(task_id=task.id, user_id=user_id, label_id=1)
-        assignment = _make_assignment(task_id=task.id, user_id=user_id, status="done")
 
-        db.execute.return_value.scalar_one_or_none.side_effect = [existing, assignment]
+        db.execute.return_value.scalar_one_or_none.return_value = existing
 
         payload = AnnotationFromTaskCreate(label_id=None, comment=None, confidence=None)
-        add_annotation_for_task(db, task, payload, user_id)
+        result = add_annotation_for_task(db, task, payload, user_id)
 
-        db.delete.assert_called_once_with(existing)
-        assert assignment.status == ANNOTATION_TASK_STATUS_SKIPPED
-
-    def test_update_existing_with_assignment_marks_done(self):
-        db = _mock_db()
-        db.get.return_value = _make_campaign()
-        user_id = uuid4()
-        task = _make_task()
-        existing = _make_annotation(task_id=task.id, user_id=user_id, label_id=1)
-        assignment = _make_assignment(task_id=task.id, user_id=user_id, status="pending")
-
-        db.execute.return_value.scalar_one_or_none.side_effect = [existing, assignment]
-
-        payload = AnnotationFromTaskCreate(label_id=3, comment=None, confidence=None)
-        add_annotation_for_task(db, task, payload, user_id)
-
-        assert assignment.status == ANNOTATION_TASK_STATUS_DONE
+        db.delete.assert_not_called()
+        assert existing.label_id is None
+        assert result is existing
 
     def test_authoritative_submission_rejected_for_non_reviewer(self):
         """is_authoritative=True from a user who is not an authoritative
@@ -231,7 +228,7 @@ class TestAddAnnotationForTask:
         task = _make_task()
 
         non_reviewer_cu = MagicMock()
-        non_reviewer_cu.is_authorative_reviewer = False
+        non_reviewer_cu.is_authoritative_reviewer = False
         db.execute.return_value.scalar_one_or_none.return_value = non_reviewer_cu
 
         payload = AnnotationFromTaskCreate(
@@ -275,7 +272,7 @@ class TestAddAnnotationForTask:
         task = _make_task()
 
         reviewer_cu = MagicMock()
-        reviewer_cu.is_authorative_reviewer = True
+        reviewer_cu.is_authoritative_reviewer = True
         # 1: CampaignUser lookup (reviewer check)
         # 2: existing-annotation lookup -> none
         # 3: assignment lookup -> none (reviewer is unassigned)
@@ -303,16 +300,16 @@ class TestAddAnnotationForTask:
         user_id = uuid4()
         task = _make_task()
 
-        # Only existing-annotation + assignment lookups should run.
-        db.execute.return_value.scalar_one_or_none.side_effect = [None, None]
+        # Only the existing-annotation lookup should run.
+        db.execute.return_value.scalar_one_or_none.side_effect = [None]
 
         payload = AnnotationFromTaskCreate(
             label_id=2, comment=None, confidence=None, is_authoritative=False
         )
         add_annotation_for_task(db, task, payload, user_id)
 
-        # Exactly two scalar_one_or_none calls -> no reviewer lookup happened.
-        assert db.execute.return_value.scalar_one_or_none.call_count == 2
+        # A single scalar_one_or_none call -> no reviewer lookup happened.
+        assert db.execute.return_value.scalar_one_or_none.call_count == 1
         db.add.assert_called_once()
         added = db.add.call_args[0][0]
         assert added.is_authoritative is False
@@ -531,10 +528,10 @@ class TestUpdateAnnotation:
         )
         update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
-        # Should have added a new AnnotationGeometry
+        # Should have added a new AnnotationGeometry and flushed to get its id
         added_geom = db.add.call_args[0][0]
         assert isinstance(added_geom, AnnotationGeometry)
-        db.flush.assert_called_once()
+        db.flush.assert_called()
 
     def test_geometry_update_refreshes_imagery_snapshot(self):
         db = _mock_db()
@@ -656,21 +653,20 @@ class TestDeleteAnnotation:
         db.delete.assert_called_once_with(existing)
         db.commit.assert_called_once()
 
-    def test_delete_task_annotation_resets_assignment(self):
+    def test_delete_task_annotation_removes_the_record(self):
         """Deleting a task-linked annotation resets assignment to pending."""
         db = _mock_db()
         user_id = uuid4()
         existing = _make_annotation(ann_id=10, task_id=5, campaign_id=1)
         existing.annotation_task_id = 5
         existing.created_by_user_id = user_id
-        assignment = _make_assignment(task_id=5, user_id=user_id, status="done")
 
-        # first execute -> find annotation; second execute -> find assignment
-        db.execute.return_value.scalar_one_or_none.side_effect = [existing, assignment]
+        db.execute.return_value.scalar_one_or_none.side_effect = [existing]
 
         delete_annotation(db, 10, _make_campaign())
 
-        assert assignment.status == ANNOTATION_TASK_STATUS_PENDING
+        # Nothing to reset alongside it: removing the annotation is what puts
+        # the author back to pending on the task.
         db.delete.assert_called_once_with(existing)
 
     def test_delete_not_found_raises_404(self):
@@ -898,6 +894,7 @@ class TestExportAnnotatorCount:
             id=task_id,
             annotation_number=annotation_number,
             raw_source_data=None,
+            assignments=[],
         )
 
     @staticmethod
@@ -911,9 +908,12 @@ class TestExportAnnotatorCount:
             is_authoritative=False,
             flagged_for_review=False,
             flag_comment=None,
+            active_seconds=None,
+            slice_comments=None,
             created_by_user_id=user_id,
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
             annotation_task_id=task.id if task else None,
+            counts_toward_completion=True if task else None,
             campaign_id=1,
             annotation_task=task,
             geometry=None,
@@ -929,7 +929,7 @@ class TestExportAnnotatorCount:
 
     def _records(self, annotations, *, merge=False):
         with patch(
-            "src.annotation.io._compute_task_status_for_export",
+            "src.annotation.export._compute_task_status_for_export",
             return_value="done",
         ):
             records, _ = _build_annotation_records(
@@ -1025,7 +1025,7 @@ class TestExportMergeCorrectness:
 
     Exercises the real ``build_annotations_export`` / ``build_annotations_geojson_export``
     (so the conflict guard, column ordering and DataFrame/GeoJSON assembly are
-    covered) with the DB access (``_fetch_annotations_with_context``) and the
+    covered) with the DB access (``fetch_annotations_with_context``) and the
     pydantic-backed status helper patched out. Annotations/tasks/campaign are
     light ``SimpleNamespace`` stand-ins matching the attributes the export code
     actually reads.
@@ -1051,7 +1051,10 @@ class TestExportMergeCorrectness:
     @staticmethod
     def _task(task_id=1, annotation_number=42, raw_source_data=None):
         return SimpleNamespace(
-            id=task_id, annotation_number=annotation_number, raw_source_data=raw_source_data
+            id=task_id,
+            annotation_number=annotation_number,
+            raw_source_data=raw_source_data,
+            assignments=[],
         )
 
     @staticmethod
@@ -1070,9 +1073,12 @@ class TestExportMergeCorrectness:
             is_authoritative=False,
             flagged_for_review=False,
             flag_comment=None,
+            active_seconds=None,
+            slice_comments=None,
             created_by_user_id=user_id or uuid4(),
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
             annotation_task_id=task.id if task else None,
+            counts_toward_completion=True if task else None,
             campaign_id=1,
             annotation_task=task,
             geometry=geometry,
@@ -1090,11 +1096,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.io._compute_task_status_for_export",
+                "src.annotation.export._compute_task_status_for_export",
                 return_value="done",
             ),
         ):
@@ -1104,11 +1110,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.io._compute_task_status_for_export",
+                "src.annotation.export._compute_task_status_for_export",
                 return_value="done",
             ),
         ):
@@ -1366,7 +1372,7 @@ class TestExportMergeCorrectness:
 
     # ---- stacnotator_counts_toward_completion ---------------------------
     #
-    # These tests patch out `_fetch_annotations_with_context` entirely (see
+    # These tests patch out `fetch_annotations_with_context` entirely (see
     # `_csv`/`_geojson`), so `attach_counts_toward_completion_flat` never
     # runs - the counts flag is read straight off the annotation stand-ins,
     # exactly as if it had already been attached by that helper.
@@ -1462,7 +1468,7 @@ class TestExportFormFields:
     @staticmethod
     def _task(task_id=1, annotation_number=42):
         return SimpleNamespace(
-            id=task_id, annotation_number=annotation_number, raw_source_data=None
+            id=task_id, annotation_number=annotation_number, raw_source_data=None, assignments=[]
         )
 
     @staticmethod
@@ -1476,9 +1482,12 @@ class TestExportFormFields:
             is_authoritative=False,
             flagged_for_review=False,
             flag_comment=None,
+            active_seconds=None,
+            slice_comments=None,
             created_by_user_id=user_id or uuid4(),
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
             annotation_task_id=task.id if task else None,
+            counts_toward_completion=True if task else None,
             campaign_id=1,
             annotation_task=task,
             geometry=None,
@@ -1496,10 +1505,10 @@ class TestExportFormFields:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, {}),
             ),
-            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+            patch("src.annotation.export._compute_task_status_for_export", return_value="done"),
         ):
             return build_annotations_export(MagicMock(), campaign, merge_on_agreement=merge)
 
@@ -1507,10 +1516,10 @@ class TestExportFormFields:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, {}),
             ),
-            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+            patch("src.annotation.export._compute_task_status_for_export", return_value="done"),
         ):
             return build_annotations_geojson_export(MagicMock(), campaign, merge_on_agreement=merge)
 
@@ -1561,15 +1570,6 @@ class TestExportFormFields:
         assert "stacnotator_form_values" not in fc["features"][0]["properties"]
 
 
-def _claim_assignment(user_id, status=ANNOTATION_TASK_STATUS_PENDING, claimed_at=None):
-    a = MagicMock(spec=AnnotationTaskAssignment)
-    a.task_id = 1
-    a.user_id = user_id
-    a.status = status
-    a.claimed_at = claimed_at
-    return a
-
-
 def _result(scalar=None, first=None, all_=None):
     """A stand-in for db.execute()'s return value covering the access patterns used."""
     r = MagicMock()
@@ -1579,136 +1579,203 @@ def _result(scalar=None, first=None, all_=None):
     return r
 
 
-class TestClaimTaskForUser:
-    """Tests for dwell-based soft claiming of unassigned tasks."""
+def _compiled(statement):
+    """Postgres dialect, since that is what renders SKIP LOCKED and is what
+    these statements actually run against."""
+    return statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
 
-    def test_claim_unassigned_creates_assignment(self):
+
+def _claimable_task(task_id=1, holder=None, claimed_at=None, holder_name=None):
+    task = _make_task(task_id=task_id)
+    task.claimed_by_user_id = holder
+    task.claimed_at = claimed_at
+    task.claimed_by = MagicMock(display_name=holder_name) if holder else None
+    return task
+
+
+class TestClaimTask:
+    """The soft claim: a lease on a free task, never an assignment."""
+
+    def test_claiming_a_free_task_records_the_holder(self):
         db = _mock_db()
         user_id = uuid4()
-        task = _make_task()
+        task = _claimable_task()
         db.execute.side_effect = [
             _result(scalar=task),  # lock task row
-            _result(first=None),  # no annotation
-            _result(all_=[]),  # no assignments
-            _result(all_=[]),  # no other soft claims to release
+            _result(first=(1,)),  # it is free work
+            _result(),  # release the caller's other claims
         ]
 
-        result = claim_task_for_user(db, campaign_id=1, task_id=1, user_id=user_id)
+        outcome = claim_task(db, campaign_id=1, task_id=1, user_id=user_id)
 
-        added = db.add.call_args[0][0]
-        assert isinstance(added, AnnotationTaskAssignment)
-        assert added.user_id == user_id
-        assert added.status == ANNOTATION_TASK_STATUS_PENDING
-        assert added.claimed_at is not None
+        assert outcome.claimed is True
+        assert task.claimed_by_user_id == user_id
+        assert task.claimed_at is not None
         db.commit.assert_called_once()
-        assert result is added
-
-    def test_claim_locked_task_raises_409(self):
-        db = _mock_db()
-        db.execute.side_effect = [_result(scalar=None)]  # skip_locked -> no row
-        with pytest.raises(HTTPException) as exc:
-            claim_task_for_user(db, campaign_id=1, task_id=1, user_id=uuid4())
-        assert exc.value.status_code == 409
-
-    def test_claim_already_annotated_raises_409(self):
-        db = _mock_db()
-        task = _make_task()
-        db.execute.side_effect = [
-            _result(scalar=task),
-            _result(first=(1,)),  # an annotation exists
-        ]
-        with pytest.raises(HTTPException) as exc:
-            claim_task_for_user(db, campaign_id=1, task_id=1, user_id=uuid4())
-        assert exc.value.status_code == 409
-
-    def test_claim_admin_assignment_of_other_raises_409(self):
-        db = _mock_db()
-        task = _make_task()
-        other = _claim_assignment(uuid4(), claimed_at=None)  # admin assignment
-        db.execute.side_effect = [
-            _result(scalar=task),
-            _result(first=None),
-            _result(all_=[other]),
-        ]
-        with pytest.raises(HTTPException) as exc:
-            claim_task_for_user(db, campaign_id=1, task_id=1, user_id=uuid4())
-        assert exc.value.status_code == 409
+        # The lease must not leave an assignment behind: that is what used to
+        # flip the task onto the assigned labelling-policy axis.
         db.add.assert_not_called()
 
-    def test_claim_active_other_claim_raises_409(self):
+    def test_missing_task_is_404(self):
         db = _mock_db()
-        task = _make_task()
-        other = _claim_assignment(uuid4(), claimed_at=datetime.now(UTC))  # fresh claim
-        db.execute.side_effect = [
-            _result(scalar=task),
-            _result(first=None),
-            _result(all_=[other]),
-        ]
+        db.execute.side_effect = [_result(scalar=None)]
         with pytest.raises(HTTPException) as exc:
-            claim_task_for_user(db, campaign_id=1, task_id=1, user_id=uuid4())
-        assert exc.value.status_code == 409
-        db.delete.assert_not_called()
+            claim_task(db, campaign_id=1, task_id=1, user_id=uuid4())
+        assert exc.value.status_code == 404
 
-    def test_claim_stale_other_claim_is_taken_over(self):
+    def test_task_held_by_someone_else_reports_the_holder(self):
+        db = _mock_db()
+        holder = uuid4()
+        task = _claimable_task(holder=holder, claimed_at=datetime.now(UTC), holder_name="Alice")
+        db.execute.side_effect = [_result(scalar=task)]
+
+        outcome = claim_task(db, campaign_id=1, task_id=1, user_id=uuid4())
+
+        assert outcome.claimed is False
+        assert outcome.holder_user_id == holder
+        assert outcome.holder_display_name == "Alice"
+        assert task.claimed_by_user_id == holder
+        db.commit.assert_not_called()
+
+    def test_expired_claim_is_taken_over(self):
         db = _mock_db()
         user_id = uuid4()
-        task = _make_task()
-        stale = _claim_assignment(
-            uuid4(),
+        task = _claimable_task(
+            holder=uuid4(),
             claimed_at=datetime.now(UTC) - timedelta(minutes=CLAIM_TTL_MINUTES + 1),
         )
         db.execute.side_effect = [
             _result(scalar=task),
-            _result(first=None),
-            _result(all_=[stale]),
-            _result(all_=[]),  # no other soft claims to release
+            _result(first=(1,)),
+            _result(),
         ]
 
-        claim_task_for_user(db, campaign_id=1, task_id=1, user_id=user_id)
+        outcome = claim_task(db, campaign_id=1, task_id=1, user_id=user_id)
 
-        db.delete.assert_called_once_with(stale)
-        added = db.add.call_args[0][0]
-        assert added.user_id == user_id
+        assert outcome.claimed is True
+        assert task.claimed_by_user_id == user_id
 
-    def test_claim_own_existing_refreshes_lease(self):
+    def test_refreshing_my_own_claim(self):
         db = _mock_db()
         user_id = uuid4()
-        task = _make_task()
-        mine = _claim_assignment(user_id, claimed_at=datetime.now(UTC) - timedelta(minutes=5))
+        earlier = datetime.now(UTC) - timedelta(minutes=5)
+        task = _claimable_task(holder=user_id, claimed_at=earlier)
         db.execute.side_effect = [
             _result(scalar=task),
-            _result(first=None),
-            _result(all_=[mine]),
-            _result(all_=[]),  # no other soft claims to release
+            _result(first=(1,)),
+            _result(),
         ]
 
-        result = claim_task_for_user(db, campaign_id=1, task_id=1, user_id=user_id)
+        outcome = claim_task(db, campaign_id=1, task_id=1, user_id=user_id)
 
-        assert result is mine
-        assert mine.claimed_at is not None
-        db.add.assert_not_called()
-        db.commit.assert_called_once()
+        assert outcome.claimed is True
+        assert task.claimed_at is not earlier
 
-    def test_claim_releases_prior_soft_claim_in_campaign(self):
-        """Claiming a new task moves the claim: the caller's prior soft claim is dropped."""
+    def test_a_task_that_is_not_free_work_has_nothing_to_lease(self):
+        db = _mock_db()
+        task = _claimable_task()
+        db.execute.side_effect = [_result(scalar=task), _result(first=None)]
+
+        outcome = claim_task(db, campaign_id=1, task_id=1, user_id=uuid4())
+
+        assert outcome.claimed is False
+        assert outcome.holder_user_id is None
+        assert task.claimed_by_user_id is None
+
+    def test_free_work_means_neither_assigned_nor_worked(self):
+        """Both halves matter and neither is checked anywhere else, so losing
+        one would silently start handing out other people's tasks."""
+        sql = str(_compiled(select(AnnotationTask.id).where(_is_free_work())))
+        assert "annotation_tasks_assignment" in sql
+        assert "annotations" in sql
+        assert sql.count("NOT (EXISTS") == 2
+
+    def test_claiming_releases_the_callers_other_claims_first(self):
+        """One claim per user per campaign, and the release has to reach the
+        database before the new claim does or the unique index rejects it."""
         db = _mock_db()
         user_id = uuid4()
-        task = _make_task(task_id=2)
-        prior = _claim_assignment(user_id, claimed_at=datetime.now(UTC))
-        prior.task_id = 1
+        task = _claimable_task(task_id=2)
         db.execute.side_effect = [
-            _result(scalar=task),  # lock task 2
-            _result(first=None),  # no annotation on task 2
-            _result(all_=[]),  # no assignment on task 2 yet
-            _result(all_=[prior]),  # caller's prior soft claim on task 1
+            _result(scalar=task),
+            _result(first=(1,)),
+            _result(),
         ]
 
-        claim_task_for_user(db, campaign_id=1, task_id=2, user_id=user_id)
+        claim_task(db, campaign_id=1, task_id=2, user_id=user_id)
 
-        db.delete.assert_called_once_with(prior)
-        added = db.add.call_args[0][0]
-        assert added.task_id == 2
-        assert added.user_id == user_id
+        release = str(_compiled(db.execute.call_args_list[-1][0][0]))
+        assert "UPDATE data.annotation_tasks" in release
+        assert "claimed_by_user_id=NULL" in release.replace(" = ", "=")
+        assert "id != 2" in release
+
+
+class TestClaimNextTask:
+    """Picking a free task and claiming it in one transaction, so five people
+    starting at once get five different tasks instead of walking the list."""
+
+    def test_returns_none_when_the_pool_is_drained(self):
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        assert claim_next_task(db, campaign_id=1, user_id=uuid4()) is None
+        db.commit.assert_not_called()
+
+    def test_claims_the_task_it_picked(self):
+        db = _mock_db()
+        user_id = uuid4()
+        task = _claimable_task(task_id=4)
+        db.execute.side_effect = [_result(scalar=task), _result()]
+
+        claimed = claim_next_task(db, campaign_id=1, user_id=user_id)
+
+        assert claimed is task
+        assert task.claimed_by_user_id == user_id
+        assert task.claimed_at is not None
+        db.commit.assert_called_once()
+
+    def test_the_pick_locks_and_skips_rows_another_claim_is_holding(self):
+        """SKIP LOCKED is what makes simultaneous callers get different tasks
+        rather than queueing on the same one."""
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        claim_next_task(db, campaign_id=1, user_id=uuid4())
+
+        pick = str(_compiled(db.execute.call_args_list[0][0][0]))
+        assert "FOR UPDATE SKIP LOCKED" in pick
+        assert "LIMIT 1" in pick
+
+    def test_only_offers_free_work_in_this_campaign(self):
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        claim_next_task(db, campaign_id=9, user_id=uuid4(), task_set_id=3)
+
+        pick = str(_compiled(db.execute.call_args_list[0][0][0]))
+        assert "campaign_id = 9" in pick
+        assert "task_set_id = 3" in pick
+        assert pick.count("NOT (EXISTS") == 2
+        assert "claimed_by_user_id IS NULL" in pick
+
+    def test_the_cursor_looks_forward_first_then_wraps(self):
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        claim_next_task(db, campaign_id=1, user_id=uuid4(), after_annotation_number=12)
+
+        pick = str(_compiled(db.execute.call_args_list[0][0][0]))
+        # False sorts first, so tasks past the cursor come before the wrap.
+        assert "ORDER BY data.annotation_tasks.annotation_number <= 12" in pick
+
+    def test_without_a_cursor_it_starts_at_the_front(self):
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]
+
+        claim_next_task(db, campaign_id=1, user_id=uuid4())
+
+        pick = str(_compiled(db.execute.call_args_list[0][0][0]))
+        assert "<=" not in pick.split("ORDER BY")[1]
 
 
 class TestCreateAnnotationsFromGeojson:
@@ -1799,6 +1866,18 @@ class TestCreateAnnotationsFromGeojson:
             create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
         assert exc.value.status_code == 400
         assert "stacnotator_label_id" in exc.value.detail
+        db.execute.assert_not_called()
+
+    def test_rejects_bare_geometry(self):
+        """Unlike the task importer, a bare geometry object (no Feature or
+        FeatureCollection wrapper) is not a supported top-level shape here -
+        this importer only ever accepted FeatureCollection/Feature."""
+        db = MagicMock()
+        contents = json.dumps({"type": "Point", "coordinates": [10.0, 20.0]}).encode("utf-8")
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "Unsupported GeoJSON type"
         db.execute.assert_not_called()
 
     def test_rejects_label_not_in_campaign(self):
