@@ -120,10 +120,12 @@ You use the Service at your own discretion and risk.
 You retain any rights you have in annotations and other content that you submit
 to the Service.
 
-You grant us a non-exclusive, worldwide, royalty-free license to host, store,
-reproduce, process, and display that content solely as reasonably necessary to
-operate and provide the Service, including making it available to other
-participants in projects or campaigns with whom you choose to share it.
+Except where you choose to share annotations for research under "Sharing Your
+Annotations for Research" below, you grant us a non-exclusive, worldwide,
+royalty-free license to host, store, reproduce, process, and display that
+content solely as reasonably necessary to operate and provide the Service,
+including making it available to other participants in projects or campaigns
+with whom you choose to share it.
 
 You are responsible for the content and data you submit and for ensuring that
 you have the rights and lawful basis necessary to submit and use them. You must
@@ -140,17 +142,21 @@ display name or without it. You will be asked once per campaign. Making no
 choice, or choosing to keep your annotations private, changes nothing else about
 your use of the Service.
 
-If you do choose to share them, you grant us a worldwide, royalty-free,
-perpetual right to publish those annotations and to make them available to
-others for research purposes under an open license, together with the
-information needed to interpret them, such as labels, form answers, the imagery
-they refer to, and timestamps. If you choose to be credited, your display name
-is published with them. You confirm that you hold the rights necessary to allow
-this.
+If you do choose to share them, you grant us a non-exclusive, worldwide,
+royalty-free, perpetual, sublicensable right to reproduce, adapt, aggregate,
+publish, and distribute those annotations, and to make them available to others
+under an open license for research purposes, together with the information
+needed to interpret them, such as labels, form answers, the imagery they refer
+to, and timestamps. If you choose to be credited, your display name is published
+with them. You confirm that you hold the rights necessary to allow this and that
+no one else's permission is required.
 
 You can review and change your choice for every campaign at any time in your
-account settings. A change applies from that point on: copies that have already
-been published or downloaded by others cannot be recalled.
+account settings. A change applies from that point on: we stop publishing those
+annotations and stop including them in anything released afterwards. Copies
+already published or obtained by others stay covered by the license they were
+released under and cannot be recalled. If you were credited by name, we will
+remove your name from datasets that are still within our control on request.
 
 ## Third-Party Services and API Keys
 
