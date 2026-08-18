@@ -25,6 +25,7 @@ import {
 import { LayoutEditControls } from './canvas/LayoutEdit/LayoutEditControls';
 import { TrayContent } from './canvas/LayoutEdit/TrayContent';
 import { ViewAdmin } from './canvas/LayoutEdit/ViewAdmin';
+import { DataSharingPrompt } from './chrome/DataSharingPrompt';
 import { MobileSliceNav } from './chrome/MobileSliceNav';
 import { SliceCommentDialog } from './chrome/SliceComments';
 import { RestoreScreensToast, SendToScreenButton } from './canvas/Screens/ScreenControls';
@@ -576,6 +577,8 @@ export function AnnotationPage() {
           onHide={() => useLayoutStore.getState().hideRestorePrompt()}
         />
       )}
+
+      <DataSharingPrompt paused={tourOpen} />
 
       <TourOverlay
         open={tourOpen}

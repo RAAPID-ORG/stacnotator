@@ -220,6 +220,21 @@ class CampaignSettingsCreate(BaseModel):
         }
 
 
+DataSharingChoice = Literal["none", "anonymous", "attributed"]
+"""Whether an annotator lets us publish the annotations they create in a campaign:
+not at all, without their name, or credited to their display name."""
+
+
+class SetDataSharingRequest(BaseModel):
+    choice: DataSharingChoice
+
+
+class DataSharingOut(BaseModel):
+    campaign_id: int
+    campaign_name: str
+    choice: DataSharingChoice
+
+
 class CampaignOut(BaseModel):
     id: int
     project_id: int
@@ -235,6 +250,8 @@ class CampaignOut(BaseModel):
     viewer_is_admin: bool = False
     viewer_is_member: bool = False
     viewer_is_authoritative_reviewer: bool = False
+    # None means the viewer has not been asked yet; the prompt keys on that.
+    viewer_data_sharing: DataSharingChoice | None = None
 
     settings: CampaignSettingsOut
     imagery_sources: list[ImagerySourceOut]

@@ -43,6 +43,11 @@ class User(Base):
     email: Mapped[str] = mapped_column(Text, nullable=False)
     display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Version of the terms this user accepted; null until they have accepted any.
+    # No separate timestamp: the app is gated until acceptance, so created_at
+    # bounds when it happened.
+    terms_accepted_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Audit timestamps
     created_at: Mapped[str] = mapped_column(
         TIMESTAMP(timezone=True),

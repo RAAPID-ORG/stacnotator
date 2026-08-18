@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { me, type UserOutDetailed } from 'src/api/client';
+import { me, type MeOut } from 'src/api/client';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 
 type AccountState = {
-  account: UserOutDetailed | null;
+  account: MeOut | null;
   loading: boolean;
   error: string | null;
   emailNotVerified: boolean;

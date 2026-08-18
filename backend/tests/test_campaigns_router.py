@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from src.campaigns import router as campaigns_router
+from src.campaigns.models import CampaignDataSharing
 from src.campaigns.router import _with_viewer_roles
 from src.campaigns.schemas import CampaignOut, UpdateCampaignLabelsRequest
 from src.projects.models import ProjectUser
@@ -23,10 +24,18 @@ def _user(is_admin: bool):
     return SimpleNamespace(id=uuid4(), is_admin=is_admin)
 
 
-def _db(membership, project=None, org_membership=None):
+def _db(membership, project=None, org_membership=None, data_sharing=None):
     project = project or SimpleNamespace(visibility="private", organization_id=5)
     db = MagicMock()
-    db.get.side_effect = lambda model, key: membership if model is ProjectUser else project
+
+    def get(model, key):
+        if model is ProjectUser:
+            return membership
+        if model is CampaignDataSharing:
+            return data_sharing
+        return project
+
+    db.get.side_effect = get
     # is_active_org_member reads the active-org-membership row via db.scalars.
     db.scalars.return_value.first.return_value = org_membership
     return db
@@ -137,6 +146,25 @@ def _campaign_row():
         basemaps=[],
         time_series=[],
     )
+
+
+class TestViewerDataSharing:
+    """The prompt keys on null meaning "never asked", so an unanswered campaign must
+    not come back looking answered."""
+
+    def test_the_viewers_own_choice_is_stamped(self):
+        db = _db(None, data_sharing=SimpleNamespace(choice="anonymous"))
+
+        out = _with_viewer_roles(_out(), db, _user(is_admin=False), PROJECT_ID, 42)
+
+        assert out.viewer_data_sharing == "anonymous"
+
+    def test_never_asked_stays_null(self):
+        db = _db(None)
+
+        out = _with_viewer_roles(_out(), db, _user(is_admin=False), PROJECT_ID, 42)
+
+        assert out.viewer_data_sharing is None
 
 
 class TestMutationResponsesCarryViewerFlags:

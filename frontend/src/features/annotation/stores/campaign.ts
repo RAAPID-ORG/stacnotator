@@ -13,6 +13,7 @@ import {
   type PolicyContext,
 } from '../campaign/annotation';
 import { viewWindows, type LayoutItem } from '../canvas/grid';
+import type { DataSharingChoice } from '~/features/legal/dataSharing';
 import { useImageryStore } from './imagery';
 import { useLayoutStore } from './layout';
 import { usePrefsStore } from './prefs';
@@ -41,6 +42,9 @@ interface CampaignState {
   setReviewMode: (isReviewMode: boolean) => void;
   setMobile: (isMobile: boolean) => void;
   setTaskStartCollection: (collectionId: number) => void;
+  /** Patch in the viewer's research-sharing answer, so the prompt closes for good
+   *  without reloading the campaign. */
+  setDataSharing: (choice: DataSharingChoice) => void;
   /** Make `view` the selected one. Its imagery nav state and its canvas
    *  windows both come with it, so the whole page belongs to one view. */
   selectView: (view: ImageryViewOut) => void;
@@ -106,6 +110,9 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   setReviewMode: (isReviewMode) => set({ isReviewMode }),
   setMobile: (isMobile) => set({ isMobile }),
   setTaskStartCollection: (taskStartCollectionId) => set({ taskStartCollectionId }),
+
+  setDataSharing: (choice) =>
+    set((s) => (s.campaign ? { campaign: { ...s.campaign, viewer_data_sharing: choice } } : {})),
 
   selectView: (view) => {
     const { catalog, view: previous } = get();

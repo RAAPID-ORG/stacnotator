@@ -164,6 +164,8 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Project-scoped membership with per-member admin and authoritative-reviewer flags, applying to every campaign in the project
 - Organization approval by platform admins; email invites pre-authorize signups
 - Firebase mode: signup with email+pw (requires email validation) or via GoogleAuth
+- Terms of Service acceptance: the version accepted is stored per user, and a full-page gate blocks the app until the version in force (`TERMS_VERSION` in `backend/src/auth/constants.py`) is accepted - bumping it makes everyone accept again
+- Research data sharing: annotators are asked once per campaign whether the annotations they create there may be published as research data, anonymously or credited to their display name. Opt-in only, changed any time under Settings > Profile
 
 ## Task Management
 

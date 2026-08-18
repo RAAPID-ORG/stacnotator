@@ -306,7 +306,7 @@ The script reads prod creds from the prod Key Vault at runtime (using your inter
 
 ### Deploy Dev workflow (code only, no DB sync)
 
-The `Deploy Dev` GitHub Actions workflow (`.github/workflows/deploy-dev.yml`) builds and deploys backend, tiler, and frontend to the dev Azure environment. It does **not** touch any database - neither dev nor prod. To refresh dev data from prod, use the manual `make az-sync-prod-to-dev` flow above.
+The `Deploy Dev` GitHub Actions workflow (`.github/workflows/deploy-dev.yml`) builds and deploys backend, tiler, and frontend to the dev Azure environment. It does **not** touch any database - neither dev nor prod. To overwrite dev data from prod, use the manual `make az-sync-prod-to-dev` flow above.
 
 Safety relies on:
 - The OIDC identity (`id-cicd-stacnotator-dev-westeurope`) being federated only to `refs/heads/develop` and scoped to the dev resource group. It has zero prod RBAC.

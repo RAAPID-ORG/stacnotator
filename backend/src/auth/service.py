@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.auth.constants import ROLE_ADMIN
+from src.auth.constants import ROLE_ADMIN, TERMS_VERSION
 from src.auth.models import User, UserRole
 from src.auth.providers.base import AuthenticatedUser
 from src.organizations.service import consume_invites_for_new_user
@@ -336,6 +336,21 @@ def edit_user_info(
         return None
 
     user.display_name = display_name
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def accept_terms(db: Session, user: User, version: str) -> User:
+    """Record which terms the user accepted. Accepting a version that is no longer
+    in force is refused - the client rendered stale text and has to reload."""
+    if version != TERMS_VERSION:
+        raise HTTPException(
+            status_code=409,
+            detail="These terms are out of date. Reload and accept the current terms.",
+        )
+
+    user.terms_accepted_version = version
     db.commit()
     db.refresh(user)
     return user

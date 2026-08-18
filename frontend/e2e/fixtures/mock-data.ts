@@ -1,11 +1,15 @@
 export const TEST_USER_ID = 'test-user-abc-123';
 
+// The two terms versions only have to match for the acceptance gate to let the
+// suite through, so the literal never needs updating when the real terms change.
 export const MOCK_USER = {
   id: TEST_USER_ID,
   email: 'test@example.com',
   display_name: 'Test User',
   is_admin: false,
   issuer: 'firebase',
+  terms_version: 'test-terms',
+  terms_accepted_version: 'test-terms',
 };
 
 // Labels for the campaign
@@ -150,6 +154,9 @@ export const MOCK_CAMPAIGN = {
   viewer_is_admin: false,
   viewer_is_member: true,
   viewer_is_authoritative_reviewer: false,
+  // Answered already, so the research-sharing prompt stays out of every spec
+  // that is not about it.
+  viewer_data_sharing: 'none',
   settings: {
     labels: LABELS,
     bbox_west: 30.0,

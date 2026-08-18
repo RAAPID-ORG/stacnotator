@@ -1,21 +1,48 @@
 # Terms of Service
 
-Last updated: 2026-08-15
+Version 2026-08-18
 
 STACNotator (the "Service") is a research software service developed as part of
 work within the NASA Harvest Consortium.
 
-By accessing or using the Service, you agree to these Terms of Service. If you
-do not agree to these terms, please do not use the Service.
+You accept these Terms of Service by clicking to accept them when asked and by
+accessing or using the Service. If you do not agree to these terms, you may not
+access or use the Service.
 
-Questions about these terms may be sent to rsawahn@umd.edu.
+Questions about these terms may be raised as an issue at
+https://github.com/RAAPID-ORG/stacnotator/issues, or sent to rsawahn@umd.edu.
 
-## Permitted Use
+## Eligibility
+
+You must be at least 13 years old to use the Service, and by accessing or using
+it you represent that you are. The Service is not directed to children under
+13, and we do not knowingly collect personal information from them. If we learn
+that an account belongs to someone under 13, we will delete the account and the
+information held with it.
+
+If you accept these terms on behalf of an organization, you represent that you
+are authorized to do so.
+
+## License and Permitted Use
+
+Subject to your compliance with these terms, we grant you a limited,
+non-exclusive, non-transferable, revocable license to access and use the
+Service. In exchange, you agree to abide by all restrictions and obligations
+set out in these terms. The license ends automatically if you stop complying
+with these terms or when your access to the Service ends.
 
 You may use the Service for any lawful purpose, subject to these terms.
 
 You are responsible for ensuring that your use of the Service complies with
 applicable laws and regulations.
+
+## No Endorsement
+
+Nothing in the Service, and no reference to NASA, NASA Harvest, or the
+University of Maryland, implies endorsement by NASA, NASA Harvest, or the
+University of Maryland of the Service, of you, or of any content, data,
+annotations, or outputs produced with it. The Service is not an official NASA
+or University of Maryland service and is not operated on their behalf.
 
 ## Availability
 
@@ -104,6 +131,27 @@ not use the Service to submit unlawful content, unlawfully process another
 person's personal data, interfere with the Service, attempt unauthorized
 access, or intentionally disrupt or overload the Service.
 
+## Sharing Your Annotations for Research
+
+We do not publish your annotations unless you choose to share them. For each
+campaign you work in, you may choose whether the annotations you created there
+may be published for research purposes, and whether they are published with your
+display name or without it. You will be asked once per campaign. Making no
+choice, or choosing to keep your annotations private, changes nothing else about
+your use of the Service.
+
+If you do choose to share them, you grant us a worldwide, royalty-free,
+perpetual right to publish those annotations and to make them available to
+others for research purposes under an open license, together with the
+information needed to interpret them, such as labels, form answers, the imagery
+they refer to, and timestamps. If you choose to be credited, your display name
+is published with them. You confirm that you hold the rights necessary to allow
+this.
+
+You can review and change your choice for every campaign at any time in your
+account settings. A change applies from that point on: copies that have already
+been published or downloaded by others cannot be recalled.
+
 ## Third-Party Services and API Keys
 
 The Service may allow you to connect to third-party imagery providers or other
@@ -123,13 +171,13 @@ intended use.
 
 ## Changes to the Service or These Terms
 
-We may modify these terms from time to time. The current version will be made
-available through the Service and will identify the date on which it was last
-updated.
+We may modify these terms from time to time. Each set of terms carries the
+version identifier shown at the top of this document, and the version currently
+in force is always available through the Service.
 
-Your continued use of the Service after updated terms become effective
-constitutes acceptance of the updated terms to the extent permitted by
-applicable law.
+When we publish an updated version, you will be asked to accept it the next
+time you use the Service, and you will not be able to continue using the
+Service until you do. We record which version you accepted.
 
 ## General
 

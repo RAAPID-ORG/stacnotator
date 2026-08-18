@@ -1,5 +1,6 @@
 import logging
 import threading
+import typing
 from typing import Any
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from src.annotation.models import Annotation, AnnotationTask, Embedding
 from src.campaigns import assignments
 from src.campaigns.models import (
     Campaign,
+    CampaignDataSharing,
     CampaignSettings,
     TaskSet,
 )
@@ -26,6 +28,7 @@ from src.campaigns.policy import is_platform_admin as is_global_admin
 from src.campaigns.schemas import (
     CampaignListItemOut,
     CampaignSettingsCreate,
+    DataSharingChoice,
     LabellingPolicy,
     default_labelling_policy,
 )
@@ -667,3 +670,34 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
     # Geometries have no campaign FK, so the cascade above cannot reach them.
     delete_orphan_geometries(db)
     db.commit()
+
+
+def data_sharing_choice(db: Session, campaign_id: int, user_id: UUID) -> DataSharingChoice | None:
+    """The annotator's research-sharing choice for this campaign, or None if they
+    have not been asked. The column's check constraint is what makes the cast safe."""
+    row = db.get(CampaignDataSharing, (campaign_id, user_id))
+    return typing.cast(DataSharingChoice, row.choice) if row else None
+
+
+def set_data_sharing(
+    db: Session, campaign_id: int, user_id: UUID, choice: DataSharingChoice
+) -> None:
+    """Record (or change) the annotator's choice. Changing it only governs what we
+    publish from here on - anything already published cannot be recalled."""
+    row = db.get(CampaignDataSharing, (campaign_id, user_id))
+    if row:
+        row.choice = choice
+    else:
+        db.add(CampaignDataSharing(campaign_id=campaign_id, user_id=user_id, choice=choice))
+    db.commit()
+
+
+def list_data_sharing(db: Session, user_id: UUID) -> list[tuple[int, str, str]]:
+    """Every choice this user has made, newest campaign first, for the settings page."""
+    stmt = (
+        select(CampaignDataSharing.campaign_id, Campaign.name, CampaignDataSharing.choice)
+        .join(Campaign, Campaign.id == CampaignDataSharing.campaign_id)
+        .where(CampaignDataSharing.user_id == user_id)
+        .order_by(Campaign.name)
+    )
+    return [(cid, name, choice) for cid, name, choice in db.execute(stmt)]

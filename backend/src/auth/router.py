@@ -8,11 +8,15 @@ from src.auth import service
 from src.auth.dependencies import require_admin, require_authenticated_user
 from src.auth.models import User
 from src.auth.schemas import (
+    AcceptTermsRequest,
     BulkUserActionRequest,
     BulkUserActionResponse,
+    MeOut,
     UserOut,
     UserOutDetailed,
 )
+from src.campaigns import service as campaign_service
+from src.campaigns.schemas import DataSharingOut
 from src.campaigns.service import visible_campaign_ids
 from src.config import get_settings
 from src.database import get_db
@@ -39,13 +43,36 @@ def _user_or_404(user: User | None) -> User:
 # ============================================================================
 
 
-@router.get("/me", response_model=UserOutDetailed)
+@router.get("/me", response_model=MeOut)
 def me(
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Get current authenticated user's details."""
     return user
+
+
+@router.post("/me/accept-terms", response_model=MeOut)
+def accept_terms(
+    request: AcceptTermsRequest,
+    user: User = Depends(require_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """Record that this user accepted the terms they were shown."""
+    return service.accept_terms(db, user, request.version)
+
+
+@router.get("/me/data-sharing", response_model=list[DataSharingOut])
+def list_my_data_sharing(
+    user: User = Depends(require_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """Every research-sharing choice this user has made, so they can review and
+    change them in one place."""
+    return [
+        DataSharingOut(campaign_id=cid, campaign_name=name, choice=choice)
+        for cid, name, choice in campaign_service.list_data_sharing(db, user.id)
+    ]
 
 
 TILER_TOKEN_TTL = 3600  # 1 hour

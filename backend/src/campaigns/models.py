@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from sqlalchemy import (
     TIMESTAMP,
@@ -236,3 +237,33 @@ class CampaignSettings(Base):
 
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="settings")
+
+
+class CampaignDataSharing(Base):
+    """One annotator's answer to whether the annotations they create in a campaign
+    may be published for research. No row means they have not been asked yet, which
+    is treated the same as "none" - we publish nothing without an explicit choice.
+    """
+
+    __tablename__ = "campaign_data_sharing"
+    __table_args__ = (
+        CheckConstraint(
+            "choice IN ('none', 'anonymous', 'attributed')",
+            name="campaign_data_sharing_choice_check",
+        ),
+        {"schema": "data"},
+    )
+
+    campaign_id: Mapped[int] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="CASCADE"), primary_key=True
+    )
+    choice: Mapped[str] = mapped_column(String(20), nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        nullable=False,
+    )

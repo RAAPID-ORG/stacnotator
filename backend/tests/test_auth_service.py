@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.auth.constants import ROLE_ADMIN
+from src.auth.constants import ROLE_ADMIN, TERMS_VERSION
 from src.auth.dependencies import (
     require_admin,
     require_authenticated_user,
@@ -17,6 +17,7 @@ from src.auth.models import User, UserRole
 from src.auth.router import edit_user_info as router_edit_user_info
 from src.auth.router import list_users
 from src.auth.service import (
+    accept_terms,
     grant_admin,
     grant_admin_bulk,
     register_user,
@@ -388,3 +389,27 @@ class TestEditUserInfoAuthorization:
             )
 
         assert result is updated
+
+
+class TestAcceptTerms:
+    def test_accepting_the_current_version_records_it(self):
+        db = _mock_db()
+        user = _make_user()
+        user.terms_accepted_version = None
+
+        accept_terms(db, user, TERMS_VERSION)
+
+        assert user.terms_accepted_version == TERMS_VERSION
+        db.commit.assert_called_once()
+
+    def test_accepting_a_stale_version_is_refused(self):
+        db = _mock_db()
+        user = _make_user()
+        user.terms_accepted_version = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            accept_terms(db, user, "1970-01-01")
+
+        assert exc_info.value.status_code == 409
+        assert user.terms_accepted_version is None
+        db.commit.assert_not_called()

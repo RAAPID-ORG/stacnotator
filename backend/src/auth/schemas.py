@@ -1,7 +1,8 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
+from src.auth.constants import TERMS_VERSION
 from src.auth.models import User
 
 
@@ -35,6 +36,24 @@ class UserOutDetailed(UserOut):
     external_uid: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MeOut(UserOutDetailed):
+    """The signed-in user's own record. Carries both terms versions so the client
+    can tell whether this user still has to accept."""
+
+    terms_accepted_version: str | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def terms_version(self) -> str:
+        return TERMS_VERSION
+
+
+class AcceptTermsRequest(BaseModel):
+    """The version the user was shown, so acceptance names what they read."""
+
+    version: str
 
 
 class BulkUserActionRequest(BaseModel):
