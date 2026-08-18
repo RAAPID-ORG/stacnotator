@@ -129,6 +129,8 @@ export function ExploreControls() {
   const draft = useWorkStore((s) => s.draft);
   const showAnnotations = useImageryStore((s) => s.showAnnotations);
   const toggleAnnotations = useImageryStore((s) => s.toggleAnnotations);
+  const showTaskAnnotations = useImageryStore((s) => s.showTaskAnnotations);
+  const toggleTaskAnnotations = useImageryStore((s) => s.toggleTaskAnnotations);
   const labelStyles = usePrefsStore((s) => s.labelStyles);
   const vectorShown = useImageryStore((s) => s.vector.id !== null && s.vector.visible);
 
@@ -209,7 +211,7 @@ export function ExploreControls() {
             </button>
             <button
               type="button"
-              onClick={() => void fitAnnotations(campaign.id)}
+              onClick={() => void fitAnnotations(campaign.id, showTaskAnnotations)}
               title="Zoom to every annotation (Space)"
               className={chipClass(false)}
             >
@@ -376,13 +378,33 @@ export function ExploreControls() {
           <div className="flex flex-col gap-1.5 w-full">
             <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigation</span>
             <p className="text-[11px] text-neutral-600 leading-relaxed">
-              Drag to pan the map, scroll to zoom.
+              Drag to pan the map, scroll to zoom. Click an annotation to see its details.
             </p>
             <p className="text-[11px] text-neutral-500 mt-0.5">
               Tip: select a label to start annotating straight away.
             </p>
+            <EditDetails />
           </div>
         )}
+
+        <div className="pt-2 border-t border-neutral-200 w-full flex flex-col gap-1.5">
+          <span className="font-semibold text-neutral-700 text-[11px]">Display</span>
+          <label className="flex items-center gap-2 text-[11px] text-neutral-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showTaskAnnotations}
+              onChange={() => {
+                // A selection made while they were shown must not survive them
+                // being hidden - Delete would then hit what nobody can see.
+                useWorkStore.getState().clearEdit();
+                toggleTaskAnnotations();
+              }}
+              data-testid="show-task-annotations"
+              className="cursor-pointer"
+            />
+            Show from tasks
+          </label>
+        </div>
 
         <ShortcutLegend />
       </div>

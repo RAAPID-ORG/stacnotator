@@ -171,6 +171,76 @@ describe('wktToGeometry', () => {
     expect(wktToGeometry(geometryToWkt(poly))).toEqual(poly);
   });
 
+  it('parses a MultiPolygon of several parts, holes included', () => {
+    expect(
+      wktToGeometry(
+        'MULTIPOLYGON (((0 0, 10 0, 10 10, 0 0), (2 2, 4 2, 4 4, 2 2)), ((20 20, 21 20, 21 21, 20 20)))'
+      )
+    ).toEqual({
+      type: 'MultiPolygon',
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [10, 0],
+            [10, 10],
+            [0, 0],
+          ],
+          [
+            [2, 2],
+            [4, 2],
+            [4, 4],
+            [2, 2],
+          ],
+        ],
+        [
+          [
+            [20, 20],
+            [21, 20],
+            [21, 21],
+            [20, 20],
+          ],
+        ],
+      ],
+    });
+  });
+
+  // What PostGIS actually hands back for an ingested field boundary: one part,
+  // no spaces after the commas between parts.
+  it('parses a single-part MultiPolygon as stored', () => {
+    const geometry = wktToGeometry(
+      'MULTIPOLYGON (((33.906038746 51.358947137, 33.905348557 51.358907512, 33.904500048 51.35885112, 33.906038746 51.358947137)))'
+    );
+    expect(geometry.type).toBe('MultiPolygon');
+    expect((geometry as GeoJSON.MultiPolygon).coordinates[0][0]).toHaveLength(4);
+    expect(geometryCentroid(geometry)).toEqual([33.905269397, 51.3588991285]);
+  });
+
+  it('round-trips a MultiPolygon through geometryToWkt', () => {
+    const multi: GeoJSON.MultiPolygon = {
+      type: 'MultiPolygon',
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [10, 0],
+            [10, 10],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [20, 20],
+            [21, 20],
+            [21, 21],
+            [20, 20],
+          ],
+        ],
+      ],
+    };
+    expect(wktToGeometry(geometryToWkt(multi))).toEqual(multi);
+  });
+
   it('throws for unsupported WKT', () => {
     expect(() => wktToGeometry('MULTIPOINT (0 0)')).toThrow('wktToGeometry: unsupported WKT');
   });

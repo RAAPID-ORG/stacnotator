@@ -63,6 +63,7 @@ describe('snapshotForView', () => {
       empties: { '10:2': true as const },
       crosshair: true,
       showAnnotations: false,
+      showTaskAnnotations: false,
       viewSync: true,
     };
     expect(snapshotForView(state)).toEqual(navFields);

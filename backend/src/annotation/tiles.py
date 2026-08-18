@@ -11,6 +11,16 @@ MVT_LAYER_NAME = "annotations"
 # tile seams; the row filter has to reach that far too or the buffer stays empty.
 TILE_QUERY_MARGIN = 0.0625
 
+# Annotations made from a task carry ``annotation_task_id``; Explore hides them
+# unless asked for. Shared by every spatial read so the map, the minimap, box
+# selection and fit-to-bounds can never disagree about what exists.
+TASK_ANNOTATION_EXCLUSION = "AND a.annotation_task_id IS NULL"
+
+
+def task_filter_sql(include_tasks: bool) -> str:
+    """SQL fragment restricting a query to annotations not made from a task."""
+    return "" if include_tasks else TASK_ANNOTATION_EXCLUSION
+
 
 class InvalidBBoxError(ValueError):
     """Raised when a bbox query string cannot be parsed into a valid extent."""
@@ -43,7 +53,9 @@ def validate_tile_coords(z: int, x: int, y: int) -> None:
         raise InvalidTileError(f"x/y must be within [0, {max_index}] at zoom {z}")
 
 
-def build_mvt_query(z: int, x: int, y: int, campaign_id: int) -> tuple[str, dict]:
+def build_mvt_query(
+    z: int, x: int, y: int, campaign_id: int, include_tasks: bool = True
+) -> tuple[str, dict]:
     """Build the PostGIS MVT query for one tile of a campaign's annotations.
 
     The spatial filter tests the bare ``g.geometry`` column against a tile
@@ -53,10 +65,12 @@ def build_mvt_query(z: int, x: int, y: int, campaign_id: int) -> tuple[str, dict
     clipped to the exact one, and geometry that misses the tile entirely (the
     ``&&`` bbox test passes rows whose shape does not actually overlap) is
     dropped rather than emitted as an attribute-only feature.
+
+    ``include_tasks=False`` leaves out annotations made from a task.
     """
     validate_tile_coords(z, x, y)
-    # S608: the only interpolations are the two module constants declared above.
-    # Every caller-supplied value in this statement is bound.
+    # S608: the only interpolations are module constants declared above. Every
+    # caller-supplied value in this statement is bound.
     sql = f"""
         WITH bounds AS (
             SELECT
@@ -76,6 +90,7 @@ def build_mvt_query(z: int, x: int, y: int, campaign_id: int) -> tuple[str, dict
             CROSS JOIN bounds
             WHERE a.campaign_id = :campaign_id
               AND g.geometry && bounds.select_4326
+              {task_filter_sql(include_tasks)}
         ) AS mvt
         WHERE mvt.geom IS NOT NULL
     """  # noqa: S608

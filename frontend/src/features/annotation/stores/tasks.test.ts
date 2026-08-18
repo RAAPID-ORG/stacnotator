@@ -31,6 +31,7 @@ const CATALOG = buildImageryCatalog(CAMPAIGN);
 const FILTER = {
   assignedTo: [],
   statuses: ['pending' as const],
+  selectedLabelIds: [],
   selectedConfidences: [],
   flaggedOnly: false,
   taskSetId: null,
@@ -59,6 +60,7 @@ function initialize(tasks: AnnotationTaskOut[], catalog = CATALOG): void {
 
 afterEach(() => {
   useTasksStore.getState().reset();
+  useCampaignStore.setState({ campaign: null });
   useImageryStore.setState({ address: null, emptyScope: null });
   usePrefsStore.setState({ pinnedStart: {} });
   useCampaignStore.setState({ view: null, taskStartCollectionId: null });
@@ -223,5 +225,63 @@ describe('task session map focus', () => {
 
     initialize([]);
     expect(useTasksStore.getState().focus).toBeNull();
+  });
+});
+
+describe('task session sample extent', () => {
+  it('outlines nothing around a point task when the campaign configures no extent', () => {
+    useCampaignStore.setState({ campaign: CAMPAIGN });
+    initialize([TASK_A]);
+
+    expect(useTasksStore.getState().focus?.extent).toBeNull();
+  });
+
+  it("draws the campaign's sample extent as a square around a point task", () => {
+    useCampaignStore.setState({
+      campaign: makeCampaign({
+        ...CAMPAIGN,
+        settings: { ...CAMPAIGN.settings, sample_extent_meters: 1000 },
+      }),
+    });
+    initialize([TASK_A]);
+
+    const geometry = useTasksStore.getState().focus?.extent?.geometry;
+    expect(geometry?.type).toBe('Polygon');
+    const ring = geometry?.type === 'Polygon' ? geometry.coordinates[0] : [];
+    expect(ring).toHaveLength(5);
+    // 1km square on the equator: half a side is ~0.00449 degrees either way.
+    expect(ring[0][0]).toBeCloseTo(-0.00449, 5);
+    expect(ring[0][1]).toBeCloseTo(-0.00449, 5);
+    expect(ring[2][0]).toBeCloseTo(0.00449, 5);
+    expect(ring[2][1]).toBeCloseTo(0.00449, 5);
+  });
+
+  it('outlines a footprint task with its own geometry, extent setting or not', () => {
+    useCampaignStore.setState({
+      campaign: makeCampaign({
+        ...CAMPAIGN,
+        settings: { ...CAMPAIGN.settings, sample_extent_meters: 1000 },
+      }),
+    });
+    initialize([
+      makeTask({
+        id: 9,
+        annotation_number: 9,
+        geometry: { id: 9, geometry: 'POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))' },
+      }),
+    ]);
+
+    expect(useTasksStore.getState().focus?.extent?.geometry).toEqual({
+      type: 'Polygon',
+      coordinates: [
+        [
+          [0, 0],
+          [0, 1],
+          [1, 1],
+          [1, 0],
+          [0, 0],
+        ],
+      ],
+    });
   });
 });

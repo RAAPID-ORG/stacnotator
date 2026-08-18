@@ -57,6 +57,10 @@ const IconFunnel = ({ className }: { className?: string }) => (
   </svg>
 );
 
+/** Stands in for "the annotation carries no label", which is what a skip
+ *  leaves behind. Campaign label ids are positive. */
+const NO_LABEL = -1;
+
 interface TaskModeReviewProps {
   campaign?: CampaignOut;
   campaignId: number;
@@ -111,6 +115,7 @@ export const TaskModeReview = ({
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [selectedConfidences, setSelectedConfidences] = useState<number[]>([]);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,6 +152,12 @@ export const TaskModeReview = ({
 
   const tasks = tasksProp ?? fetchedTasks;
   const taskSets = taskSetsProp ?? fetchedTaskSets;
+  const labels = campaign?.settings.labels ?? [];
+
+  const toggleLabel = (labelId: number) =>
+    setSelectedLabelIds((current) =>
+      current.includes(labelId) ? current.filter((id) => id !== labelId) : [...current, labelId]
+    );
 
   // Selecting a set that no longer exists (e.g. after a reload) falls back to "all".
   useEffect(() => {
@@ -162,6 +173,11 @@ export const TaskModeReview = ({
       if (selectedUserIds.length > 0) {
         const assignments = task.assignments || [];
         if (!assignments.some((a) => selectedUserIds.includes(a.user_id))) return false;
+      }
+      if (selectedLabelIds.length > 0) {
+        const annotations = task.annotations || [];
+        if (!annotations.some((a) => selectedLabelIds.includes(a.label_id ?? NO_LABEL)))
+          return false;
       }
       if (selectedConfidences.length > 0) {
         const taskConfs = (task.annotations || []).map((a) => a.confidence ?? 0);
@@ -216,6 +232,7 @@ export const TaskModeReview = ({
     statusFilter,
     setFilter,
     selectedUserIds,
+    selectedLabelIds,
     selectedConfidences,
     flaggedOnly,
     searchQuery,
@@ -267,10 +284,18 @@ export const TaskModeReview = ({
     if (statusFilter !== 'all') count++;
     if (setFilter !== 'all') count++;
     if (selectedUserIds.length > 0) count++;
+    if (selectedLabelIds.length > 0) count++;
     if (selectedConfidences.length > 0) count++;
     if (flaggedOnly) count++;
     return count;
-  }, [statusFilter, setFilter, selectedUserIds, selectedConfidences, flaggedOnly]);
+  }, [
+    statusFilter,
+    setFilter,
+    selectedUserIds,
+    selectedLabelIds,
+    selectedConfidences,
+    flaggedOnly,
+  ]);
 
   const handleNavigateToTask = (taskId: number) => {
     navigate(`${annotatePath}?task=${taskId}&review=true`);
@@ -517,6 +542,53 @@ export const TaskModeReview = ({
                         currentUserId={currentUser?.id}
                       />
                     </div>
+
+                    {/* Label Filter */}
+                    {labels.length > 0 && (
+                      <div className="border-t border-neutral-200 pt-3" data-testid="label-filter">
+                        <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                          Label
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          <button
+                            onClick={() => setSelectedLabelIds([])}
+                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                              selectedLabelIds.length === 0
+                                ? 'bg-brand-600 text-white'
+                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                            }`}
+                          >
+                            All
+                          </button>
+                          {labels.map((label) => (
+                            <button
+                              key={label.id}
+                              onClick={() => toggleLabel(label.id)}
+                              aria-pressed={selectedLabelIds.includes(label.id)}
+                              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                                selectedLabelIds.includes(label.id)
+                                  ? 'bg-brand-600 text-white'
+                                  : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                              }`}
+                            >
+                              {label.name}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => toggleLabel(NO_LABEL)}
+                            aria-pressed={selectedLabelIds.includes(NO_LABEL)}
+                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                              selectedLabelIds.includes(NO_LABEL)
+                                ? 'bg-brand-600 text-white'
+                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                            }`}
+                            title="Tasks with a skipped annotation, which carries no label"
+                          >
+                            Skipped
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Confidence Filter */}
                     <div className="border-t border-neutral-200 pt-3">

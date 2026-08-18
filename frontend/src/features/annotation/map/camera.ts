@@ -221,10 +221,14 @@ export function fitBbox(bbox: Bbox): void {
 }
 
 /** Frame every annotation in the campaign. The server knows their extent, and
- *  a campaign with none leaves the camera alone. */
-export async function fitAnnotations(campaignId: number): Promise<boolean> {
+ *  a campaign with none leaves the camera alone. The extent covers the same set
+ *  the map draws, so Fit never flies off to something hidden. */
+export async function fitAnnotations(campaignId: number, includeTasks: boolean): Promise<boolean> {
   try {
-    const result = await getAnnotationsExtent({ path: { campaign_id: campaignId } });
+    const result = await getAnnotationsExtent({
+      path: { campaign_id: campaignId },
+      query: { include_tasks: includeTasks },
+    });
     const bbox = result.data?.bbox;
     if (!bbox) return false;
     fitBbox(bbox);

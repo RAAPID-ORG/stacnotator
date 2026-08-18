@@ -10,6 +10,7 @@ import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.s
 import { handleError } from '~/shared/utils/errorHandler';
 import {
   geometryToWkt,
+  geometryTopRight,
   validateForm,
   wktToGeometry,
   type FormValues,
@@ -22,7 +23,7 @@ import {
   type SliceComment,
   type SliceNotes,
 } from '../campaign/sliceComments';
-import type { InteractionSpec, LonLat, MapClickEvent } from '../map/types';
+import type { LonLat } from '../map/types';
 import { campaignState, formFields, useCampaignStore } from './campaign';
 
 export type Tool = 'pan' | 'annotate' | 'edit' | 'labelVector' | 'timeseries';
@@ -80,13 +81,13 @@ interface WorkState {
 
   draft: Draft;
   selection: number[];
+  /** Where the selection's on-map controls sit: the top-right of the geometry
+   *  being edited, or of the box that selected many. */
+  selectionAnchor: LonLat | null;
   edit: EditSession | null;
 
   /** Bumped after every write so the annotation tiles are refetched. */
   version: number;
-  /** Draw/edit/box-select config the map applies, published by the tool. */
-  interactions: InteractionSpec | undefined;
-  onMapClick: ((e: MapClickEvent) => void) | undefined;
   /** Everywhere the timeseries tool has probed, drawn as numbered markers and
    *  charted side by side. Ordered oldest first, capped at MAX_PROBES so the
    *  chart stays readable and one click cannot fan out into a dozen fetches. */
@@ -109,11 +110,7 @@ interface WorkState {
    *  for editing - it has nothing else pending to ride along with - and drafts
    *  it onto the next save otherwise. */
   saveSliceComment: (comment: SliceComment) => Promise<void>;
-  setSelection: (ids: number[]) => void;
-  setInteractions: (
-    spec: InteractionSpec | undefined,
-    onMapClick?: (e: MapClickEvent) => void
-  ) => void;
+  setSelection: (ids: number[], anchor: LonLat | null) => void;
   addProbePoint: (point: LonLat) => void;
   /** Clicking a marker takes that comparison back off the chart. */
   removeProbePoint: (index: number) => void;
@@ -278,10 +275,9 @@ export const useWorkStore = create<WorkState>((set, get) => {
     commenting: null,
     draft: { phase: 'idle' },
     selection: [],
+    selectionAnchor: null,
     edit: null,
     version: 0,
-    interactions: undefined,
-    onMapClick: undefined,
     probePoints: [],
     probeMarkerHidden: false,
 
@@ -295,8 +291,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     setSliceNotes: (sliceNotes) => set({ sliceNotes }),
     openSliceComment: (commenting) => set({ commenting }),
     closeSliceComment: () => set({ commenting: null }),
-    setSelection: (selection) => set({ selection }),
-    setInteractions: (interactions, onMapClick) => set({ interactions, onMapClick }),
+    setSelection: (selection, selectionAnchor) => set({ selection, selectionAnchor }),
     // At the cap the oldest probe gives way, so the tool keeps working rather
     // than silently doing nothing.
     addProbePoint: (point) =>
@@ -305,7 +300,15 @@ export const useWorkStore = create<WorkState>((set, get) => {
       set((s) => ({ probePoints: s.probePoints.filter((_, i) => i !== index) })),
     clearProbePoints: () => set({ probePoints: [] }),
     setProbeMarkerHidden: (probeMarkerHidden) => set({ probeMarkerHidden }),
-    setPendingGeometry: (pending) => set((s) => (s.edit ? { edit: { ...s.edit, pending } } : {})),
+    setPendingGeometry: (pending) =>
+      set((s) =>
+        s.edit
+          ? {
+              edit: { ...s.edit, pending },
+              selectionAnchor: pending ? geometryTopRight(pending) : s.selectionAnchor,
+            }
+          : {}
+      ),
     setEditAnnotation: (annotation) =>
       set((s) => (s.edit ? { edit: { ...s.edit, annotation } } : {})),
     setEditBusy: (busy) => set((s) => (s.edit ? { edit: { ...s.edit, busy } } : {})),
@@ -319,10 +322,9 @@ export const useWorkStore = create<WorkState>((set, get) => {
         commenting: null,
         draft: { phase: 'idle' },
         selection: [],
+        selectionAnchor: null,
         edit: null,
         version: 0,
-        interactions: undefined,
-        onMapClick: undefined,
         probePoints: [],
         probeMarkerHidden: false,
       }),
@@ -437,21 +439,24 @@ export const useWorkStore = create<WorkState>((set, get) => {
         });
         const annotation = result.data;
         if (!annotation) return;
+        const geometry = wktToGeometry(annotation.geometry.geometry);
         set({
-          edit: {
-            annotation,
-            geometry: wktToGeometry(annotation.geometry.geometry),
-            pending: null,
-            busy: false,
-          },
+          edit: { annotation, geometry, pending: null, busy: false },
           selection: [annotationId],
+          selectionAnchor: geometryTopRight(geometry),
         });
       } catch (error) {
         handleError(error, 'Could not open the annotation for editing');
       }
     },
 
-    clearEdit: () => set({ edit: null, selection: [] }),
+    // A click on empty map clears whether or not anything was open, so this
+    // stays a no-op when there is nothing to clear rather than handing every
+    // subscriber a fresh empty selection.
+    clearEdit: () =>
+      set((s) =>
+        s.edit || s.selection.length > 0 ? { edit: null, selection: [], selectionAnchor: null } : {}
+      ),
 
     saveSliceComment: async (comment) => {
       const { edit } = get();

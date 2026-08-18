@@ -1,4 +1,4 @@
-import { useEffect, useRef, type WheelEvent } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type WheelEvent } from 'react';
 import 'ol/ol.css';
 import OLMap from 'ol/Map';
 import View from 'ol/View';
@@ -7,7 +7,7 @@ import ScaleLine from 'ol/control/ScaleLine';
 import { defaults as defaultInteractions, DragPan, MouseWheelZoom } from 'ol/interaction';
 import Kinetic from 'ol/Kinetic';
 import { platformModifierKeyOnly } from 'ol/events/condition';
-import { toLonLat } from 'ol/proj';
+import { fromLonLat, toLonLat } from 'ol/proj';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import type { FeatureLike } from 'ol/Feature';
@@ -28,9 +28,19 @@ import type { InteractionSpec, LayerId, LayerSpec, LonLat, MapClickEvent } from 
 const SKETCH_LAYER_Z_INDEX = 1000;
 const HIT_TOLERANCE_PX = 4;
 
+/** DOM pinned to a map coordinate, so controls can sit on the geometry they
+ *  act on instead of in a corner of the page. */
+export interface MapAnchor {
+  at: LonLat;
+  content: ReactNode;
+  /** Pixel nudge off the anchor point, to clear the geometry underneath. */
+  offset?: [number, number];
+}
+
 export interface MapViewProps {
   camera: Camera;
   layers: LayerSpec[];
+  anchor?: MapAnchor | null;
   /** Draw/edit/box-select wiring, applied to a sketch layer this owns. */
   interactions?: InteractionSpec;
   onClick?: (e: MapClickEvent) => void;
@@ -88,6 +98,7 @@ function hitAt(
 export function MapView({
   camera,
   layers,
+  anchor,
   interactions,
   onClick,
   onDoubleClick,
@@ -106,6 +117,8 @@ export function MapView({
   const sketchLayerRef = useRef<SketchLayer | null>(null);
   const mounted = useRef(new Map<LayerId, MountedLayer>()).current;
   const hoverRef = useRef<FeatureHit | null>(null);
+  const [anchorPx, setAnchorPx] = useState<[number, number] | null>(null);
+  const [anchorLon, anchorLat] = anchor?.at ?? [];
 
   // The map is built once; handlers change on most renders, so they are read
   // through a ref rather than rebuilding it.
@@ -234,6 +247,29 @@ export function MapView({
     if (map && sketchLayer) attachInteractions(map, interactions, sketchLayer);
   }, [interactions]);
 
+  // postrender is the one event that covers pans, zooms, animations and
+  // resizes alike; the equality guard is what keeps it from re-rendering the
+  // anchor on every frame of a glide.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || anchorLon === undefined || anchorLat === undefined) {
+      setAnchorPx(null);
+      return;
+    }
+    const coordinate = fromLonLat([anchorLon, anchorLat]);
+    const update = () => {
+      const pixel = map.getPixelFromCoordinate(coordinate);
+      setAnchorPx((prev) => {
+        if (!pixel) return null;
+        const next: [number, number] = [Math.round(pixel[0]), Math.round(pixel[1])];
+        return prev && prev[0] === next[0] && prev[1] === next[1] ? prev : next;
+      });
+    };
+    update();
+    map.on('postrender', update);
+    return () => map.un('postrender', update);
+  }, [anchorLon, anchorLat]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (map) syncLayers(map, mounted, layers);
@@ -256,5 +292,20 @@ export function MapView({
     onModifierHint?.();
   };
 
-  return <div ref={containerRef} className={className} onWheel={handleWheel} />;
+  return (
+    <div className={`relative ${className}`}>
+      <div ref={containerRef} className="h-full w-full" onWheel={handleWheel} />
+      {anchor && anchorPx && (
+        <div
+          className="pointer-events-none absolute z-[1000]"
+          style={{
+            left: anchorPx[0] + (anchor.offset?.[0] ?? 0),
+            top: anchorPx[1] + (anchor.offset?.[1] ?? 0),
+          }}
+        >
+          {anchor.content}
+        </div>
+      )}
+    </div>
+  );
 }

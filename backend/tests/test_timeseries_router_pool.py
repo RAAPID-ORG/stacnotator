@@ -43,6 +43,7 @@ def events(monkeypatch):
     monkeypatch.setattr(ts_router.service, "get_timeseries_by_id", fake_get_ts)
     monkeypatch.setattr(service, "get_timeseries_data", fake_ee)
     monkeypatch.setattr(ts_router, "require_campaign_access", lambda **kw: None)
+    monkeypatch.setattr(ts_router, "ensure_earth_engine", lambda: True)
 
     app.dependency_overrides[get_db] = lambda: fake_db
     app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(id=1)

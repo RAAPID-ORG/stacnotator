@@ -104,10 +104,11 @@ export function ReviewToggle({ onTaskFilterChange }: ReviewToggleProps) {
         ? {
             assignedTo: [],
             statuses: ['partial', 'done', 'skipped', 'conflicting'],
+            selectedLabelIds: [],
             selectedConfidences: [],
             flaggedOnly: false,
           }
-        : { selectedConfidences: [], flaggedOnly: false }
+        : { selectedLabelIds: [], selectedConfidences: [], flaggedOnly: false }
     );
   };
 

@@ -32,6 +32,9 @@ export interface ImageryNavState {
   empties: Empties;
   crosshair: boolean;
   showAnnotations: boolean;
+  /** Explore only: whether annotations made from a task join the ones drawn
+   *  free-hand. Off by default - task work is reviewed in Task mode. */
+  showTaskAnnotations: boolean;
   viewSync: boolean;
 }
 

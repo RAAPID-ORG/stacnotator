@@ -577,7 +577,7 @@ function mapBindings(): Binding[] {
           const focus = useTasksStore.getState().focus;
           if (focus) mainCamera.moveTo({ center: focus.center });
         } else {
-          void fitAnnotations(catalog.campaignId);
+          void fitAnnotations(catalog.campaignId, imagery().showTaskAnnotations);
         }
       },
     },

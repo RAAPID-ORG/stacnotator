@@ -89,9 +89,14 @@ export interface ComposeState extends ImageryNavState {
   probePoints?: LonLat[];
 }
 
-/** `v` busts the browser and OL tile caches after a write. */
-export const annotationTilesUrl = (campaignId: number, version: number) =>
-  apiUrl(`/api/campaigns/${campaignId}/annotations/tiles/{z}/{x}/{y}.pbf?v=${version}`);
+/** `v` busts the browser and OL tile caches after a write, and `include_tasks`
+ *  is always spelled out so a filtered tile and an unfiltered one are different
+ *  URLs - neither the HTTP cache nor a retained OL source can mix them. */
+export const annotationTilesUrl = (campaignId: number, version: number, includeTasks: boolean) =>
+  apiUrl(
+    `/api/campaigns/${campaignId}/annotations/tiles/{z}/{x}/{y}.pbf` +
+      `?v=${version}&include_tasks=${includeTasks}`
+  );
 
 function selectedBasemap(cat: ImageryCatalog, selectedBasemapId: string | null) {
   const id = Number(selectedBasemapId?.replace('basemap-', ''));
@@ -221,7 +226,13 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
       kind: 'features',
       id: EXTENT_LAYER_ID,
       features: [state.focusExtent],
-      style: { stroke: { color: 'rgba(255,255,255,0.9)', width: 2, dash: [6, 4] } },
+      style: {
+        stroke: {
+          color: state.crosshairColor ?? DEFAULT_CROSSHAIR_COLOR,
+          width: 2,
+          dash: [6, 4],
+        },
+      },
       zIndex: EXTENT_Z,
     });
   }
@@ -242,15 +253,18 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     }
   }
 
-  // Saved annotations are Explore's subject; a task map shows only the task's
-  // own footprint. Windows carry them in both modes.
-  const showsAnnotations = mode === 'explore' || isWindow;
-
-  if (showsAnnotations && state.showAnnotations && state.annotations) {
+  // Saved annotations are Explore's subject. A task map shows only what the
+  // page is pointed at - its footprint and crosshair - and so do its windows,
+  // where a point task's own annotation would just sit under the crosshair.
+  if (mode === 'explore' && state.showAnnotations && state.annotations) {
     layers.push({
       kind: 'vector-tiles',
       id: ANNOTATION_LAYER_ID,
-      url: annotationTilesUrl(catalog.campaignId, state.annotations.version),
+      url: annotationTilesUrl(
+        catalog.campaignId,
+        state.annotations.version,
+        state.showTaskAnnotations
+      ),
       auth: 'bearer',
       idProperty: TILE_PROP_ID,
       minZoom: ANNOTATION_TILE_MIN_ZOOM - 1,

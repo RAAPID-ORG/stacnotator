@@ -24,6 +24,7 @@ vi.mock('~/api/client', async () => {
 const FILTER = {
   assignedTo: [],
   statuses: ['pending' as const],
+  selectedLabelIds: [],
   selectedConfidences: [],
   flaggedOnly: false,
   taskSetId: null,

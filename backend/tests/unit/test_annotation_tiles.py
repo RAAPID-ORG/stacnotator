@@ -9,11 +9,13 @@ GiST index on annotation_geometries.geometry can be used.
 import pytest
 
 from src.annotation.tiles import (
+    TASK_ANNOTATION_EXCLUSION,
     TILE_QUERY_MARGIN,
     InvalidBBoxError,
     InvalidTileError,
     build_mvt_query,
     parse_bbox,
+    task_filter_sql,
     validate_tile_coords,
 )
 
@@ -122,3 +124,24 @@ def test_build_mvt_query_selects_id_and_label():
 def test_build_mvt_query_validates_coordinates():
     with pytest.raises(InvalidTileError):
         build_mvt_query(z=1, x=5, y=0, campaign_id=1)
+
+
+def test_build_mvt_query_includes_task_annotations_by_default():
+    sql, _ = build_mvt_query(z=1, x=0, y=0, campaign_id=1)
+    assert "annotation_task_id" not in sql
+
+
+def test_build_mvt_query_can_leave_out_task_annotations():
+    sql, _ = build_mvt_query(z=1, x=0, y=0, campaign_id=1, include_tasks=False)
+    assert TASK_ANNOTATION_EXCLUSION in sql[sql.index("WHERE") :]
+
+
+# --- task_filter_sql ---------------------------------------------------------
+
+
+def test_task_filter_sql_is_empty_when_tasks_are_included():
+    assert task_filter_sql(True) == ""
+
+
+def test_task_filter_sql_excludes_task_rows():
+    assert task_filter_sql(False) == TASK_ANNOTATION_EXCLUSION

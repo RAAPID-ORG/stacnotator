@@ -2,18 +2,45 @@
 
 Scripts for deploying STACNotator to Azure. They self-manage all application resources (Container Apps, Static Web App, identities, RBAC) within the project's resource group, so app deploys stay independent of the platform-managed infrastructure.
 
-Two entry points, split by lifecycle:
+## How deployments work
+
+Two scripts, split by lifecycle:
 
 | Script | When | What |
 |---|---|---|
 | `bootstrap.sh <env>` | Once per environment, and on credential rotation | Upload Firebase + Earth Engine credentials, generate the shared secrets when absent, create the Static Web App, add the tiler workload profile |
 | `deploy.sh <env>` | Every release | Resolve config, build backend + tiler + frontend concurrently, one write per resource, gate on backend health |
 
-`env.sh` is sourced by both and holds the config resolution. It contains no resource group, domain, service account or project id: the repo is public, so identifiers arrive from the environment.
+A release reaches Azure one of two ways, and both run the *same* `deploy.sh`. They differ only in where the identifiers come from and who approves.
 
-Both scripts run from CI (on a self-hosted runner inside our Azure VNet) and from a developer laptop on VPN.
+### Scenario A - deploy from CI (the normal path)
 
-### How a deploy works
+CI runs **`deploy.sh` only - never `bootstrap.sh`**. Almost every identifier a deploy needs is already in the GitHub Environment, but bootstrap's inputs are not: it uploads the Firebase and Earth Engine credential *JSON files*, and CI holds no path to them. So a new environment is bootstrapped by hand once, and until it is, a CI deploy fails - the Key Vault secrets it wires in as `keyvaultref:` and the Static Web App it uploads the frontend to would not exist.
+
+Once per environment, before the first CI deploy:
+
+1. Platform infrastructure (RG, ACR, KV, DB, CAE) deployed externally by Platform Engineers.
+2. `bootstrap.sh <env>` run from a laptop on VPN - see [Run once per environment](#run-once-per-environment).
+3. pgstac tiler database bootstrapped - see [Tiler database](#tiler-database-pgstac---one-time-per-environment). Before the first deploy, not after: the tiler Container App references the `tiler-db-password` secret that step writes to Key Vault.
+4. The GitHub Environment (`dev` or `production`) created, with its secrets, variables and reviewers - see [One-time setup](#one-time-setup-do-this-before-the-first-ci-dev-deploy).
+
+The **first** deploy can then run from CI like any other - there is no local-only step left. `deploy.sh` creates the Container Apps when they are absent and updates them when they are not, it assigns no roles (the managed identity comes from Terraform), and the Static Web App already exists from bootstrap. It only needs the deploy identity to hold Contributor on the resource group, and the code to be on the branch that triggers the workflow.
+
+Custom domains come last, because binding them needs the apps to exist: deploy once on the default Azure hostnames, bind the domains, set `PUBLIC_DOMAIN`, deploy again. Until then MPC imagery works but hosted-tiler tiles 401 in the browser. See [Custom domains](#custom-domains---one-time-per-environment-required-for-hosted-tiler-tiles).
+
+Per release: push to `main` (prod), or hit **Run workflow** on `Deploy Dev` from `develop`, then approve the Environment gate. See [Automated deployments](#automated-deployments-ci).
+
+### Scenario B - deploy manually from a laptop
+
+The fallback for local deploys, and the only way to run the bootstrap itself. Same one-time list minus step 4, plus a local `deployment/azure/.env.deploy.<env>` supplying what CI holds in its Environment, and the tooling in [Prerequisites](#prerequisites) (`az login` on VPN, sibling tiler checkout, Node).
+
+Per release: `make az-deploy-<env>`. See [Manual deployment](#manual-deployment-local-cli).
+
+Neither path touches a database beyond the `alembic upgrade head` the backend container runs at startup. Refreshing dev from prod is always the separate, manual `make az-sync-prod-to-dev`.
+
+`env.sh` is sourced by both scripts and holds the config resolution. It contains no resource group, domain, service account or project id: the repo is public, so identifiers arrive from the environment - GitHub Environment secrets and variables in CI, `.env.deploy.<env>` on a laptop.
+
+### Inside a deploy
 
 Every value a deploy needs is derived before the first write. A Container App with external ingress is always `<app-name>.<CAE default domain>`, and with `PUBLIC_DOMAIN` set the browser-facing hosts are string construction, so nothing has to be read back mid-deploy. That means each resource is written exactly once and the backend produces a **single revision** per deploy, with one alembic run and one unambiguous health gate.
 
@@ -49,6 +76,8 @@ currently off in both envs; turn it on if you need it for heavy tile load.
 
 ## Automated deployments (CI)
 
+CI runs `deploy.sh` only. The environment must already be bootstrapped from a laptop ([Run once per environment](#run-once-per-environment)) and its GitHub Environment configured ([One-time setup](#one-time-setup-do-this-before-the-first-ci-dev-deploy)).
+
 `deploy.sh` runs from GitHub Actions on a self-hosted runner inside the Azure VNet, authenticating via OIDC (no stored credentials). Both environments are gated by a GitHub Environment with required reviewers, so every deploy waits on a human Approve click.
 
 Both callers share `.github/workflows/deploy.yml`, a reusable workflow taking the GitHub Environment to use and the argument for `deploy.sh`. All deploy mechanics live there; the callers differ only in which environment they select.
@@ -72,10 +101,13 @@ The manual CLI path below is the fallback for local deploys and first-time envir
 
 ## Run once per environment
 
-Ensure the infrastructure is deployed on Azure first. Then
+Required for both deploy paths. Run it from a laptop on VPN, after the infrastructure is deployed on Azure.
+
+`bootstrap.sh` reads `RESOURCE_GROUP` (which CI has, as `AZURE_RESOURCE_GROUP`) plus five values that exist nowhere but a laptop: `FIREBASE_CREDS` and `EE_CREDS`, the paths to the credential JSON files it uploads, and `FIREBASE_API_KEY` / `FIREBASE_AUTH_DOMAIN` / `FIREBASE_PROJECT_ID`, the frontend's Firebase client config. `TILER_DEDICATED` is optional. That short list is why bootstrap is manual; everything else it needs it discovers from the resource group.
 
 ```bash
-# 1. Create the local config (laptop deploys only; CI reads GitHub Environments)
+# 1. Create the local config (needed here even if releases go out from CI,
+#    which reads GitHub Environments instead)
 cp deployment/azure/.env.deploy.example deployment/azure/.env.deploy.dev
 # Fill in RESOURCE_GROUP, PUBLIC_DOMAIN, EE_SERVICE_ACCOUNT, and the credential
 # paths. bootstrap.sh uploads (FIREBASE_CREDS, EE_CREDS, FIREBASE_*).
@@ -83,7 +115,8 @@ cp deployment/azure/.env.deploy.example deployment/azure/.env.deploy.dev
 # 2. Upload secrets, create the Static Web App, add the workload profile
 make az-bootstrap-dev         # or az-bootstrap-prod
 
-# 3. First deploy (creates the Container Apps, runs migrations on startup)
+# 3. First deploy (creates the Container Apps, runs migrations on startup).
+#    Equally fine from CI once the GitHub Environment is set up.
 make az-deploy-dev            # or az-deploy-prod
 
 # 4. Add the frontend domain to Firebase authorized domains
@@ -199,8 +232,8 @@ az containerapp hostname bind -n stacnotator-dev-tiler    -g "$RG" --hostname ti
 
 Bindings persist on the resource, so steps 1-3 are one-time per environment.
 
-**4. Set `PUBLIC_DOMAIN`** (after certs report Succeeded) - in `.env.deploy.<env>` for local, or the
-`PUBLIC_DOMAIN_DEV` / `PUBLIC_DOMAIN_PROD` GitHub Actions **variable** for CI - then redeploy. The
+**4. Set `PUBLIC_DOMAIN`** (after certs report Succeeded) - in `.env.deploy.<env>` for local, or as the
+`PUBLIC_DOMAIN` **variable** on the environment's GitHub Environment for CI - then redeploy. The
 deploy builds the frontend against `api.<domain>`, points `TILERS` at `https://tiler.<domain>`
 (browser-facing) with `internal_url` on the Azure FQDN (backend->tiler stays in-Azure), sets
 `CORS_ORIGINS` to `https://app.<domain>`, and sets `TILER_COOKIE_DOMAIN=.<domain>`. `SameSite=lax`

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   batchCreateAnnotations,
   batchDeleteAnnotations,
@@ -18,7 +18,7 @@ import {
   type FormValues,
   type GeometryType,
 } from './campaign/annotation';
-import { resolveLabelStyle, toDraftStyleSpec, toStyleSpec } from './campaign/labelStyle';
+import { resolveLabelStyle, toDraftStyleSpec } from './campaign/labelStyle';
 import { ANNOTATION_LAYER_ID, PROBE_LAYER_ID, probeIndexOf, vectorLayerId } from './map/compose';
 import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from './map/types';
 import { campaignState, formFields, useCampaignStore, useLabels } from './stores/campaign';
@@ -183,11 +183,16 @@ async function selectInBox(bbox: Bbox): Promise<void> {
   try {
     const result = await getAnnotationIdsInBbox({
       path: { campaign_id: campaignState().campaign.id },
-      query: { bbox: bbox.join(',') },
+      query: {
+        bbox: bbox.join(','),
+        include_tasks: useImageryStore.getState().showTaskAnnotations,
+      },
     });
     const work = useWorkStore.getState();
     work.clearEdit();
-    work.setSelection((result.data ?? []).map(Number).filter(Number.isFinite));
+    // The box's own top-right is the only geometry a bulk selection has: the
+    // ids come from the server, the shapes never leave it.
+    work.setSelection((result.data ?? []).map(Number).filter(Number.isFinite), [bbox[2], bbox[3]]);
   } catch (error) {
     handleError(error, 'Box selection failed');
   }
@@ -232,6 +237,19 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
     return;
   }
 
+  // Pan opens an annotation for reading: the details panel fills in, and the
+  // on-map controls come with it, but no vertex handles - editing is the edit
+  // tool's.
+  if (work.tool === 'pan') {
+    const clicked =
+      event.layerId === ANNOTATION_LAYER_ID && event.featureId != null
+        ? Number(event.featureId)
+        : null;
+    if (clicked === null) work.clearEdit();
+    else if (clicked !== work.edit?.annotation.id) await work.openEdit(clicked);
+    return;
+  }
+
   if (work.tool === 'edit') {
     const editingId = work.edit?.annotation.id ?? null;
     if (event.layerId === ANNOTATION_LAYER_ID && event.featureId != null) {
@@ -265,13 +283,16 @@ async function handleBox(bbox: Bbox, hits: BoxHit[]): Promise<void> {
   if (tool === 'labelVector') reportLabelOutcome(await labelGeometries(dedupeHits(hits)));
 }
 
-/** Publishes the interaction spec for the active tool. Mounted once. */
-export function useDrawingInteractions(): void {
+/** The map's draw/edit/box-select wiring for the active tool, and the click
+ *  handler that goes with it. Mounted by the map it configures. */
+export function useDrawingInteractions(): {
+  interactions: InteractionSpec | undefined;
+  onMapClick: ((e: MapClickEvent) => void) | undefined;
+} {
   const isExplore = useCampaignStore((s) => s.workMode === 'explore');
   const tool = useWorkStore((s) => s.tool);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const edit = useWorkStore((s) => s.edit);
-  const setInteractions = useWorkStore((s) => s.setInteractions);
   const labelStyles = usePrefsStore((s) => s.labelStyles);
   const vector = useImageryStore((s) => s.vector);
   const labels = useLabels();
@@ -291,17 +312,16 @@ export function useDrawingInteractions(): void {
   );
 
   // The feature under the edit handles is painted in its own label's colours,
-  // emphasised the way a selected annotation is.
+  // dashed like a sketch - it is being worked on, not saved as it stands.
   const editLabelId = edit?.annotation.label_id ?? null;
   const editStyle = useMemo(() => {
     const editLabel = byId(editLabelId);
-    return toStyleSpec(
+    return toDraftStyleSpec(
       resolveLabelStyle(
         editLabel?.color ?? '#3b82f6',
         editLabel?.geometry_type ?? 'polygon',
         editLabelId === null ? undefined : labelStyles[editLabelId]
-      ),
-      { selected: true }
+      )
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [labels, editLabelId, labelStyles]);
@@ -350,9 +370,5 @@ export function useDrawingInteractions(): void {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExplore, tool, label, sketchStyle, edit?.annotation.id, edit?.geometry, editStyle, vector]);
 
-  useEffect(() => {
-    setInteractions(spec, isExplore ? onMapClick : undefined);
-  }, [spec, onMapClick, isExplore, setInteractions]);
-
-  useEffect(() => () => useWorkStore.getState().setInteractions(undefined, undefined), []);
+  return { interactions: spec, onMapClick: isExplore ? onMapClick : undefined };
 }

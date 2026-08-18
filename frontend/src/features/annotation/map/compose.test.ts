@@ -94,6 +94,7 @@ function stateWith(overrides: Partial<ComposeState> = {}): ComposeState {
     empties: {},
     crosshair: false,
     showAnnotations: true,
+    showTaskAnnotations: false,
     viewSync: true,
     annotations: { version: 1, labels: LABELS },
     ...overrides,
@@ -134,6 +135,20 @@ describe('composeLayers - tasks mode', () => {
   it('omits the extent layer when there is no task geometry', () => {
     const layers = composeLayers(ctxFor('tasks'), stateWith());
     expect(ids(layers)).not.toContain(EXTENT_LAYER_ID);
+  });
+
+  it('outlines the extent in the source’s crosshair colour', () => {
+    const layers = composeLayers(
+      ctxFor('tasks'),
+      stateWith({
+        focusExtent: { id: 'task', geometry: { type: 'Point', coordinates: [1, 2] } },
+        crosshairColor: '#00ffff',
+      })
+    );
+    const extent = layers.find((l) => l.id === EXTENT_LAYER_ID);
+    expect(extent?.kind === 'features' && extent.style).toEqual({
+      stroke: { color: '#00ffff', width: 2, dash: [6, 4] },
+    });
   });
 
   it('draws the crosshair at the task point', () => {
@@ -194,6 +209,20 @@ describe('composeLayers - explore mode', () => {
     expect(annotations.highlightFeatureIds).toEqual([8, 9]);
     expect(annotations.idProperty).toBe('annotation_id');
     expect(annotations.url).toContain('v=3');
+  });
+
+  it('leaves task-made annotations out of the tile url by default', () => {
+    const layers = composeLayers(ctxFor('explore'), stateWith());
+    const annotations = layers.find((l) => l.id === ANNOTATION_LAYER_ID) as VectorTileLayerSpec;
+    expect(annotations.url).toContain('include_tasks=false');
+  });
+
+  // Both variants spell the filter out, so a filtered tile and an unfiltered
+  // one are different URLs and no cache can mix them.
+  it('asks for task-made annotations under a different url', () => {
+    const layers = composeLayers(ctxFor('explore'), stateWith({ showTaskAnnotations: true }));
+    const annotations = layers.find((l) => l.id === ANNOTATION_LAYER_ID) as VectorTileLayerSpec;
+    expect(annotations.url).toContain('include_tasks=true');
   });
 });
 
@@ -275,14 +304,13 @@ describe('composeLayers - showAnnotations', () => {
     expect(ids(hidden)).not.toContain(ANNOTATION_LAYER_ID);
   });
 
-  it('honours the toggle in a tasks-mode window, where the main map has no tiles', () => {
-    const windowState = stateWith({ target: 'window' });
-
-    expect(ids(composeLayers(ctxFor('tasks'), windowState))).toContain(ANNOTATION_LAYER_ID);
+  // A point task's own annotation sits exactly under the crosshair, so drawing
+  // it adds a dot and nothing else - in the windows as much as on the map.
+  it('keeps saved annotations out of tasks mode, windows included', () => {
     expect(ids(composeLayers(ctxFor('tasks'), stateWith()))).not.toContain(ANNOTATION_LAYER_ID);
-    expect(
-      ids(composeLayers(ctxFor('tasks'), { ...windowState, showAnnotations: false }))
-    ).not.toContain(ANNOTATION_LAYER_ID);
+    expect(ids(composeLayers(ctxFor('tasks'), stateWith({ target: 'window' })))).not.toContain(
+      ANNOTATION_LAYER_ID
+    );
   });
 
   it('keeps a window to its own imagery, without the main map’s reference layers', () => {

@@ -1,3 +1,4 @@
+import { fromLonLat, toLonLat } from 'ol/proj';
 import type { StyleSpec } from '../../campaign/labelStyle';
 import type { Bbox, FeatureLayerSpec, LonLat } from '../../map/types';
 
@@ -29,8 +30,15 @@ export function translateBounds(
   return [west + deltaLon, south + deltaLat, east + deltaLon, north + deltaLat];
 }
 
+/** The middle of the rectangle as drawn, which is where the camera it stands
+ *  for is pointed. Web Mercator stretches latitudes apart towards the poles, so
+ *  averaging north and south lands below the visual middle - by a kilometre on
+ *  a zoomed-out viewport, which is enough to miss what the user aimed at. */
 export function centerOfBounds([west, south, east, north]: Bbox): LonLat {
-  return [(west + east) / 2, (south + north) / 2];
+  const [x0, y0] = fromLonLat([west, south]);
+  const [x1, y1] = fromLonLat([east, north]);
+  const [lon, lat] = toLonLat([(x0 + x1) / 2, (y0 + y1) / 2]);
+  return [lon, lat];
 }
 
 export function viewportRectLayer(bounds: Bbox, zIndex = 5): FeatureLayerSpec {

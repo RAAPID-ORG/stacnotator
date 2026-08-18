@@ -7,6 +7,7 @@ import { hotkeyTip } from '../../hotkeys';
 import { extendedLabels } from '../../campaign/annotation';
 import { collectionsInView } from '../../campaign/imagery';
 import { computeTaskProgress } from '../../campaign/tasks';
+import { useDrawingInteractions } from '../../drawing';
 import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
 import {
   composeLayers,
@@ -15,7 +16,7 @@ import {
   type AnnotationTiles,
   type ComposeState,
 } from '../../map/compose';
-import { MapView } from '../../map/MapView';
+import { MapView, type MapAnchor } from '../../map/MapView';
 import { setForegroundMapLoading, useForegroundLoading } from '../../map/tileLoading';
 import type { LonLat, MapClickEvent } from '../../map/types';
 import { useCampaign, useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
@@ -33,6 +34,7 @@ import { SlicePicker } from './controls/SlicePicker';
 import { VectorLayerControls } from './controls/VectorLayerControls';
 import { ViewControls } from './controls/ViewControls';
 import { TimelineSidebar } from './TimelineSidebar';
+import { SelectionControls } from './SelectionControls';
 import { usePreloading } from './usePreloading';
 
 /** Stable empty array: a fresh [] each render would recompose the layers. */
@@ -182,7 +184,11 @@ export function MainMapHeader() {
             if (isTaskMode) {
               const focus = useTasksStore.getState().focus;
               if (focus) mainCamera.moveTo({ center: focus.center });
-            } else void fitAnnotations(catalog.campaignId);
+            } else
+              void fitAnnotations(
+                catalog.campaignId,
+                useImageryStore.getState().showTaskAnnotations
+              );
           }}
           focusTitle={hotkeyTip(bindings, ' ')}
           crosshairTitle={hotkeyTip(bindings, 'x')}
@@ -227,13 +233,13 @@ export function MainMapBody() {
   const imagery = useImageryStore();
   const legendOverrides = usePrefsStore((s) => s.legendOverrides);
   const draft = useWorkStore((s) => s.draft);
+  const tool = useWorkStore((s) => s.tool);
   const selection = useWorkStore((s) => s.selection);
+  const selectionAnchor = useWorkStore((s) => s.selectionAnchor);
   const editingId = useWorkStore((s) => s.edit?.annotation.id ?? null);
-  // Draw/edit/box-select and the probe marker are the drawing feature's, and
-  // reach the map through the shared handoff rather than a prop nobody could
-  // pass (features do not mount one another).
-  const interactions = useWorkStore((s) => s.interactions);
-  const drawingClick = useWorkStore((s) => s.onMapClick);
+  // Draw/edit/box-select belong to the map they act on, so this is where the
+  // drawing feature's wiring is mounted.
+  const { interactions, onMapClick: drawingClick } = useDrawingInteractions();
   const onMapClick = mode === 'tasks' ? taskProbeClick : drawingClick;
   const probePoints = useWorkStore((s) => (s.probeMarkerHidden ? EMPTY_PROBES : s.probePoints));
   const writes = useTileVersion();
@@ -252,8 +258,11 @@ export function MainMapBody() {
 
   const annotations = useMemo<AnnotationTiles>(() => {
     // The feature being edited is drawn by the edit interaction instead, so
-    // the tile copy underneath it is hidden rather than doubled.
-    const hidden = [editingId, draftSavedId].filter((id) => id != null);
+    // the tile copy underneath it is hidden rather than doubled. Only the edit
+    // tool draws one: a selection made in Pan is inspected, not redrawn, and
+    // hiding its tile copy would make the annotation disappear.
+    const editDrawn = tool === 'edit' ? editingId : null;
+    const hidden = [editDrawn, draftSavedId].filter((id) => id != null);
     return {
       // Every write the user makes after load has to bust the tile cache too.
       version: (campaign.annotations_version ?? 0) + writes,
@@ -261,7 +270,7 @@ export function MainMapBody() {
       hiddenIds: hidden.length > 0 ? hidden : undefined,
       highlightIds: selection.length > 0 ? selection : undefined,
     };
-  }, [campaign, writes, editingId, draftSavedId, selection]);
+  }, [campaign, writes, tool, editingId, draftSavedId, selection]);
 
   const draftFeatures = useMemo(
     () => (draftOpen ? [{ id: 'draft', geometry: draft.geometry }] : []),
@@ -321,6 +330,13 @@ export function MainMapBody() {
     visibleCollectionIds,
   });
 
+  // Confirm/delete ride on the geometry they act on rather than in a corner of
+  // the page, which is what makes them findable on a big map.
+  const anchor: MapAnchor | null =
+    mode === 'explore' && selection.length > 0 && selectionAnchor
+      ? { at: selectionAnchor, content: <SelectionControls />, offset: [10, -5] }
+      : null;
+
   return (
     <div className="flex h-full w-full">
       <TimelineSidebar />
@@ -337,6 +353,7 @@ export function MainMapBody() {
         <MapView
           camera={mainCamera}
           layers={layers}
+          anchor={anchor}
           interactions={interactions}
           onClick={onMapClick}
           onLoadStateChange={(loading) => {

@@ -319,9 +319,13 @@ describe('form setters', () => {
     expect(useWorkStore.getState().flagComment).toBe('');
   });
 
-  it('setSelection', () => {
-    useWorkStore.getState().setSelection([1, 2, 3]);
+  it('setSelection carries the anchor its on-map controls hang from', () => {
+    useWorkStore.getState().setSelection([1, 2, 3], [4, 5]);
     expect(useWorkStore.getState().selection).toEqual([1, 2, 3]);
+    expect(useWorkStore.getState().selectionAnchor).toEqual([4, 5]);
+
+    useWorkStore.getState().clearEdit();
+    expect(useWorkStore.getState().selectionAnchor).toBeNull();
   });
 });
 

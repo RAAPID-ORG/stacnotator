@@ -12,6 +12,7 @@ import type { ImageryCatalog } from '../campaign/imagery';
 const DEFAULT_FILTER: TaskFilter = {
   assignedTo: [],
   statuses: ['pending'],
+  selectedLabelIds: [],
   selectedConfidences: [],
   flaggedOnly: false,
   taskSetId: null,

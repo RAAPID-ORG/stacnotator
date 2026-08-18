@@ -640,7 +640,7 @@ export const test = base.extend<AnnotatorFixtures>({
     });
 
     // GET annotations extent -> bbox spanning the mock annotations.
-    await page.route('**/api/campaigns/*/annotations/extent', async (route) => {
+    await page.route('**/api/campaigns/*/annotations/extent*', async (route) => {
       await route.fulfill({ json: { bbox: openAnnotationsBbox() } });
     });
 
@@ -654,6 +654,11 @@ export const test = base.extend<AnnotatorFixtures>({
         pathParams: extractPathParams(new URL(route.request().url()).pathname),
       });
       await route.fulfill({ json: openAnnotations.map((a) => a.id) });
+    });
+
+    // GET annotation density -> the minimap overview, empty in mock mode.
+    await page.route('**/api/campaigns/*/annotations/density*', async (route) => {
+      await route.fulfill({ json: [] });
     });
 
     // GET navigation batch -> mock annotations newest-first as nav items.

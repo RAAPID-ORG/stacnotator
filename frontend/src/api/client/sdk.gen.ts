@@ -1276,6 +1276,8 @@ export const getAllAnnotationsForCampaign = <ThrowOnError extends boolean = fals
  *
  * Each feature carries only ``annotation_id`` and ``label_id``; the frontend
  * styles by label and fetches full geometry by id when a feature is edited.
+ * ``include_tasks=false`` leaves out annotations made from a task; it is part
+ * of the URL, so the two variants never share a cache entry.
  */
 export const getAnnotationTile = <ThrowOnError extends boolean = false>(options: Options<GetAnnotationTileData, ThrowOnError>) => (options.client ?? client).get<GetAnnotationTileResponses, GetAnnotationTileErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

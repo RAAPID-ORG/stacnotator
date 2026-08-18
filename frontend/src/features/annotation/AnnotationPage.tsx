@@ -13,7 +13,6 @@ import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { pageKeymap, resetNavMemory } from './keymap';
 import { Canvas } from './canvas/Canvas';
-import { EditOverlayControls } from './chrome/EditOverlayControls';
 import {
   AllTasksDoneGate,
   LoadingGate,
@@ -532,7 +531,7 @@ export function AnnotationPage() {
         <AllTasksDoneGate onShowAllTasks={showAllTasks} />
       )}
 
-      {isMobile ? <MobileSliceNav /> : <EditOverlayControls />}
+      {isMobile && <MobileSliceNav />}
 
       <SliceCommentDialog />
 

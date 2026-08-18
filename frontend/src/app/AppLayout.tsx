@@ -1,7 +1,7 @@
 import { useState, useLayoutEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
-import { Toaster } from 'sonner';
+import { Toaster, toast, useSonner } from 'sonner';
 import { AppSidebar } from 'src/app/AppSidebar';
 import { ConfirmDialog } from 'src/shared/ui/ConfirmDialog';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
@@ -10,6 +10,27 @@ import { ErrorFallback } from 'src/shared/ui/ErrorFallback';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
 import { ANNOTATION_ROUTE } from 'src/app/routes';
 import { useOrgScope } from 'src/app/useOrgScope';
+
+// Toasts start below the clear-all button so the two never overlap.
+const TOAST_TOP_OFFSET = 48;
+
+/** Dismisses the whole toast stack; only shown once toasts start piling up. */
+const ClearAllToasts = () => {
+  const { toasts } = useSonner();
+  if (toasts.length < 2) return null;
+
+  return (
+    <div className="fixed top-4 right-6 z-[9999] flex justify-end">
+      <button
+        type="button"
+        onClick={() => toast.dismiss()}
+        className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-500 shadow-sm transition-colors hover:text-neutral-800"
+      >
+        Clear all ({toasts.length})
+      </button>
+    </div>
+  );
+};
 
 /**
  * Main application layout
@@ -56,8 +77,13 @@ export const AppLayout = () => {
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
+        <ClearAllToasts />
+
         <Toaster
           position="top-right"
+          closeButton
+          offset={{ top: TOAST_TOP_OFFSET, right: 24 }}
+          mobileOffset={{ top: TOAST_TOP_OFFSET, right: 16, left: 16 }}
           toastOptions={{
             classNames: {
               toast:

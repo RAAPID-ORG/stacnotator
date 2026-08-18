@@ -502,6 +502,37 @@ input[type='range'] {
   line-height: 12px !important;
 }
 
+/* Sonner toasts - close button sits inside the card at the top right, like
+   every other dismissable surface in the app, instead of sonner's default
+   circle that straddles the corner. */
+[data-sonner-toast][data-styled='true'] {
+  padding: 12px 30px 12px 14px;
+}
+
+[data-sonner-toast][data-styled='true'] [data-close-button] {
+  left: unset;
+  right: 6px;
+  top: 6px;
+  height: 18px;
+  width: 18px;
+  transform: none;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-neutral-400);
+}
+
+[data-sonner-toast][data-styled='true'] [data-close-button] svg {
+  height: 13px;
+  width: 13px;
+}
+
+[data-sonner-toast][data-styled='true']:hover [data-close-button]:hover {
+  background: var(--color-neutral-100);
+  border-color: transparent;
+  color: var(--color-neutral-700);
+}
+
 /* Guided Tour */
 
 .tour-tooltip {

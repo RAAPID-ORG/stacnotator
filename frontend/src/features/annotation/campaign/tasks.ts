@@ -13,6 +13,10 @@ import type { TaskStatus } from './annotation';
 /** Usable inside TaskFilter.assignedTo to mean "tasks with no assignments". */
 export const UNASSIGNED = '__unassigned__';
 
+/** Usable inside TaskFilter.selectedLabelIds to mean "annotations that carry
+ *  no label", which is what a skip leaves behind. Label ids are positive. */
+export const UNLABELLED = -1;
+
 /** Mirrors the backend's CLAIM_TTL_MINUTES. */
 export const CLAIM_TTL_MS = 30 * 60 * 1000;
 
@@ -60,6 +64,7 @@ export function claimedByLabel(
 export interface TaskFilter {
   assignedTo: string[];
   statuses: TaskStatus[];
+  selectedLabelIds: number[];
   selectedConfidences: number[];
   flaggedOnly: boolean;
   taskSetId: number | null;
@@ -162,6 +167,13 @@ export function applyTaskFilter(
       return false;
     }
 
+    if (filter.selectedLabelIds.length > 0) {
+      const matchesLabel = annotations.some((a) =>
+        filter.selectedLabelIds.includes(a.label_id ?? UNLABELLED)
+      );
+      if (!matchesLabel) return false;
+    }
+
     if (filter.selectedConfidences.length > 0) {
       const confidences = annotations.map((a) => a.confidence ?? 0);
       if (confidences.length === 0) confidences.push(0);
@@ -201,7 +213,14 @@ export function widenFilterForTask(
   const candidates: TaskFilter[] = [
     { ...filter, statuses },
     { ...filter, statuses, assignedTo: [], taskSetId: null },
-    { assignedTo: [], statuses, selectedConfidences: [], flaggedOnly: false, taskSetId: null },
+    {
+      assignedTo: [],
+      statuses,
+      selectedLabelIds: [],
+      selectedConfidences: [],
+      flaggedOnly: false,
+      taskSetId: null,
+    },
   ];
   return candidates.find(shows) ?? filter;
 }
@@ -231,6 +250,7 @@ export function seedFilter(
   const pending = (assignedTo: string[], taskSetId: number | null = null): TaskFilter => ({
     assignedTo,
     statuses: ['pending'],
+    selectedLabelIds: [],
     selectedConfidences: [],
     flaggedOnly: false,
     taskSetId,
@@ -249,6 +269,7 @@ export function seedFilter(
     filter = {
       assignedTo: [],
       statuses: [...ALL_TASK_STATUSES],
+      selectedLabelIds: [],
       selectedConfidences: [],
       flaggedOnly: false,
       taskSetId: setId,

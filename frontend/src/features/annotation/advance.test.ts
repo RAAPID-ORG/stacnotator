@@ -15,6 +15,7 @@ vi.mock('~/api/client', async () => {
 const POOL: TaskFilter = {
   assignedTo: [UNASSIGNED],
   statuses: ['pending'],
+  selectedLabelIds: [],
   selectedConfidences: [],
   flaggedOnly: false,
   taskSetId: null,

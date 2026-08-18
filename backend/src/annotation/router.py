@@ -465,6 +465,7 @@ def get_annotation_tile(
     z: int,
     x: int,
     y: int,
+    include_tasks: bool = True,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> Response:
@@ -472,9 +473,11 @@ def get_annotation_tile(
 
     Each feature carries only ``annotation_id`` and ``label_id``; the frontend
     styles by label and fetches full geometry by id when a feature is edited.
+    ``include_tasks=false`` leaves out annotations made from a task; it is part
+    of the URL, so the two variants never share a cache entry.
     """
     try:
-        tile = spatial.render_annotation_tile(db, campaign.id, z, x, y)
+        tile = spatial.render_annotation_tile(db, campaign.id, z, x, y, include_tasks=include_tasks)
     except InvalidTileError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return Response(
@@ -488,6 +491,7 @@ def get_annotation_tile(
 def get_annotation_ids_in_bbox(
     campaign_id: int,
     bbox: str,
+    include_tasks: bool = True,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> list[int]:
@@ -497,7 +501,9 @@ def get_annotation_ids_in_bbox(
         minx, miny, maxx, maxy = parse_bbox(bbox)
     except InvalidBBoxError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return spatial.get_annotation_ids_in_bbox(db, campaign.id, minx, miny, maxx, maxy)
+    return spatial.get_annotation_ids_in_bbox(
+        db, campaign.id, minx, miny, maxx, maxy, include_tasks=include_tasks
+    )
 
 
 @router.get(
@@ -506,11 +512,12 @@ def get_annotation_ids_in_bbox(
 )
 def get_annotations_extent(
     campaign_id: int,
+    include_tasks: bool = True,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AnnotationsExtentOut:
     """Return the bounding box of a campaign's annotations for fit-to-bounds."""
-    bbox = spatial.get_campaign_annotations_extent(db, campaign.id)
+    bbox = spatial.get_campaign_annotations_extent(db, campaign.id, include_tasks=include_tasks)
     return AnnotationsExtentOut(bbox=bbox)
 
 
@@ -520,11 +527,12 @@ def get_annotations_extent(
 )
 def get_annotation_density(
     campaign_id: int,
+    include_tasks: bool = True,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> list[AnnotationDensityCell]:
     """Return a coarse grid of annotation counts for the minimap overview."""
-    cells = spatial.get_annotation_density(db, campaign.id)
+    cells = spatial.get_annotation_density(db, campaign.id, include_tasks=include_tasks)
     return [AnnotationDensityCell(**cell) for cell in cells]
 
 

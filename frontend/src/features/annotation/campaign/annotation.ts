@@ -320,6 +320,34 @@ export function geometryCentroid(geometry: GeoJSON.Geometry): [number, number] {
   return [(minX + maxX) / 2, (minY + maxY) / 2];
 }
 
+/** Top-right corner of a geometry's bounding box, where controls that act on
+ *  it are anchored. */
+export function geometryTopRight(geometry: GeoJSON.Geometry): [number, number] {
+  const [, , maxX, maxY] = extentOf(geometry);
+  return [maxX, maxY];
+}
+
+const METERS_PER_DEGREE_LAT = 111_320;
+
+/** Square of `sizeMeters` a side around a lon/lat, WGS84. The flat-earth
+ *  conversion is well within a pixel at the sample sizes campaigns configure. */
+export function squareAround([lon, lat]: [number, number], sizeMeters: number): GeoJSON.Polygon {
+  const dLat = sizeMeters / 2 / METERS_PER_DEGREE_LAT;
+  const dLon = dLat / Math.cos((lat * Math.PI) / 180);
+  return {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [lon - dLon, lat - dLat],
+        [lon + dLon, lat - dLat],
+        [lon + dLon, lat + dLat],
+        [lon - dLon, lat + dLat],
+        [lon - dLon, lat - dLat],
+      ],
+    ],
+  };
+}
+
 /** Stable per-feature key so a feature spanning several vector tiles is only
  *  counted once when box-selecting. MVT ids are stable across tiles but only
  *  unique within a layer, hence the namespace; sources without ids fall back
@@ -336,7 +364,10 @@ export function featureDedupeKey(
 
 const pairs = (coords: number[][]) => coords.map(([x, y]) => `${x} ${y}`).join(', ');
 
-/** Covers the shapes the draw tools produce, which is all geometry_wkt needs. */
+const rings = (polygon: number[][][]) => polygon.map((ring) => `(${pairs(ring)})`).join(', ');
+
+/** Covers the shapes the draw tools produce, plus the multipolygons that reach
+ *  the app by ingest and come back out of an edit unchanged in type. */
 export function geometryToWkt(geometry: GeoJSON.Geometry): string {
   switch (geometry.type) {
     case 'Point':
@@ -344,7 +375,9 @@ export function geometryToWkt(geometry: GeoJSON.Geometry): string {
     case 'LineString':
       return `LINESTRING (${pairs(geometry.coordinates)})`;
     case 'Polygon':
-      return `POLYGON (${geometry.coordinates.map((ring) => `(${pairs(ring)})`).join(', ')})`;
+      return `POLYGON (${rings(geometry.coordinates)})`;
+    case 'MultiPolygon':
+      return `MULTIPOLYGON (${geometry.coordinates.map((poly) => `(${rings(poly)})`).join(', ')})`;
     default:
       throw new Error(`geometryToWkt: unsupported geometry type ${geometry.type}`);
   }
@@ -355,7 +388,19 @@ const parsePair = (pair: string): [number, number] => {
   return [x, y];
 };
 
-/** Task and annotation geometries arrive from the backend as WKT. */
+/** The rings of one polygon body: `outer), (hole` as WKT writes them. */
+const parseRings = (body: string): [number, number][][] =>
+  body.split(/\)\s*,\s*\(/).map((ring) =>
+    ring
+      .trim()
+      .replace(/^\(|\)$/g, '')
+      .split(',')
+      .map(parsePair)
+  );
+
+/** Task and annotation geometries arrive from the backend as WKT. Ingest
+ *  accepts multipolygons, so reading has to as well - a campaign holding one
+ *  must not fail to open. */
 export function wktToGeometry(wkt: string): GeoJSON.Geometry {
   const trimmed = wkt.trim();
 
@@ -366,15 +411,14 @@ export function wktToGeometry(wkt: string): GeoJSON.Geometry {
   if (line) return { type: 'LineString', coordinates: line[1].split(',').map(parsePair) };
 
   const polygon = /^POLYGON\s*\(\((.+)\)\)$/i.exec(trimmed);
-  if (polygon) {
-    const rings = polygon[1].split(/\)\s*,\s*\(/).map((ring) =>
-      ring
-        .trim()
-        .replace(/^\(|\)$/g, '')
-        .split(',')
-        .map(parsePair)
-    );
-    return { type: 'Polygon', coordinates: rings };
+  if (polygon) return { type: 'Polygon', coordinates: parseRings(polygon[1]) };
+
+  const multiPolygon = /^MULTIPOLYGON\s*\(\(\((.+)\)\)\)$/i.exec(trimmed);
+  if (multiPolygon) {
+    return {
+      type: 'MultiPolygon',
+      coordinates: multiPolygon[1].split(/\)\s*\)\s*,\s*\(\s*\(/).map(parseRings),
+    };
   }
 
   throw new Error(`wktToGeometry: unsupported WKT "${wkt}"`);

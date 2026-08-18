@@ -197,7 +197,7 @@ describe('loadCampaign clears the previous campaign', () => {
     work.editDraftGeometry({ type: 'Point', coordinates: [0, 0] });
     work.setComment('half-written note');
     work.setFormValues({ '1': 'answer' });
-    work.setSelection([11, 12]);
+    work.setSelection([11, 12], [1, 2]);
 
     await loadCampaign(6, { now: 1000, currentUserId: 'u1' });
 

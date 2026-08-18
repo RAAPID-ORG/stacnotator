@@ -1,4 +1,5 @@
 import { useCampaign, useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
+import { useImageryStore } from '../../stores/imagery';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getAnnotationDensity, type AnnotationDensityCell } from '~/api/client';
 import { IconExternalLink } from '~/shared/ui/Icons';
@@ -204,6 +205,9 @@ export function MinimapBody() {
       ? minimapCamera.containerPixelFromLonLat(centerOfBounds(displayedBounds), width, height)
       : null;
 
+  // The dots stand for the same annotations the map draws, so they follow the
+  // same filter - otherwise the overview would advertise work the map hides.
+  const showTaskAnnotations = useImageryStore((s) => s.showTaskAnnotations);
   const [density, setDensity] = useState<AnnotationDensityCell[]>([]);
   useEffect(() => {
     if (mode !== 'explore') {
@@ -211,7 +215,10 @@ export function MinimapBody() {
       return;
     }
     let cancelled = false;
-    void getAnnotationDensity({ path: { campaign_id: catalog.campaignId } })
+    void getAnnotationDensity({
+      path: { campaign_id: catalog.campaignId },
+      query: { include_tasks: showTaskAnnotations },
+    })
       .then((res) => {
         if (!cancelled) setDensity(res.data ?? []);
       })
@@ -221,7 +228,7 @@ export function MinimapBody() {
     return () => {
       cancelled = true;
     };
-  }, [mode, catalog.campaignId, campaign.annotations_version]);
+  }, [mode, catalog.campaignId, campaign.annotations_version, showTaskAnnotations]);
 
   const layers = useMemo<LayerSpec[]>(() => {
     const list: LayerSpec[] = [

@@ -42,6 +42,7 @@ export interface ImageryState extends ImageryNavState {
   setCrosshair: (crosshair: boolean) => void;
   toggleCrosshair: () => void;
   toggleAnnotations: () => void;
+  toggleTaskAnnotations: () => void;
   toggleViewSync: () => void;
   overlayAction: (items: Array<{ id: number }>, action: OverlayAction) => void;
   setOverlayOpacity: (opacity: number) => void;
@@ -77,6 +78,7 @@ const INITIAL_NAV: ImageryNavState = {
   empties: {},
   crosshair: true,
   showAnnotations: true,
+  showTaskAnnotations: false,
   viewSync: true,
 };
 
@@ -140,6 +142,7 @@ export const useImageryStore = create<ImageryState>((set) => ({
   setCrosshair: (crosshair) => set({ crosshair }),
   toggleCrosshair: () => set((s) => ({ crosshair: !s.crosshair })),
   toggleAnnotations: () => set((s) => ({ showAnnotations: !s.showAnnotations })),
+  toggleTaskAnnotations: () => set((s) => ({ showTaskAnnotations: !s.showTaskAnnotations })),
   toggleViewSync: () => set((s) => ({ viewSync: !s.viewSync })),
 
   overlayAction: (items, action) =>

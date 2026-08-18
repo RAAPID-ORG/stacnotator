@@ -1,6 +1,6 @@
 import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
-import type { TaskStatus } from '../../campaign/annotation';
-import { computeTaskProgress, UNASSIGNED, type TaskFilter } from '../../campaign/tasks';
+import { extendedLabels, type TaskStatus } from '../../campaign/annotation';
+import { computeTaskProgress, UNASSIGNED, UNLABELLED, type TaskFilter } from '../../campaign/tasks';
 import { useCampaignStore } from '../../stores/campaign';
 import { IconFlag } from '~/shared/ui/Icons';
 
@@ -38,6 +38,15 @@ export function TaskFilterPanel({
   currentUserId,
   isReviewMode,
 }: TaskFilterPanelProps) {
+  const labels = extendedLabels(useCampaignStore((s) => s.campaign));
+
+  const toggleLabel = (labelId: number) => {
+    const next = taskFilter.selectedLabelIds.includes(labelId)
+      ? taskFilter.selectedLabelIds.filter((existing) => existing !== labelId)
+      : [...taskFilter.selectedLabelIds, labelId];
+    onTaskFilterChange({ selectedLabelIds: next });
+  };
+
   const userMap = new Map<string, UserEntry>();
   for (const task of tasks) {
     for (const assignment of task.assignments || []) {
@@ -215,11 +224,17 @@ export function TaskFilterPanel({
               <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
                 Review filters
               </div>
-              {(taskFilter.selectedConfidences.length > 0 || taskFilter.flaggedOnly) && (
+              {(taskFilter.selectedLabelIds.length > 0 ||
+                taskFilter.selectedConfidences.length > 0 ||
+                taskFilter.flaggedOnly) && (
                 <button
                   type="button"
                   onClick={() =>
-                    onTaskFilterChange({ selectedConfidences: [], flaggedOnly: false })
+                    onTaskFilterChange({
+                      selectedLabelIds: [],
+                      selectedConfidences: [],
+                      flaggedOnly: false,
+                    })
                   }
                   className="text-[10px] text-neutral-500 hover:text-neutral-700"
                 >
@@ -227,6 +242,48 @@ export function TaskFilterPanel({
                 </button>
               )}
             </div>
+
+            {labels.length > 0 && (
+              <div className="mb-2" data-testid="task-label-filter">
+                <div className="text-[10px] font-medium text-neutral-500 mb-1">Label</div>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onTaskFilterChange({ selectedLabelIds: [] })}
+                    className={`px-2 py-0.5 text-[11px] rounded transition-colors ${taskFilter.selectedLabelIds.length === 0 ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                  >
+                    Any
+                  </button>
+                  {labels.map((label) => {
+                    const selected = taskFilter.selectedLabelIds.includes(label.id);
+                    return (
+                      <button
+                        key={label.id}
+                        type="button"
+                        onClick={() => toggleLabel(label.id)}
+                        aria-pressed={selected}
+                        className={`flex items-center gap-1 px-2 py-0.5 text-[11px] rounded transition-colors ${selected ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: label.color }}
+                        />
+                        <span className="truncate max-w-[140px]">{label.name}</span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => toggleLabel(UNLABELLED)}
+                    aria-pressed={taskFilter.selectedLabelIds.includes(UNLABELLED)}
+                    title="Tasks with a skipped annotation, which carries no label"
+                    className={`px-2 py-0.5 text-[11px] rounded transition-colors ${taskFilter.selectedLabelIds.includes(UNLABELLED) ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                  >
+                    Skipped
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="mb-2">
               <div className="text-[10px] font-medium text-neutral-500 mb-1">Confidence</div>

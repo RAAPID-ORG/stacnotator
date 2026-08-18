@@ -7455,7 +7455,12 @@ export type GetAnnotationTileData = {
          */
         y: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Include Tasks
+         */
+        include_tasks?: boolean;
+    };
     url: '/api/campaigns/{campaign_id}/annotations/tiles/{z}/{x}/{y}.pbf';
 };
 
@@ -7488,6 +7493,10 @@ export type GetAnnotationIdsInBboxData = {
          * Bbox
          */
         bbox: string;
+        /**
+         * Include Tasks
+         */
+        include_tasks?: boolean;
     };
     url: '/api/campaigns/{campaign_id}/annotations/ids';
 };
@@ -7520,7 +7529,12 @@ export type GetAnnotationsExtentData = {
          */
         campaign_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Include Tasks
+         */
+        include_tasks?: boolean;
+    };
     url: '/api/campaigns/{campaign_id}/annotations/extent';
 };
 
@@ -7550,7 +7564,12 @@ export type GetAnnotationDensityData = {
          */
         campaign_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Include Tasks
+         */
+        include_tasks?: boolean;
+    };
     url: '/api/campaigns/{campaign_id}/annotations/density';
 };
 

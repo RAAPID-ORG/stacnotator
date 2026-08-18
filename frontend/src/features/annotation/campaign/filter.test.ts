@@ -8,8 +8,8 @@ import {
   widenFilterForTask,
   type TaskFilter,
 } from './tasks';
-import { UNASSIGNED } from './tasks';
-import { makeTask, makeTaskSet } from '../testing/fixtures';
+import { UNASSIGNED, UNLABELLED } from './tasks';
+import { makeTask, makeTaskAnnotation, makeTaskSet } from '../testing/fixtures';
 
 type TaskStatus = AnnotationTaskOut['task_status'];
 
@@ -38,6 +38,7 @@ const claimedTask = (
 const mineFilter: TaskFilter = {
   assignedTo: [USER],
   statuses: ['pending'],
+  selectedLabelIds: [],
   selectedConfidences: [],
   flaggedOnly: false,
   taskSetId: null,
@@ -92,6 +93,7 @@ describe('applyTaskFilter - task sets', () => {
   const allFilter: TaskFilter = {
     assignedTo: [],
     statuses: ['pending'],
+    selectedLabelIds: [],
     selectedConfidences: [],
     flaggedOnly: false,
     taskSetId: null,
@@ -123,6 +125,7 @@ describe('applyTaskFilter - preferTaskId', () => {
   const allFilter: TaskFilter = {
     assignedTo: [],
     statuses: ['pending'],
+    selectedLabelIds: [],
     selectedConfidences: [],
     flaggedOnly: false,
     taskSetId: null,
@@ -136,6 +139,69 @@ describe('applyTaskFilter - preferTaskId', () => {
   it('falls back to 0 when the preferred task is not visible', () => {
     const tasks = [plain(1), plain(2)];
     expect(applyTaskFilter(tasks, allFilter, null, NOW, 999).suggestedIndex).toBe(0);
+  });
+});
+
+describe('applyTaskFilter - labels', () => {
+  const done = (id: number, labelIds: Array<number | null>) =>
+    makeTask({
+      id,
+      task_status: 'done',
+      annotations: labelIds.map((label_id, i) =>
+        makeTaskAnnotation({ id: id * 10 + i, label_id, created_by_user_id: `u${i}` })
+      ),
+    });
+
+  const labelFilter = (selectedLabelIds: number[]): TaskFilter => ({
+    assignedTo: [],
+    statuses: ['done'],
+    selectedLabelIds,
+    selectedConfidences: [],
+    flaggedOnly: false,
+    taskSetId: null,
+  });
+
+  it('keeps a task any of whose annotations carries a selected label', () => {
+    const tasks = [done(1, [7]), done(2, [8]), done(3, [8, 7])];
+    expect(
+      applyTaskFilter(tasks, labelFilter([7]), USER, NOW).visibleTasks.map((t) => t.id)
+    ).toEqual([1, 3]);
+  });
+
+  it('matches any of several selected labels', () => {
+    const tasks = [done(1, [7]), done(2, [8]), done(3, [9])];
+    expect(
+      applyTaskFilter(tasks, labelFilter([7, 9]), USER, NOW).visibleTasks.map((t) => t.id)
+    ).toEqual([1, 3]);
+  });
+
+  it('reaches skipped annotations through the unlabelled sentinel', () => {
+    const tasks = [done(1, [null]), done(2, [7])];
+    expect(
+      applyTaskFilter(tasks, labelFilter([UNLABELLED]), USER, NOW).visibleTasks.map((t) => t.id)
+    ).toEqual([1]);
+  });
+
+  it('drops a task with no annotations at all', () => {
+    const tasks = [makeTask({ id: 1, task_status: 'done', annotations: [] })];
+    expect(applyTaskFilter(tasks, labelFilter([7]), USER, NOW).visibleTasks).toEqual([]);
+  });
+
+  it('is inert when no label is selected', () => {
+    const tasks = [done(1, [7]), done(2, [null])];
+    expect(
+      applyTaskFilter(tasks, labelFilter([]), USER, NOW).visibleTasks.map((t) => t.id)
+    ).toEqual([1, 2]);
+  });
+
+  it('narrows within the status filter rather than widening it', () => {
+    const tasks = [
+      done(1, [7]),
+      makeTask({ id: 2, annotations: [makeTaskAnnotation({ label_id: 7 })] }),
+    ];
+    expect(
+      applyTaskFilter(tasks, labelFilter([7]), USER, NOW).visibleTasks.map((t) => t.id)
+    ).toEqual([1]);
   });
 });
 
@@ -255,6 +321,7 @@ describe('seedFilter - 5-level fallback chain', () => {
     expect(filter).toEqual({
       assignedTo: [USER],
       statuses: ['pending'],
+      selectedLabelIds: [],
       selectedConfidences: [],
       flaggedOnly: false,
       taskSetId: null,
@@ -276,6 +343,7 @@ describe('seedFilter - 5-level fallback chain', () => {
     expect(filter).toEqual({
       assignedTo: [UNASSIGNED],
       statuses: ['pending'],
+      selectedLabelIds: [],
       selectedConfidences: [],
       flaggedOnly: false,
       taskSetId: 10,
@@ -291,6 +359,7 @@ describe('seedFilter - 5-level fallback chain', () => {
     expect(filter).toEqual({
       assignedTo: [],
       statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+      selectedLabelIds: [],
       selectedConfidences: [],
       flaggedOnly: false,
       taskSetId: 10,
@@ -308,6 +377,7 @@ describe('seedFilter - 5-level fallback chain', () => {
     expect(filter).toEqual({
       assignedTo: [UNASSIGNED],
       statuses: ['pending'],
+      selectedLabelIds: [],
       selectedConfidences: [],
       flaggedOnly: false,
       taskSetId: null,
@@ -320,6 +390,7 @@ describe('seedFilter - 5-level fallback chain', () => {
     expect(filter).toEqual({
       assignedTo: [],
       statuses: ['pending'],
+      selectedLabelIds: [],
       selectedConfidences: [],
       flaggedOnly: false,
       taskSetId: null,
@@ -366,12 +437,18 @@ describe('widenFilterForTask', () => {
     expect(visible(tasks, widened)).toContain(2);
   });
 
-  it('drops a confidence/flag narrowing when nothing else reaches the task', () => {
+  it('drops a label/confidence/flag narrowing when nothing else reaches the task', () => {
     const tasks = [task(1, [{ user_id: USER, status: 'done' }], 'done')];
-    const narrow: TaskFilter = { ...mineFilter, flaggedOnly: true, selectedConfidences: [5] };
+    const narrow: TaskFilter = {
+      ...mineFilter,
+      flaggedOnly: true,
+      selectedConfidences: [5],
+      selectedLabelIds: [7],
+    };
     const widened = widenFilterForTask(tasks, narrow, USER, NOW, 1);
     expect(widened.flaggedOnly).toBe(false);
     expect(widened.selectedConfidences).toEqual([]);
+    expect(widened.selectedLabelIds).toEqual([]);
     expect(visible(tasks, widened)).toEqual([1]);
   });
 

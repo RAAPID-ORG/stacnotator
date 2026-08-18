@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
-import { geometryCentroid, wktToGeometry } from '../campaign/annotation';
+import { geometryCentroid, squareAround, wktToGeometry } from '../campaign/annotation';
 import type { ImageryCatalog } from '../campaign/imagery';
 import {
   applyTaskFilter,
@@ -20,7 +20,8 @@ import { useWorkStore } from './work';
 export interface MapFocus {
   /** Where recenter puts the map, and where the crosshair is drawn. */
   center: LonLat;
-  /** Task footprint / sample extent, EPSG:4326. */
+  /** Task footprint, or the campaign's sample extent around a point task.
+   *  EPSG:4326, null when there is nothing to outline. */
   extent: GeoFeature | null;
   /** The active source's crosshair colour, '#rrggbb'. */
   crosshairColor: string | null;
@@ -33,6 +34,7 @@ const PREFETCH_AHEAD = 3;
 const EMPTY_FILTER: TaskFilter = {
   assignedTo: [],
   statuses: ['pending'],
+  selectedLabelIds: [],
   selectedConfidences: [],
   flaggedOnly: false,
   taskSetId: null,
@@ -87,6 +89,10 @@ const currentOf = (state: TasksState) => state.visibleTasks[state.currentIndex] 
 const samePoints = (a: LonLat[], b: LonLat[]) =>
   a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1]);
 
+/** Extents are rebuilt per selection, so identity says nothing about them. */
+const sameExtent = (a: GeoFeature | null, b: GeoFeature | null) =>
+  a === b || JSON.stringify(a?.geometry ?? null) === JSON.stringify(b?.geometry ?? null);
+
 /** Callers rebuild the focus on every selection; comparing by value keeps that
  *  from re-rendering every map and restarting preloading. */
 function sameFocus(a: MapFocus | null, b: MapFocus | null): boolean {
@@ -95,10 +101,23 @@ function sameFocus(a: MapFocus | null, b: MapFocus | null): boolean {
   return (
     a.center[0] === b.center[0] &&
     a.center[1] === b.center[1] &&
-    a.extent === b.extent &&
+    sameExtent(a.extent, b.extent) &&
     a.crosshairColor === b.crosshairColor &&
     samePoints(a.upcoming, b.upcoming)
   );
+}
+
+/** What the map outlines for a task: its own footprint, or - for a point task -
+ *  the campaign's square sample extent around it. A point with no configured
+ *  extent has no outline; the crosshair alone marks it. */
+function focusExtent(
+  geometry: GeoJSON.Geometry,
+  center: LonLat,
+  sampleExtentMeters: number | null
+): GeoFeature | null {
+  if (geometry.type !== 'Point') return { geometry };
+  if (!sampleExtentMeters) return null;
+  return { geometry: squareAround(center, sampleExtentMeters) };
 }
 
 function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog: ImageryCatalog) {
@@ -106,9 +125,11 @@ function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog:
   const geometry = wktToGeometry(task.geometry.geometry);
   const sourceId = useImageryStore.getState().address?.sourceId ?? null;
   const hex = sourceId != null ? catalog.sources.get(sourceId)?.crosshair_hex6 : null;
+  const settings = useCampaignStore.getState().campaign?.settings;
+  const center = geometryCentroid(geometry);
   return {
-    center: geometryCentroid(geometry),
-    extent: { geometry },
+    center,
+    extent: focusExtent(geometry, center, settings?.sample_extent_meters ?? null),
     crosshairColor: hex ? `#${hex}` : null,
     upcoming: state.visibleTasks
       .slice(state.currentIndex + 1, state.currentIndex + 1 + PREFETCH_AHEAD)
