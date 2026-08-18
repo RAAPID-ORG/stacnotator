@@ -1,6 +1,7 @@
 # Multi-stage build for optimized production image
-# Final-stage base is overridable so CI can pull it from ACR's cache (default: Docker Hub).
-ARG PYTHON_IMAGE=python:3.12-slim-bookworm
+# Final-stage base comes from the ECR Public mirror of the official image (identical
+# digest) because Docker Hub rate-limits the shared ACR build IP. Overridable.
+ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.12-slim-bookworm
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
 WORKDIR /app

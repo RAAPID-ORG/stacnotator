@@ -177,7 +177,6 @@ join_stage() {
 
 build_backend() {
     az acr build --registry "$ACR_NAME" --image "backend:$IMAGE_TAG" \
-        --build-arg PYTHON_IMAGE="$ACR_LOGIN_SERVER/python:3.12-slim-bookworm" \
         -f "$REPO_ROOT/backend/Dockerfile" "$REPO_ROOT/backend/"
 }
 

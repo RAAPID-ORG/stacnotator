@@ -239,33 +239,15 @@ deploy builds the frontend against `api.<domain>`, points `TILERS` at `https://t
 `CORS_ORIGINS` to `https://app.<domain>`, and sets `TILER_COOKIE_DOMAIN=.<domain>`. `SameSite=lax`
 + `Secure` (defaults) then work because all three are same-site.
 
-### Base image cache - one-time per registry
+### Python base image
 
-`az acr build` pulls the `python` base from Docker Hub; the shared ACR build IP hits Docker
-Hub's anonymous rate limit. Fix: pull the base through an **ACR cache** authenticated with a
-Docker Hub token, once per registry.
+Both Dockerfiles take their runtime base from the ECR Public mirror of the official image
+(`public.ecr.aws/docker/library/python:<tag>`) rather than Docker Hub, which rate-limits the shared
+ACR build IP hard enough to fail builds. The mirror serves the same manifest digest as Docker Hub,
+tracks it without lag, and needs no credentials, so nothing has to be set up per registry.
 
-```bash
-# Docker Hub creds in Key Vault (free account + read-only PAT)
-az keyvault secret set --vault-name $KV --name dockerhub-username --value "<user>"
-az keyvault secret set --vault-name $KV --name dockerhub-pat      --value "<PAT>"
-
-# Credential set + grant it KV read
-az acr credential-set create -r $ACR -n dockerhub -l docker.io \
-  --username-id "https://$KV.vault.azure.net/secrets/dockerhub-username" \
-  --password-id "https://$KV.vault.azure.net/secrets/dockerhub-pat"
-PID=$(az acr credential-set show -r $ACR -n dockerhub --query 'identity.principalId' -o tsv)
-az role assignment create --assignee "$PID" --role "Key Vault Secrets User" \
-  --scope "$(az keyvault show -n $KV --query id -o tsv)"
-
-# Cache rule: one rule covers all python tags (backend + tiler)
-az acr cache create -r $ACR -n python -s docker.io/library/python -t python -c dockerhub
-```
-
-The Dockerfiles take a `PYTHON_IMAGE` build arg (default Docker Hub for local/GCP); the deploy
-scripts override it to `$ACR_LOGIN_SERVER/python:<tag>` so CI builds pull from the cache. No
-Docker Hub secret is needed in CI - only in the cred set. To use a newer base tag, nothing to do
-(the cache auto-pulls it).
+The tag stays overridable via the `PYTHON_IMAGE` build arg, if a build ever needs to pin the base
+somewhere else (an ACR artifact cache, for instance).
 
 ## Manual deployment (local CLI)
 
