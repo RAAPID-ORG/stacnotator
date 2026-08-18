@@ -234,6 +234,11 @@ jobs:
     name: "Deploy: Azure Production"
     needs: [backend-test, docker-build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # The workflow-level default is read-only, and a called workflow cannot request
+    # more than its caller holds. deploy.yml needs id-token for the OIDC login.
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/deploy.yml
     with:
       environment: production
