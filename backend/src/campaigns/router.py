@@ -24,14 +24,12 @@ from src.campaigns.schemas import (
     CampaignOutFull,
     CampaignsListResponse,
     CampaignStatistics,
-    DataSharingOut,
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
     ImportTaskAssignmentsResult,
     LabellingPolicy,
     MoveTasksToSetRequest,
     MoveTasksToSetResult,
-    SetDataSharingRequest,
     TaskSetCreate,
     TaskSetOut,
     TaskSetRename,
@@ -43,6 +41,7 @@ from src.campaigns.schemas import (
     UpdateCampaignNameRequest,
     UpdateEmbeddingYearRequest,
     UpdateLabellingPolicyRequest,
+    UpdateResearchSharingRequest,
     UpdateSampleExtentRequest,
 )
 from src.database import get_db
@@ -61,9 +60,7 @@ router = APIRouter(
 )
 
 
-def _with_viewer_roles[T: CampaignOut](
-    out: T, db: Session, user: User, project_id: int, campaign_id: int | None = None
-) -> T:
+def _with_viewer_roles[T: CampaignOut](out: T, db: Session, user: User, project_id: int) -> T:
     """Stamp the caller's own roles on the owning project onto a campaign
     response, so clients don't need a second round-trip to the member list.
 
@@ -86,17 +83,13 @@ def _with_viewer_roles[T: CampaignOut](
     out.viewer_is_authoritative_reviewer = (
         membership is not None and membership.is_authoritative_reviewer
     )
-    if campaign_id is not None:
-        out.viewer_data_sharing = service.data_sharing_choice(db, campaign_id, user.id)
     return out
 
 
 def _campaign_out(campaign: Campaign, db: Session, user: User) -> CampaignOut:
     """Single exit for every plain CampaignOut response, so the viewer role flags
     mean the same thing on a mutation reply as on a detail read."""
-    return _with_viewer_roles(
-        CampaignOut.model_validate(campaign), db, user, campaign.project_id, campaign.id
-    )
+    return _with_viewer_roles(CampaignOut.model_validate(campaign), db, user, campaign.project_id)
 
 
 @router.get("/", response_model=CampaignsListResponse)
@@ -183,23 +176,7 @@ def get_campaign_with_imagery_windows(
     """Get campaign with detailed imagery views and layouts (both default and personal)"""
     campaign_with_layouts = service.get_campaign_full(db, campaign_id)
     out = CampaignOutFull.from_orm(campaign_with_layouts, user_id=user.id)
-    return _with_viewer_roles(
-        out, db, user, campaign_with_layouts.project_id, campaign_with_layouts.id
-    )
-
-
-@router.put("/{campaign_id}/data-sharing", response_model=DataSharingOut)
-def set_data_sharing(
-    campaign_id: int,
-    req: SetDataSharingRequest,
-    campaign: Campaign = Depends(require_campaign_access),
-    user: User = Depends(require_authenticated_user),
-    db: Session = Depends(get_db),
-):
-    """Record whether this annotator's work in the campaign may be published for
-    research. Their own choice only - nobody can set it for anyone else."""
-    service.set_data_sharing(db, campaign_id, user.id, req.choice)
-    return DataSharingOut(campaign_id=campaign_id, campaign_name=campaign.name, choice=req.choice)
+    return _with_viewer_roles(out, db, user, campaign_with_layouts.project_id)
 
 
 @router.patch("/{campaign_id}/name", response_model=CampaignOut)
@@ -211,6 +188,20 @@ def update_campaign_name(
     user: User = Depends(require_authenticated_user),
 ):
     return _campaign_out(service.update_campaign_name(db, campaign_id, req.name), db, user)
+
+
+@router.patch("/{campaign_id}/research-sharing", response_model=CampaignOut)
+def update_research_sharing(
+    campaign_id: int,
+    req: UpdateResearchSharingRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
+):
+    """Whether this campaign's annotations may be published as open research data."""
+    return _campaign_out(
+        service.update_research_sharing(db, campaign_id, req.research_sharing), db, user
+    )
 
 
 @router.patch("/{campaign_id}/guide", response_model=CampaignOut)

@@ -1,6 +1,6 @@
 # Terms of Service
 
-Version 2026-08-18
+Version 2026-08-19
 
 STACNotator (the "Service") is a research software service developed as part of
 work within the NASA Harvest Consortium.
@@ -120,12 +120,11 @@ You use the Service at your own discretion and risk.
 You retain any rights you have in annotations and other content that you submit
 to the Service.
 
-Except where you choose to share annotations for research under "Sharing Your
-Annotations for Research" below, you grant us a non-exclusive, worldwide,
-royalty-free license to host, store, reproduce, process, and display that
-content solely as reasonably necessary to operate and provide the Service,
-including making it available to other participants in projects or campaigns
-with whom you choose to share it.
+Except as described in "Sharing Your Annotations for Research" below, you grant
+us a non-exclusive, worldwide, royalty-free license to host, store, reproduce,
+process, and display that content solely as reasonably necessary to operate and
+provide the Service, including making it available to other participants in
+projects or campaigns with whom you choose to share it.
 
 You are responsible for the content and data you submit and for ensuring that
 you have the rights and lawful basis necessary to submit and use them. You must
@@ -135,28 +134,28 @@ access, or intentionally disrupt or overload the Service.
 
 ## Sharing Your Annotations for Research
 
-We do not publish your annotations unless you choose to share them. For each
-campaign you work in, you may choose whether the annotations you created there
-may be published for research purposes, and whether they are published with your
-display name or without it. You will be asked once per campaign. Making no
-choice, or choosing to keep your annotations private, changes nothing else about
-your use of the Service.
+Annotation work on the Service is organized into campaigns, each run by the
+organization that created it. A campaign's administrators may enable research
+sharing for their campaign. When it is enabled, the annotations created in that
+campaign may be published as open research data. It is off unless they turn it
+on, and you can ask a campaign's administrators whether it is on.
 
-If you do choose to share them, you grant us a non-exclusive, worldwide,
-royalty-free, perpetual, sublicensable right to reproduce, adapt, aggregate,
-publish, and distribute those annotations, and to make them available to others
-under an open license for research purposes, together with the information
-needed to interpret them, such as labels, form answers, the imagery they refer
-to, and timestamps. If you choose to be credited, your display name is published
-with them. You confirm that you hold the rights necessary to allow this and that
-no one else's permission is required.
+Annotations published this way are published without your name, email address,
+or any other identifier of who created them.
 
-You can review and change your choice for every campaign at any time in your
-account settings. A change applies from that point on: we stop publishing those
-annotations and stop including them in anything released afterwards. Copies
-already published or obtained by others stay covered by the license they were
-released under and cannot be recalled. If you were credited by name, we will
-remove your name from datasets that are still within our control on request.
+For campaigns where research sharing is enabled, you grant us a non-exclusive,
+worldwide, royalty-free, perpetual, sublicensable right to reproduce, adapt,
+aggregate, publish, and distribute the annotations you created there, and to
+make them available to others under an open license for research purposes,
+together with the information needed to interpret them, such as labels, form
+answers, the imagery they refer to, and timestamps. You confirm that you hold
+the rights necessary to allow this and that no one else's permission is
+required.
+
+If a campaign's administrators turn research sharing off, we stop publishing
+that campaign's annotations and stop including them in anything released
+afterwards. Copies already published or obtained by others stay covered by the
+license they were released under and cannot be recalled.
 
 ## Third-Party Services and API Keys
 

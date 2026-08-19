@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
-import { DataSharingSection } from '~/features/settings/components/DataSharingSection';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
@@ -459,8 +458,6 @@ export const SettingsPage = () => {
                       )}
                     </div>
                   </section>
-
-                  <DataSharingSection />
 
                   {/* Change Password - only for email/password-authenticated users */}
                   {supportsChangePassword && authManager.getActiveProviderId() === 'email' && (

@@ -50,6 +50,7 @@ export function makeCampaign(overrides: Partial<CampaignOutFull> = {}): Campaign
         unassigned_tasks: { kinds: ['anyone'] },
       },
       labels: [],
+      research_sharing: false,
     },
     ...overrides,
   };

@@ -99,6 +99,7 @@ def _campaign_orm_stub(project_id: int = 7) -> SimpleNamespace:
             **_minimal_settings(),
             labelling_policy=default_labelling_policy(),
             form_fields=[],
+            research_sharing=False,
             embedding_year=None,
             guide_markdown=None,
             sample_extent_meters=None,

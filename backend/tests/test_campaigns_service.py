@@ -18,16 +18,14 @@ from src.campaigns.assignments import (
     assign_tasks_to_users,
 )
 from src.campaigns.form_fields import CategoryFormField, TextFormField
-from src.campaigns.models import CampaignDataSharing
 from src.campaigns.schemas import AssignTasksToUsersRequest
 from src.campaigns.service import (
-    data_sharing_choice,
     delete_campaign,
     list_campaigns_with_user_roles,
-    set_data_sharing,
     update_campaign_bbox,
     update_campaign_form_fields,
     update_campaign_name,
+    update_research_sharing,
     visible_campaign_ids,
 )
 from src.campaigns.statistics import (
@@ -1035,29 +1033,25 @@ class TestUpdateCampaignFormFields:
         db.scalars.assert_not_called()
 
 
-class TestDataSharing:
-    def test_no_row_means_never_asked(self):
+class TestResearchSharing:
+    def test_turning_it_on_writes_the_campaign_setting(self):
         db = _mock_db()
-        db.get.return_value = None
+        campaign = MagicMock()
+        db.get.return_value = campaign
 
-        assert data_sharing_choice(db, 1, uuid4()) is None
+        with patch("src.campaigns.service.get_campaign_full"):
+            update_research_sharing(db, 1, True)
 
-    def test_first_answer_inserts_a_row(self):
+        assert campaign.settings.research_sharing is True
+        db.commit.assert_called_once()
+
+    def test_a_campaign_without_settings_is_a_404(self):
         db = _mock_db()
-        db.get.return_value = None
-        user_id = uuid4()
+        campaign = MagicMock()
+        campaign.settings = None
+        db.get.return_value = campaign
 
-        set_data_sharing(db, 1, user_id, "attributed")
+        with pytest.raises(HTTPException) as exc_info:
+            update_research_sharing(db, 1, True)
 
-        added = db.add.call_args[0][0]
-        assert (added.campaign_id, added.user_id, added.choice) == (1, user_id, "attributed")
-
-    def test_changing_the_answer_updates_the_same_row(self):
-        db = _mock_db()
-        existing = CampaignDataSharing(campaign_id=1, user_id=uuid4(), choice="attributed")
-        db.get.return_value = existing
-
-        set_data_sharing(db, 1, existing.user_id, "none")
-
-        assert existing.choice == "none"
-        db.add.assert_not_called()
+        assert exc_info.value.status_code == 404

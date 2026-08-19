@@ -80,6 +80,7 @@ describe('TaskControls labelling policy', () => {
           unassigned_tasks: { kinds: [] },
         },
         labels: [{ id: 5, name: 'water' }],
+        research_sharing: false,
       },
     });
     seed(campaign, [NOT_ALLOWED_TASK]);
@@ -105,6 +106,7 @@ describe('TaskControls labelling policy', () => {
           unassigned_tasks: { kinds: ['anyone'] },
         },
         labels: [{ id: 5, name: 'water' }],
+        research_sharing: false,
       },
     });
     seed(campaign, [NOT_ALLOWED_TASK]);
@@ -130,6 +132,7 @@ const OPEN_POLICY = makeCampaign({
       complete_assigned: { kinds: ['anyone'] },
       unassigned_tasks: { kinds: ['anyone'] },
     },
+    research_sharing: false,
     labels: [{ id: 5, name: 'water' }],
   },
 });

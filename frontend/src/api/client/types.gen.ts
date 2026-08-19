@@ -1127,10 +1127,6 @@ export type CampaignOut = {
      * Viewer Is Authoritative Reviewer
      */
     viewer_is_authoritative_reviewer?: boolean;
-    /**
-     * Viewer Data Sharing
-     */
-    viewer_data_sharing?: 'none' | 'anonymous' | 'attributed' | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -1218,10 +1214,6 @@ export type CampaignOutFull = {
      * Viewer Is Authoritative Reviewer
      */
     viewer_is_authoritative_reviewer?: boolean;
-    /**
-     * Viewer Data Sharing
-     */
-    viewer_data_sharing?: 'none' | 'anonymous' | 'attributed' | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -1346,6 +1338,10 @@ export type CampaignSettingsOut = {
     } & TextFormField) | ({
         type: 'date' | 'daterange';
     } & DateFormField)>;
+    /**
+     * Research Sharing
+     */
+    research_sharing: boolean;
 };
 
 /**
@@ -1793,24 +1789,6 @@ export type CustomMapUpdate = {
      * Internal Storage
      */
     internal_storage?: boolean | null;
-};
-
-/**
- * DataSharingOut
- */
-export type DataSharingOut = {
-    /**
-     * Campaign Id
-     */
-    campaign_id: number;
-    /**
-     * Campaign Name
-     */
-    campaign_name: string;
-    /**
-     * Choice
-     */
-    choice: 'none' | 'anonymous' | 'attributed';
 };
 
 /**
@@ -3199,16 +3177,6 @@ export type SearchResponse = {
 };
 
 /**
- * SetDataSharingRequest
- */
-export type SetDataSharingRequest = {
-    /**
-     * Choice
-     */
-    choice: 'none' | 'anonymous' | 'attributed';
-};
-
-/**
  * SetOrganizationTilersRequest
  */
 export type SetOrganizationTilersRequest = {
@@ -3901,6 +3869,16 @@ export type UpdateLabellingPolicyRequest = {
 };
 
 /**
+ * UpdateResearchSharingRequest
+ */
+export type UpdateResearchSharingRequest = {
+    /**
+     * Research Sharing
+     */
+    research_sharing: boolean;
+};
+
+/**
  * UpdateSampleExtentRequest
  */
 export type UpdateSampleExtentRequest = {
@@ -4257,10 +4235,6 @@ export type CampaignOutWritable = {
      * Viewer Is Authoritative Reviewer
      */
     viewer_is_authoritative_reviewer?: boolean;
-    /**
-     * Viewer Data Sharing
-     */
-    viewer_data_sharing?: 'none' | 'anonymous' | 'attributed' | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -4348,10 +4322,6 @@ export type CampaignOutFullWritable = {
      * Viewer Is Authoritative Reviewer
      */
     viewer_is_authoritative_reviewer?: boolean;
-    /**
-     * Viewer Data Sharing
-     */
-    viewer_data_sharing?: 'none' | 'anonymous' | 'attributed' | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -4544,24 +4514,6 @@ export type AcceptTermsResponses = {
 };
 
 export type AcceptTermsResponse = AcceptTermsResponses[keyof AcceptTermsResponses];
-
-export type ListMyDataSharingData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/auth/me/data-sharing';
-};
-
-export type ListMyDataSharingResponses = {
-    /**
-     * Response Listmydatasharing
-     *
-     * Successful Response
-     */
-    200: Array<DataSharingOut>;
-};
-
-export type ListMyDataSharingResponse = ListMyDataSharingResponses[keyof ListMyDataSharingResponses];
 
 export type GetTilerTokenData = {
     body?: never;
@@ -6181,36 +6133,6 @@ export type GetCampaignWithImageryWindowsResponses = {
 
 export type GetCampaignWithImageryWindowsResponse = GetCampaignWithImageryWindowsResponses[keyof GetCampaignWithImageryWindowsResponses];
 
-export type SetDataSharingData = {
-    body: SetDataSharingRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/data-sharing';
-};
-
-export type SetDataSharingErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type SetDataSharingError = SetDataSharingErrors[keyof SetDataSharingErrors];
-
-export type SetDataSharingResponses = {
-    /**
-     * Successful Response
-     */
-    200: DataSharingOut;
-};
-
-export type SetDataSharingResponse = SetDataSharingResponses[keyof SetDataSharingResponses];
-
 export type UpdateCampaignNameData = {
     body: UpdateCampaignNameRequest;
     path: {
@@ -6240,6 +6162,36 @@ export type UpdateCampaignNameResponses = {
 };
 
 export type UpdateCampaignNameResponse = UpdateCampaignNameResponses[keyof UpdateCampaignNameResponses];
+
+export type UpdateResearchSharingData = {
+    body: UpdateResearchSharingRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/research-sharing';
+};
+
+export type UpdateResearchSharingErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateResearchSharingError = UpdateResearchSharingErrors[keyof UpdateResearchSharingErrors];
+
+export type UpdateResearchSharingResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateResearchSharingResponse = UpdateResearchSharingResponses[keyof UpdateResearchSharingResponses];
 
 export type UpdateCampaignGuideData = {
     body: UpdateCampaignGuideRequest;

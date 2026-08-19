@@ -15,8 +15,6 @@ from src.auth.schemas import (
     UserOut,
     UserOutDetailed,
 )
-from src.campaigns import service as campaign_service
-from src.campaigns.schemas import DataSharingOut
 from src.campaigns.service import visible_campaign_ids
 from src.config import get_settings
 from src.database import get_db
@@ -60,19 +58,6 @@ def accept_terms(
 ):
     """Record that this user accepted the terms they were shown."""
     return service.accept_terms(db, user, request.version)
-
-
-@router.get("/me/data-sharing", response_model=list[DataSharingOut])
-def list_my_data_sharing(
-    user: User = Depends(require_authenticated_user),
-    db: Session = Depends(get_db),
-):
-    """Every research-sharing choice this user has made, so they can review and
-    change them in one place."""
-    return [
-        DataSharingOut(campaign_id=cid, campaign_name=name, choice=choice)
-        for cid, name, choice in campaign_service.list_data_sharing(db, user.id)
-    ]
 
 
 TILER_TOKEN_TTL = 3600  # 1 hour

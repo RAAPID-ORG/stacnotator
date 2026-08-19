@@ -18,6 +18,7 @@ const CAMPAIGN = makeCampaign({
       complete_assigned: { kinds: ['anyone'] },
       unassigned_tasks: { kinds: ['anyone'] },
     },
+    research_sharing: false,
     guide_markdown: 'Label the fields.',
   },
 });

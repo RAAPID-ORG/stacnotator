@@ -154,9 +154,6 @@ export const MOCK_CAMPAIGN = {
   viewer_is_admin: false,
   viewer_is_member: true,
   viewer_is_authoritative_reviewer: false,
-  // Answered already, so the research-sharing prompt stays out of every spec
-  // that is not about it.
-  viewer_data_sharing: 'none',
   settings: {
     labels: LABELS,
     bbox_west: 30.0,
@@ -167,6 +164,7 @@ export const MOCK_CAMPAIGN = {
     // Mirrors DEFAULT_LABELLING_POLICY (campaigns/utils/labellingPolicy.ts) / backend
     // default_labelling_policy(): AnnotationPage/AnnotationToolbar read
     // campaign.settings.labelling_policy.explore unconditionally.
+    research_sharing: false,
     labelling_policy: {
       explore: { kinds: ['members'], user_ids: [] },
       unassigned_tasks: { kinds: ['members'], user_ids: [] },

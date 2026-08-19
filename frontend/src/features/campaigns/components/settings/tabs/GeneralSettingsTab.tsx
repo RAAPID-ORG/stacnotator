@@ -10,6 +10,7 @@ import type {
 import {
   updateCampaignFormFields,
   updateCampaignGuide,
+  updateResearchSharing,
   updateCampaignLabels,
   updateEmbeddingYear,
   updateLabellingPolicy,
@@ -27,7 +28,7 @@ import {
 import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
-import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
+import { Button, Field, Input, Select, Switch, Textarea } from '~/shared/ui/forms';
 
 const LIST_FORMATTER = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
 
@@ -236,6 +237,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       : ''
   );
   const [savingExtent, setSavingExtent] = useState(false);
+  const [savingResearchSharing, setSavingResearchSharing] = useState(false);
   const parsedExtent = sampleExtent.trim() === '' ? null : Number(sampleExtent);
   const extentValid = parsedExtent === null || (Number.isFinite(parsedExtent) && parsedExtent > 0);
   const extentChanged = parsedExtent !== (campaign.settings.sample_extent_meters ?? null);
@@ -262,6 +264,34 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       handleError(err, 'Failed to update guide');
     } finally {
       setSavingGuide(false);
+    }
+  };
+
+  const handleResearchSharing = async (research_sharing: boolean) => {
+    try {
+      setSavingResearchSharing(true);
+      const res = await updateResearchSharing({
+        path: { campaign_id: campaign.id },
+        body: { research_sharing },
+      });
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update research sharing');
+        return;
+      }
+      onCampaignUpdated?.({
+        ...campaign,
+        settings: { ...campaign.settings, research_sharing },
+      });
+      showAlert(
+        research_sharing
+          ? 'Annotations from this campaign may now be published as research data'
+          : 'Research sharing turned off',
+        'success'
+      );
+    } catch (err) {
+      handleError(err, 'Failed to update research sharing');
+    } finally {
+      setSavingResearchSharing(false);
     }
   };
 
@@ -383,6 +413,23 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         <Button onClick={handleSaveGuide} disabled={savingGuide || !guideChanged}>
           {savingGuide ? 'Saving…' : 'Save guide'}
         </Button>
+      </section>
+
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Research data sharing</h2>
+          <p className="section-description">
+            Allow the annotations created in this campaign to be published as open research data,
+            without any annotator's name. Off by default. Turning it off stops future releases -
+            anything already published cannot be recalled. See the Terms of Service.
+          </p>
+        </div>
+        <Switch
+          checked={campaign.settings.research_sharing}
+          onChange={handleResearchSharing}
+          disabled={savingResearchSharing}
+          label="Publishable as research data"
+        />
       </section>
 
       <section className={sectionCls}>

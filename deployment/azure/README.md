@@ -152,10 +152,14 @@ KV=$(az keyvault list -g "$RG" --query "[0].name" -o tsv)
 SERVER=$(az postgres flexible-server list -g "$RG" --query "[0].name" -o tsv)
 
 # 1. Allowlist the extensions pgstac installs (postgis, btree_gist, unaccent). The
-#    canonical home is the infrastructure config; set it directly only if you are
-#    bootstrapping ahead of that:
+#    canonical home is the infrastructure config (raapid-infra sets azure.extensions
+#    from each project's `extensions` list) - prefer changing it there. Setting it here
+#    REPLACES the whole list, so pass every extension the environment needs, not just
+#    pgstac's: dropping `vector` breaks the app schema and any prod->dev restore.
+#    Read the current value first and add to it:
+az postgres flexible-server parameter show -g "$RG" -s "$SERVER" --name azure.extensions --query value -o tsv
 az postgres flexible-server parameter set -g "$RG" -s "$SERVER" \
-  --name azure.extensions --value POSTGIS,BTREE_GIST,UNACCENT
+  --name azure.extensions --value postgis,uuid-ossp,citext,vector,btree_gist,unaccent
 
 # 2. Pull the admin creds + host from Key Vault and generate the tiler role password:
 ADMIN_PW=$(az keyvault secret show --vault-name "$KV" --name "${PROJECT}-postgres-admin-password" --query value -o tsv)
@@ -364,7 +368,12 @@ Safety relies on:
 
    Until `PUBLIC_DOMAIN` is set, deploys use the default Azure hostnames: MPC imagery works, but hosted-tiler tiles 401 in the browser (cross-domain cookie).
 
-4. **Create the `dev` GitHub Environment** under Settings → Environments → New environment → name it `dev`. The workflow references `environment: dev` (matching how the prod deploy references `environment: production`), so the job will not start until this Environment exists. Configure it as follows:
+4. **Bootstrap the tiler's pgstac database** if it has not been done for this environment - see
+   [Tiler database (pgstac)](#tiler-database-pgstac---one-time-per-environment). It creates the
+   `tiler-db-password` Key Vault secret; without it the tiler revision fails to provision with
+   `Unable to get value using Managed identity for secret tiler-db-password`.
+
+5. **Create the `dev` GitHub Environment** under Settings → Environments → New environment → name it `dev`. The workflow references `environment: dev` (matching how the prod deploy references `environment: production`), so the job will not start until this Environment exists. Configure it as follows:
 
    - **Required reviewers**: mirror the list from the `production` Environment.
    - **Deployment branches**: restrict to `develop` only (Selected branches → add `develop`).
