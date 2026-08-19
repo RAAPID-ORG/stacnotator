@@ -4,6 +4,11 @@ import { PasswordRequirementsList, passwordMeetsAllRequirements } from './Passwo
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { legalPath, type LegalKey } from '~/features/legal/docs';
 import { AuthCard } from './AuthCard';
+import {
+  authErrorMessage,
+  isUnknownAccountError,
+  SIGN_IN_ERRORS,
+} from '../adapters/firebase/errors';
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
@@ -88,18 +93,11 @@ export function LoginScreen() {
         await emailProvider.login(email, password);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '';
-      if (errorMessage.includes('auth/weak-password')) {
-        setError('Password is too weak. Please use a stronger password.');
-      } else if (errorMessage.includes('auth/invalid-email')) {
-        setError('Please enter a valid email address.');
-      } else if (mode === 'register') {
-        setError(
-          'Registration failed. Please try again or sign in if you already have an account.'
-        );
-      } else {
-        setError('Invalid email or password.');
-      }
+      const fallback =
+        mode === 'register'
+          ? 'Registration failed. Please try again.'
+          : 'Invalid email or password.';
+      setError(authErrorMessage(err, SIGN_IN_ERRORS, fallback));
     } finally {
       setLoading(false);
     }
@@ -121,8 +119,7 @@ export function LoginScreen() {
       await emailProvider.sendPasswordResetEmail(email);
       setResetEmailSent(true);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('auth/user-not-found') || msg.includes('auth/invalid-email')) {
+      if (isUnknownAccountError(err)) {
         // Don't reveal whether the email exists - show success anyway
         setResetEmailSent(true);
       } else {

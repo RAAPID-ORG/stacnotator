@@ -25,6 +25,10 @@ import {
 import { useAccountStore } from '~/shared/stores/account.store';
 import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
 import {
+  authErrorMessage,
+  CHANGE_PASSWORD_ERRORS,
+} from 'src/features/auth/adapters/firebase/errors';
+import {
   PasswordRequirementsList,
   passwordMeetsAllRequirements,
 } from 'src/features/auth/ui/PasswordRequirements';
@@ -286,14 +290,13 @@ export const SettingsPage = () => {
       setIsChangingPassword(false);
       showAlert('Password changed successfully', 'success');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('auth/wrong-password') || msg.includes('auth/invalid-credential')) {
-        setPasswordError('Current password is incorrect.');
-      } else if (msg.includes('auth/weak-password')) {
-        setPasswordError('New password is too weak.');
-      } else {
-        setPasswordError('Failed to change password. Please try again.');
-      }
+      setPasswordError(
+        authErrorMessage(
+          err,
+          CHANGE_PASSWORD_ERRORS,
+          'Failed to change password. Please try again.'
+        )
+      );
     } finally {
       setSaving(false);
     }
