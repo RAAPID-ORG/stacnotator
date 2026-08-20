@@ -5,22 +5,13 @@ string): this module is the DB-bound half that actually executes PostGIS
 queries, kept out of `service.py`'s ORM-centric read/write flows.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from src.annotation.constants import CHANGES_LIMIT, CHANGES_OVERLAP
 from src.annotation.tiles import MIN_TILE_ZOOM, build_mvt_query, task_filter_sql
-
-# How many changed annotations one poll carries. Past this the client is told
-# to refetch its tiles: catching up shape by shape would cost more than the
-# render it saves.
-CHANGES_LIMIT = 500
-
-# Rows are stamped when their transaction runs, not when it commits, so a poll
-# taken between the two would never see them again. Every poll re-reads this
-# far back; ids are what the client merges on, so seeing one twice is free.
-CHANGES_OVERLAP = timedelta(seconds=5)
 
 
 def render_annotation_tile(

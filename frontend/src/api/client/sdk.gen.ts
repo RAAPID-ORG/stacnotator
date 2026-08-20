@@ -1287,12 +1287,12 @@ export const getAnnotationIdsInBbox = <ThrowOnError extends boolean = false>(opt
 /**
  * Get Annotation Changes
  *
- * Annotations created or edited since ``since``, for the open-mode poll.
+ * What happened to this campaign's annotations since ``since``.
  *
- * Lets one annotator pick up another's work without either refetching tiles.
- * Without ``since`` it only hands back the cursor to poll with next, which is
- * what an arriving client does: everything before it is already in the tiles
- * it just loaded.
+ * Lets one annotator pick up another's work without either refetching tiles:
+ * creates and edits as rows, deletions as ids. Without ``since`` it only hands
+ * back the cursor to poll with next, which is what an arriving client does -
+ * everything before it is already in the tiles it just loaded.
  */
 export const getAnnotationChanges = <ThrowOnError extends boolean = false>(options: Options<GetAnnotationChangesData, ThrowOnError>) => (options.client ?? client).get<GetAnnotationChangesResponses, GetAnnotationChangesErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

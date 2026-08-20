@@ -50,6 +50,37 @@ class AnnotationGeometry(Base):
     )
 
 
+class DeletedAnnotation(Base):
+    """A tombstone: the one change to an annotation that leaves no row to read.
+
+    Written in the same transaction as the delete, so another annotator's map
+    can learn about it from the same poll that carries creates and edits.
+    Nothing else reads this table, and rows are pruned past
+    ``DELETION_RETENTION`` - see ``service.record_annotation_deletions``.
+    """
+
+    __tablename__ = "deleted_annotations"
+    __table_args__ = (
+        Index("idx_deleted_annotations_campaign_deleted_at", "campaign_id", "deleted_at"),
+        {"schema": "data"},
+    )
+
+    # The annotation's own id, kept as the key: ids are never reused, and the
+    # id is the whole point - it is what the map hides.
+    annotation_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+
+    campaign_id: Mapped[int] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    deleted_at: Mapped[dt_datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class AnnotationTask(Base):
     """
     Represents a single annotation task assigned within a campaign.

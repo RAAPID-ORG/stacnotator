@@ -16,6 +16,7 @@ from sqlalchemy.dialects import postgresql
 from src.annotation.claims import _is_free_work, claim_next_task, claim_task
 from src.annotation.constants import (
     CLAIM_TTL_MINUTES,
+    DELETION_RETENTION,
 )
 from src.annotation.export import (
     FormExportSchema,
@@ -40,6 +41,7 @@ from src.annotation.service import (
     create_annotations_bulk,
     delete_annotation,
     delete_annotations_bulk,
+    deletion_cursor_expired,
     update_annotation,
 )
 from src.campaigns.schemas import default_labelling_policy
@@ -2043,3 +2045,25 @@ def test_every_mutation_bumps_the_campaigns_annotation_version(mutate):
     with patch("src.annotation.service.bump_campaign_annotations_version") as bump:
         mutate(db)
     bump.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "delete_annotations",
+    [_bump_delete, _bump_delete_bulk],
+    ids=["delete", "delete_bulk"],
+)
+def test_every_delete_tombstones_what_it_removed(delete_annotations):
+    """A deletion is the only change that leaves no row for the changes poll to
+    read, so a path that forgets to record one leaves every other annotator
+    drawing a shape that is gone."""
+    db = _mock_db()
+    with patch("src.annotation.service.record_annotation_deletions") as record:
+        delete_annotations(db)
+    assert record.call_args.args[2] == [10]
+
+
+def test_a_cursor_older_than_tombstones_are_kept_cannot_be_answered():
+    now = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
+
+    assert not deletion_cursor_expired(now - DELETION_RETENTION + timedelta(hours=1), now)
+    assert deletion_cursor_expired(now - DELETION_RETENTION - timedelta(hours=1), now)

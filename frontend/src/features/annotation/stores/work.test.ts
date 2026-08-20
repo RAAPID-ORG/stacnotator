@@ -4,7 +4,7 @@ import type { FormField } from '../campaign/annotation';
 import type { LonLat } from '../map/types';
 import { apiSuccess, makeAnnotation, makeCampaign } from '~/features/annotation/testing/fixtures';
 import { seedCampaign } from '../testing/seed';
-import { deltaWrites, emptyDelta, TILE_REFRESH_AFTER } from '../campaign/annotationDelta';
+import { deltaIds, deltaWrites, emptyDelta, TILE_REFRESH_AFTER } from '../campaign/annotationDelta';
 import { usePrefsStore } from './prefs';
 import { MAX_PROBES, useSavedAnnotations, useWorkStore } from './work';
 
@@ -14,12 +14,14 @@ vi.mock('~/api/client', async (importActual) => {
     ...actual,
     createAnnotationOpenmode: vi.fn(),
     updateAnnotationOpenmode: vi.fn(),
+    getAnnotation: vi.fn(),
     getAnnotationChanges: vi.fn(),
   };
 });
 
 import {
   createAnnotationOpenmode,
+  getAnnotation,
   getAnnotationChanges,
   updateAnnotationOpenmode,
 } from '~/api/client';
@@ -40,6 +42,7 @@ function seedFields(fields: FormField[]): void {
 beforeEach(() => {
   vi.mocked(createAnnotationOpenmode).mockReset();
   vi.mocked(updateAnnotationOpenmode).mockReset();
+  vi.mocked(getAnnotation).mockReset();
   vi.mocked(getAnnotationChanges).mockReset();
   vi.mocked(updateAnnotationOpenmode).mockResolvedValue(apiSuccess(savedAnnotation));
   seedFields([requiredField]);
@@ -526,6 +529,34 @@ describe('what the tiles have not caught up with', () => {
       [2, 'local'],
     ]);
     expect(useWorkStore.getState().syncCursor).toBe('2026-08-19T10:00:00Z');
+  });
+
+  it('stops drawing what another annotator deleted', async () => {
+    seedCampaign(makeCampaign({ id: 99 }), { currentUserId: 'me' });
+    useWorkStore.getState().recordWrites([{ id: 7, labelId: 1, geometry, origin: 'local' }]);
+    vi.mocked(getAnnotationChanges).mockResolvedValue(changes({ deleted: [7] }));
+
+    await useWorkStore.getState().syncRemoteAnnotations();
+
+    expect(deltaWrites(useWorkStore.getState().delta)).toEqual([]);
+    // Still the delta's business: the tiles have not caught up either.
+    expect(deltaIds(useWorkStore.getState().delta)).toEqual(new Set([7]));
+  });
+
+  // The click is how we find out, so it is also where we stop drawing it.
+  it('drops an annotation that is already gone when it is opened', async () => {
+    seedCampaign(makeCampaign({ id: 99 }), { currentUserId: 'me' });
+    vi.mocked(getAnnotation).mockResolvedValue({
+      data: undefined,
+      error: { detail: [] },
+      request: new Request('http://test'),
+      response: new Response(null, { status: 404 }),
+    });
+
+    await useWorkStore.getState().openEdit(7);
+
+    expect(deltaIds(useWorkStore.getState().delta)).toEqual(new Set([7]));
+    expect(useWorkStore.getState().edit).toBeNull();
   });
 
   it('asks the next poll for changes since the last one', async () => {

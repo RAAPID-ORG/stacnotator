@@ -520,22 +520,27 @@ def get_annotation_changes(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AnnotationChangesOut:
-    """Annotations created or edited since ``since``, for the open-mode poll.
+    """What happened to this campaign's annotations since ``since``.
 
-    Lets one annotator pick up another's work without either refetching tiles.
-    Without ``since`` it only hands back the cursor to poll with next, which is
-    what an arriving client does: everything before it is already in the tiles
-    it just loaded.
+    Lets one annotator pick up another's work without either refetching tiles:
+    creates and edits as rows, deletions as ids. Without ``since`` it only hands
+    back the cursor to poll with next, which is what an arriving client does -
+    everything before it is already in the tiles it just loaded.
     """
     now = spatial.server_now(db)
     if since is None:
-        return AnnotationChangesOut(server_time=now, changes=[], truncated=False)
+        return AnnotationChangesOut(server_time=now, changes=[])
+    # Older than tombstones are kept: what was deleted in between cannot be
+    # named any more, so the tiles are the only honest way to catch up.
+    if service.deletion_cursor_expired(since, now):
+        return AnnotationChangesOut(server_time=now, changes=[], truncated=True)
     rows, truncated = spatial.get_annotation_changes(
         db, campaign.id, since, include_tasks=include_tasks
     )
     return AnnotationChangesOut(
         server_time=now,
         changes=[AnnotationChangeOut(**row) for row in rows],
+        deleted=service.get_deleted_annotation_ids(db, campaign.id, since),
         truncated=truncated,
     )
 

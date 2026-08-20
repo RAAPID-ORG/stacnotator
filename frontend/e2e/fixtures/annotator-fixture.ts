@@ -686,7 +686,12 @@ export const test = base.extend<AnnotatorFixtures>({
     // after the by-id route so it wins LIFO: "changes" is not an annotation id.
     await page.route('**/api/campaigns/*/annotations/changes*', async (route) => {
       await route.fulfill({
-        json: { server_time: '2024-01-01T00:00:00Z', changes: [], truncated: false },
+        json: {
+          server_time: '2024-01-01T00:00:00Z',
+          changes: [],
+          deleted: [],
+          truncated: false,
+        },
       });
     });
 

@@ -437,16 +437,19 @@ class AnnotationChangeOut(BaseModel):
 
 
 class AnnotationChangesOut(BaseModel):
-    """Annotations touched since a cursor, plus the cursor for the next poll.
+    """Everything that happened to a campaign's annotations since a cursor,
+    plus the cursor for the next poll.
 
     ``server_time`` is the database clock, never the app's: it is compared
-    against ``updated_at``, which the database stamps. ``truncated`` means more
-    changed than a poll should carry, so the client refetches its tiles instead
-    of trying to catch up one annotation at a time.
+    against ``updated_at``, which the database stamps. ``truncated`` means the
+    poll cannot answer this cursor - more changed than it should carry, or the
+    cursor is older than deletions are kept - so the client refetches its tiles
+    instead of trying to catch up one annotation at a time.
     """
 
     server_time: datetime
     changes: list[AnnotationChangeOut]
+    deleted: list[int] = []
     truncated: bool = False
 
 

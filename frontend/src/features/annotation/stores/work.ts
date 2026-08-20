@@ -437,6 +437,9 @@ export const useWorkStore = create<WorkState>((set, get) => {
             origin: change.created_by_user_id === mine ? 'local' : 'remote',
           }))
         );
+        // After the writes: an annotation created and then deleted inside one
+        // poll window arrives as both, and the delete is the later word.
+        get().recordDeletes(data.deleted ?? []);
       } catch {
         // A missed poll - or a campaign that unloaded under it - is picked up
         // by the next one.
@@ -565,7 +568,12 @@ export const useWorkStore = create<WorkState>((set, get) => {
           path: { campaign_id: campaignState().campaign.id, annotation_id: annotationId },
         });
         const annotation = result.data;
-        if (!annotation) return;
+        if (!annotation) {
+          // Someone deleted it between our last poll and this click. The click
+          // is how we found out, so it is also where we stop drawing it.
+          if (result.response.status === 404) get().recordDeletes([annotationId]);
+          return;
+        }
         const geometry = wktToGeometry(annotation.geometry.geometry);
         set({
           edit: { annotation, geometry, pending: null, busy: false },
