@@ -25,6 +25,8 @@ import {
   ANNOTATION_DELTA_LAYER_ID,
   ANNOTATION_LAYER_ID,
   ANNOTATION_MARKER_LAYER_ID,
+  ANNOTATION_TILE_MIN_ZOOM,
+  annotationsVisibleAt,
   CROSSHAIR_LAYER_ID,
   EXTENT_LAYER_ID,
   TILE_SKELETON_LAYER_ID,
@@ -406,6 +408,19 @@ describe('composeLayers - tile skeleton', () => {
 });
 
 // Drawn over the tiles so a write shows up without refetching the viewport.
+// The tiles are empty below the floor, so the map says why rather than looking
+// like a campaign nobody has worked on.
+describe('annotationsVisibleAt', () => {
+  it('is false below the zoom the tiles are served from', () => {
+    expect(annotationsVisibleAt(ANNOTATION_TILE_MIN_ZOOM - 0.1)).toBe(false);
+  });
+
+  it('is true from that zoom on', () => {
+    expect(annotationsVisibleAt(ANNOTATION_TILE_MIN_ZOOM)).toBe(true);
+    expect(annotationsVisibleAt(ANNOTATION_TILE_MIN_ZOOM + 4)).toBe(true);
+  });
+});
+
 describe('composeLayers - the annotation delta', () => {
   const deltaFeature = (id: number, origin: 'local' | 'remote'): GeoFeature => ({
     id,

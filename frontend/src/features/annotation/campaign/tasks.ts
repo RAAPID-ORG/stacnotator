@@ -116,6 +116,17 @@ export function computeTaskProgress(
   return { total, completed };
 }
 
+/** What review mode looks through: everything anyone has acted on, across
+ *  every annotator, with the review-only refinements cleared. Pending tasks
+ *  have nothing to review yet. */
+export const reviewFilterPatch = (): Partial<TaskFilter> => ({
+  assignedTo: [],
+  statuses: ['partial', 'done', 'skipped', 'conflicting'],
+  selectedLabelIds: [],
+  selectedConfidences: [],
+  flaggedOnly: false,
+});
+
 /** Held by this user via their own live claim, so a task they just claimed
  *  does not drop out of their unassigned pool on re-entry. */
 const isHeldBy = (task: AnnotationTaskOut, userId: string | null | undefined, now: number) =>
@@ -232,6 +243,11 @@ export function widenFilterForTask(
  * then the unassigned pool in that set, then every status in that set, then
  * the unassigned pool unscoped, then everything pending. With no tasks at all
  * every level is empty and the last candidate tried is returned.
+ *
+ * A deep-linked set whose every task is resolved stops the chain instead:
+ * widening would open it on its finished tasks, which reads as work to do.
+ * It keeps the scope and returns empty, which is what raises the
+ * all-tasks-completed gate for that set.
  */
 export function seedFilter(
   allTasks: AnnotationTaskOut[],
@@ -266,6 +282,8 @@ export function seedFilter(
     if (nonEmpty(filter)) return filter;
   }
   if (setId !== null) {
+    const workLeft = allTasks.some((t) => t.task_set_id === setId && !isResolved(t));
+    if (!workLeft) return pending([], setId);
     filter = {
       assignedTo: [],
       statuses: [...ALL_TASK_STATUSES],

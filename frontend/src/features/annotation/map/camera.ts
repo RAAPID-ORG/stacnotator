@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import View from 'ol/View';
 import { fromLonLat, toLonLat, transformExtent } from 'ol/proj';
 import { getAnnotationsExtent } from '~/api/client';
@@ -319,4 +320,11 @@ export function focusFirstViewSetup(workingZoom: number | null): void {
     center: mainCamera.getState().center,
     zoom: workingZoom ?? DEFAULT_MAP_ZOOM,
   });
+}
+
+/** A camera's zoom, re-rendered as it moves. */
+export function useCameraZoom(camera: Camera): number {
+  const [zoom, setZoom] = useState(() => camera.getState().zoom);
+  useEffect(() => camera.onChange((state) => setZoom(state.zoom)), [camera]);
+  return zoom;
 }

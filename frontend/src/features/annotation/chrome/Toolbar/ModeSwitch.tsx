@@ -4,7 +4,7 @@ import { useWorkStore } from '../../stores/work';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { IconEyeFilled } from '~/shared/ui/Icons';
 import type { CampaignOutFull } from '~/api/client';
-import type { TaskFilter } from '../../campaign/tasks';
+import { reviewFilterPatch, type TaskFilter } from '../../campaign/tasks';
 
 export interface ModeSwitchProps {
   campaign: CampaignOutFull;
@@ -100,13 +100,7 @@ export function ReviewToggle({ onTaskFilterChange }: ReviewToggleProps) {
     // review-only refinements (confidence/flagged).
     onTaskFilterChange(
       turningOn
-        ? {
-            assignedTo: [],
-            statuses: ['partial', 'done', 'skipped', 'conflicting'],
-            selectedLabelIds: [],
-            selectedConfidences: [],
-            flaggedOnly: false,
-          }
+        ? reviewFilterPatch()
         : { selectedLabelIds: [], selectedConfidences: [], flaggedOnly: false }
     );
   };

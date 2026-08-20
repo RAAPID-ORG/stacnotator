@@ -284,10 +284,7 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
         // It opens for reading either way; saying so is what stops the click
         // looking like it did nothing.
         if (opened && !mayModifyAnnotation(opened)) {
-          alert(
-            'Someone else made this one - you can read it, but not change or delete it.',
-            'error'
-          );
+          alert('Not authorized to edit other users annotations.', 'error');
         }
       }
       return;

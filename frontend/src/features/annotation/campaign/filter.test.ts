@@ -350,12 +350,19 @@ describe('seedFilter - 5-level fallback chain', () => {
     });
   });
 
-  it('level 3: the deep-linked set has no pending work at all, broadens to every status within it', () => {
-    // No pending/unassigned task remains in the set - levels 1 and 2 are both
-    // empty, so level 3 (every status, still scoped to the set) picks up the
-    // lone 'done' task.
-    const doneTasks = [makeTask({ id: 2, task_set_id: 10, task_status: 'done' })];
-    const filter = seedFilter(doneTasks, taskSets, USER, NOW, { taskSetId: 10 });
+  it('level 3: nothing in the deep-linked set is free, but work is left, broadens to every status within it', () => {
+    // Neither task is claimable or the user's, so levels 1 and 2 are empty;
+    // one is still unresolved, so the set is worth opening on every status.
+    const tasks = [
+      makeTask({ id: 2, task_set_id: 10, task_status: 'done' }),
+      makeTask({
+        id: 3,
+        task_set_id: 10,
+        task_status: 'partial',
+        assignments: [{ user_id: OTHER, status: 'pending' }],
+      }),
+    ];
+    const filter = seedFilter(tasks, taskSets, USER, NOW, { taskSetId: 10 });
     expect(filter).toEqual({
       assignedTo: [],
       statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
@@ -364,6 +371,26 @@ describe('seedFilter - 5-level fallback chain', () => {
       flaggedOnly: false,
       taskSetId: 10,
     });
+  });
+
+  it('stops on a deep-linked set that is fully resolved, keeping the scope and showing nothing', () => {
+    // Whoever finished them, there is no work left here. Widening would open
+    // the set on its finished tasks; staying empty raises the done gate, still
+    // scoped to the set so review can pick it up.
+    const doneTasks = [
+      makeTask({ id: 2, task_set_id: 10, task_status: 'done' }),
+      makeTask({ id: 3, task_set_id: 10, task_status: 'skipped' }),
+    ];
+    const filter = seedFilter(doneTasks, taskSets, USER, NOW, { taskSetId: 10 });
+    expect(filter).toEqual({
+      assignedTo: [],
+      statuses: ['pending'],
+      selectedLabelIds: [],
+      selectedConfidences: [],
+      flaggedOnly: false,
+      taskSetId: 10,
+    });
+    expect(applyTaskFilter(doneTasks, filter, USER, NOW).visibleTasks).toEqual([]);
   });
 
   it('level 4: no deep-linked set, user has nothing pending, broadens to the unassigned pool overall', () => {

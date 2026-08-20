@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getAnnotationDensity, type AnnotationDensityCell } from '~/api/client';
 import { IconExternalLink } from '~/shared/ui/Icons';
 import { useContainerSize } from '../../canvas/useContainerSize';
-import { mainCamera, minimapCamera } from '../../map/camera';
+import { mainCamera, minimapCamera, useCameraZoom } from '../../map/camera';
 import { MapView } from '../../map/MapView';
 import { type Camera } from '../../map/camera';
 import {
@@ -84,12 +84,6 @@ function useCameraCenter(camera: Camera): LonLat {
   const [center, setCenter] = useState<LonLat>(() => camera.getState().center);
   useEffect(() => camera.onChange((s) => setCenter(s.center)), [camera]);
   return center;
-}
-
-function useCameraZoom(camera: Camera): number {
-  const [zoom, setZoom] = useState(() => camera.getState().zoom);
-  useEffect(() => camera.onChange((state) => setZoom(state.zoom)), [camera]);
-  return zoom;
 }
 
 function densityLayer(cells: AnnotationDensityCell[]): FeatureLayerSpec | null {

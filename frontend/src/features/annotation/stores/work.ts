@@ -215,10 +215,21 @@ const emptyForm = {
 const alert = (message: string, kind: 'error' | 'success') =>
   useGlobalLayoutStore.getState().showAlert(message, kind);
 
-/** How often other annotators' work is picked up. Long enough to be cheap on a
- *  shared campaign, short enough that two people are not drawing over each
- *  other unaware. */
-const REMOTE_POLL_MS = 20_000;
+/**
+ * How often other annotators' work is picked up.
+ *
+ * Sized against the deployment: one backend replica (4 workers, pool 10+10)
+ * over a 2-vCore Postgres. A hundred annotators at this interval is 20 polls a
+ * second, and a poll that finds nothing costs the database around 0.04 ms - an
+ * index seek straight to the window on `(campaign_id, updated_at)` and another
+ * on `(campaign_id, deleted_at)`. The request handling around it (auth, the
+ * campaign access check) costs more than the query does, and 20 requests a
+ * second of that sits far below what the replica serves alongside tiles.
+ *
+ * Shorter would still be affordable but buys little: at five seconds two people
+ * working the same area already see each other before they collide.
+ */
+const REMOTE_POLL_MS = 5_000;
 
 export const useWorkStore = create<WorkState>((set, get) => {
   /** Record a change the tiles do not have yet, refreshing them instead once

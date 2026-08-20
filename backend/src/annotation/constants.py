@@ -30,10 +30,12 @@ CHANGES_LIMIT = 500
 
 # Rows are stamped when their transaction runs, not when it commits, so a poll
 # taken between the two would never see them again. Every poll re-reads this far
-# back; ids are what the client merges on, so seeing one twice is free.
+# back; ids are what the client merges on, so seeing one twice is free. Wider
+# than it strictly needs to be, because the cost of re-reading a few rows is a
+# millisecond and the cost of missing one is that it is missed for good.
 CHANGES_OVERLAP = timedelta(seconds=5)
 
-# How far back a deletion stays readable. The client polls every 20s, so this
-# only has to cover a page left open over a long weekend; a cursor older than it
-# is answered with "refetch your tiles" instead.
+# How far back a deletion stays readable. Clients poll every few seconds, so
+# this only has to cover a page left open over a long weekend; a cursor older
+# than it is answered with "refetch your tiles" instead.
 DELETION_RETENTION = timedelta(days=7)

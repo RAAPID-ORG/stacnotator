@@ -82,8 +82,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
 
       {readOnly && (
         <span className="text-[11px] text-neutral-500" data-testid="annotation-read-only">
-          Someone else made this one - you can look, but only its author or a campaign admin can
-          change it.
+          You are not authorized to edit other users annotations.
         </span>
       )}
 

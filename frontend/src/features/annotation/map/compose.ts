@@ -66,6 +66,11 @@ const CROSSHAIR_Z = 15;
  *  OL scales the last real level instead of blanking. */
 export const ANNOTATION_TILE_MIN_ZOOM = 9;
 
+/** Whether the annotation tiles have anything to draw at this zoom. Below the
+ *  floor they are empty by design, which without a word looks like a campaign
+ *  nobody has worked on. */
+export const annotationsVisibleAt = (zoom: number): boolean => zoom >= ANNOTATION_TILE_MIN_ZOOM;
+
 /** Levels of lower-resolution annotation tiles fetched ahead. Two covers a
  *  four-fold zoom-out, which is the gesture that would otherwise land on an
  *  empty map while a whole new set of tiles is fetched. */

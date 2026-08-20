@@ -44,7 +44,7 @@ import {
   withoutKeys,
   type LayoutItem,
 } from './canvas/grid';
-import { ALL_TASK_STATUSES, type TaskFilter } from './campaign/tasks';
+import { ALL_TASK_STATUSES, reviewFilterPatch, type TaskFilter } from './campaign/tasks';
 import { applyCameraTarget, focusFirstViewSetup, loadCameraTarget } from './map/camera';
 import { buildPanels, MAIN_MAP_PANEL, type PanelDef } from './panels/panels';
 import { loadCampaign } from './loadCampaign';
@@ -137,6 +137,8 @@ export function AnnotationPage() {
   const tasksLoaded = useTasksStore((s) => s.loaded);
   const allTasks = useTasksStore((s) => s.allTasks);
   const taskFilter = useTasksStore((s) => s.filter);
+  const taskSets = useTasksStore((s) => s.taskSets);
+  const scopedTaskSetName = taskSets.find((set) => set.id === taskFilter.taskSetId)?.name;
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name);
   useEffect(() => useCampaignStore.getState().setMobile(isMobile), [isMobile]);
@@ -291,6 +293,12 @@ export function AnnotationPage() {
   };
   const showAllTasks = () =>
     applyFilter({ ...taskFilter, assignedTo: [], statuses: [...ALL_TASK_STATUSES] });
+  // Whatever the filter is scoped to stays scoped: finishing one task set
+  // means reviewing that set, not the whole campaign.
+  const reviewDoneTasks = () => {
+    useCampaignStore.getState().setReviewMode(true);
+    applyFilter({ ...taskFilter, ...reviewFilterPatch() });
+  };
 
   // The tour widens the filter for its duration; the filter it widened *from*
   // has to survive that, so it is held aside rather than read back off state.
@@ -483,7 +491,7 @@ export function AnnotationPage() {
       <Toolbar
         campaign={campaign}
         tasks={allTasks}
-        taskSets={useTasksStore.getState().taskSets}
+        taskSets={taskSets}
         taskFilter={taskFilter}
         onTaskFilterChange={(patch) => applyFilter({ ...taskFilter, ...patch })}
         policy={policy}
@@ -531,7 +539,11 @@ export function AnnotationPage() {
           onSwitchToExplore={() => setWorkMode('explore')}
         />
       ) : (
-        <AllTasksDoneGate onShowAllTasks={showAllTasks} />
+        <AllTasksDoneGate
+          onShowAllTasks={showAllTasks}
+          onReview={reviewDoneTasks}
+          scopeName={scopedTaskSetName}
+        />
       )}
 
       {isMobile && <MobileSliceNav />}

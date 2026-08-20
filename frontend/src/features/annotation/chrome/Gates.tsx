@@ -173,22 +173,41 @@ export function NoTasksGate({
   );
 }
 
-export function AllTasksDoneGate({ onShowAllTasks }: { onShowAllTasks: () => void }) {
+export interface AllTasksDoneGateProps {
+  onShowAllTasks: () => void;
+  onReview: () => void;
+  /** The task set the filter is scoped to, when it is scoped to one. */
+  scopeName?: string;
+}
+
+export function AllTasksDoneGate({ onShowAllTasks, onReview, scopeName }: AllTasksDoneGateProps) {
   return (
     <div className={shell} data-testid="all-tasks-done-gate">
       <div className="max-w-md px-4 text-center">
         <h2 className={`${heading} mb-1.5`}>All tasks completed</h2>
         <p className={`${body} mb-4`}>
-          You&apos;ve completed all pending tasks matching your current filter.
+          {scopeName
+            ? `Every task in ${scopeName} has been answered - by you or by another annotator.`
+            : "You've completed all pending tasks matching your current filter."}
         </p>
-        <button
-          type="button"
-          className={secondaryButton}
-          onClick={onShowAllTasks}
-          data-testid="show-all-tasks"
-        >
-          View all tasks
-        </button>
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            className={button}
+            onClick={onReview}
+            data-testid="review-done-tasks"
+          >
+            Review them now
+          </button>
+          <button
+            type="button"
+            className={secondaryButton}
+            onClick={onShowAllTasks}
+            data-testid="show-all-tasks"
+          >
+            View all tasks
+          </button>
+        </div>
       </div>
     </div>
   );

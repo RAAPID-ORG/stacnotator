@@ -7,9 +7,16 @@ import { hotkeyTip } from '../../hotkeys';
 import { collectionsInView } from '../../campaign/imagery';
 import { computeTaskProgress } from '../../campaign/tasks';
 import { handleProbeClick, useDrawingInteractions, useEditDrawnId } from '../../drawing';
-import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
-import { composeLayers, type ComposeState } from '../../map/compose';
+import {
+  applyCameraTarget,
+  fitAnnotations,
+  focusCameraTarget,
+  mainCamera,
+  useCameraZoom,
+} from '../../map/camera';
+import { annotationsVisibleAt, composeLayers, type ComposeState } from '../../map/compose';
 import { MapView, type MapAnchor } from '../../map/MapView';
+import { StatusPill } from '../../components/StatusPill';
 import { setForegroundMapLoading, useForegroundLoading } from '../../map/tileLoading';
 import type { LonLat, MapClickEvent } from '../../map/types';
 import { useCampaign, useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
@@ -130,14 +137,20 @@ function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
   );
 }
 
-/** Assignment-scoped "N of M done" - the current filter's assignedTo, which
- *  defaults to the viewer, so completion follows their own share of the work
- *  rather than the whole campaign's. */
+/** Filter-scoped "N of M done" - the task set being worked, and the current
+ *  filter's assignedTo, which defaults to the viewer. Completion follows the
+ *  share of the work the user is actually looking at rather than the whole
+ *  campaign's. */
 function TaskProgressCounter() {
   const { allTasks, filter } = useTasksStore(
     useShallow((state) => ({ allTasks: state.allTasks, filter: state.filter }))
   );
-  const { total, completed } = computeTaskProgress(allTasks, filter.assignedTo);
+  const setId = filter.taskSetId;
+  const inScope = useMemo(
+    () => (setId === null ? allTasks : allTasks.filter((t) => t.task_set_id === setId)),
+    [allTasks, setId]
+  );
+  const { total, completed } = computeTaskProgress(inScope, filter.assignedTo);
 
   return (
     <div className="flex items-center gap-2 shrink-0">
@@ -239,6 +252,20 @@ export function MainMapHeader() {
 export function taskProbeClick(event: MapClickEvent): void {
   if (event.shiftKey || useWorkStore.getState().tool !== 'timeseries') return;
   handleProbeClick(event);
+}
+
+/**
+ * The annotation tiles are empty below their zoom floor, by design: a
+ * continental view of a dense campaign is a query nobody wants. Unexplained,
+ * that reads as a campaign nobody has worked on, so it is explained.
+ */
+function AnnotationZoomNotice() {
+  const mode = useCampaignStore((s) => s.workMode);
+  const showAnnotations = useImageryStore((s) => s.showAnnotations);
+  const zoom = useCameraZoom(mainCamera);
+
+  if (mode !== 'explore' || !showAnnotations || annotationsVisibleAt(zoom)) return null;
+  return <StatusPill>Zoom in to see annotations</StatusPill>;
 }
 
 export function MainMapBody() {
@@ -383,6 +410,7 @@ export function MainMapBody() {
           }}
         />
         <CustomMapLegend catalog={catalog} />
+        <AnnotationZoomNotice />
       </div>
     </div>
   );
