@@ -7,7 +7,8 @@ import type { LoadFunction } from 'ol/Tile';
 import type Tile from 'ol/Tile';
 import TileLayer from 'ol/layer/Tile';
 import type CanvasTileLayerRenderer from 'ol/renderer/canvas/TileLayer';
-import type XYZ from 'ol/source/XYZ';
+import VectorTileSource from 'ol/source/VectorTile';
+import XYZ from 'ol/source/XYZ';
 import TileState from 'ol/TileState';
 import type VectorTile from 'ol/VectorTile';
 import { unByKey } from 'ol/Observable';
@@ -139,13 +140,17 @@ export function retryErroredTiles(layer: TileLayer<XYZ>): void {
 }
 
 // ---------------------------------------------------------------------------
-// Source pool: share one OL tile cache wherever the same raster is on screen
-// more than once.
+// Source pool: share one OL tile cache, and one request per tile, wherever the
+// same tiles are on screen more than once. A campaign can have a hundred
+// imagery windows open, all drawing the same annotations over their own date -
+// unshared, that is a hundred requests for every tile.
 // ---------------------------------------------------------------------------
 
-const pool = new Map<string, { source: XYZ; users: number }>();
+type SharedSource = XYZ | VectorTileSource<RenderFeature>;
 
-export function acquireRasterSource(key: string, create: () => XYZ): XYZ {
+const pool = new Map<string, { source: SharedSource; users: number }>();
+
+function acquire(key: string, create: () => SharedSource): SharedSource {
   const existing = pool.get(key);
   if (existing) {
     existing.users++;
@@ -156,7 +161,32 @@ export function acquireRasterSource(key: string, create: () => XYZ): XYZ {
   return source;
 }
 
-export function releaseRasterSource(key: string): void {
+/** Keys are prefixed per kind, so a pooled source is always the kind its key
+ *  says. The check is what makes that a fact rather than an assumption. */
+function pooled<T extends SharedSource>(
+  key: string,
+  create: () => T,
+  isKind: (source: SharedSource) => source is T
+): T {
+  const source = acquire(key, create);
+  if (!isKind(source)) throw new Error(`Pooled source ${key} is not of the requested kind`);
+  return source;
+}
+
+export const acquireRasterSource = (key: string, create: () => XYZ): XYZ =>
+  pooled(key, create, (source): source is XYZ => source instanceof XYZ);
+
+export const acquireVectorTileSource = (
+  key: string,
+  create: () => VectorTileSource<RenderFeature>
+): VectorTileSource<RenderFeature> =>
+  pooled(
+    key,
+    create,
+    (source): source is VectorTileSource<RenderFeature> => source instanceof VectorTileSource
+  );
+
+export function releaseSource(key: string): void {
   const entry = pool.get(key);
   if (!entry) return;
   entry.users--;

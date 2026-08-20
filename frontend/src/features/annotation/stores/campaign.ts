@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
+import type { AnnotationOut, CampaignOutFull, ImageryViewOut } from '~/api/client';
 import {
   buildImageryCatalog,
   collectionStartDate,
@@ -7,11 +7,12 @@ import {
   type ImageryCatalog,
 } from '../campaign/imagery';
 import {
+  canModifyAnnotation,
   extendedLabels,
   type ExtendedLabel,
   type FormField,
-  type PolicyContext,
 } from '../campaign/annotation';
+import type { PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import { viewWindows, type LayoutItem } from '../canvas/grid';
 import { useImageryStore } from './imagery';
 import { useLayoutStore } from './layout';
@@ -138,6 +139,21 @@ export function campaignState() {
   return { campaign, catalog, view, workMode, isMobile };
 }
 
+/** The same answer inside React, re-rendered when the campaign or the viewer
+ *  changes. */
+export function useCanModifyAnnotation(): (
+  annotation: Pick<AnnotationOut, 'created_by_user_id'>
+) => boolean {
+  const campaign = useCampaignStore((s) => s.campaign);
+  const userId = useCampaignStore((s) => s.currentUserId);
+  return (annotation) =>
+    canModifyAnnotation(
+      annotation,
+      toPolicyContext(campaign, userId),
+      campaign?.settings.labelling_policy?.modify_others
+    );
+}
+
 export function useLabels(): ExtendedLabel[] {
   return extendedLabels(useCampaignStore((s) => s.campaign));
 }
@@ -146,13 +162,30 @@ export function formFields(): FormField[] {
   return useCampaignStore.getState().campaign?.settings.form_fields ?? [];
 }
 
-export function usePolicy(): PolicyContext {
-  const campaign = useCampaignStore((s) => s.campaign);
-  const userId = useCampaignStore((s) => s.currentUserId);
+function toPolicyContext(campaign: CampaignOutFull | null, userId: string | null): PolicyContext {
   return {
     userId,
     isAdmin: campaign?.viewer_is_admin ?? false,
     isAuthoritative: campaign?.viewer_is_authoritative_reviewer ?? false,
     isMember: campaign?.viewer_is_member ?? false,
   };
+}
+
+export function usePolicy(): PolicyContext {
+  const campaign = useCampaignStore((s) => s.campaign);
+  const userId = useCampaignStore((s) => s.currentUserId);
+  return toPolicyContext(campaign, userId);
+}
+
+/** Whether the viewer may change or remove this annotation, by the campaign's
+ *  own rule. Outside React, for the click and key handlers. */
+export function mayModifyAnnotation(
+  annotation: Pick<AnnotationOut, 'created_by_user_id'>
+): boolean {
+  const { campaign, currentUserId } = useCampaignStore.getState();
+  return canModifyAnnotation(
+    annotation,
+    toPolicyContext(campaign, currentUserId),
+    campaign?.settings.labelling_policy?.modify_others
+  );
 }

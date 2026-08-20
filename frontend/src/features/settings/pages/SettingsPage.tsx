@@ -490,21 +490,28 @@ export const SettingsPage = () => {
                   {/* Change Password - only for email/password-authenticated users */}
                   {supportsChangePassword && authManager.getActiveProviderId() === 'email' && (
                     <section className={sectionCls}>
-                      <h2 className="section-heading">Change password</h2>
-
                       {!isChangingPassword ? (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setIsChangingPassword(true);
-                            setPasswordError(null);
-                            setPasswordSuccess(false);
-                          }}
-                        >
-                          Change password
-                        </Button>
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <h2 className="section-heading">Change password</h2>
+                            <p className="section-description">
+                              Update the password you use to sign in.
+                            </p>
+                          </div>
+                          <Button
+                            variant="secondary"
+                            onClick={() => {
+                              setIsChangingPassword(true);
+                              setPasswordError(null);
+                              setPasswordSuccess(false);
+                            }}
+                          >
+                            Change password
+                          </Button>
+                        </div>
                       ) : (
                         <div className="space-y-4 max-w-md">
+                          <h2 className="section-heading">Change password</h2>
                           {passwordError && (
                             <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
                               {passwordError}

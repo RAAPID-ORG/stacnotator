@@ -7,6 +7,7 @@ import type {
   LabelBase,
   PolicyAudience,
 } from '~/api/client';
+import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 
 export type FormField = NonNullable<CampaignSettingsOut['form_fields']>[number];
 export type FormValues = NonNullable<AnnotationOut['form_values']>;
@@ -58,35 +59,17 @@ export function labelsWithSameGeometry(labels: ExtendedLabel[], labelId: number 
 // Access policy
 // ---------------------------------------------------------------------------
 
-export interface PolicyContext {
-  userId: string | null;
-  isAdmin: boolean;
-  isAuthoritative: boolean;
-  isMember: boolean;
-  isAssigned?: boolean;
-}
-
-/** Whether the viewer may change or remove this annotation: its author and
- *  campaign admins, nobody else. Mirrors the backend rule - being a member of
- *  a campaign is permission to add work, not to undo other people's. */
+/** Whether the viewer may change or remove this annotation. Its author always
+ *  may; who else is the campaign's `modify_others` audience, which defaults to
+ *  campaign admins. Mirrors the backend rule, so the map only offers what a
+ *  save would accept. */
 export function canModifyAnnotation(
   annotation: Pick<AnnotationOut, 'created_by_user_id'>,
-  ctx: Pick<PolicyContext, 'userId' | 'isAdmin'>
+  ctx: PolicyContext,
+  modifyOthers: PolicyAudience | undefined
 ): boolean {
-  return ctx.isAdmin || annotation.created_by_user_id === ctx.userId;
-}
-
-export function isAudienceMember(
-  audience: PolicyAudience | undefined,
-  ctx: PolicyContext
-): boolean {
-  const kinds = audience?.kinds ?? [];
-  if (kinds.includes('anyone')) return true;
-  if (kinds.includes('members') && ctx.isMember) return true;
-  if (kinds.includes('admins') && ctx.isAdmin) return true;
-  if (kinds.includes('authoritative') && ctx.isAuthoritative) return true;
-  if (kinds.includes('assignees') && ctx.isAssigned) return true;
-  return ctx.userId != null && (audience?.user_ids ?? []).includes(ctx.userId);
+  if (annotation.created_by_user_id === ctx.userId) return true;
+  return isAudienceMember(modifyOthers, ctx);
 }
 
 // ---------------------------------------------------------------------------

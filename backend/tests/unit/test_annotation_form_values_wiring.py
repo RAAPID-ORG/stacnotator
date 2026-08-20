@@ -266,7 +266,8 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = 1
-        existing.created_by_user_id = uuid4()
+        author = uuid4()
+        existing.created_by_user_id = author
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
         payload = AnnotationUpdate(
@@ -277,7 +278,7 @@ class TestUpdateAnnotationFormValuesWiring:
             form_values={"1": 2},
         )
 
-        annotation = update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+        annotation = update_annotation(db, 5, payload, author, campaign=campaign)
 
         assert annotation.form_values == {"1": 2}
 
@@ -285,7 +286,8 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = 1
-        existing.created_by_user_id = uuid4()
+        author = uuid4()
+        existing.created_by_user_id = author
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
         payload = AnnotationUpdate(
@@ -297,7 +299,7 @@ class TestUpdateAnnotationFormValuesWiring:
         )
 
         with pytest.raises(HTTPException) as exc:
-            update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+            update_annotation(db, 5, payload, author, campaign=campaign)
 
         assert exc.value.status_code == 400
 
@@ -309,7 +311,8 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = 1
-        existing.created_by_user_id = uuid4()
+        author = uuid4()
+        existing.created_by_user_id = author
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
         payload = AnnotationUpdate(
@@ -321,7 +324,7 @@ class TestUpdateAnnotationFormValuesWiring:
         )
 
         with pytest.raises(HTTPException) as exc:
-            update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+            update_annotation(db, 5, payload, author, campaign=campaign)
 
         assert exc.value.status_code == 400
         assert "Crop" in exc.value.detail
@@ -331,7 +334,8 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = 1
-        existing.created_by_user_id = uuid4()
+        author = uuid4()
+        existing.created_by_user_id = author
         existing.form_values = {"1": 1}
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
@@ -339,7 +343,7 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=None, comment="a note", geometry_wkt=None, is_authoritative=None
         )
 
-        annotation = update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+        annotation = update_annotation(db, 5, payload, author, campaign=campaign)
 
         assert annotation.form_values == {"1": 1}
 
@@ -350,7 +354,8 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = None
-        existing.created_by_user_id = uuid4()
+        author = uuid4()
+        existing.created_by_user_id = author
         existing.form_values = None
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
@@ -359,7 +364,7 @@ class TestUpdateAnnotationFormValuesWiring:
         )
 
         with pytest.raises(HTTPException) as exc:
-            update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+            update_annotation(db, 5, payload, author, campaign=campaign)
 
         assert exc.value.status_code == 400
         assert "Crop" in exc.value.detail
@@ -368,7 +373,8 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = None
-        existing.created_by_user_id = uuid4()
+        author = uuid4()
+        existing.created_by_user_id = author
         existing.form_values = {"1": 1}
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
@@ -376,7 +382,7 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
         )
 
-        annotation = update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+        annotation = update_annotation(db, 5, payload, author, campaign=campaign)
 
         assert annotation.form_values == {"1": 1}
 
@@ -384,7 +390,8 @@ class TestUpdateAnnotationFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = None
-        existing.created_by_user_id = uuid4()
+        author = uuid4()
+        existing.created_by_user_id = author
         existing.form_values = {"1": 1}
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
@@ -396,7 +403,7 @@ class TestUpdateAnnotationFormValuesWiring:
             form_values={},
         )
 
-        annotation = update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+        annotation = update_annotation(db, 5, payload, author, campaign=campaign)
 
         assert annotation.form_values is None
 

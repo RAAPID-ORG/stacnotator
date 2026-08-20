@@ -2548,6 +2548,7 @@ export type LabellingPolicy = {
     unassigned_tasks?: PolicyAudience;
     assigned_tasks?: PolicyAudience;
     complete_assigned?: PolicyAudience;
+    modify_others?: PolicyAudience;
 };
 
 /**
@@ -3915,17 +3916,22 @@ export type UpdateEmbeddingYearRequest = {
  * Request body for PATCH /campaigns/{id}/labelling-policy - same shape
  * as LabellingPolicy, plus the campaign-public check applied by the service.
  *
- * All four axes are required (no defaults), unlike the base LabellingPolicy:
- * a PATCH is a full replacement of the stored policy, so silently omitting
- * an axis here would defaults it to "no one" for that axis rather than
- * leaving it as the caller likely intended (unchanged). Callers must always
- * send the complete policy, which is what the settings UI does.
+ * The four labelling axes are required (no defaults), unlike the base
+ * LabellingPolicy: a PATCH is a full replacement of the stored policy, so
+ * silently omitting one would default it to "no one" rather than leaving it
+ * as the caller likely intended. Callers must always send the complete
+ * policy, which is what the settings UI does.
+ *
+ * ``modify_others`` keeps its inherited default instead, because that
+ * default is "campaign admins" rather than "no one": omitting it leaves the
+ * axis where a campaign that never set it already was.
  */
 export type UpdateLabellingPolicyRequest = {
     explore: PolicyAudience;
     unassigned_tasks: PolicyAudience;
     assigned_tasks: PolicyAudience;
     complete_assigned: PolicyAudience;
+    modify_others?: PolicyAudience;
 };
 
 /**

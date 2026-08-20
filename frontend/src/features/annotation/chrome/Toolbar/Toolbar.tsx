@@ -13,7 +13,7 @@ import {
   IconQuestion,
   IconTaskListFilled,
 } from '~/shared/ui/Icons';
-import type { PolicyContext } from '../../campaign/annotation';
+import type { PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import { useCampaignStore } from '../../stores/campaign';
 import type { TaskFilter } from '../../campaign/tasks';
 import { ExportMenu } from './ExportMenu';

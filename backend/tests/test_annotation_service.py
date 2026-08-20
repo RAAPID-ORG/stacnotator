@@ -809,9 +809,10 @@ class TestPublicCampaignAnnotationOwnership:
         owner_id = uuid4()
         other_user_id = uuid4()
         existing = _make_annotation(ann_id=5, user_id=owner_id)
-        # First call returns annotation, subsequent calls return None (not campaign admin)
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
-        # is_platform_admin uses .first() - ensure it returns None (not platform admin)
+        # No project membership and no platform-admin role, so the policy's
+        # modify_others audience (campaign admins by default) excludes them.
+        db.scalars.return_value.first.return_value = None
         db.execute.return_value.first.return_value = None
 
         payload = AnnotationUpdate(
@@ -826,6 +827,7 @@ class TestPublicCampaignAnnotationOwnership:
         db = _mock_db()
         existing = _make_annotation(ann_id=5, user_id=uuid4())
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
+        db.scalars.return_value.first.return_value = None
         db.execute.return_value.first.return_value = None
 
         payload = AnnotationUpdate(
@@ -851,9 +853,10 @@ class TestPublicCampaignAnnotationOwnership:
         other_user_id = uuid4()
         existing = _make_annotation(ann_id=10, task_id=None, campaign_id=1, user_id=owner_id)
         existing.annotation_task_id = None
-        # First call returns annotation, subsequent calls return None (not campaign admin)
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
-        # is_platform_admin uses .first() - ensure it returns None (not platform admin)
+        # No project membership and no platform-admin role, so the policy's
+        # modify_others audience (campaign admins by default) excludes them.
+        db.scalars.return_value.first.return_value = None
         db.execute.return_value.first.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
@@ -865,6 +868,7 @@ class TestPublicCampaignAnnotationOwnership:
         existing = _make_annotation(ann_id=10, task_id=None, campaign_id=1, user_id=uuid4())
         existing.annotation_task_id = None
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
+        db.scalars.return_value.first.return_value = None
         db.execute.return_value.first.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:

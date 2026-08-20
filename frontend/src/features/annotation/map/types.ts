@@ -44,6 +44,9 @@ export interface VectorTileLayerSpec {
   zIndex?: number;
   visible?: boolean;
   minZoom?: number;
+  /** OL preload depth: how many lower-resolution levels are fetched ahead, so
+   *  zooming out lands on tiles that are already there. */
+  preload?: number;
   /** MVT property promoted to the feature id. Hiding, highlighting and
    *  hit-testing all resolve through it. */
   idProperty?: string;

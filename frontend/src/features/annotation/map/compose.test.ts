@@ -24,6 +24,7 @@ import {
   type ComposeContext,
   ANNOTATION_DELTA_LAYER_ID,
   ANNOTATION_LAYER_ID,
+  ANNOTATION_MARKER_LAYER_ID,
   CROSSHAIR_LAYER_ID,
   EXTENT_LAYER_ID,
   TILE_SKELETON_LAYER_ID,
@@ -412,15 +413,19 @@ describe('composeLayers - the annotation delta', () => {
     properties: { label_id: 1, origin },
   });
 
-  const composeWithDelta = (features: GeoFeature[], ids: number[], hiddenIds?: Set<number>) =>
+  const composeWithDelta = (
+    features: GeoFeature[],
+    ids: number[],
+    extra: { hiddenIds?: Set<number>; markers?: GeoFeature[] } = {}
+  ) =>
     composeLayers(
       ctxFor('explore'),
       stateWith({
         annotations: {
           version: 1,
           labels: LABELS,
-          hiddenIds,
-          delta: { features, ids: new Set(ids) },
+          hiddenIds: extra.hiddenIds,
+          delta: { features, markers: extra.markers ?? [], ids: new Set(ids) },
         },
       })
     );
@@ -444,19 +449,30 @@ describe('composeLayers - the annotation delta', () => {
     expect(overlayOf(composeWithDelta([], []))).toBeUndefined();
   });
 
-  it('marks a remote annotation out while it is only in the overlay', () => {
-    const local = deltaFeature(1, 'local');
+  // The shape itself looks like any other saved annotation - what says it is
+  // new is a dot on it, in its own colour, which goes when the tiles catch up.
+  it('marks another annotator’s new work with a dot rather than restyling it', () => {
     const remote = deltaFeature(2, 'remote');
-    const overlay = overlayOf(composeWithDelta([local, remote], [1, 2]))!;
+    const marker: GeoFeature = {
+      id: 2,
+      geometry: { type: 'Point', coordinates: [1, 1] },
+      properties: { label_id: 1 },
+    };
+    const layers = composeWithDelta([remote], [2], { markers: [marker] });
 
-    expect(styleOf(overlay, local)?.stroke?.dash).toBeUndefined();
-    expect(styleOf(overlay, remote)?.stroke?.dash).toBeDefined();
-    // Still the label's colour: which label it is stays readable.
-    expect(styleOf(overlay, remote)?.stroke?.color).toBe(styleOf(overlay, local)?.stroke?.color);
+    expect(styleOf(overlayOf(layers)!, remote)?.stroke?.dash).toBeUndefined();
+    const markerLayer = layers.find((l) => l.id === ANNOTATION_MARKER_LAYER_ID) as FeatureLayerSpec;
+    expect(markerLayer.features).toHaveLength(1);
+    expect(styleOf(markerLayer, marker)?.circle?.fill?.color).toBe(LABELS[0].color);
+  });
+
+  it('composes no marker layer when nothing new has arrived', () => {
+    const layers = composeWithDelta([deltaFeature(1, 'local')], [1]);
+    expect(layers.find((l) => l.id === ANNOTATION_MARKER_LAYER_ID)).toBeUndefined();
   });
 
   it('leaves the shape under an open edit to the edit interaction', () => {
-    const layers = composeWithDelta([deltaFeature(1, 'local')], [1], new Set([1]));
+    const layers = composeWithDelta([deltaFeature(1, 'local')], [1], { hiddenIds: new Set([1]) });
 
     expect(overlayOf(layers)).toBeUndefined();
   });

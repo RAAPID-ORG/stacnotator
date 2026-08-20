@@ -32,7 +32,7 @@ import { Toolbar } from './chrome/Toolbar/Toolbar';
 import { TourOverlay } from './chrome/Tour/TourOverlay';
 import { useHotkeys } from './hotkeys';
 import { groupTimeseriesIntoWindows } from './campaign/timeseries';
-import { isAudienceMember } from './campaign/annotation';
+import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import {
   coversPanels,
   defaultWindowItem,

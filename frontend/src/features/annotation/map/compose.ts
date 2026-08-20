@@ -6,7 +6,6 @@ import { applyRenderOverride, type LegendOverride } from '../campaign/tileColors
 import {
   resolveLabelStyle,
   toDraftStyleSpec,
-  toRemoteStyleSpec,
   toStyleSpec,
   type LabelStyle,
 } from '../campaign/labelStyle';
@@ -17,11 +16,15 @@ import type { GeoFeature, LayerId, LayerSpec, LonLat, StyleSpec } from './types'
 export const TILE_SKELETON_LAYER_ID = 'tile-skeleton';
 export const ANNOTATION_LAYER_ID = 'annotations';
 export const ANNOTATION_DELTA_LAYER_ID = 'annotations-delta';
+export const ANNOTATION_MARKER_LAYER_ID = 'annotations-new';
 
-/** Saved annotations come from two layers - the tiles, and the overlay of what
- *  the tiles do not carry yet - so a click on either is a click on one. */
+/** Saved annotations come from the tiles, from the overlay of what the tiles do
+ *  not carry yet, and - for the ones another annotator just made - from the
+ *  marker sitting on them. A click on any of the three is a click on one. */
 export const isAnnotationLayer = (layerId: LayerId | undefined): boolean =>
-  layerId === ANNOTATION_LAYER_ID || layerId === ANNOTATION_DELTA_LAYER_ID;
+  layerId === ANNOTATION_LAYER_ID ||
+  layerId === ANNOTATION_DELTA_LAYER_ID ||
+  layerId === ANNOTATION_MARKER_LAYER_ID;
 export const EXTENT_LAYER_ID = 'task-extent';
 export const CROSSHAIR_LAYER_ID = 'crosshair';
 export const DRAFT_LAYER_ID = 'draft';
@@ -51,9 +54,10 @@ const EXTENT_Z = 5;
 const VECTOR_Z = 8;
 const ANNOTATION_Z = 10;
 const ANNOTATION_DELTA_Z = 11;
-const DRAFT_Z = 12;
-const PROBE_Z = 13;
-const CROSSHAIR_Z = 14;
+const ANNOTATION_MARKER_Z = 12;
+const DRAFT_Z = 13;
+const PROBE_Z = 14;
+const CROSSHAIR_Z = 15;
 
 /** Mirrors `MIN_TILE_ZOOM` in the backend's `annotation/tiles.py`, which
  *  returns empty tiles below it: one decision, spelled on both sides. A tile
@@ -62,18 +66,30 @@ const CROSSHAIR_Z = 14;
  *  OL scales the last real level instead of blanking. */
 export const ANNOTATION_TILE_MIN_ZOOM = 9;
 
+/** Levels of lower-resolution annotation tiles fetched ahead. Two covers a
+ *  four-fold zoom-out, which is the gesture that would otherwise land on an
+ *  empty map while a whole new set of tiles is fetched. */
+const ANNOTATION_PRELOAD_LEVELS = 2;
+
 const TILE_PROP_ID = 'annotation_id';
 const TILE_PROP_LABEL = 'label_id';
-const DELTA_PROP_ORIGIN = 'origin';
 
 const DEFAULT_CROSSHAIR_COLOR = '#ff0000';
 const CROSSHAIR_SIZE_PX = 20;
+
+const MARKER_RADIUS_PX = 5;
+const DEFAULT_MARKER_COLOR = '#2563eb';
 
 /** Annotations drawn over the tiles because the tiles do not carry them yet -
  *  see `campaign/annotationDelta`. `ids` is everything the delta owns, written
  *  or deleted, which is exactly what the tiles must leave alone. */
 export interface DeltaOverlay {
   features: GeoFeature[];
+  /** One point per annotation another annotator made while this page was open,
+   *  at the top-right of its geometry. The shape itself is drawn like any
+   *  other; the marker is what says it is new, and it goes when the tiles
+   *  catch up. */
+  markers: GeoFeature[];
   ids: ReadonlySet<number>;
 }
 
@@ -169,19 +185,31 @@ function annotationStyle(state: SavedAnnotations): TileStyleFn {
   return fn;
 }
 
-/** The same paint for the overlay, except that another annotator's work is
- *  marked out until the tiles carry it, and selection is applied here: a
- *  feature layer has no highlight list of its own. */
+/** The same paint for the overlay - a saved annotation looks the same whether
+ *  it came from a tile or not. Selection is applied here because a feature
+ *  layer has no highlight list of its own. */
 function deltaStyle(state: SavedAnnotations): (feature: GeoFeature) => StyleSpec {
   const resolve = labelStyleResolver(state);
   return (feature) => {
-    const props = feature.properties ?? {};
-    const style = resolve(Number(props[TILE_PROP_LABEL]));
+    const style = resolve(Number((feature.properties ?? {})[TILE_PROP_LABEL]));
     if (!style) return FALLBACK_TILE_STYLE;
-    const emphasis = { selected: !!state.highlightIds?.has(Number(feature.id)) };
-    return props[DELTA_PROP_ORIGIN] === 'remote'
-      ? toRemoteStyleSpec(style, emphasis)
-      : toStyleSpec(style, emphasis);
+    return toStyleSpec(style, { selected: !!state.highlightIds?.has(Number(feature.id)) });
+  };
+}
+
+/** The "this one is new" dot: the label's own colour, ringed so it reads on
+ *  imagery, and no bigger than it has to be to be noticed. */
+function markerStyle(state: SavedAnnotations): (feature: GeoFeature) => StyleSpec {
+  const resolve = labelStyleResolver(state);
+  return (feature) => {
+    const style = resolve(Number((feature.properties ?? {})[TILE_PROP_LABEL]));
+    return {
+      circle: {
+        radius: MARKER_RADIUS_PX,
+        fill: { color: style?.strokeColor ?? DEFAULT_MARKER_COLOR },
+        stroke: { color: '#ffffff', width: 2 },
+      },
+    };
   };
 }
 
@@ -317,6 +345,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
       auth: 'bearer',
       idProperty: TILE_PROP_ID,
       minZoom: ANNOTATION_TILE_MIN_ZOOM - 1,
+      preload: ANNOTATION_PRELOAD_LEVELS,
       style: annotationStyle(annotations),
       hiddenFeatureIds: hidden,
       highlightFeatureIds: annotations.highlightIds,
@@ -338,6 +367,18 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
         // this session's shapes when it draws nobody else's.
         minZoom: ANNOTATION_TILE_MIN_ZOOM - 1,
         zIndex: ANNOTATION_DELTA_Z,
+      });
+    }
+
+    const markers = annotations.delta?.markers ?? [];
+    if (markers.length > 0) {
+      layers.push({
+        kind: 'features',
+        id: ANNOTATION_MARKER_LAYER_ID,
+        features: markers,
+        style: markerStyle(annotations),
+        minZoom: ANNOTATION_TILE_MIN_ZOOM - 1,
+        zIndex: ANNOTATION_MARKER_Z,
       });
     }
   }

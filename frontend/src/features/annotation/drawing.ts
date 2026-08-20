@@ -11,7 +11,6 @@ import {
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 import {
-  canModifyAnnotation,
   featureDedupeKey,
   geometryToWkt,
   validateForm,
@@ -25,9 +24,10 @@ import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from './
 import {
   campaignState,
   formFields,
+  mayModifyAnnotation,
   useCampaignStore,
+  useCanModifyAnnotation,
   useLabels,
-  usePolicy,
 } from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
 import { usePrefsStore } from './stores/prefs';
@@ -278,7 +278,18 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
     const editingId = work.edit?.annotation.id ?? null;
     if (isAnnotationLayer(event.layerId) && event.featureId != null) {
       const clicked = Number(event.featureId);
-      if (clicked !== editingId) await work.openEdit(clicked);
+      if (clicked !== editingId) {
+        await work.openEdit(clicked);
+        const opened = useWorkStore.getState().edit?.annotation;
+        // It opens for reading either way; saying so is what stops the click
+        // looking like it did nothing.
+        if (opened && !mayModifyAnnotation(opened)) {
+          alert(
+            'Someone else made this one - you can read it, but not change or delete it.',
+            'error'
+          );
+        }
+      }
       return;
     }
     // A click that hit nothing. While an annotation is open that is the common
@@ -307,6 +318,22 @@ async function handleBox(bbox: Bbox, hits: BoxHit[]): Promise<void> {
   if (tool === 'labelVector') reportLabelOutcome(await labelGeometries(dedupeHits(hits)));
 }
 
+/**
+ * The annotation the edit interaction draws itself, with vertex handles, or
+ * null. Someone else's annotation opens for reading, never with handles: the
+ * geometry save would only be refused.
+ *
+ * The map hides exactly this one in the tiles, so "who draws it" has a single
+ * answer - hiding one nothing then draws is how an outline disappears.
+ */
+export function useEditDrawnId(): number | null {
+  const tool = useWorkStore((s) => s.tool);
+  const edit = useWorkStore((s) => s.edit);
+  const canModify = useCanModifyAnnotation();
+  if (tool !== 'edit' || !edit || !canModify(edit.annotation)) return null;
+  return edit.annotation.id;
+}
+
 /** The map's draw/edit/box-select wiring for the active tool, and the click
  *  handler that goes with it. Mounted by the map it configures. */
 export function useDrawingInteractions(): {
@@ -320,10 +347,8 @@ export function useDrawingInteractions(): {
   const labelStyles = usePrefsStore((s) => s.labelStyles);
   const vector = useImageryStore((s) => s.vector);
   const labels = useLabels();
-  const policy = usePolicy();
-  // Someone else's annotation opens for reading, never with vertex handles:
-  // the geometry save would only be refused.
-  const editable = edit !== null && canModifyAnnotation(edit.annotation, policy);
+  const editDrawnId = useEditDrawnId();
+  const editable = editDrawnId !== null;
 
   const byId = (id: number | null): ExtendedLabel | undefined =>
     id === null ? undefined : labels.find((l) => l.id === id);

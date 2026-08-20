@@ -695,8 +695,15 @@ export function useSavedAnnotations(
         features: deltaWrites(delta).map((write) => ({
           id: write.id,
           geometry: write.geometry,
-          properties: { label_id: write.labelId, origin: write.origin },
+          properties: { label_id: write.labelId },
         })),
+        markers: deltaWrites(delta)
+          .filter((write) => write.origin === 'remote')
+          .map((write) => ({
+            id: write.id,
+            geometry: { type: 'Point', coordinates: geometryTopRight(write.geometry) },
+            properties: { label_id: write.labelId },
+          })),
         ids: deltaIds(delta),
       },
     }),

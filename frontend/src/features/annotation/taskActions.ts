@@ -9,12 +9,11 @@ import {
 } from '~/api/client';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
+import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import {
-  isAudienceMember,
   maySubmitTask,
   validateForm,
   type FormValues,
-  type PolicyContext,
   type SubmitReadiness,
   type TaskStatus,
 } from './campaign/annotation';

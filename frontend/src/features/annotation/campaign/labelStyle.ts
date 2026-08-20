@@ -83,15 +83,3 @@ export function toDraftStyleSpec(style: LabelStyle): StyleSpec {
     circle: { radius: 5, fill: { color: hexToRgba(style.fillColor, style.fillOpacity) }, stroke },
   };
 }
-
-/** Dotted, so an annotation someone else just made is legible as the label it
- *  is while still reading as new - and is not mistaken for the dashed shape
- *  being drawn. */
-const REMOTE_DASH = [2, 3];
-
-/** Another annotator's work, picked up by the poll and only in this session's
- *  overlay: it looks like this until the tiles carry it. */
-export function toRemoteStyleSpec(style: LabelStyle, emphasis: Emphasis = {}): StyleSpec {
-  const { fill, stroke, circle } = toStyleSpec(style, emphasis);
-  return { fill, circle, stroke: stroke && { ...stroke, dash: REMOTE_DASH } };
-}

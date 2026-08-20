@@ -23,12 +23,13 @@ import type {
 } from './types';
 import {
   acquireRasterSource,
+  acquireVectorTileSource,
   attachTileErrorRecovery,
   bearerVectorTileLoader,
   crossOriginForTile,
   detachTileErrorRecovery,
   foregroundTileLoader,
-  releaseRasterSource,
+  releaseSource,
   retryErroredTiles,
   type CrossOrigin,
 } from './tileLoading';
@@ -200,21 +201,39 @@ function createRasterSource(spec: RasterLayerSpec): { key: string; source: XYZ }
   return { key, source };
 }
 
-function createVectorTileSource(spec: VectorTileLayerSpec): VectorTileSource {
+/** Shared by key, so the same annotations drawn on the main map and in every
+ *  imagery window cost one tile cache and one request per tile, not one per
+ *  map. Everything that changes what the source fetches or how it decodes is
+ *  in the key. */
+function createVectorTileSource(spec: VectorTileLayerSpec): {
+  key: string;
+  source: VectorTileSource<RenderFeature>;
+} {
+  const key = [
+    'vector',
+    spec.url,
+    spec.auth ?? 'none',
+    spec.idProperty ?? '',
+    (spec.sourceLayers ?? []).join(','),
+  ].join('|');
+
   // ol-pmtiles builds its own MVT format, so idProperty/sourceLayers only reach
   // the format on the XYZ path; the style function falls back to reading the
   // id property directly.
-  if (spec.url.startsWith(PMTILES_SCHEME)) {
-    return new PMTilesVectorSource({ url: spec.url.slice(PMTILES_SCHEME.length) });
-  }
-  const format = new MVT({ idProperty: spec.idProperty, layers: spec.sourceLayers });
-  const source = new VectorTileSource({
-    format,
-    url: spec.url,
-    tileGrid: createXYZ({ maxZoom: MAX_TILE_ZOOM }),
+  const source = acquireVectorTileSource(key, () => {
+    if (spec.url.startsWith(PMTILES_SCHEME)) {
+      return new PMTilesVectorSource({ url: spec.url.slice(PMTILES_SCHEME.length) });
+    }
+    const format = new MVT({ idProperty: spec.idProperty, layers: spec.sourceLayers });
+    const built = new VectorTileSource({
+      format,
+      url: spec.url,
+      tileGrid: createXYZ({ maxZoom: MAX_TILE_ZOOM }),
+    });
+    if (spec.auth === 'bearer') built.setTileLoadFunction(bearerVectorTileLoader(format));
+    return built;
   });
-  if (spec.auth === 'bearer') source.setTileLoadFunction(bearerVectorTileLoader(format));
-  return source;
+  return { key, source };
 }
 
 function toOlFeatures(specs: GeoFeature[]): Feature[] {
@@ -274,15 +293,20 @@ function buildLayer(spec: LayerSpec): BaseLayer {
     return layer;
   }
   if (spec.kind === 'vector-tiles') {
+    const { key, source } = createVectorTileSource(spec);
     const layer = new VectorTileLayer({
-      source: createVectorTileSource(spec),
+      source,
       // OL's minZoom is exclusive; callers pass the value they want applied.
       minZoom: spec.minZoom,
+      // Low-resolution tiles fetched ahead, so zooming out lands on something
+      // already drawn instead of on an empty map.
+      preload: spec.preload ?? 0,
       // Re-render during zoom/pan so strokes stay crisp instead of the previous
       // level's tiles being scaled up, which makes polygons pulse.
       updateWhileAnimating: true,
       updateWhileInteracting: true,
     });
+    layer.set(SOURCE_KEY_PROP, key);
     layer.setStyle(vectorTileStyle(layer));
     return layer;
   }
@@ -344,14 +368,17 @@ function replaceSource(layer: BaseLayer, spec: LayerSpec): void {
     const previous = raster.get(SOURCE_KEY_PROP) as string | undefined;
     raster.setSource(source);
     raster.set(SOURCE_KEY_PROP, key);
-    if (previous) releaseRasterSource(previous);
+    if (previous) releaseSource(previous);
     attachTileErrorRecovery(raster);
     return;
   }
   if (spec.kind === 'vector-tiles') {
-    (layer as VectorTileLayer<VectorTileSource<RenderFeature>>).setSource(
-      createVectorTileSource(spec)
-    );
+    const vector = layer as VectorTileLayer<VectorTileSource<RenderFeature>>;
+    const { key, source } = createVectorTileSource(spec);
+    const previous = vector.get(SOURCE_KEY_PROP) as string | undefined;
+    vector.setSource(source);
+    vector.set(SOURCE_KEY_PROP, key);
+    if (previous) releaseSource(previous);
   }
 }
 
@@ -375,6 +402,9 @@ export function updateLayer(layer: BaseLayer, prev: LayerSpec, next: LayerSpec):
     // A raster's zoom limits live on its tile grid, a vector tile layer's on
     // the layer, mirroring where each stops requesting tiles.
     if (prev.minZoom !== next.minZoom) layer.setMinZoom(next.minZoom ?? -Infinity);
+    if (prev.preload !== next.preload) {
+      (layer as VectorTileLayer<VectorTileSource<RenderFeature>>).setPreload(next.preload ?? 0);
+    }
     if (
       !sameStyle(prev.style, next.style) ||
       !sameSet(prev.hiddenFeatureIds, next.hiddenFeatureIds) ||
@@ -399,15 +429,15 @@ export function updateLayer(layer: BaseLayer, prev: LayerSpec, next: LayerSpec):
   }
 }
 
-/** Dropping the source aborts in-flight requests for a layer being removed. */
+/** Dropping the source aborts in-flight requests for a layer being removed -
+ *  unless another map is still drawing the same tiles, which is what the
+ *  refcount on the shared source decides. */
 export function destroyLayer(layer: BaseLayer): void {
-  if (layer instanceof TileLayer) {
-    detachTileErrorRecovery(layer as TileLayer<XYZ>);
-    const key = layer.get(SOURCE_KEY_PROP) as string | undefined;
-    if (key) {
-      releaseRasterSource(key);
-      layer.unset(SOURCE_KEY_PROP, true);
-    }
+  if (layer instanceof TileLayer) detachTileErrorRecovery(layer as TileLayer<XYZ>);
+  const key = layer.get(SOURCE_KEY_PROP) as string | undefined;
+  if (key) {
+    releaseSource(key);
+    layer.unset(SOURCE_KEY_PROP, true);
   }
   const withSource = layer as unknown as { setSource?: (source: null) => void };
   if (typeof withSource.setSource === 'function') withSource.setSource(null);

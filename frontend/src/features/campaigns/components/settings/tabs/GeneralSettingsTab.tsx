@@ -209,6 +209,9 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           unassigned_tasks: policyDraft.unassigned_tasks ?? noOne,
           assigned_tasks: policyDraft.assigned_tasks ?? noOne,
           complete_assigned: policyDraft.complete_assigned ?? noOne,
+          // Its own default is "campaign admins", not "no one", so an unset
+          // draft must not be sent as an empty audience.
+          ...(policyDraft.modify_others ? { modify_others: policyDraft.modify_others } : {}),
         },
       });
       if (res.error || !res.data) {

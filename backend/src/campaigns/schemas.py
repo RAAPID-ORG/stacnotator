@@ -64,6 +64,9 @@ _ASSIGNED_TASKS_ALLOWED_KINDS: frozenset[str] = frozenset(
 _COMPLETE_ASSIGNED_ALLOWED_KINDS: frozenset[str] = frozenset(
     {"admins", "authoritative", "assignees", "members"}
 )
+# Never "anyone": undoing other people's work is not something a campaign can
+# open to the public, however public its labelling is.
+_MODIFY_OTHERS_ALLOWED_KINDS: frozenset[str] = frozenset({"admins", "authoritative", "members"})
 
 
 class PolicyAudience(BaseModel):
@@ -97,6 +100,10 @@ class LabellingPolicy(BaseModel):
     unassigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
     assigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
     complete_assigned: PolicyAudience = Field(default_factory=PolicyAudience)
+    # Defaults to campaign admins rather than to the empty audience: a policy
+    # stored before this axis existed has to keep meaning what it meant, which
+    # is "its author, or an admin".
+    modify_others: PolicyAudience = Field(default_factory=lambda: PolicyAudience(kinds=["admins"]))
 
     @field_validator("explore")
     @classmethod
@@ -117,6 +124,11 @@ class LabellingPolicy(BaseModel):
     @classmethod
     def _check_complete_assigned_kinds(cls, v: PolicyAudience) -> PolicyAudience:
         return _validate_axis_kinds(v, _COMPLETE_ASSIGNED_ALLOWED_KINDS, "complete_assigned")
+
+    @field_validator("modify_others")
+    @classmethod
+    def _check_modify_others_kinds(cls, v: PolicyAudience) -> PolicyAudience:
+        return _validate_axis_kinds(v, _MODIFY_OTHERS_ALLOWED_KINDS, "modify_others")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -139,6 +151,7 @@ def default_labelling_policy(is_public: bool = False) -> LabellingPolicy:
         unassigned_tasks=PolicyAudience(kinds=["members", *anyone]),
         assigned_tasks=PolicyAudience(kinds=["members", *anyone]),
         complete_assigned=PolicyAudience(kinds=["assignees", "admins", "authoritative"]),
+        modify_others=PolicyAudience(kinds=["admins"]),
     )
 
 
@@ -146,11 +159,15 @@ class UpdateLabellingPolicyRequest(LabellingPolicy):
     """Request body for PATCH /campaigns/{id}/labelling-policy - same shape
     as LabellingPolicy, plus the campaign-public check applied by the service.
 
-    All four axes are required (no defaults), unlike the base LabellingPolicy:
-    a PATCH is a full replacement of the stored policy, so silently omitting
-    an axis here would defaults it to "no one" for that axis rather than
-    leaving it as the caller likely intended (unchanged). Callers must always
-    send the complete policy, which is what the settings UI does.
+    The four labelling axes are required (no defaults), unlike the base
+    LabellingPolicy: a PATCH is a full replacement of the stored policy, so
+    silently omitting one would default it to "no one" rather than leaving it
+    as the caller likely intended. Callers must always send the complete
+    policy, which is what the settings UI does.
+
+    ``modify_others`` keeps its inherited default instead, because that
+    default is "campaign admins" rather than "no one": omitting it leaves the
+    axis where a campaign that never set it already was.
     """
 
     explore: PolicyAudience

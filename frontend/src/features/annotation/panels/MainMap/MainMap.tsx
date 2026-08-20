@@ -6,7 +6,7 @@ import { useContainerSize } from '../../canvas/useContainerSize';
 import { hotkeyTip } from '../../hotkeys';
 import { collectionsInView } from '../../campaign/imagery';
 import { computeTaskProgress } from '../../campaign/tasks';
-import { handleProbeClick, useDrawingInteractions } from '../../drawing';
+import { handleProbeClick, useDrawingInteractions, useEditDrawnId } from '../../drawing';
 import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
 import { composeLayers, type ComposeState } from '../../map/compose';
 import { MapView, type MapAnchor } from '../../map/MapView';
@@ -247,10 +247,8 @@ export function MainMapBody() {
   const imagery = useImageryStore();
   const legendOverrides = usePrefsStore((s) => s.legendOverrides);
   const draft = useWorkStore((s) => s.draft);
-  const tool = useWorkStore((s) => s.tool);
   const selection = useWorkStore((s) => s.selection);
   const selectionAnchor = useWorkStore((s) => s.selectionAnchor);
-  const editingId = useWorkStore((s) => s.edit?.annotation.id ?? null);
   // Draw/edit/box-select belong to the map they act on, so this is where the
   // drawing feature's wiring is mounted.
   const { interactions, onMapClick: drawingClick } = useDrawingInteractions();
@@ -265,20 +263,22 @@ export function MainMapBody() {
   const visibleCollectionIds = useMemo(() => Object.keys(windowLayout).map(Number), [windowLayout]);
   useEffect(() => () => setForegroundMapLoading('main', false), []);
 
-  const draftOpen = draft.phase === 'draft' || draft.phase === 'committing';
-  // A shape stored the moment it was drawn is still drawn by the draft layer
-  // while its questions are open, so its tile copy would double it.
-  const draftSavedId = draftOpen ? draft.savedId : null;
+  // A shape is a sketch only until it is stored. Stored the moment it was
+  // drawn - which is what happens when nothing required is outstanding - it is
+  // a saved annotation with its questions still open, and the overlay draws it
+  // in its label's own colours rather than leaving it looking unsaved.
+  const unsaved =
+    (draft.phase === 'draft' || draft.phase === 'committing') && draft.savedId === null;
 
-  // The feature being edited is drawn by the edit interaction instead, so the
-  // tile copy underneath it is hidden rather than doubled. Only the edit tool
-  // draws one: a selection made in Pan is inspected, not redrawn, and hiding
-  // its tile copy would make the annotation disappear.
-  const hiddenIds = useMemo(() => {
-    const editDrawn = tool === 'edit' ? editingId : null;
-    const hidden = [editDrawn, draftSavedId].filter((id) => id != null);
-    return hidden.length > 0 ? new Set(hidden) : undefined;
-  }, [tool, editingId, draftSavedId]);
+  // Hidden because something else draws them: the edit interaction draws the
+  // feature under its handles, and the sketch layer draws a draft that was
+  // stored the moment it was drawn. Nothing else is hidden - hiding a feature
+  // nothing then draws is how an annotation disappears.
+  const editDrawnId = useEditDrawnId();
+  const hiddenIds = useMemo(
+    () => (editDrawnId === null ? undefined : new Set([editDrawnId])),
+    [editDrawnId]
+  );
 
   const highlightIds = useMemo(
     () => (selection.length > 0 ? new Set(selection) : undefined),
@@ -288,8 +288,8 @@ export function MainMapBody() {
   const annotations = useSavedAnnotations(hiddenIds, highlightIds);
 
   const draftFeatures = useMemo(
-    () => (draftOpen ? [{ id: 'draft', geometry: draft.geometry }] : []),
-    [draftOpen, draft]
+    () => (unsaved ? [{ id: 'draft', geometry: draft.geometry }] : []),
+    [unsaved, draft]
   );
 
   const layers = useMemo(() => {

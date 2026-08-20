@@ -698,3 +698,25 @@ def test_create_campaign_no_explicit_policy_private_gets_private_default():
     )
     stored_policy = settings_call.args[0].labelling_policy
     assert "anyone" not in stored_policy["explore"]["kinds"]
+
+
+def test_modify_others_defaults_to_admins_for_a_policy_stored_before_it_existed():
+    """Every campaign predating the axis behaved as "its author, or an admin",
+    and reading one back must not quietly widen or close that."""
+    stored = {
+        "explore": {"kinds": ["members"], "user_ids": []},
+        "unassigned_tasks": {"kinds": ["members"], "user_ids": []},
+        "assigned_tasks": {"kinds": ["members"], "user_ids": []},
+        "complete_assigned": {"kinds": ["admins"], "user_ids": []},
+    }
+
+    policy = LabellingPolicy.model_validate(stored)
+
+    assert policy.modify_others.kinds == ["admins"]
+
+
+def test_modify_others_cannot_be_opened_to_anyone():
+    """Undoing other people's work is not something a campaign opens to the
+    public, however public its labelling is."""
+    with pytest.raises(ValidationError):
+        LabellingPolicy(modify_others=PolicyAudience(kinds=["anyone"]))

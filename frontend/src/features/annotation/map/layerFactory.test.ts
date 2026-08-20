@@ -24,6 +24,9 @@ const mercator = getProjection('EPSG:3857')!;
 
 const rasterSourceOf = (layer: unknown) => (layer as TileLayer<XYZ>).getSource()!;
 
+const sourceOf = (layer: unknown) =>
+  (layer as VectorTileLayer<VectorTileSource<RenderFeature>>).getSource();
+
 // crossOrigin is typed protected on TileImage but is the only observable proof
 // that a source will send the tiler cookie.
 const crossOriginOf = (layer: unknown) =>
@@ -275,5 +278,49 @@ describe('feature layers', () => {
   it('hands callers their own properties, not OL or bookkeeping keys', () => {
     const layer = createLayer(point) as VectorLayer<VectorSource<Feature>>;
     expect(featurePropsOf(layer.getSource()!.getFeatures()[0])).toEqual({ a: 1 });
+  });
+});
+
+// A campaign can have a hundred imagery windows open, every one of them drawing
+// the same annotations over its own date.
+describe('sharing tiles between maps', () => {
+  const annotations = (url: string): VectorTileLayerSpec => ({
+    kind: 'vector-tiles',
+    id: 'annotations',
+    url,
+    auth: 'bearer',
+    idProperty: 'annotation_id',
+    style: { stroke: { color: '#f00', width: 1 } },
+  });
+
+  it('gives two maps drawing the same tiles one source, and one tile cache', () => {
+    const first = createLayer(annotations('https://api.test/a/{z}/{x}/{y}.pbf?v=1'));
+    const second = createLayer(annotations('https://api.test/a/{z}/{x}/{y}.pbf?v=1'));
+
+    expect(sourceOf(second)).toBe(sourceOf(first));
+  });
+
+  it('keeps different tiles apart', () => {
+    const first = createLayer(annotations('https://api.test/a/{z}/{x}/{y}.pbf?v=1'));
+    const second = createLayer(annotations('https://api.test/a/{z}/{x}/{y}.pbf?v=2'));
+
+    expect(sourceOf(second)).not.toBe(sourceOf(first));
+  });
+
+  // Otherwise the last map to close would leave the source pooled forever, and
+  // a later map would reuse a cache nobody refreshed.
+  it('drops the shared source once the last map lets go of it', () => {
+    const spec = annotations('https://api.test/b/{z}/{x}/{y}.pbf?v=1');
+    const first = createLayer(spec);
+    const shared = sourceOf(first);
+    const second = createLayer(spec);
+
+    destroyLayer(first);
+    const third = createLayer(spec);
+    expect(sourceOf(third)).toBe(shared);
+
+    destroyLayer(second);
+    destroyLayer(third);
+    expect(sourceOf(createLayer(spec))).not.toBe(shared);
   });
 });

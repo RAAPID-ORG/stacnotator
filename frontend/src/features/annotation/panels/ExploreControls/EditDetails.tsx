@@ -4,13 +4,12 @@ import type { FormValues } from '../../campaign/annotation';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
-  canModifyAnnotation,
   extendedLabels,
   formValuesEqual,
   labelsWithSameGeometry,
   validateForm,
 } from '../../campaign/annotation';
-import { useCampaign, usePolicy } from '../../stores/campaign';
+import { useCampaign, useCanModifyAnnotation } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { FormFields } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
@@ -22,7 +21,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const [flagComment, setFlagComment] = useState(annotation.flag_comment ?? '');
   const [saving, setSaving] = useState(false);
   const showAlert = useLayoutStore((s) => s.showAlert);
-  const readOnly = !canModifyAnnotation(annotation, usePolicy());
+  const readOnly = !useCanModifyAnnotation()(annotation);
 
   const labels = extendedLabels(campaign);
   const selectable = labelsWithSameGeometry(labels, annotation.label_id);

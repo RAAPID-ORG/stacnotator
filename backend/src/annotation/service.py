@@ -69,13 +69,18 @@ def _require_own_annotations(
     user_id: UUID,
     verb: str,
 ) -> None:
-    """Someone else's annotation is theirs: only its author, a campaign admin
-    or a platform admin may change or remove it. Being a member of the campaign
-    is permission to add work, not to undo other people's."""
+    """Someone else's annotation is theirs unless the campaign says otherwise.
+
+    Its author may always change it. Who else may is the ``modify_others``
+    axis of the labelling policy, which defaults to campaign admins: being a
+    member is permission to add work, not automatically to undo other
+    people's, but a campaign that wants a shared canvas can say so.
+    """
     not_owned = [a.id for a in annotations if a.created_by_user_id != user_id]
     if not not_owned:
         return
-    if _is_campaign_admin(db, user_id, campaign.id):
+    policy = get_labelling_policy(campaign)
+    if is_allowed(policy.modify_others, build_policy_context(db, campaign, user_id)):
         return
     raise HTTPException(
         status_code=403,

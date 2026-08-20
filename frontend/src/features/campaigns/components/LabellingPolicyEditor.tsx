@@ -64,6 +64,18 @@ const AXES: {
       'stays open.',
     allowedKinds: ['admins', 'authoritative', 'assignees', 'members'],
   },
+  {
+    key: 'modify_others',
+    title: 'Editing and deleting other people’s annotations',
+    description:
+      'Who may change or remove an annotation somebody else made. Everyone can always ' +
+      'change their own.',
+    example:
+      'With Admins, an annotator who spots a mistake in a colleague’s polygon can open it and ' +
+      'read it, but not move or delete it. With Members, the campaign becomes a shared canvas ' +
+      'that any member can correct.',
+    allowedKinds: ['admins', 'authoritative', 'members'],
+  },
 ];
 
 const emptyAudience: PolicyAudience = { kinds: [], user_ids: [] };

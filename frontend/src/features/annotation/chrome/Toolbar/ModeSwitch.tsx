@@ -1,4 +1,4 @@
-import { isAudienceMember, type PolicyContext } from '../../campaign/annotation';
+import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import { useCampaignStore, type WorkMode } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { useLayoutStore } from '~/shared/stores/layout.store';

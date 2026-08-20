@@ -1,5 +1,4 @@
-import { canModifyAnnotation } from '../../campaign/annotation';
-import { usePolicy } from '../../stores/campaign';
+import { useCanModifyAnnotation } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { commitEdit, deleteSelection } from '../../drawing';
 
@@ -34,14 +33,14 @@ export function SelectionControls() {
   const annotation = useWorkStore((s) => s.edit?.annotation ?? null);
   const pending = useWorkStore((s) => s.edit?.pending ?? null);
   const busy = useWorkStore((s) => s.edit?.busy ?? false);
-  const policy = usePolicy();
+  const canModify = useCanModifyAnnotation();
 
   if (selection.length === 0) return null;
 
   // A box selection carries ids only, so ownership is the server's answer
   // there; a single open annotation is known, and someone else's offers
   // nothing to press.
-  const readOnly = annotation !== null && !canModifyAnnotation(annotation, policy);
+  const readOnly = annotation !== null && !canModify(annotation);
 
   return (
     <div

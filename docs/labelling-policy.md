@@ -6,7 +6,7 @@ every campaign supports both free exploration and task work, and the policy
 controls access to each. (The campaign `mode` field still exists, but only
 as the default work mode the UI opens in.)
 
-## The four axes
+## The axes
 
 Each axis is an audience: a set of role kinds plus an optional list of
 specifically selected users (which may include non-members). Empty means
@@ -18,6 +18,12 @@ specifically selected users (which may include non-members). Empty means
 | `unassigned_tasks`  | who may label tasks that have no assignment             | admins, authoritative, members, anyone             |
 | `assigned_tasks`    | who may add labels to tasks assigned to someone         | assignees, admins, authoritative, members, anyone  |
 | `complete_assigned` | whose labels count toward completing an assigned task   | assignees, admins, authoritative, members          |
+| `modify_others`     | who may edit or delete an annotation somebody else made | admins, authoritative, members                     |
+
+An annotation's author may always change or delete their own, whatever
+`modify_others` says; the axis is only about other people's. It never allows
+`anyone`: undoing other people's work is not something a campaign opens to
+the public, however public its labelling is.
 
 `anyone` means any authenticated platform user, membership not required, and
 is only valid while the campaign is platform-public (project visibility
@@ -49,7 +55,7 @@ assigned reviewers.
 Two special cases override assignment aggregation: a single counting
 authoritative label marks the task done regardless of assignments and review
 slots (submitting `is_authoritative` requires the project's
-authoritative-reviewer flag, a 403 independent of the four axes), and a task
+authoritative-reviewer flag, a 403 independent of the labelling axes), and a task
 with no assignment rows is done as soon as any counting label exists (all
 labels skipped means the task is skipped).
 
@@ -58,6 +64,7 @@ labels skipped means the task is skipped).
 - explore, unassigned_tasks, assigned_tasks: members (public campaigns also
   add anyone)
 - complete_assigned: assignees + admins + authoritative
+- modify_others: admins
 
 New campaigns get these defaults unless the wizard's "Labelling access"
 section is customized. Migration `z1labelpolicy` backfilled existing
@@ -88,5 +95,6 @@ policy along with the settings row.
   is UX only.
 - Editing: campaign wizard and the settings "Labelling access" card, via
   `PATCH /campaigns/{id}/labelling-policy` (admin only). The PATCH replaces
-  the whole policy (all four axes required); `anyone` on a non-public
+  the whole policy (the four labelling axes required, `modify_others`
+  optional and defaulting to admins); `anyone` on a non-public
   project is rejected (400).

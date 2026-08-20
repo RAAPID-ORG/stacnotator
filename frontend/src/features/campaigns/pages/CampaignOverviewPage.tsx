@@ -11,6 +11,8 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { campaignPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 
@@ -23,6 +25,7 @@ export const CampaignOverviewPage = () => {
   const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const currentUserId = useAccountStore((s) => s.account?.id ?? null);
 
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
@@ -62,6 +65,14 @@ export const CampaignOverviewPage = () => {
   const totalTasks = taskSets.reduce((sum, set) => sum + set.num_tasks, 0);
   const totalLabeled = taskSets.reduce((sum, set) => sum + set.num_labeled, 0);
   const hasTasks = totalTasks > 0;
+  const mayExplore =
+    campaign != null &&
+    isAudienceMember(campaign.settings.labelling_policy.explore, {
+      userId: currentUserId,
+      isAdmin: campaign.viewer_is_admin ?? false,
+      isAuthoritative: campaign.viewer_is_authoritative_reviewer ?? false,
+      isMember: campaign.viewer_is_member ?? false,
+    });
 
   return (
     <div className="flex-1 overflow-auto">
@@ -98,38 +109,40 @@ export const CampaignOverviewPage = () => {
           </div>
         </header>
 
-        <div
-          className="surface mb-6 cursor-pointer hover:bg-neutral-50 transition-colors"
-          role="button"
-          tabIndex={0}
-          onClick={() =>
-            navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
-          }
-          onKeyDown={(e) => {
-            if (e.key === 'Enter')
-              navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`);
-          }}
-        >
-          <div className="surface-section flex items-center gap-5">
-            <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
-              <IconMap className="w-5 h-5 text-brand-600" />
+        {mayExplore && (
+          <div
+            className="surface mb-6 cursor-pointer hover:bg-neutral-50 transition-colors"
+            role="button"
+            tabIndex={0}
+            onClick={() =>
+              navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
+            }
+            onKeyDown={(e) => {
+              if (e.key === 'Enter')
+                navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`);
+            }}
+          >
+            <div className="surface-section flex items-center gap-5">
+              <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
+                <IconMap className="w-5 h-5 text-brand-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-semibold text-neutral-900">Explore</h2>
+                <p className="text-sm text-neutral-500 mt-0.5">
+                  Free-form labeling across the whole campaign area.
+                </p>
+              </div>
+              <Button
+                onClick={() =>
+                  navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
+                }
+                className="shrink-0"
+              >
+                Start exploring
+              </Button>
             </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-base font-semibold text-neutral-900">Explore</h2>
-              <p className="text-sm text-neutral-500 mt-0.5">
-                Free-form labeling across the whole campaign area.
-              </p>
-            </div>
-            <Button
-              onClick={() =>
-                navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
-              }
-              className="shrink-0"
-            >
-              Start exploring
-            </Button>
           </div>
-        </div>
+        )}
 
         <section>
           <div className="flex items-center justify-between mb-3">
