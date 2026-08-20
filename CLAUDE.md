@@ -120,4 +120,4 @@ Both campaign modes (**Task Mode**, predefined locations; **Open Mode**, free-fo
 
 ## Further docs
 
-`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `deployment/azure/README.md` (deployment).
+`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `docs/annotation-tiles.md` (annotation vector tiles, editing, multi-user sync), `deployment/azure/README.md` (deployment).

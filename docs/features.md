@@ -15,7 +15,7 @@ Imagery registration runs per campaign but succeeds per source: each source repo
 ## Campaign Modes
 
 - **Task Mode** - Predefined annotation locations (points/polygons). Tasks are assigned to annotators who visit each location and label it.
-- **Open Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
+- **Open/Explore Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
 
 Every campaign supports both; who may do what is governed by the labelling policy (four audience axes: explore, unassigned tasks, assigned tasks, counting toward completion). See [labelling-policy.md](labelling-policy.md). The campaign `mode` is the default work mode the UI opens in.
 
@@ -99,6 +99,15 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Confidence scoring per annotation
 - Comments/remarks field
 - Annotations can be flagged for review (`F`) with a flag comment, filterable in review
+
+### Shared Annotation View (open mode)
+- Saved annotations are drawn from backend-rendered vector tiles, so a campaign with hundreds of thousands of them loads the same way a small one does (nothing is drawn below zoom 9)
+- Writes made while the page is open are drawn over the tiles right away instead of refetching them; the tiles are only refetched when that overlay grows large
+- Other annotators' creates, edits and deletions are picked up every 5 seconds and drawn the same way, with a dot marking what arrived while you were working
+- Clicking a shape opens it for reading (pan) or with vertex handles (edit); Shift+drag box-selects for bulk delete. Who may touch somebody else's annotation is the campaign's labelling policy
+- Conflicts are not merged: the later save wins, and the other map picks it up on the next poll
+
+See [annotation-tiles.md](annotation-tiles.md) for details.
 
 ### Imagery Notes
 - A note can be attached to one imagery slice, alongside the annotation's own comment: double-click an imagery window, use the comment button in any map header, or `Shift+C` for what the main map is showing

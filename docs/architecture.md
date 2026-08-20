@@ -21,7 +21,7 @@ PostgreSQL 16 with PostGIS (task and annotation geometries) and pgvector (64-D A
 
 ## Tile Flow
 
-For MPC collections with first-valid compositing, the frontend fetches tiles directly from MPC (fast path). Other raster imagery goes through a self-hosted tiler, and API-key-protected providers/basemaps are proxied by the backend (which holds the decrypted key). Vector tiles never touch a tiler: annotation MVT is rendered by the backend, PMTiles custom layers are fetched straight from storage. See [tile-serving.md](tile-serving.md) for details.
+For MPC collections with first-valid compositing, the frontend fetches tiles directly from MPC (fast path). Other raster imagery goes through a self-hosted tiler, and API-key-protected providers/basemaps are proxied by the backend (which holds the decrypted key). Vector tiles never touch a tiler: annotation MVT is rendered by the backend, PMTiles custom layers are fetched straight from storage. See [tile-serving.md](tile-serving.md) for details, and [annotation-tiles.md](annotation-tiles.md) for how annotation tiles, live editing and multi-user reconciliation fit together.
 
 ## Deployment
 

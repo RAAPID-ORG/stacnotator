@@ -93,6 +93,12 @@ class Settings(BaseSettings):
     # the hard cap on concurrent DB work, keeping small/burstable DBs safe.
     THREAD_POOL_MAX: int = 96
 
+    # Requests at or above this get one WARNING line with their duration and the
+    # number of requests in flight at the time. Per-request INFO logging would
+    # drown in tile traffic, and the interesting question under load is which
+    # requests got slow and how contended the process was when they did.
+    SLOW_REQUEST_MS: float = 1000.0
+
     # Every hardening decision keys off this - docs are hidden, dev-default secrets are
     # rejected, AUTH_PROVIDER=local is refused - and each of those tests for "production"
     # exactly. A typo like "prod" would silently turn all of them off, so the set is closed

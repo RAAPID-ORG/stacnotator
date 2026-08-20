@@ -1,6 +1,7 @@
 import logging.config
 from contextlib import asynccontextmanager
 from pathlib import Path
+from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
@@ -117,16 +118,41 @@ app = FastAPI(
 )
 
 
-class RequestIDMiddleware(BaseHTTPMiddleware):
+class RequestContextMiddleware(BaseHTTPMiddleware):
     """Attach a UUID to each request as request.state.request_id and echo it
     back in the X-Request-ID response header. Honours an inbound X-Request-ID
-    when present so callers can trace through to upstream logs."""
+    when present so callers can trace through to upstream logs.
+
+    Also times the request: every response carries X-Response-Time-ms (so a
+    client can split its round-trip into server time and network), and anything
+    slower than SLOW_REQUEST_MS is logged once with the in-flight request count,
+    which is what separates "this endpoint is slow" from "the worker was busy".
+    """
+
+    _inflight = 0
 
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or str(uuid4())
         request.state.request_id = request_id
-        response = await call_next(request)
+        started = perf_counter()
+        RequestContextMiddleware._inflight += 1
+        try:
+            response = await call_next(request)
+        finally:
+            RequestContextMiddleware._inflight -= 1
+        elapsed_ms = (perf_counter() - started) * 1000
         response.headers["X-Request-ID"] = request_id
+        response.headers["X-Response-Time-ms"] = f"{elapsed_ms:.0f}"
+        if elapsed_ms >= settings.SLOW_REQUEST_MS:
+            logger.warning(
+                "Slow request | %s %s %s %.0fms inflight=%d request_id=%s",
+                request.method,
+                request.url.path,
+                response.status_code,
+                elapsed_ms,
+                RequestContextMiddleware._inflight,
+                request_id,
+            )
         return response
 
 
@@ -165,7 +191,7 @@ class SecurityHeadersMiddleware:
         await self.app(scope, receive, send_stamped)
 
 
-app.add_middleware(RequestIDMiddleware)
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
@@ -252,6 +278,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS", "PATCH", "DELETE", "PUT"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID", "X-Response-Time-ms"],
     max_age=86400,
 )
 
