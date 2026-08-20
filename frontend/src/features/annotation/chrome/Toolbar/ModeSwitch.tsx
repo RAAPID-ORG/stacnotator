@@ -43,7 +43,6 @@ export function ModeSwitch({ campaign, hasTasks, policy }: ModeSwitchProps) {
       );
       return;
     }
-    if (outcome === 'saved') useWorkStore.getState().bumpVersion();
     setWorkMode(mode);
   };
 

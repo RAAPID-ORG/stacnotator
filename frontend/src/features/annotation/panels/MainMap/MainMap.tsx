@@ -4,18 +4,11 @@ import { pageKeymap } from '../../keymap';
 import { SliceCommentButton } from '../../chrome/SliceComments';
 import { useContainerSize } from '../../canvas/useContainerSize';
 import { hotkeyTip } from '../../hotkeys';
-import { extendedLabels } from '../../campaign/annotation';
 import { collectionsInView } from '../../campaign/imagery';
 import { computeTaskProgress } from '../../campaign/tasks';
-import { useDrawingInteractions } from '../../drawing';
+import { handleProbeClick, useDrawingInteractions } from '../../drawing';
 import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
-import {
-  composeLayers,
-  PROBE_LAYER_ID,
-  probeIndexOf,
-  type AnnotationTiles,
-  type ComposeState,
-} from '../../map/compose';
+import { composeLayers, type ComposeState } from '../../map/compose';
 import { MapView, type MapAnchor } from '../../map/MapView';
 import { setForegroundMapLoading, useForegroundLoading } from '../../map/tileLoading';
 import type { LonLat, MapClickEvent } from '../../map/types';
@@ -24,7 +17,7 @@ import { useImageryStore } from '../../stores/imagery';
 import { useLayoutStore } from '../../stores/layout';
 import { usePrefsStore } from '../../stores/prefs';
 import { useMapFocus, useTasksStore } from '../../stores/tasks';
-import { useTileVersion, useWorkStore } from '../../stores/work';
+import { MAX_PROBES, useSavedAnnotations, useWorkStore } from '../../stores/work';
 import { CollectionPicker } from './controls/CollectionPicker';
 import { CustomMapControls } from './controls/CustomMapControls';
 import { CustomMapLegend } from './controls/CustomMapLegend';
@@ -79,8 +72,18 @@ function ClearProbes() {
   );
 }
 
-function ProbeToggle({ title }: { title: string }) {
+/**
+ * Arm the probe tool, and add probes to it. The tool alone moves the probe you
+ * picked up - which is what comparing a place across dates needs - so dropping
+ * another one is its own control rather than a side effect of clicking again.
+ */
+function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
   const active = useWorkStore((s) => s.tool === 'timeseries');
+  const armed = useWorkStore((s) => s.probeAddArmed);
+  const atCap = useWorkStore((s) => s.probePoints.length >= MAX_PROBES);
+
+  const segment = 'flex h-6 items-center justify-center rounded-md cursor-pointer';
+  const off = 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500';
 
   return (
     <div className="flex items-center gap-0.5">
@@ -92,11 +95,7 @@ function ProbeToggle({ title }: { title: string }) {
         aria-label={title}
         title={title}
         data-testid="probe-toggle"
-        className={`flex h-6 w-6 items-center justify-center rounded-md cursor-pointer ${
-          active
-            ? 'bg-brand-600 text-white hover:bg-brand-700'
-            : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'
-        }`}
+        className={`${segment} w-6 ${active ? 'bg-brand-600 text-white hover:bg-brand-700' : off}`}
       >
         <svg
           width="13"
@@ -111,6 +110,21 @@ function ProbeToggle({ title }: { title: string }) {
           <circle cx="16" cy="16" r="4" />
           <path d="m19 19 3 3" strokeLinecap="round" />
         </svg>
+      </button>
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() => useWorkStore.getState().armAddProbe(!armed)}
+        aria-pressed={armed}
+        disabled={atCap}
+        aria-label={addTitle}
+        title={atCap ? `At most ${MAX_PROBES} probes at once` : addTitle}
+        data-testid="probe-add"
+        className={`${segment} w-4 text-[13px] font-semibold leading-none disabled:cursor-not-allowed disabled:opacity-40 ${
+          armed ? 'bg-brand-600 text-white hover:bg-brand-700' : off
+        }`}
+      >
+        +
       </button>
     </div>
   );
@@ -195,8 +209,14 @@ export function MainMapHeader() {
           showViewSync={windowCount > 1}
           viewSyncTitle={hotkeyTip(bindings, 'l')}
         />
-        {isTaskMode && campaign.time_series.length > 0 && (
-          <ProbeToggle title={hotkeyTip(bindings, 't')} />
+        {/* Both modes: Explore arms the tool from its palette too, but the
+            probes themselves live on this map, so this is where adding and
+            clearing them belongs. */}
+        {campaign.time_series.length > 0 && (
+          <ProbeToggle
+            title={hotkeyTip(bindings, 't')}
+            addTitle={hotkeyTip(bindings, 'shift+t', 'Add another probe')}
+          />
         )}
         <ClearProbes />
         {isTaskMode && <PreloadMenu />}
@@ -211,23 +231,17 @@ export function MainMapHeader() {
 }
 
 /**
- * A click on the task map, which probes that point's time series only while the
- * probe tool is armed - a bare click has to stay free to mean nothing, or every
- * attempt to look around moves the marker and refetches. The charts read the
- * point back through the shared probe point. Shift belongs to the box gestures,
- * so a click that carries it is not a click.
+ * A click on the task map, which probes only while the probe tool is armed - a
+ * bare click has to stay free to mean nothing, or every attempt to look around
+ * moves the marker and refetches. Shift belongs to the box gestures, so a
+ * click that carries it is not a click.
  */
 export function taskProbeClick(event: MapClickEvent): void {
-  const work = useWorkStore.getState();
-  if (event.shiftKey || work.tool !== 'timeseries') return;
-  const hit = event.layerId === PROBE_LAYER_ID ? probeIndexOf(event.featureId) : null;
-  if (hit !== null) work.removeProbePoint(hit);
-  else work.addProbePoint(event.lonLat);
-  work.completeProbe();
+  if (event.shiftKey || useWorkStore.getState().tool !== 'timeseries') return;
+  handleProbeClick(event);
 }
 
 export function MainMapBody() {
-  const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
   const imagery = useImageryStore();
@@ -242,7 +256,7 @@ export function MainMapBody() {
   const { interactions, onMapClick: drawingClick } = useDrawingInteractions();
   const onMapClick = mode === 'tasks' ? taskProbeClick : drawingClick;
   const probePoints = useWorkStore((s) => (s.probeMarkerHidden ? EMPTY_PROBES : s.probePoints));
-  const writes = useTileVersion();
+  const activeProbe = useWorkStore((s) => s.activeProbe);
   const focus = useMapFocus();
   const { containerRef, width, height } = useContainerSize();
   const [mapLoading, setMapLoading] = useState(false);
@@ -256,21 +270,22 @@ export function MainMapBody() {
   // while its questions are open, so its tile copy would double it.
   const draftSavedId = draftOpen ? draft.savedId : null;
 
-  const annotations = useMemo<AnnotationTiles>(() => {
-    // The feature being edited is drawn by the edit interaction instead, so
-    // the tile copy underneath it is hidden rather than doubled. Only the edit
-    // tool draws one: a selection made in Pan is inspected, not redrawn, and
-    // hiding its tile copy would make the annotation disappear.
+  // The feature being edited is drawn by the edit interaction instead, so the
+  // tile copy underneath it is hidden rather than doubled. Only the edit tool
+  // draws one: a selection made in Pan is inspected, not redrawn, and hiding
+  // its tile copy would make the annotation disappear.
+  const hiddenIds = useMemo(() => {
     const editDrawn = tool === 'edit' ? editingId : null;
     const hidden = [editDrawn, draftSavedId].filter((id) => id != null);
-    return {
-      // Every write the user makes after load has to bust the tile cache too.
-      version: (campaign.annotations_version ?? 0) + writes,
-      labels: extendedLabels(campaign),
-      hiddenIds: hidden.length > 0 ? hidden : undefined,
-      highlightIds: selection.length > 0 ? selection : undefined,
-    };
-  }, [campaign, writes, tool, editingId, draftSavedId, selection]);
+    return hidden.length > 0 ? new Set(hidden) : undefined;
+  }, [tool, editingId, draftSavedId]);
+
+  const highlightIds = useMemo(
+    () => (selection.length > 0 ? new Set(selection) : undefined),
+    [selection]
+  );
+
+  const annotations = useSavedAnnotations(hiddenIds, highlightIds);
 
   const draftFeatures = useMemo(
     () => (draftOpen ? [{ id: 'draft', geometry: draft.geometry }] : []),
@@ -289,6 +304,7 @@ export function MainMapBody() {
       draftFeatures,
       draftLabelId: draft.phase === 'idle' ? null : draft.labelId,
       probePoints,
+      activeProbe,
     };
     return composeLayers({ catalog, mode }, state);
   }, [
@@ -301,6 +317,7 @@ export function MainMapBody() {
     draftFeatures,
     draft,
     probePoints,
+    activeProbe,
   ]);
 
   // A fresh tuple each render would restart preloading forever (its enqueue
@@ -348,6 +365,10 @@ export function MainMapBody() {
         data-probe-lat={probePoints.at(-1)?.[1]}
         data-probe-count={probePoints.length}
         data-map-loading={mapLoading}
+        // How many annotations this map is drawing itself because the tiles do
+        // not carry them yet, and the version of the tiles it is drawing.
+        data-annotation-delta={annotations.delta?.ids.size ?? 0}
+        data-annotation-tiles-version={annotations.version}
         className="relative h-full min-w-0 flex-1"
       >
         <MapView

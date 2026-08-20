@@ -86,6 +86,7 @@ export function ViewControls({
           aria-pressed={viewSync}
           title={viewSyncTitle}
           data-testid="view-sync-toggle"
+          data-tour="view-sync"
           className={`${button} ${viewSync ? 'bg-brand-600 text-white hover:bg-brand-700' : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'}`}
         >
           <svg

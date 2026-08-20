@@ -81,6 +81,7 @@ export function Canvas({
   return (
     <div
       ref={setContainer}
+      data-tour="canvas"
       className={`relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden ${
         isStatic ? 'p-0' : fullscreen ? 'p-3' : 'p-1'
       } ${editingActive ? 'is-editing' : ''}`}

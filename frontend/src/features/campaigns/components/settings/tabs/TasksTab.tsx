@@ -18,6 +18,8 @@ import { Button } from '~/shared/ui/forms';
 
 interface Props {
   campaign: CampaignOut;
+  /** Members may read the task list; changing what is in it is an admin's. */
+  canManage: boolean;
   // Already filtered to the active scope by the page (single source of truth).
   scopedTasks: AnnotationTaskOut[];
   totalTasks: number;
@@ -50,6 +52,7 @@ interface Props {
 
 export const TasksTab: React.FC<Props> = ({
   campaign,
+  canManage,
   scopedTasks,
   totalTasks,
   taskFile,
@@ -191,22 +194,24 @@ export const TasksTab: React.FC<Props> = ({
           hideSetFilter
           embedded
           headerSlot={tasksTableHeading}
-          selectable
-          onOpenBulkAssign={onOpenBulkAssign}
-          onOpenReviewerAssign={onOpenReviewerAssign}
-          onAssignSelected={onAssignSelected}
-          onBatchUnassignTasks={handleBatchUnassignTasks}
-          onDeleteTasks={handleDeleteTasks}
-          onMoveTasks={onMoveTasks}
-          onCreateSet={onCreateSetScoped}
+          selectable={canManage}
+          onOpenBulkAssign={canManage ? onOpenBulkAssign : undefined}
+          onOpenReviewerAssign={canManage ? onOpenReviewerAssign : undefined}
+          onAssignSelected={canManage ? onAssignSelected : undefined}
+          onBatchUnassignTasks={canManage ? handleBatchUnassignTasks : undefined}
+          onDeleteTasks={canManage ? handleDeleteTasks : undefined}
+          onMoveTasks={canManage ? onMoveTasks : undefined}
+          onCreateSet={canManage ? onCreateSetScoped : undefined}
         />
       ) : (
         <>
           <div>{tasksTableHeading}</div>
           <p className="text-sm text-neutral-500">
-            {taskScope === 'all'
-              ? 'No annotation tasks yet. Select a set to upload or generate tasks.'
-              : 'No tasks in this set yet. Upload a file or generate tasks above.'}
+            {!canManage
+              ? 'No annotation tasks in this set yet.'
+              : taskScope === 'all'
+                ? 'No annotation tasks yet. Select a set to upload or generate tasks.'
+                : 'No tasks in this set yet. Upload a file or generate tasks above.'}
           </p>
         </>
       )}
@@ -224,9 +229,9 @@ export const TasksTab: React.FC<Props> = ({
           taskSets={taskSets}
           totalTasks={totalTasks}
           onSelect={onSelectScope}
-          onCreateSet={onCreateSetScoped}
-          onRenameSet={onRenameTaskSet}
-          onDeleteSet={onDeleteTaskSet}
+          onCreateSet={canManage ? onCreateSetScoped : undefined}
+          onRenameSet={canManage ? onRenameTaskSet : undefined}
+          onDeleteSet={canManage ? onDeleteTaskSet : undefined}
         />
       </section>
 
@@ -245,9 +250,9 @@ export const TasksTab: React.FC<Props> = ({
           </section>
         )}
 
-        {taskScope !== 'all' && addTasksSection}
+        {canManage && taskScope !== 'all' && addTasksSection}
 
-        {taskScope === 'all' && totalTasks > 0 && (
+        {canManage && taskScope === 'all' && totalTasks > 0 && (
           <TaskAssignmentsExportImport
             campaignId={campaignId}
             campaignName={campaign.name}

@@ -497,13 +497,27 @@ function mapBindings(): Binding[] {
       ? [
           {
             key: 't',
-            help: 'Timeseries probe tool - then click the map to probe a point',
+            help: 'Timeseries probe tool - then click the map to move the probe',
             run: () => useWorkStore.getState().toggleProbeTool(),
           },
         ]
       : [];
 
+  // Both modes: the tool moves the probe you picked up, so adding another is
+  // its own key rather than a different kind of click.
+  const addProbe: Binding[] =
+    campaign.time_series.length > 0
+      ? [
+          {
+            key: 'shift+t',
+            help: 'Add another timeseries probe',
+            run: () => useWorkStore.getState().armAddProbe(true),
+          },
+        ]
+      : [];
+
   return [
+    ...addProbe,
     scrub('a', 'Previous slice', () => imagery().stepSliceAction(catalog, -1)),
     scrub('d', 'Next slice', () => imagery().stepSliceAction(catalog, 1)),
     scrub('shift+a', 'Previous collection', () => imagery().stepCollectionAction(catalog, -1)),

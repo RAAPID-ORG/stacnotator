@@ -6,6 +6,7 @@ import {
   type AccessRequestOut,
 } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
+import { useOrganizationsStore } from '../stores/organizations.store';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export type AccessRequestsProps = {
@@ -45,6 +46,8 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
       if (approve) await approveOrganizationAccessRequest({ path });
       else await rejectOrganizationAccessRequest({ path });
       await load();
+      // The organization list carries the pending count the sidebar badges.
+      void useOrganizationsStore.getState().refresh();
     } catch (err) {
       handleError(err, approve ? 'Failed to approve request' : 'Failed to reject request');
     } finally {

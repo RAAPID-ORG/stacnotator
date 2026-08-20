@@ -10,9 +10,10 @@ interface Props {
   taskSets: TaskSetOut[];
   totalTasks: number;
   onSelect: (scope: TaskScope) => void;
-  onCreateSet: (name: string) => Promise<number | null>;
-  onRenameSet: (id: number, name: string) => Promise<void>;
-  onDeleteSet: (id: number) => Promise<boolean>;
+  /** Omitted for a viewer who may read the sets but not change them. */
+  onCreateSet?: (name: string) => Promise<number | null>;
+  onRenameSet?: (id: number, name: string) => Promise<void>;
+  onDeleteSet?: (id: number) => Promise<boolean>;
 }
 
 import { pillCls } from '~/shared/ui/pill';
@@ -46,8 +47,8 @@ export const TaskScopeBar = ({
     if (!name) return;
     setSaving(true);
     try {
-      const id = await onCreateSet(name);
-      if (id !== null) {
+      const id = await onCreateSet?.(name);
+      if (id != null) {
         setNewName('');
         setCreating(false);
         onSelect(id);
@@ -59,7 +60,7 @@ export const TaskScopeBar = ({
 
   const handleRename = async (set: TaskSetOut) => {
     const name = renameValue.trim();
-    if (name && name !== set.name) await onRenameSet(set.id, name);
+    if (name && name !== set.name) await onRenameSet?.(set.id, name);
     setRenamingId(null);
   };
 
@@ -67,7 +68,7 @@ export const TaskScopeBar = ({
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const deleted = await onDeleteSet(deleteTarget.id);
+      const deleted = await onDeleteSet?.(deleteTarget.id);
       if (deleted) onSelect('all');
     } finally {
       setDeleting(false);
@@ -108,7 +109,7 @@ export const TaskScopeBar = ({
             >
               {set.name} <span className="opacity-70 tabular-nums">({set.num_tasks})</span>
             </button>
-            {active && (
+            {active && onRenameSet && onDeleteSet && (
               <>
                 <button
                   type="button"
@@ -135,7 +136,7 @@ export const TaskScopeBar = ({
           </span>
         );
       })}
-      {creating ? (
+      {!onCreateSet ? null : creating ? (
         <span className="flex items-center gap-1">
           <input
             value={newName}

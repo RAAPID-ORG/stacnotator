@@ -12,8 +12,10 @@ class OrganizationOut(BaseModel):
     description: str | None = None
     status: str
     allows_internal_storage: bool
-    # Viewer-relative flag, filled by the service.
+    # Viewer-relative flags, filled by the service. The count is the admin's
+    # to-do list (access requests waiting on them) and stays 0 for everyone else.
     is_admin: bool = False
+    pending_access_requests: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

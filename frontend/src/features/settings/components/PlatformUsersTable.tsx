@@ -125,7 +125,7 @@ export const PlatformUsersTable = ({
                 Email
               </th>
               <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                Display name
+                Username
               </th>
               <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
                 Role

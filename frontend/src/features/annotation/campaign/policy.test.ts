@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { PolicyAudience } from '~/api/client';
-import { isAudienceMember, type PolicyContext } from './annotation';
+import { canModifyAnnotation, isAudienceMember, type PolicyContext } from './annotation';
 
 const USER = 'user-1';
 const OTHER = 'user-2';
@@ -89,5 +89,26 @@ describe('isAudienceMember', () => {
     expect(isAudienceMember(a, ctx({ userId: USER, isAdmin: true }))).toBe(true);
     expect(isAudienceMember(a, ctx({ userId: OTHER, isAdmin: false }))).toBe(true);
     expect(isAudienceMember(a, ctx({ userId: 'user-3', isAdmin: false }))).toBe(false);
+  });
+});
+
+describe('canModifyAnnotation', () => {
+  const mine = { created_by_user_id: USER };
+  const theirs = { created_by_user_id: OTHER };
+
+  it('lets an author change their own annotation', () => {
+    expect(canModifyAnnotation(mine, ctx())).toBe(true);
+  });
+
+  it("keeps a plain member off someone else's annotation", () => {
+    expect(canModifyAnnotation(theirs, ctx({ isMember: true }))).toBe(false);
+  });
+
+  it("lets a campaign admin change anyone's", () => {
+    expect(canModifyAnnotation(theirs, ctx({ isAdmin: true }))).toBe(true);
+  });
+
+  it('treats a viewer with no identity as nobody', () => {
+    expect(canModifyAnnotation(theirs, ctx({ userId: null }))).toBe(false);
   });
 });

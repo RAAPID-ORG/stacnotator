@@ -44,8 +44,9 @@ describe('TourOverlay', () => {
     renderTour();
 
     // Walk to the "Practice: Navigate Slices" step.
-    for (let i = 0; i < 6; i++) fireEvent.click(screen.getByTestId('tour-next'));
-    expect(screen.getByText('Practice: Navigate Slices')).toBeDefined();
+    while (screen.queryByText('Practice: Navigate Slices') === null) {
+      fireEvent.click(screen.getByTestId('tour-next'));
+    }
     expect(screen.getByTestId('tour-action-hint').getAttribute('data-fulfilled')).toBe('false');
     expect(screen.getByTestId('tour-next').hasAttribute('disabled')).toBe(true);
 

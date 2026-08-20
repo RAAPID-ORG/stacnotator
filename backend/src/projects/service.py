@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -210,10 +210,13 @@ def update_project(
 
 
 def delete_project(db: Session, project_id: int) -> None:
-    """Deletes the project and, via cascade, all its campaigns. Annotation
-    geometries have no campaign FK, so orphans are swept explicitly."""
-    project = _get_project(db, project_id)
-    db.delete(project)
+    """Deletes the project and, via the database's own cascade, all its
+    campaigns and everything under them. Deleting the ORM object instead would
+    load every task and annotation into the session and delete them one
+    statement at a time. Annotation geometries have no campaign FK, so orphans
+    are swept explicitly."""
+    _get_project(db, project_id)
+    db.execute(delete(Project).where(Project.id == project_id))
     delete_orphan_geometries(db)
     db.commit()
 

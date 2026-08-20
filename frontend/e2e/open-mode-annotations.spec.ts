@@ -246,6 +246,22 @@ test.describe('Creating annotations', () => {
     expect(body.label_id).toBe(3);
   });
 
+  // The shape is drawn from local state and the loaded tiles are left alone,
+  // which is what keeps drawing a run of annotations steady.
+  test('a saved shape is drawn without refetching the annotation tiles', async ({
+    annotationPage,
+  }) => {
+    const map = annotationPage.locator('[data-annotation-tiles-version]');
+    const version = await map.getAttribute('data-annotation-tiles-version');
+    await expect(map).toHaveAttribute('data-annotation-delta', '0');
+
+    await annotationPage.keyboard.press('1');
+    await Promise.all([waitForCreate(annotationPage), clickMapCenter(annotationPage)]);
+
+    await expect(map).toHaveAttribute('data-annotation-delta', '1');
+    await expect(map).toHaveAttribute('data-annotation-tiles-version', version ?? '');
+  });
+
   test('drawing does not change the active imagery', async ({ annotationPage }) => {
     const layerBtn = annotationPage.locator('[data-tour="layer-selector"] button').first();
     const before = await layerBtn.textContent();

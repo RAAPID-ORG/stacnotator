@@ -7,7 +7,7 @@ import {
   projectsPath,
 } from '~/app/routes';
 import { useOrgStore } from '~/shared/stores/org.store';
-import { Badge } from '~/shared/ui/Badge';
+import { Badge, CountBadge } from '~/shared/ui/Badge';
 import { IconBuilding, IconCheck, IconChevronDown, IconGear, IconPlus } from '~/shared/ui/Icons';
 import { useOrganizations } from '../hooks/useOrganizations';
 import { reconcileActiveOrgId } from '../utils/organizations';
@@ -156,9 +156,14 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                   navigate(organizationPath(activeOrg.id));
                   onNavigate?.();
                 }}
-                className="flex h-8 w-8 shrink-0 items-center justify-center text-neutral-500 rounded-md cursor-pointer transition-colors hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
+                className="relative flex h-8 w-8 shrink-0 items-center justify-center text-neutral-500 rounded-md cursor-pointer transition-colors hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
               >
                 <IconGear className="w-3.5 h-3.5" />
+                <CountBadge
+                  count={activeOrg.pending_access_requests ?? 0}
+                  label="access requests"
+                  className="absolute right-0 top-0"
+                />
               </button>
             )}
           </div>
@@ -203,6 +208,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                   >
                     {org.name}
                   </span>
+                  <CountBadge count={org.pending_access_requests ?? 0} label="access requests" />
                   {org.status === 'pending' && <Badge tone="yellow">Pending</Badge>}
                 </button>
               ))}

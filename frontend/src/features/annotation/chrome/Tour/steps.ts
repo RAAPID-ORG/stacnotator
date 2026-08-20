@@ -9,6 +9,9 @@ const imagerySelector = { kind: 'anchor', name: 'imagery-selector' } as const;
 const taskFilter = { kind: 'anchor', name: 'task-filter' } as const;
 const mapControls = { kind: 'anchor', name: 'map-controls' } as const;
 const collectionPicker = { kind: 'anchor', name: 'collection-picker' } as const;
+const slicePicker = { kind: 'anchor', name: 'slice-picker' } as const;
+const viewSync = { kind: 'anchor', name: 'view-sync' } as const;
+const canvas = { kind: 'anchor', name: 'canvas' } as const;
 const layerSelector = { kind: 'anchor', name: 'layer-selector' } as const;
 const reviewToggle = { kind: 'anchor', name: 'review-toggle' } as const;
 const layoutControls = { kind: 'anchor', name: 'layout-controls' } as const;
@@ -18,7 +21,7 @@ const googleEarth = { kind: 'anchor', name: 'open-in-google-earth' } as const;
 const mainMap = { kind: 'panel', id: 'main' } as const;
 const minimap = { kind: 'panel', id: 'minimap' } as const;
 const controls = { kind: 'panel', id: 'controls' } as const;
-const imageryWindows = { kind: 'role', name: 'imagery-windows' } as const;
+const imageryWindows = { kind: 'role', name: 'imagery-window' } as const;
 const timeseries = { kind: 'role', name: 'timeseries' } as const;
 
 const WINDOWS_VS_SLICES = [
@@ -34,6 +37,21 @@ const ZOOM_AND_PAN: Pick<TourStep, 'body' | 'hint' | 'requiredKeys' | 'placement
   hint: 'Try Alt and the up arrow to zoom in, then Alt and the down arrow to zoom back out.',
   requiredKeys: ['alt+arrowup', 'alt+arrowdown'],
   placement: 'bottom',
+};
+
+/** Entering it steps forward first when the workspace sits on the very first
+ *  slice, so pressing A is a real move rather than a silent no-op. */
+const SLICE_PRACTICE_STEP: TourStep = {
+  id: 'practice-slices',
+  target: [slicePicker, mainMap],
+  title: 'Practice: Navigate Slices',
+  body: [
+    'Press {{a}} to go to the previous slice and {{d}} to go to the next slice. The slice picker follows along, so you can see where you are.',
+  ],
+  hint: 'Try pressing A and then D, so you have moved in both directions.',
+  placement: 'bottom',
+  requiredKeys: ['a', 'd'],
+  effect: 'slice-headroom',
 };
 
 const SOURCE_SWITCHING_BODY = [
@@ -67,10 +85,10 @@ const HELP_STEP: TourStep = {
 
 const RESIZE_STEP: TourStep = {
   id: 'practice-resize',
-  target: layoutControls,
+  target: [canvas, layoutControls],
   title: 'Practice: Resize Panels',
   body: [
-    "We've enabled Edit Layout mode for you. Try dragging a panel header to move it, or drag the edges of a panel to resize it.",
+    "We've enabled Edit Layout mode for you. Try dragging a panel header to move it, or drag a panel's edge or corner to resize it - every panel on the canvas is draggable and resizable right now.",
     "When you're done, click Save to keep the layout, or Cancel to discard your changes.",
   ],
   placement: 'bottom',
@@ -96,15 +114,6 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       body: [
         'This guided tour will walk you through all the key features of the annotation workspace.',
         'Almost every action has a keyboard shortcut, making your workflow fast and seamless. We recommend trying to use only the keyboard for a better experience.',
-      ],
-      placement: 'bottom',
-    },
-    {
-      id: 'canvas-views',
-      target: imagerySelector,
-      title: 'Canvas Views',
-      body: [
-        'Use this dropdown to switch between the different canvas views configured for this campaign. Each view may have its own imagery collections, slices, and visualization layers and help you to organize different imagery sources meaningfully.',
       ],
       placement: 'bottom',
     },
@@ -137,20 +146,12 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
     },
     {
       id: 'windows-vs-slices',
-      target: collectionPicker,
+      target: slicePicker,
       title: 'Collections vs Slices',
       body: WINDOWS_VS_SLICES,
       placement: 'bottom',
     },
-    {
-      id: 'practice-slices',
-      target: mainMap,
-      title: 'Practice: Navigate Slices',
-      body: ['Press {{a}} to go to the previous slice and {{d}} to go to the next slice.'],
-      hint: 'Try pressing A and then D to move in both directions.',
-      placement: 'bottom',
-      requiredKeys: ['a', 'd'],
-    },
+    SLICE_PRACTICE_STEP,
     {
       id: 'practice-windows',
       target: collectionPicker,
@@ -158,9 +159,10 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       body: [
         'Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection. Often you will want to browse imagery in these bigger steps rather than individually by slice, as the first slice (cover slice) is often representative of the whole collection. These are also preloaded at your default zoom-level to make your workflow faster. Set the default zoom in campaign settings for the best experience.',
       ],
-      hint: 'Try pressing Shift+A and then Shift+D to navigate both directions.',
+      hint: 'Try pressing Shift+A and then Shift+D, so you have navigated in both directions.',
       placement: 'bottom',
       requiredKeys: ['shift+a', 'shift+d'],
+      effect: 'collection-headroom',
     },
     {
       id: 'hold-to-cycle',
@@ -181,7 +183,9 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
         { text: 'Layer / Collection / Slice selectors - switch imagery directly' },
         { text: 'Recenter - snap back to the task location ({{ }})' },
         { text: 'Crosshair - toggle the crosshair overlay ({{x}})' },
-        { text: 'Timeseries probe - click the map to inspect the time series of that point' },
+        {
+          text: 'Timeseries probe - click the map to move the probe, + to drop another one to compare',
+        },
       ],
       placement: 'bottom',
     },
@@ -215,7 +219,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
     },
     {
       id: 'view-sync',
-      target: mapControls,
+      target: viewSync,
       title: 'Imagery Panel Sync (View Link)',
       body: [
         'Press {{l}} to toggle view sync. When enabled, all imagery panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
@@ -231,7 +235,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
             title: 'Time Series Chart',
             body: [
               'The time series chart shows spectral indices (e.g. NDVI) for the task location over time. Vertical bars indicate the currently selected collection/slice.',
-              'Use the timeseries probe tool in the map controls to click anywhere on the map and see its time series.',
+              'Arm the timeseries probe in the map controls, then click the map to move the probe there. The + beside it drops a second probe so two places can be compared, and clicking a probe again takes it off the chart.',
               'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides observations that were flagged as cloud-covered, and Smooth applies a Savitzky-Golay filter to the curve so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
             ],
             placement: 'left' as const,
@@ -294,7 +298,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       target: layerSelector,
       title: 'Switching Visualization Layers',
       body: [
-        'Inside the same dropdown, each source expands to its visualization layers (e.g. True Color, False Color, NDVI). Pick one to change how the current source is rendered. {{shift+i}} cycles through them.',
+        "The same dropdown lists every source as a heading with its own visualization layers underneath (e.g. True Color, False Color, NDVI). Pick one to change how that source is rendered. {{shift+i}} cycles through the current source's visualizations.",
         'Note: visualization options are only available for sources that have them configured. Basemaps typically do not have multiple visualizations - only sources like Sentinel-2 with pre-configured band combinations will show visualization options.',
       ],
       placement: 'left',
@@ -316,6 +320,15 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
         {
           text: 'Review list (list icon) - navigates to a dedicated review page with a table overview of all annotations, agreement statistics, and filtering options.',
         },
+      ],
+      placement: 'bottom',
+    },
+    {
+      id: 'canvas-views',
+      target: imagerySelector,
+      title: 'Canvas Views',
+      body: [
+        'Use this dropdown to switch between the different canvas views configured for this campaign. Each view may have its own imagery collections, slices, and visualization layers and help you to organize different imagery sources meaningfully.',
       ],
       placement: 'bottom',
     },
@@ -365,16 +378,6 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       placement: 'bottom',
     },
     {
-      id: 'canvas-view',
-      target: imagerySelector,
-      title: 'Canvas View',
-      body: [
-        'This dropdown selects the active canvas view. A view is a campaign-level grouping that defines which imagery sources and collections are shown together - think of it as a preset for the whole annotation workspace.',
-        'Switching views may change the available collections, slices, imagery sources, and visualization layers all at once.',
-      ],
-      placement: 'bottom',
-    },
-    {
       id: 'collection-picker',
       target: collectionPicker,
       title: 'Collection Picker',
@@ -385,7 +388,7 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
     },
     {
       id: 'windows-vs-slices',
-      target: collectionPicker,
+      target: slicePicker,
       title: 'Collections & Slices',
       body: WINDOWS_VS_SLICES,
       placement: 'bottom',
@@ -400,15 +403,7 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       ],
       placement: 'top',
     },
-    {
-      id: 'practice-slices',
-      target: mainMap,
-      title: 'Practice: Navigate Slices',
-      body: ['Press {{a}} to go to the previous slice and {{d}} to go to the next slice.'],
-      hint: 'Try pressing A and then D to move in both directions.',
-      placement: 'bottom',
-      requiredKeys: ['a', 'd'],
-    },
+    SLICE_PRACTICE_STEP,
     {
       id: 'practice-windows',
       target: collectionPicker,
@@ -416,9 +411,10 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       body: [
         'Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection.',
       ],
-      hint: 'Try pressing Shift+A and then Shift+D to navigate both directions.',
+      hint: 'Try pressing Shift+A and then Shift+D, so you have navigated in both directions.',
       placement: 'bottom',
       requiredKeys: ['shift+a', 'shift+d'],
+      effect: 'collection-headroom',
     },
     {
       id: 'imagery-sources',
@@ -432,14 +428,14 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       target: layerSelector,
       title: 'Switching Visualization Layers',
       body: [
-        'Inside the same dropdown, each source expands to its visualization layers (e.g. True Color, False Color, NDVI). Pick one to change how the current source is rendered. {{shift+i}} cycles through them.',
+        "The same dropdown lists every source as a heading with its own visualization layers underneath (e.g. True Color, False Color, NDVI). Pick one to change how that source is rendered. {{shift+i}} cycles through the current source's visualizations.",
         'Note: the canvas view dropdown in the toolbar selects which view is active, while these controls switch the imagery source and visualization within that view.',
       ],
       placement: 'left',
     },
     {
       id: 'view-sync',
-      target: mapControls,
+      target: viewSync,
       title: 'Imagery Panel Sync (View Link)',
       body: [
         'Press {{l}} to toggle view sync. When enabled, all imagery panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
@@ -455,6 +451,7 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
         hasTimeseries
           ? 'This is your drawing canvas. Use the tools ({{p}}, {{r}}, {{e}}, {{b}}, {{t}}) to pan, annotate, edit features, label vector features, or probe time series. Use the mouse wheel to zoom and click-drag to pan.'
           : 'This is your drawing canvas. Use the tools ({{p}}, {{r}}, {{e}}, {{b}}) to pan, annotate, edit features, or label vector features. Use the mouse wheel to zoom and click-drag to pan.',
+        'Press {{ }} to fit the view to everything you have drawn.',
       ],
       placement: 'right',
     },
@@ -463,14 +460,15 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       target: controls,
       title: 'Annotation Controls',
       body: [
-        'Select a label, choose your drawing tool, and start annotating. The labels section shows the available annotation classes and their geometry types (point, polygon, line).',
-        'Press the number keys 1-9 to quickly select a label and switch to the annotate tool.',
+        "We've armed the Annotate tool so the labels are on screen: the labels section lists the campaign's annotation classes and their geometry types (point, polygon, line).",
+        'Pick a label, then draw on the map. The number keys 1-9 select a label and arm the annotate tool in one go.',
       ],
       placement: 'left',
+      effect: 'annotate-tool',
     },
     {
       id: 'practice-tools',
-      target: mainMap,
+      target: [controls, mainMap],
       title: 'Practice: Tool Switching',
       body: [
         hasTimeseries
@@ -481,23 +479,13 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       placement: 'bottom',
       requiredKeys: toolKeys,
     },
-    {
-      id: 'navigate-annotations',
-      target: controls,
-      title: 'Navigating Annotations',
-      body: [
-        'Once you have created annotations, use the Prev / Next buttons in the controls panel to step through them. The map will zoom to each one.',
-        'Press {{ }} to fit the view to all your annotations.',
-      ],
-      placement: 'left',
-    },
     { id: 'practice-zoom', target: mainMap, title: 'Practice: Zoom & Pan', ...ZOOM_AND_PAN },
     {
       id: 'minimap',
       target: minimap,
       title: 'Minimap',
       body: [
-        "The minimap gives you a bird's-eye overview of the campaign area. In Explore you can drag inside the minimap to move the main map to a different part of the campaign area.",
+        "The minimap gives you a bird's-eye overview of the campaign area. Click anywhere in it to move the main map there - it keeps the main map's current zoom level, so you jump across the campaign area without changing scale. Dragging the viewport rectangle does the same.",
         'The header shows the coordinates of the current viewport center (where the crosshair sits). Click the copy icon to copy them to your clipboard, or click the link icon to open the location in Google Earth.',
       ],
       placement: 'left',
@@ -521,13 +509,23 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
             target: timeseries,
             title: 'Time Series Chart',
             body: [
-              'The time series chart shows spectral indices (e.g. NDVI) over time. Use the Timeseries tool ({{t}}) and click anywhere on the map to load its time series.',
+              'The time series chart shows spectral indices (e.g. NDVI) over time. Arm the Timeseries tool ({{t}}) and click the map to move the probe there; + in the map header (or {{shift+t}}) drops another one so two places can be compared.',
               'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides cloud-flagged observations, and Smooth applies a Savitzky-Golay filter so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
             ],
             placement: 'left' as const,
           },
         ]
       : []),
+    {
+      id: 'canvas-view',
+      target: imagerySelector,
+      title: 'Canvas View',
+      body: [
+        'This dropdown selects the active canvas view. A view is a campaign-level grouping that defines which imagery sources and collections are shown together - think of it as a preset for the whole annotation workspace.',
+        'Switching views may change the available collections, slices, imagery sources, and visualization layers all at once.',
+      ],
+      placement: 'bottom',
+    },
     LAYOUT_STEP,
     RESIZE_STEP,
     GUIDE_STEP,

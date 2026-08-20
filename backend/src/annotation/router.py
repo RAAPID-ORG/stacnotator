@@ -1,6 +1,7 @@
 import io
 import json
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import StreamingResponse
@@ -10,6 +11,8 @@ from sqlalchemy.orm import Session
 from src.annotation import claims, embeddings_service, export, ingest, service, spatial
 from src.annotation.models import Annotation
 from src.annotation.schemas import (
+    AnnotationChangeOut,
+    AnnotationChangesOut,
     AnnotationCreate,
     AnnotationDensityCell,
     AnnotationFromTaskCreate,
@@ -503,6 +506,37 @@ def get_annotation_ids_in_bbox(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return spatial.get_annotation_ids_in_bbox(
         db, campaign.id, minx, miny, maxx, maxy, include_tasks=include_tasks
+    )
+
+
+@router.get(
+    "/campaigns/{campaign_id}/annotations/changes",
+    response_model=AnnotationChangesOut,
+)
+def get_annotation_changes(
+    campaign_id: int,
+    since: datetime | None = None,
+    include_tasks: bool = True,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> AnnotationChangesOut:
+    """Annotations created or edited since ``since``, for the open-mode poll.
+
+    Lets one annotator pick up another's work without either refetching tiles.
+    Without ``since`` it only hands back the cursor to poll with next, which is
+    what an arriving client does: everything before it is already in the tiles
+    it just loaded.
+    """
+    now = spatial.server_now(db)
+    if since is None:
+        return AnnotationChangesOut(server_time=now, changes=[], truncated=False)
+    rows, truncated = spatial.get_annotation_changes(
+        db, campaign.id, since, include_tasks=include_tasks
+    )
+    return AnnotationChangesOut(
+        server_time=now,
+        changes=[AnnotationChangeOut(**row) for row in rows],
+        truncated=truncated,
     )
 
 

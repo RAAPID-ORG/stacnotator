@@ -178,11 +178,7 @@ export const CampaignOverviewPage = () => {
                   onOpen={() =>
                     navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks`)
                   }
-                  onManage={
-                    isAdmin
-                      ? () => navigate(campaignPath(projectId, campaignId, 'tasks'))
-                      : undefined
-                  }
+                  onView={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
                 />
               </MotionListItem>
               {taskSets.map((set, index) => (
@@ -194,13 +190,8 @@ export const CampaignOverviewPage = () => {
                         `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks&taskSet=${set.id}`
                       )
                     }
-                    onManage={
-                      isAdmin
-                        ? () =>
-                            navigate(
-                              `${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`
-                            )
-                        : undefined
+                    onView={() =>
+                      navigate(`${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`)
                     }
                   />
                 </MotionListItem>
@@ -217,12 +208,14 @@ const AllTasksCard = ({
   totalLabeled,
   totalTasks,
   onOpen,
-  onManage,
+  onView,
 }: {
   totalLabeled: number;
   totalTasks: number;
   onOpen: () => void;
-  onManage?: () => void;
+  // The task list is readable by every campaign member; what it offers to do
+  // with the tasks is what admin rights gate, inside the page itself.
+  onView: () => void;
 }) => {
   const percent = Math.round((totalLabeled / totalTasks) * 100);
 
@@ -248,11 +241,9 @@ const AllTasksCard = ({
           <Button onClick={onOpen} className="flex-1">
             Annotate
           </Button>
-          {onManage && (
-            <Button variant="secondary" onClick={onManage} className="flex-1">
-              View
-            </Button>
-          )}
+          <Button variant="secondary" onClick={onView} className="flex-1">
+            View
+          </Button>
         </div>
       </div>
     </div>
@@ -262,11 +253,11 @@ const AllTasksCard = ({
 const TaskSetCard = ({
   taskSet,
   onOpen,
-  onManage,
+  onView,
 }: {
   taskSet: TaskSetOut;
   onOpen: () => void;
-  onManage?: () => void;
+  onView: () => void;
 }) => {
   const isEmpty = taskSet.num_tasks === 0;
   const percent = isEmpty ? 0 : Math.round((taskSet.num_labeled / taskSet.num_tasks) * 100);
@@ -294,11 +285,9 @@ const TaskSetCard = ({
           <Button onClick={onOpen} className="flex-1" disabled={isEmpty}>
             {isEmpty ? 'No tasks' : 'Annotate'}
           </Button>
-          {onManage && (
-            <Button variant="secondary" onClick={onManage} className="flex-1">
-              View
-            </Button>
-          )}
+          <Button variant="secondary" onClick={onView} className="flex-1">
+            View
+          </Button>
         </div>
       </div>
     </div>

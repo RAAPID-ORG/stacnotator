@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reconcileActiveOrgId } from './organizations';
+import { pendingAdminActions, reconcileActiveOrgId } from './organizations';
 
 const approved = (id: number) => ({ id, status: 'approved' });
 const pending = (id: number) => ({ id, status: 'pending' });
@@ -40,5 +40,33 @@ describe('reconcileActiveOrgId', () => {
 
   it('leaves an explicit no-organization choice alone', () => {
     expect(reconcileActiveOrgId([approved(1), approved(2)], null, true)).toBeNull();
+  });
+});
+
+describe('pendingAdminActions', () => {
+  const orgs = [
+    { status: 'approved', is_admin: true, pending_access_requests: 2 },
+    { status: 'approved', is_admin: true, pending_access_requests: 1 },
+    { status: 'pending', is_admin: false },
+  ];
+
+  it('adds up the access requests waiting on the viewer', () => {
+    expect(pendingAdminActions(orgs, false)).toEqual({
+      accessRequests: 3,
+      organizationApprovals: 0,
+      total: 3,
+    });
+  });
+
+  it('counts organizations waiting for approval only for platform admins', () => {
+    expect(pendingAdminActions(orgs, true)).toEqual({
+      accessRequests: 3,
+      organizationApprovals: 1,
+      total: 4,
+    });
+  });
+
+  it('is zero when nothing is waiting', () => {
+    expect(pendingAdminActions([{ status: 'approved' }], true).total).toBe(0);
   });
 });

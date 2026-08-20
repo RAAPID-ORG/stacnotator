@@ -215,12 +215,23 @@ describe('tour steps content', () => {
   });
 
   it('targets panels by id rather than a CSS selector', () => {
-    const targets = buildTourSteps('tasks', { hasTimeseries: true }).map((s) => s.target);
+    const targets = buildTourSteps('tasks', { hasTimeseries: true }).flatMap((s) =>
+      Array.isArray(s.target) ? s.target : [s.target]
+    );
     expect(targets.some((t) => t.kind === 'panel' && t.id === 'main')).toBe(true);
     expect(targets.some((t) => t.kind === 'panel' && t.id === 'controls')).toBe(true);
     for (const target of targets) {
       const name = target.kind === 'panel' ? target.id : target.name;
       expect(name).not.toContain('[');
+    }
+  });
+
+  it('opens on a plain step and closes on the canvas view, not the other way round', () => {
+    for (const variant of ['tasks', 'explore'] as const) {
+      const steps = buildTourSteps(variant, { hasTimeseries: true });
+      expect(steps[0].id).toBe('welcome');
+      const viewStep = steps.findIndex((s) => s.id.startsWith('canvas-view'));
+      expect(viewStep).toBeGreaterThan(steps.length / 2);
     }
   });
 });

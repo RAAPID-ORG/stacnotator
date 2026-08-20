@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import NamedTuple
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -118,19 +119,51 @@ def reject_organization(db: Session, organization_id: int) -> Organization:
     return org
 
 
-def list_organizations_for_user(db: Session, user: User) -> list[tuple[Organization, bool]]:
-    """(org, viewer_is_org_admin) pairs. Platform admins see every org
-    (flagged admin); others see only orgs they belong to."""
-    if user.is_admin:
-        orgs = db.scalars(select(Organization).order_by(Organization.created_at)).all()
-        return [(org, True) for org in orgs]
+class OrganizationListing(NamedTuple):
+    """An organization as one viewer sees it: the row, whether they administer
+    it, and how much work it is waiting on them for."""
+
+    organization: Organization
+    is_admin: bool
+    pending_access_requests: int
+
+
+def pending_access_request_counts(db: Session, organization_ids: list[int]) -> dict[int, int]:
+    """Access requests waiting on an admin, per organization. Ids with none are
+    absent from the mapping."""
+    if not organization_ids:
+        return {}
     rows = db.execute(
-        select(Organization, OrganizationUser.is_admin)
-        .join(OrganizationUser, OrganizationUser.organization_id == Organization.id)
-        .where(OrganizationUser.user_id == user.id)
-        .order_by(Organization.created_at)
+        select(OrganizationUser.organization_id, func.count())
+        .where(
+            OrganizationUser.organization_id.in_(organization_ids),
+            OrganizationUser.status == MEMBER_STATUS_PENDING,
+        )
+        .group_by(OrganizationUser.organization_id)
     ).all()
-    return [(org, bool(is_admin)) for org, is_admin in rows]
+    return {organization_id: count for organization_id, count in rows}
+
+
+def list_organizations_for_user(db: Session, user: User) -> list[OrganizationListing]:
+    """Platform admins see every org (flagged admin); others see only orgs they
+    belong to. The pending-request count is only filled for orgs the viewer
+    administers - it is a to-do list, and only admins can act on it."""
+    if user.is_admin:
+        orgs = list(db.scalars(select(Organization).order_by(Organization.created_at)).all())
+        admin_of = [org.id for org in orgs]
+    else:
+        rows = db.execute(
+            select(Organization, OrganizationUser.is_admin)
+            .join(OrganizationUser, OrganizationUser.organization_id == Organization.id)
+            .where(OrganizationUser.user_id == user.id)
+            .order_by(Organization.created_at)
+        ).all()
+        orgs = [org for org, _ in rows]
+        admin_of = [org.id for org, is_admin in rows if is_admin]
+
+    admin_ids = set(admin_of)
+    pending = pending_access_request_counts(db, admin_of)
+    return [OrganizationListing(org, org.id in admin_ids, pending.get(org.id, 0)) for org in orgs]
 
 
 def membership_standing(status: str | None) -> MembershipStanding:

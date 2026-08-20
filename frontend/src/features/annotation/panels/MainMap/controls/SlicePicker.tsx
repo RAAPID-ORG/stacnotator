@@ -27,11 +27,13 @@ export function SlicePicker({ catalog, title }: { catalog: ImageryCatalog; title
   });
 
   return (
-    <HeaderSelect
-      value={address.sliceIndex}
-      options={options}
-      onChange={(v: string | number) => setAddress(addressAtSlice(catalog, address, Number(v)))}
-      title={title}
-    />
+    <span data-tour="slice-picker">
+      <HeaderSelect
+        value={address.sliceIndex}
+        options={options}
+        onChange={(v: string | number) => setAddress(addressAtSlice(catalog, address, Number(v)))}
+        title={title}
+      />
+    </span>
   );
 }

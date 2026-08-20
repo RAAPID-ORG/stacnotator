@@ -6,6 +6,7 @@ are raw SQL executed against PostGIS; these tests capture the statement a fake
 session receives rather than standing up a database.
 """
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -79,3 +80,71 @@ def test_density_reports_where_the_annotations_are_not_the_cell_centre():
     assert "avg(ST_X(c))" in sql
     assert "avg(ST_Y(c))" in sql
     assert "GROUP BY floor(ST_X(c)" in sql
+
+
+# ---------------------------------------------------------------------------
+# The poll that lets one annotator see another's work
+# ---------------------------------------------------------------------------
+
+
+def _changes_session(rows):
+    db = MagicMock()
+    db.execute.return_value.mappings.return_value = rows
+    return db
+
+
+def _change_row(annotation_id: int):
+    return {
+        "id": annotation_id,
+        "label_id": 1,
+        "created_by_user_id": "11111111-1111-1111-1111-111111111111",
+        "geometry_wkt": "POINT(1 2)",
+    }
+
+
+CURSOR = datetime(2026, 8, 19, 10, 0, tzinfo=UTC)
+
+
+def test_changes_honour_the_task_filter():
+    db = _changes_session([_change_row(1)])
+    spatial.get_annotation_changes(db, 1, CURSOR, include_tasks=False)
+    assert TASK_ANNOTATION_EXCLUSION in _sql_of(db)
+
+
+def test_changes_look_back_past_the_cursor():
+    """A row is stamped when its transaction runs, not when it commits, so a
+    poll taken between the two would never see it again."""
+    db = _changes_session([])
+    spatial.get_annotation_changes(db, 1, CURSOR)
+    assert db.execute.call_args.args[1]["since"] < CURSOR
+
+
+def test_a_cursor_without_an_offset_is_read_as_utc():
+    """Not as the database session's local time, which would be hours of
+    annotations either way."""
+    db = _changes_session([])
+    spatial.get_annotation_changes(db, 1, CURSOR.replace(tzinfo=None))
+    assert db.execute.call_args.args[1]["since"].tzinfo is UTC
+
+
+def test_changes_report_more_waiting_than_the_limit():
+    db = _changes_session([_change_row(i) for i in range(3)])
+    changes, truncated = spatial.get_annotation_changes(db, 1, CURSOR, limit=2)
+
+    assert truncated
+    assert [c["id"] for c in changes] == [0, 1]
+
+
+def test_changes_carry_what_the_map_needs_to_draw_one():
+    db = _changes_session([_change_row(7)])
+    changes, truncated = spatial.get_annotation_changes(db, 1, CURSOR)
+
+    assert not truncated
+    assert changes == [
+        {
+            "id": 7,
+            "label_id": 1,
+            "created_by_user_id": "11111111-1111-1111-1111-111111111111",
+            "geometry_wkt": "POINT(1 2)",
+        }
+    ]

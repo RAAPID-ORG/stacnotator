@@ -44,9 +44,10 @@ router = APIRouter(
 )
 
 
-def _to_out(org: Organization, is_admin: bool) -> OrganizationOut:
+def _to_out(org: Organization, is_admin: bool, pending_access_requests: int = 0) -> OrganizationOut:
     out = OrganizationOut.model_validate(org)
     out.is_admin = is_admin
+    out.pending_access_requests = pending_access_requests
     return out
 
 
@@ -65,8 +66,10 @@ def list_organizations(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ):
-    pairs = service.list_organizations_for_user(db, user)
-    return OrganizationsListResponse(items=[_to_out(org, admin) for org, admin in pairs])
+    listings = service.list_organizations_for_user(db, user)
+    return OrganizationsListResponse(
+        items=[_to_out(*listing) for listing in listings],
+    )
 
 
 @router.get("/directory", response_model=OrganizationDirectoryResponse)

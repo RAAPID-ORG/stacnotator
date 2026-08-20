@@ -424,6 +424,32 @@ class AnnotationDensityCell(BaseModel):
     count: int
 
 
+class AnnotationChangeOut(BaseModel):
+    """One annotation another session created or edited, small enough to poll
+    for: the id the tiles use, what to paint it as, and its geometry."""
+
+    id: int
+    label_id: int | None = None
+    created_by_user_id: UUID
+    # WKT, like every other geometry this API hands out, so the client parses
+    # it with the one parser it already has.
+    geometry_wkt: str
+
+
+class AnnotationChangesOut(BaseModel):
+    """Annotations touched since a cursor, plus the cursor for the next poll.
+
+    ``server_time`` is the database clock, never the app's: it is compared
+    against ``updated_at``, which the database stamps. ``truncated`` means more
+    changed than a poll should carry, so the client refetches its tiles instead
+    of trying to catch up one annotation at a time.
+    """
+
+    server_time: datetime
+    changes: list[AnnotationChangeOut]
+    truncated: bool = False
+
+
 class BatchDeleteAnnotationsRequest(BaseModel):
     annotation_ids: list[int]
 

@@ -2,7 +2,7 @@ import io
 import zipfile
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -169,11 +169,16 @@ def duplicate_campaign(
 @router.get("/{campaign_id}/detailed", response_model=CampaignOutFull)
 def get_campaign_with_imagery_windows(
     campaign_id: int,
+    response: Response,
     campaign: Campaign = Depends(require_campaign_access),
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Get campaign with detailed imagery views and layouts (both default and personal)"""
+    # The annotation map busts its tile cache on this response's
+    # annotations_version, so a heuristically cached copy would leave every
+    # annotator looking at a stale map with nothing to show for it.
+    response.headers["Cache-Control"] = "no-store"
     campaign_with_layouts = service.get_campaign_full(db, campaign_id)
     out = CampaignOutFull.from_orm(campaign_with_layouts, user_id=user.id)
     return _with_viewer_roles(out, db, user, campaign_with_layouts.project_id)

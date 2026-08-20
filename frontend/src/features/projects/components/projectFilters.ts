@@ -19,10 +19,13 @@ interface FilterOptions {
   query?: string;
 }
 
-/** The filter the page starts on: members work inside their active
- *  organization; without one, only platform-public projects are browsable. */
-export const defaultProjectFilter = (activeOrgId: number | null): ProjectFilter =>
-  activeOrgId === null ? 'public' : 'mine';
+/** The filter the page starts on. Anyone who is already in a project lands on
+ *  their own work; only someone with none to show starts on the public list,
+ *  which is the one thing they can browse without an organization. */
+export const defaultProjectFilter = (
+  activeOrgId: number | null,
+  hasOwnProjects: boolean
+): ProjectFilter => (hasOwnProjects || activeOrgId !== null ? 'mine' : 'public');
 
 /** Access is already resolved by the backend, so these are presentation
  *  filters over what came back. With an active organization the filters scope

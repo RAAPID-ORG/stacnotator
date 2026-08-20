@@ -145,6 +145,11 @@ export class TilePreloader {
   }
 
   clear(): void {
+    // Queued tiles were never actually requested, so they leave the warm set
+    // with the queue. Without this they would come back counted as done the
+    // next time the same neighbourhood is enqueued - which is what made the
+    // upcoming-task bars jump to full on any change of date or collection.
+    this.forgetQueued(this.tileQueue);
     this.tileQueue = [];
     this.groups.clear();
     this.generation++;
@@ -217,12 +222,22 @@ export class TilePreloader {
 
   private dropQueued(matches: (tile: QueuedTile) => boolean): void {
     const kept: QueuedTile[] = [];
+    const dropped: QueuedTile[] = [];
     for (const tile of this.tileQueue) {
-      if (matches(tile)) this.countsFor(tile.groupId).total--;
-      else kept.push(tile);
+      if (matches(tile)) {
+        this.countsFor(tile.groupId).total--;
+        dropped.push(tile);
+      } else kept.push(tile);
     }
+    this.forgetQueued(dropped);
     this.tileQueue = kept;
     this.onProgress?.();
+  }
+
+  /** Take tiles that never left the queue back out of the warm set: nothing
+   *  fetched them, so nothing may report them as fetched. */
+  private forgetQueued(tiles: readonly QueuedTile[]): void {
+    for (const tile of tiles) this.preloaded.delete(tile.url);
   }
 
   private drain(): void {

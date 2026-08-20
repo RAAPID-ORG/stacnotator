@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { stepCollectionId, stepSlice } from '../../campaign/imageryNav';
+import { useCampaignStore } from '../../stores/campaign';
+import { useImageryStore } from '../../stores/imagery';
 import { useLayoutStore } from '../../stores/layout';
+import { useWorkStore } from '../../stores/work';
 import { helpRows, keyLabel, onAnyBinding } from '../../hotkeys';
 import {
   canAdvance,
@@ -50,12 +54,40 @@ function selectorFor(target: TourTarget): string {
   }
 }
 
-function findTarget(target: TourTarget): Element | null {
-  return document.querySelector(selectorFor(target));
+/** Every element a step lights up. A role matches all the panels that came
+ *  from that feature (all the imagery windows, not just the first). */
+function findTargets(target: TourStep['target']): Element[] {
+  const targets = Array.isArray(target) ? target : [target];
+  return targets.flatMap((one) =>
+    one.kind === 'role'
+      ? [...document.querySelectorAll(selectorFor(one))]
+      : [document.querySelector(selectorFor(one))].filter((el) => el !== null)
+  );
 }
 
 function sameBox(a: DOMRect, b: DOMRect): boolean {
   return a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
+}
+
+function sameBoxes(a: DOMRect[], b: DOMRect[]): boolean {
+  return a.length === b.length && a.every((box, i) => sameBox(box, b[i]));
+}
+
+/** The workspace usually opens on the first slice/collection, where "previous"
+ *  is a no-op: step forward once so a practice step's two directions both do
+ *  something. */
+function ensureHeadroom(scale: 'slice' | 'collection'): void {
+  const catalog = useCampaignStore.getState().catalog;
+  const imagery = useImageryStore.getState();
+  const address = imagery.address;
+  if (!catalog || !address) return;
+  const canGoBack =
+    scale === 'slice'
+      ? stepSlice(catalog, address, -1, imagery.empties) !== null
+      : stepCollectionId(catalog, address, -1) !== null;
+  if (canGoBack) return;
+  if (scale === 'slice') imagery.stepSliceAction(catalog, 1);
+  else imagery.stepCollectionAction(catalog, 1);
 }
 
 function KeyChip({ spec }: { spec: string }) {
@@ -137,7 +169,8 @@ function StepBody({ step }: { step: TourStep }) {
 /** What the step still wants, shown under the copy. */
 function ActionHint({ step, state }: { step: TourStep; state: TourState }) {
   const done = state.fulfilled;
-  if (!step.requiredKeys && !step.requiredClick && !step.effect) return null;
+  const waitsForLayoutEdit = step.effect === 'edit-layout';
+  if (!step.requiredKeys && !step.requiredClick && !waitsForLayoutEdit) return null;
 
   return (
     <div
@@ -148,7 +181,7 @@ function ActionHint({ step, state }: { step: TourStep; state: TourState }) {
       <span className="text-xs font-medium text-neutral-600">
         {done
           ? 'Done!'
-          : step.effect
+          : waitsForLayoutEdit
             ? 'Drag a panel edge to resize, then click Save or Cancel.'
             : null}
         {!done &&
@@ -187,7 +220,7 @@ export function TourOverlay({
 }: TourOverlayProps) {
   const steps = useMemo(() => buildTourSteps(variant, { hasTimeseries }), [variant, hasTimeseries]);
   const [state, setState] = useState<TourState>(INITIAL_TOUR_STATE);
-  const [rect, setRect] = useState<DOMRect | null>(null);
+  const [rects, setRects] = useState<DOMRect[]>([]);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({});
 
@@ -215,6 +248,12 @@ export function TourOverlay({
         // Cancel, not save: the user was told to experiment and never pressed
         // Save, so the tour must not commit whatever they dragged.
         workspace.cancelEditing();
+        break;
+      case 'select-annotate-tool':
+        void useWorkStore.getState().selectTool('annotate');
+        break;
+      case 'ensure-headroom':
+        ensureHeadroom(command.scale);
         break;
       case 'close':
         handlers.current.onClose();
@@ -256,9 +295,10 @@ export function TourOverlay({
   useEffect(() => {
     if (!open || step?.requiredClick !== true) return;
     const onClick = (e: MouseEvent) => {
-      const target = step.target && findTarget(step.target);
-      if (target && e.target instanceof Node && target.contains(e.target))
-        dispatch({ type: 'click' });
+      const hit = findTargets(step.target).some(
+        (element) => e.target instanceof Node && element.contains(e.target)
+      );
+      if (hit) dispatch({ type: 'click' });
     };
     window.addEventListener('click', onClick, { capture: true });
     return () => window.removeEventListener('click', onClick, { capture: true });
@@ -284,9 +324,10 @@ export function TourOverlay({
 
   const position = useCallback(() => {
     if (!step) return;
-    const element = findTarget(step.target);
+    // The first target anchors the tooltip; the rest are only lit.
+    const [element, ...rest] = findTargets(step.target);
     if (!element) {
-      setRect(null);
+      setRects([]);
       setTooltipStyle((current) =>
         current.transform === 'translate(-50%, -50%)'
           ? current
@@ -297,7 +338,8 @@ export function TourOverlay({
 
     // Re-measured a few times a second; only a real move should re-render.
     const box = element.getBoundingClientRect();
-    setRect((current) => (current && sameBox(current, box) ? current : box));
+    const boxes = [box, ...rest.map((el) => el.getBoundingClientRect())];
+    setRects((current) => (sameBoxes(current, boxes) ? current : boxes));
 
     const width = tooltipRef.current?.offsetWidth ?? TOOLTIP_FALLBACK.width;
     const height = tooltipRef.current?.offsetHeight ?? TOOLTIP_FALLBACK.height;
@@ -336,7 +378,7 @@ export function TourOverlay({
   useLayoutEffect(() => {
     if (!open) return;
     position();
-    findTarget(step?.target ?? { kind: 'anchor', name: 'toolbar' })?.scrollIntoView({
+    findTargets(step?.target ?? { kind: 'anchor', name: 'toolbar' })[0]?.scrollIntoView({
       behavior: 'smooth',
       block: 'nearest',
       inline: 'nearest',
@@ -372,33 +414,35 @@ export function TourOverlay({
         <defs>
           <mask id="tour-spotlight-mask">
             <rect width="100%" height="100%" fill="white" />
-            {rect && (
+            {rects.map((box, i) => (
               <rect
-                x={rect.left - SPOTLIGHT_PAD}
-                y={rect.top - SPOTLIGHT_PAD}
-                width={rect.width + SPOTLIGHT_PAD * 2}
-                height={rect.height + SPOTLIGHT_PAD * 2}
+                key={i}
+                x={box.left - SPOTLIGHT_PAD}
+                y={box.top - SPOTLIGHT_PAD}
+                width={box.width + SPOTLIGHT_PAD * 2}
+                height={box.height + SPOTLIGHT_PAD * 2}
                 rx="8"
                 fill="black"
               />
-            )}
+            ))}
           </mask>
         </defs>
         <rect width="100%" height="100%" fill="rgba(0,0,0,0.55)" mask="url(#tour-spotlight-mask)" />
       </svg>
 
-      {rect && (
+      {rects.map((box, i) => (
         <div
+          key={i}
           className="pointer-events-none absolute animate-pulse rounded-lg border-2 border-brand-400"
           style={{
-            left: rect.left - SPOTLIGHT_PAD,
-            top: rect.top - SPOTLIGHT_PAD,
-            width: rect.width + SPOTLIGHT_PAD * 2,
-            height: rect.height + SPOTLIGHT_PAD * 2,
+            left: box.left - SPOTLIGHT_PAD,
+            top: box.top - SPOTLIGHT_PAD,
+            width: box.width + SPOTLIGHT_PAD * 2,
+            height: box.height + SPOTLIGHT_PAD * 2,
             boxShadow: '0 0 0 4px rgba(65,120,93,0.2)',
           }}
         />
-      )}
+      ))}
 
       <div
         ref={tooltipRef}

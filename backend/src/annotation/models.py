@@ -214,6 +214,9 @@ class Annotation(Base):
         Index("idx_annotations_geometry_id", "geometry_id"),
         Index("idx_annotations_created_by_user_id", "created_by_user_id"),
         Index("idx_annotations_imagery_slice_id", "imagery_slice_id"),
+        # Backs the open-mode changes poll: one annotator picking up another's
+        # work must not scan the campaign.
+        Index("idx_annotations_campaign_updated_at", "campaign_id", "updated_at"),
         UniqueConstraint(
             "annotation_task_id",
             "created_by_user_id",

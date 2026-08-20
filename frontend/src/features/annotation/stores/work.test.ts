@@ -1,15 +1,28 @@
+import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FormField } from '../campaign/annotation';
+import type { LonLat } from '../map/types';
 import { apiSuccess, makeAnnotation, makeCampaign } from '~/features/annotation/testing/fixtures';
 import { seedCampaign } from '../testing/seed';
-import { MAX_PROBES, useWorkStore } from './work';
+import { deltaWrites, emptyDelta, TILE_REFRESH_AFTER } from '../campaign/annotationDelta';
+import { usePrefsStore } from './prefs';
+import { MAX_PROBES, useSavedAnnotations, useWorkStore } from './work';
 
 vi.mock('~/api/client', async (importActual) => {
   const actual = await importActual<typeof import('~/api/client')>();
-  return { ...actual, createAnnotationOpenmode: vi.fn(), updateAnnotationOpenmode: vi.fn() };
+  return {
+    ...actual,
+    createAnnotationOpenmode: vi.fn(),
+    updateAnnotationOpenmode: vi.fn(),
+    getAnnotationChanges: vi.fn(),
+  };
 });
 
-import { createAnnotationOpenmode, updateAnnotationOpenmode } from '~/api/client';
+import {
+  createAnnotationOpenmode,
+  getAnnotationChanges,
+  updateAnnotationOpenmode,
+} from '~/api/client';
 
 const requiredField: FormField = { id: 1, title: 'Notes', type: 'text', required: true };
 const optionalField: FormField = { id: 2, title: 'Remarks', type: 'text', required: false };
@@ -27,6 +40,7 @@ function seedFields(fields: FormField[]): void {
 beforeEach(() => {
   vi.mocked(createAnnotationOpenmode).mockReset();
   vi.mocked(updateAnnotationOpenmode).mockReset();
+  vi.mocked(getAnnotationChanges).mockReset();
   vi.mocked(updateAnnotationOpenmode).mockResolvedValue(apiSuccess(savedAnnotation));
   seedFields([requiredField]);
   useWorkStore.setState({
@@ -40,6 +54,9 @@ beforeEach(() => {
     draft: { phase: 'idle' } as const,
     selection: [],
     edit: null,
+    delta: emptyDelta(),
+    tileRefreshes: 0,
+    syncCursor: null,
   });
 });
 
@@ -371,39 +388,191 @@ describe('a commit that resolves after the user has moved on', () => {
 });
 
 describe('probe points', () => {
-  beforeEach(() => useWorkStore.setState({ probePoints: [] }));
+  beforeEach(() =>
+    useWorkStore.setState({ probePoints: [], activeProbe: null, probeAddArmed: false })
+  );
 
-  it('accumulates probes so several locations can be compared at once', () => {
+  /** Drop `count` probes, each one deliberately added. */
+  const drop = (points: LonLat[]) => {
+    for (const point of points) {
+      useWorkStore.getState().armAddProbe(true);
+      useWorkStore.getState().probeAt(point);
+    }
+  };
+
+  it('drops the first probe on a click and moves that one afterwards', () => {
     const work = useWorkStore.getState();
-    work.addProbePoint([1, 2]);
-    work.addProbePoint([3, 4]);
+    work.probeAt([1, 2]);
+    work.probeAt([3, 4]);
+
+    expect(useWorkStore.getState().probePoints).toEqual([[3, 4]]);
+    expect(useWorkStore.getState().activeProbe).toBe(0);
+  });
+
+  it('adds another only when the + control armed it, then goes back to moving', () => {
+    drop([
+      [1, 2],
+      [3, 4],
+    ]);
     expect(useWorkStore.getState().probePoints).toEqual([
       [1, 2],
+      [3, 4],
+    ]);
+
+    useWorkStore.getState().probeAt([5, 6]);
+    expect(useWorkStore.getState().probePoints).toEqual([
+      [1, 2],
+      [5, 6],
+    ]);
+  });
+
+  it('moves whichever probe was picked up, not just the newest', () => {
+    drop([
+      [1, 2],
+      [3, 4],
+    ]);
+    useWorkStore.getState().selectProbePoint(0);
+    useWorkStore.getState().probeAt([9, 9]);
+
+    expect(useWorkStore.getState().probePoints).toEqual([
+      [9, 9],
       [3, 4],
     ]);
   });
 
   it('drops the oldest past the cap rather than refusing the click', () => {
-    for (let i = 0; i <= MAX_PROBES; i++) useWorkStore.getState().addProbePoint([i, 0]);
+    drop(Array.from({ length: MAX_PROBES + 1 }, (_, i): LonLat => [i, 0]));
     const points = useWorkStore.getState().probePoints;
     expect(points).toHaveLength(MAX_PROBES);
     expect(points[0]).toEqual([1, 0]);
     expect(points.at(-1)).toEqual([MAX_PROBES, 0]);
   });
 
-  it('removes one by index and clears the rest on request', () => {
-    const work = useWorkStore.getState();
-    work.addProbePoint([1, 2]);
-    work.addProbePoint([3, 4]);
-    work.addProbePoint([5, 6]);
+  it('removes one by index, keeping the active marker on the same probe', () => {
+    drop([
+      [1, 2],
+      [3, 4],
+      [5, 6],
+    ]);
+    expect(useWorkStore.getState().activeProbe).toBe(2);
 
     useWorkStore.getState().removeProbePoint(1);
     expect(useWorkStore.getState().probePoints).toEqual([
       [1, 2],
       [5, 6],
     ]);
+    expect(useWorkStore.getState().activeProbe).toBe(1);
 
     useWorkStore.getState().clearProbePoints();
     expect(useWorkStore.getState().probePoints).toEqual([]);
+    expect(useWorkStore.getState().activeProbe).toBeNull();
+  });
+});
+
+// A write rides in the delta until the tiles are refetched, so the map shows it
+// without dropping every loaded tile.
+describe('what the tiles have not caught up with', () => {
+  const changes = (over: Partial<Parameters<typeof apiSuccess>[0]> = {}) =>
+    apiSuccess({
+      server_time: '2026-08-19T10:00:00Z',
+      changes: [],
+      truncated: false,
+      ...over,
+    });
+
+  it('draws a stored shape without moving the tile version', async () => {
+    seedFields([optionalField]);
+    vi.mocked(createAnnotationOpenmode).mockResolvedValue(apiSuccess(savedAnnotation));
+    useWorkStore.getState().beginDraft(1);
+
+    expect(await useWorkStore.getState().drawEnd(geometry)).toBe('saved');
+
+    expect(useWorkStore.getState().tileRefreshes).toBe(0);
+    expect(deltaWrites(useWorkStore.getState().delta)).toEqual([
+      { id: 999, labelId: 1, geometry, origin: 'local' },
+    ]);
+  });
+
+  it('refetches the tiles once the delta is full', () => {
+    const many = Array.from({ length: TILE_REFRESH_AFTER }, (_, i) => ({
+      id: i + 1,
+      labelId: 1,
+      geometry,
+      origin: 'local' as const,
+    }));
+
+    useWorkStore.getState().recordWrites(many);
+
+    expect(useWorkStore.getState().tileRefreshes).toBe(1);
+    // Still drawn: the tiles carrying them are only now being fetched.
+    expect(deltaWrites(useWorkStore.getState().delta)).toHaveLength(TILE_REFRESH_AFTER);
+  });
+
+  it('marks another annotator down as remote, and its own work as its own', async () => {
+    seedCampaign(makeCampaign({ id: 99 }), { currentUserId: 'me' });
+    vi.mocked(getAnnotationChanges).mockResolvedValue(
+      changes({
+        changes: [
+          { id: 1, label_id: 3, created_by_user_id: 'someone-else', geometry_wkt: 'POINT(1 2)' },
+          { id: 2, label_id: 3, created_by_user_id: 'me', geometry_wkt: 'POINT(3 4)' },
+        ],
+      })
+    );
+
+    await useWorkStore.getState().syncRemoteAnnotations();
+
+    expect(deltaWrites(useWorkStore.getState().delta).map((w) => [w.id, w.origin])).toEqual([
+      [1, 'remote'],
+      [2, 'local'],
+    ]);
+    expect(useWorkStore.getState().syncCursor).toBe('2026-08-19T10:00:00Z');
+  });
+
+  it('asks the next poll for changes since the last one', async () => {
+    seedCampaign(makeCampaign({ id: 99 }), { currentUserId: 'me' });
+    vi.mocked(getAnnotationChanges).mockResolvedValue(changes());
+
+    await useWorkStore.getState().syncRemoteAnnotations();
+    await useWorkStore.getState().syncRemoteAnnotations();
+
+    expect(vi.mocked(getAnnotationChanges).mock.calls[0][0].query?.since).toBeNull();
+    expect(vi.mocked(getAnnotationChanges).mock.calls[1][0].query?.since).toBe(
+      '2026-08-19T10:00:00Z'
+    );
+  });
+
+  // More than an overlay should draw: the tiles are the cheaper way to catch up.
+  it('refetches the tiles rather than merging a truncated poll', async () => {
+    seedCampaign(makeCampaign({ id: 99 }), { currentUserId: 'me' });
+    vi.mocked(getAnnotationChanges).mockResolvedValue(changes({ truncated: true }));
+
+    await useWorkStore.getState().syncRemoteAnnotations();
+
+    expect(useWorkStore.getState().tileRefreshes).toBe(1);
+    expect(deltaWrites(useWorkStore.getState().delta)).toEqual([]);
+  });
+});
+
+describe('what the map draws saved annotations from', () => {
+  it("carries the annotator's own label styles, which is what the tiles paint with", () => {
+    seedCampaign(makeCampaign({ id: 99 }));
+    usePrefsStore.getState().setLabelStyle(1, { fillColor: '#ff0000' });
+
+    const { result } = renderHook(() => useSavedAnnotations());
+
+    expect(result.current.labelStyles?.[1]).toEqual({ fillColor: '#ff0000' });
+  });
+
+  it('hands the same object back until something it is made of changes', () => {
+    seedCampaign(makeCampaign({ id: 99 }));
+    const { result, rerender } = renderHook(() => useSavedAnnotations());
+    const first = result.current;
+
+    rerender();
+    expect(result.current).toBe(first);
+
+    useWorkStore.getState().recordWrites([{ id: 1, labelId: 1, geometry, origin: 'local' }]);
+    rerender();
+    expect(result.current).not.toBe(first);
   });
 });

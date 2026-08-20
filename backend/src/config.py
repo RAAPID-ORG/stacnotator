@@ -93,11 +93,6 @@ class Settings(BaseSettings):
     # the hard cap on concurrent DB work, keeping small/burstable DBs safe.
     THREAD_POOL_MAX: int = 96
 
-    # Below this zoom the annotation MVT endpoint returns an empty tile instead of
-    # encoding thousands of features (a whole-country view of dense parcels is a
-    # multi-MB, multi-hundred-ms query). Keeps low-zoom panning cheap and bounded.
-    ANNOTATION_TILE_MIN_ZOOM: int = 11
-
     # Every hardening decision keys off this - docs are hidden, dev-default secrets are
     # rejected, AUTH_PROVIDER=local is refused - and each of those tests for "production"
     # exactly. A typo like "prod" would silently turn all of them off, so the set is closed

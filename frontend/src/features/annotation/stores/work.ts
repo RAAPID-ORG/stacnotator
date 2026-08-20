@@ -1,20 +1,34 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { create } from 'zustand';
 import {
   createAnnotationOpenmode,
   getAnnotation,
+  getAnnotationChanges,
   updateAnnotationOpenmode,
   type AnnotationOut,
 } from '~/api/client';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
+  extendedLabels,
   geometryToWkt,
   geometryTopRight,
   validateForm,
   wktToGeometry,
   type FormValues,
 } from '../campaign/annotation';
+import {
+  deltaIds,
+  deltaWrites,
+  emptyDelta,
+  pendingCount,
+  rotate,
+  TILE_REFRESH_AFTER,
+  withDeletes,
+  withWrites,
+  type AnnotationDelta,
+  type DeltaWrite,
+} from '../campaign/annotationDelta';
 import type { SliceAddress } from '../campaign/imageryNav';
 import {
   listNotes,
@@ -23,8 +37,11 @@ import {
   type SliceComment,
   type SliceNotes,
 } from '../campaign/sliceComments';
+import type { SavedAnnotations } from '../map/compose';
 import type { LonLat } from '../map/types';
 import { campaignState, formFields, useCampaignStore } from './campaign';
+import { useImageryStore } from './imagery';
+import { usePrefsStore } from './prefs';
 
 export type Tool = 'pan' | 'annotate' | 'edit' | 'labelVector' | 'timeseries';
 
@@ -86,12 +103,25 @@ interface WorkState {
   selectionAnchor: LonLat | null;
   edit: EditSession | null;
 
-  /** Bumped after every write so the annotation tiles are refetched. */
-  version: number;
+  /** Tile refreshes this session, added to the campaign's stored version to
+   *  make the tile URL: changing that URL is what a refresh is. */
+  tileRefreshes: number;
+  /** Writes the tiles do not show yet: this session's, and other annotators'
+   *  as the poll picks them up. */
+  delta: AnnotationDelta;
+  /** Database clock the next poll asks for changes since, from the last one. */
+  syncCursor: string | null;
   /** Everywhere the timeseries tool has probed, drawn as numbered markers and
    *  charted side by side. Ordered oldest first, capped at MAX_PROBES so the
    *  chart stays readable and one click cannot fan out into a dozen fetches. */
   probePoints: LonLat[];
+  /** The probe a map click moves. Comparing places means dropping a few and
+   *  then adjusting one of them, so moving is the default and adding is the
+   *  deliberate act. */
+  activeProbe: number | null;
+  /** The next map click drops a new probe instead of moving the active one.
+   *  One-shot: armed from the + control, spent on the click after it. */
+  probeAddArmed: boolean;
   /** The chart legend hid every probe series, so the on-map markers are
    *  meaningless and come off too. */
   probeMarkerHidden: boolean;
@@ -111,15 +141,31 @@ interface WorkState {
    *  it onto the next save otherwise. */
   saveSliceComment: (comment: SliceComment) => Promise<void>;
   setSelection: (ids: number[], anchor: LonLat | null) => void;
-  addProbePoint: (point: LonLat) => void;
-  /** Clicking a marker takes that comparison back off the chart. */
+  /** A click on the map: move the active probe there, or drop a new one when
+   *  there is none yet or the + control armed it. */
+  probeAt: (point: LonLat) => void;
+  /** Arm (or disarm) "the next click adds a probe", arming the tool with it so
+   *  the + control is one press rather than two. */
+  armAddProbe: (armed: boolean) => void;
+  /** Make this probe the one a map click moves. */
+  selectProbePoint: (index: number) => void;
+  /** Takes that comparison back off the chart. */
   removeProbePoint: (index: number) => void;
   clearProbePoints: () => void;
   setProbeMarkerHidden: (hidden: boolean) => void;
   setPendingGeometry: (geometry: GeoJSON.Geometry | null) => void;
   setEditAnnotation: (annotation: AnnotationOut) => void;
   setEditBusy: (busy: boolean) => void;
-  bumpVersion: () => void;
+  /** Refresh the annotation tiles, retiring the delta they now carry. The
+   *  answer to a write whose id we never learned, and to the delta growing
+   *  past what an overlay should draw. */
+  refreshTiles: () => void;
+  /** Draw these over the tiles until the tiles carry them. */
+  recordWrites: (writes: DeltaWrite[]) => void;
+  /** Stop drawing these: gone from the database, still in the tiles. */
+  recordDeletes: (ids: number[]) => void;
+  /** Pick up what other annotators have done since the last poll. */
+  syncRemoteAnnotations: () => Promise<void>;
   resetForm: () => void;
   /** Back to first-load state. Drops the open draft, the selection and the
    *  edit too: they name records in one campaign, so carrying them into
@@ -134,10 +180,6 @@ interface WorkState {
   /** Tasks mode has no tool palette to switch away with, so the probe button
    *  and its key toggle rather than latch. */
   toggleProbeTool: () => void;
-  /** Finish the one-shot probe without clearing the point it just produced:
-   *  the chart and the marker must stay visible after the cursor returns to
-   *  navigation. */
-  completeProbe: () => void;
 
   beginDraft: (labelId: number) => void;
   /** A shape finished drawing. Only an unanswered required question holds it
@@ -173,7 +215,25 @@ const emptyForm = {
 const alert = (message: string, kind: 'error' | 'success') =>
   useGlobalLayoutStore.getState().showAlert(message, kind);
 
+/** How often other annotators' work is picked up. Long enough to be cheap on a
+ *  shared campaign, short enough that two people are not drawing over each
+ *  other unaware. */
+const REMOTE_POLL_MS = 20_000;
+
 export const useWorkStore = create<WorkState>((set, get) => {
+  /** Record a change the tiles do not have yet, refreshing them instead once
+   *  the delta has grown past what an overlay should be drawing. */
+  const applyDelta = (change: (delta: AnnotationDelta) => AnnotationDelta) =>
+    set((s) => {
+      const delta = change(s.delta);
+      return pendingCount(delta) >= TILE_REFRESH_AFTER
+        ? { delta: rotate(delta), tileRefreshes: s.tileRefreshes + 1 }
+        : { delta };
+    });
+
+  const recordLocal = (id: number, labelId: number | null, geometry: GeoJSON.Geometry) =>
+    applyDelta((d) => withWrites(d, [{ id, labelId, geometry, origin: 'local' }]));
+
   /** Never throws: the caller decides what a failed save means. */
   const createShape = async (
     labelId: number,
@@ -194,7 +254,9 @@ export const useWorkStore = create<WorkState>((set, get) => {
           slice_comments: listNotes(sliceNotes),
         },
       });
-      return result.data?.id ?? null;
+      const id = result.data?.id ?? null;
+      if (id !== null) recordLocal(id, labelId, geometry);
+      return id;
     } catch {
       return null;
     }
@@ -219,6 +281,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           slice_comments: listNotes(sliceNotes),
         },
       });
+      recordLocal(annotationId, labelId, geometry);
       return true;
     } catch {
       return false;
@@ -252,7 +315,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
         ...(ok ? { formValues: {}, activeFieldIndex: null, sliceNotes: {} } : {}),
       };
     });
-    if (ok) get().bumpVersion();
     return ok;
   };
 
@@ -265,7 +327,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
       s.draft === committing ? { draft: { phase: 'draft', labelId, geometry, savedId } } : {}
     );
     if (savedId === null) return 'save-failed';
-    get().bumpVersion();
     return 'saved';
   };
 
@@ -277,8 +338,12 @@ export const useWorkStore = create<WorkState>((set, get) => {
     selection: [],
     selectionAnchor: null,
     edit: null,
-    version: 0,
+    tileRefreshes: 0,
+    delta: emptyDelta(),
+    syncCursor: null,
     probePoints: [],
+    activeProbe: null,
+    probeAddArmed: false,
     probeMarkerHidden: false,
 
     setSelectedLabelId: (selectedLabelId) => set({ selectedLabelId }),
@@ -294,11 +359,39 @@ export const useWorkStore = create<WorkState>((set, get) => {
     setSelection: (selection, selectionAnchor) => set({ selection, selectionAnchor }),
     // At the cap the oldest probe gives way, so the tool keeps working rather
     // than silently doing nothing.
-    addProbePoint: (point) =>
-      set((s) => ({ probePoints: [...s.probePoints, point].slice(-MAX_PROBES) })),
+    probeAt: (point) =>
+      set((s) => {
+        const adding = s.probeAddArmed || s.probePoints.length === 0 || s.activeProbe === null;
+        if (!adding) {
+          const probePoints = s.probePoints.map((p, i) => (i === s.activeProbe ? point : p));
+          return { probePoints };
+        }
+        const probePoints = [...s.probePoints, point].slice(-MAX_PROBES);
+        return { probePoints, activeProbe: probePoints.length - 1, probeAddArmed: false };
+      }),
+
+    armAddProbe: (armed) => {
+      set({ probeAddArmed: armed });
+      if (armed && get().tool !== 'timeseries') void get().selectTool('timeseries');
+    },
+
+    selectProbePoint: (index) =>
+      set((s) => (s.probePoints[index] ? { activeProbe: index, probeAddArmed: false } : {})),
+
+    // The active probe follows the list: removing one before it would leave
+    // the marker ring on someone else's point.
     removeProbePoint: (index) =>
-      set((s) => ({ probePoints: s.probePoints.filter((_, i) => i !== index) })),
-    clearProbePoints: () => set({ probePoints: [] }),
+      set((s) => {
+        const probePoints = s.probePoints.filter((_, i) => i !== index);
+        if (probePoints.length === 0) return { probePoints, activeProbe: null };
+        const active = s.activeProbe ?? probePoints.length - 1;
+        return {
+          probePoints,
+          activeProbe: Math.min(active > index ? active - 1 : active, probePoints.length - 1),
+        };
+      }),
+
+    clearProbePoints: () => set({ probePoints: [], activeProbe: null, probeAddArmed: false }),
     setProbeMarkerHidden: (probeMarkerHidden) => set({ probeMarkerHidden }),
     setPendingGeometry: (pending) =>
       set((s) =>
@@ -312,7 +405,43 @@ export const useWorkStore = create<WorkState>((set, get) => {
     setEditAnnotation: (annotation) =>
       set((s) => (s.edit ? { edit: { ...s.edit, annotation } } : {})),
     setEditBusy: (busy) => set((s) => (s.edit ? { edit: { ...s.edit, busy } } : {})),
-    bumpVersion: () => set((s) => ({ version: s.version + 1 })),
+    refreshTiles: () =>
+      set((s) => ({ tileRefreshes: s.tileRefreshes + 1, delta: rotate(s.delta) })),
+    recordWrites: (writes) => applyDelta((d) => withWrites(d, writes)),
+    recordDeletes: (ids) => applyDelta((d) => withDeletes(d, ids)),
+
+    syncRemoteAnnotations: async () => {
+      try {
+        const result = await getAnnotationChanges({
+          path: { campaign_id: campaignState().campaign.id },
+          query: {
+            since: get().syncCursor,
+            include_tasks: useImageryStore.getState().showTaskAnnotations,
+          },
+        });
+        const data = result.data;
+        if (!data) return;
+        set({ syncCursor: data.server_time });
+        // More changed than an overlay should carry: the tiles are the cheaper
+        // way to catch up on that much work.
+        if (data.truncated) {
+          get().refreshTiles();
+          return;
+        }
+        const mine = useCampaignStore.getState().currentUserId;
+        get().recordWrites(
+          data.changes.map((change) => ({
+            id: change.id,
+            labelId: change.label_id ?? null,
+            geometry: wktToGeometry(change.geometry_wkt),
+            origin: change.created_by_user_id === mine ? 'local' : 'remote',
+          }))
+        );
+      } catch {
+        // A missed poll - or a campaign that unloaded under it - is picked up
+        // by the next one.
+      }
+    },
     resetForm: () => set({ ...emptyForm }),
 
     resetAll: () =>
@@ -324,8 +453,12 @@ export const useWorkStore = create<WorkState>((set, get) => {
         selection: [],
         selectionAnchor: null,
         edit: null,
-        version: 0,
+        tileRefreshes: 0,
+        delta: emptyDelta(),
+        syncCursor: null,
         probePoints: [],
+        activeProbe: null,
+        probeAddArmed: false,
         probeMarkerHidden: false,
       }),
 
@@ -362,12 +495,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
 
     toggleProbeTool: () =>
       void get().selectTool(get().tool === 'timeseries' ? 'pan' : 'timeseries'),
-
-    completeProbe: () => {
-      if (get().tool !== 'timeseries') return;
-      set({ tool: 'pan' });
-      if (campaignState().workMode === 'explore') set({ selectedLabelId: null });
-    },
 
     // Slice notes survive the reset: noticing something about an image and
     // then drawing what it is about is one gesture, and the note belongs to
@@ -530,8 +657,60 @@ export function useSliceNotes(): SliceNotes {
   return useMemo(() => (edit ? toNotes(edit.annotation.slice_comments) : drafted), [edit, drafted]);
 }
 
-/** Tile cache buster: the campaign's stored version plus this session's writes. */
-export function useTileVersion(): number {
-  const stored = useCampaignStore((s) => s.campaign?.annotations_version ?? 0);
-  return stored + useWorkStore((s) => s.version);
+/**
+ * Everything the annotation layers draw: the tiles' version and paint, and the
+ * overlay of what those tiles do not carry yet. Both the main map and the
+ * imagery windows draw the same annotations, so they assemble them here rather
+ * than each building their own.
+ *
+ * Memoized as one object: a feature layer compares its features by identity,
+ * and the tile style function is cached on the labels array, so fresh values
+ * per render would rebuild the overlay and re-style every tile.
+ */
+export function useSavedAnnotations(
+  hiddenIds?: ReadonlySet<number>,
+  highlightIds?: ReadonlySet<number>
+): SavedAnnotations {
+  const campaign = useCampaignStore((s) => s.campaign);
+  const labelStyles = usePrefsStore((s) => s.labelStyles);
+  const tileRefreshes = useWorkStore((s) => s.tileRefreshes);
+  const delta = useWorkStore((s) => s.delta);
+
+  return useMemo(
+    () => ({
+      version: (campaign?.annotations_version ?? 0) + tileRefreshes,
+      labels: extendedLabels(campaign),
+      labelStyles,
+      hiddenIds,
+      highlightIds,
+      delta: {
+        features: deltaWrites(delta).map((write) => ({
+          id: write.id,
+          geometry: write.geometry,
+          properties: { label_id: write.labelId, origin: write.origin },
+        })),
+        ids: deltaIds(delta),
+      },
+    }),
+    [campaign, labelStyles, tileRefreshes, delta, hiddenIds, highlightIds]
+  );
+}
+
+/** Pick up other annotators' work while this campaign is open. Null in task
+ *  mode, which draws no saved annotations to be out of date about; the id is
+ *  what restarts the poll when the page moves to another campaign. */
+export function useAnnotationSync(campaignId: number | null): void {
+  useEffect(() => {
+    if (campaignId === null) return;
+    // Straight away, so the cursor starts where the campaign load left off
+    // rather than one interval later.
+    void useWorkStore.getState().syncRemoteAnnotations();
+    const timer = setInterval(() => {
+      // A tab nobody is looking at catches up when it comes back: the cursor
+      // stays where it was, and the poll that resumes covers the whole gap.
+      if (document.hidden) return;
+      void useWorkStore.getState().syncRemoteAnnotations();
+    }, REMOTE_POLL_MS);
+    return () => clearInterval(timer);
+  }, [campaignId]);
 }

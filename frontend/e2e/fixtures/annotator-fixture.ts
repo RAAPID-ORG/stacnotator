@@ -682,6 +682,14 @@ export const test = base.extend<AnnotatorFixtures>({
       await route.fulfill({ json: found });
     });
 
+    // GET annotation changes -> the poll for other annotators' work. Registered
+    // after the by-id route so it wins LIFO: "changes" is not an annotation id.
+    await page.route('**/api/campaigns/*/annotations/changes*', async (route) => {
+      await route.fulfill({
+        json: { server_time: '2024-01-01T00:00:00Z', changes: [], truncated: false },
+      });
+    });
+
     // GET /api/campaigns/:id/:taskId/validate  (KNN validation)
     await page.route('**/api/campaigns/*/*/validate*', async (route) => {
       await route.fulfill({ json: { status: 'ok' } });

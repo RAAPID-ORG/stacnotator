@@ -1,3 +1,5 @@
+import { canModifyAnnotation } from '../../campaign/annotation';
+import { usePolicy } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { commitEdit, deleteSelection } from '../../drawing';
 
@@ -29,10 +31,17 @@ const Icon = ({ path }: { path: string }) => (
  */
 export function SelectionControls() {
   const selection = useWorkStore((s) => s.selection);
+  const annotation = useWorkStore((s) => s.edit?.annotation ?? null);
   const pending = useWorkStore((s) => s.edit?.pending ?? null);
   const busy = useWorkStore((s) => s.edit?.busy ?? false);
+  const policy = usePolicy();
 
   if (selection.length === 0) return null;
+
+  // A box selection carries ids only, so ownership is the server's answer
+  // there; a single open annotation is known, and someone else's offers
+  // nothing to press.
+  const readOnly = annotation !== null && !canModifyAnnotation(annotation, policy);
 
   return (
     <div
@@ -45,7 +54,7 @@ export function SelectionControls() {
           {selection.length}
         </span>
       )}
-      {pending && (
+      {pending && !readOnly && (
         <button
           type="button"
           data-testid="edit-confirm-btn"
@@ -57,20 +66,22 @@ export function SelectionControls() {
           <Icon path={CHECK_PATH} />
         </button>
       )}
-      <button
-        type="button"
-        data-testid="edit-delete-btn"
-        disabled={busy}
-        onClick={() => void deleteSelection()}
-        title={
-          selection.length > 1
-            ? `Delete ${selection.length} annotations (Delete)`
-            : 'Delete annotation (Delete)'
-        }
-        className={`${buttonClass} bg-red-500 hover:bg-red-600`}
-      >
-        <Icon path={TRASH_PATH} />
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          data-testid="edit-delete-btn"
+          disabled={busy}
+          onClick={() => void deleteSelection()}
+          title={
+            selection.length > 1
+              ? `Delete ${selection.length} annotations (Delete)`
+              : 'Delete annotation (Delete)'
+          }
+          className={`${buttonClass} bg-red-500 hover:bg-red-600`}
+        >
+          <Icon path={TRASH_PATH} />
+        </button>
+      )}
       <button
         type="button"
         disabled={busy}

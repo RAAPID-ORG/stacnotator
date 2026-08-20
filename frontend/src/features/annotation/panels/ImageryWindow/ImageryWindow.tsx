@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ImageryCollectionOut } from '~/api/client';
-import { extendedLabels } from '../../campaign/annotation';
 import { type ImageryCatalog } from '../../campaign/imagery';
 import { type SliceAddress } from '../../campaign/imageryNav';
 import { addressAtSlice, collectionAddress } from '../../campaign/imageryNav';
-import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
+import { useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useImageryStore, type ImageryState } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';
-import { useTileVersion, useWorkStore } from '../../stores/work';
+import { useSavedAnnotations, useWorkStore } from '../../stores/work';
 import { cameraFor, mainCamera, releaseCamera } from '../../map/camera';
 import { useMapFocus } from '../../stores/tasks';
 import { setForegroundMapLoading } from '../../map/tileLoading';
-import { composeLayers, type AnnotationTiles, type ComposeState } from '../../map/compose';
+import { composeLayers, type ComposeState } from '../../map/compose';
 import { MapView } from '../../map/MapView';
 import { PillSpinner, StatusPill } from '../../components/StatusPill';
 import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
@@ -92,7 +91,6 @@ function NoImageryOverlay() {
 }
 
 export function ImageryWindowBody({ collection }: ImageryWindowProps) {
-  const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
   const imagery = useImageryStore();
@@ -131,16 +129,9 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
       : null;
   const [loadedCoverageKey, setLoadedCoverageKey] = useState<string | null>(null);
 
-  // Windows draw the same annotation tiles as the main map, so they bust the
-  // same cache on every write the user makes after load.
-  const writes = useTileVersion();
-  const annotations = useMemo<AnnotationTiles>(
-    () => ({
-      version: (campaign.annotations_version ?? 0) + writes,
-      labels: extendedLabels(campaign),
-    }),
-    [campaign, writes]
-  );
+  // A window draws the same annotations as the main map; only the selection
+  // and the shape under an open edit belong to the map the user works in.
+  const annotations = useSavedAnnotations();
 
   const layers = useMemo(() => {
     if (!address) return [];

@@ -48,9 +48,11 @@ export interface VectorTileLayerSpec {
    *  hit-testing all resolve through it. */
   idProperty?: string;
   sourceLayers?: string[];
-  /** Rendered fully transparent, e.g. while being edited. */
-  hiddenFeatureIds?: Array<string | number>;
-  highlightFeatureIds?: Array<string | number>;
+  /** Rendered fully transparent, e.g. while being edited, or while an overlay
+   *  is drawing that feature instead. Sets, because the style callback tests
+   *  membership per feature per frame. */
+  hiddenFeatureIds?: ReadonlySet<string | number>;
+  highlightFeatureIds?: ReadonlySet<string | number>;
 }
 
 export interface FeatureLayerSpec {
@@ -60,6 +62,7 @@ export interface FeatureLayerSpec {
   style: StyleSpec | ((f: GeoFeature) => StyleSpec);
   zIndex?: number;
   visible?: boolean;
+  minZoom?: number;
 }
 
 export type LayerSpec = RasterLayerSpec | VectorTileLayerSpec | FeatureLayerSpec;

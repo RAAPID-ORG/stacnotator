@@ -3,6 +3,9 @@ import { ANNOTATION_ROUTE, projectsPath } from '~/app/routes';
 import { SidebarProjectNav } from '~/app/SidebarProjectNav';
 import { LEGAL_DOCS, legalPath } from '~/features/legal/docs';
 import { OrgSwitcher } from '~/features/organizations/components/OrgSwitcher';
+import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
+import { pendingAdminActions } from '~/features/organizations/utils/organizations';
+import { CountBadge } from '~/shared/ui/Badge';
 import { useAccountStore } from 'src/shared/stores/account.store';
 import { HarvestMark, HARVEST_SITE } from 'src/shared/ui/HarvestMark';
 
@@ -27,6 +30,11 @@ export const AppSidebar = ({
   const location = useLocation();
   const navigate = useNavigate();
   const account = useAccountStore((s) => s.account);
+  const { orgs } = useOrganizations();
+
+  // Access requests and organization requests are both decided from here, so
+  // this is where the viewer is told there is something to decide.
+  const pending = pendingAdminActions(orgs, account?.is_admin ?? false);
 
   const currentPath = location.pathname;
   const isAnnotationPage = ANNOTATION_ROUTE.test(currentPath);
@@ -165,14 +173,25 @@ export const AppSidebar = ({
           <button
             onClick={() => handleNavClick('/settings')}
             type="button"
-            title={account?.display_name || account?.email || 'Open settings'}
+            title={
+              pending.total > 0
+                ? `${pending.total} request(s) waiting on you - open settings`
+                : account?.display_name || account?.email || 'Open settings'
+            }
             aria-label="Open settings"
             className={`group flex items-center gap-3 w-full cursor-pointer ${
               collapsed ? 'justify-center' : ''
             } focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 rounded-md`}
           >
-            <span className="w-7 h-7 rounded-full bg-brand-50 border border-brand-200 text-brand-800 flex items-center justify-center text-[11px] font-semibold shrink-0 group-hover:bg-brand-100 group-hover:border-brand-300 transition-colors">
-              {deriveInitial(account?.display_name, account?.email)}
+            <span className="relative shrink-0">
+              <span className="w-7 h-7 rounded-full bg-brand-50 border border-brand-200 text-brand-800 flex items-center justify-center text-[11px] font-semibold group-hover:bg-brand-100 group-hover:border-brand-300 transition-colors">
+                {deriveInitial(account?.display_name, account?.email)}
+              </span>
+              <CountBadge
+                count={pending.total}
+                label="requests waiting on you"
+                className="absolute -right-1.5 -top-1.5 ring-2 ring-white"
+              />
             </span>
             {!collapsed && (
               <span className="flex-1 min-w-0 text-left text-[13px] text-neutral-700 group-hover:text-brand-700 transition-colors truncate">

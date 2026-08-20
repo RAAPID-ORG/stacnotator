@@ -24,20 +24,22 @@ test.describe('Creating a project without an organization', () => {
     await expect(appPage).toHaveURL(/\/organizations\/new$/);
   });
 
-  test('a viewer in no organization defaults to public but keeps explicit memberships reachable', async ({
+  test('a viewer in no organization still lands on the project they were invited to', async ({
     appPage,
   }) => {
     await Promise.all([appPage.waitForResponse(ROUTE.organizations), appPage.goto('/projects')]);
 
-    await expect(appPage.getByTestId('project-filter-public')).toHaveAttribute(
+    // An explicit membership is the only work they have, so it is what the
+    // page opens on - the public list is a fallback for having nothing.
+    await expect(appPage.getByTestId('project-filter-mine')).toHaveAttribute(
       'aria-pressed',
       'true'
     );
-    await expect(appPage.getByTestId('project-row')).toHaveCount(0);
-
-    await appPage.getByTestId('project-filter-all').click();
     await expect(appPage.getByTestId('project-row')).toHaveCount(1);
     await expect(appPage.getByTestId('project-row')).toContainText(MOCK_PROJECT.name);
+
+    await appPage.getByTestId('project-filter-public').click();
+    await expect(appPage.getByTestId('project-row')).toHaveCount(0);
   });
 
   test('the new-project page asks the viewer to join an organization', async ({ appPage }) => {

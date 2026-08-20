@@ -96,6 +96,56 @@ export type AddUsersByEmailResult = {
 };
 
 /**
+ * AnnotationChangeOut
+ *
+ * One annotation another session created or edited, small enough to poll
+ * for: the id the tiles use, what to paint it as, and its geometry.
+ */
+export type AnnotationChangeOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label Id
+     */
+    label_id?: number | null;
+    /**
+     * Created By User Id
+     */
+    created_by_user_id: string;
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt: string;
+};
+
+/**
+ * AnnotationChangesOut
+ *
+ * Annotations touched since a cursor, plus the cursor for the next poll.
+ *
+ * ``server_time`` is the database clock, never the app's: it is compared
+ * against ``updated_at``, which the database stamps. ``truncated`` means more
+ * changed than a poll should carry, so the client refetches its tiles instead
+ * of trying to catch up one annotation at a time.
+ */
+export type AnnotationChangesOut = {
+    /**
+     * Server Time
+     */
+    server_time: string;
+    /**
+     * Changes
+     */
+    changes: Array<AnnotationChangeOut>;
+    /**
+     * Truncated
+     */
+    truncated?: boolean;
+};
+
+/**
  * AnnotationCreate
  */
 export type AnnotationCreate = {
@@ -2512,7 +2562,7 @@ export type MeOut = {
     /**
      * Display Name
      */
-    display_name: string;
+    display_name?: string | null;
     /**
      * Is Admin
      */
@@ -2746,6 +2796,10 @@ export type OrganizationOut = {
      * Is Admin
      */
     is_admin?: boolean;
+    /**
+     * Pending Access Requests
+     */
+    pending_access_requests?: number;
 };
 
 /**
@@ -3912,7 +3966,10 @@ export type UserOut = {
 /**
  * UserOutDetailed
  *
- * Detailed user information (platform admins only).
+ * The raw user record, for platform admins and for the user themselves.
+ * Deliberately not a UserOut: this is the row as stored, so `display_name`
+ * is null until the user has chosen a username, where UserOut is the viewer
+ * projection that always has a name to show.
  */
 export type UserOutDetailed = {
     /**
@@ -3926,7 +3983,7 @@ export type UserOutDetailed = {
     /**
      * Display Name
      */
-    display_name: string;
+    display_name?: string | null;
     /**
      * Is Admin
      */
@@ -4389,7 +4446,7 @@ export type MeOutWritable = {
     /**
      * Display Name
      */
-    display_name: string;
+    display_name?: string | null;
     /**
      * Is Admin
      */
@@ -7472,6 +7529,45 @@ export type GetAnnotationIdsInBboxResponses = {
 };
 
 export type GetAnnotationIdsInBboxResponse = GetAnnotationIdsInBboxResponses[keyof GetAnnotationIdsInBboxResponses];
+
+export type GetAnnotationChangesData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Since
+         */
+        since?: string | null;
+        /**
+         * Include Tasks
+         */
+        include_tasks?: boolean;
+    };
+    url: '/api/campaigns/{campaign_id}/annotations/changes';
+};
+
+export type GetAnnotationChangesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationChangesError = GetAnnotationChangesErrors[keyof GetAnnotationChangesErrors];
+
+export type GetAnnotationChangesResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationChangesOut;
+};
+
+export type GetAnnotationChangesResponse = GetAnnotationChangesResponses[keyof GetAnnotationChangesResponses];
 
 export type GetAnnotationsExtentData = {
     body?: never;

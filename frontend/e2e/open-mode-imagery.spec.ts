@@ -252,9 +252,11 @@ test.describe('Timeseries probe in open mode', () => {
       'data-probe-lon',
       /-?\d/
     );
+    // The tool stays armed, like every other tool: the next click moves this
+    // probe rather than silently doing nothing.
     await expect(
       annotationPage.getByRole('button', { name: 'Probe time series', exact: true })
-    ).toHaveAttribute('aria-pressed', 'false');
+    ).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('an off-centre click probes a different longitude', async ({ annotationPage }) => {
@@ -274,14 +276,16 @@ test.describe('Timeseries probe in open mode', () => {
       .toBe(true);
   });
 
-  test('probes accumulate so several locations can be compared', async ({ annotationPage }) => {
+  test('+ adds a probe alongside the first so several locations can be compared', async ({
+    annotationPage,
+  }) => {
     const map = annotationPage.locator('[data-probe-count]');
 
     await annotationPage.keyboard.press('t');
     await clickMapCenter(annotationPage);
     await expect(map).toHaveAttribute('data-probe-count', '1');
 
-    await annotationPage.keyboard.press('t');
+    await annotationPage.getByTestId('probe-add').click();
     await clickMapAt(annotationPage, 150, 80);
     await expect(map).toHaveAttribute('data-probe-count', '2');
 
@@ -289,17 +293,17 @@ test.describe('Timeseries probe in open mode', () => {
     await expect(map).toHaveAttribute('data-probe-count', '0');
   });
 
-  test('a probe is one-shot; another click requires re-arming', async ({ annotationPage }) => {
+  test('a second click moves the probe instead of dropping another', async ({ annotationPage }) => {
+    const map = annotationPage.locator('[data-probe-count]');
+
     await annotationPage.keyboard.press('t');
     await clickMapCenter(annotationPage);
+    await expect(map).toHaveAttribute('data-probe-count', '1');
+    const first = await map.getAttribute('data-probe-lon');
 
-    const after: string[] = [];
-    annotationPage.on('request', (req) => {
-      if (/\/timeseries\/\d+\/[-\d.]+\/[-\d.]+\/data/.test(req.url())) after.push(req.url());
-    });
-    await clickMapAt(annotationPage, 60, 60);
-    // Give any erroneous fetch a chance to fire, then assert none did.
-    await annotationPage.waitForTimeout(800);
-    expect(after.length).toBe(0);
+    await clickMapAt(annotationPage, 150, 80);
+
+    await expect(map).toHaveAttribute('data-probe-count', '1');
+    await expect(map).not.toHaveAttribute('data-probe-lon', first ?? '');
   });
 });

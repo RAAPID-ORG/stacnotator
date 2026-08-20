@@ -13,9 +13,16 @@ import {
   makeView,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
-import type { LayerSpec, RasterLayerSpec, VectorTileLayerSpec } from '../map/types';
+import type {
+  FeatureLayerSpec,
+  GeoFeature,
+  LayerSpec,
+  RasterLayerSpec,
+  VectorTileLayerSpec,
+} from '../map/types';
 import {
   type ComposeContext,
+  ANNOTATION_DELTA_LAYER_ID,
   ANNOTATION_LAYER_ID,
   CROSSHAIR_LAYER_ID,
   EXTENT_LAYER_ID,
@@ -201,14 +208,39 @@ describe('composeLayers - explore mode', () => {
     const layers = composeLayers(
       ctxFor('explore'),
       stateWith({
-        annotations: { version: 3, labels: LABELS, hiddenIds: [7], highlightIds: [8, 9] },
+        annotations: {
+          version: 3,
+          labels: LABELS,
+          hiddenIds: new Set([7]),
+          highlightIds: new Set([8, 9]),
+        },
       })
     );
     const annotations = layers.find((l) => l.id === ANNOTATION_LAYER_ID) as VectorTileLayerSpec;
-    expect(annotations.hiddenFeatureIds).toEqual([7]);
-    expect(annotations.highlightFeatureIds).toEqual([8, 9]);
+    expect(annotations.hiddenFeatureIds).toEqual(new Set([7]));
+    expect(annotations.highlightFeatureIds).toEqual(new Set([8, 9]));
     expect(annotations.idProperty).toBe('annotation_id');
     expect(annotations.url).toContain('v=3');
+  });
+
+  // The same override the label chips and the drawing tool paint with, so a
+  // saved annotation is not a different colour from the one that drew it.
+  it("paints the tiles with the annotator's own label styles", () => {
+    const layers = composeLayers(
+      ctxFor('explore'),
+      stateWith({
+        annotations: {
+          version: 1,
+          labels: LABELS,
+          labelStyles: { 1: { fillColor: '#ff0000', strokeColor: '#ff0000' } },
+        },
+      })
+    );
+    const annotations = layers.find((l) => l.id === ANNOTATION_LAYER_ID) as VectorTileLayerSpec;
+    const style =
+      typeof annotations.style === 'function' ? annotations.style({ label_id: 1 }) : null;
+
+    expect(style?.stroke?.color).toContain('255,0,0');
   });
 
   it('leaves task-made annotations out of the tile url by default', () => {
@@ -369,5 +401,63 @@ describe('composeLayers - tile skeleton', () => {
       stateWith({ tileSkeleton: true, address: null })
     );
     expect(ids(empty)).toContain(TILE_SKELETON_LAYER_ID);
+  });
+});
+
+// Drawn over the tiles so a write shows up without refetching the viewport.
+describe('composeLayers - the annotation delta', () => {
+  const deltaFeature = (id: number, origin: 'local' | 'remote'): GeoFeature => ({
+    id,
+    geometry: { type: 'Point', coordinates: [0, 0] },
+    properties: { label_id: 1, origin },
+  });
+
+  const composeWithDelta = (features: GeoFeature[], ids: number[], hiddenIds?: Set<number>) =>
+    composeLayers(
+      ctxFor('explore'),
+      stateWith({
+        annotations: {
+          version: 1,
+          labels: LABELS,
+          hiddenIds,
+          delta: { features, ids: new Set(ids) },
+        },
+      })
+    );
+
+  const overlayOf = (layers: LayerSpec[]) =>
+    layers.find((l) => l.id === ANNOTATION_DELTA_LAYER_ID) as FeatureLayerSpec | undefined;
+
+  const styleOf = (overlay: FeatureLayerSpec, feature: GeoFeature) =>
+    typeof overlay.style === 'function' ? overlay.style(feature) : overlay.style;
+
+  it('draws the delta and leaves those ids out of the tiles', () => {
+    const layers = composeWithDelta([deltaFeature(1, 'local')], [1, 2]);
+
+    expect(overlayOf(layers)?.features).toHaveLength(1);
+    const tiles = layers.find((l) => l.id === ANNOTATION_LAYER_ID) as VectorTileLayerSpec;
+    // 2 was deleted: no geometry to draw, and the tiles still have it.
+    expect(tiles.hiddenFeatureIds).toEqual(new Set([1, 2]));
+  });
+
+  it('composes no overlay when nothing is outstanding', () => {
+    expect(overlayOf(composeWithDelta([], []))).toBeUndefined();
+  });
+
+  it('marks a remote annotation out while it is only in the overlay', () => {
+    const local = deltaFeature(1, 'local');
+    const remote = deltaFeature(2, 'remote');
+    const overlay = overlayOf(composeWithDelta([local, remote], [1, 2]))!;
+
+    expect(styleOf(overlay, local)?.stroke?.dash).toBeUndefined();
+    expect(styleOf(overlay, remote)?.stroke?.dash).toBeDefined();
+    // Still the label's colour: which label it is stays readable.
+    expect(styleOf(overlay, remote)?.stroke?.color).toBe(styleOf(overlay, local)?.stroke?.color);
+  });
+
+  it('leaves the shape under an open edit to the edit interaction', () => {
+    const layers = composeWithDelta([deltaFeature(1, 'local')], [1], new Set([1]));
+
+    expect(overlayOf(layers)).toBeUndefined();
   });
 });

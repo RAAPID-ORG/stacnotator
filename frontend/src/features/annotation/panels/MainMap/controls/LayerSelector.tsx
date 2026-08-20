@@ -39,18 +39,20 @@ export function LayerSelector({ catalog, sourceIds, title }: LayerSelectorProps)
 
   const options: HeaderSelectOption[] = [];
   const sources = sourceIds.map((id) => catalog.sources.get(id)).filter((s) => s !== undefined);
-  const showSourceName = sources.length > 1;
 
+  // Each source is its own section, so a visualization is always read as
+  // belonging to the source above it rather than as a layer in its own right.
   for (const source of sources) {
     for (const viz of source.visualizations) {
-      options.push({
-        value: `${source.id}:${viz.id}`,
-        label: showSourceName ? `${source.name} > ${viz.name}` : viz.name,
-      });
+      options.push({ value: `${source.id}:${viz.id}`, label: viz.name, group: source.name });
     }
   }
   for (const basemap of catalog.basemaps.values()) {
-    options.push({ value: `${BASEMAP_PREFIX}${basemap.id}`, label: basemap.name });
+    options.push({
+      value: `${BASEMAP_PREFIX}${basemap.id}`,
+      label: basemap.name,
+      group: 'Basemaps',
+    });
   }
   if (options.length === 0) return null;
 

@@ -23,20 +23,23 @@ async function useCampaign(page: Page, api: ApiCapture, campaign: object): Promi
 const layerButton = (page: Page) => page.locator('[data-tour="layer-selector"] button');
 
 // HeaderSelect portals its option list into document.body; the options are
-// plain buttons carrying the option label.
+// plain buttons carrying the option label, grouped into a section per source.
 const headerMenu = (page: Page) => page.locator('body > div.fixed.shadow-lg');
 
-const layerOption = (page: Page, label: string) =>
-  headerMenu(page).getByRole('button', { name: label, exact: true });
+const layerOption = (page: Page, label: string, group?: string) =>
+  (group ? headerMenu(page).locator(`[data-option-group="${group}"]`) : headerMenu(page)).getByRole(
+    'button',
+    { name: label, exact: true }
+  );
 
 async function openLayerDropdown(page: Page): Promise<void> {
   await layerButton(page).click();
   await headerMenu(page).waitFor({ state: 'visible' });
 }
 
-async function selectLayerOption(page: Page, label: string): Promise<void> {
+async function selectLayerOption(page: Page, label: string, group?: string): Promise<void> {
   await openLayerDropdown(page);
-  await layerOption(page, label).click();
+  await layerOption(page, label, group).click();
 }
 
 /** A small imagery window's title, which carries whether its collection is the
@@ -195,8 +198,8 @@ test.describe('Source cycling across two sources', () => {
   });
 
   test('dropdown: selecting Sentinel-2 True Color switches source', async ({ annotationPage }) => {
-    // With more than one source in the view, options are labelled "<Source> > <Viz>".
-    await selectLayerOption(annotationPage, 'Sentinel-2 > True Color');
+    // With more than one source in the view, each source is its own section.
+    await selectLayerOption(annotationPage, 'True Color', 'Sentinel-2');
 
     await expect(layerButton(annotationPage)).toContainText('Sentinel-2', { timeout: 3000 });
     await expectActiveWindow(annotationPage, COLLECTION_S2.id, COLLECTION_VHR.id);
@@ -208,7 +211,7 @@ test.describe('Source cycling across two sources', () => {
     await annotationPage.keyboard.press('i');
     await expect(layerButton(annotationPage)).toContainText('Sentinel-2', { timeout: 3000 });
 
-    await selectLayerOption(annotationPage, 'VHR > True Color');
+    await selectLayerOption(annotationPage, 'True Color', 'VHR');
 
     await expect(layerButton(annotationPage)).toContainText('VHR', { timeout: 3000 });
     await expectActiveWindow(annotationPage, COLLECTION_VHR.id, COLLECTION_S2.id);
@@ -217,7 +220,7 @@ test.describe('Source cycling across two sources', () => {
   test('dropdown: selecting Sentinel-2 False Color from VHR switches source and viz', async ({
     annotationPage,
   }) => {
-    await selectLayerOption(annotationPage, 'Sentinel-2 > False Color');
+    await selectLayerOption(annotationPage, 'False Color', 'Sentinel-2');
 
     const layerBtn = layerButton(annotationPage);
     await expect(layerBtn).toContainText('Sentinel-2', { timeout: 3000 });
@@ -228,16 +231,16 @@ test.describe('Source cycling across two sources', () => {
   test('dropdown: the VHR option is selected after switching back to it', async ({
     annotationPage,
   }) => {
-    await selectLayerOption(annotationPage, 'Sentinel-2 > True Color');
+    await selectLayerOption(annotationPage, 'True Color', 'Sentinel-2');
     await expect(layerButton(annotationPage)).toContainText('Sentinel-2', { timeout: 3000 });
 
-    await selectLayerOption(annotationPage, 'VHR > True Color');
+    await selectLayerOption(annotationPage, 'True Color', 'VHR');
     await expect(layerButton(annotationPage)).toContainText('VHR', { timeout: 3000 });
 
     await openLayerDropdown(annotationPage);
     // Styling is the only DOM signal of the selected option (see above).
-    await expect(layerOption(annotationPage, 'VHR > True Color')).toHaveClass(/text-brand-700/);
-    await expect(layerOption(annotationPage, 'Sentinel-2 > True Color')).not.toHaveClass(
+    await expect(layerOption(annotationPage, 'True Color', 'VHR')).toHaveClass(/text-brand-700/);
+    await expect(layerOption(annotationPage, 'True Color', 'Sentinel-2')).not.toHaveClass(
       /text-brand-700/
     );
   });
@@ -282,10 +285,10 @@ test.describe('Visualization preserved after source detour', () => {
   }) => {
     const layerBtn = layerButton(annotationPage);
 
-    await selectLayerOption(annotationPage, 'Sentinel-2 > False Color');
+    await selectLayerOption(annotationPage, 'False Color', 'Sentinel-2');
     await expect(layerBtn).toContainText('Sentinel-2 > False Color', { timeout: 3000 });
 
-    await selectLayerOption(annotationPage, 'VHR > True Color');
+    await selectLayerOption(annotationPage, 'True Color', 'VHR');
     await expect(layerBtn).toContainText('VHR', { timeout: 3000 });
 
     await annotationPage.keyboard.press('i');

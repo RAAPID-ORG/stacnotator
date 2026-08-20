@@ -4,12 +4,13 @@ import type { FormValues } from '../../campaign/annotation';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
+  canModifyAnnotation,
   extendedLabels,
   formValuesEqual,
   labelsWithSameGeometry,
   validateForm,
 } from '../../campaign/annotation';
-import { useCampaign } from '../../stores/campaign';
+import { useCampaign, usePolicy } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { FormFields } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
@@ -21,6 +22,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   const [flagComment, setFlagComment] = useState(annotation.flag_comment ?? '');
   const [saving, setSaving] = useState(false);
   const showAlert = useLayoutStore((s) => s.showAlert);
+  const readOnly = !canModifyAnnotation(annotation, usePolicy());
 
   const labels = extendedLabels(campaign);
   const selectable = labelsWithSameGeometry(labels, annotation.label_id);
@@ -57,7 +59,14 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         .setEditAnnotation(
           result.data ?? { ...annotation, label_id: labelId, form_values: values }
         );
-      useWorkStore.getState().bumpVersion();
+      // The label decides how the map paints it, so the overlay has to learn
+      // about the new one; the geometry is the session's, untouched here.
+      const geometry = useWorkStore.getState().edit?.geometry;
+      if (geometry) {
+        useWorkStore
+          .getState()
+          .recordWrites([{ id: annotation.id, labelId, geometry, origin: 'local' }]);
+      }
       showAlert('Annotation updated successfully', 'success');
     } catch (error) {
       handleError(error, 'Could not update the annotation');
@@ -72,12 +81,19 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         Selected annotation #{annotation.id}
       </span>
 
+      {readOnly && (
+        <span className="text-[11px] text-neutral-500" data-testid="annotation-read-only">
+          Someone else made this one - you can look, but only its author or a campaign admin can
+          change it.
+        </span>
+      )}
+
       {selectable.length > 1 && (
         <LabelChips
           labels={selectable}
           selectedId={labelId}
           onSelect={(label) => setLabelId(label.id)}
-          disabled={saving}
+          disabled={saving || readOnly}
           showIndex={false}
         />
       )}
@@ -89,12 +105,12 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
             values={values}
             onChange={setValues}
             activeFieldIndex={null}
-            disabled={saving}
+            disabled={saving || readOnly}
           />
         </div>
       )}
 
-      {(fields.length > 0 || selectable.length > 1) && (
+      {!readOnly && (fields.length > 0 || selectable.length > 1) && (
         <button
           type="button"
           data-testid="edit-details-save"
@@ -107,6 +123,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
       )}
 
       <label
+        hidden={readOnly}
         className="flex items-center gap-1.5 cursor-pointer select-none"
         title="Toggle flag-for-review on this annotation. Saves immediately. Press F to toggle."
       >

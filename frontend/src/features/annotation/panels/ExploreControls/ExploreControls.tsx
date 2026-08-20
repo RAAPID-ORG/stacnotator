@@ -166,7 +166,6 @@ export function ExploreControls() {
   const saveDraft = async () => {
     const saved = await useWorkStore.getState().commitDraft();
     setSaveError(saved ? null : 'Could not save. Check the required questions, then retry.');
-    if (saved) useWorkStore.getState().bumpVersion();
   };
 
   const closeDraft = async () => {
@@ -174,7 +173,6 @@ export function ExploreControls() {
     setSaveError(
       outcome === 'save-failed' ? 'Could not save. Retry, or answer what is missing.' : null
     );
-    if (outcome === 'saved') useWorkStore.getState().bumpVersion();
   };
 
   return (
@@ -219,6 +217,17 @@ export function ExploreControls() {
             </button>
           </div>
         </div>
+
+        {tool === 'timeseries' && (
+          <div className="p-2.5 bg-sky-50 rounded border border-sky-200 w-full">
+            <p className="text-[11px] text-sky-800 font-medium mb-1">Probe time series</p>
+            <p className="text-[11px] text-sky-700">
+              Click the map to move the highlighted probe. Use + in the map header (or Shift+T) to
+              drop another one alongside it; click a probe to pick it up, and click it again to take
+              it off the chart.
+            </p>
+          </div>
+        )}
 
         {tool === 'labelVector' && (
           <div className="p-2.5 bg-emerald-50 rounded border border-emerald-200 w-full">

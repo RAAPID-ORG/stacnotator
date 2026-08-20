@@ -1,7 +1,10 @@
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { describeSlice } from '../../campaign/sliceComments';
+import { addressOfSlice, describeSlice } from '../../campaign/sliceComments';
+import type { SliceComment } from '../../campaign/sliceComments';
 import { reviewRows, type ReviewRow } from '../../campaign/tasks';
+import { useCatalog } from '../../stores/campaign';
+import { useImageryStore } from '../../stores/imagery';
 
 export interface ReviewListProps {
   task: AnnotationTaskOut;
@@ -143,18 +146,42 @@ function AnnotationCard({
         </div>
       )}
       {(annotation.slice_comments ?? []).map((note) => (
-        <div key={note.slice_id} className="mt-1 text-neutral-600 whitespace-pre-wrap">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-            {describeSlice(note)}
-          </span>
-          <span className="italic"> &ldquo;{note.text}&rdquo;</span>
-        </div>
+        <SliceNote key={note.slice_id} note={note} />
       ))}
       {annotation.flagged_for_review && annotation.flag_comment?.trim() && (
         <div className="mt-1 text-rose-700 italic whitespace-pre-wrap">
           Flag: &ldquo;{annotation.flag_comment}&rdquo;
         </div>
       )}
+    </div>
+  );
+}
+
+/** A note someone left about one imagery slice. Naming the slice is also the
+ *  way back to it: the maps jump to that imagery, which is the only way to see
+ *  what the note is talking about. */
+function SliceNote({ note }: { note: SliceComment }) {
+  const catalog = useCatalog();
+  const address = addressOfSlice(catalog, note.slice_id);
+
+  return (
+    <div className="mt-1 text-neutral-600 whitespace-pre-wrap">
+      {address ? (
+        <button
+          type="button"
+          data-testid="slice-note-link"
+          title="Show this imagery"
+          onClick={() => useImageryStore.getState().setAddress(address)}
+          className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 underline decoration-dotted underline-offset-2 hover:text-amber-900 cursor-pointer"
+        >
+          {describeSlice(note)}
+        </button>
+      ) : (
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+          {describeSlice(note)}
+        </span>
+      )}
+      <span className="italic"> &ldquo;{note.text}&rdquo;</span>
     </div>
   );
 }

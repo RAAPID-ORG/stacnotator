@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { EmailVerificationScreen } from './EmailVerificationScreen';
 import { LoginScreen } from './LoginScreen';
+import { UsernameGate } from './UsernameGate';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { Button } from '~/shared/ui/forms';
 import { AuthCard } from './AuthCard';
@@ -14,8 +15,9 @@ import { handleError } from '~/shared/utils/errorHandler';
 const TermsGate = lazy(() => import('~/features/legal/TermsGate'));
 
 /**
- * Gates the app behind authentication + backend approval + the terms in force.
- * Only shows children once the user is logged in, approved, and has accepted.
+ * Gates the app behind authentication + backend approval + the terms in force +
+ * a chosen username. Only shows children once the user is logged in, approved,
+ * has accepted, and is known by a name others can see.
  */
 export const AuthGate = ({ children }: { children: ReactNode }) => {
   const { auth, loggedIn } = useAuth();
@@ -89,6 +91,9 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
       </Suspense>
     );
   }
+
+  // Registration deliberately stores no name: it would not be unique.
+  if (!account.display_name) return <UsernameGate account={account} />;
 
   return <>{children}</>;
 };

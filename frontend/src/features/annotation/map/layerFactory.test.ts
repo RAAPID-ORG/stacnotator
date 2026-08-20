@@ -150,22 +150,22 @@ describe('vector tile layers', () => {
     ) as Style | undefined;
 
   it('hides features owned by the editing interaction', () => {
-    const layer = createLayer(spec({ hiddenFeatureIds: [7] }));
+    const layer = createLayer(spec({ hiddenFeatureIds: new Set([7]) }));
     expect(styleOf(layer, 7)).toBeUndefined();
     expect(styleOf(layer, 8)).toBeDefined();
   });
 
   it('thickens the stroke of highlighted features', () => {
-    const layer = createLayer(spec({ highlightFeatureIds: [7] }));
+    const layer = createLayer(spec({ highlightFeatureIds: new Set([7]) }));
     expect(styleOf(layer, 7)?.getStroke()?.getWidth()).toBe(5);
     expect(styleOf(layer, 8)?.getStroke()?.getWidth()).toBe(2);
   });
 
   it('re-reads hidden ids after an update without touching the source', () => {
-    const before = spec({ hiddenFeatureIds: [7] });
+    const before = spec({ hiddenFeatureIds: new Set([7]) });
     const layer = createLayer(before);
     const source = (layer as VectorTileLayer<VectorTileSource<RenderFeature>>).getSource();
-    updateLayer(layer, before, spec({ hiddenFeatureIds: [8] }));
+    updateLayer(layer, before, spec({ hiddenFeatureIds: new Set([8]) }));
     expect((layer as VectorTileLayer<VectorTileSource<RenderFeature>>).getSource()).toBe(source);
     expect(styleOf(layer, 7)).toBeDefined();
     expect(styleOf(layer, 8)).toBeUndefined();
@@ -185,7 +185,9 @@ describe('vector tile layers', () => {
   });
 
   it('matches hidden ids through idProperty when the source carries no ol id', () => {
-    const layer = createLayer(spec({ idProperty: 'annotation_id', hiddenFeatureIds: [7] }));
+    const layer = createLayer(
+      spec({ idProperty: 'annotation_id', hiddenFeatureIds: new Set([7]) })
+    );
     const styleFn = (layer as VectorTileLayer<VectorTileSource<RenderFeature>>).getStyleFunction()!;
     const untagged = new Feature({ geometry: new Point([0, 0]), annotation_id: 7 });
     const other = new Feature({ geometry: new Point([0, 0]), annotation_id: 8 });

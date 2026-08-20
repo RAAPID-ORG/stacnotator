@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAccountStore } from '~/shared/stores/account.store';
 import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
 import { ImportFeaturesSection } from '~/features/campaigns/components/settings/ImportFeaturesSection';
 import { Button } from '~/shared/ui/forms';
@@ -54,7 +53,6 @@ export const CampaignTasksPage = () => {
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
-  const currentUser = useAccountStore((state) => state.account);
   const [showImport, setShowImport] = useState(false);
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
@@ -141,10 +139,7 @@ export const CampaignTasksPage = () => {
     );
   };
 
-  const isAdmin = useMemo(
-    () => projectUsers.some((u) => u.user.id === currentUser?.id && u.is_admin),
-    [projectUsers, currentUser]
-  );
+  const isAdmin = campaign?.viewer_is_admin ?? false;
 
   const scopedAnnotationTasks = useMemo(
     () =>
@@ -467,7 +462,9 @@ export const CampaignTasksPage = () => {
                 <Skeleton className="h-7 w-52" />
               )}
               <p className="page-subtitle">
-                Upload or generate annotation tasks and manage assignments.
+                {isAdmin
+                  ? 'Upload or generate annotation tasks and manage assignments.'
+                  : 'The tasks in this campaign and how far they have got.'}
               </p>
             </div>
             {campaign && (
@@ -514,6 +511,7 @@ export const CampaignTasksPage = () => {
                 <div className="p-6">
                   <TasksTab
                     campaign={campaign}
+                    canManage={isAdmin}
                     scopedTasks={scopedAnnotationTasks}
                     totalTasks={annotationTasks.length}
                     taskFile={taskFile}

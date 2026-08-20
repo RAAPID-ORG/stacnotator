@@ -6,7 +6,7 @@
  */
 import type { AnnotationOut } from '~/api/client';
 import { sliceDateRange, type ImageryCatalog } from './imagery';
-import type { SliceAddress } from './imageryNav';
+import { collectionAddress, addressAtSlice, type SliceAddress } from './imageryNav';
 
 export type SliceComment = NonNullable<AnnotationOut['slice_comments']>[number];
 
@@ -60,6 +60,19 @@ export function listNotes(notes: SliceNotes): SliceComment[] {
   return Object.values(notes).sort((a, b) =>
     (a.start_date ?? '').localeCompare(b.start_date ?? '')
   );
+}
+
+/** Where a note's slice lives now, so reading a note can take you to the
+ *  imagery it is about. Null when that slice is not in the current catalog -
+ *  another view, or imagery that has since been removed. */
+export function addressOfSlice(cat: ImageryCatalog, sliceId: number): SliceAddress | null {
+  for (const collection of cat.collections.values()) {
+    const index = collection.slices.findIndex((slice) => slice.id === sliceId);
+    if (index === -1) continue;
+    const base = collectionAddress(cat, collection.id, null);
+    return base ? addressAtSlice(cat, base, index) : null;
+  }
+  return null;
 }
 
 /** The imagery a note is about, as one line: "Sentinel-2, Jun 1 - Jun 7, 2023". */

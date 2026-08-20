@@ -4,11 +4,13 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.auth.constants import ROLE_ADMIN, TERMS_VERSION
 from src.auth.models import User, UserRole
 from src.auth.providers.base import AuthenticatedUser
+from src.auth.usernames import username_error
 from src.organizations.service import consume_invites_for_new_user
 
 # ============================================================================
@@ -132,13 +134,14 @@ def register_user(
             detail="An account with this email already exists under a different login method.",
         )
 
-    display_name = token.get("name") or email.split("@")[0]
-
+    # No name is derived here: a username has to be unique, and the one the
+    # provider hands over (a Google display name, an email local part) is not.
+    # The client asks for one before the app opens up.
     user = User(
         issuer=issuer,
         external_uid=token["uid"],
         email=email,
-        display_name=display_name,
+        display_name=None,
     )
 
     db.add(user)
@@ -328,17 +331,37 @@ def edit_user_info(
     user_id: UUID,
     display_name: str,
 ) -> User | None:
-    """
-    Edit user metadata such as display name
-    """
+    """Set the user's username, the single name they are known by.
+
+    Rejects a malformed name (400) and one already taken (409). The lookup is
+    case-insensitive to match the unique index behind it, which is what keeps
+    two people from becoming the same name through a race."""
     user = db.get(User, user_id)
     if not user:
         return None
 
+    display_name = display_name.strip()
+    invalid = username_error(display_name)
+    if invalid:
+        raise HTTPException(status_code=400, detail=invalid)
+    if is_username_taken(db, display_name, exclude_user_id=user_id):
+        raise HTTPException(status_code=409, detail="That username is already taken")
+
     user.display_name = display_name
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="That username is already taken") from exc
     db.refresh(user)
     return user
+
+
+def is_username_taken(db: Session, username: str, *, exclude_user_id: UUID | None = None) -> bool:
+    stmt = select(User.id).where(func.lower(User.display_name) == username.lower())
+    if exclude_user_id is not None:
+        stmt = stmt.where(User.id != exclude_user_id)
+    return db.scalar(stmt) is not None
 
 
 def accept_terms(db: Session, user: User, version: str) -> User:

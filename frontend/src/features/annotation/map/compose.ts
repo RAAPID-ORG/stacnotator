@@ -6,15 +6,22 @@ import { applyRenderOverride, type LegendOverride } from '../campaign/tileColors
 import {
   resolveLabelStyle,
   toDraftStyleSpec,
+  toRemoteStyleSpec,
   toStyleSpec,
   type LabelStyle,
 } from '../campaign/labelStyle';
 import type { ExtendedLabel } from '../campaign/annotation';
 import type { WorkMode } from '../stores/campaign';
-import type { GeoFeature, LayerSpec, LonLat, StyleSpec } from './types';
+import type { GeoFeature, LayerId, LayerSpec, LonLat, StyleSpec } from './types';
 
 export const TILE_SKELETON_LAYER_ID = 'tile-skeleton';
 export const ANNOTATION_LAYER_ID = 'annotations';
+export const ANNOTATION_DELTA_LAYER_ID = 'annotations-delta';
+
+/** Saved annotations come from two layers - the tiles, and the overlay of what
+ *  the tiles do not carry yet - so a click on either is a click on one. */
+export const isAnnotationLayer = (layerId: LayerId | undefined): boolean =>
+  layerId === ANNOTATION_LAYER_ID || layerId === ANNOTATION_DELTA_LAYER_ID;
 export const EXTENT_LAYER_ID = 'task-extent';
 export const CROSSHAIR_LAYER_ID = 'crosshair';
 export const DRAFT_LAYER_ID = 'draft';
@@ -43,28 +50,44 @@ const OVERLAY_Z = 3;
 const EXTENT_Z = 5;
 const VECTOR_Z = 8;
 const ANNOTATION_Z = 10;
-const DRAFT_Z = 11;
-const PROBE_Z = 12;
-const CROSSHAIR_Z = 13;
+const ANNOTATION_DELTA_Z = 11;
+const DRAFT_Z = 12;
+const PROBE_Z = 13;
+const CROSSHAIR_Z = 14;
 
-/** Below this a whole-region view of dense annotations is unreadable and the
- *  tile request is huge, so the layer stays off. Its minZoom is one lower so
+/** Mirrors `MIN_TILE_ZOOM` in the backend's `annotation/tiles.py`, which
+ *  returns empty tiles below it: one decision, spelled on both sides. A tile
+ *  spans 40075 km / 2^z, so this is a ~78 km tile - a side panel still shows
+ *  tens of kilometres at any latitude. The layer's own minZoom is one lower so
  *  OL scales the last real level instead of blanking. */
-export const ANNOTATION_TILE_MIN_ZOOM = 11;
+export const ANNOTATION_TILE_MIN_ZOOM = 9;
 
 const TILE_PROP_ID = 'annotation_id';
 const TILE_PROP_LABEL = 'label_id';
+const DELTA_PROP_ORIGIN = 'origin';
 
 const DEFAULT_CROSSHAIR_COLOR = '#ff0000';
 const CROSSHAIR_SIZE_PX = 20;
 
-export interface AnnotationTiles {
+/** Annotations drawn over the tiles because the tiles do not carry them yet -
+ *  see `campaign/annotationDelta`. `ids` is everything the delta owns, written
+ *  or deleted, which is exactly what the tiles must leave alone. */
+export interface DeltaOverlay {
+  features: GeoFeature[];
+  ids: ReadonlySet<number>;
+}
+
+/** How a map draws the campaign's saved annotations: the tiles it fetches, the
+ *  paint it applies to them, and the overlay of what the tiles do not carry. */
+export interface SavedAnnotations {
+  /** The version the tiles are fetched at. */
   version: number;
   labels: ExtendedLabel[];
   /** Rendered transparent because the user is editing them locally. */
-  hiddenIds?: Array<string | number>;
-  highlightIds?: Array<string | number>;
+  hiddenIds?: ReadonlySet<number>;
+  highlightIds?: ReadonlySet<number>;
   labelStyles?: Record<number, Partial<LabelStyle>>;
+  delta?: DeltaOverlay;
 }
 
 /**
@@ -80,17 +103,20 @@ export interface ComposeState extends ImageryNavState {
   /** Draw the tile-grid backdrop under everything. */
   tileSkeleton?: boolean;
   legendOverrides?: Record<number, LegendOverride>;
-  annotations?: AnnotationTiles;
+  annotations?: SavedAnnotations;
   focusExtent?: GeoFeature | null;
   crosshairPoint?: LonLat | null;
   crosshairColor?: string | null;
   draftFeatures?: GeoFeature[];
   draftLabelId?: number | null;
   probePoints?: LonLat[];
+  /** The probe a click moves, drawn larger so it is obvious which one that is. */
+  activeProbe?: number | null;
 }
 
-/** `v` busts the browser and OL tile caches after a write, and `include_tasks`
- *  is always spelled out so a filtered tile and an unfiltered one are different
+/** `v` is the version the tiles were fetched at: changing it is what fetches
+ *  them again, through both the browser and OL caches. `include_tasks` is
+ *  always spelled out so a filtered tile and an unfiltered one are different
  *  URLs - neither the HTTP cache nor a retained OL source can mix them. */
 export const annotationTilesUrl = (campaignId: number, version: number, includeTasks: boolean) =>
   apiUrl(
@@ -120,23 +146,43 @@ type TileStyleFn = (props: Record<string, unknown>) => StyleSpec;
  *  array is the weak key, so a campaign's cache dies with it. */
 const tileStyles = new WeakMap<
   ExtendedLabel[],
-  { labelStyles: AnnotationTiles['labelStyles']; fn: TileStyleFn }
+  { labelStyles: SavedAnnotations['labelStyles']; fn: TileStyleFn }
 >();
+
+function labelStyleResolver(state: SavedAnnotations) {
+  const byId = new Map(state.labels.map((l) => [l.id, l]));
+  return (labelId: number) => styleForLabel(byId.get(labelId), state.labelStyles?.[labelId]);
+}
 
 /** Per-feature paint for the annotation tiles, through the same label rules
  *  the drawing layer uses. Unknown labels get the neutral fallback. */
-function annotationStyle(state: AnnotationTiles): TileStyleFn {
+function annotationStyle(state: SavedAnnotations): TileStyleFn {
   const cached = tileStyles.get(state.labels);
   if (cached && cached.labelStyles === state.labelStyles) return cached.fn;
 
-  const byId = new Map(state.labels.map((l) => [l.id, l]));
+  const resolve = labelStyleResolver(state);
   const fn: TileStyleFn = (props) => {
-    const labelId = Number(props[TILE_PROP_LABEL]);
-    const style = styleForLabel(byId.get(labelId), state.labelStyles?.[labelId]);
+    const style = resolve(Number(props[TILE_PROP_LABEL]));
     return style ? toStyleSpec(style) : FALLBACK_TILE_STYLE;
   };
   tileStyles.set(state.labels, { labelStyles: state.labelStyles, fn });
   return fn;
+}
+
+/** The same paint for the overlay, except that another annotator's work is
+ *  marked out until the tiles carry it, and selection is applied here: a
+ *  feature layer has no highlight list of its own. */
+function deltaStyle(state: SavedAnnotations): (feature: GeoFeature) => StyleSpec {
+  const resolve = labelStyleResolver(state);
+  return (feature) => {
+    const props = feature.properties ?? {};
+    const style = resolve(Number(props[TILE_PROP_LABEL]));
+    if (!style) return FALLBACK_TILE_STYLE;
+    const emphasis = { selected: !!state.highlightIds?.has(Number(feature.id)) };
+    return props[DELTA_PROP_ORIGIN] === 'remote'
+      ? toRemoteStyleSpec(style, emphasis)
+      : toStyleSpec(style, emphasis);
+  };
 }
 
 export interface ComposeContext {
@@ -257,22 +303,43 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
   // page is pointed at - its footprint and crosshair - and so do its windows,
   // where a point task's own annotation would just sit under the crosshair.
   if (mode === 'explore' && state.showAnnotations && state.annotations) {
+    const annotations = state.annotations;
+    // Whatever the overlay draws, the tiles do not: their copy is out of date
+    // (or gone), and drawing both would double every shape.
+    const hidden = new Set<string | number>([
+      ...(annotations.hiddenIds ?? []),
+      ...(annotations.delta?.ids ?? []),
+    ]);
     layers.push({
       kind: 'vector-tiles',
       id: ANNOTATION_LAYER_ID,
-      url: annotationTilesUrl(
-        catalog.campaignId,
-        state.annotations.version,
-        state.showTaskAnnotations
-      ),
+      url: annotationTilesUrl(catalog.campaignId, annotations.version, state.showTaskAnnotations),
       auth: 'bearer',
       idProperty: TILE_PROP_ID,
       minZoom: ANNOTATION_TILE_MIN_ZOOM - 1,
-      style: annotationStyle(state.annotations),
-      hiddenFeatureIds: state.annotations.hiddenIds,
-      highlightFeatureIds: state.annotations.highlightIds,
+      style: annotationStyle(annotations),
+      hiddenFeatureIds: hidden,
+      highlightFeatureIds: annotations.highlightIds,
       zIndex: ANNOTATION_Z,
     });
+
+    // The shape under an open edit is drawn by the edit interaction, so the
+    // overlay leaves it alone the same way the tiles do.
+    const overlay = (annotations.delta?.features ?? []).filter(
+      (feature) => !annotations.hiddenIds?.has(Number(feature.id))
+    );
+    if (overlay.length > 0) {
+      layers.push({
+        kind: 'features',
+        id: ANNOTATION_DELTA_LAYER_ID,
+        features: overlay,
+        style: deltaStyle(annotations),
+        // Stops where the tiles stop: a whole-region view must not advertise
+        // this session's shapes when it draws nobody else's.
+        minZoom: ANNOTATION_TILE_MIN_ZOOM - 1,
+        zIndex: ANNOTATION_DELTA_Z,
+      });
+    }
   }
 
   if (state.showAnnotations && !isWindow && state.draftFeatures?.length) {
@@ -298,14 +365,19 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
         geometry: { type: 'Point', coordinates: point },
       })),
       // Marker colour matches the chart series for the same probe, which is
-      // what makes "this line is that dot" readable at a glance.
-      style: (feature) => ({
-        circle: {
-          radius: 5,
-          fill: { color: probeColor(probeIndexOf(feature.id) ?? 0) },
-          stroke: { color: '#ffffff', width: 1.5 },
-        },
-      }),
+      // what makes "this line is that dot" readable at a glance; the active
+      // one wears a heavier ring, being the one a click would move.
+      style: (feature) => {
+        const index = probeIndexOf(feature.id) ?? 0;
+        const isActive = index === state.activeProbe;
+        return {
+          circle: {
+            radius: isActive ? 7 : 5,
+            fill: { color: probeColor(index) },
+            stroke: { color: '#ffffff', width: isActive ? 3 : 1.5 },
+          },
+        };
+      },
       zIndex: PROBE_Z,
     });
   }

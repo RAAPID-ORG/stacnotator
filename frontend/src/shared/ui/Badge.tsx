@@ -27,3 +27,27 @@ export const Badge = ({ tone = 'neutral', className, children }: BadgeProps) => 
     {children}
   </span>
 );
+
+/** A count that wants attention: the small red pill on the control that leads
+ *  to whatever is waiting. Renders nothing when there is nothing to report. */
+export const CountBadge = ({
+  count,
+  label,
+  className,
+}: {
+  count: number;
+  label: string;
+  className?: string;
+}) =>
+  count <= 0 ? null : (
+    <span
+      data-testid="pending-count"
+      aria-label={`${count} ${label}`}
+      title={`${count} ${label}`}
+      className={`inline-flex min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-4 text-white ${
+        className ?? ''
+      }`}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );

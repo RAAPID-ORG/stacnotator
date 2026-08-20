@@ -239,11 +239,11 @@ function vectorTileStyle(layer: VectorTileLayer<VectorTileSource<RenderFeature>>
     const spec = layer.get(SPEC_PROP) as VectorTileLayerSpec;
     const id = featureIdOf(feature, spec.idProperty);
     // The edited feature is drawn by the interaction layer, so it is hidden here.
-    if (id !== undefined && spec.hiddenFeatureIds?.includes(id)) return undefined;
+    if (id !== undefined && spec.hiddenFeatureIds?.has(id)) return undefined;
     const style =
       typeof spec.style === 'function' ? spec.style(feature.getProperties()) : spec.style;
     if (!style) return undefined;
-    return cachedStyle(style, id !== undefined && !!spec.highlightFeatureIds?.includes(id));
+    return cachedStyle(style, id !== undefined && !!spec.highlightFeatureIds?.has(id));
   };
 }
 
@@ -288,6 +288,7 @@ function buildLayer(spec: LayerSpec): BaseLayer {
   }
   const layer = new VectorLayer({
     source: new VectorSource({ features: toOlFeatures(spec.features) }),
+    minZoom: spec.minZoom,
     updateWhileAnimating: true,
     updateWhileInteracting: true,
   });
@@ -304,6 +305,11 @@ const sameStyle = (a: unknown, b: unknown) =>
 
 const sameList = (a: readonly unknown[] = [], b: readonly unknown[] = []) =>
   a.length === b.length && a.every((v, i) => v === b[i]);
+
+/** By content: these are rebuilt per compose, and a redraw of every feature is
+ *  not worth saving the comparison. */
+const sameSet = (a?: ReadonlySet<unknown>, b?: ReadonlySet<unknown>) =>
+  (a?.size ?? 0) === (b?.size ?? 0) && [...(a ?? [])].every((v) => !!b?.has(v));
 
 /** Whether the layer's source has to be rebuilt, as opposed to properties that
  *  can be set on the existing one. Rebuilding drops the loaded tiles, so this
@@ -371,8 +377,8 @@ export function updateLayer(layer: BaseLayer, prev: LayerSpec, next: LayerSpec):
     if (prev.minZoom !== next.minZoom) layer.setMinZoom(next.minZoom ?? -Infinity);
     if (
       !sameStyle(prev.style, next.style) ||
-      !sameList(prev.hiddenFeatureIds, next.hiddenFeatureIds) ||
-      !sameList(prev.highlightFeatureIds, next.highlightFeatureIds)
+      !sameSet(prev.hiddenFeatureIds, next.hiddenFeatureIds) ||
+      !sameSet(prev.highlightFeatureIds, next.highlightFeatureIds)
     ) {
       layer.changed();
     }
@@ -380,6 +386,7 @@ export function updateLayer(layer: BaseLayer, prev: LayerSpec, next: LayerSpec):
   }
 
   if (next.kind === 'features' && prev.kind === 'features') {
+    if (prev.minZoom !== next.minZoom) layer.setMinZoom(next.minZoom ?? -Infinity);
     // Compared by element identity: deep-comparing every geometry each render
     // would cost more than the re-render it saves, so callers keep feature
     // objects stable and replace only what changed.

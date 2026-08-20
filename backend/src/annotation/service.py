@@ -58,6 +58,27 @@ def get_user_assignment_status(task: AnnotationTask, user_id: UUID) -> str:
     return derive_assignment_status(annotation_list, user_id)
 
 
+def _require_own_annotations(
+    db: Session,
+    annotations: list[Annotation],
+    campaign: Campaign,
+    user_id: UUID,
+    verb: str,
+) -> None:
+    """Someone else's annotation is theirs: only its author, a campaign admin
+    or a platform admin may change or remove it. Being a member of the campaign
+    is permission to add work, not to undo other people's."""
+    not_owned = [a.id for a in annotations if a.created_by_user_id != user_id]
+    if not not_owned:
+        return
+    if _is_campaign_admin(db, user_id, campaign.id):
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=f"You can only {verb} your own annotations: {sorted(not_owned)}",
+    )
+
+
 def _is_campaign_admin(db: Session, user_id: UUID, campaign_id: int) -> bool:
     """Check if a user is an admin of the given campaign's project, or a
     platform admin."""
@@ -651,16 +672,7 @@ def update_annotation(
 
     _require_explore_access(db, campaign, user_id)
 
-    # In public campaigns, only the creator or a campaign admin can update annotations
-    if (
-        campaign.is_public
-        and annotation.created_by_user_id != user_id
-        and not _is_campaign_admin(db, user_id, campaign.id)
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You can only edit your own annotations",
-        )
+    _require_own_annotations(db, [annotation], campaign, user_id, "edit")
 
     try:
         # Update geometry if provided
@@ -804,7 +816,7 @@ def delete_annotation(
     db: Session,
     annotation_id: int,
     campaign: Campaign,
-    user_id: UUID | None = None,
+    user_id: UUID,
 ) -> None:
     """
     Delete a specific annotation from a campaign.
@@ -812,13 +824,14 @@ def delete_annotation(
     If the annotation is linked to a task item, the task status is updated
     to 'pending' to allow re-annotation.
 
-    In public campaigns, only the annotation creator can delete their annotations.
+    Only the annotation's author, a campaign admin or a platform admin may
+    delete it. `user_id` is required: an optional authorization input is one
+    a caller can forget to pass.
 
     Args:
         db: Database session
         annotation_id: ID of annotation to delete
-        campaign: The campaign the annotation must belong to (also used for
-            the public campaign ownership check)
+        campaign: The campaign the annotation must belong to
         user_id: ID of user requesting deletion (for ownership check)
 
     Raises:
@@ -835,17 +848,7 @@ def delete_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
 
-    # In public campaigns, only the creator or a campaign admin can delete annotations
-    if (
-        campaign.is_public
-        and user_id
-        and annotation.created_by_user_id != user_id
-        and not _is_campaign_admin(db, user_id, campaign.id)
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="You can only delete your own annotations",
-        )
+    _require_own_annotations(db, [annotation], campaign, user_id, "delete")
 
     try:
         # Nothing to reset alongside it: the annotation was the record, so
@@ -925,14 +928,7 @@ def delete_annotations_bulk(
             detail=f"Annotations not found in campaign: {sorted(missing)}",
         )
 
-    # Public-campaign ownership check applies whenever the requester isn't an admin
-    if campaign.is_public and not _is_campaign_admin(db, user_id, campaign.id):
-        not_owned = [a.id for a in annotations if a.created_by_user_id != user_id]
-        if not_owned:
-            raise HTTPException(
-                status_code=403,
-                detail=f"You can only delete your own annotations: {sorted(not_owned)}",
-            )
+    _require_own_annotations(db, list(annotations), campaign, user_id, "delete")
 
     try:
         delete_rows_and_orphan_geometries(db, annotations)

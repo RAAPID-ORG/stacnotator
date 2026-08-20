@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { makeCampaign, makeCollection, makeSlice, makeSource } from '../testing/fixtures';
 import { buildImageryCatalog } from './imagery';
-import { describeSlice, listNotes, sliceCommentAt, toNotes, withNote } from './sliceComments';
+import {
+  addressOfSlice,
+  describeSlice,
+  listNotes,
+  sliceCommentAt,
+  toNotes,
+  withNote,
+} from './sliceComments';
 
 const catalog = buildImageryCatalog(
   makeCampaign({
@@ -85,5 +92,19 @@ describe('describeSlice', () => {
 
   it('falls back to the slice id when nothing was snapshotted', () => {
     expect(describeSlice({ slice_id: 7, text: 'x' })).toBe('Slice 7');
+  });
+});
+
+describe('addressOfSlice', () => {
+  it('finds the slice a note is about, wherever it sits in the catalog', () => {
+    expect(addressOfSlice(catalog, 101)).toMatchObject({
+      sourceId: 1,
+      collectionId: 10,
+      sliceIndex: 1,
+    });
+  });
+
+  it('is null for a slice the catalog no longer has', () => {
+    expect(addressOfSlice(catalog, 999)).toBeNull();
   });
 });

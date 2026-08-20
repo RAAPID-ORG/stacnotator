@@ -7,6 +7,14 @@ it can be unit-tested without a database.
 
 MVT_LAYER_NAME = "annotations"
 
+# Below this the endpoint returns an empty tile without touching the database.
+# A tile spans 40075 km / 2^z, so this floor is a ~78 km tile: wide enough that
+# a side panel still shows tens of kilometres at any latitude, narrow enough
+# that a continental view of a dense campaign is never encoded. The frontend
+# mirrors it in `map/compose.ts` - the two are one decision, and a client that
+# asked below it would only get empty tiles back.
+MIN_TILE_ZOOM = 9
+
 # ST_AsMVTGeom clips to the tile plus a 256/4096 buffer so strokes join across
 # tile seams; the row filter has to reach that far too or the buffer stays empty.
 TILE_QUERY_MARGIN = 0.0625

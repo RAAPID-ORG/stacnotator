@@ -103,7 +103,15 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     const load = async () => {
       try {
         const { data } = await listUsers({});
-        if (!cancelled) setAllUsers(data ?? []);
+        // Platform admins get the raw records, where the username is null
+        // until the person has picked one; the picker needs something to show.
+        if (!cancelled)
+          setAllUsers(
+            (data ?? []).map((user) => ({
+              ...user,
+              display_name: user.display_name || (user.email ?? 'Unnamed user'),
+            }))
+          );
       } catch (err) {
         if (!cancelled) handleError(err, 'Failed to load users available to add');
       }

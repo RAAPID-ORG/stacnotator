@@ -11,6 +11,7 @@ import {
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 import {
+  canModifyAnnotation,
   featureDedupeKey,
   geometryToWkt,
   validateForm,
@@ -19,9 +20,15 @@ import {
   type GeometryType,
 } from './campaign/annotation';
 import { resolveLabelStyle, toDraftStyleSpec } from './campaign/labelStyle';
-import { ANNOTATION_LAYER_ID, PROBE_LAYER_ID, probeIndexOf, vectorLayerId } from './map/compose';
+import { isAnnotationLayer, PROBE_LAYER_ID, probeIndexOf, vectorLayerId } from './map/compose';
 import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from './map/types';
-import { campaignState, formFields, useCampaignStore, useLabels } from './stores/campaign';
+import {
+  campaignState,
+  formFields,
+  useCampaignStore,
+  useLabels,
+  usePolicy,
+} from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
 import { usePrefsStore } from './stores/prefs';
 import { useWorkStore } from './stores/work';
@@ -106,7 +113,9 @@ function reportLabelOutcome(outcome: LabelOutcome): void {
   if (outcome.kind === 'blocked') alert(`Missing required: ${outcome.missing.join(', ')}`, 'error');
   else if (outcome.kind === 'error') alert(`Failed to label features: ${outcome.message}`, 'error');
   else if (outcome.kind === 'saved') {
-    useWorkStore.getState().bumpVersion();
+    // A batch reports how many it stored, not which ids: nothing to draw over
+    // the tiles with, so the tiles are what catches up.
+    useWorkStore.getState().refreshTiles();
     alert(`Labeled ${outcome.count} feature(s)`, 'success');
   }
 }
@@ -138,7 +147,14 @@ export async function commitEdit(): Promise<boolean> {
       },
     });
     if (result.data) work.setEditAnnotation(result.data);
-    work.bumpVersion();
+    work.recordWrites([
+      {
+        id: edit.annotation.id,
+        labelId: edit.annotation.label_id,
+        geometry: edit.pending,
+        origin: 'local',
+      },
+    ]);
     work.clearEdit();
     alert('Annotation updated successfully', 'success');
     return true;
@@ -168,7 +184,7 @@ export async function deleteSelection(): Promise<number> {
         body: { annotation_ids: ids },
       });
     }
-    work.bumpVersion();
+    work.recordDeletes(ids);
     alert(ids.length === 1 ? 'Annotation deleted' : `Deleted ${ids.length} annotations`, 'success');
     return ids.length;
   } catch (error) {
@@ -221,6 +237,21 @@ async function handleDrawEnd(geometry: GeoJSON.Geometry): Promise<void> {
   }
 }
 
+/**
+ * A click while the timeseries tool is armed. Empty map moves the active probe
+ * (or drops the first one); a click on a marker picks that probe up, and a
+ * second click on the one already active takes it off the chart. Adding
+ * another is the + control's job, so comparing places never depends on
+ * clicking in exactly the right order.
+ */
+export function handleProbeClick(event: MapClickEvent): void {
+  const work = useWorkStore.getState();
+  const hit = event.layerId === PROBE_LAYER_ID ? probeIndexOf(event.featureId) : null;
+  if (hit === null) work.probeAt(event.lonLat);
+  else if (hit === work.activeProbe) work.removeProbePoint(hit);
+  else work.selectProbePoint(hit);
+}
+
 /** A click on the map, routed by tool. */
 export async function handleMapClick(event: MapClickEvent): Promise<void> {
   // Shift belongs to the box gestures; a click that ends one is not a click.
@@ -228,12 +259,7 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
   const work = useWorkStore.getState();
 
   if (work.tool === 'timeseries') {
-    // Clicking a marker takes that probe back off the chart; anywhere else
-    // adds one alongside the probes already there.
-    const hit = event.layerId === PROBE_LAYER_ID ? probeIndexOf(event.featureId) : null;
-    if (hit !== null) work.removeProbePoint(hit);
-    else work.addProbePoint(event.lonLat);
-    work.completeProbe();
+    handleProbeClick(event);
     return;
   }
 
@@ -242,9 +268,7 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
   // tool's.
   if (work.tool === 'pan') {
     const clicked =
-      event.layerId === ANNOTATION_LAYER_ID && event.featureId != null
-        ? Number(event.featureId)
-        : null;
+      isAnnotationLayer(event.layerId) && event.featureId != null ? Number(event.featureId) : null;
     if (clicked === null) work.clearEdit();
     else if (clicked !== work.edit?.annotation.id) await work.openEdit(clicked);
     return;
@@ -252,7 +276,7 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
 
   if (work.tool === 'edit') {
     const editingId = work.edit?.annotation.id ?? null;
-    if (event.layerId === ANNOTATION_LAYER_ID && event.featureId != null) {
+    if (isAnnotationLayer(event.layerId) && event.featureId != null) {
       const clicked = Number(event.featureId);
       if (clicked !== editingId) await work.openEdit(clicked);
       return;
@@ -296,6 +320,10 @@ export function useDrawingInteractions(): {
   const labelStyles = usePrefsStore((s) => s.labelStyles);
   const vector = useImageryStore((s) => s.vector);
   const labels = useLabels();
+  const policy = usePolicy();
+  // Someone else's annotation opens for reading, never with vertex handles:
+  // the geometry save would only be refused.
+  const editable = edit !== null && canModifyAnnotation(edit.annotation, policy);
 
   const byId = (id: number | null): ExtendedLabel | undefined =>
     id === null ? undefined : labels.find((l) => l.id === id);
@@ -345,7 +373,7 @@ export function useDrawingInteractions(): {
     }
     if (tool === 'edit') {
       const boxSelect = { onBox: (bbox: Bbox) => void handleBox(bbox, []) };
-      if (!edit) return { boxSelect };
+      if (!edit || !editable) return { boxSelect };
       return {
         edit: {
           feature: { id: edit.annotation.id, geometry: edit.geometry },
@@ -368,7 +396,17 @@ export function useDrawingInteractions(): {
     // `edit.geometry` is the identity that matters: rebuilding the spec on a
     // pending drag would tear the interaction down mid-gesture.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExplore, tool, label, sketchStyle, edit?.annotation.id, edit?.geometry, editStyle, vector]);
+  }, [
+    isExplore,
+    tool,
+    label,
+    sketchStyle,
+    edit?.annotation.id,
+    edit?.geometry,
+    editable,
+    editStyle,
+    vector,
+  ]);
 
   return { interactions: spec, onMapClick: isExplore ? onMapClick : undefined };
 }

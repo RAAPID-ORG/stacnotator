@@ -229,7 +229,7 @@ describe('attachInteractions', () => {
     expect(map.getInteractions().getArray()).toHaveLength(0);
   });
 
-  it('fires onDrawEnd with 4326 geometry and clears the sketch feature', () => {
+  it('fires onDrawEnd with 4326 geometry and leaves nothing behind on the sketch layer', () => {
     const map = new OLMap({ interactions: [] });
     const sketchLayer = makeSketchLayer();
     const onDrawEnd = vi.fn();
@@ -241,13 +241,17 @@ describe('attachInteractions', () => {
 
     const coord = fromLonLat([10, 20]);
     const feature = new Feature({ geometry: new Point(coord) });
-    sketchLayer.getSource()!.addFeature(feature);
     draw.dispatchEvent(new DrawEvent('drawend', feature));
 
     expect(onDrawEnd).toHaveBeenCalledTimes(1);
     const geometry = onDrawEnd.mock.calls[0][0] as GeoJSON.Point;
     expect(geometry.coordinates[0]).toBeCloseTo(10, 6);
     expect(geometry.coordinates[1]).toBeCloseTo(20, 6);
+    // OL inserts the finished sketch into the interaction's own source *after*
+    // dispatching drawend, so the interaction must not have one: the caller
+    // draws the committed shape itself, and a leftover sketch would sit on top
+    // of it in the layer's default style.
+    expect((draw as unknown as { source_: unknown }).source_).toBeNull();
     expect(sketchLayer.getSource()!.getFeatures()).toHaveLength(0);
   });
 

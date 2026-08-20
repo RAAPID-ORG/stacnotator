@@ -644,26 +644,15 @@ def delete_annotation_tasks(db: Session, campaign_id: int, task_ids: list[int]) 
 
 
 def delete_campaign(db: Session, campaign_id: int) -> None:
-    """
-    Delete a campaign and all associated data.
-
-    Cascading deletes will automatically remove:
-    - Campaign settings
-    - Canvas layouts (both default and personal)
-    - Imagery sources, views, and basemaps
-    - Timeseries
-    - Annotations
-    - Annotation task items
-
-    Args:
-        db: Database session
-        campaign_id: ID of the campaign to delete
-    """
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
+    """Delete a campaign and everything hanging off it - settings, canvas
+    layouts, imagery, timeseries, tasks and annotations - through the database's
+    own ON DELETE CASCADE. It is issued as a Core statement on purpose: deleting
+    the ORM object cascades in Python instead, loading every task and annotation
+    into the session to delete them one statement at a time."""
+    if not db.get(Campaign, campaign_id):
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    db.delete(campaign)
+    db.execute(delete(Campaign).where(Campaign.id == campaign_id))
     # Geometries have no campaign FK, so the cascade above cannot reach them.
     delete_orphan_geometries(db)
     db.commit()

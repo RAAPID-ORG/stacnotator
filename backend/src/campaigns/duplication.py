@@ -8,9 +8,11 @@ annotations and personal canvas layouts are opt-in. Task claims are runtime
 state of the original campaign and are never copied.
 """
 
+from collections.abc import Sequence
+
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from src.annotation.models import (
     Annotation,
@@ -21,7 +23,13 @@ from src.annotation.models import (
 )
 from src.campaigns.models import Campaign, TaskSet
 from src.canvas.models import CanvasLayout
-from src.imagery.models import ImageryView
+from src.imagery.models import (
+    ImageryCollection,
+    ImageryGenerationSeries,
+    ImagerySlice,
+    ImagerySource,
+    ImageryView,
+)
 from src.timeseries.models import TimeSeries
 
 
@@ -35,6 +43,21 @@ def clone_row(obj, **overrides):
     }
     data.update(overrides)
     return type(obj)(**data)
+
+
+def insert_all[Row](db: Session, rows: list[Row]) -> list[Row]:
+    """Insert a whole level of the copy in one flush. Flushing per row is what
+    turns duplicating a campaign with thousands of slices or tasks into
+    thousands of round trips; SQLAlchemy batches these and still hands each
+    object back its own primary key."""
+    db.add_all(rows)
+    db.flush()
+    return rows
+
+
+def id_map(originals: Sequence, copies: Sequence) -> dict[int, int]:
+    """old id -> new id, for rows cloned in the same order."""
+    return {original.id: copy.id for original, copy in zip(originals, copies, strict=True)}
 
 
 def remapped_layout_data(layout_data: list[dict], collection_id_map: dict[int, int]) -> list[dict]:
@@ -52,6 +75,109 @@ def remapped_layout_data(layout_data: list[dict], collection_id_map: dict[int, i
         else:
             out.append(dict(item))
     return out
+
+
+def _duplicate_imagery(
+    db: Session, campaign: Campaign, dup: Campaign
+) -> tuple[dict[int, int], dict[int, int], dict[int, int]]:
+    """Copy sources, collections and slices with everything hanging off them.
+
+    Read and written one level at a time: each level is fetched in a single
+    query (children eagerly, so walking them costs nothing) and inserted in a
+    single flush, which keeps the cost proportional to the depth of the tree
+    rather than to the number of rows. Returns the old->new id maps for the
+    levels that views, layouts and annotations refer to.
+    """
+    sources = list(
+        db.scalars(
+            select(ImagerySource)
+            .where(ImagerySource.campaign_id == campaign.id)
+            .options(selectinload(ImagerySource.visualizations))
+        )
+    )
+    source_map = id_map(
+        sources, insert_all(db, [clone_row(s, campaign_id=dup.id) for s in sources])
+    )
+    for source in sources:
+        for viz in source.visualizations:
+            db.add(clone_row(viz, source_id=source_map[source.id]))
+
+    series = list(
+        db.scalars(
+            select(ImageryGenerationSeries).where(ImageryGenerationSeries.source_id.in_(source_map))
+        )
+    )
+    # Copied so the duplicate owns its own authoring input; sharing the
+    # original's rows would leave it holding a dangling reference the day the
+    # original campaign is deleted.
+    series_map = id_map(
+        series, insert_all(db, [clone_row(s, source_id=source_map[s.source_id]) for s in series])
+    )
+
+    collections = list(
+        db.scalars(
+            select(ImageryCollection)
+            .where(ImageryCollection.source_id.in_(source_map))
+            .options(
+                selectinload(ImageryCollection.stac_config),
+                selectinload(ImageryCollection.viz_configs),
+            )
+        )
+    )
+    collection_map = id_map(
+        collections,
+        insert_all(
+            db,
+            [
+                clone_row(
+                    col,
+                    source_id=source_map[col.source_id],
+                    generation_series_id=(
+                        series_map.get(col.generation_series_id)
+                        if col.generation_series_id is not None
+                        else None
+                    ),
+                )
+                for col in collections
+            ],
+        ),
+    )
+    for col in collections:
+        if col.stac_config is not None:
+            db.add(clone_row(col.stac_config, collection_id=collection_map[col.id]))
+        for viz_config in col.viz_configs:
+            db.add(clone_row(viz_config, collection_id=collection_map[col.id]))
+
+    slices = list(
+        db.scalars(
+            select(ImagerySlice)
+            .where(ImagerySlice.collection_id.in_(collection_map))
+            .options(selectinload(ImagerySlice.tile_urls))
+        )
+    )
+    slice_map = id_map(
+        slices,
+        insert_all(
+            db, [clone_row(sl, collection_id=collection_map[sl.collection_id]) for sl in slices]
+        ),
+    )
+    for sl in slices:
+        for tile_url in sl.tile_urls:
+            db.add(clone_row(tile_url, slice_id=slice_map[sl.id]))
+
+    return source_map, collection_map, slice_map
+
+
+def _duplicate_geometries(db: Session, geometry_ids: set[int]) -> dict[int, int]:
+    """Copy the given geometries, returning old id -> new id."""
+    if not geometry_ids:
+        return {}
+    originals = list(
+        db.scalars(select(AnnotationGeometry).where(AnnotationGeometry.id.in_(geometry_ids)))
+    )
+    return id_map(
+        originals, insert_all(db, [AnnotationGeometry(geometry=g.geometry) for g in originals])
+    )
 
 
 def duplicate_campaign(
@@ -80,34 +206,7 @@ def duplicate_campaign(
 
     db.add(clone_row(campaign.settings, campaign_id=dup.id))
 
-    # Imagery tree. Ids are remapped level by level so views, layouts and
-    # annotation slice references can follow.
-    source_map: dict[int, int] = {}
-    collection_map: dict[int, int] = {}
-    slice_map: dict[int, int] = {}
-    for src in campaign.imagery_sources:
-        new_src = clone_row(src, campaign_id=dup.id)
-        db.add(new_src)
-        db.flush()
-        source_map[src.id] = new_src.id
-        for viz in src.visualizations:
-            db.add(clone_row(viz, source_id=new_src.id))
-        for col in src.collections:
-            new_col = clone_row(col, source_id=new_src.id)
-            db.add(new_col)
-            db.flush()
-            collection_map[col.id] = new_col.id
-            if col.stac_config is not None:
-                db.add(clone_row(col.stac_config, collection_id=new_col.id))
-            for viz_config in col.viz_configs:
-                db.add(clone_row(viz_config, collection_id=new_col.id))
-            for sl in col.slices:
-                new_slice = clone_row(sl, collection_id=new_col.id)
-                db.add(new_slice)
-                db.flush()
-                slice_map[sl.id] = new_slice.id
-                for tile_url in sl.tile_urls:
-                    db.add(clone_row(tile_url, slice_id=new_slice.id))
+    source_map, collection_map, slice_map = _duplicate_imagery(db, campaign, dup)
 
     for basemap in campaign.basemaps:
         db.add(clone_row(basemap, campaign_id=dup.id))
@@ -149,44 +248,46 @@ def duplicate_campaign(
             )
         )
 
-    # Tasks and annotations may reference the same geometry row; copy each
-    # referenced geometry exactly once so the duplicate is fully independent.
-    geometry_map: dict[int, int] = {}
+    tasks = (
+        list(db.scalars(select(AnnotationTask).where(AnnotationTask.campaign_id == campaign.id)))
+        if include_tasks
+        else []
+    )
+    annotations = (
+        list(db.scalars(select(Annotation).where(Annotation.campaign_id == campaign.id)))
+        if include_annotations
+        else []
+    )
 
-    def cloned_geometry_id(old_id: int) -> int:
-        if old_id not in geometry_map:
-            geometry = db.get(AnnotationGeometry, old_id)
-            assert geometry is not None  # noqa: S101 - NOT NULL FK on every referrer
-            new_geometry = AnnotationGeometry(geometry=geometry.geometry)
-            db.add(new_geometry)
-            db.flush()
-            geometry_map[old_id] = new_geometry.id
-        return geometry_map[old_id]
+    # Every geometry the copy will reference is cloned exactly once, one insert
+    # per level rather than a round trip per shape. Tasks and their annotations
+    # share a geometry row, which is what the accumulated map preserves.
+    geometry_map = _duplicate_geometries(db, {task.geometry_id for task in tasks})
 
     task_map: dict[int, int] = {}
     if include_tasks:
-        set_map: dict[int, int] = {}
-        for task_set in db.scalars(select(TaskSet).where(TaskSet.campaign_id == campaign.id)):
-            new_set = clone_row(task_set, campaign_id=dup.id)
-            db.add(new_set)
-            db.flush()
-            set_map[task_set.id] = new_set.id
+        task_sets = list(db.scalars(select(TaskSet).where(TaskSet.campaign_id == campaign.id)))
+        set_map = id_map(
+            task_sets, insert_all(db, [clone_row(ts, campaign_id=dup.id) for ts in task_sets])
+        )
 
-        tasks = db.scalars(
-            select(AnnotationTask).where(AnnotationTask.campaign_id == campaign.id)
-        ).all()
-        for task in tasks:
-            new_task = clone_row(
-                task,
-                campaign_id=dup.id,
-                geometry_id=cloned_geometry_id(task.geometry_id),
-                task_set_id=set_map[task.task_set_id],
-                claimed_by_user_id=None,
-                claimed_at=None,
-            )
-            db.add(new_task)
-            db.flush()
-            task_map[task.id] = new_task.id
+        task_map = id_map(
+            tasks,
+            insert_all(
+                db,
+                [
+                    clone_row(
+                        task,
+                        campaign_id=dup.id,
+                        geometry_id=geometry_map[task.geometry_id],
+                        task_set_id=set_map[task.task_set_id],
+                        claimed_by_user_id=None,
+                        claimed_at=None,
+                    )
+                    for task in tasks
+                ],
+            ),
+        )
 
         task_ids = list(task_map)
         assignments = db.scalars(
@@ -202,30 +303,31 @@ def duplicate_campaign(
         ):
             db.add(clone_row(embedding, annotation_task_id=task_map[embedding.annotation_task_id]))
 
-    if include_annotations:
-        annotations = db.scalars(
-            select(Annotation).where(Annotation.campaign_id == campaign.id)
-        ).all()
-        for annotation in annotations:
-            if annotation.annotation_task_id is not None:
-                new_task_id = task_map.get(annotation.annotation_task_id)
-                if new_task_id is None:
-                    continue
-            else:
-                new_task_id = None
-            db.add(
-                clone_row(
-                    annotation,
-                    campaign_id=dup.id,
-                    geometry_id=cloned_geometry_id(annotation.geometry_id),
-                    annotation_task_id=new_task_id,
-                    imagery_slice_id=(
-                        slice_map.get(annotation.imagery_slice_id)
-                        if annotation.imagery_slice_id is not None
-                        else None
-                    ),
-                )
+    # An annotation made on a task only comes along when its task did.
+    copied = [
+        annotation
+        for annotation in annotations
+        if annotation.annotation_task_id is None or annotation.annotation_task_id in task_map
+    ]
+    geometry_map |= _duplicate_geometries(db, {a.geometry_id for a in copied} - set(geometry_map))
+    for annotation in copied:
+        db.add(
+            clone_row(
+                annotation,
+                campaign_id=dup.id,
+                geometry_id=geometry_map[annotation.geometry_id],
+                annotation_task_id=(
+                    task_map[annotation.annotation_task_id]
+                    if annotation.annotation_task_id is not None
+                    else None
+                ),
+                imagery_slice_id=(
+                    slice_map.get(annotation.imagery_slice_id)
+                    if annotation.imagery_slice_id is not None
+                    else None
+                ),
             )
+        )
 
     db.commit()
     db.refresh(dup)

@@ -5,11 +5,22 @@ string): this module is the DB-bound half that actually executes PostGIS
 queries, kept out of `service.py`'s ORM-centric read/write flows.
 """
 
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.annotation.tiles import build_mvt_query, task_filter_sql
-from src.config import get_settings
+from src.annotation.tiles import MIN_TILE_ZOOM, build_mvt_query, task_filter_sql
+
+# How many changed annotations one poll carries. Past this the client is told
+# to refetch its tiles: catching up shape by shape would cost more than the
+# render it saves.
+CHANGES_LIMIT = 500
+
+# Rows are stamped when their transaction runs, not when it commits, so a poll
+# taken between the two would never see them again. Every poll re-reads this
+# far back; ids are what the client merges on, so seeing one twice is free.
+CHANGES_OVERLAP = timedelta(seconds=5)
 
 
 def render_annotation_tile(
@@ -24,10 +35,10 @@ def render_annotation_tile(
 
     Returns an empty tile (zero-length bytes) when no geometry falls in the
     tile, which OpenLayers treats as an empty tile. Zoom levels below
-    ``ANNOTATION_TILE_MIN_ZOOM`` also return empty without touching the DB, so a
-    whole-country view of dense parcels can't trigger a multi-MB, CPU-heavy query.
+    ``MIN_TILE_ZOOM`` also return empty without touching the DB, so a continental
+    view of a dense campaign can't trigger a multi-MB, CPU-heavy query.
     """
-    if z < get_settings().ANNOTATION_TILE_MIN_ZOOM:
+    if z < MIN_TILE_ZOOM:
         return b""
     sql, params = build_mvt_query(
         z=z, x=x, y=y, campaign_id=campaign_id, include_tasks=include_tasks
@@ -140,3 +151,60 @@ def get_annotation_density(
     )
     rows = db.execute(sql, {"campaign_id": campaign_id, "grid": grid}).all()
     return [{"lon": float(r[0]), "lat": float(r[1]), "count": int(r[2])} for r in rows]
+
+
+def server_now(db: Session) -> datetime:
+    """The database clock. Cursors are compared against ``updated_at``, which
+    the database stamps, so the app's clock is never the one that decides."""
+    # Transaction start, which is what makes it a safe cursor: anything
+    # committed after this poll began is stamped at or after it.
+    now: datetime = db.execute(text("SELECT now()")).scalar_one()
+    return now
+
+
+def get_annotation_changes(
+    db: Session,
+    campaign_id: int,
+    since: datetime,
+    include_tasks: bool = True,
+    limit: int = CHANGES_LIMIT,
+) -> tuple[list[dict], bool]:
+    """Annotations created or edited since ``since``, newest cursor first.
+
+    Backs the poll that lets one annotator see another's work without either of
+    them refetching tiles. Deletions are deliberately not reported: there is no
+    tombstone to read, so a deletion by someone else shows up when the tiles are
+    next fetched. Returns the rows and whether more were waiting than the limit.
+    """
+    # A cursor without an offset would be compared in whatever timezone the
+    # database session happens to run in, which is hours of annotations either
+    # way. Our own clients echo back what `server_now` gave them; anything else
+    # is read as UTC rather than as local time.
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=UTC)
+    sql = text(
+        f"""
+        SELECT a.id, a.label_id, a.created_by_user_id, ST_AsText(g.geometry) AS geometry_wkt
+        FROM data.annotations a
+        JOIN data.annotation_geometries g ON g.id = a.geometry_id
+        WHERE a.campaign_id = :campaign_id
+          AND a.updated_at >= :since
+          {task_filter_sql(include_tasks)}
+        ORDER BY a.updated_at
+        LIMIT :limit
+        """  # noqa: S608
+    )
+    rows = db.execute(
+        sql,
+        {"campaign_id": campaign_id, "since": since - CHANGES_OVERLAP, "limit": limit + 1},
+    ).mappings()
+    changes = [
+        {
+            "id": row["id"],
+            "label_id": row["label_id"],
+            "created_by_user_id": row["created_by_user_id"],
+            "geometry_wkt": row["geometry_wkt"],
+        }
+        for row in rows
+    ]
+    return changes[:limit], len(changes) > limit

@@ -17,9 +17,15 @@ export interface TourBullet {
   sub?: string[];
 }
 
+/** What a step does to the workspace when it is entered. `edit-layout` is the
+ *  one the user has to finish (it fulfils the step); the rest only prime the
+ *  workspace so the step's copy is true when it is shown. */
+export type TourEffect = 'edit-layout' | 'annotate-tool' | 'slice-headroom' | 'collection-headroom';
+
 export interface TourStep {
   id: string;
-  target: TourTarget;
+  /** Several targets are all lit; the first one anchors the tooltip. */
+  target: TourTarget | TourTarget[];
   title: string;
   /** Paragraphs. `{{<key spec>}}` renders as a key chip labelled from the live
    *  hotkey registry, so copy can never advertise an unbound shortcut. */
@@ -36,7 +42,7 @@ export interface TourStep {
   /** 'edit-layout' turns layout editing on when the step is entered, is
    *  fulfilled when the user leaves it (Save or Cancel), and turns it back off
    *  if the step is left while it is still on. */
-  effect?: 'edit-layout';
+  effect?: TourEffect;
   /** Two-column shortcut recap on the closing step. A row carries either key
    *  specs (rendered as chips from the live registry) or `text`, for the rows
    *  whose shortcut is a range rather than one binding (the label digits). */
@@ -68,6 +74,11 @@ export type TourCommand =
   | { type: 'restore-filter' }
   | { type: 'start-layout-edit' }
   | { type: 'stop-layout-edit' }
+  | { type: 'select-annotate-tool' }
+  /** Step off a boundary so the practice step's two directions both do
+   *  something - a task usually opens on the first slice/collection, where
+   *  "go back" would silently be a no-op. */
+  | { type: 'ensure-headroom'; scale: 'slice' | 'collection' }
   | { type: 'close' };
 
 export interface TourTransition {
@@ -88,7 +99,7 @@ export const INITIAL_TOUR_STATE: TourState = {
 export function canAdvance(step: TourStep | undefined, state: TourState): boolean {
   if (!step) return true;
   const interactive =
-    step.requiredKeys != null || step.requiredClick === true || step.effect != null;
+    step.requiredKeys != null || step.requiredClick === true || step.effect === 'edit-layout';
   return !interactive || state.fulfilled;
 }
 
@@ -97,8 +108,15 @@ export function progressPct(steps: TourStep[], state: TourState): number {
   return Math.round(((state.index + 1) / steps.length) * 100);
 }
 
+const EFFECT_COMMANDS: Record<TourEffect, TourCommand> = {
+  'edit-layout': { type: 'start-layout-edit' },
+  'annotate-tool': { type: 'select-annotate-tool' },
+  'slice-headroom': { type: 'ensure-headroom', scale: 'slice' },
+  'collection-headroom': { type: 'ensure-headroom', scale: 'collection' },
+};
+
 function enterCommands(step: TourStep | undefined): TourCommand[] {
-  return step?.effect === 'edit-layout' ? [{ type: 'start-layout-edit' }] : [];
+  return step?.effect ? [EFFECT_COMMANDS[step.effect]] : [];
 }
 
 function leaveCommands(state: TourState): TourCommand[] {

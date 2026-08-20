@@ -66,6 +66,16 @@ export interface PolicyContext {
   isAssigned?: boolean;
 }
 
+/** Whether the viewer may change or remove this annotation: its author and
+ *  campaign admins, nobody else. Mirrors the backend rule - being a member of
+ *  a campaign is permission to add work, not to undo other people's. */
+export function canModifyAnnotation(
+  annotation: Pick<AnnotationOut, 'created_by_user_id'>,
+  ctx: Pick<PolicyContext, 'userId' | 'isAdmin'>
+): boolean {
+  return ctx.isAdmin || annotation.created_by_user_id === ctx.userId;
+}
+
 export function isAudienceMember(
   audience: PolicyAudience | undefined,
   ctx: PolicyContext

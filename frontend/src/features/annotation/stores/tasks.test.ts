@@ -177,7 +177,7 @@ describe('task session map focus', () => {
     });
     useCampaignStore.setState({ view: makeView({ id: 9 }), taskStartCollectionId: 72 });
     usePrefsStore.setState({ pinnedStart: { 9: 72 } });
-    useWorkStore.getState().addProbePoint([4, 5]);
+    useWorkStore.getState().probeAt([4, 5]);
     initialize([TASK_A, TASK_B], catalog);
 
     expect(useImageryStore.getState().address).toEqual({
@@ -196,7 +196,7 @@ describe('task session map focus', () => {
       windowSlices: { 71: { selected: 1, userPicked: 1 } },
       empties: { '71:0': true },
     });
-    useWorkStore.getState().addProbePoint([6, 7]);
+    useWorkStore.getState().probeAt([6, 7]);
 
     useTasksStore.getState().next(catalog);
 

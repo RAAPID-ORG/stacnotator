@@ -31,11 +31,15 @@ const noOrgAtAll = { activeOrgId: null, belongsToAnyOrg: false };
 
 describe('defaultProjectFilter', () => {
   it('starts on "mine" with an active organization', () => {
-    expect(defaultProjectFilter(1)).toBe('mine');
+    expect(defaultProjectFilter(1, false)).toBe('mine');
   });
 
-  it('starts on "public" without an active organization', () => {
-    expect(defaultProjectFilter(null)).toBe('public');
+  it('starts on "mine" without an active organization once the viewer is in a project', () => {
+    expect(defaultProjectFilter(null, true)).toBe('mine');
+  });
+
+  it('starts on "public" for a viewer with no organization and no project', () => {
+    expect(defaultProjectFilter(null, false)).toBe('public');
   });
 });
 

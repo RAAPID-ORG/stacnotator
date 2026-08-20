@@ -27,10 +27,15 @@ class UserOut(BaseModel):
         )
 
 
-class UserOutDetailed(UserOut):
-    """Detailed user information (platform admins only)."""
+class UserOutDetailed(BaseModel):
+    """The raw user record, for platform admins and for the user themselves.
+    Deliberately not a UserOut: this is the row as stored, so `display_name`
+    is null until the user has chosen a username, where UserOut is the viewer
+    projection that always has a name to show."""
 
+    id: UUID
     email: str
+    display_name: str | None = None
     is_admin: bool
     issuer: str
     external_uid: str

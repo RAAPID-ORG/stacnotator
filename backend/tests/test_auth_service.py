@@ -18,6 +18,7 @@ from src.auth.router import edit_user_info as router_edit_user_info
 from src.auth.router import list_users
 from src.auth.service import (
     accept_terms,
+    edit_user_info,
     grant_admin,
     grant_admin_bulk,
     register_user,
@@ -83,7 +84,9 @@ class TestRegisterUser:
         assert created.issuer == "firebase"
         db.commit.assert_called_once()
 
-    def test_display_name_from_token(self):
+    def test_no_username_is_derived_from_the_token(self):
+        """The provider's name is not unique, and usernames have to be: the
+        client asks the user for one instead."""
         db = _mock_db()
 
         with (
@@ -93,19 +96,7 @@ class TestRegisterUser:
             register_user(db, {"uid": "new-1", "email": "a@b.com", "name": "Alice"}, "firebase")
 
         created = db.add.call_args_list[0].args[0]
-        assert created.display_name == "Alice"
-
-    def test_display_name_fallback_to_email_prefix(self):
-        db = _mock_db()
-
-        with (
-            patch("src.auth.service._get_user_by_external_id", return_value=None),
-            patch("src.auth.service._get_user_by_email", return_value=None),
-        ):
-            register_user(db, {"uid": "new-1", "email": "bob@example.com"}, "firebase")
-
-        created = db.add.call_args_list[0].args[0]
-        assert created.display_name == "bob"
+        assert created.display_name is None
 
     def test_missing_email_raises(self):
         db = _mock_db()
@@ -389,6 +380,49 @@ class TestEditUserInfoAuthorization:
             )
 
         assert result is updated
+
+
+class TestEditUserInfo:
+    def _db_with(self, user, taken=False):
+        db = _mock_db()
+        db.get.return_value = user
+        db.scalar.return_value = uuid4() if taken else None
+        return db
+
+    def test_rejects_a_malformed_username(self):
+        user = _make_user()
+        db = self._db_with(user)
+
+        with pytest.raises(HTTPException) as exc_info:
+            edit_user_info(db, user.id, "ada lovelace")
+
+        assert exc_info.value.status_code == 400
+        db.commit.assert_not_called()
+
+    def test_rejects_a_username_someone_else_holds(self):
+        user = _make_user()
+        db = self._db_with(user, taken=True)
+
+        with pytest.raises(HTTPException) as exc_info:
+            edit_user_info(db, user.id, "ada")
+
+        assert exc_info.value.status_code == 409
+        db.commit.assert_not_called()
+
+    def test_stores_a_free_username_trimmed(self):
+        user = _make_user()
+        db = self._db_with(user)
+
+        edit_user_info(db, user.id, "  ada.lovelace  ")
+
+        assert user.display_name == "ada.lovelace"
+        db.commit.assert_called_once()
+
+    def test_unknown_user_is_not_found(self):
+        db = _mock_db()
+        db.get.return_value = None
+
+        assert edit_user_info(db, uuid4(), "ada") is None
 
 
 class TestAcceptTerms:

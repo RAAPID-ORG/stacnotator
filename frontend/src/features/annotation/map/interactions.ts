@@ -192,8 +192,12 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
 
   if (spec.draw) {
     const { shape, sketchStyle } = spec.draw;
+    // Deliberately no `source`: OL inserts the finished sketch into it *after*
+    // dispatching drawend, so removing it from the handler is a no-op and the
+    // shape stays behind, drawn in the sketch layer's default style on top of
+    // the annotation the caller renders. The sketch is scratch surface only -
+    // the committed result is drawn from the caller's own layer spec.
     const draw = new Draw({
-      source,
       type: shape,
       style: toOlStyle(sketchStyle ?? DEFAULT_SKETCH_STYLE),
     });
@@ -203,9 +207,6 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
     draw.on('drawend', (evt) => {
       attached.drawing = false;
       const geometry = evt.feature.getGeometry();
-      // The caller renders the committed result through its own layer spec;
-      // the sketch feature is only a scratch surface while drawing.
-      source.removeFeature(evt.feature);
       // Read indirectly so a config-equal re-attach mid-sketch (a fresh,
       // un-memoized callback prop) invokes the latest callback, not a stale
       // one captured when this handler was created.

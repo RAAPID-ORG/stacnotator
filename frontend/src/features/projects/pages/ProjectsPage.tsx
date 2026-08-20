@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { listProjects, type ProjectOut } from '~/api/client';
-import { newOrganizationPath, newProjectPath, projectPath } from '~/app/routes';
+import { newOrganizationPath, newProjectPath, organizationsPath, projectPath } from '~/app/routes';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, Input } from '~/shared/ui/forms';
-import { IconFolder, IconPlus } from '~/shared/ui/Icons';
+import { IconBuilding, IconFolder, IconPlus } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
@@ -25,7 +25,12 @@ export const ProjectsPage = () => {
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
-  const { orgs: memberships, loading: orgsLoading, error: orgsError } = useOrganizations();
+  const {
+    orgs: memberships,
+    loading: orgsLoading,
+    error: orgsError,
+    refresh: refreshOrgs,
+  } = useOrganizations();
   const { orgs: approvedOrgs } = useOrganizations({ approvedOnly: true });
 
   const [projects, setProjects] = useState<ProjectOut[]>([]);
@@ -33,12 +38,19 @@ export const ProjectsPage = () => {
   // Until the user picks a filter it tracks the active org, which may still be
   // resolving on first run (auto-select of the first approved org).
   const [userFilter, setUserFilter] = useState<ProjectFilter | null>(null);
-  const filter = userFilter ?? defaultProjectFilter(activeOrgId);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
     setBreadcrumbs([{ label: 'Projects' }]);
   }, [setBreadcrumbs]);
+
+  // The organization list is fetched once per session and then outlives every
+  // navigation, so a membership approved (or an organization approved) while
+  // the tab was open would otherwise stay stale until a reload. Coming back
+  // here is the natural moment to re-ask.
+  useEffect(() => {
+    void refreshOrgs();
+  }, [refreshOrgs]);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -56,6 +68,15 @@ export const ProjectsPage = () => {
   }, []);
 
   const belongsToAnyOrg = memberships.length > 0;
+
+  // The default follows the data: someone already in a project starts on it
+  // rather than on the public list, which only reads as "my projects" once
+  // there is something in it.
+  const hasOwnProjects = useMemo(
+    () => filterProjects(projects, { filter: 'mine', activeOrgId, belongsToAnyOrg }).length > 0,
+    [projects, activeOrgId, belongsToAnyOrg]
+  );
+  const filter = userFilter ?? defaultProjectFilter(activeOrgId, hasOwnProjects);
 
   const filtered = useMemo(
     () => filterProjects(projects, { filter, activeOrgId, belongsToAnyOrg, query }),
@@ -89,14 +110,23 @@ export const ProjectsPage = () => {
               </p>
             )}
           </div>
-          {canCreateProject && (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={() => navigate(newProjectPath())}
-              leading={<IconPlus className="w-4 h-4" />}
+              variant="secondary"
+              onClick={() => navigate(organizationsPath())}
+              leading={<IconBuilding className="w-4 h-4" />}
             >
-              New project
+              Browse organizations
             </Button>
-          )}
+            {canCreateProject && (
+              <Button
+                onClick={() => navigate(newProjectPath())}
+                leading={<IconPlus className="w-4 h-4" />}
+              >
+                New project
+              </Button>
+            )}
+          </div>
         </header>
 
         {showCreationGating && (

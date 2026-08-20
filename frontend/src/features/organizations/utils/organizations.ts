@@ -20,3 +20,17 @@ export const reconcileActiveOrgId = (
   if (orgs.some((org) => org.id === activeOrgId)) return activeOrgId;
   return firstApproved();
 };
+
+type PendingSource = { status: string; is_admin?: boolean; pending_access_requests?: number };
+
+/** What is waiting on this viewer as an admin: people asking to join an
+ *  organization they administer, plus - for platform admins - organizations
+ *  waiting to be approved. Drives the badge on the settings button, which is
+ *  where both queues are reachable from. */
+export const pendingAdminActions = (orgs: PendingSource[], isPlatformAdmin: boolean) => {
+  const accessRequests = orgs.reduce((sum, org) => sum + (org.pending_access_requests ?? 0), 0);
+  const organizationApprovals = isPlatformAdmin
+    ? orgs.filter((org) => org.status === 'pending').length
+    : 0;
+  return { accessRequests, organizationApprovals, total: accessRequests + organizationApprovals };
+};

@@ -23,7 +23,12 @@ import {
   type UserOutDetailed,
 } from '~/api/client';
 import { useAccountStore } from '~/shared/stores/account.store';
+import { useOrganizationsStore } from '~/features/organizations/stores/organizations.store';
+import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
+import { pendingAdminActions } from '~/features/organizations/utils/organizations';
+import { CountBadge } from '~/shared/ui/Badge';
 import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
+import { usernameError } from 'src/features/auth/utils/usernames';
 import {
   authErrorMessage,
   CHANGE_PASSWORD_ERRORS,
@@ -78,7 +83,7 @@ export const SettingsPage = () => {
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Display name editing state
+  // Username editing state
   const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
   const [displayNameInput, setDisplayNameInput] = useState('');
 
@@ -96,6 +101,9 @@ export const SettingsPage = () => {
   // Use individual selectors to avoid creating new objects on every render
   const account = useAccountStore((s) => s.account);
   const fetchAccount = useAccountStore((s) => s.fetchAccount);
+  // Read from the shared list, not this page's: the tab badge has to be right
+  // before anyone opens the tab that fetches its own copy.
+  const { orgs: knownOrgs } = useOrganizations();
 
   // Set breadcrumbs
   useEffect(() => {
@@ -184,8 +192,13 @@ export const SettingsPage = () => {
 
   // Org handlers let failures propagate: PlatformOrganizationsTable reports them
   // and keeps the row's busy/editor state consistent.
-  const applyOrganization = (updated: OrganizationOut) =>
+  // The shared store is refreshed alongside this page's own copy: approving an
+  // organization changes how it reads everywhere else - the sidebar switcher
+  // would otherwise keep calling it pending until the next reload.
+  const applyOrganization = (updated: OrganizationOut) => {
     setOrganizations((prev) => prev.map((org) => (org.id === updated.id ? updated : org)));
+    void useOrganizationsStore.getState().refresh();
+  };
 
   const handleApproveOrganization = async (organizationId: number) => {
     const { data } = await approveOrganization({
@@ -245,10 +258,10 @@ export const SettingsPage = () => {
       if (data) {
         await fetchAccount();
         setIsEditingDisplayName(false);
-        showAlert('Display name updated successfully', 'success');
+        showAlert('Username updated', 'success');
       }
     } catch (err) {
-      handleError(err, 'Failed to update display name');
+      handleError(err, 'Failed to update username');
     } finally {
       setSaving(false);
     }
@@ -374,7 +387,15 @@ export const SettingsPage = () => {
                     }`}
                     type="button"
                   >
-                    Organizations
+                    <span className="inline-flex items-center gap-1.5">
+                      Organizations
+                      <CountBadge
+                        count={
+                          pendingAdminActions(knownOrgs, account.is_admin).organizationApprovals
+                        }
+                        label="organizations to review"
+                      />
+                    </span>
                   </button>
                 </>
               )}
@@ -390,7 +411,10 @@ export const SettingsPage = () => {
                       <Field label="Email">
                         <Input type="text" value={account.email} disabled />
                       </Field>
-                      <Field label="Display name">
+                      <Field
+                        label="Username"
+                        error={isEditingDisplayName ? usernameError(displayNameInput) : undefined}
+                      >
                         {isEditingDisplayName ? (
                           <div className="flex gap-2">
                             <Input
@@ -398,12 +422,13 @@ export const SettingsPage = () => {
                               value={displayNameInput}
                               onChange={(e) => setDisplayNameInput(e.target.value)}
                               disabled={saving}
-                              placeholder="Enter display name"
+                              placeholder="e.g. ada.lovelace"
+                              invalid={Boolean(usernameError(displayNameInput))}
                               autoFocus
                             />
                             <Button
                               onClick={handleSaveDisplayName}
-                              disabled={saving || !displayNameInput.trim()}
+                              disabled={saving || Boolean(usernameError(displayNameInput))}
                               leading={
                                 saving ? (
                                   <svg
@@ -444,7 +469,7 @@ export const SettingsPage = () => {
                               type="text"
                               value={account.display_name || ''}
                               disabled
-                              placeholder="No display name set"
+                              placeholder="No username set"
                             />
                             <Button variant="secondary" onClick={handleStartEditDisplayName}>
                               Edit

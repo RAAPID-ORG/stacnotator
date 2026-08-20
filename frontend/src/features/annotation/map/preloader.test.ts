@@ -320,6 +320,52 @@ describe('TilePreloader progress', () => {
   });
 });
 
+describe('TilePreloader warm set', () => {
+  // Browsing to another date inside the same task clears the queue and
+  // re-enqueues the same neighbourhood. Tiles that were still waiting were
+  // never fetched, so they must not come back already counted as done.
+  it('does not count tiles that only ever sat in the queue as warm', async () => {
+    const { preloader } = harness(1);
+    const job = {
+      priority: 1,
+      groupId: 'g',
+      urlTemplate: 'https://a/{z}/{x}/{y}',
+      extent: WORLD,
+      zoom: 1,
+    };
+    preloader.enqueue(job);
+    await flush();
+    expect(preloader.progress().get('g')).toEqual({ done: 0, total: 4 });
+
+    preloader.clear();
+    preloader.enqueue(job);
+    await flush();
+
+    // One tile was in flight when the queue was cleared; the other three never
+    // left it, so only that one may read as already warm.
+    expect(preloader.progress().get('g')).toEqual({ done: 1, total: 4 });
+    preloader.dispose();
+  });
+
+  it('forgets aborted tiles too, so a re-enqueued group starts cold', async () => {
+    const { preloader } = harness(0);
+    const job = {
+      priority: 1,
+      groupId: 'g',
+      urlTemplate: 'https://a/{z}/{x}/{y}',
+      extent: WORLD,
+      zoom: 1,
+    };
+    preloader.enqueue(job);
+    preloader.abort('g');
+    preloader.enqueue(job);
+    await flush();
+
+    expect(preloader.progress().get('g')).toEqual({ done: 0, total: 4 });
+    preloader.dispose();
+  });
+});
+
 describe('TilePreloader credentials', () => {
   it('refreshes the tiler session only for credentialed tiles', async () => {
     const refreshToken = vi.mocked(ensureTilerSession);

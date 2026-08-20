@@ -9,6 +9,10 @@ const VIEWPORT_GAP_PX = 4;
 export interface HeaderSelectOption {
   value: string | number;
   label: string;
+  /** Options carrying a group are listed under a heading of that name, and the
+   *  closed button names the group too - the label alone is only unique inside
+   *  its group (two sources both offering "True Color"). */
+  group?: string;
   /** Known-empty slices stay selectable but are visibly de-emphasised. */
   dimmed?: boolean;
   /** Marker drawn after the label, e.g. "this slice has a note". */
@@ -29,6 +33,20 @@ export interface HeaderSelectProps {
   /** Imagery windows are small and sit on a dark header. */
   compact?: boolean;
   dark?: boolean;
+}
+
+/** Options in listed order, cut into their consecutive groups. */
+function sections(options: HeaderSelectOption[]): Array<{
+  group?: string;
+  items: HeaderSelectOption[];
+}> {
+  const out: Array<{ group?: string; items: HeaderSelectOption[] }> = [];
+  for (const option of options) {
+    const last = out[out.length - 1];
+    if (last && last.group === option.group) last.items.push(option);
+    else out.push({ group: option.group, items: [option] });
+  }
+  return out;
 }
 
 function Star({ filled }: { filled: boolean }) {
@@ -123,7 +141,13 @@ export function HeaderSelect({
         } transition-colors`}
       >
         {icon && <span className="shrink-0 opacity-40 flex items-center">{icon}</span>}
-        <span className="truncate max-w-[11rem]">{selected?.label ?? ''}</span>
+        <span className="truncate max-w-[11rem]">
+          {selected
+            ? selected.group
+              ? `${selected.group} > ${selected.label}`
+              : selected.label
+            : ''}
+        </span>
         <IconChevronDown className={`w-2 h-2 shrink-0 ${dark ? 'opacity-50' : 'opacity-40'}`} />
       </button>
 
@@ -135,43 +159,52 @@ export function HeaderSelect({
             onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}
           >
-            {options.map((option) => {
-              const isSelected = option.value === value;
-              const isMarked = markedValue != null && option.value === markedValue;
-              return (
-                <div
-                  key={option.value}
-                  className={`flex items-center ${isSelected ? 'bg-brand-50' : 'hover:bg-neutral-50'} ${option.dimmed ? 'opacity-50' : ''}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => select(option)}
-                    className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 text-left text-xs cursor-pointer ${isSelected ? 'font-medium text-brand-700' : 'text-neutral-700'}`}
-                  >
-                    <span
-                      className={`h-1 w-1 shrink-0 rounded-full ${isSelected ? 'bg-brand-500' : 'bg-transparent'}`}
-                    />
-                    <span className="truncate">{option.label}</span>
-                    {option.badge && <span className="shrink-0">{option.badge}</span>}
-                  </button>
-                  {onMarkOption && (
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMarkOption(option.value);
-                      }}
-                      title={isMarked ? markActiveTitle : markInactiveTitle}
-                      aria-pressed={isMarked}
-                      className={`ml-1 mr-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded cursor-pointer ${isMarked ? 'text-brand-600' : 'text-neutral-300 hover:text-neutral-500'}`}
+            {sections(options).map((section) => (
+              <div key={section.group ?? ''} data-option-group={section.group}>
+                {section.group && (
+                  <div className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                    {section.group}
+                  </div>
+                )}
+                {section.items.map((option) => {
+                  const isSelected = option.value === value;
+                  const isMarked = markedValue != null && option.value === markedValue;
+                  return (
+                    <div
+                      key={option.value}
+                      className={`flex items-center ${isSelected ? 'bg-brand-50' : 'hover:bg-neutral-50'} ${option.dimmed ? 'opacity-50' : ''}`}
                     >
-                      <Star filled={isMarked} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                      <button
+                        type="button"
+                        onClick={() => select(option)}
+                        className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 text-left text-xs cursor-pointer ${isSelected ? 'font-medium text-brand-700' : 'text-neutral-700'}`}
+                      >
+                        <span
+                          className={`h-1 w-1 shrink-0 rounded-full ${isSelected ? 'bg-brand-500' : 'bg-transparent'}`}
+                        />
+                        <span className="truncate">{option.label}</span>
+                        {option.badge && <span className="shrink-0">{option.badge}</span>}
+                      </button>
+                      {onMarkOption && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onMarkOption(option.value);
+                          }}
+                          title={isMarked ? markActiveTitle : markInactiveTitle}
+                          aria-pressed={isMarked}
+                          className={`ml-1 mr-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded cursor-pointer ${isMarked ? 'text-brand-600' : 'text-neutral-300 hover:text-neutral-500'}`}
+                        >
+                          <Star filled={isMarked} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>,
           buttonRef.current?.ownerDocument.body ?? document.body
         )}
