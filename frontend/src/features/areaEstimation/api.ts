@@ -11,7 +11,7 @@
  */
 
 import type { AreaEstimationPlan, MapValue, PixelCensus, RasterInfo, StudyArea } from './core/plan';
-import { NO_DATA_CLASS_ID, designsOf } from './core/plan';
+import { NO_DATA_CLASS_ID, designsOf, emptyPlan } from './core/plan';
 import { DEFAULT_EQUAL_AREA_CRS } from './core/guidance';
 import type { StratumSample } from './core/estimate';
 
@@ -126,7 +126,10 @@ export const loadPlan = async (campaignId: number): Promise<AreaEstimationPlan |
   const raw = localStorage.getItem(storageKey(campaignId));
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as AreaEstimationPlan;
+    // A plan stored before a field existed still has to load. Merging onto the
+    // current shape is what keeps the type honest: nothing downstream should
+    // have to defend against a field that was simply not written yet.
+    return { ...emptyPlan(), ...(JSON.parse(raw) as Partial<AreaEstimationPlan>) };
   } catch {
     return null;
   }
