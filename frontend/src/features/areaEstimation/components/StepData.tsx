@@ -258,7 +258,7 @@ export const StepData = ({ plan, update }: Props) => {
               >
                 {EQUAL_AREA_PROJECTIONS.map((crs) => (
                   <option key={crs.code} value={crs.code}>
-                    {crs.code} — {crs.name}
+                    {crs.code} -{crs.name}
                   </option>
                 ))}
               </Select>
@@ -280,7 +280,7 @@ export const StepData = ({ plan, update }: Props) => {
                   {plan.raster.bands.map((b) => (
                     <option key={b.index} value={b.index}>
                       Band {b.index}
-                      {b.description ? ` — ${b.description}` : ''}
+                      {b.description ? ` -${b.description}` : ''}
                     </option>
                   ))}
                 </Select>
@@ -292,8 +292,7 @@ export const StepData = ({ plan, update }: Props) => {
         {plan.raster && (
           <div className="space-y-3 pt-2">
             <SubHeading title="Class names">
-              Every distinct value in the band, and what to call it. These names are what your
-              results are reported under.
+              Every distinct value in the band, and what to call it.
             </SubHeading>
 
             {plan.values.length === 0 ? (

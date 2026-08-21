@@ -16,11 +16,13 @@ interface Explanation {
 const useLearnMore = ({ technical, source }: Explanation) => {
   const [open, setOpen] = useState(false);
 
+  // Deliberately quieter than the sentence it hangs off: an offer, not a
+  // competing headline.
   const link = (label: string) => (
     <button
       type="button"
       onClick={() => setOpen(!open)}
-      className="font-medium text-blue-800 underline underline-offset-4 decoration-blue-300 hover:decoration-blue-600 cursor-pointer"
+      className="text-xs text-brand-700 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-600 cursor-pointer"
     >
       {label}
     </button>
@@ -33,9 +35,9 @@ const useLearnMore = ({ technical, source }: Explanation) => {
     /** Goes directly below that sentence, once asked for. */
     expansion:
       technical && open ? (
-        <div className="mt-2 text-[13px] leading-relaxed text-neutral-600">
+        <div className="mt-2 text-xs leading-relaxed text-neutral-500">
           {technical}
-          {source && <p className="mt-2 text-[11px] italic text-neutral-500">{source}</p>}
+          {source && <p className="mt-2 text-[11px] italic text-neutral-400">{source}</p>}
           <p className="mt-2">{link('Show less')}</p>
         </div>
       ) : null,
@@ -87,12 +89,26 @@ export const StepHeading = ({
   );
 };
 
-export const SubHeading = ({ title, children }: { title: string; children?: ReactNode }) => (
-  <div>
-    <h3 className="text-sm font-medium text-neutral-900">{title}</h3>
-    {children && <p className="mt-0.5 text-xs text-neutral-500 leading-snug">{children}</p>}
-  </div>
-);
+export const SubHeading = ({
+  title,
+  technical,
+  source,
+  children,
+}: Explanation & { title: string; children?: ReactNode }) => {
+  const { inlineLink, expansion } = useLearnMore({ technical, source });
+  return (
+    <div>
+      <h3 className="text-sm font-medium text-neutral-900">{title}</h3>
+      {children && (
+        <p className="mt-0.5 text-xs text-neutral-500 leading-snug">
+          {children}
+          {inlineLink}
+        </p>
+      )}
+      {expansion}
+    </div>
+  );
+};
 
 /** Radio card, the established way this app offers a small set of choices. */
 export const ChoiceCard = ({

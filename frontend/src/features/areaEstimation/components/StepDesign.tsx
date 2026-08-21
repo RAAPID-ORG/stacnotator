@@ -318,7 +318,7 @@ const DesignTable = ({
               <td colSpan={2} className="pt-3 text-right">
                 <Badge tone={meetsTarget ? 'green' : 'yellow'}>
                   ±{formatPercent(design.precision.cv)}
-                  {meetsTarget ? '' : ` — target is ±${formatPercent(plan.targetCv, 0)}`}
+                  {meetsTarget ? '' : ` -target is ±${formatPercent(plan.targetCv, 0)}`}
                 </Badge>
               </td>
             </tr>

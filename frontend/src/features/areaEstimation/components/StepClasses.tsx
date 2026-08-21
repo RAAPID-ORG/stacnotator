@@ -2,7 +2,7 @@ import { Button, IconButton, Input, Select } from '~/shared/ui/forms';
 import { IconClose, IconPlus, IconTrash } from '~/shared/ui/Icons';
 import type { AreaEstimationPlan, ReportingClass } from '../core/plan';
 import { oneClassPerValue, pixelsFor, unassignedValues } from '../core/plan';
-import { ChoiceCard, Explain, Note, StepHeading, SubHeading } from './Explain';
+import { ChoiceCard, Note, StepHeading, SubHeading } from './Explain';
 import { formatPixels } from './format';
 
 interface Props {
@@ -44,11 +44,8 @@ export const StepClasses = ({ plan, update }: Props) => {
 
   return (
     <div className="space-y-8">
-      <StepHeading title="What you want to report on">
-        The classes you publish do not have to be the classes the map produced. Group them here.
-      </StepHeading>
-
-      <Explain
+      <StepHeading
+        title="What you want to report on"
         technical={
           <>
             <p>
@@ -65,15 +62,17 @@ export const StepClasses = ({ plan, update }: Props) => {
         }
         source="Olofsson et al. (2014), Section 2.1.1 on aggregating classes into strata."
       >
-        If your map separates winter wheat, barley and rye but you publish a single{' '}
+        The classes you publish do not have to be the classes the map produced. Group them here. For
+        example, if your map separates winter wheat, barley and rye but you publish a single{' '}
         <em>winter cereals</em> number, merge them into one class here. Fewer, larger classes need
         fewer sample points to reach the same precision.
-      </Explain>
+      </StepHeading>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <SubHeading title="Reporting classes">
-            Each of these becomes one group the sample is spread over, and one row in your results.
+            The final classes that accuracies will be reported for. Often merged from multiple map
+            classes.
           </SubHeading>
           <div className="flex items-center gap-2 shrink-0">
             <Button
@@ -148,7 +147,7 @@ export const StepClasses = ({ plan, update }: Props) => {
                       <option value="">Add a value…</option>
                       {unassigned.map((v) => (
                         <option key={v.value} value={v.value}>
-                          {v.value} — {v.label || 'unnamed'}
+                          {v.value} -{v.label || 'unnamed'}
                         </option>
                       ))}
                     </Select>
@@ -170,9 +169,21 @@ export const StepClasses = ({ plan, update }: Props) => {
       </section>
 
       <section className="space-y-3">
-        <SubHeading title="Nodata pixels">
-          Marked as nodata on the previous step:{' '}
-          {plan.noDataValues.length === 0 ? 'none' : plan.noDataValues.map(labelOf).join(', ')}.
+        <SubHeading
+          title="Nodata pixels"
+          technical={
+            <p>
+              Excluding a value removes it from the population: the stratum weights are renormalised
+              over what remains and the reported total area shrinks accordingly. Keeping it as a
+              stratum leaves it in the population and lets sample points inside it carry a real
+              class label, which is what recovers the crop area the map missed. Nodata is never a
+              reporting class either way, because nobody wants to publish the area of a gap in their
+              own map.
+            </p>
+          }
+        >
+          Nodata pixels are not a class you report on, but they are still ground. What you do with
+          them changes what your published total covers.
         </SubHeading>
 
         {plan.noDataValues.length === 0 ? (
@@ -181,21 +192,6 @@ export const StepClasses = ({ plan, update }: Props) => {
           </p>
         ) : (
           <>
-            <Explain
-              technical={
-                <p>
-                  Excluding a value removes it from the population: the stratum weights are
-                  renormalised over what remains and the reported total area shrinks accordingly.
-                  Keeping it as a stratum leaves it in the population and lets sample points inside
-                  it carry a real class label, which is what recovers the crop area the map missed.
-                  Nodata is never a reporting class either way, because nobody wants to publish the
-                  area of a gap in their own map.
-                </p>
-              }
-            >
-              Nodata pixels are not a class you report on, but they are still ground. What you do
-              with them changes what your published total covers.
-            </Explain>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <ChoiceCard
                 selected={plan.noDataHandling === 'exclude'}
@@ -203,7 +199,7 @@ export const StepClasses = ({ plan, update }: Props) => {
                 title="Leave them out of the study area"
                 testId="uae-nodata-exclude"
               >
-                Right when the nodata pixels are outside what you report on — sea, another country,
+                Right when the nodata pixels are outside what you report on -sea, another country,
                 permanent cloud. Your total then covers the mapped part only.
               </ChoiceCard>
               <ChoiceCard

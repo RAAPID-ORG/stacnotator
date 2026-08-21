@@ -54,9 +54,9 @@ export const StepTarget = ({ plan, update }: Props) => {
           }
           source="Olofsson et al. (2014), Section 5.1.2."
         >
-          Pick the crop your ministry publishes and defends — usually the one with the biggest
-          policy or market consequence. A rare class is expensive to pin down, so making a 2% class
-          the target costs far more points than making a 30% class the target.
+          Pick the crop your ministry publishes and defends -usually the one with the biggest policy
+          or market consequence. A rare class is expensive to pin down, so making a 2% class the
+          target costs far more points than making a 30% class the target.
         </Explain>
       </section>
 
