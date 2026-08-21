@@ -21,7 +21,8 @@ import {
 import { priorFromCorrectShares, priorSharesOfClass, type PriorMatrix } from './prior';
 import {
   DEFAULT_EQUAL_AREA_CRS,
-  DEFAULT_PILOT_PER_STRATUM,
+  DEFAULT_PILOT_BUDGET_PER_CLASS,
+  DEFAULT_PILOT_FLOOR_PER_CLASS,
   DEFAULT_SAMPLE_FLOOR,
   DEFAULT_TARGET_CV,
   priorSource,
@@ -101,7 +102,10 @@ export interface AreaEstimationPlan {
   correctShares: Record<string, number>;
   allocationRule: AllocationRule;
   sampleFloor: number;
-  pilotPerStratum: number;
+  /** Points the pilot buys per class, spread by area. */
+  pilotBudgetPerClass: number;
+  /** The pilot's own floor, below which no class may fall. */
+  pilotFloorPerClass: number;
   /** Hand-edited sample sizes, by stratum id, winning over the computed ones. */
   overrides: Record<string, number>;
   /** Set when the design has been turned into a sample the campaign works on. */
@@ -131,7 +135,8 @@ export const emptyPlan = (): AreaEstimationPlan => ({
   correctShares: {},
   allocationRule: 'neyman',
   sampleFloor: DEFAULT_SAMPLE_FLOOR,
-  pilotPerStratum: DEFAULT_PILOT_PER_STRATUM,
+  pilotBudgetPerClass: DEFAULT_PILOT_BUDGET_PER_CLASS,
+  pilotFloorPerClass: DEFAULT_PILOT_FLOOR_PER_CLASS,
   overrides: {},
   activatedAt: null,
   taskSetId: null,
@@ -266,9 +271,9 @@ const applyOverrides = (
 export const designForDomain = (plan: AreaEstimationPlan, domain: Domain): DomainDesign => {
   const pilot = planNeedsPilot(plan);
   const rule: AllocationRule = pilot ? 'proportional' : plan.allocationRule;
-  const floor = pilot ? plan.pilotPerStratum : plan.sampleFloor;
+  const floor = pilot ? plan.pilotFloorPerClass : plan.sampleFloor;
   const budget = pilot
-    ? plan.pilotPerStratum * domain.strata.length
+    ? plan.pilotBudgetPerClass * domain.strata.length
     : sampleSizeForTargetCv(domain.strata, rule, plan.targetCv);
 
   const allocation = applyOverrides(plan, allocate(domain.strata, budget, rule, floor));
@@ -327,7 +332,7 @@ export const precisionCurves = (
 ): CurveSeries[] => {
   const pilot = planNeedsPilot(plan);
   const rule: AllocationRule = pilot ? 'proportional' : plan.allocationRule;
-  const floor = pilot ? plan.pilotPerStratum : plan.sampleFloor;
+  const floor = pilot ? plan.pilotFloorPerClass : plan.sampleFloor;
 
   const byTotal = new Map<number, { classId: string; className: string; precision: Precision }[]>();
   for (const requested of requestedTotals) {

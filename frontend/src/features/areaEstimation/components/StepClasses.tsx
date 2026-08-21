@@ -1,5 +1,5 @@
-import { Input, Select } from '~/shared/ui/forms';
-import { Badge } from '~/shared/ui/Badge';
+import { Button, IconButton, Input, Select } from '~/shared/ui/forms';
+import { IconPlus, IconTrash } from '~/shared/ui/Icons';
 import type { AreaEstimationPlan, ReportingClass } from '../core/plan';
 import { NO_DATA_CLASS_ID, pixelsFor, unassignedValues } from '../core/plan';
 import { ChoiceCard, Note, StepHeading, SubHeading } from './Explain';
@@ -63,7 +63,7 @@ export const StepClasses = ({ plan, update }: Props) => {
   const renameClass = (id: string, name: string) =>
     setClasses(plan.classes.map((c) => (c.id === id ? { ...c, name } : c)));
 
-  const merged = plan.classes.filter((c) => c.values.length > 1);
+  const removeClass = (id: string) => setClasses(plan.classes.filter((c) => c.id !== id));
 
   return (
     <div className="space-y-8">
@@ -91,72 +91,16 @@ export const StepClasses = ({ plan, update }: Props) => {
         same precision.
       </StepHeading>
 
-      <section className="space-y-3">
-        <SubHeading title="Where each map value is reported">
-          Every value from the map goes somewhere. Each starts as its own class; send two to the
-          same one to merge them.
-        </SubHeading>
-
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
-              <th className="py-2 font-medium w-16">Value</th>
-              <th className="py-2 font-medium">From the map</th>
-              <th className="py-2 pr-6 font-medium w-20 text-right">Share</th>
-              <th className="py-2 font-medium w-64">Reported as</th>
-            </tr>
-          </thead>
-          <tbody>
-            {plan.values.map((value) => {
-              const assigned = classOf(value.value);
-              const share = totalPixels > 0 ? pixelsFor(plan, [value.value]) / totalPixels : 0;
-              return (
-                <tr key={value.value} className="border-b border-neutral-100">
-                  <td className="py-2 font-mono text-xs text-neutral-400">{value.value}</td>
-                  <td className="py-2 text-neutral-800">{value.label || 'Unnamed'}</td>
-                  <td className="py-2 pr-6 text-right text-xs text-neutral-500 tabular-nums">
-                    {assigned === NO_DATA_CLASS_ID ? '-' : formatPercent(share)}
-                  </td>
-                  <td className="py-2">
-                    <Select
-                      size="sm"
-                      value={assigned}
-                      invalid={assigned === ''}
-                      aria-label={`Reporting class for ${value.label || value.value}`}
-                      onChange={(e) => assign(value.value, e.target.value || null)}
-                    >
-                      <option value="">Not assigned</option>
-                      {plan.classes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name || 'Unnamed class'}
-                        </option>
-                      ))}
-                      <option value={NEW_CLASS}>＋ A class of its own</option>
-                      <option value={NO_DATA_CLASS_ID}>Nodata - not a class</option>
-                    </Select>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {unassigned.length > 0 && (
-          <Note tone="warning">
-            {unassigned.length} map value{unassigned.length === 1 ? ' is' : 's are'} not reported
-            anywhere yet. Every pixel of the study area has to belong somewhere, otherwise the
-            stratum weights do not add up to the area you are reporting on.
-          </Note>
-        )}
-      </section>
-
-      {merged.length > 0 && (
-        <section className="space-y-3">
-          <SubHeading title="Name your merged classes">
-            These hold more than one map value, so they need a name of their own.
+      <section className="space-y-6">
+        <div className="space-y-3">
+          <SubHeading title="Reporting classes">
+            The rows of your published table. A reporting class is often several of the map&apos;s
+            own classes put together: a map that separates wheat, barley and rye still reports one
+            winter cereals figure.
           </SubHeading>
+
           <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
-            {merged.map((cls) => (
+            {plan.classes.map((cls) => (
               <li key={cls.id} className="py-2.5 flex items-center gap-3">
                 <Input
                   size="sm"
@@ -167,46 +111,117 @@ export const StepClasses = ({ plan, update }: Props) => {
                   aria-label="Reporting class name"
                   onChange={(e) => renameClass(cls.id, e.target.value)}
                 />
-                <span className="flex flex-wrap gap-1">
-                  {cls.values.map((v) => (
-                    <Badge key={v} tone="neutral">
-                      {plan.values.find((x) => x.value === v)?.label || v}
-                    </Badge>
-                  ))}
-                </span>
                 <span className="flex-1" />
                 <span className="text-xs text-neutral-500 tabular-nums">
-                  {formatPercent(totalPixels > 0 ? pixelsFor(plan, cls.values) / totalPixels : 0)}
+                  {cls.values.length === 0
+                    ? 'nothing assigned yet'
+                    : formatPercent(
+                        totalPixels > 0 ? pixelsFor(plan, cls.values) / totalPixels : 0
+                      )}
                 </span>
+                <IconButton
+                  tone="danger"
+                  onClick={() => removeClass(cls.id)}
+                  aria-label={`Remove ${cls.name || 'class'}`}
+                >
+                  <IconTrash className="w-4 h-4" />
+                </IconButton>
               </li>
             ))}
           </ul>
-        </section>
-      )}
 
-      <section className="space-y-3">
-        <SubHeading
-          title="Nodata pixels"
-          technical={
-            <p>
-              Excluding a value removes it from the population: the stratum weights are renormalised
-              over what remains and the reported total area shrinks accordingly. Keeping it as a
-              stratum leaves it in the population and lets sample points inside it carry a real
-              class label, which is what recovers the crop area the map missed. Nodata is never a
-              reporting class either way, because nobody wants to publish the area of a gap in their
-              own map.
-            </p>
-          }
-        >
-          Nodata pixels are not a class you report on, but they are still ground. What you do with
-          them changes what your published total covers.
-        </SubHeading>
+          <Button
+            size="sm"
+            variant="secondary"
+            leading={<IconPlus className="w-3.5 h-3.5" />}
+            onClick={() =>
+              setClasses([...plan.classes, { id: `class-new-${Date.now()}`, name: '', values: [] }])
+            }
+            data-testid="uae-add-class"
+          >
+            Add a class
+          </Button>
+        </div>
 
-        {plan.noDataValues.length === 0 ? (
-          <p className="text-xs text-neutral-500">
-            Nothing is marked as nodata, so the whole map is being reported on.
-          </p>
-        ) : (
+        <div className="space-y-3">
+          <SubHeading title="What goes into each">
+            Every value the map produces has to be reported somewhere. Send two to the same class to
+            merge them.
+          </SubHeading>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
+                <th className="py-2 font-medium w-16">Value</th>
+                <th className="py-2 font-medium">From the map</th>
+                <th className="py-2 pr-6 font-medium w-20 text-right">Share</th>
+                <th className="py-2 font-medium w-64">Reported as</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plan.values.map((value) => {
+                const assigned = classOf(value.value);
+                const share = totalPixels > 0 ? pixelsFor(plan, [value.value]) / totalPixels : 0;
+                return (
+                  <tr key={value.value} className="border-b border-neutral-100">
+                    <td className="py-2 font-mono text-xs text-neutral-400">{value.value}</td>
+                    <td className="py-2 text-neutral-800">{value.label || 'Unnamed'}</td>
+                    <td className="py-2 pr-6 text-right text-xs text-neutral-500 tabular-nums">
+                      {assigned === NO_DATA_CLASS_ID ? '-' : formatPercent(share)}
+                    </td>
+                    <td className="py-2">
+                      <Select
+                        size="sm"
+                        value={assigned}
+                        invalid={assigned === ''}
+                        aria-label={`Reporting class for ${value.label || value.value}`}
+                        onChange={(e) => assign(value.value, e.target.value || null)}
+                      >
+                        <option value="">Not assigned</option>
+                        {plan.classes.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name || 'Unnamed class'}
+                          </option>
+                        ))}
+                        <option value={NEW_CLASS}>+ A class of its own</option>
+                        <option value={NO_DATA_CLASS_ID}>Nodata - not a class</option>
+                      </Select>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {unassigned.length > 0 && (
+            <Note tone="warning">
+              {unassigned.length} map value{unassigned.length === 1 ? ' is' : 's are'} not reported
+              anywhere yet. Every pixel of the study area has to belong somewhere, otherwise the
+              stratum weights do not add up to the area you are reporting on.
+            </Note>
+          )}
+        </div>
+      </section>
+
+      {plan.noDataValues.length > 0 && (
+        <section className="space-y-3">
+          <SubHeading
+            title="Nodata pixels"
+            technical={
+              <p>
+                Excluding a value removes it from the population: the stratum weights are
+                renormalised over what remains and the reported total area shrinks accordingly.
+                Keeping it as a stratum leaves it in the population and lets sample points inside it
+                carry a real class label, which is what recovers the crop area the map missed.
+                Nodata is never a reporting class either way, because nobody wants to publish the
+                area of a gap in their own map.
+              </p>
+            }
+          >
+            Nodata pixels are not a class you report on, but they are still ground. What you do with
+            them changes what your published total covers.
+          </SubHeading>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <ChoiceCard
               selected={plan.noDataHandling === 'exclude'}
@@ -227,8 +242,8 @@ export const StepClasses = ({ plan, update }: Props) => {
               land there too, so crop that the map missed still reaches your total.
             </ChoiceCard>
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 };

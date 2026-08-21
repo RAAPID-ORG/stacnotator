@@ -124,7 +124,8 @@ test('refuses a held-out test set as a prior and offers a pilot instead', async 
 
   // No prior means a pilot: a flat budget per class, not a precision target.
   await expect(page.getByRole('heading', { name: 'Pilot sample' })).toBeVisible();
-  await expect(page.getByTestId('uae-pilot-per-stratum')).toHaveValue('50');
+  await expect(page.getByTestId('uae-pilot-budget')).toHaveValue('40');
+  await expect(page.getByTestId('uae-pilot-floor')).toHaveValue('20');
   await expect(page.getByText(/points in the pilot/)).toBeVisible();
   await expect(page.getByTestId('uae-activate')).toBeEnabled();
 });

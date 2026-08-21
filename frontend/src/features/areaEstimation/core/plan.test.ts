@@ -118,11 +118,26 @@ describe('designsOf', () => {
     expect(totalPoints(tight)).toBeGreaterThan(totalPoints(loose));
   });
 
-  it('falls back to a pilot budget spread by area, with a floor per class', () => {
-    const plan = { ...basePlan(), priorSourceId: 'none' as const, pilotPerStratum: 50 };
-    // 50 per stratum is the budget; it is split by pixel count (600 vs 1100)
-    // and then each stratum is lifted to the floor, which the small one needs.
-    expect(designsOf(plan)[0].allocation.map((a) => a.n)).toEqual([50, 65]);
+  it('falls back to a pilot budget spread by area, with its own floor', () => {
+    const plan = {
+      ...basePlan(),
+      priorSourceId: 'none' as const,
+      pilotBudgetPerClass: 40,
+      pilotFloorPerClass: 20,
+    };
+    // 40 per class over two classes is a budget of 80, split by pixel count
+    // (600 vs 1100) into 28 and 52; both already clear the floor of 20.
+    expect(designsOf(plan)[0].allocation.map((a) => a.n)).toEqual([28, 52]);
+  });
+
+  it('lifts a thin class to the pilot floor', () => {
+    const plan = {
+      ...basePlan(),
+      priorSourceId: 'none' as const,
+      pilotBudgetPerClass: 40,
+      pilotFloorPerClass: 40,
+    };
+    expect(designsOf(plan)[0].allocation.map((a) => a.n)).toEqual([40, 52]);
   });
 
   it('lets a hand-edited sample size win over the computed one', () => {

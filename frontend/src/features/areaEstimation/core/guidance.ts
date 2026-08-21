@@ -129,7 +129,11 @@ export const SAMPLE_FLOOR_RATIONALE =
   'A class that covers little of the map gets almost no points under a plain proportional split, and a handful of points cannot say anything about it. Olofsson et al. (2014) recommend 50 to 100 points in each rare class. The floor only widens the confidence interval of the other classes if you take points away from them, which this tool does not do: it adds to the total instead.';
 
 export const DEFAULT_SAMPLE_FLOOR = 100;
-export const DEFAULT_PILOT_PER_STRATUM = 50;
+/** Points the pilot buys for each class before the floor is applied. */
+export const DEFAULT_PILOT_BUDGET_PER_CLASS = 40;
+
+/** No class drops below this in the pilot, however little of the map it covers. */
+export const DEFAULT_PILOT_FLOOR_PER_CLASS = 20;
 export const DEFAULT_TARGET_CV = 0.05;
 
 /**

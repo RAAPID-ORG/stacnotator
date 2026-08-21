@@ -82,22 +82,44 @@ export const StepDesign = ({ plan, update }: Props) => {
           design from what the pilot found, and the points already annotated count towards it.
         </StepHeading>
 
-        <Field
-          label="Points per class in the pilot"
-          hint="50 is the usual choice. Fewer than 30 will not measure the map well enough to plan on."
-          className="max-w-[14rem]"
-        >
-          <Input
-            type="number"
-            size="sm"
-            min={10}
-            max={500}
-            step={10}
-            value={plan.pilotPerStratum}
-            onChange={(e) => update({ pilotPerStratum: Number(e.target.value), overrides: {} })}
-            data-testid="uae-pilot-per-stratum"
-          />
-        </Field>
+        <div className="flex flex-wrap items-start gap-6">
+          <Field
+            label="Budget per class"
+            hint="What the pilot buys per class, then spread by how much of the map each covers."
+            className="w-[15rem]"
+          >
+            <Input
+              type="number"
+              size="sm"
+              min={5}
+              max={500}
+              step={5}
+              value={plan.pilotBudgetPerClass}
+              onChange={(e) =>
+                update({ pilotBudgetPerClass: Number(e.target.value), overrides: {} })
+              }
+              data-testid="uae-pilot-budget"
+            />
+          </Field>
+          <Field
+            label="Floor per class"
+            hint="No class falls below this, however little of the map it covers."
+            className="w-[15rem]"
+          >
+            <Input
+              type="number"
+              size="sm"
+              min={0}
+              max={500}
+              step={5}
+              value={plan.pilotFloorPerClass}
+              onChange={(e) =>
+                update({ pilotFloorPerClass: Number(e.target.value), overrides: {} })
+              }
+              data-testid="uae-pilot-floor"
+            />
+          </Field>
+        </div>
 
         {designs.map((design) => (
           <div key={design.domain.id} className="space-y-2">
