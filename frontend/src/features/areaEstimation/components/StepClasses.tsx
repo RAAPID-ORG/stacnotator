@@ -115,7 +115,7 @@ export const StepClasses = ({ plan, update }: Props) => {
                   <td className="py-2 font-mono text-xs text-neutral-400">{value.value}</td>
                   <td className="py-2 text-neutral-800">{value.label || 'Unnamed'}</td>
                   <td className="py-2 pr-6 text-right text-xs text-neutral-500 tabular-nums">
-                    {assigned === NO_DATA_CLASS_ID ? '—' : formatPercent(share)}
+                    {assigned === NO_DATA_CLASS_ID ? '-' : formatPercent(share)}
                   </td>
                   <td className="py-2">
                     <Select
@@ -132,7 +132,7 @@ export const StepClasses = ({ plan, update }: Props) => {
                         </option>
                       ))}
                       <option value={NEW_CLASS}>＋ A class of its own</option>
-                      <option value={NO_DATA_CLASS_ID}>Nodata — not a class</option>
+                      <option value={NO_DATA_CLASS_ID}>Nodata - not a class</option>
                     </Select>
                   </td>
                 </tr>

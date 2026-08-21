@@ -230,7 +230,7 @@ const ActiveSummary = ({
         />
         <Stat
           label="Expected precision"
-          value={pilot ? '—' : `±${formatPercent(Math.max(...designs.map((d) => d.precision.cv)))}`}
+          value={pilot ? '-' : `±${formatPercent(Math.max(...designs.map((d) => d.precision.cv)))}`}
         />
       </dl>
 

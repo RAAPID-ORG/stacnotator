@@ -262,7 +262,7 @@ export const StepData = ({ plan, update }: Props) => {
                     {plan.raster.bands.map((b) => (
                       <option key={b.index} value={b.index}>
                         Band {b.index}
-                        {b.description ? ` — ${b.description}` : ''}
+                        {b.description ? ` - ${b.description}` : ''}
                       </option>
                     ))}
                   </Select>
@@ -286,7 +286,7 @@ export const StepData = ({ plan, update }: Props) => {
                 >
                   {EQUAL_AREA_PROJECTIONS.map((crs) => (
                     <option key={crs.code} value={crs.code}>
-                      {crs.code} — {crs.name}
+                      {crs.code} - {crs.name}
                     </option>
                   ))}
                 </Select>
@@ -467,7 +467,7 @@ const ValueRow = ({
       />
     </td>
     <td className="py-2 text-right text-xs text-neutral-600 tabular-nums">
-      {pixels === null ? '—' : formatPixels(pixels)}
+      {pixels === null ? '-' : formatPixels(pixels)}
     </td>
     <td className="py-2 text-right">
       <label className="inline-flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">

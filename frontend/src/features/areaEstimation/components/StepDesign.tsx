@@ -398,7 +398,7 @@ const DesignTable = ({
             {!pilot && (
               <td className="py-2 text-right text-neutral-500 tabular-nums">
                 {stratum.isNoData
-                  ? '—'
+                  ? '-'
                   : formatPercent(plan.correctShares[stratum.classId] ?? 0.85, 0)}
               </td>
             )}

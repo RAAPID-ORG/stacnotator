@@ -80,7 +80,7 @@ export const AreaEstimationPanel = ({ campaignId }: { campaignId: number }) => {
                 {formatCount(done)} of {formatCount(planned)} sample points annotated
               </span>
               <span className="text-neutral-500 tabular-nums">
-                {planned > 0 ? formatPercent(done / planned, 0) : '—'}
+                {planned > 0 ? formatPercent(done / planned, 0) : '-'}
               </span>
             </div>
             <div className="mt-2 h-1.5 rounded-full bg-neutral-100">
@@ -219,12 +219,12 @@ const EstimateTable = ({
                   {formatArea(estimate.mappedArea)}
                 </td>
                 <td className="py-2 text-right tabular-nums text-neutral-500">
-                  {estimate.usersAccuracy ? formatPercent(estimate.usersAccuracy.value, 0) : '—'}
+                  {estimate.usersAccuracy ? formatPercent(estimate.usersAccuracy.value, 0) : '-'}
                 </td>
                 <td className="py-2 text-right tabular-nums text-neutral-500">
                   {estimate.producersAccuracy
                     ? formatPercent(estimate.producersAccuracy.value, 0)
-                    : '—'}
+                    : '-'}
                 </td>
               </tr>
             );

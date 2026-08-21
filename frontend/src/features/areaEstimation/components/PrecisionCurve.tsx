@@ -170,7 +170,7 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
                 className="inline-block h-2 w-2 rounded-full"
                 style={{ backgroundColor: SERIES_COLOURS[i % SERIES_COLOURS.length] }}
               />
-              {s.className} ±{cv === undefined ? '—' : formatPercent(cv)}
+              {s.className} ±{cv === undefined ? '-' : formatPercent(cv)}
             </span>
           );
         })}

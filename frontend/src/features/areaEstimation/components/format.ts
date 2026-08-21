@@ -13,7 +13,7 @@ export const formatArea = (squareMetres: number): string => {
 };
 
 export const formatPercent = (fraction: number, digits = 1): string =>
-  Number.isFinite(fraction) ? `${(fraction * 100).toFixed(digits)}%` : '—';
+  Number.isFinite(fraction) ? `${(fraction * 100).toFixed(digits)}%` : '-';
 
 export const formatCount = (n: number): string => n.toLocaleString('en-US');
 
