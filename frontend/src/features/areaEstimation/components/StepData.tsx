@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Field, IconButton, Input, Select } from '~/shared/ui/forms';
-import { Badge } from '~/shared/ui/Badge';
 import { IconTrash } from '~/shared/ui/Icons';
 import { Spinner } from '~/shared/ui/Spinner';
 import { FileInput } from '~/shared/ui/FileInput';
@@ -115,14 +114,6 @@ export const StepData = ({ plan, update }: Props) => {
 
   const setValueLabel = (value: number, label: string) =>
     update({ values: plan.values.map((v) => (v.value === value ? { ...v, label } : v)) });
-
-  const toggleNoData = (value: number) =>
-    update({
-      noDataValues: plan.noDataValues.includes(value)
-        ? plan.noDataValues.filter((v) => v !== value)
-        : [...plan.noDataValues, value],
-      classes: plan.classes.map((c) => ({ ...c, values: c.values.filter((v) => v !== value) })),
-    });
 
   const renameArea = (id: string, name: string) =>
     update({ areas: plan.areas.map((a) => (a.id === id ? { ...a, name } : a)) });
@@ -298,7 +289,8 @@ export const StepData = ({ plan, update }: Props) => {
         {plan.raster && (
           <div className="space-y-3 pt-2">
             <SubHeading title="Class names">
-              Every distinct value in the band, and what to call it.
+              Every distinct value in the band, and what to call it. Which of them are nodata, and
+              what to do with those, is settled on the next step.
             </SubHeading>
 
             {plan.values.length === 0 ? (
@@ -320,7 +312,6 @@ export const StepData = ({ plan, update }: Props) => {
                     <th className="py-2 font-medium w-20">Value</th>
                     <th className="py-2 font-medium">Name</th>
                     <th className="py-2 font-medium w-32 text-right">Pixels</th>
-                    <th className="py-2 font-medium w-40 text-right">Nodata</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -329,9 +320,7 @@ export const StepData = ({ plan, update }: Props) => {
                       key={value.value}
                       value={value}
                       pixels={plan.census ? pixelsFor(plan, [value.value]) : null}
-                      isNoData={plan.noDataValues.includes(value.value)}
                       onLabel={(label) => setValueLabel(value.value, label)}
-                      onToggleNoData={() => toggleNoData(value.value)}
                     />
                   ))}
                 </tbody>
@@ -443,22 +432,18 @@ const AreaRow = ({
 const ValueRow = ({
   value,
   pixels,
-  isNoData,
   onLabel,
-  onToggleNoData,
 }: {
   value: MapValue;
   pixels: number | null;
-  isNoData: boolean;
   onLabel: (label: string) => void;
-  onToggleNoData: () => void;
 }) => (
   <tr className="border-b border-neutral-100">
     <td className="py-2 font-mono text-xs text-neutral-600">{value.value}</td>
     <td className="py-2 pr-3">
       <Input
         size="sm"
-        className="max-w-sm"
+        className="max-w-md"
         value={value.label}
         placeholder="Name this class"
         onChange={(e) => onLabel(e.target.value)}
@@ -468,17 +453,6 @@ const ValueRow = ({
     </td>
     <td className="py-2 text-right text-xs text-neutral-600 tabular-nums">
       {pixels === null ? '-' : formatPixels(pixels)}
-    </td>
-    <td className="py-2 text-right">
-      <label className="inline-flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={isNoData}
-          onChange={onToggleNoData}
-          className="cursor-pointer"
-        />
-        {isNoData ? <Badge tone="neutral">Nodata</Badge> : 'Mark as nodata'}
-      </label>
     </td>
   </tr>
 );

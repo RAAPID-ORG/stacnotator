@@ -398,7 +398,7 @@ export type PlanStep = 'data' | 'classes' | 'prior' | 'design';
 export const PLAN_STEPS: { id: PlanStep; name: string }[] = [
   { id: 'data', name: 'Map & areas' },
   { id: 'classes', name: 'Classes' },
-  { id: 'prior', name: 'Priors' },
+  { id: 'prior', name: 'Map accuracy' },
   { id: 'design', name: 'Design' },
 ];
 

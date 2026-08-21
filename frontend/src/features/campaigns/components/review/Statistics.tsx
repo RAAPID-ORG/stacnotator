@@ -12,6 +12,8 @@ import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 
 interface StatisticsProps {
   campaignId: number;
+  /** Restricts the figures to one task set; omitted means the whole campaign. */
+  taskSetId?: number;
 }
 
 const thCls = 'px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider';
@@ -37,7 +39,7 @@ const agreementBadgeCls = (agreement: number) => {
 const displayName = (annotator: AnnotatorInfo) =>
   annotator.user_display_name || annotator.user_email.split('@')[0];
 
-const Statistics = ({ campaignId }: StatisticsProps) => {
+const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
   const [statistics, setStatistics] = useState<CampaignStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,7 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
         setLoading(true);
         const response = await getCampaignStatisticsEndpoint({
           path: { campaign_id: campaignId },
+          query: { task_set_id: taskSetId },
         });
         if (response.data) {
           setStatistics(response.data);
@@ -63,7 +66,7 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
     };
 
     fetchStats();
-  }, [campaignId]);
+  }, [campaignId, taskSetId]);
 
   const heading = <h2 className="section-heading">Inter-annotator agreement</h2>;
 

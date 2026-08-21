@@ -994,7 +994,7 @@ export const importTaskAssignments = <ThrowOnError extends boolean = false>(opti
 /**
  * Get Campaign Statistics Endpoint
  *
- * Get comprehensive statistics for a campaign.
+ * Get comprehensive statistics for a campaign, or for one of its task sets.
  *
  * Returns:
  * - Overall campaign metrics (total annotations, tasks with multiple annotations)

@@ -13,7 +13,7 @@ const SERIES_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '
 
 const W = 420;
 const H = 190;
-const PAD = { top: 10, right: 12, bottom: 34, left: 40 };
+const PAD = { top: 22, right: 12, bottom: 34, left: 40 };
 const PLOT_W = W - PAD.left - PAD.right;
 const PLOT_H = H - PAD.top - PAD.bottom;
 
@@ -117,6 +117,18 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
           y2={PAD.top + PLOT_H}
           stroke={hoverTotal === null ? '#171717' : '#a3a3a3'}
         />
+        {/* Sits on the line rather than only in the caption below: the number
+            of points is what the reader is dragging the line to find. */}
+        <text
+          x={Math.min(Math.max(x(readoutTotal), PAD.left + 30), PAD.left + PLOT_W - 30)}
+          y={PAD.top - 8}
+          textAnchor="middle"
+          fontSize="10"
+          fontWeight="600"
+          fill={hoverTotal === null ? '#171717' : '#525252'}
+        >
+          {formatCount(readoutTotal)} points
+        </text>
 
         {series.map((s, i) => {
           const colour = SERIES_COLOURS[i % SERIES_COLOURS.length];

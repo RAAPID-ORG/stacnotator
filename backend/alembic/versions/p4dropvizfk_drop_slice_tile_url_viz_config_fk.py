@@ -2,7 +2,7 @@
 
 Removes the write-only visualization_id column and its FK constraint from
 data.slice_tile_urls. visualization_name is the single canonical viz key.
-Safe to apply with no backfill — the column was never read anywhere.
+Safe to apply with no backfill -the column was never read anywhere.
 
 Revision ID: p4dropvizfk
 Revises: p3droplegacy

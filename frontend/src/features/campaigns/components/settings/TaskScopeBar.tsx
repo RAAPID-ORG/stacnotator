@@ -1,14 +1,7 @@
 import { useState } from 'react';
 import type { TaskSetOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
-import {
-  IconChart,
-  IconCheck,
-  IconClose,
-  IconLock,
-  IconPencil,
-  IconTrash,
-} from '~/shared/ui/Icons';
+import { IconCheck, IconClose, IconLock, IconPencil, IconTrash } from '~/shared/ui/Icons';
 import { LOCKED_TASK_SET_REASON } from '~/features/areaEstimation/AreaEstimation';
 
 export type TaskScope = 'all' | number;
@@ -24,8 +17,6 @@ interface Props {
   onDeleteSet?: (id: number) => Promise<boolean>;
   /** Sets owned by another feature, which nothing here may rename or delete. */
   lockedSetIds?: ReadonlySet<number>;
-  /** Omitted for a viewer, or where area estimation is not on offer. */
-  onCreateAreaEstimationSet?: (name: string) => Promise<number | null>;
 }
 
 import { pillCls } from '~/shared/ui/pill';
@@ -39,10 +30,8 @@ export const TaskScopeBar = ({
   onRenameSet,
   onDeleteSet,
   lockedSetIds,
-  onCreateAreaEstimationSet,
 }: Props) => {
-  // Which kind of set the inline name field is about to create.
-  const [creating, setCreating] = useState<'plain' | 'area' | null>(null);
+  const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -54,7 +43,7 @@ export const TaskScopeBar = ({
 
   const cancelCreate = () => {
     setNewName('');
-    setCreating(null);
+    setCreating(false);
   };
 
   const handleCreate = async () => {
@@ -62,11 +51,10 @@ export const TaskScopeBar = ({
     if (!name) return;
     setSaving(true);
     try {
-      const create = creating === 'area' ? onCreateAreaEstimationSet : onCreateSet;
-      const id = await create?.(name);
+      const id = await onCreateSet?.(name);
       if (id != null) {
         setNewName('');
-        setCreating(null);
+        setCreating(false);
         onSelect(id);
       }
     } finally {
@@ -167,7 +155,7 @@ export const TaskScopeBar = ({
               if (e.key === 'Enter') handleCreate();
               if (e.key === 'Escape') cancelCreate();
             }}
-            placeholder={creating === 'area' ? 'Area estimate name' : 'Set name'}
+            placeholder="Set name"
             className="h-8 px-3 border border-brand-400 rounded-full text-sm"
             autoFocus
           />
@@ -192,27 +180,14 @@ export const TaskScopeBar = ({
           </button>
         </span>
       ) : (
-        <>
-          <button
-            type="button"
-            className={`${pillCls(false)} border-dashed`}
-            onClick={() => setCreating('plain')}
-            data-testid="scope-new-set"
-          >
-            + New set
-          </button>
-          {onCreateAreaEstimationSet && (
-            <button
-              type="button"
-              className={`${pillCls(false)} border-dashed`}
-              onClick={() => setCreating('area')}
-              data-testid="scope-new-area-set"
-            >
-              <IconChart className="w-3.5 h-3.5" />
-              Area estimate
-            </button>
-          )}
-        </>
+        <button
+          type="button"
+          className={`${pillCls(false)} border-dashed`}
+          onClick={() => setCreating(true)}
+          data-testid="scope-new-set"
+        >
+          + New set
+        </button>
       )}
 
       <ConfirmDialog

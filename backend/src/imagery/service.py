@@ -119,7 +119,7 @@ def _upsert_viz_configs(
     """Upsert CollectionVizConfig rows to match the given visualization list.
 
     Inserts new rows, updates existing ones (matched by name), and deletes any
-    rows whose names are no longer present — leaving the table holding exactly
+    rows whose names are no longer present -leaving the table holding exactly
     the supplied visualizations.
     """
     if not visualizations:

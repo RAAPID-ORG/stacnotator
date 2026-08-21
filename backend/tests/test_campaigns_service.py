@@ -6,9 +6,10 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
-from src.annotation.models import AnnotationTaskAssignment
+from src.annotation.models import Annotation, AnnotationTaskAssignment
 from src.campaigns.assignments import (
     _distribute_evenly,
     _distribute_fixed,
@@ -31,6 +32,7 @@ from src.campaigns.service import (
 from src.campaigns.statistics import (
     _calculate_krippendorff_alpha,
     _calculate_pairwise_agreement,
+    _scoped_to_set,
 )
 
 
@@ -46,6 +48,22 @@ def _compile(statement) -> str:
     return str(
         statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
     )
+
+
+class TestScopedToSet:
+    """Agreement is per task set, so the query has to be narrowed to one."""
+
+    def _statement(self):
+        return select(Annotation).where(Annotation.campaign_id == 1)
+
+    def test_no_set_leaves_the_campaign_wide_query_alone(self):
+        sql = _compile(_scoped_to_set(self._statement(), None))
+        assert "annotation_tasks" not in sql
+
+    def test_a_set_joins_its_tasks_and_filters_on_it(self):
+        sql = _compile(_scoped_to_set(self._statement(), 7))
+        assert "JOIN data.annotation_tasks" in sql
+        assert "data.annotation_tasks.task_set_id = 7" in sql
 
 
 class TestKrippendorffAlpha:

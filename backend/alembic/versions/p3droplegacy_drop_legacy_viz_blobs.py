@@ -8,7 +8,7 @@ fresh/empty DB it inserts nothing, and ON CONFLICT guards against rows already w
 through the normal save path. The whole migration runs in one transaction, so a backfill
 failure aborts the column drops.
 
-IMPORTANT: downgrade re-adds the columns but does NOT restore data — this is a one-way
+IMPORTANT: downgrade re-adds the columns but does NOT restore data -this is a one-way
 migration. Recovery of dropped blob data requires a pre-migration backup.
 
 Revision ID: p3droplegacy
@@ -77,7 +77,7 @@ def upgrade() -> None:
         """
     )
 
-    # The blob columns are now redundant — drop them.
+    # The blob columns are now redundant -drop them.
     op.drop_column("collection_stac_configs", "viz_params", schema="data")
     op.drop_column("collection_stac_configs", "cover_viz_params", schema="data")
     op.drop_column("collection_stac_configs", "visualizations", schema="data")

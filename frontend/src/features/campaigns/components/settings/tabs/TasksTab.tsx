@@ -16,10 +16,7 @@ import type {
 } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 import { FileInput } from '~/shared/ui/FileInput';
-import {
-  AreaEstimationSetup,
-  createAreaEstimationPlan,
-} from '~/features/areaEstimation/AreaEstimation';
+import { AreaEstimationSetup } from '~/features/areaEstimation/AreaEstimation';
 
 interface Props {
   campaign: CampaignOut;
@@ -49,8 +46,6 @@ interface Props {
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
   /** Task sets owned by an area estimation design; closed to hand-added tasks. */
   areaEstimationSets?: ReadonlySet<number>;
-  /** Called when a design is created or removed, so the caller can refresh. */
-  onAreaEstimationChanged?: () => void;
   bbox?: {
     west: number;
     south: number;
@@ -84,7 +79,6 @@ export const TasksTab: React.FC<Props> = ({
   onDeleteTaskSet,
   onMoveTasks,
   areaEstimationSets,
-  onAreaEstimationChanged,
   bbox,
 }) => {
   const campaignId = campaign.id;
@@ -93,16 +87,6 @@ export const TasksTab: React.FC<Props> = ({
 
   const scopedSet = taskScope === 'all' ? undefined : taskSets.find((s) => s.id === taskScope);
   const scopeIsLocked = taskScope !== 'all' && (areaEstimationSets?.has(taskScope) ?? false);
-
-  /** A new set that is an area estimate from the moment it exists. */
-  const onCreateAreaEstimationSet = async (name: string) => {
-    const id = await onCreateSetScoped(name);
-    if (id !== null) {
-      await createAreaEstimationPlan(campaignId, id);
-      onAreaEstimationChanged?.();
-    }
-    return id;
-  };
 
   const areaEstimationSection = scopedSet && (
     <section className={sectionCls}>
@@ -254,22 +238,24 @@ export const TasksTab: React.FC<Props> = ({
           onRenameSet={canManage ? onRenameTaskSet : undefined}
           onDeleteSet={canManage ? onDeleteTaskSet : undefined}
           lockedSetIds={areaEstimationSets}
-          onCreateAreaEstimationSet={canManage ? onCreateAreaEstimationSet : undefined}
         />
       </section>
 
       {/* The wrapper makes `first:` strip the border of whichever section comes
           right below the scope bar, which already draws its own bottom line. */}
       <div>
-        {totalTasks > 0 && bbox && (
+        {scopedTasks.length > 0 && bbox && (
           <section className={sectionCls}>
             <TaskLocationsMap tasks={scopedTasks} bbox={bbox} />
           </section>
         )}
 
-        {totalTasks > 0 && (
+        {scopedTasks.length > 0 && (
           <section className={sectionCls}>
-            <Statistics campaignId={campaignId} />
+            <Statistics
+              campaignId={campaignId}
+              taskSetId={taskScope === 'all' ? undefined : taskScope}
+            />
           </section>
         )}
 

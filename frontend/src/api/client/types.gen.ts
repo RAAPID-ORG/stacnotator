@@ -6882,7 +6882,14 @@ export type GetCampaignStatisticsEndpointData = {
          */
         campaign_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Task Set Id
+         *
+         * Restrict the statistics to the annotations of one task set
+         */
+        task_set_id?: number | null;
+    };
     url: '/api/campaigns/{campaign_id}/statistics';
 };
 

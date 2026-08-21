@@ -2,8 +2,9 @@ import { Badge, type BadgeTone } from '~/shared/ui/Badge';
 import { Input } from '~/shared/ui/forms';
 import { PRIOR_SOURCES, priorSource, type PriorFit, type PriorSourceId } from '../core/guidance';
 import type { AreaEstimationPlan } from '../core/plan';
-import { defaultCorrectShare, planNeedsPilot } from '../core/plan';
+import { defaultCorrectShare, pixelsFor, planNeedsPilot } from '../core/plan';
 import { ChoiceCard, StepHeading, SubHeading } from './Explain';
+import { formatPercent } from './format';
 
 interface Props {
   plan: AreaEstimationPlan;
@@ -19,7 +20,13 @@ const FIT_TONE: Record<PriorFit, BadgeTone> = {
 
 export const StepPrior = ({ plan, update }: Props) => {
   const source = priorSource(plan.priorSourceId);
+  // Mid-sentence, so the title keeps its own article but loses its capital.
+  const sourceName = source.title.charAt(0).toLowerCase() + source.title.slice(1);
   const fallback = defaultCorrectShare(plan);
+  const totalPixels = pixelsFor(
+    plan,
+    plan.values.filter((v) => !plan.noDataValues.includes(v.value)).map((v) => v.value)
+  );
 
   const chooseSource = (id: PriorSourceId) =>
     update({ priorSourceId: id, correctShares: {}, overrides: {} });
@@ -91,43 +98,81 @@ export const StepPrior = ({ plan, update }: Props) => {
       </section>
 
       {!planNeedsPilot(plan) && (
-        <section className="space-y-3">
-          <SubHeading title="How often is the map right?">
-            For each class: out of 100 pixels the map calls this class, how many really are it?
+        <section className="space-y-4">
+          <SubHeading
+            title="How often is the map right?"
+            technical={
+              <p>
+                The number asked for is each stratum&apos;s user&apos;s accuracy. The stratum
+                standard deviations follow from it as S<sub>i</sub> = √(UA<sub>i</sub>(1 − UA
+                <sub>i</sub>)), and those are what Neyman allocation divides the sample by.
+                Producer&apos;s accuracy cannot stand in for it: PA is a ratio across strata rather
+                than a property of one, so it is only knowable once the points are in.
+              </p>
+            }
+            source="Olofsson et al. (2014), Section 5.1.1 and Table 6."
+          >
+            For each class: out of 100 pixels the map calls that class, how many really are it. That
+            is the class&apos;s <strong>user&apos;s accuracy (UA)</strong>. Its counterpart,{' '}
+            <strong>producer&apos;s accuracy (PA)</strong> - out of 100 pixels that really are the
+            class, how many the map found - is not something you have to guess here: the annotated
+            points measure both, and both are published beside the area.
           </SubHeading>
+
           <p className="text-xs text-neutral-500 leading-snug">
-            Starting values come from a {source.title.toLowerCase()}. Change any you have better
-            information about; leave the rest.
+            Starting values come from {sourceName}. Change any you have better information about;
+            leave the rest.
           </p>
-          <table className="w-full text-sm max-w-lg">
+
+          <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
                 <th className="py-2 font-medium">Class</th>
-                <th className="py-2 font-medium w-40 text-right">Really this class</th>
+                <th className="py-2 pr-8 font-medium w-28 text-right">Map share</th>
+                <th className="py-2 font-medium w-[22rem]">Expected UA, out of 100</th>
               </tr>
             </thead>
             <tbody>
-              {plan.classes.map((cls) => (
-                <tr key={cls.id} className="border-b border-neutral-100">
-                  <td className="py-2 text-neutral-800">{cls.name || 'Unnamed class'}</td>
-                  <td className="py-2">
-                    <div className="flex items-center justify-end gap-2">
-                      <Input
-                        type="number"
-                        size="sm"
-                        min={1}
-                        max={100}
-                        step={1}
-                        className="w-20 text-right"
-                        aria-label={`Share of ${cls.name} that is really ${cls.name}`}
-                        value={Math.round((plan.correctShares[cls.id] ?? fallback) * 100)}
-                        onChange={(e) => setCorrectShare(cls.id, Number(e.target.value))}
-                      />
-                      <span className="text-xs text-neutral-500">out of 100</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {plan.classes.map((cls) => {
+                const name = cls.name || 'Unnamed class';
+                const ua = Math.round((plan.correctShares[cls.id] ?? fallback) * 100);
+                const share = totalPixels > 0 ? pixelsFor(plan, cls.values) / totalPixels : 0;
+                return (
+                  <tr key={cls.id} className="border-b border-neutral-100">
+                    <td className="py-2 pr-4 text-neutral-800">{name}</td>
+                    <td className="py-2 pr-8 text-right text-xs text-neutral-500 tabular-nums">
+                      {formatPercent(share)}
+                    </td>
+                    <td className="py-2">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={1}
+                          max={100}
+                          step={1}
+                          value={ua}
+                          onChange={(e) => setCorrectShare(cls.id, Number(e.target.value))}
+                          className="h-1.5 flex-1 cursor-pointer accent-brand-600"
+                          aria-label={`Expected user's accuracy for ${name}`}
+                        />
+                        <span className="w-16 shrink-0">
+                          <Input
+                            type="number"
+                            size="sm"
+                            min={1}
+                            max={100}
+                            step={1}
+                            className="text-right tabular-nums"
+                            aria-label={`Expected user's accuracy for ${name}, percent`}
+                            value={ua}
+                            onChange={(e) => setCorrectShare(cls.id, Number(e.target.value))}
+                          />
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>

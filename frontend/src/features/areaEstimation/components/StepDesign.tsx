@@ -78,9 +78,10 @@ export const StepDesign = ({ plan, update }: Props) => {
             </p>
           }
         >
-          Without a usable prior, the campaign starts by measuring the map rather than guessing at
-          it. These points are annotated first; when they are done, this page recomputes the full
-          design from what the pilot found, and the points already annotated count towards it.
+          Without a usable accuracy estimate, the campaign starts by measuring the map rather than
+          guessing at it. These points are annotated first; when they are done, this page recomputes
+          the full design from what the pilot found, and the points already annotated count towards
+          it.
         </StepHeading>
 
         {!customPilot ? (
@@ -301,38 +302,38 @@ export const StepDesign = ({ plan, update }: Props) => {
         </section>
       ))}
 
-      <div className="flex flex-wrap items-end gap-6">
-        <Field
-          label={
-            <span className="inline-flex items-center gap-1">
-              Minimum points per class
-              <InfoPopover>{SAMPLE_FLOOR_RATIONALE}</InfoPopover>
-            </span>
-          }
-          className="w-[13rem]"
-        >
-          <Input
-            type="number"
-            size="sm"
-            min={0}
-            max={1000}
-            step={10}
-            value={plan.sampleFloor}
-            onChange={(e) => update({ sampleFloor: Number(e.target.value), overrides: {} })}
-            data-testid="uae-sample-floor"
-          />
-        </Field>
-        <button
-          type="button"
-          onClick={() => setAdvanced(!advanced)}
-          className="h-9 text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4 cursor-pointer"
-        >
-          {advanced ? 'Hide advanced options' : 'Advanced options'}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => setAdvanced(!advanced)}
+        className="h-9 self-start text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4 cursor-pointer"
+        data-testid="uae-advanced"
+      >
+        {advanced ? 'Hide advanced options' : 'Advanced options'}
+      </button>
 
       {advanced && (
-        <section className="space-y-2 border-t border-neutral-100 pt-6">
+        <section className="space-y-6 border-t border-neutral-100 pt-6">
+          <Field
+            label={
+              <span className="inline-flex items-center gap-1">
+                Minimum points per class
+                <InfoPopover>{SAMPLE_FLOOR_RATIONALE}</InfoPopover>
+              </span>
+            }
+            className="w-[13rem]"
+          >
+            <Input
+              type="number"
+              size="sm"
+              min={0}
+              max={1000}
+              step={5}
+              value={plan.sampleFloor}
+              onChange={(e) => update({ sampleFloor: Number(e.target.value), overrides: {} })}
+              data-testid="uae-sample-floor"
+            />
+          </Field>
+
           <SubHeading
             title="How points are spread across the classes"
             technical={
@@ -406,7 +407,14 @@ const DesignTable = ({
         <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
           <th className="py-2 font-medium">Class</th>
           <th className="py-2 font-medium w-24 text-right">Share</th>
-          {!pilot && <th className="py-2 font-medium w-24 text-right">Map right</th>}
+          {!pilot && (
+            <th
+              className="py-2 font-medium w-24 text-right"
+              title="Expected user's accuracy: of what the map calls this class, how much really is it"
+            >
+              Assumed UA
+            </th>
+          )}
           <th className="py-2 font-medium w-28 text-right">Points</th>
         </tr>
       </thead>

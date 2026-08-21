@@ -89,7 +89,7 @@ class Settings(BaseSettings):
 
     # AnyIO threadpool size for sync routes. Must exceed (DB_POOL_SIZE +
     # DB_MAX_OVERFLOW) so a sync `get_db` dependency's cleanup is never starved of a
-    # thread under load (which leaks the connection). The DB pool — not this — stays
+    # thread under load (which leaks the connection). The DB pool -not this -stays
     # the hard cap on concurrent DB work, keeping small/burstable DBs safe.
     THREAD_POOL_MAX: int = 96
 

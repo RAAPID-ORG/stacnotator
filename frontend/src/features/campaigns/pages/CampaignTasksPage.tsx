@@ -52,8 +52,7 @@ import {
 
 export const CampaignTasksPage = () => {
   const campaignId = useCampaignIdParam();
-  const { taskSetIds: areaEstimationSets, reload: reloadAreaEstimation } =
-    useAreaEstimationTaskSets(campaignId);
+  const { taskSetIds: areaEstimationSets } = useAreaEstimationTaskSets(campaignId);
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
@@ -531,7 +530,6 @@ export const CampaignTasksPage = () => {
                     onAssignmentsImported={reloadAnnotationTasks}
                     taskSets={taskSets}
                     areaEstimationSets={areaEstimationSets}
-                    onAreaEstimationChanged={reloadAreaEstimation}
                     taskScope={taskScope}
                     onSelectScope={handleSelectScope}
                     onCreateSetScoped={handleCreateTaskSet}

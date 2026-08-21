@@ -2,7 +2,7 @@ import io
 import zipfile
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -589,11 +589,14 @@ def delete_campaign(
 )
 def get_campaign_statistics_endpoint(
     campaign_id: int,
+    task_set_id: int | None = Query(
+        None, description="Restrict the statistics to the annotations of one task set"
+    ),
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ):
     """
-    Get comprehensive statistics for a campaign.
+    Get comprehensive statistics for a campaign, or for one of its task sets.
 
     Returns:
     - Overall campaign metrics (total annotations, tasks with multiple annotations)
@@ -602,4 +605,4 @@ def get_campaign_statistics_endpoint(
     - Per-annotator stats (total annotations, label distribution)
     - Pairwise agreement percentage between every pair of annotators
     """
-    return statistics.get_campaign_statistics(campaign_id, db)
+    return statistics.get_campaign_statistics(campaign_id, db, task_set_id)

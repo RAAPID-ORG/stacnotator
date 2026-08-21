@@ -1,16 +1,16 @@
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import NamedTuple
+from typing import Any, NamedTuple
 from uuid import UUID
 
 import krippendorff
 import numpy as np
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, joinedload
 
-from src.annotation.models import Annotation
+from src.annotation.models import Annotation, AnnotationTask
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
@@ -157,20 +157,37 @@ def summarize_annotator_durations(
     }
 
 
-def _fetch_annotator_durations(campaign_id: int, db: Session) -> dict[UUID, AnnotatorDurations]:
-    rows = db.execute(
-        select(Annotation.created_by_user_id, Annotation.active_seconds).where(
-            Annotation.campaign_id == campaign_id,
-            Annotation.annotation_task_id.is_not(None),
-            Annotation.active_seconds.is_not(None),
-        )
-    ).all()
+def _scoped_to_set(query: Select[Any], task_set_id: int | None) -> Select[Any]:
+    """Narrow an annotation query to one task set.
+
+    Agreement is only meaningful within a set: two sets are two different
+    samples, and pooling them mixes tasks nobody was asked to label twice into
+    the denominator. The inner join also drops open-mode annotations, which
+    belong to no set and no task.
+    """
+    if task_set_id is None:
+        return query
+    return query.join(AnnotationTask, Annotation.annotation_task_id == AnnotationTask.id).where(
+        AnnotationTask.task_set_id == task_set_id
+    )
+
+
+def _fetch_annotator_durations(
+    campaign_id: int, db: Session, task_set_id: int | None = None
+) -> dict[UUID, AnnotatorDurations]:
+    query = select(Annotation.created_by_user_id, Annotation.active_seconds).where(
+        Annotation.campaign_id == campaign_id,
+        Annotation.annotation_task_id.is_not(None),
+        Annotation.active_seconds.is_not(None),
+    )
+    rows = db.execute(_scoped_to_set(query, task_set_id)).all()
     return summarize_annotator_durations([(row[0], row[1]) for row in rows])
 
 
 def get_campaign_statistics(
     campaign_id: int,
     db: Session,
+    task_set_id: int | None = None,
 ):
     """
     Calculate comprehensive statistics for a campaign.
@@ -178,6 +195,7 @@ def get_campaign_statistics(
     Args:
         campaign_id: ID of the campaign
         db: Database session
+        task_set_id: Restrict to the annotations of one task set
 
     Returns:
         CampaignStatistics object with annotator info and pairwise agreements
@@ -192,9 +210,9 @@ def get_campaign_statistics(
     # Get all annotations for this campaign with relationships
     annotations = (
         db.execute(
-            select(Annotation)
-            .where(Annotation.campaign_id == campaign_id)
-            .options(joinedload(Annotation.annotation_task))
+            _scoped_to_set(
+                select(Annotation).where(Annotation.campaign_id == campaign_id), task_set_id
+            ).options(joinedload(Annotation.annotation_task))
         )
         .unique()
         .scalars()
@@ -233,7 +251,7 @@ def get_campaign_statistics(
                 (ann.created_by_user_id, ann.label_id)
             )
 
-    durations = _fetch_annotator_durations(campaign_id, db)
+    durations = _fetch_annotator_durations(campaign_id, db, task_set_id)
 
     # Build annotator info list
     annotator_list = []

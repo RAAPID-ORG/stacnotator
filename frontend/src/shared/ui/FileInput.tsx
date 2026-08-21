@@ -32,7 +32,7 @@ export const FileInput = forwardRef<HTMLInputElement, FileInputProps>(
     ref
   ) => (
     <label
-      className={`flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
+      className={`relative flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
         disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-neutral-400'
       } ${className ?? ''}`}
     >

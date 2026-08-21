@@ -137,10 +137,9 @@ export const AreaEstimationPanel = ({
                   and is shown only so the size of the map&apos;s bias is visible.
                 </p>
                 <p className="mt-1.5">
-                  Map correct is user&apos;s accuracy (Eq. 1, variance Eq. 6); map found is
-                  producer&apos;s accuracy (Eq. 3, variance Eq. 7). They answer different questions
-                  and are rarely equal: a class the map over-calls scores low on the first and high
-                  on the second.
+                  UA is user&apos;s accuracy (Eq. 1, variance Eq. 6); PA is producer&apos;s accuracy
+                  (Eq. 3, variance Eq. 7). They answer different questions and are rarely equal: a
+                  class the map over-calls scores low on the first and high on the second.
                 </p>
               </>
             }
@@ -148,9 +147,9 @@ export const AreaEstimationPanel = ({
           >
             Each row is what the annotated points say the area really is, with the range it could
             plausibly be. Where the map column sits outside that range, the map was systematically
-            over- or under-calling that class. <strong>Map correct</strong> is how much of what the
-            map called this class really was it; <strong>map found</strong> is how much of what
-            really was this class the map caught.
+            over- or under-calling that class. <strong>UA</strong> (user&apos;s accuracy) is how
+            much of what the map called this class really was it; <strong>PA</strong>
+            (producer&apos;s accuracy) is how much of what really was this class the map caught.
           </SubHeading>
         )}
 
@@ -210,15 +209,15 @@ const EstimateTable = ({
             <th className="py-2 font-medium text-right w-28">Map says</th>
             <th
               className="py-2 font-medium text-right w-28"
-              title="User's accuracy: of what the map calls this class, how much really is"
+              title="User's accuracy: of what the map calls this class, how much really is it"
             >
-              Map correct
+              UA
             </th>
             <th
               className="py-2 font-medium text-right w-28"
               title="Producer's accuracy: of what really is this class, how much the map found"
             >
-              Map found
+              PA
             </th>
           </tr>
         </thead>
