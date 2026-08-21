@@ -34,9 +34,11 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
   const isLast = stepIndex === PLAN_STEPS.length - 1;
 
   // A step change lands the reader at the start of the new step, not partway
-  // down it because the last one was longer.
+  // down it because the last one was longer. Deliberately not
+  // scrollIntoView: that scrolls every scrollable ancestor including the
+  // document, which drags the whole app shell out of place.
   useEffect(() => {
-    top.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    scrollableParent(top.current)?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [stepIndex]);
 
   // Entering the classes step with nothing defined, the obvious starting point
@@ -49,7 +51,7 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
   }, [step]);
 
   return (
-    <div className="space-y-6 scroll-mt-4" ref={top}>
+    <div className="space-y-6" ref={top}>
       <StepIndicator
         steps={PLAN_STEPS.map((s) => s.name)}
         step={stepIndex + 1}
@@ -107,4 +109,15 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
       </div>
     </div>
   );
+};
+
+/** The one box the wizard sits in, so scrolling it leaves the app shell alone. */
+const scrollableParent = (from: HTMLElement | null): HTMLElement | null => {
+  for (let node = from?.parentElement ?? null; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+  }
+  return null;
 };

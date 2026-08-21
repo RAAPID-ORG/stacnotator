@@ -312,9 +312,38 @@ export const CampaignOverviewPage = () => {
       </FadeIn>
 
       {namingEstimate !== null && (
-        <Modal title="New area estimate" onClose={() => setNamingEstimate(null)}>
-          <div className="space-y-4">
-            <Field label="Name" hint="What this estimate covers, for example Winter crops 2025.">
+        <Modal
+          title="New area estimate"
+          onClose={() => setNamingEstimate(null)}
+          maxWidth="max-w-md"
+          footer={
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setNamingEstimate(null)}
+                disabled={creatingEstimate}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void createEstimate()}
+                disabled={!namingEstimate.trim() || creatingEstimate}
+                data-testid="new-area-estimate-create"
+              >
+                Create
+              </Button>
+            </div>
+          }
+        >
+          <div className="px-5 py-4 space-y-4">
+            <p className="text-xs leading-relaxed text-neutral-600">
+              An area estimate turns a classified map and a sample of checked points into a
+              published area with a confidence interval. Its points live in their own task set,
+              managed by the design.
+            </p>
+            <Field label="Name" hint="What this estimate covers, and for when.">
               <Input
                 autoFocus
                 value={namingEstimate}
@@ -324,18 +353,6 @@ export const CampaignOverviewPage = () => {
                 data-testid="new-area-estimate-name"
               />
             </Field>
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setNamingEstimate(null)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={() => void createEstimate()}
-                disabled={!namingEstimate.trim() || creatingEstimate}
-                data-testid="new-area-estimate-create"
-              >
-                Create
-              </Button>
-            </div>
           </div>
         </Modal>
       )}
