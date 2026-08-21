@@ -15,7 +15,6 @@ import { StepClasses } from './StepClasses';
 import { StepData } from './StepData';
 import { StepDesign } from './StepDesign';
 import { StepPrior } from './StepPrior';
-import { StepTarget } from './StepTarget';
 import { formatCount } from './format';
 
 interface Props {
@@ -54,7 +53,6 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
       <div className="space-y-6">
         {step === 'data' && <StepData plan={plan} update={update} />}
         {step === 'classes' && <StepClasses plan={plan} update={update} />}
-        {step === 'target' && <StepTarget plan={plan} update={update} />}
         {step === 'prior' && <StepPrior plan={plan} update={update} />}
         {step === 'design' && <StepDesign plan={plan} update={update} />}
 

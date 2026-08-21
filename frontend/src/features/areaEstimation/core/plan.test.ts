@@ -4,6 +4,7 @@ import {
   designsOf,
   domainsOf,
   emptyPlan,
+  precisionCurves,
   oneClassPerValue,
   stratumId,
   studyAreaPixels,
@@ -144,6 +145,40 @@ describe('designsOf', () => {
   });
 });
 
+describe('precisionCurves', () => {
+  const domain = () => domainsOf(basePlan())[0];
+
+  it('improves every class as the sample grows', () => {
+    const curves = precisionCurves(basePlan(), domain(), [200, 400, 800, 1600]);
+    for (const series of curves) {
+      const cvs = series.points.map((p) => p.cv);
+      expect(cvs.length).toBeGreaterThan(1);
+      expect([...cvs].sort((a, b) => b - a)).toEqual(cvs);
+    }
+  });
+
+  it('reports one series per reporting class, nodata excluded', () => {
+    const plan = { ...basePlan(), noDataHandling: 'stratum' as const };
+    const curves = precisionCurves(plan, domainsOf(plan)[0], [400, 800]);
+    expect(curves.map((c) => c.classId)).toEqual(['cereal', 'other']);
+  });
+
+  it('plots the totals actually drawn, so the floor is visible', () => {
+    // A floor of 100 over two strata cannot draw fewer than 200 points, and
+    // asking for less has to show up as the floor rather than as a fantasy.
+    const curves = precisionCurves({ ...basePlan(), sampleFloor: 100 }, domain(), [10, 50, 400]);
+    expect(curves[0].points.map((p) => p.total)).toEqual([200, 400]);
+  });
+
+  it('ignores hand-edited sample sizes, which are not on the curve', () => {
+    const plan = basePlan();
+    const edited = { ...plan, overrides: { [stratumId('all', 'cereal')]: 5000 } };
+    expect(precisionCurves(edited, domainsOf(edited)[0], [400, 800])).toEqual(
+      precisionCurves(plan, domain(), [400, 800])
+    );
+  });
+});
+
 describe('validatePlan', () => {
   it('passes a complete plan', () => {
     expect(validatePlan(basePlan())).toEqual([]);
@@ -153,7 +188,16 @@ describe('validatePlan', () => {
     const steps = validatePlan(emptyPlan()).map((i) => i.step);
     expect(steps).toContain('data');
     expect(steps).toContain('classes');
-    expect(steps).toContain('target');
+  });
+
+  it('asks for a target class once a prior removes the need for a pilot', () => {
+    const plan = { ...basePlan(), targetClassId: null };
+    expect(validatePlan(plan).some((i) => i.step === 'design')).toBe(true);
+  });
+
+  it('does not ask for a target class while the plan is only a pilot', () => {
+    const plan = { ...basePlan(), targetClassId: null, priorSourceId: 'none' as const };
+    expect(validatePlan(plan).some((i) => i.step === 'design')).toBe(false);
   });
 
   it('refuses a held-out test set as a prior', () => {

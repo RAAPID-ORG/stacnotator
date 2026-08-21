@@ -293,6 +293,55 @@ const perClassPrecision = (domain: Domain, allocation: readonly StratumAllocatio
       };
     });
 
+export interface CurvePoint {
+  /** Total sample size actually drawn, after the per-class floor is applied. */
+  total: number;
+  cv: number;
+}
+
+export interface CurveSeries {
+  classId: string;
+  className: string;
+  points: CurvePoint[];
+}
+
+/**
+ * How each class's precision improves as the sample grows, under the current
+ * rule and floor. This is the shape of the whole trade-off: precision falls
+ * with the square root of the sample, so the curve is what tells a user that
+ * halving the interval costs four times the points, without them having to
+ * know that. Hand-edited sample sizes are ignored, since the curve describes
+ * the rule rather than one point chosen off it.
+ */
+export const precisionCurves = (
+  plan: AreaEstimationPlan,
+  domain: Domain,
+  requestedTotals: readonly number[]
+): CurveSeries[] => {
+  const pilot = planNeedsPilot(plan);
+  const rule: AllocationRule = pilot ? 'proportional' : plan.allocationRule;
+  const floor = pilot ? plan.pilotPerStratum : plan.sampleFloor;
+
+  const byTotal = new Map<number, { classId: string; className: string; precision: Precision }[]>();
+  for (const requested of requestedTotals) {
+    const allocation = allocate(domain.strata, requested, rule, floor);
+    const total = totalSampleSize(allocation);
+    if (!byTotal.has(total)) byTotal.set(total, perClassPrecision(domain, allocation));
+  }
+
+  const totals = [...byTotal.keys()].sort((a, b) => a - b);
+  return domain.strata
+    .filter((s) => !s.isNoData)
+    .map((stratum) => ({
+      classId: stratum.classId,
+      className: stratum.className,
+      points: totals.flatMap((total) => {
+        const cv = byTotal.get(total)?.find((c) => c.classId === stratum.classId)?.precision.cv;
+        return cv !== undefined && Number.isFinite(cv) ? [{ total, cv }] : [];
+      }),
+    }));
+};
+
 export const designsOf = (plan: AreaEstimationPlan): DomainDesign[] =>
   domainsOf(plan).map((d) => designForDomain(plan, d));
 
@@ -336,12 +385,14 @@ export interface StepIssue {
   message: string;
 }
 
-export type PlanStep = 'data' | 'classes' | 'target' | 'prior' | 'design';
+export type PlanStep = 'data' | 'classes' | 'prior' | 'design';
 
+// The prior comes before the design because the design is where the whole
+// trade-off is settled, and it cannot be drawn until the map's accuracy is
+// assumed. Nothing about the prior depends on the target class.
 export const PLAN_STEPS: { id: PlanStep; name: string }[] = [
   { id: 'data', name: 'Map & areas' },
   { id: 'classes', name: 'Classes' },
-  { id: 'target', name: 'Precision' },
   { id: 'prior', name: 'Priors' },
   { id: 'design', name: 'Design' },
 ];
@@ -365,9 +416,12 @@ export const validatePlan = (plan: AreaEstimationPlan): StepIssue[] => {
   if (unassignedValues(plan).length > 0)
     add('classes', 'Put every map value into a class, or mark it as nodata.');
 
-  if (!plan.targetClassId) add('target', 'Choose the class the sample size should be sized for.');
+  // A pilot is sized by a flat budget per class, so it needs no target yet;
+  // the target is chosen when the pilot's results size the full design.
+  if (!plan.targetClassId && !planNeedsPilot(plan))
+    add('design', 'Choose the class the sample size should be sized for.');
   if (plan.targetCv <= 0 || plan.targetCv >= 1)
-    add('target', 'Target precision must be between 0 and 100 percent.');
+    add('design', 'Target precision must be between 0 and 100 percent.');
 
   if (plan.priorSourceId === 'held_out_test_set')
     add('prior', 'A held-out test set cannot be used; pick another source or run a pilot.');

@@ -66,12 +66,11 @@ async function fillWizard(page: Page, upTo: 'prior' | 'design'): Promise<void> {
 
   await page.getByTestId('uae-continue').click();
   await page.getByTestId('uae-continue').click();
-  await page.getByTestId('uae-target-class').selectOption({ label: 'Winter wheat' });
-  await page.getByTestId('uae-continue').click();
   if (upTo === 'prior') return;
 
   await page.getByTestId('uae-prior-last_season_map').click();
   await page.getByTestId('uae-continue').click();
+  await page.getByTestId('uae-target-class').selectOption({ label: 'Winter wheat' });
 }
 
 test('sizes a sample from the target precision and locks the set it lives in', async ({
