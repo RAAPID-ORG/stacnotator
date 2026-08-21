@@ -104,6 +104,19 @@ export const SubHeading = ({
   );
 };
 
+/**
+ * The card chrome on its own, for the one card that holds an input and so
+ * cannot be a button.
+ */
+export const choiceCardCls = (selected: boolean, disabled = false) =>
+  `w-full text-left border rounded-lg p-3 transition-colors ${
+    disabled
+      ? 'border-neutral-200 bg-neutral-50 opacity-60 cursor-not-allowed'
+      : selected
+        ? 'border-brand-600 bg-brand-50 cursor-pointer'
+        : 'border-neutral-300 hover:border-neutral-400 cursor-pointer'
+  }`;
+
 /** Radio card, the established way this app offers a small set of choices. */
 export const ChoiceCard = ({
   selected,
@@ -128,13 +141,7 @@ export const ChoiceCard = ({
     onClick={onSelect}
     disabled={disabled}
     aria-pressed={selected}
-    className={`w-full text-left border rounded-lg p-3 transition-colors ${
-      disabled
-        ? 'border-neutral-200 bg-neutral-50 opacity-60 cursor-not-allowed'
-        : selected
-          ? 'border-brand-600 bg-brand-50 cursor-pointer'
-          : 'border-neutral-300 hover:border-neutral-400 cursor-pointer'
-    }`}
+    className={choiceCardCls(selected, disabled)}
   >
     <div className="flex items-center gap-2">
       <span className="text-sm font-medium text-neutral-900">{title}</span>

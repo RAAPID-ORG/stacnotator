@@ -119,12 +119,6 @@ export const PRECISION_PRESETS: PrecisionPreset[] = [
     example:
       'Enough to track a trend, size a subsidy programme, or report a minor crop. A 1.0 Mha estimate would carry roughly ±0.2 Mha.',
   },
-  {
-    cv: 0.15,
-    title: 'First look',
-    example:
-      'A defensible order-of-magnitude number for a crop or region being measured for the first time. Not enough to detect small changes.',
-  },
 ];
 
 /**

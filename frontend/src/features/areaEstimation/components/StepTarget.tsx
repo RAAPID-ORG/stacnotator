@@ -2,7 +2,7 @@ import { Badge } from '~/shared/ui/Badge';
 import { Field, Input, Select } from '~/shared/ui/forms';
 import { PRECISION_PRESETS } from '../core/guidance';
 import { pixelsFor, type AreaEstimationPlan } from '../core/plan';
-import { ChoiceCard, StepHeading, SubHeading } from './Explain';
+import { ChoiceCard, choiceCardCls, StepHeading, SubHeading } from './Explain';
 import { formatArea, formatPercent } from './format';
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
 
 export const StepTarget = ({ plan, update }: Props) => {
   const target = plan.classes.find((c) => c.id === plan.targetClassId);
+  const isCustom = !PRECISION_PRESETS.some((p) => Math.abs(plan.targetCv - p.cv) < 1e-9);
   const mappedArea =
     target && plan.census && plan.raster
       ? pixelsFor(plan, target.values) * plan.raster.areaPerPixel
@@ -93,24 +94,35 @@ export const StepTarget = ({ plan, update }: Props) => {
               {preset.example}
             </ChoiceCard>
           ))}
-        </div>
 
-        <Field
-          label="Or set it yourself"
-          hint="Percent of the estimate. Below 2% the sample size grows very quickly."
-          className="max-w-[12rem]"
-        >
-          <Input
-            type="number"
-            size="sm"
-            min={0.5}
-            max={50}
-            step={0.5}
-            value={Number((plan.targetCv * 100).toFixed(2))}
-            onChange={(e) => update({ targetCv: Number(e.target.value) / 100, overrides: {} })}
-            data-testid="uae-cv-custom"
-          />
-        </Field>
+          <label className={choiceCardCls(isCustom)}>
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-medium text-neutral-900">Something else</span>
+              {isCustom && <Badge tone="brand">±{formatPercent(plan.targetCv, 0)}</Badge>}
+            </span>
+            <span className="mt-1 flex items-center gap-2">
+              {/* Input is w-full; the fixed width has to come from a wrapper. */}
+              <span className="w-16 shrink-0">
+                <Input
+                  type="number"
+                  size="sm"
+                  min={0.5}
+                  max={50}
+                  step={0.5}
+                  aria-label="Target precision, percent of the estimate"
+                  value={Number((plan.targetCv * 100).toFixed(2))}
+                  onChange={(e) =>
+                    update({ targetCv: Number(e.target.value) / 100, overrides: {} })
+                  }
+                  data-testid="uae-cv-custom"
+                />
+              </span>
+              <span className="text-xs text-neutral-600 leading-snug">
+                percent of the estimate. Below 2% the sample size grows very quickly.
+              </span>
+            </span>
+          </label>
+        </div>
 
         {target && mappedArea !== null && (
           <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">

@@ -62,6 +62,7 @@ export default tseslint.config(
   {
     files: [
       'src/features/annotation/components/FormFields.tsx',
+      'src/features/areaEstimation/components/Explain.tsx',
       'src/features/annotation/panels/ImageryWindow/ImageryWindow.tsx',
       'src/features/annotation/panels/MainMap/MainMap.tsx',
     ],

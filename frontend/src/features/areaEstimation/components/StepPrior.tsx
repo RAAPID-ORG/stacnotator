@@ -3,7 +3,7 @@ import { Input } from '~/shared/ui/forms';
 import { PRIOR_SOURCES, priorSource, type PriorFit, type PriorSourceId } from '../core/guidance';
 import type { AreaEstimationPlan } from '../core/plan';
 import { defaultCorrectShare, planNeedsPilot } from '../core/plan';
-import { ChoiceCard, Note, StepHeading, SubHeading } from './Explain';
+import { ChoiceCard, StepHeading, SubHeading } from './Explain';
 
 interface Props {
   plan: AreaEstimationPlan;
@@ -56,8 +56,8 @@ export const StepPrior = ({ plan, update }: Props) => {
       >
         To decide how many points each group needs, the tool needs a rough idea of how often the map
         is right. That guess is only used to spread the points sensibly; it is <strong>not</strong>{' '}
-        used to compute your published area, so an optimistic or pessimistic guess costs you a wider
-        confidence interval, never a wrong answer.
+        used to compute your published area, so an optimistic or pessimistic guess impacts only your
+        confidence interval, but does not add a bias to your results.
       </StepHeading>
 
       <section className="space-y-2">
@@ -73,24 +73,22 @@ export const StepPrior = ({ plan, update }: Props) => {
               testId={`uae-prior-${s.id}`}
             >
               {s.summary}
+              {plan.priorSourceId === s.id && (
+                <span className="mt-2 block leading-relaxed text-neutral-700">
+                  {s.rationale}
+                  {s.fit === 'rejected' && (
+                    <span className="mt-1.5 block">
+                      Pick another source above, or choose <em>Nothing reliable yet</em> and the
+                      campaign will start with a small pilot that measures the accuracy instead of
+                      assuming it.
+                    </span>
+                  )}
+                </span>
+              )}
             </ChoiceCard>
           ))}
         </div>
       </section>
-
-      {plan.priorSourceId === 'held_out_test_set' ? (
-        <Note tone="error">
-          <p className="font-medium">A held-out test set cannot be used here.</p>
-          <p className="mt-1">{source.rationale}</p>
-          <p className="mt-2">
-            If you have another source, pick it above. If you do not, choose{' '}
-            <em>Nothing reliable yet</em> and the campaign will start with a small pilot that
-            measures the accuracy instead of assuming it.
-          </p>
-        </Note>
-      ) : (
-        <p className="text-sm text-neutral-600 leading-relaxed">{source.rationale}</p>
-      )}
 
       {!planNeedsPilot(plan) && (
         <section className="space-y-3">

@@ -111,8 +111,11 @@ test('refuses a held-out test set as a prior and offers a pilot instead', async 
   await mockCampaignAdmin(page);
   await fillWizard(page, 'prior');
 
+  // Choosing it expands the card with why it cannot be used and what to do.
   await page.getByTestId('uae-prior-held_out_test_set').click();
-  await expect(page.getByText('A held-out test set cannot be used here.')).toBeVisible();
+  await expect(
+    page.getByTestId('uae-prior-held_out_test_set').getByText(/Test sets are almost never/)
+  ).toBeVisible();
   await page.getByTestId('uae-continue').click();
   await expect(page.getByTestId('uae-activate')).toBeDisabled();
 
