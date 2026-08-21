@@ -1,9 +1,9 @@
 import { Badge } from '~/shared/ui/Badge';
 import { Field, Input, Select } from '~/shared/ui/forms';
 import { PRECISION_PRESETS } from '../core/guidance';
-import { pixelsFor, type AreaEstimationPlan } from '../core/plan';
+import type { AreaEstimationPlan } from '../core/plan';
 import { ChoiceCard, choiceCardCls, StepHeading, SubHeading } from './Explain';
-import { formatArea, formatPercent } from './format';
+import { formatPercent } from './format';
 
 interface Props {
   plan: AreaEstimationPlan;
@@ -11,12 +11,7 @@ interface Props {
 }
 
 export const StepTarget = ({ plan, update }: Props) => {
-  const target = plan.classes.find((c) => c.id === plan.targetClassId);
   const isCustom = !PRECISION_PRESETS.some((p) => Math.abs(plan.targetCv - p.cv) < 1e-9);
-  const mappedArea =
-    target && plan.census && plan.raster
-      ? pixelsFor(plan, target.values) * plan.raster.areaPerPixel
-      : null;
 
   return (
     <div className="space-y-8">
@@ -123,21 +118,6 @@ export const StepTarget = ({ plan, update }: Props) => {
             </span>
           </label>
         </div>
-
-        {target && mappedArea !== null && (
-          <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
-            The map puts <strong>{target.name}</strong> at {formatArea(mappedArea)}. If the sample
-            lands near that, a {formatPercent(plan.targetCv, 0)} target means publishing roughly{' '}
-            <strong>
-              {formatArea(mappedArea)} ± {formatArea(mappedArea * plan.targetCv * 1.96)}
-            </strong>{' '}
-            at 95% confidence.
-            <span className="block mt-1 text-xs text-neutral-500">
-              The map&apos;s own figure is shown only as an anchor for the size of the target. It is
-              not the estimate and it is not unbiased.
-            </span>
-          </div>
-        )}
       </section>
     </div>
   );
