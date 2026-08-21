@@ -238,6 +238,12 @@ export interface DomainDesign {
   domain: Domain;
   allocation: StratumAllocation[];
   total: number;
+  /**
+   * The budget the allocation was asked for, before the floor lifted it. Only
+   * the same request reproduces the same allocation, which is what lets the
+   * precision curve put its marker exactly on this design.
+   */
+  requestedTotal: number;
   /** Precision of the target class within this domain, under the prior. */
   precision: Precision;
   /** What each reporting class is expected to achieve, target class included. */
@@ -270,6 +276,7 @@ export const designForDomain = (plan: AreaEstimationPlan, domain: Domain): Domai
     domain,
     allocation,
     total: totalSampleSize(allocation),
+    requestedTotal: budget,
     precision: anticipatedPrecision(domain.strata, allocation),
     perClass: perClassPrecision(domain, allocation),
   };

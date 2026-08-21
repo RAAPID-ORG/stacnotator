@@ -102,18 +102,28 @@ export const AreaEstimationPanel = ({ campaignId }: { campaignId: number }) => {
           <SubHeading
             title="Reading these numbers"
             technical={
-              <p>
-                Areas come from the stratified estimator: p̂<sub>k</sub> = Σ W<sub>i</sub>
-                (n<sub>ik</sub>/n<sub>i</sub>), with the standard error of Olofsson Eq. 10 and a 95%
-                interval of ±1.96 standard errors. The map column is the pixel-counting figure and
-                is shown only so the size of the map&apos;s bias is visible.
-              </p>
+              <>
+                <p>
+                  Areas come from the stratified estimator: p̂<sub>k</sub> = Σ W<sub>i</sub>
+                  (n<sub>ik</sub>/n<sub>i</sub>), with the standard error of Olofsson Eq. 10 and a
+                  95% interval of ±1.96 standard errors. The map column is the pixel-counting figure
+                  and is shown only so the size of the map&apos;s bias is visible.
+                </p>
+                <p className="mt-1.5">
+                  Map correct is user&apos;s accuracy (Eq. 1, variance Eq. 6); map found is
+                  producer&apos;s accuracy (Eq. 3, variance Eq. 7). They answer different questions
+                  and are rarely equal: a class the map over-calls scores low on the first and high
+                  on the second.
+                </p>
+              </>
             }
             source="Olofsson et al. (2014), Eqs. 9 to 11."
           >
             Each row is what the annotated points say the area really is, with the range it could
             plausibly be. Where the map column sits outside that range, the map was systematically
-            over- or under-calling that class.
+            over- or under-calling that class. <strong>Map correct</strong> is how much of what the
+            map called this class really was it; <strong>map found</strong> is how much of what
+            really was this class the map caught.
           </SubHeading>
 
           {domains.map((domain) => {
@@ -171,7 +181,18 @@ const EstimateTable = ({
             <th className="py-2 font-medium text-right">Estimated area</th>
             <th className="py-2 font-medium text-right w-20">±</th>
             <th className="py-2 font-medium text-right w-28">Map says</th>
-            <th className="py-2 font-medium text-right w-24">Map right</th>
+            <th
+              className="py-2 font-medium text-right w-28"
+              title="User's accuracy: of what the map calls this class, how much really is"
+            >
+              Map correct
+            </th>
+            <th
+              className="py-2 font-medium text-right w-28"
+              title="Producer's accuracy: of what really is this class, how much the map found"
+            >
+              Map found
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -200,6 +221,11 @@ const EstimateTable = ({
                 <td className="py-2 text-right tabular-nums text-neutral-500">
                   {estimate.usersAccuracy ? formatPercent(estimate.usersAccuracy.value, 0) : '—'}
                 </td>
+                <td className="py-2 text-right tabular-nums text-neutral-500">
+                  {estimate.producersAccuracy
+                    ? formatPercent(estimate.producersAccuracy.value, 0)
+                    : '—'}
+                </td>
               </tr>
             );
           })}
@@ -207,7 +233,7 @@ const EstimateTable = ({
         {estimates.overallAccuracy && (
           <tfoot>
             <tr>
-              <td colSpan={5} className="pt-3 text-xs text-neutral-500">
+              <td colSpan={6} className="pt-3 text-xs text-neutral-500">
                 Overall map accuracy {formatPercent(estimates.overallAccuracy.value, 1)} ±{' '}
                 {formatPercent(estimates.overallAccuracy.marginOfError, 1)}, from{' '}
                 {formatCount(estimates.totalAnnotated)} annotated points.

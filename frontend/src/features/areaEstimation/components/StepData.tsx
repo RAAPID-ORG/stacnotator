@@ -223,69 +223,75 @@ export const StepData = ({ plan, update }: Props) => {
             </ul>
           </div>
         ) : (
-          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">{plan.raster.name}</p>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  {plan.raster.crs} · {plan.raster.resolutionMeters} m pixels ·{' '}
-                  {(plan.raster.areaPerPixel / 10_000).toFixed(2)} ha per pixel
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => update({ raster: null, values: [], census: null, classes: [] })}
-              >
-                Replace
-              </Button>
-            </div>
+          <div className="space-y-4">
+            <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
+              <li className="py-2.5 flex items-center gap-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm text-neutral-900 truncate">
+                    {plan.raster.name}
+                  </span>
+                  <span className="block text-xs text-neutral-500">
+                    {plan.raster.crs} · {plan.raster.resolutionMeters} m pixels ·{' '}
+                    {(plan.raster.areaPerPixel / 10_000).toFixed(2)} ha per pixel
+                  </span>
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => update({ raster: null, values: [], census: null, classes: [] })}
+                >
+                  Replace
+                </Button>
+              </li>
+            </ul>
 
-            <Field
-              label="Areas computed in"
-              hint={
-                plan.raster.isEqualArea
-                  ? `Taken from the map, which is already an equal-area projection. Change it if you report in a different one.`
-                  : 'The map is in a latitude/longitude projection, where a pixel near the north of the country covers less ground than one in the south. Pixel counts are reprojected into this equal-area projection before they become stratum weights.'
-              }
-              className="max-w-md"
-            >
-              <Select
-                size="sm"
-                value={plan.equalAreaCrs}
-                data-testid="uae-equal-area-crs"
-                onChange={(e) => update({ equalAreaCrs: e.target.value })}
-              >
-                {EQUAL_AREA_PROJECTIONS.map((crs) => (
-                  <option key={crs.code} value={crs.code}>
-                    {crs.code} -{crs.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            <div className="flex flex-wrap items-start gap-6">
+              {plan.raster.bands.length > 1 && (
+                <Field
+                  label="Band"
+                  hint="Which band of the file holds the classification."
+                  className="w-56"
+                >
+                  <Select
+                    size="sm"
+                    value={plan.bandIndex}
+                    disabled={inspecting}
+                    data-testid="uae-band"
+                    onChange={(e) => void selectBand(Number(e.target.value))}
+                  >
+                    {plan.raster.bands.map((b) => (
+                      <option key={b.index} value={b.index}>
+                        Band {b.index}
+                        {b.description ? ` — ${b.description}` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
 
-            {plan.raster.bands.length > 1 && (
               <Field
-                label="Band"
-                hint="Which band of the file holds the classification."
-                className="max-w-xs"
+                label="Areas computed in"
+                hint={
+                  plan.raster.isEqualArea
+                    ? 'Taken from the map, which is already an equal-area projection.'
+                    : 'The map is in latitude/longitude, where pixel size varies with latitude. Counts are reprojected into this equal-area projection before they become stratum weights.'
+                }
+                className="w-80"
               >
                 <Select
                   size="sm"
-                  value={plan.bandIndex}
-                  disabled={inspecting}
-                  data-testid="uae-band"
-                  onChange={(e) => void selectBand(Number(e.target.value))}
+                  value={plan.equalAreaCrs}
+                  data-testid="uae-equal-area-crs"
+                  onChange={(e) => update({ equalAreaCrs: e.target.value })}
                 >
-                  {plan.raster.bands.map((b) => (
-                    <option key={b.index} value={b.index}>
-                      Band {b.index}
-                      {b.description ? ` -${b.description}` : ''}
+                  {EQUAL_AREA_PROJECTIONS.map((crs) => (
+                    <option key={crs.code} value={crs.code}>
+                      {crs.code} — {crs.name}
                     </option>
                   ))}
                 </Select>
               </Field>
-            )}
+            </div>
           </div>
         )}
 
@@ -452,6 +458,7 @@ const ValueRow = ({
     <td className="py-2 pr-3">
       <Input
         size="sm"
+        className="max-w-sm"
         value={value.label}
         placeholder="Name this class"
         onChange={(e) => onLabel(e.target.value)}

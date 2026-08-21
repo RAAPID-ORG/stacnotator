@@ -11,12 +11,11 @@ import { formatCount, formatPercent } from './format';
  */
 const SERIES_COLOURS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300'];
 
-const W = 640;
-const H = 250;
-const PAD = { top: 10, right: 118, bottom: 38, left: 44 };
+const W = 420;
+const H = 190;
+const PAD = { top: 10, right: 12, bottom: 34, left: 40 };
 const PLOT_W = W - PAD.left - PAD.right;
 const PLOT_H = H - PAD.top - PAD.bottom;
-const LABEL_GAP = 11;
 
 interface Props {
   series: CurveSeries[];
@@ -25,19 +24,6 @@ interface Props {
   targetCv: number;
   targetClassId: string | null;
 }
-
-/** Stack labels that want the same height far enough apart to be read. */
-const spread = (wanted: { y: number; key: string }[]): Record<string, number> => {
-  const sorted = [...wanted].sort((a, b) => a.y - b.y);
-  let previous = -Infinity;
-  const out: Record<string, number> = {};
-  for (const item of sorted) {
-    const y = Math.max(item.y, previous + LABEL_GAP);
-    out[item.key] = y;
-    previous = y;
-  }
-  return out;
-};
 
 /**
  * Precision against sample size. The point of showing it is that the curves
@@ -74,11 +60,6 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
     const ratio = ((e.clientX - box.left) / box.width) * W;
     setHoverTotal(minTotal + ((ratio - PAD.left) / PLOT_W) * (maxTotal - minTotal));
   };
-
-  const labelY = spread([
-    { key: '__target__', y: y(targetCv) },
-    ...series.map((s) => ({ key: s.classId, y: y(s.points[s.points.length - 1].cv) })),
-  ]);
 
   return (
     <figure className="m-0">
@@ -119,7 +100,13 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
           stroke="#737373"
           strokeDasharray="4 3"
         />
-        <text x={PAD.left + PLOT_W + 6} y={labelY.__target__ + 3} fontSize="9" fill="#737373">
+        <text
+          x={PAD.left + PLOT_W}
+          y={y(targetCv) - 4}
+          textAnchor="end"
+          fontSize="9"
+          fill="#737373"
+        >
           target ±{formatPercent(targetCv, 0)}
         </text>
 
@@ -156,9 +143,6 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
                   strokeWidth="2"
                 />
               )}
-              <text x={PAD.left + PLOT_W + 6} y={labelY[s.classId] + 3} fontSize="9" fill="#525252">
-                {s.className}
-              </text>
             </g>
           );
         })}

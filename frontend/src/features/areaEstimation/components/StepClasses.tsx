@@ -1,19 +1,24 @@
 import { Button, IconButton, Input, Select } from '~/shared/ui/forms';
-import { IconClose, IconPlus, IconTrash } from '~/shared/ui/Icons';
+import { Badge } from '~/shared/ui/Badge';
+import { IconPlus, IconTrash } from '~/shared/ui/Icons';
 import type { AreaEstimationPlan, ReportingClass } from '../core/plan';
-import { oneClassPerValue, pixelsFor, unassignedValues } from '../core/plan';
+import { NO_DATA_CLASS_ID, oneClassPerValue, pixelsFor, unassignedValues } from '../core/plan';
 import { ChoiceCard, Note, StepHeading, SubHeading } from './Explain';
-import { formatPixels } from './format';
+import { formatPercent } from './format';
 
 interface Props {
   plan: AreaEstimationPlan;
   update: (patch: Partial<AreaEstimationPlan>) => void;
 }
 
+const NEW_CLASS = '__new__';
+
 export const StepClasses = ({ plan, update }: Props) => {
   const unassigned = unassignedValues(plan);
-  const labelOf = (value: number) =>
-    plan.values.find((v) => v.value === value)?.label || `Value ${value}`;
+  const totalPixels = pixelsFor(
+    plan,
+    plan.values.filter((v) => !plan.noDataValues.includes(v.value)).map((v) => v.value)
+  );
 
   const setClasses = (classes: ReportingClass[]) => {
     const ids = new Set(classes.map((c) => c.id));
@@ -24,23 +29,42 @@ export const StepClasses = ({ plan, update }: Props) => {
     });
   };
 
+  /** Move a map value into a class, out of whichever one currently holds it. */
+  const assign = (value: number, toClassId: string | null) => {
+    if (toClassId === NO_DATA_CLASS_ID) {
+      update({
+        noDataValues: [...plan.noDataValues, value],
+        classes: plan.classes.map((c) => ({ ...c, values: c.values.filter((v) => v !== value) })),
+        overrides: {},
+      });
+      return;
+    }
+    const label = plan.values.find((v) => v.value === value)?.label || `Value ${value}`;
+    const stripped = plan.classes.map((c) => ({
+      ...c,
+      values: c.values.filter((v) => v !== value),
+    }));
+    const classes =
+      toClassId === NEW_CLASS
+        ? [...stripped, { id: `class-${value}-${stripped.length}`, name: label, values: [value] }]
+        : stripped.map((c) => (c.id === toClassId ? { ...c, values: [...c.values, value] } : c));
+    update({
+      noDataValues: plan.noDataValues.filter((v) => v !== value),
+      classes: classes.filter((c) => c.values.length > 0 || c.id === toClassId),
+      targetClassId: plan.targetClassId,
+      overrides: {},
+    });
+  };
+
+  const classOf = (value: number) =>
+    plan.noDataValues.includes(value)
+      ? NO_DATA_CLASS_ID
+      : (plan.classes.find((c) => c.values.includes(value))?.id ?? '');
+
   const renameClass = (id: string, name: string) =>
     setClasses(plan.classes.map((c) => (c.id === id ? { ...c, name } : c)));
 
   const removeClass = (id: string) => setClasses(plan.classes.filter((c) => c.id !== id));
-
-  const addClass = () =>
-    setClasses([...plan.classes, { id: `class-new-${Date.now()}`, name: '', values: [] }]);
-
-  const moveValue = (value: number, toClassId: string | null) =>
-    setClasses(
-      plan.classes.map((c) => {
-        const without = c.values.filter((v) => v !== value);
-        return c.id === toClassId
-          ? { ...c, values: [...without, value] }
-          : { ...c, values: without };
-      })
-    );
 
   return (
     <div className="space-y-8">
@@ -62,111 +86,134 @@ export const StepClasses = ({ plan, update }: Props) => {
         }
         source="Olofsson et al. (2014), Section 2.1.1 on aggregating classes into strata."
       >
-        The classes you publish your statics on do not necesarrily have to be the classes the map
-        produced. Group them here. For example, if your map separates winter wheat, barley and rye
-        but you publish a single <em>winter cereals</em> number, merge them into one class here.
-        Fewer, larger classes need fewer sample points to reach the same precision.
+        The classes you publish do not have to be the classes the map produced. If your map
+        separates wheat, barley and rye but you publish a single <em>winter cereals</em> number,
+        send all three to the same class here. Fewer, larger classes need fewer points to reach the
+        same precision.
       </StepHeading>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <SubHeading title="Reporting classes">
-            The final classes that accuracies will be reported for. Often merged from multiple map
-            classes.
+        <div className="flex items-start justify-between gap-4">
+          <SubHeading title="Where each map value is reported">
+            Every value from the map goes somewhere. Send two to the same class to merge them.
           </SubHeading>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setClasses(oneClassPerValue(plan))}
-            >
-              Reset to one per value
-            </Button>
-            <Button size="sm" leading={<IconPlus className="w-3.5 h-3.5" />} onClick={addClass}>
-              New class
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="shrink-0"
+            onClick={() => setClasses(oneClassPerValue(plan))}
+          >
+            One class each
+          </Button>
         </div>
 
-        {plan.classes.length === 0 ? (
-          <p className="text-xs text-neutral-400 italic">No reporting classes yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {plan.classes.map((cls) => (
-              <li key={cls.id} className="border border-neutral-200 rounded-lg p-3 space-y-2">
-                <div className="flex items-center gap-3">
-                  <Input
-                    size="sm"
-                    value={cls.name}
-                    placeholder="Class name, for example Winter cereals"
-                    onChange={(e) => renameClass(cls.id, e.target.value)}
-                    className="max-w-sm"
-                    invalid={!cls.name.trim()}
-                    aria-label="Reporting class name"
-                  />
-                  <span className="text-xs text-neutral-500 tabular-nums">
-                    {plan.census ? `${formatPixels(pixelsFor(plan, cls.values))} px` : ''}
-                  </span>
-                  <span className="flex-1" />
-                  <IconButton
-                    tone="danger"
-                    onClick={() => removeClass(cls.id)}
-                    aria-label={`Remove ${cls.name || 'class'}`}
-                  >
-                    <IconTrash className="w-4 h-4" />
-                  </IconButton>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {cls.values.length === 0 && (
-                    <span className="text-[11px] text-red-600">Add at least one map value.</span>
-                  )}
-                  {cls.values.map((value) => (
-                    <span
-                      key={value}
-                      className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full border border-neutral-200 bg-neutral-50 text-[11px] text-neutral-700"
-                    >
-                      <span className="font-mono text-neutral-400">{value}</span>
-                      {labelOf(value)}
-                      <IconButton
-                        onClick={() => moveValue(value, null)}
-                        aria-label={`Remove ${labelOf(value)} from ${cls.name}`}
-                      >
-                        <IconClose className="w-3 h-3" />
-                      </IconButton>
-                    </span>
-                  ))}
-                  {unassigned.length > 0 && (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
+              <th className="py-2 font-medium w-16">Value</th>
+              <th className="py-2 font-medium">From the map</th>
+              <th className="py-2 font-medium w-20 text-right">Share</th>
+              <th className="py-2 font-medium w-64">Reported as</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plan.values.map((value) => {
+              const assigned = classOf(value.value);
+              const share = totalPixels > 0 ? pixelsFor(plan, [value.value]) / totalPixels : 0;
+              return (
+                <tr key={value.value} className="border-b border-neutral-100">
+                  <td className="py-2 font-mono text-xs text-neutral-400">{value.value}</td>
+                  <td className="py-2 text-neutral-800">{value.label || 'Unnamed'}</td>
+                  <td className="py-2 text-right text-xs text-neutral-500 tabular-nums">
+                    {assigned === NO_DATA_CLASS_ID ? '—' : formatPercent(share)}
+                  </td>
+                  <td className="py-2">
                     <Select
                       size="sm"
-                      value=""
-                      className="w-44"
-                      aria-label={`Add a map value to ${cls.name}`}
-                      onChange={(e) => e.target.value && moveValue(Number(e.target.value), cls.id)}
+                      value={assigned}
+                      invalid={assigned === ''}
+                      aria-label={`Reporting class for ${value.label || value.value}`}
+                      onChange={(e) => assign(value.value, e.target.value || null)}
                     >
-                      <option value="">Add a value…</option>
-                      {unassigned.map((v) => (
-                        <option key={v.value} value={v.value}>
-                          {v.value} -{v.label || 'unnamed'}
+                      <option value="">Not assigned</option>
+                      {plan.classes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name || 'Unnamed class'}
                         </option>
                       ))}
+                      <option value={NEW_CLASS}>＋ A class of its own</option>
+                      <option value={NO_DATA_CLASS_ID}>Nodata — not a class</option>
                     </Select>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
 
         {unassigned.length > 0 && (
           <Note tone="warning">
-            {unassigned.length} map value{unassigned.length === 1 ? ' is' : 's are'} not in any
-            class yet: {unassigned.map((v) => v.label || v.value).join(', ')}. Every pixel of the
-            study area has to belong somewhere, otherwise the stratum weights do not add up to the
-            area you are reporting on.
+            {unassigned.length} map value{unassigned.length === 1 ? ' is' : 's are'} not reported
+            anywhere yet. Every pixel of the study area has to belong somewhere, otherwise the
+            stratum weights do not add up to the area you are reporting on.
           </Note>
         )}
       </section>
+
+      {plan.classes.length > 0 && (
+        <section className="space-y-3">
+          <SubHeading title="Your reporting classes">
+            These are the rows of your published table, and the groups the sample is spread over.
+          </SubHeading>
+          <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
+            {plan.classes.map((cls) => (
+              <li key={cls.id} className="py-2.5 flex items-center gap-3">
+                <Input
+                  size="sm"
+                  value={cls.name}
+                  placeholder="Class name"
+                  invalid={!cls.name.trim()}
+                  className="max-w-xs"
+                  aria-label="Reporting class name"
+                  onChange={(e) => renameClass(cls.id, e.target.value)}
+                />
+                {/* Only worth listing once a class holds more than the one
+                    map value it was named after. */}
+                {cls.values.length > 1 && (
+                  <span className="flex flex-wrap gap-1">
+                    {cls.values.map((v) => (
+                      <Badge key={v} tone="neutral">
+                        {plan.values.find((x) => x.value === v)?.label || v}
+                      </Badge>
+                    ))}
+                  </span>
+                )}
+                <span className="flex-1" />
+                <span className="text-xs text-neutral-500 tabular-nums">
+                  {formatPercent(totalPixels > 0 ? pixelsFor(plan, cls.values) / totalPixels : 0)}
+                </span>
+                <IconButton
+                  tone="danger"
+                  onClick={() => removeClass(cls.id)}
+                  aria-label={`Remove ${cls.name || 'class'}`}
+                >
+                  <IconTrash className="w-4 h-4" />
+                </IconButton>
+              </li>
+            ))}
+          </ul>
+          <Button
+            size="sm"
+            variant="secondary"
+            leading={<IconPlus className="w-3.5 h-3.5" />}
+            onClick={() =>
+              setClasses([...plan.classes, { id: `class-new-${Date.now()}`, name: '', values: [] }])
+            }
+          >
+            Empty class
+          </Button>
+        </section>
+      )}
 
       <section className="space-y-3">
         <SubHeading
@@ -188,30 +235,29 @@ export const StepClasses = ({ plan, update }: Props) => {
 
         {plan.noDataValues.length === 0 ? (
           <p className="text-xs text-neutral-500">
-            Nothing was marked as nodata, so the whole map is being reported on.
+            Nothing is marked as nodata, so the whole map is being reported on.
           </p>
         ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <ChoiceCard
-                selected={plan.noDataHandling === 'exclude'}
-                onSelect={() => update({ noDataHandling: 'exclude', overrides: {} })}
-                title="Leave them out of the study area"
-                testId="uae-nodata-exclude"
-              >
-                Right when the nodata pixels are outside what you report on - i.e sea, outside of
-                your area of interest etc.
-              </ChoiceCard>
-              <ChoiceCard
-                selected={plan.noDataHandling === 'stratum'}
-                onSelect={() => update({ noDataHandling: 'stratum', overrides: {} })}
-                title="Sample them as their own group"
-                testId="uae-nodata-stratum"
-              >
-                Right when they are land inside your country that the map simply failed on.
-              </ChoiceCard>
-            </div>
-          </>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <ChoiceCard
+              selected={plan.noDataHandling === 'exclude'}
+              onSelect={() => update({ noDataHandling: 'exclude', overrides: {} })}
+              title="Leave them out of the study area"
+              testId="uae-nodata-exclude"
+            >
+              Right when the nodata pixels are outside what you report on: sea, another country,
+              permanent cloud. Your total then covers the mapped part only.
+            </ChoiceCard>
+            <ChoiceCard
+              selected={plan.noDataHandling === 'stratum'}
+              onSelect={() => update({ noDataHandling: 'stratum', overrides: {} })}
+              title="Sample them as their own group"
+              testId="uae-nodata-stratum"
+            >
+              Right when they are land inside your country that the map simply failed on. Points
+              land there too, so crop that the map missed still reaches your total.
+            </ChoiceCard>
+          </div>
         )}
       </section>
     </div>

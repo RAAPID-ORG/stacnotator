@@ -16,24 +16,30 @@ interface Props {
   update: (patch: Partial<AreaEstimationPlan>) => void;
 }
 
-const RULES: { id: AllocationRule; name: string; description: string }[] = [
+const RULES: { id: AllocationRule; name: string; description: string; theory: string }[] = [
   {
     id: 'neyman',
     name: 'Optimal for the target class',
     description:
-      'Neyman allocation. Puts points where the target class is most uncertain, giving the smallest confidence interval for it at a given total.',
+      'Puts points where the target class is most uncertain, giving the smallest confidence interval for it at a given total.',
+    theory:
+      'Neyman allocation: n_i proportional to W_i·S_i, the share of the map times how mixed that class is expected to be. It is the exact minimiser of the target class variance for a fixed total, so no other rule beats it on that one number - and it is the reason a pure class gets few points while a mixed one gets many.',
   },
   {
     id: 'proportional',
     name: 'By size of each class',
     description:
-      'Proportional allocation. Best for the overall accuracy of the map and for the largest classes, at the cost of the rare ones.',
+      'Best for the overall accuracy of the map and for the largest classes, at the cost of the rare ones.',
+    theory:
+      'Proportional allocation: n_i proportional to W_i alone. Every point then carries the same weight, which makes the estimator self-weighting and minimises the variance of overall accuracy. Rare classes get almost nothing, which is what the per-class floor exists to correct.',
   },
   {
     id: 'equal',
     name: 'The same for every class',
     description:
-      'Equal allocation. Best when the accuracy of each individual class matters more than any area figure. Wasteful for area estimation.',
+      'Best when the accuracy of each individual class matters more than any area figure. Wasteful for area estimation.',
+    theory:
+      "Equal allocation: n_i = n/k. It equalises the precision of each class's user's accuracy, which is why accuracy assessments use it, but it over-samples small classes badly for area, where a class's contribution to the total is weighted by W_i.",
   },
 ];
 
@@ -41,13 +47,10 @@ const RULES: { id: AllocationRule; name: string; description: string }[] = [
  * Sample sizes to evaluate the curve at: from well under the current design to
  * well over it, so the knee is on screen wherever the design happens to sit.
  */
-const curveTotals = (current: number): number[] => {
-  const top = Math.max(200, Math.round(current * 2.5));
-  return [...Array.from({ length: 45 }, (_, i) => Math.round((top * (i + 1)) / 45)), current];
+const curveTotals = (requested: number): number[] => {
+  const top = Math.max(200, Math.round(requested * 2.5));
+  return [...Array.from({ length: 45 }, (_, i) => Math.round((top * (i + 1)) / 45)), requested];
 };
-
-/** Rough planning figure: how fast an interpreter gets through sample points. */
-const POINTS_PER_HOUR = 30;
 
 export const StepDesign = ({ plan, update }: Props) => {
   const [advanced, setAdvanced] = useState(false);
@@ -97,14 +100,12 @@ export const StepDesign = ({ plan, update }: Props) => {
         </Field>
 
         {designs.map((design) => (
-          <DesignTable
-            key={design.domain.id}
-            plan={plan}
-            design={design}
-            showPrecision={false}
-            showMultiple={designs.length > 1}
-            onSetPoints={setPoints}
-          />
+          <div key={design.domain.id} className="space-y-2">
+            {designs.length > 1 && (
+              <h3 className="text-sm font-medium text-neutral-900">{design.domain.name}</h3>
+            )}
+            <DesignTable plan={plan} design={design} pilot onSetPoints={setPoints} />
+          </div>
         ))}
 
         <TotalsBar total={total} pilot />
@@ -232,73 +233,6 @@ export const StepDesign = ({ plan, update }: Props) => {
         </div>
       </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end gap-4">
-          <Field
-            label={
-              <span className="inline-flex items-center gap-1">
-                Minimum points per class
-                <InfoPopover>{SAMPLE_FLOOR_RATIONALE}</InfoPopover>
-              </span>
-            }
-            className="w-[13rem]"
-          >
-            <Input
-              type="number"
-              size="sm"
-              min={0}
-              max={1000}
-              step={10}
-              value={plan.sampleFloor}
-              onChange={(e) => update({ sampleFloor: Number(e.target.value), overrides: {} })}
-              data-testid="uae-sample-floor"
-            />
-          </Field>
-          <Field label="Target precision" className="w-[10rem]">
-            <Input size="sm" readOnly value={`±${formatPercent(plan.targetCv, 0)}`} />
-          </Field>
-          <button
-            type="button"
-            onClick={() => setAdvanced(!advanced)}
-            className="h-9 text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4 cursor-pointer"
-          >
-            {advanced ? 'Hide how points are spread' : 'Change how points are spread'}
-          </button>
-        </div>
-
-        {advanced && (
-          <div className="space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-            <SubHeading title="Allocation rule">
-              All three give unbiased estimates. They differ only in which number ends up most
-              precise.
-            </SubHeading>
-            <div className="space-y-1.5">
-              {RULES.map((rule) => (
-                <label
-                  key={rule.id}
-                  className="flex items-start gap-2.5 cursor-pointer rounded p-1.5 hover:bg-white"
-                >
-                  <input
-                    type="radio"
-                    name="uae-allocation"
-                    className="mt-1 cursor-pointer"
-                    checked={plan.allocationRule === rule.id}
-                    onChange={() => update({ allocationRule: rule.id, overrides: {} })}
-                    data-testid={`uae-rule-${rule.id}`}
-                  />
-                  <span>
-                    <span className="block text-sm text-neutral-900">{rule.name}</span>
-                    <span className="block text-xs text-neutral-500 leading-snug">
-                      {rule.description}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-
       {hasOverrides && (
         <Note tone="warning">
           <div className="flex items-center justify-between gap-3">
@@ -314,46 +248,99 @@ export const StepDesign = ({ plan, update }: Props) => {
       )}
 
       {designs.map((design) => (
-        <section key={`curve-${design.domain.id}`} className="space-y-2">
-          <SubHeading
-            title={
-              designs.length > 1
-                ? `How precision grows: ${design.domain.name}`
-                : 'How precision grows'
-            }
-            technical={
-              <p>
-                Each curve is √(Σ W<sub>i</sub>² S<sub>i</sub>² / n<sub>i</sub>) over the expected
-                proportion of that class, evaluated at the allocation the current rule and floor
-                produce for every total. Precision improves with the square root of the sample,
-                which is why the curves flatten; hand-edited sample sizes are left out, since the
-                curve describes the rule rather than one point chosen off it.
-              </p>
-            }
-            source="Olofsson et al. (2014), Eq. 10."
-          >
-            What each class&apos;s confidence interval would be at any total sample size. Hover to
-            read off a size; the marker is where this design sits.
-          </SubHeading>
-          <PrecisionCurve
-            series={precisionCurves(plan, design.domain, curveTotals(design.total))}
-            currentTotal={design.total}
-            targetCv={plan.targetCv}
-            targetClassId={plan.targetClassId}
-          />
+        <section key={design.domain.id} className="space-y-3">
+          {designs.length > 1 && (
+            <h3 className="text-sm font-medium text-neutral-900">{design.domain.name}</h3>
+          )}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+            <DesignTable plan={plan} design={design} onSetPoints={setPoints} />
+            <PrecisionCurve
+              series={precisionCurves(plan, design.domain, curveTotals(design.requestedTotal))}
+              currentTotal={design.total}
+              targetCv={plan.targetCv}
+              targetClassId={plan.targetClassId}
+            />
+          </div>
         </section>
       ))}
 
-      {designs.map((design) => (
-        <DesignTable
-          key={design.domain.id}
-          plan={plan}
-          design={design}
-          showPrecision
-          showMultiple={designs.length > 1}
-          onSetPoints={setPoints}
-        />
-      ))}
+      <div className="flex flex-wrap items-end gap-6">
+        <Field
+          label={
+            <span className="inline-flex items-center gap-1">
+              Minimum points per class
+              <InfoPopover>{SAMPLE_FLOOR_RATIONALE}</InfoPopover>
+            </span>
+          }
+          className="w-[13rem]"
+        >
+          <Input
+            type="number"
+            size="sm"
+            min={0}
+            max={1000}
+            step={10}
+            value={plan.sampleFloor}
+            onChange={(e) => update({ sampleFloor: Number(e.target.value), overrides: {} })}
+            data-testid="uae-sample-floor"
+          />
+        </Field>
+        <button
+          type="button"
+          onClick={() => setAdvanced(!advanced)}
+          className="h-9 text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4 cursor-pointer"
+        >
+          {advanced ? 'Hide advanced options' : 'Advanced options'}
+        </button>
+      </div>
+
+      {advanced && (
+        <section className="space-y-2 border-t border-neutral-100 pt-6">
+          <SubHeading
+            title="How points are spread across the classes"
+            technical={
+              <p>
+                With n<sub>i</sub> = a<sub>i</sub>n, the variance of the stratified estimator is
+                (1/n)·Σ(W<sub>i</sub>²S<sub>i</sub>²/a<sub>i</sub>), so the rule is the choice of
+                the shares a<sub>i</sub>. Minimising that expression over the shares gives Neyman;
+                setting a<sub>i</sub> = W<sub>i</sub> gives proportional; a<sub>i</sub> = 1/k gives
+                equal. All three are design-unbiased, and an ineffective allocation costs precision
+                rather than correctness.
+              </p>
+            }
+            source="Cochran (1977), Eqs. 5.25 and 5.26; Olofsson et al. (2014), Section 5.1.2."
+          >
+            All three give unbiased estimates. They differ only in which number ends up most
+            precise.
+          </SubHeading>
+          <div className="space-y-1.5">
+            {RULES.map((rule) => (
+              <label
+                key={rule.id}
+                className="flex items-start gap-2.5 cursor-pointer rounded p-1.5 hover:bg-neutral-50"
+              >
+                <input
+                  type="radio"
+                  name="uae-allocation"
+                  className="mt-1 cursor-pointer"
+                  checked={plan.allocationRule === rule.id}
+                  onChange={() => update({ allocationRule: rule.id, overrides: {} })}
+                  data-testid={`uae-rule-${rule.id}`}
+                />
+                <span>
+                  <span className="block text-sm text-neutral-900">{rule.name}</span>
+                  <span className="block text-xs text-neutral-500 leading-snug">
+                    {rule.description}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-neutral-400 leading-snug">
+                    {rule.theory}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </section>
+      )}
 
       <TotalsBar total={total} />
     </div>
@@ -363,122 +350,95 @@ export const StepDesign = ({ plan, update }: Props) => {
 const DesignTable = ({
   plan,
   design,
-  showPrecision,
-  showMultiple,
+  pilot = false,
   onSetPoints,
 }: {
   plan: AreaEstimationPlan;
   design: DomainDesign;
-  showPrecision: boolean;
-  showMultiple: boolean;
+  /** A pilot has no prior to show and no target to meet. */
+  pilot?: boolean;
   onSetPoints: (stratumId: string, n: number) => void;
 }) => {
   const weights = stratumWeights(design.domain.strata);
   const byId = new Map(design.allocation.map((a) => [a.id, a.n]));
-  const precisionByClass = new Map(design.perClass.map((p) => [p.classId, p.precision]));
   const meetsTarget = design.precision.cv <= plan.targetCv;
 
   return (
-    <section className="space-y-2">
-      {showMultiple && (
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-neutral-900">{design.domain.name}</h3>
-          <span className="text-xs text-neutral-500 tabular-nums">
-            {formatCount(design.total)} points
-          </span>
-        </div>
-      )}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
-            <th className="py-2 font-medium">Class</th>
-            <th className="py-2 font-medium w-28 text-right">Share of map</th>
-            {showPrecision && <th className="py-2 font-medium w-28 text-right">Map right</th>}
-            <th className="py-2 font-medium w-32 text-right">Points</th>
-            {showPrecision && <th className="py-2 font-medium w-32 text-right">Expected ±</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {design.domain.strata.map((stratum, i) => {
-            const classPrecision = precisionByClass.get(stratum.classId);
-            return (
-              <tr key={stratum.id} className="border-b border-neutral-100">
-                <td className="py-2 text-neutral-800">
-                  {stratum.className}
-                  {stratum.classId === plan.targetClassId && (
-                    <Badge tone="brand" className="ml-2">
-                      target
-                    </Badge>
-                  )}
-                  {stratum.isNoData && (
-                    <Badge tone="neutral" className="ml-2">
-                      not reported
-                    </Badge>
-                  )}
-                </td>
-                <td className="py-2 text-right text-neutral-600 tabular-nums">
-                  {formatPercent(weights[i])}
-                </td>
-                {showPrecision && (
-                  <td className="py-2 text-right text-neutral-500 tabular-nums">
-                    {stratum.isNoData
-                      ? '—'
-                      : formatPercent(plan.correctShares[stratum.classId] ?? 0.85, 0)}
-                  </td>
-                )}
-                <td className="py-2">
-                  <Input
-                    type="number"
-                    size="sm"
-                    min={0}
-                    className="w-24 text-right tabular-nums"
-                    aria-label={`Sample points for ${stratum.className}`}
-                    value={byId.get(stratum.id) ?? 0}
-                    onChange={(e) => onSetPoints(stratum.id, Number(e.target.value))}
-                  />
-                </td>
-                {showPrecision && (
-                  <td className="py-2 text-right tabular-nums text-neutral-600">
-                    {stratum.isNoData || !classPrecision ? '—' : formatPercent(classPrecision.cv)}
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-        {showPrecision && (
-          <tfoot>
-            <tr>
-              <td colSpan={3} className="pt-3 text-sm text-neutral-700">
-                Expected precision for the target class
-              </td>
-              <td colSpan={2} className="pt-3 text-right">
-                <Badge tone={meetsTarget ? 'green' : 'yellow'}>
-                  ±{formatPercent(design.precision.cv)}
-                  {meetsTarget ? '' : ` -target is ±${formatPercent(plan.targetCv, 0)}`}
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
+          <th className="py-2 font-medium">Class</th>
+          <th className="py-2 font-medium w-24 text-right">Share</th>
+          {!pilot && <th className="py-2 font-medium w-24 text-right">Map right</th>}
+          <th className="py-2 font-medium w-28 text-right">Points</th>
+        </tr>
+      </thead>
+      <tbody>
+        {design.domain.strata.map((stratum, i) => (
+          <tr key={stratum.id} className="border-b border-neutral-100">
+            <td className="py-2 text-neutral-800">
+              {stratum.className}
+              {stratum.classId === plan.targetClassId && (
+                <Badge tone="brand" className="ml-2">
+                  target
                 </Badge>
+              )}
+              {stratum.isNoData && (
+                <Badge tone="neutral" className="ml-2">
+                  not reported
+                </Badge>
+              )}
+            </td>
+            <td className="py-2 text-right text-neutral-600 tabular-nums">
+              {formatPercent(weights[i])}
+            </td>
+            {!pilot && (
+              <td className="py-2 text-right text-neutral-500 tabular-nums">
+                {stratum.isNoData
+                  ? '—'
+                  : formatPercent(plan.correctShares[stratum.classId] ?? 0.85, 0)}
               </td>
-            </tr>
-          </tfoot>
-        )}
-      </table>
-    </section>
+            )}
+            <td className="py-2">
+              <Input
+                type="number"
+                size="sm"
+                min={0}
+                className="text-right tabular-nums"
+                aria-label={`Sample points for ${stratum.className}`}
+                value={byId.get(stratum.id) ?? 0}
+                onChange={(e) => onSetPoints(stratum.id, Number(e.target.value))}
+              />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+      {!pilot && (
+        <tfoot>
+          <tr>
+            <td colSpan={2} className="pt-3 text-sm text-neutral-700">
+              Expected for the target class
+            </td>
+            <td colSpan={2} className="pt-3 text-right">
+              <Badge tone={meetsTarget ? 'green' : 'yellow'}>
+                ±{formatPercent(design.precision.cv)}
+                {meetsTarget ? '' : ` - target is ±${formatPercent(plan.targetCv, 0)}`}
+              </Badge>
+            </td>
+          </tr>
+        </tfoot>
+      )}
+    </table>
   );
 };
 
 const TotalsBar = ({ total, pilot }: { total: number; pilot?: boolean }) => (
-  <div className="flex flex-wrap items-baseline justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
-    <div>
-      <span className="text-2xl font-semibold text-neutral-900 tabular-nums">
-        {formatCount(total)}
-      </span>
-      <span className="ml-2 text-sm text-neutral-600">
-        {pilot ? 'points in the pilot' : 'points to annotate'}
-      </span>
-    </div>
-    <span className="text-xs text-neutral-500">
-      Roughly {Math.max(1, Math.round(total / POINTS_PER_HOUR))} hours of interpretation at{' '}
-      {POINTS_PER_HOUR} points per hour.
+  <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
+    <span className="text-2xl font-semibold text-neutral-900 tabular-nums">
+      {formatCount(total)}
+    </span>
+    <span className="ml-2 text-sm text-neutral-600">
+      {pilot ? 'points in the pilot' : 'points to annotate'}
     </span>
   </div>
 );

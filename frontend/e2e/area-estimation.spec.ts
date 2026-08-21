@@ -83,7 +83,7 @@ test('sizes a sample from the target precision and locks the set it lives in', a
   // did not, and the design meets the 5% default the target step starts on.
   const points = page.getByRole('spinbutton', { name: /^Sample points for / });
   await expect(points).toHaveCount(5);
-  await expect(page.getByText(/Expected precision for the target class/)).toBeVisible();
+  await expect(page.getByText(/Expected for the target class/)).toBeVisible();
   await expect(page.getByText(/^±[0-4]\.\d%$/)).toBeVisible();
 
   await page.getByTestId('uae-activate').click();
