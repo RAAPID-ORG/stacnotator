@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { TaskSetOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
-import { IconCheck, IconClose, IconPencil, IconTrash } from '~/shared/ui/Icons';
+import { IconCheck, IconClose, IconLock, IconPencil, IconTrash } from '~/shared/ui/Icons';
+import { LOCKED_TASK_SET_REASON } from '~/features/areaEstimation/AreaEstimation';
 
 export type TaskScope = 'all' | number;
 
@@ -14,6 +15,8 @@ interface Props {
   onCreateSet?: (name: string) => Promise<number | null>;
   onRenameSet?: (id: number, name: string) => Promise<void>;
   onDeleteSet?: (id: number) => Promise<boolean>;
+  /** A set owned by another feature, which nothing here may rename or delete. */
+  lockedSetId?: number | null;
 }
 
 import { pillCls } from '~/shared/ui/pill';
@@ -26,6 +29,7 @@ export const TaskScopeBar = ({
   onCreateSet,
   onRenameSet,
   onDeleteSet,
+  lockedSetId,
 }: Props) => {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -83,6 +87,7 @@ export const TaskScopeBar = ({
       </button>
       {taskSets.map((set) => {
         const active = scope === set.id;
+        const locked = set.id === lockedSetId;
         if (renamingId === set.id) {
           return (
             <span key={set.id} className="flex items-center gap-1">
@@ -109,7 +114,12 @@ export const TaskScopeBar = ({
             >
               {set.name} <span className="opacity-70 tabular-nums">({set.num_tasks})</span>
             </button>
-            {active && onRenameSet && onDeleteSet && (
+            {locked && (
+              <span className="opacity-70" title={LOCKED_TASK_SET_REASON} aria-label="Managed set">
+                <IconLock className="w-3.5 h-3.5" />
+              </span>
+            )}
+            {active && !locked && onRenameSet && onDeleteSet && (
               <>
                 <button
                   type="button"

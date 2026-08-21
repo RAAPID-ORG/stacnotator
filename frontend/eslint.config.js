@@ -120,6 +120,51 @@ export default tseslint.config(
     },
   },
 
+  // Outside the area estimation feature, only its entry point is importable.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/features/annotation/**', 'src/features/areaEstimation/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['~/features/annotation/*', '!~/features/annotation/AnnotationPage'],
+              message:
+                'Import the annotation feature through ~/features/annotation/AnnotationPage.',
+            },
+            {
+              group: ['~/features/areaEstimation/*', '!~/features/areaEstimation/AreaEstimation'],
+              message:
+                'Import the area estimation feature through ~/features/areaEstimation/AreaEstimation.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // core/ is the statistics: sampling design and the estimators it feeds. It
+  // has to be readable and testable next to the paper it comes from, which
+  // means no React, no stores and no fetching.
+  {
+    files: ['src/features/areaEstimation/core/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['react', 'zustand', '**/stores/*', '~/api/*', '../api', './api'],
+              message: 'core/ is pure: no React, no stores, no fetching.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Prettier must be last - disables conflicting rules
   eslintConfigPrettier
 );

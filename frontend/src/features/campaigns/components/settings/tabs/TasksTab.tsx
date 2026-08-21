@@ -15,6 +15,7 @@ import type {
   TaskSetOut,
 } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
+import { LOCKED_TASK_SET_REASON } from '~/features/areaEstimation/AreaEstimation';
 
 interface Props {
   campaign: CampaignOut;
@@ -42,6 +43,8 @@ interface Props {
   onRenameTaskSet: (id: number, name: string) => Promise<void>;
   onDeleteTaskSet: (id: number) => Promise<boolean>;
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
+  /** Task set owned by the area estimation design; closed to hand-added tasks. */
+  lockedTaskSetId?: number | null;
   bbox?: {
     west: number;
     south: number;
@@ -74,6 +77,7 @@ export const TasksTab: React.FC<Props> = ({
   onRenameTaskSet,
   onDeleteTaskSet,
   onMoveTasks,
+  lockedTaskSetId,
   bbox,
 }) => {
   const campaignId = campaign.id;
@@ -81,6 +85,16 @@ export const TasksTab: React.FC<Props> = ({
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
 
   const scopedSet = taskScope === 'all' ? undefined : taskSets.find((s) => s.id === taskScope);
+  const scopeIsLocked = taskScope !== 'all' && taskScope === lockedTaskSetId;
+
+  const lockedSetSection = (
+    <section className={sectionCls}>
+      <div>
+        <h2 className="section-heading">Managed by the area estimation design</h2>
+        <p className="section-description">{LOCKED_TASK_SET_REASON}</p>
+      </div>
+    </section>
+  );
 
   const addTasksSection = (
     <section className={sectionCls}>
@@ -200,7 +214,8 @@ export const TasksTab: React.FC<Props> = ({
           onAssignSelected={canManage ? onAssignSelected : undefined}
           onBatchUnassignTasks={canManage ? handleBatchUnassignTasks : undefined}
           onDeleteTasks={canManage ? handleDeleteTasks : undefined}
-          onMoveTasks={canManage ? onMoveTasks : undefined}
+          onMoveTasks={canManage && !scopeIsLocked ? onMoveTasks : undefined}
+          lockedTaskSetId={lockedTaskSetId}
           onCreateSet={canManage ? onCreateSetScoped : undefined}
         />
       ) : (
@@ -232,6 +247,7 @@ export const TasksTab: React.FC<Props> = ({
           onCreateSet={canManage ? onCreateSetScoped : undefined}
           onRenameSet={canManage ? onRenameTaskSet : undefined}
           onDeleteSet={canManage ? onDeleteTaskSet : undefined}
+          lockedSetId={lockedTaskSetId}
         />
       </section>
 
@@ -250,7 +266,7 @@ export const TasksTab: React.FC<Props> = ({
           </section>
         )}
 
-        {canManage && taskScope !== 'all' && addTasksSection}
+        {canManage && taskScope !== 'all' && (scopeIsLocked ? lockedSetSection : addTasksSection)}
 
         {canManage && taskScope === 'all' && totalTasks > 0 && (
           <TaskAssignmentsExportImport

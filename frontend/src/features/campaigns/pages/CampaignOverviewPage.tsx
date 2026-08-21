@@ -15,6 +15,7 @@ import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { campaignPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
+import { AreaEstimationPanel } from '~/features/areaEstimation/AreaEstimation';
 
 export const CampaignOverviewPage = () => {
   const campaignId = useCampaignIdParam();
@@ -141,6 +142,12 @@ export const CampaignOverviewPage = () => {
                 Start exploring
               </Button>
             </div>
+          </div>
+        )}
+
+        {isAdmin && (
+          <div className="mb-6">
+            <AreaEstimationPanel campaignId={campaignId} />
           </div>
         )}
 

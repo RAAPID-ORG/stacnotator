@@ -26,6 +26,7 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { FadeIn } from '~/shared/ui/motion';
+import { useAreaEstimationTaskSet } from '~/features/areaEstimation/AreaEstimation';
 
 import {
   getAllAnnotationTasks,
@@ -51,6 +52,7 @@ import {
 
 export const CampaignTasksPage = () => {
   const campaignId = useCampaignIdParam();
+  const areaEstimationTaskSetId = useAreaEstimationTaskSet(campaignId);
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
@@ -527,6 +529,7 @@ export const CampaignTasksPage = () => {
                     handleDeleteTasks={handleDeleteTasks}
                     onAssignmentsImported={reloadAnnotationTasks}
                     taskSets={taskSets}
+                    lockedTaskSetId={areaEstimationTaskSetId}
                     taskScope={taskScope}
                     onSelectScope={handleSelectScope}
                     onCreateSetScoped={handleCreateTaskSet}

@@ -78,6 +78,8 @@ interface TaskModeReviewProps {
   onDeleteTasks?: (taskIds: number[]) => Promise<void>;
   onBatchUnassignTasks?: (taskIds: number[]) => Promise<void>;
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
+  /** Task set owned by another feature: tasks may not be moved in or out of it. */
+  lockedTaskSetId?: number | null;
   onCreateSet?: (name: string) => Promise<number | null>;
   onAssignSelected?: (taskIds: number[]) => void;
   onOpenBulkAssign?: () => void;
@@ -96,6 +98,7 @@ export const TaskModeReview = ({
   onDeleteTasks,
   onBatchUnassignTasks,
   onMoveTasks,
+  lockedTaskSetId,
   onCreateSet,
   onAssignSelected,
   onOpenBulkAssign,
@@ -152,6 +155,10 @@ export const TaskModeReview = ({
 
   const tasks = tasksProp ?? fetchedTasks;
   const taskSets = taskSetsProp ?? fetchedTaskSets;
+  // Sets a selection may be moved into. The area estimation sample is not one:
+  // its tasks are a drawn sample and a task added by hand has no inclusion
+  // probability, which is what the whole estimate rests on.
+  const movableSets = taskSets.filter((set) => set.id !== lockedTaskSetId);
   const labels = campaign?.settings.labels ?? [];
 
   const toggleLabel = (labelId: number) =>
@@ -708,7 +715,7 @@ export const TaskModeReview = ({
                           Assign selected
                         </Button>
                       )}
-                      {onMoveTasks && taskSets.length > 1 && (
+                      {onMoveTasks && movableSets.length > 1 && (
                         <Button
                           variant="secondary"
                           onClick={() => setShowMoveDialog(true)}
@@ -1089,7 +1096,7 @@ export const TaskModeReview = ({
 
             <MoveTasksDialog
               isOpen={showMoveDialog}
-              taskSets={taskSets}
+              taskSets={movableSets}
               numTasks={selectedTasks.size}
               onMove={async (taskSetId) => {
                 if (onMoveTasks) await onMoveTasks(Array.from(selectedTasks), taskSetId);
