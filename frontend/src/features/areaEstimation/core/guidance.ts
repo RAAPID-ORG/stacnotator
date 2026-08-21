@@ -137,3 +137,20 @@ export const SAMPLE_FLOOR_RATIONALE =
 export const DEFAULT_SAMPLE_FLOOR = 100;
 export const DEFAULT_PILOT_PER_STRATUM = 50;
 export const DEFAULT_TARGET_CV = 0.05;
+
+/**
+ * Pixel counts only stand for area on an equal-area grid, so one is always
+ * chosen. The list is the usual continental choices plus a global fallback;
+ * anything else can be typed in.
+ */
+export const EQUAL_AREA_PROJECTIONS: { code: string; name: string }[] = [
+  { code: 'EPSG:6933', name: 'World Cylindrical Equal Area (global)' },
+  { code: 'EPSG:3035', name: 'ETRS89 / LAEA (Europe)' },
+  { code: 'EPSG:5070', name: 'NAD83 / Conus Albers (United States)' },
+  { code: 'ESRI:102022', name: 'Albers Equal Area (Africa)' },
+  { code: 'ESRI:102025', name: 'Albers Equal Area (North and Central Asia)' },
+  { code: 'ESRI:102033', name: 'Albers Equal Area (South America)' },
+  { code: 'EPSG:3577', name: 'GDA94 / Australian Albers' },
+];
+
+export const DEFAULT_EQUAL_AREA_CRS = 'EPSG:6933';

@@ -15,6 +15,7 @@ import type {
   TaskSetOut,
 } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
+import { FileInput } from '~/shared/ui/FileInput';
 import { LOCKED_TASK_SET_REASON } from '~/features/areaEstimation/AreaEstimation';
 
 interface Props {
@@ -149,27 +150,13 @@ export const TasksTab: React.FC<Props> = ({
             The id <strong>must be unique within your whole campaign and must be numeric.</strong>
           </p>
           <div className="flex gap-3 items-center">
-            <label
-              className={`flex-1 flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
-                uploadingTasks
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'cursor-pointer hover:border-neutral-400'
-              }`}
-            >
-              <input
-                type="file"
-                accept=".csv,.geojson,.json"
-                onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
-                disabled={uploadingTasks}
-                className="sr-only"
-              />
-              <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
-                Choose file
-              </span>
-              <span className="text-xs text-neutral-500 truncate">
-                {taskFile && taskFile.size > 0 ? taskFile.name : 'No file selected'}
-              </span>
-            </label>
+            <FileInput
+              accept=".csv,.geojson,.json"
+              disabled={uploadingTasks}
+              className="flex-1"
+              fileName={taskFile && taskFile.size > 0 ? taskFile.name : null}
+              onSelect={setTaskFile}
+            />
             <Button
               onClick={handleUploadAnnotationTasks}
               disabled={!taskFile || taskFile.size === 0 || uploadingTasks}

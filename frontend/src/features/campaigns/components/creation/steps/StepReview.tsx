@@ -1,7 +1,7 @@
 import type { CampaignCreate } from '~/api/client';
 import type { FullValidationResult } from '~/features/campaigns/utils/campaignValidation';
 import { ValidationSummary, ValidationSuccess } from '~/features/campaigns/components/ValidationUI';
-import { STEP_CONFIG } from '../StepIndicator';
+import { STEP_CONFIG } from '../steps';
 
 export const StepReview = ({
   form,

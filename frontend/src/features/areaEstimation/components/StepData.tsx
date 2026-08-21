@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Field, IconButton, Input, Select } from '~/shared/ui/forms';
 import { Badge } from '~/shared/ui/Badge';
 import { IconTrash } from '~/shared/ui/Icons';
 import { Spinner } from '~/shared/ui/Spinner';
+import { FileInput } from '~/shared/ui/FileInput';
 import { handleError } from '~/shared/utils/errorHandler';
 import { censusPixels, inspectRaster, parseStudyAreas } from '../api';
 import type { AreaEstimationPlan, MapValue, StudyArea } from '../core/plan';
 import { pixelsFor, studyAreaPixels } from '../core/plan';
-import { ChoiceCard, Explain, Note, StepHeading, SubHeading } from './Explain';
+import { EQUAL_AREA_PROJECTIONS } from '../core/guidance';
+import { ChoiceCard, Note, StepHeading, SubHeading } from './Explain';
 import { formatPixels } from './format';
 
 interface Props {
@@ -28,6 +30,7 @@ export const StepData = ({ plan, update }: Props) => {
       const band = result.raster.bands[0]?.index ?? 1;
       update({
         raster: result.raster,
+        equalAreaCrs: result.equalAreaCrs,
         bandIndex: band,
         values: result.legendByBand[band] ?? [],
         noDataValues: result.noDataValuesByBand[band] ?? [],
@@ -73,18 +76,42 @@ export const StepData = ({ plan, update }: Props) => {
     }
   };
 
-  const runCensus = async () => {
-    if (!plan.raster) return;
+  // Counting runs itself whenever the map, the band or the areas change. The
+  // key is what the count depends on, so a rename or a class edit does not
+  // trigger a pointless recount.
+  const censusKey =
+    plan.raster && plan.areas.length > 0 && plan.values.length > 0
+      ? [
+          plan.raster.name,
+          plan.bandIndex,
+          plan.areas.map((a) => a.id).join(','),
+          plan.values.length,
+        ].join('|')
+      : null;
+  const countedKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    const raster = plan.raster;
+    if (!raster || censusKey === null || countedKey.current === censusKey) return;
+    countedKey.current = censusKey;
+    let cancelled = false;
     setCounting(true);
-    try {
-      const census = await censusPixels(plan.raster, plan.bandIndex, plan.areas, plan.values);
-      update({ census });
-    } catch (err) {
-      handleError(err, 'Could not count the map pixels');
-    } finally {
-      setCounting(false);
-    }
-  };
+    censusPixels(raster, plan.bandIndex, plan.areas, plan.values)
+      .then((census) => {
+        if (!cancelled) update({ census });
+      })
+      .catch((err) => {
+        countedKey.current = null;
+        handleError(err, 'Could not count the map pixels');
+      })
+      .finally(() => {
+        if (!cancelled) setCounting(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [censusKey]);
 
   const setValueLabel = (value: number, label: string) =>
     update({ values: plan.values.map((v) => (v.value === value ? { ...v, label } : v)) });
@@ -107,12 +134,8 @@ export const StepData = ({ plan, update }: Props) => {
 
   return (
     <div className="space-y-8">
-      <StepHeading title="The map and the areas you report on">
-        Two inputs start everything. The map is not the answer; it is what makes the sample
-        efficient. The areas say where the answer applies.
-      </StepHeading>
-
-      <Explain
+      <StepHeading
+        title="Map & Areas of Interest"
         technical={
           <>
             <p>
@@ -132,12 +155,12 @@ export const StepData = ({ plan, update }: Props) => {
         The map you upload is used to divide the country into groups, so that the sample spends most
         of its points where they matter. The area figures you publish will come from what annotators
         see at the sample points, <strong>not</strong> from the map. That is what makes the result
-        unbiased even when the map is imperfect.
-      </Explain>
+        unbiased even when the initial map is imperfect.
+      </StepHeading>
 
       <section className="space-y-3">
         <SubHeading title="1. Stratification map">
-          A classified raster: one integer per pixel saying which class the map thinks it is.
+          A classified raster: one integer per pixel specifying the predicted class.
         </SubHeading>
 
         {!plan.raster ? (
@@ -162,31 +185,13 @@ export const StepData = ({ plan, update }: Props) => {
             </div>
 
             {mapSource === 'file' ? (
-              <label
-                className={`flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
-                  inspecting
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'cursor-pointer hover:border-neutral-400'
-                }`}
-              >
-                <input
-                  type="file"
-                  accept=".tif,.tiff"
-                  disabled={inspecting}
-                  className="sr-only"
-                  data-testid="uae-map-file"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void loadRaster(file.name);
-                  }}
-                />
-                <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
-                  Choose file
-                </span>
-                <span className="text-xs text-neutral-500 truncate">
-                  {inspecting ? 'Reading the map…' : 'No file selected'}
-                </span>
-              </label>
+              <FileInput
+                accept=".tif,.tiff"
+                disabled={inspecting}
+                data-testid="uae-map-file"
+                busyText={inspecting ? 'Reading the map…' : undefined}
+                onSelect={(file) => void loadRaster(file.name)}
+              />
             ) : (
               <div className="flex items-center gap-2">
                 <Input
@@ -214,10 +219,6 @@ export const StepData = ({ plan, update }: Props) => {
                 <strong className="font-medium text-neutral-600">Continuous</strong> probability
                 rasters cannot be used as strata.
               </li>
-              <li>
-                An <strong className="font-medium text-neutral-600">equal-area</strong> projection,
-                so that every pixel stands for the same amount of ground.
-              </li>
               <li>Covering all of the areas you want to report on.</li>
             </ul>
           </div>
@@ -240,14 +241,28 @@ export const StepData = ({ plan, update }: Props) => {
               </Button>
             </div>
 
-            {!plan.raster.isEqualArea && (
-              <Note tone="warning">
-                This map is in a latitude/longitude projection, where a pixel near the north of the
-                country covers less ground than one in the south. Pixel counts are then not
-                proportional to area and the stratum weights would be wrong. Reproject the map to an
-                equal-area projection before continuing.
-              </Note>
-            )}
+            <Field
+              label="Areas computed in"
+              hint={
+                plan.raster.isEqualArea
+                  ? `Taken from the map, which is already an equal-area projection. Change it if you report in a different one.`
+                  : 'The map is in a latitude/longitude projection, where a pixel near the north of the country covers less ground than one in the south. Pixel counts are reprojected into this equal-area projection before they become stratum weights.'
+              }
+              className="max-w-md"
+            >
+              <Select
+                size="sm"
+                value={plan.equalAreaCrs}
+                data-testid="uae-equal-area-crs"
+                onChange={(e) => update({ equalAreaCrs: e.target.value })}
+              >
+                {EQUAL_AREA_PROJECTIONS.map((crs) => (
+                  <option key={crs.code} value={crs.code}>
+                    {crs.code} — {crs.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
 
             {plan.raster.bands.length > 1 && (
               <Field
@@ -273,6 +288,52 @@ export const StepData = ({ plan, update }: Props) => {
             )}
           </div>
         )}
+
+        {plan.raster && (
+          <div className="space-y-3 pt-2">
+            <SubHeading title="Class names">
+              Every distinct value in the band, and what to call it. These names are what your
+              results are reported under.
+            </SubHeading>
+
+            {plan.values.length === 0 ? (
+              <Note tone="warning">
+                This band carries no class list, so the distinct values have to be read from the
+                pixels and named by hand.
+              </Note>
+            ) : missingNames > 0 ? (
+              <Note tone="warning">
+                {missingNames} value{missingNames === 1 ? '' : 's'} still need a name. The file did
+                not carry class names, so they have to be typed in.
+              </Note>
+            ) : null}
+
+            {plan.values.length > 0 && (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
+                    <th className="py-2 font-medium w-20">Value</th>
+                    <th className="py-2 font-medium">Name</th>
+                    <th className="py-2 font-medium w-32 text-right">Pixels</th>
+                    <th className="py-2 font-medium w-40 text-right">Nodata</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plan.values.map((value) => (
+                    <ValueRow
+                      key={value.value}
+                      value={value}
+                      pixels={plan.census ? pixelsFor(plan, [value.value]) : null}
+                      isNoData={plan.noDataValues.includes(value.value)}
+                      onLabel={(label) => setValueLabel(value.value, label)}
+                      onToggleNoData={() => toggleNoData(value.value)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </section>
 
       {plan.raster && (
@@ -282,25 +343,13 @@ export const StepData = ({ plan, update }: Props) => {
             made of several separate pieces is still one area.
           </SubHeading>
 
-          <label className="flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white cursor-pointer hover:border-neutral-400 transition-colors">
-            <input
-              type="file"
-              accept=".geojson,.json,.zip"
-              className="sr-only"
-              data-testid="uae-areas-file"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void addAreas(file.name);
-                e.target.value = '';
-              }}
-            />
-            <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
-              Add areas
-            </span>
-            <span className="text-xs text-neutral-500 truncate">
-              GeoJSON, or a zipped shapefile
-            </span>
-          </label>
+          <FileInput
+            accept=".geojson,.json,.zip"
+            action="Add areas"
+            placeholder="GeoJSON, or a zipped shapefile"
+            data-testid="uae-areas-file"
+            onSelect={(file) => void addAreas(file.name)}
+          />
 
           {plan.areas.length > 0 && (
             <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
@@ -313,6 +362,19 @@ export const StepData = ({ plan, update }: Props) => {
                 />
               ))}
             </ul>
+          )}
+
+          {plan.areas.length > 0 && (
+            <p className="flex items-center gap-2 text-xs text-neutral-500">
+              {counting ? (
+                <>
+                  <Spinner size="xs" />
+                  Counting map pixels in these areas…
+                </>
+              ) : plan.census ? (
+                <>{formatPixels(studyAreaPixels(plan))} pixels in the study area</>
+              ) : null}
+            </p>
           )}
 
           {plan.areas.length > 1 && (
@@ -339,69 +401,6 @@ export const StepData = ({ plan, update }: Props) => {
                 </ChoiceCard>
               </div>
             </div>
-          )}
-        </section>
-      )}
-
-      {plan.raster && plan.areas.length > 0 && (
-        <section className="space-y-3">
-          <SubHeading title="3. Map values">
-            Every distinct value in the band, how much of the study area it covers, and what to call
-            it.
-          </SubHeading>
-
-          {plan.values.length === 0 ? (
-            <Note tone="warning">
-              This band carries no class list. Read the pixels to find the distinct values, then
-              name each one.
-            </Note>
-          ) : missingNames > 0 ? (
-            <Note tone="warning">
-              {missingNames} value{missingNames === 1 ? '' : 's'} still need a name. The file did
-              not carry class names, so they have to be typed in.
-            </Note>
-          ) : null}
-
-          <div className="flex items-center gap-3">
-            <Button
-              size="sm"
-              onClick={() => void runCensus()}
-              disabled={counting}
-              leading={counting ? <Spinner size="xs" variant="white" /> : undefined}
-              data-testid="uae-count-pixels"
-            >
-              {plan.census ? 'Recount pixels' : 'Count pixels in the areas'}
-            </Button>
-            {plan.census && (
-              <span className="text-xs text-neutral-500">
-                {formatPixels(studyAreaPixels(plan))} pixels in the study area
-              </span>
-            )}
-          </div>
-
-          {plan.values.length > 0 && (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
-                  <th className="py-2 font-medium w-20">Value</th>
-                  <th className="py-2 font-medium">Name</th>
-                  <th className="py-2 font-medium w-32 text-right">Pixels</th>
-                  <th className="py-2 font-medium w-40 text-right">Unmapped</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.values.map((value) => (
-                  <ValueRow
-                    key={value.value}
-                    value={value}
-                    pixels={plan.census ? pixelsFor(plan, [value.value]) : null}
-                    isNoData={plan.noDataValues.includes(value.value)}
-                    onLabel={(label) => setValueLabel(value.value, label)}
-                    onToggleNoData={() => toggleNoData(value.value)}
-                  />
-                ))}
-              </tbody>
-            </table>
           )}
         </section>
       )}
@@ -472,7 +471,7 @@ const ValueRow = ({
           onChange={onToggleNoData}
           className="cursor-pointer"
         />
-        {isNoData ? <Badge tone="neutral">Not a class</Badge> : 'Mark as unmapped'}
+        {isNoData ? <Badge tone="neutral">Nodata</Badge> : 'Mark as nodata'}
       </label>
     </td>
   </tr>

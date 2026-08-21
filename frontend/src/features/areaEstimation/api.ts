@@ -12,6 +12,7 @@
 
 import type { AreaEstimationPlan, MapValue, PixelCensus, RasterInfo, StudyArea } from './core/plan';
 import { NO_DATA_CLASS_ID, designsOf } from './core/plan';
+import { DEFAULT_EQUAL_AREA_CRS } from './core/guidance';
 import type { StratumSample } from './core/estimate';
 
 const LATENCY_MS = 450;
@@ -34,7 +35,7 @@ const seededRandom = (seed: string) => {
 };
 
 const CROP_LEGEND: MapValue[] = [
-  { value: 0, label: 'No data' },
+  { value: 0, label: 'Nodata' },
   { value: 1, label: 'Winter wheat' },
   { value: 2, label: 'Rapeseed' },
   { value: 3, label: 'Other winter cereals' },
@@ -56,6 +57,8 @@ const REGION_NAMES = ['Northern region', 'Central region', 'Southern region', 'E
 
 export interface RasterInspection {
   raster: RasterInfo;
+  /** The projection to compute areas in: the map's own when it already is one. */
+  equalAreaCrs: string;
   /** Per band: the legend the file carries, empty when it has no metadata. */
   legendByBand: Record<number, MapValue[]>;
   noDataValuesByBand: Record<number, number[]>;
@@ -67,6 +70,7 @@ export const inspectRaster = async (fileName: string): Promise<RasterInspection>
   // pixel counts are not proportional to area. Surfaced rather than corrected.
   const isEqualArea = !/4326|wgs ?84|latlon/i.test(fileName);
   return {
+    equalAreaCrs: isEqualArea ? 'EPSG:6933' : DEFAULT_EQUAL_AREA_CRS,
     raster: {
       name: fileName,
       bands: [

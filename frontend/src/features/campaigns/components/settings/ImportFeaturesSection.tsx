@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ingestAnnotationsFromGeojson, type LabelBase } from '~/api/client';
+import { FileInput } from '~/shared/ui/FileInput';
 
 interface ImportFeaturesSectionProps {
   campaignId: number;
@@ -18,14 +19,11 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
   const [confirmed, setConfirmed] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0] || null;
-    if (selected) {
-      const name = selected.name.toLowerCase();
-      if (!name.endsWith('.geojson') && !name.endsWith('.json')) {
-        onError('Please upload a .geojson or .json file');
-        return;
-      }
+  const handleFileSelect = (selected: File) => {
+    const name = selected.name.toLowerCase();
+    if (!name.endsWith('.geojson') && !name.endsWith('.json')) {
+      onError('Please upload a .geojson or .json file');
+      return;
     }
     setFile(selected);
   };
@@ -91,18 +89,12 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
         {/* File input */}
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-2">GeoJSON file</label>
-          <input
-            type="file"
+          <FileInput
             accept=".geojson,.json"
-            onChange={handleFileChange}
             disabled={uploading}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-lg disabled:bg-neutral-50 disabled:cursor-not-allowed text-sm"
+            fileName={file ? `${file.name} (${Math.round(file.size / 1024)} KB)` : null}
+            onSelect={handleFileSelect}
           />
-          {file && (
-            <p className="text-xs text-neutral-500 mt-1">
-              Selected: {file.name} ({Math.round(file.size / 1024)} KB)
-            </p>
-          )}
         </div>
 
         {/* Acknowledgement */}

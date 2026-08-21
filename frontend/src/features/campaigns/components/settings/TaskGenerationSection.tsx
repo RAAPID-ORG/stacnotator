@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { generateTasksFromSampling, type GenerateTasksResponse } from '~/api/client';
+import { FileInput } from '~/shared/ui/FileInput';
 
 // Local type definition for sampling strategy configuration
 interface SamplingStrategyConfig {
@@ -40,15 +41,12 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   const [useCampaignBbox, setUseCampaignBbox] = useState<boolean>(false);
   const [generating, setGenerating] = useState(false);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    if (file) {
-      const isValid =
-        file.name.endsWith('.zip') || file.name.endsWith('.geojson') || file.name.endsWith('.json');
-      if (!isValid) {
-        onError('Please upload a .zip (shapefile) or .geojson file');
-        return;
-      }
+  const handleFileSelect = (file: File) => {
+    const isValid =
+      file.name.endsWith('.zip') || file.name.endsWith('.geojson') || file.name.endsWith('.json');
+    if (!isValid) {
+      onError('Please upload a .zip (shapefile) or .geojson file');
+      return;
     }
     setRegionFile(file);
   };
@@ -180,18 +178,16 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
             {!useCampaignBbox && (
               <div className="ml-6 mt-2">
-                <input
-                  type="file"
+                <FileInput
                   accept=".zip,.geojson,.json"
-                  onChange={handleFileChange}
                   disabled={generating}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg disabled:bg-neutral-50 disabled:cursor-not-allowed text-sm"
+                  fileName={
+                    regionFile
+                      ? `${regionFile.name} (${Math.round(regionFile.size / 1024)} KB)`
+                      : null
+                  }
+                  onSelect={handleFileSelect}
                 />
-                {regionFile && (
-                  <p className="text-xs text-neutral-500 mt-1">
-                    Selected: {regionFile.name} ({Math.round(regionFile.size / 1024)} KB)
-                  </p>
-                )}
               </div>
             )}
           </div>

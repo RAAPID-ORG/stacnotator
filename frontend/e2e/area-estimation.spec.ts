@@ -61,8 +61,7 @@ async function fillWizard(page: Page, upTo: 'prior' | 'design'): Promise<void> {
     mimeType: 'application/json',
     buffer: Buffer.from('{}'),
   });
-  await expect(page.getByTestId('uae-count-pixels')).toBeVisible();
-  await page.getByTestId('uae-count-pixels').click();
+  // Counting runs itself once there is a map and an area to count inside.
   await expect(page.getByText(/pixels in the study area/)).toBeVisible();
 
   await page.getByTestId('uae-continue').click();

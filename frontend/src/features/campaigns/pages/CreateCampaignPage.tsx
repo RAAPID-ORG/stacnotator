@@ -20,7 +20,8 @@ import { StepSettings } from '../components/creation/steps/StepSettings';
 import { StepImagery, createInitialImageryState } from '../components/creation/steps/StepImagery';
 import { StepAddTimeseries } from '../components/creation/steps/StepAddTimeseries';
 import { StepReview } from '../components/creation/steps/StepReview';
-import { StepIndicator } from '../components/creation/StepIndicator';
+import { StepIndicator } from '~/shared/ui/StepIndicator';
+import { STEP_CONFIG } from '../components/creation/steps';
 import type { ImageryStepState } from '../components/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
@@ -203,7 +204,11 @@ export const CreateCampaignPage = () => {
         </header>
 
         <div className="mb-6">
-          <StepIndicator step={step} onStepClick={setStep} />
+          <StepIndicator
+            steps={STEP_CONFIG[form.mode ?? 'tasks'].map((s) => s.name)}
+            step={step}
+            onStepClick={setStep}
+          />
         </div>
 
         {loadingProject ? (

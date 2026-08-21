@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Button } from '~/shared/ui/forms';
 import { Spinner } from '~/shared/ui/Spinner';
-import type { AreaEstimationPlan, PlanStep, StepIssue } from '../core/plan';
+import { StepIndicator } from '~/shared/ui/StepIndicator';
+import type { AreaEstimationPlan } from '../core/plan';
 import {
   PLAN_STEPS,
   designsOf,
@@ -43,9 +44,14 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
 
   return (
     <div className="space-y-6">
-      <WizardSteps current={stepIndex} issues={issues} onSelect={setStepIndex} />
+      <StepIndicator
+        steps={PLAN_STEPS.map((s) => s.name)}
+        step={stepIndex + 1}
+        onStepClick={(n) => setStepIndex(n - 1)}
+        warnings={PLAN_STEPS.map((s) => issuesForStep(issues, s.id).length > 0)}
+      />
 
-      <div className="border border-neutral-200 rounded-xl p-6 bg-white">
+      <div className="space-y-6">
         {step === 'data' && <StepData plan={plan} update={update} />}
         {step === 'classes' && <StepClasses plan={plan} update={update} />}
         {step === 'target' && <StepTarget plan={plan} update={update} />}
@@ -53,7 +59,7 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
         {step === 'design' && <StepDesign plan={plan} update={update} />}
 
         {stepIssues.length > 0 && (
-          <ul className="mt-6 border border-amber-200 bg-amber-50 rounded-lg p-3 space-y-1">
+          <ul className="border border-amber-200 bg-amber-50 rounded-lg p-3 space-y-1">
             {stepIssues.map((issue) => (
               <li key={issue.message} className="text-xs text-amber-900 leading-snug">
                 {issue.message}
@@ -97,52 +103,3 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
     </div>
   );
 };
-
-const WizardSteps = ({
-  current,
-  issues,
-  onSelect,
-}: {
-  current: number;
-  issues: readonly StepIssue[];
-  onSelect: (index: number) => void;
-}) => (
-  <ol className="flex items-center gap-1 flex-wrap">
-    {PLAN_STEPS.map((step, index) => {
-      const active = index === current;
-      const done = index < current;
-      const blocked = done && hasIssue(issues, step.id);
-      return (
-        <li key={step.id} className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => onSelect(index)}
-            aria-current={active ? 'step' : undefined}
-            className={`flex items-center gap-2 h-8 pl-1.5 pr-3 rounded-full transition-colors cursor-pointer ${
-              active ? 'bg-brand-50 text-brand-700' : 'text-neutral-500 hover:text-neutral-800'
-            }`}
-          >
-            <span
-              className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                blocked
-                  ? 'bg-amber-100 text-amber-800'
-                  : done
-                    ? 'bg-brand-600 text-white'
-                    : active
-                      ? 'bg-white text-brand-700 ring-2 ring-brand-600'
-                      : 'bg-neutral-100 text-neutral-400'
-              }`}
-            >
-              {blocked ? '!' : index + 1}
-            </span>
-            <span className="text-xs font-medium whitespace-nowrap">{step.name}</span>
-          </button>
-          {index < PLAN_STEPS.length - 1 && <span className="h-px w-4 bg-neutral-200" />}
-        </li>
-      );
-    })}
-  </ol>
-);
-
-const hasIssue = (issues: readonly StepIssue[], step: PlanStep) =>
-  issues.some((i) => i.step === step);

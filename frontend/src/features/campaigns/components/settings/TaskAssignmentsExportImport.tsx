@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { exportTaskAssignments, importTaskAssignments } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
+import { FileInput } from '~/shared/ui/FileInput';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 
@@ -91,27 +92,14 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
         </Button>
 
         <div className="flex gap-3 items-center flex-1">
-          <label
-            className={`flex-1 flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
-              importing
-                ? 'opacity-50 cursor-not-allowed'
-                : 'cursor-pointer hover:border-neutral-400'
-            }`}
-          >
-            <input
-              type="file"
-              accept=".csv"
-              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-              disabled={importing}
-              className="sr-only"
-            />
-            <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
-              Choose CSV
-            </span>
-            <span className="text-xs text-neutral-500 truncate">
-              {importFile ? importFile.name : 'No file selected'}
-            </span>
-          </label>
+          <FileInput
+            accept=".csv"
+            action="Choose CSV"
+            disabled={importing}
+            className="flex-1"
+            fileName={importFile?.name ?? null}
+            onSelect={setImportFile}
+          />
           <Button onClick={handleImport} disabled={!importFile || importing}>
             {importing ? 'Importing…' : 'Import'}
           </Button>

@@ -170,14 +170,14 @@ export const StepClasses = ({ plan, update }: Props) => {
       </section>
 
       <section className="space-y-3">
-        <SubHeading title="Pixels the map does not classify">
-          Marked as unmapped on the previous step:{' '}
+        <SubHeading title="Nodata pixels">
+          Marked as nodata on the previous step:{' '}
           {plan.noDataValues.length === 0 ? 'none' : plan.noDataValues.map(labelOf).join(', ')}.
         </SubHeading>
 
         {plan.noDataValues.length === 0 ? (
           <p className="text-xs text-neutral-500">
-            Nothing was marked as unmapped, so the whole map is being reported on.
+            Nothing was marked as nodata, so the whole map is being reported on.
           </p>
         ) : (
           <>
@@ -188,12 +188,12 @@ export const StepClasses = ({ plan, update }: Props) => {
                   renormalised over what remains and the reported total area shrinks accordingly.
                   Keeping it as a stratum leaves it in the population and lets sample points inside
                   it carry a real class label, which is what recovers the crop area the map missed.
-                  Unmapped is never a reporting class either way, because nobody wants to publish
-                  the area of a gap in their own map.
+                  Nodata is never a reporting class either way, because nobody wants to publish the
+                  area of a gap in their own map.
                 </p>
               }
             >
-              Unmapped pixels are not a class you report on, but they are still ground. What you do
+              Nodata pixels are not a class you report on, but they are still ground. What you do
               with them changes what your published total covers.
             </Explain>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -203,8 +203,8 @@ export const StepClasses = ({ plan, update }: Props) => {
                 title="Leave them out of the study area"
                 testId="uae-nodata-exclude"
               >
-                Right when the unmapped pixels are outside what you report on — sea, another
-                country, permanent cloud. Your total then covers the mapped part only.
+                Right when the nodata pixels are outside what you report on — sea, another country,
+                permanent cloud. Your total then covers the mapped part only.
               </ChoiceCard>
               <ChoiceCard
                 selected={plan.noDataHandling === 'stratum'}

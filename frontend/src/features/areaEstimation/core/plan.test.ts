@@ -24,7 +24,7 @@ const basePlan = (): AreaEstimationPlan => ({
     resolutionMeters: 10,
   },
   values: [
-    { value: 0, label: 'No data' },
+    { value: 0, label: 'Nodata' },
     { value: 1, label: 'Wheat' },
     { value: 2, label: 'Rapeseed' },
     { value: 3, label: 'Non-cropland' },
@@ -51,13 +51,13 @@ const basePlan = (): AreaEstimationPlan => ({
 });
 
 describe('oneClassPerValue', () => {
-  it('offers one class per map value, leaving the unmapped ones out', () => {
+  it('offers one class per map value, leaving the nodata ones out', () => {
     expect(oneClassPerValue(basePlan()).map((c) => c.values)).toEqual([[1], [2], [3]]);
   });
 });
 
 describe('unassignedValues', () => {
-  it('is empty when every value is either classed or unmapped', () => {
+  it('is empty when every value is either classed or nodata', () => {
     expect(unassignedValues(basePlan())).toEqual([]);
   });
 
@@ -86,21 +86,21 @@ describe('domainsOf', () => {
     ]);
   });
 
-  it('leaves unmapped pixels out of the population by default', () => {
+  it('leaves nodata pixels out of the population by default', () => {
     expect(studyAreaPixels(basePlan())).toBe(1700);
     // The total does not wait for the reporting classes to be drawn up.
     expect(studyAreaPixels({ ...basePlan(), classes: [] })).toBe(1700);
     expect(domainsOf(basePlan()).every((d) => d.strata.every((s) => !s.isNoData))).toBe(true);
   });
 
-  it('keeps unmapped pixels in the population when they are their own stratum', () => {
+  it('keeps nodata pixels in the population when they are their own stratum', () => {
     const plan = { ...basePlan(), noDataHandling: 'stratum' as const };
     expect(studyAreaPixels(plan)).toBe(2000);
     const strata = domainsOf(plan)[0].strata;
     expect(strata.at(-1)).toMatchObject({ classId: NO_DATA_CLASS_ID, pixelCount: 300 });
   });
 
-  it('assumes nothing about unmapped pixels being right', () => {
+  it('assumes nothing about nodata pixels being right', () => {
     const plan = { ...basePlan(), noDataHandling: 'stratum' as const };
     const noData = domainsOf(plan)[0].strata.at(-1)!;
     // Its prior share of the target class is pure leakage from the classes

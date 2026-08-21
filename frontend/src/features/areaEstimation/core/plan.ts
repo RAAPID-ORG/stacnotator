@@ -20,6 +20,7 @@ import {
 } from './design';
 import { priorFromCorrectShares, priorSharesOfClass, type PriorMatrix } from './prior';
 import {
+  DEFAULT_EQUAL_AREA_CRS,
   DEFAULT_PILOT_PER_STRATUM,
   DEFAULT_SAMPLE_FLOOR,
   DEFAULT_TARGET_CV,
@@ -31,7 +32,7 @@ import {
 /** How named areas of interest are reported on. */
 export type DomainMode = 'combined' | 'per_area';
 
-/** What happens to pixels the map does not classify. */
+/** What happens to the map’s nodata pixels. */
 export type NoDataHandling = 'exclude' | 'stratum';
 
 export const NO_DATA_CLASS_ID = '__nodata__';
@@ -80,6 +81,12 @@ export interface ReportingClass {
 export interface AreaEstimationPlan {
   raster: RasterInfo | null;
   bandIndex: number;
+  /**
+   * The equal-area projection pixel areas are computed in. Derived from the
+   * map, but a statistics office reporting in a national projection will want
+   * to say so, which is why it stays editable.
+   */
+  equalAreaCrs: string;
   values: MapValue[];
   noDataValues: number[];
   noDataHandling: NoDataHandling;
@@ -110,6 +117,7 @@ export interface AreaEstimationPlan {
 export const emptyPlan = (): AreaEstimationPlan => ({
   raster: null,
   bandIndex: 1,
+  equalAreaCrs: DEFAULT_EQUAL_AREA_CRS,
   values: [],
   noDataValues: [],
   noDataHandling: 'exclude',
@@ -190,7 +198,7 @@ export const domainsOf = (plan: AreaEstimationPlan): Domain[] => {
       strata.push({
         id: stratumId(group.id, NO_DATA_CLASS_ID),
         classId: NO_DATA_CLASS_ID,
-        className: 'Unmapped',
+        className: 'Nodata',
         isNoData: true,
         pixelCount: countPixels(plan.census, group.areaIds, plan.noDataValues),
         targetShare: 0,
@@ -210,7 +218,7 @@ export const domainsOf = (plan: AreaEstimationPlan): Domain[] => {
 };
 
 /**
- * What the plan believes this domain's map looks like. Unmapped pixels carry
+ * What the plan believes this domain's map looks like. Nodata pixels carry
  * no assumption of being right, so their row is pure leakage from the classes
  * around them rather than an accuracy of their own.
  */
@@ -304,7 +312,7 @@ export const oneClassPerValue = (plan: AreaEstimationPlan): ReportingClass[] =>
       values: [v.value],
     }));
 
-/** Raster values the user has not yet put into a class or marked unmapped. */
+/** Raster values the user has not yet put into a class or marked as nodata. */
 export const unassignedValues = (plan: AreaEstimationPlan): MapValue[] => {
   const taken = new Set<number>([...plan.noDataValues, ...plan.classes.flatMap((c) => c.values)]);
   return plan.values.filter((v) => !taken.has(v.value));
@@ -332,10 +340,10 @@ export type PlanStep = 'data' | 'classes' | 'target' | 'prior' | 'design';
 
 export const PLAN_STEPS: { id: PlanStep; name: string }[] = [
   { id: 'data', name: 'Map & areas' },
-  { id: 'classes', name: 'Reporting classes' },
-  { id: 'target', name: 'Target & precision' },
+  { id: 'classes', name: 'Classes' },
+  { id: 'target', name: 'Precision' },
   { id: 'prior', name: 'What we know' },
-  { id: 'design', name: 'Sample design' },
+  { id: 'design', name: 'Design' },
 ];
 
 export const validatePlan = (plan: AreaEstimationPlan): StepIssue[] => {
@@ -343,6 +351,8 @@ export const validatePlan = (plan: AreaEstimationPlan): StepIssue[] => {
   const add = (step: PlanStep, message: string) => issues.push({ step, message });
 
   if (!plan.raster) add('data', 'Add the map that will be used to stratify the sample.');
+  if (!plan.equalAreaCrs.trim())
+    add('data', 'Choose the equal-area projection areas are computed in.');
   if (plan.areas.length === 0) add('data', 'Add at least one area of interest.');
   if (plan.raster && !plan.census) add('data', 'Count the map’s pixels inside the areas.');
   if (plan.values.some((v) => !v.label.trim()))
@@ -353,7 +363,7 @@ export const validatePlan = (plan: AreaEstimationPlan): StepIssue[] => {
   if (plan.classes.some((c) => c.values.length === 0))
     add('classes', 'Every reporting class needs at least one map value.');
   if (unassignedValues(plan).length > 0)
-    add('classes', 'Put every map value into a class, or mark it as unmapped.');
+    add('classes', 'Put every map value into a class, or mark it as nodata.');
 
   if (!plan.targetClassId) add('target', 'Choose the class the sample size should be sized for.');
   if (plan.targetCv <= 0 || plan.targetCv >= 1)
