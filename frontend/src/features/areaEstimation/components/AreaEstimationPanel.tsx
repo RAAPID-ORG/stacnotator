@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Badge } from '~/shared/ui/Badge';
+import { Button } from '~/shared/ui/forms';
 import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
 import { loadPlan, loadProgress, type Progress } from '../api';
@@ -25,10 +26,17 @@ export const AreaEstimationPanel = ({
   campaignId,
   taskSetId,
   taskSetName,
+  showEstimates = true,
+  onAnnotate,
+  onOpenDesign,
 }: {
   campaignId: number;
   taskSetId: number;
   taskSetName?: string;
+  /** The running numbers are for admins; the points are for everyone. */
+  showEstimates?: boolean;
+  onAnnotate?: () => void;
+  onOpenDesign?: () => void;
 }) => {
   const [plan, setPlan] = useState<AreaEstimationPlan | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -64,26 +72,33 @@ export const AreaEstimationPanel = ({
       </Delayed>
     );
   }
-  if (!plan || !plan.activatedAt || !plan.raster) return null;
+  if (!plan) return null;
 
   const domains = domainsOf(plan);
   const classIds = plan.classes.map((c) => c.id);
   const pilot = planNeedsPilot(plan);
+  const drawn = plan.activatedAt !== null && plan.raster !== null;
   const done = progress?.annotated ?? 0;
   const planned = progress?.planned ?? 0;
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="section-heading">{taskSetName ?? 'Area estimate'}</h2>
-        <div className="flex items-center gap-2">
-          <Badge tone={pilot ? 'yellow' : 'brand'}>{pilot ? 'Pilot running' : 'Sampling'}</Badge>
-          <Badge tone="neutral">Admins only</Badge>
+    <div className="surface h-full flex flex-col">
+      <div className="surface-section space-y-4 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-neutral-900 truncate">
+              {taskSetName ?? 'Area estimate'}
+            </p>
+            <p className="text-sm text-neutral-500 mt-0.5">
+              {drawn ? (pilot ? 'Pilot sample running' : 'Sampling') : 'Design not finished yet'}
+            </p>
+          </div>
+          <Badge tone={drawn ? (pilot ? 'yellow' : 'brand') : 'neutral'}>
+            {drawn ? (pilot ? 'Pilot' : 'Active') : 'Draft'}
+          </Badge>
         </div>
-      </div>
 
-      <div className="surface">
-        <div className="surface-section space-y-4">
+        {drawn && (
           <div>
             <div className="flex items-baseline justify-between text-sm">
               <span className="text-neutral-700">
@@ -100,15 +115,17 @@ export const AreaEstimationPanel = ({
               />
             </div>
           </div>
+        )}
 
-          {done < planned && (
-            <Note tone="warning">
-              The sample is incomplete. These figures are already unbiased, but their confidence
-              intervals will keep narrowing, and any point still unannotated could move them. Do not
-              publish them yet.
-            </Note>
-          )}
+        {showEstimates && drawn && done < planned && (
+          <Note tone="warning">
+            The sample is incomplete. These figures are already unbiased, but their confidence
+            intervals will keep narrowing, and any point still unannotated could move them. Do not
+            publish them yet.
+          </Note>
+        )}
 
+        {showEstimates && drawn && (
           <SubHeading
             title="Reading these numbers"
             technical={
@@ -135,8 +152,11 @@ export const AreaEstimationPanel = ({
             map called this class really was it; <strong>map found</strong> is how much of what
             really was this class the map caught.
           </SubHeading>
+        )}
 
-          {domains.map((domain) => {
+        {showEstimates &&
+          drawn &&
+          domains.map((domain) => {
             const samples = progress?.samples[domain.id] ?? [];
             if (samples.length === 0) return null;
             const estimates = estimateAreas(samples, classIds, plan.raster?.areaPerPixel ?? 0);
@@ -149,9 +169,23 @@ export const AreaEstimationPanel = ({
               />
             );
           })}
-        </div>
       </div>
-    </section>
+
+      {(onAnnotate || onOpenDesign) && (
+        <div className="surface-section flex items-center gap-2">
+          {onAnnotate && (
+            <Button variant="secondary" onClick={onAnnotate} disabled={!drawn} className="flex-1">
+              Annotate
+            </Button>
+          )}
+          {onOpenDesign && (
+            <Button variant="secondary" onClick={onOpenDesign} className="flex-1">
+              {drawn ? 'Design' : 'Finish setup'}
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 

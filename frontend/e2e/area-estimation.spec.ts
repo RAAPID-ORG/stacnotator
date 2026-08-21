@@ -45,12 +45,12 @@ async function mockCampaignAdmin(page: Page): Promise<{ created: string[] }> {
   return { created };
 }
 
-/** Create an area estimation task set and land on its empty design. */
+/** Start an area estimate from the campaign overview, its first-class home. */
 async function startAreaEstimate(page: Page): Promise<void> {
-  await page.goto('/projects/7/campaigns/42/tasks');
-  await page.getByTestId('scope-new-area-set').click();
-  await page.getByPlaceholder('Area estimate name').fill(SAMPLE_SET_NAME);
-  await page.getByRole('button', { name: 'Create set' }).click();
+  await page.goto('/projects/7/campaigns/42');
+  await page.getByRole('button', { name: 'New area estimate' }).first().click();
+  await page.getByTestId('new-area-estimate-name').fill(SAMPLE_SET_NAME);
+  await page.getByTestId('new-area-estimate-create').click();
   await expect(page.getByRole('heading', { name: 'Map & Areas of Interest' })).toBeVisible();
 }
 
@@ -106,6 +106,14 @@ test('sizes a sample from the target precision and locks the set it lives in', a
   await page.goto('/projects/7/campaigns/42/tasks?taskSet=1');
   await expect(page.getByRole('heading', { name: 'Add annotation tasks' })).toBeVisible();
   await expect(page.getByTitle('Rename set')).toBeVisible();
+
+  // The estimate has its own section on the overview and is not repeated as
+  // an ordinary task set.
+  await page.goto('/projects/7/campaigns/42');
+  const estimates = page.locator('section', { has: page.getByText('Area estimates') }).first();
+  await expect(estimates.getByText(SAMPLE_SET_NAME)).toBeVisible();
+  const taskSets = page.locator('section', { has: page.getByText('Task sets') }).last();
+  await expect(taskSets.getByText(SAMPLE_SET_NAME)).toHaveCount(0);
 });
 
 test('refuses a held-out test set as a prior and offers a pilot instead', async ({

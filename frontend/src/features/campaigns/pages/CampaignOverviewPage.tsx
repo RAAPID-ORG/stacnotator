@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { getCampaign, listTaskSets, type CampaignOut, type TaskSetOut } from '~/api/client';
+import {
+  createTaskSet,
+  getCampaign,
+  listTaskSets,
+  type CampaignOut,
+  type TaskSetOut,
+} from '~/api/client';
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
-import { Button } from '~/shared/ui/forms';
+import { Button, Field, Input } from '~/shared/ui/forms';
+import { Modal } from '~/shared/ui/Modal';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
-import { IconFlag, IconGear, IconMap } from '~/shared/ui/Icons';
+import { IconChart, IconFlag, IconGear, IconMap } from '~/shared/ui/Icons';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
@@ -17,6 +24,7 @@ import { campaignPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import {
   AreaEstimationPanel,
+  createAreaEstimationPlan,
   useAreaEstimationTaskSets,
 } from '~/features/areaEstimation/AreaEstimation';
 
@@ -30,13 +38,41 @@ export const CampaignOverviewPage = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const currentUserId = useAccountStore((s) => s.account?.id ?? null);
-  const { taskSetIds: areaEstimationSets } = useAreaEstimationTaskSets(campaignId);
+  const { taskSetIds: areaEstimationSets, reload: reloadEstimates } =
+    useAreaEstimationTaskSets(campaignId);
+  // Naming an estimate before it exists, so the set is created with a name.
+  const [namingEstimate, setNamingEstimate] = useState<string | null>(null);
+  const [creatingEstimate, setCreatingEstimate] = useState(false);
 
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const projectId = campaign?.project_id ?? routeProjectId;
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name);
+
+  const estimateSets = taskSets.filter((set) => areaEstimationSets.has(set.id));
+  const plainSets = taskSets.filter((set) => !areaEstimationSets.has(set.id));
+
+  const createEstimate = async () => {
+    const name = (namingEstimate ?? '').trim();
+    if (!name) return;
+    setCreatingEstimate(true);
+    try {
+      const created = await createTaskSet({
+        path: { campaign_id: campaignId },
+        body: { name },
+      });
+      if (created.error || !created.data) throw created.error ?? new Error('No task set');
+      await createAreaEstimationPlan(campaignId, created.data.id);
+      reloadEstimates();
+      setNamingEstimate(null);
+      navigate(`${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${created.data.id}`);
+    } catch (err) {
+      handleError(err, 'Could not start the area estimate');
+    } finally {
+      setCreatingEstimate(false);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -149,18 +185,61 @@ export const CampaignOverviewPage = () => {
           </div>
         )}
 
-        {isAdmin &&
-          taskSets
-            .filter((set) => areaEstimationSets.has(set.id))
-            .map((set) => (
-              <div key={set.id} className="mb-6">
-                <AreaEstimationPanel
-                  campaignId={campaignId}
-                  taskSetId={set.id}
-                  taskSetName={set.name}
-                />
+        {(estimateSets.length > 0 || isAdmin) && (
+          <section className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="section-heading">Area estimates</h2>
+              {isAdmin && (
+                <Button variant="secondary" onClick={() => setNamingEstimate('')}>
+                  New area estimate
+                </Button>
+              )}
+            </div>
+            {estimateSets.length === 0 ? (
+              <div className="surface">
+                <div className="surface-section text-center py-12">
+                  <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
+                    <IconChart className="w-5 h-5 text-neutral-400" />
+                  </div>
+                  <p className="text-sm text-neutral-800 font-medium mb-1">No area estimates yet</p>
+                  <p className="text-sm text-neutral-500 mb-4">
+                    Turn a map and a sample of checked points into a published area with a
+                    confidence interval.
+                  </p>
+                  <Button variant="secondary" onClick={() => setNamingEstimate('')}>
+                    New area estimate
+                  </Button>
+                </div>
               </div>
-            ))}
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {estimateSets.map((set, index) => (
+                  <MotionListItem key={set.id} index={index}>
+                    <AreaEstimationPanel
+                      campaignId={campaignId}
+                      taskSetId={set.id}
+                      taskSetName={set.name}
+                      showEstimates={isAdmin}
+                      onAnnotate={() =>
+                        navigate(
+                          `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks&taskSet=${set.id}`
+                        )
+                      }
+                      onOpenDesign={
+                        isAdmin
+                          ? () =>
+                              navigate(
+                                `${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`
+                              )
+                          : undefined
+                      }
+                    />
+                  </MotionListItem>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <section>
           <div className="flex items-center justify-between mb-3">
@@ -212,7 +291,7 @@ export const CampaignOverviewPage = () => {
                   onView={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
                 />
               </MotionListItem>
-              {taskSets.map((set, index) => (
+              {plainSets.map((set, index) => (
                 <MotionListItem key={set.id} index={index + 1}>
                   <TaskSetCard
                     taskSet={set}
@@ -231,6 +310,35 @@ export const CampaignOverviewPage = () => {
           )}
         </section>
       </FadeIn>
+
+      {namingEstimate !== null && (
+        <Modal title="New area estimate" onClose={() => setNamingEstimate(null)}>
+          <div className="space-y-4">
+            <Field label="Name" hint="What this estimate covers, for example Winter crops 2025.">
+              <Input
+                autoFocus
+                value={namingEstimate}
+                onChange={(e) => setNamingEstimate(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && void createEstimate()}
+                placeholder="Winter crops 2025"
+                data-testid="new-area-estimate-name"
+              />
+            </Field>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setNamingEstimate(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => void createEstimate()}
+                disabled={!namingEstimate.trim() || creatingEstimate}
+                data-testid="new-area-estimate-create"
+              >
+                Create
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
