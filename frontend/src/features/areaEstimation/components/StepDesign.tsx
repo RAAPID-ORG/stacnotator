@@ -211,14 +211,17 @@ export const StepDesign = ({ plan, update }: Props) => {
             <span className="mt-1 flex items-center gap-2">
               {/* Input is w-full; the fixed width has to come from a wrapper. */}
               <span className="w-16 shrink-0">
+                {/* Empty until it is the one in use, so it reads as somewhere
+                    to type rather than as a preset already showing a number. */}
                 <Input
                   type="number"
                   size="sm"
                   min={0.5}
                   max={50}
                   step={0.5}
+                  placeholder="7"
                   aria-label="Target precision, percent of the estimate"
-                  value={Number((plan.targetCv * 100).toFixed(2))}
+                  value={isCustom ? Number((plan.targetCv * 100).toFixed(2)) : ''}
                   onChange={(e) =>
                     update({ targetCv: Number(e.target.value) / 100, overrides: {} })
                   }

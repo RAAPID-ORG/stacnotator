@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '~/shared/ui/forms';
 import { Spinner } from '~/shared/ui/Spinner';
 import { StepIndicator } from '~/shared/ui/StepIndicator';
@@ -27,10 +27,17 @@ interface Props {
 
 export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: Props) => {
   const [stepIndex, setStepIndex] = useState(0);
+  const top = useRef<HTMLDivElement>(null);
   const step = PLAN_STEPS[stepIndex].id;
   const issues = validatePlan(plan);
   const stepIssues = issuesForStep(issues, step);
   const isLast = stepIndex === PLAN_STEPS.length - 1;
+
+  // A step change lands the reader at the start of the new step, not partway
+  // down it because the last one was longer.
+  useEffect(() => {
+    top.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [stepIndex]);
 
   // Entering the classes step with nothing defined, the obvious starting point
   // is the map's own classes; merging is then an edit rather than a blank page.
@@ -42,7 +49,7 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
   }, [step]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 scroll-mt-4" ref={top}>
       <StepIndicator
         steps={PLAN_STEPS.map((s) => s.name)}
         step={stepIndex + 1}

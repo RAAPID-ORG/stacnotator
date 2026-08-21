@@ -1,8 +1,7 @@
-import { Button, IconButton, Input, Select } from '~/shared/ui/forms';
+import { Input, Select } from '~/shared/ui/forms';
 import { Badge } from '~/shared/ui/Badge';
-import { IconPlus, IconTrash } from '~/shared/ui/Icons';
 import type { AreaEstimationPlan, ReportingClass } from '../core/plan';
-import { NO_DATA_CLASS_ID, oneClassPerValue, pixelsFor, unassignedValues } from '../core/plan';
+import { NO_DATA_CLASS_ID, pixelsFor, unassignedValues } from '../core/plan';
 import { ChoiceCard, Note, StepHeading, SubHeading } from './Explain';
 import { formatPercent } from './format';
 
@@ -64,7 +63,7 @@ export const StepClasses = ({ plan, update }: Props) => {
   const renameClass = (id: string, name: string) =>
     setClasses(plan.classes.map((c) => (c.id === id ? { ...c, name } : c)));
 
-  const removeClass = (id: string) => setClasses(plan.classes.filter((c) => c.id !== id));
+  const merged = plan.classes.filter((c) => c.values.length > 1);
 
   return (
     <div className="space-y-8">
@@ -93,26 +92,17 @@ export const StepClasses = ({ plan, update }: Props) => {
       </StepHeading>
 
       <section className="space-y-3">
-        <div className="flex items-start justify-between gap-4">
-          <SubHeading title="Where each map value is reported">
-            Every value from the map goes somewhere. Send two to the same class to merge them.
-          </SubHeading>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="shrink-0"
-            onClick={() => setClasses(oneClassPerValue(plan))}
-          >
-            One class each
-          </Button>
-        </div>
+        <SubHeading title="Where each map value is reported">
+          Every value from the map goes somewhere. Each starts as its own class; send two to the
+          same one to merge them.
+        </SubHeading>
 
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
               <th className="py-2 font-medium w-16">Value</th>
               <th className="py-2 font-medium">From the map</th>
-              <th className="py-2 font-medium w-20 text-right">Share</th>
+              <th className="py-2 pr-6 font-medium w-20 text-right">Share</th>
               <th className="py-2 font-medium w-64">Reported as</th>
             </tr>
           </thead>
@@ -124,7 +114,7 @@ export const StepClasses = ({ plan, update }: Props) => {
                 <tr key={value.value} className="border-b border-neutral-100">
                   <td className="py-2 font-mono text-xs text-neutral-400">{value.value}</td>
                   <td className="py-2 text-neutral-800">{value.label || 'Unnamed'}</td>
-                  <td className="py-2 text-right text-xs text-neutral-500 tabular-nums">
+                  <td className="py-2 pr-6 text-right text-xs text-neutral-500 tabular-nums">
                     {assigned === NO_DATA_CLASS_ID ? '—' : formatPercent(share)}
                   </td>
                   <td className="py-2">
@@ -160,13 +150,13 @@ export const StepClasses = ({ plan, update }: Props) => {
         )}
       </section>
 
-      {plan.classes.length > 0 && (
+      {merged.length > 0 && (
         <section className="space-y-3">
-          <SubHeading title="Your reporting classes">
-            These are the rows of your published table, and the groups the sample is spread over.
+          <SubHeading title="Name your merged classes">
+            These hold more than one map value, so they need a name of their own.
           </SubHeading>
           <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
-            {plan.classes.map((cls) => (
+            {merged.map((cls) => (
               <li key={cls.id} className="py-2.5 flex items-center gap-3">
                 <Input
                   size="sm"
@@ -177,41 +167,20 @@ export const StepClasses = ({ plan, update }: Props) => {
                   aria-label="Reporting class name"
                   onChange={(e) => renameClass(cls.id, e.target.value)}
                 />
-                {/* Only worth listing once a class holds more than the one
-                    map value it was named after. */}
-                {cls.values.length > 1 && (
-                  <span className="flex flex-wrap gap-1">
-                    {cls.values.map((v) => (
-                      <Badge key={v} tone="neutral">
-                        {plan.values.find((x) => x.value === v)?.label || v}
-                      </Badge>
-                    ))}
-                  </span>
-                )}
+                <span className="flex flex-wrap gap-1">
+                  {cls.values.map((v) => (
+                    <Badge key={v} tone="neutral">
+                      {plan.values.find((x) => x.value === v)?.label || v}
+                    </Badge>
+                  ))}
+                </span>
                 <span className="flex-1" />
                 <span className="text-xs text-neutral-500 tabular-nums">
                   {formatPercent(totalPixels > 0 ? pixelsFor(plan, cls.values) / totalPixels : 0)}
                 </span>
-                <IconButton
-                  tone="danger"
-                  onClick={() => removeClass(cls.id)}
-                  aria-label={`Remove ${cls.name || 'class'}`}
-                >
-                  <IconTrash className="w-4 h-4" />
-                </IconButton>
               </li>
             ))}
           </ul>
-          <Button
-            size="sm"
-            variant="secondary"
-            leading={<IconPlus className="w-3.5 h-3.5" />}
-            onClick={() =>
-              setClasses([...plan.classes, { id: `class-new-${Date.now()}`, name: '', values: [] }])
-            }
-          >
-            Empty class
-          </Button>
         </section>
       )}
 
