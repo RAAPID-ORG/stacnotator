@@ -1,7 +1,7 @@
 import { Badge } from '~/shared/ui/Badge';
 import { Field, Input, Select } from '~/shared/ui/forms';
 import { PRECISION_PRESETS } from '../core/guidance';
-import type { AreaEstimationPlan } from '../core/plan';
+import { pixelsFor, type AreaEstimationPlan } from '../core/plan';
 import { ChoiceCard, Explain, StepHeading, SubHeading } from './Explain';
 import { formatArea, formatPercent } from './format';
 
@@ -12,7 +12,10 @@ interface Props {
 
 export const StepTarget = ({ plan, update }: Props) => {
   const target = plan.classes.find((c) => c.id === plan.targetClassId);
-  const mappedArea = target ? mappedAreaOf(plan, target.values) : null;
+  const mappedArea =
+    target && plan.census && plan.raster
+      ? pixelsFor(plan, target.values) * plan.raster.areaPerPixel
+      : null;
 
   return (
     <div className="space-y-8">
@@ -130,14 +133,4 @@ export const StepTarget = ({ plan, update }: Props) => {
       </section>
     </div>
   );
-};
-
-const mappedAreaOf = (plan: AreaEstimationPlan, values: readonly number[]): number | null => {
-  if (!plan.census || !plan.raster) return null;
-  const pixels = plan.areas.reduce(
-    (sum, a) =>
-      sum + values.reduce((v, value) => v + (plan.census?.byArea[a.id]?.[String(value)] ?? 0), 0),
-    0
-  );
-  return pixels * plan.raster.areaPerPixel;
 };

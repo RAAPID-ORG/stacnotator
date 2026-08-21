@@ -1,7 +1,7 @@
 import { Button, IconButton, Input, Select } from '~/shared/ui/forms';
 import { IconClose, IconPlus, IconTrash } from '~/shared/ui/Icons';
 import type { AreaEstimationPlan, ReportingClass } from '../core/plan';
-import { oneClassPerValue, unassignedValues } from '../core/plan';
+import { oneClassPerValue, pixelsFor, unassignedValues } from '../core/plan';
 import { ChoiceCard, Explain, Note, StepHeading, SubHeading } from './Explain';
 import { formatPixels } from './format';
 
@@ -14,15 +14,6 @@ export const StepClasses = ({ plan, update }: Props) => {
   const unassigned = unassignedValues(plan);
   const labelOf = (value: number) =>
     plan.values.find((v) => v.value === value)?.label || `Value ${value}`;
-  const pixelsOf = (values: number[]) =>
-    plan.census
-      ? plan.areas.reduce(
-          (sum, a) =>
-            sum +
-            values.reduce((v, value) => v + (plan.census?.byArea[a.id]?.[String(value)] ?? 0), 0),
-          0
-        )
-      : null;
 
   const setClasses = (classes: ReportingClass[]) => {
     const ids = new Set(classes.map((c) => c.id));
@@ -115,9 +106,7 @@ export const StepClasses = ({ plan, update }: Props) => {
                     aria-label="Reporting class name"
                   />
                   <span className="text-xs text-neutral-500 tabular-nums">
-                    {pixelsOf(cls.values) === null
-                      ? ''
-                      : `${formatPixels(pixelsOf(cls.values) ?? 0)} px`}
+                    {plan.census ? `${formatPixels(pixelsFor(plan, cls.values))} px` : ''}
                   </span>
                   <span className="flex-1" />
                   <IconButton

@@ -11,7 +11,7 @@
  */
 
 import type { AreaEstimationPlan, MapValue, PixelCensus, RasterInfo, StudyArea } from './core/plan';
-import { NO_DATA_CLASS_ID, designsOf, domainsOf } from './core/plan';
+import { NO_DATA_CLASS_ID, designsOf } from './core/plan';
 import type { StratumSample } from './core/estimate';
 
 const LATENCY_MS = 450;
@@ -203,7 +203,3 @@ const drawCounts = (
   if (classId === NO_DATA_CLASS_ID) counts[classId] = 0;
   return counts;
 };
-
-/** The domains a plan reports on, for callers that only need their names. */
-export const domainNames = (plan: AreaEstimationPlan): { id: string; name: string }[] =>
-  domainsOf(plan).map((d) => ({ id: d.id, name: d.name }));

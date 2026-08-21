@@ -6,7 +6,7 @@ import { Spinner } from '~/shared/ui/Spinner';
 import { handleError } from '~/shared/utils/errorHandler';
 import { censusPixels, inspectRaster, parseStudyAreas } from '../api';
 import type { AreaEstimationPlan, MapValue, StudyArea } from '../core/plan';
-import { studyAreaPixels } from '../core/plan';
+import { pixelsFor, studyAreaPixels } from '../core/plan';
 import { ChoiceCard, Explain, Note, StepHeading, SubHeading } from './Explain';
 import { formatPixels } from './format';
 
@@ -394,7 +394,7 @@ export const StepData = ({ plan, update }: Props) => {
                   <ValueRow
                     key={value.value}
                     value={value}
-                    pixels={pixelsForValue(plan, value.value)}
+                    pixels={plan.census ? pixelsFor(plan, [value.value]) : null}
                     isNoData={plan.noDataValues.includes(value.value)}
                     onLabel={(label) => setValueLabel(value.value, label)}
                     onToggleNoData={() => toggleNoData(value.value)}
@@ -406,14 +406,6 @@ export const StepData = ({ plan, update }: Props) => {
         </section>
       )}
     </div>
-  );
-};
-
-const pixelsForValue = (plan: AreaEstimationPlan, value: number): number | null => {
-  if (!plan.census) return null;
-  return plan.areas.reduce(
-    (sum, area) => sum + (plan.census?.byArea[area.id]?.[String(value)] ?? 0),
-    0
   );
 };
 

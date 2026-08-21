@@ -18,7 +18,7 @@ import {
   type Precision,
   type StratumAllocation,
 } from './design';
-import { priorFromCorrectShares, priorSharesOfClass } from './prior';
+import { priorFromCorrectShares, priorSharesOfClass, type PriorMatrix } from './prior';
 import {
   DEFAULT_PILOT_PER_STRATUM,
   DEFAULT_SAMPLE_FLOOR,
@@ -134,6 +134,8 @@ export interface Domain {
   id: string;
   name: string;
   strata: DomainStratum[];
+  /** The hypothesised error matrix the strata's priors were read from. */
+  prior: PriorMatrix;
 }
 
 export interface DomainStratum extends PlannedStratum {
@@ -144,7 +146,7 @@ export interface DomainStratum extends PlannedStratum {
 
 export const stratumId = (domainId: string, classId: string) => `${domainId}::${classId}`;
 
-const pixelsOf = (
+const countPixels = (
   census: PixelCensus | null,
   areaIds: readonly string[],
   values: readonly number[]
@@ -155,6 +157,14 @@ const pixelsOf = (
     return sum + values.reduce((inner, v) => inner + (counts[String(v)] ?? 0), 0);
   }, 0);
 };
+
+/** Pixels the census counted for a set of map values, across every area. */
+export const pixelsFor = (plan: AreaEstimationPlan, values: readonly number[]): number =>
+  countPixels(
+    plan.census,
+    plan.areas.map((a) => a.id),
+    values
+  );
 
 /**
  * Strata come out of the plan, never out of the map directly: a reporting
@@ -173,7 +183,7 @@ export const domainsOf = (plan: AreaEstimationPlan): Domain[] => {
       classId: cls.id,
       className: cls.name,
       isNoData: false,
-      pixelCount: pixelsOf(plan.census, group.areaIds, cls.values),
+      pixelCount: countPixels(plan.census, group.areaIds, cls.values),
       targetShare: 0,
     }));
     if (plan.noDataHandling === 'stratum' && plan.noDataValues.length > 0) {
@@ -182,33 +192,36 @@ export const domainsOf = (plan: AreaEstimationPlan): Domain[] => {
         classId: NO_DATA_CLASS_ID,
         className: 'Unmapped',
         isNoData: true,
-        pixelCount: pixelsOf(plan.census, group.areaIds, plan.noDataValues),
+        pixelCount: countPixels(plan.census, group.areaIds, plan.noDataValues),
         targetShare: 0,
       });
     }
-    return { id: group.id, name: group.name, strata: withPrior(strata, plan) };
+    const prior = priorMatrixFor(plan, strata);
+    const shares = plan.targetClassId
+      ? priorSharesOfClass(prior, plan.targetClassId)
+      : strata.map(() => 0);
+    return {
+      id: group.id,
+      name: group.name,
+      prior,
+      strata: strata.map((s, i) => ({ ...s, targetShare: shares[i] })),
+    };
   });
 };
 
 /**
- * Fill in each stratum's prior belief about the target class. Unmapped pixels
- * carry no assumption of being right, so their prior is the leakage the other
- * classes imply rather than an accuracy of their own.
+ * What the plan believes this domain's map looks like. Unmapped pixels carry
+ * no assumption of being right, so their row is pure leakage from the classes
+ * around them rather than an accuracy of their own.
  */
-const withPrior = (strata: DomainStratum[], plan: AreaEstimationPlan): DomainStratum[] => {
-  if (!plan.targetClassId) return strata;
-  const weights = stratumWeights(strata);
-  const correct = strata.map((s) =>
-    s.isNoData ? 0 : (plan.correctShares[s.classId] ?? defaultCorrectShare(plan))
-  );
-  const prior = priorFromCorrectShares(
+const priorMatrixFor = (plan: AreaEstimationPlan, strata: readonly DomainStratum[]): PriorMatrix =>
+  priorFromCorrectShares(
     strata.map((s) => s.classId),
-    weights,
-    correct
+    stratumWeights(strata),
+    strata.map((s) =>
+      s.isNoData ? 0 : (plan.correctShares[s.classId] ?? defaultCorrectShare(plan))
+    )
   );
-  const shares = priorSharesOfClass(prior, plan.targetClassId);
-  return strata.map((s, i) => ({ ...s, targetShare: shares[i] }));
-};
 
 export const defaultCorrectShare = (plan: AreaEstimationPlan): number =>
   priorSource(plan.priorSourceId).defaultCorrectShare;
@@ -250,7 +263,7 @@ export const designForDomain = (plan: AreaEstimationPlan, domain: Domain): Domai
     allocation,
     total: totalSampleSize(allocation),
     precision: anticipatedPrecision(domain.strata, allocation),
-    perClass: perClassPrecision(plan, domain, allocation),
+    perClass: perClassPrecision(domain, allocation),
   };
 };
 
@@ -259,24 +272,11 @@ export const designForDomain = (plan: AreaEstimationPlan, domain: Domain): Domai
  * design tuned for one crop can leave another one far too thin, and the user
  * should see that before annotating thousands of points.
  */
-const perClassPrecision = (
-  plan: AreaEstimationPlan,
-  domain: Domain,
-  allocation: readonly StratumAllocation[]
-) => {
-  const weights = stratumWeights(domain.strata);
-  const correct = domain.strata.map((s) =>
-    s.isNoData ? 0 : (plan.correctShares[s.classId] ?? defaultCorrectShare(plan))
-  );
-  const prior = priorFromCorrectShares(
-    domain.strata.map((s) => s.classId),
-    weights,
-    correct
-  );
-  return domain.strata
+const perClassPrecision = (domain: Domain, allocation: readonly StratumAllocation[]) =>
+  domain.strata
     .filter((s) => !s.isNoData)
     .map((target) => {
-      const shares = priorSharesOfClass(prior, target.classId);
+      const shares = priorSharesOfClass(domain.prior, target.classId);
       const strata = domain.strata.map((s, i) => ({ ...s, targetShare: shares[i] }));
       return {
         classId: target.classId,
@@ -284,7 +284,6 @@ const perClassPrecision = (
         precision: anticipatedPrecision(strata, allocation),
       };
     });
-};
 
 export const designsOf = (plan: AreaEstimationPlan): DomainDesign[] =>
   domainsOf(plan).map((d) => designForDomain(plan, d));
@@ -316,16 +315,13 @@ export const unassignedValues = (plan: AreaEstimationPlan): MapValue[] => {
  * than by class membership, so it is already the right number while the
  * reporting classes are still being edited.
  */
-export const studyAreaPixels = (plan: AreaEstimationPlan): number => {
-  const inScope = plan.values
-    .filter((v) => plan.noDataHandling === 'stratum' || !plan.noDataValues.includes(v.value))
-    .map((v) => v.value);
-  return pixelsOf(
-    plan.census,
-    plan.areas.map((a) => a.id),
-    inScope
+export const studyAreaPixels = (plan: AreaEstimationPlan): number =>
+  pixelsFor(
+    plan,
+    plan.values
+      .filter((v) => plan.noDataHandling === 'stratum' || !plan.noDataValues.includes(v.value))
+      .map((v) => v.value)
   );
-};
 
 export interface StepIssue {
   step: PlanStep;

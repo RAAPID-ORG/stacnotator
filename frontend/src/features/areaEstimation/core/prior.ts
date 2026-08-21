@@ -46,10 +46,3 @@ export const priorSharesOfClass = (prior: PriorMatrix, classId: string): number[
   if (col < 0) return prior.strataIds.map(() => 0);
   return prior.rows.map((row) => clamp01(row[col] ?? 0));
 };
-
-/** Rescale a row so it sums to 1 after the user has edited one of its cells. */
-export const normaliseRow = (row: readonly number[]): number[] => {
-  const total = row.reduce((a, b) => a + Math.max(0, b), 0);
-  if (total <= 0) return row.map(() => 0);
-  return row.map((v) => Math.max(0, v) / total);
-};
