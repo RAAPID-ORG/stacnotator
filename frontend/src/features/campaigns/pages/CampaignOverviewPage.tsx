@@ -15,7 +15,10 @@ import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { campaignPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
-import { AreaEstimationPanel } from '~/features/areaEstimation/AreaEstimation';
+import {
+  AreaEstimationPanel,
+  useAreaEstimationTaskSets,
+} from '~/features/areaEstimation/AreaEstimation';
 
 export const CampaignOverviewPage = () => {
   const campaignId = useCampaignIdParam();
@@ -27,6 +30,7 @@ export const CampaignOverviewPage = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const currentUserId = useAccountStore((s) => s.account?.id ?? null);
+  const { taskSetIds: areaEstimationSets } = useAreaEstimationTaskSets(campaignId);
 
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
@@ -145,11 +149,18 @@ export const CampaignOverviewPage = () => {
           </div>
         )}
 
-        {isAdmin && (
-          <div className="mb-6">
-            <AreaEstimationPanel campaignId={campaignId} />
-          </div>
-        )}
+        {isAdmin &&
+          taskSets
+            .filter((set) => areaEstimationSets.has(set.id))
+            .map((set) => (
+              <div key={set.id} className="mb-6">
+                <AreaEstimationPanel
+                  campaignId={campaignId}
+                  taskSetId={set.id}
+                  taskSetName={set.name}
+                />
+              </div>
+            ))}
 
         <section>
           <div className="flex items-center justify-between mb-3">

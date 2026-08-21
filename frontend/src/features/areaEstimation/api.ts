@@ -120,10 +120,26 @@ export const censusPixels = async (
   return { bandIndex, byArea };
 };
 
-const storageKey = (campaignId: number) => `stacnotator.areaEstimation.${campaignId}`;
+// A design belongs to the task set holding its sample, not to the campaign:
+// a campaign can run several estimates, and each is its own set of points.
+const PREFIX = 'stacnotator.areaEstimation';
+const storageKey = (campaignId: number, taskSetId: number) =>
+  `${PREFIX}.${campaignId}.${taskSetId}`;
 
-export const loadPlan = async (campaignId: number): Promise<AreaEstimationPlan | null> => {
-  const raw = localStorage.getItem(storageKey(campaignId));
+/** Task sets in this campaign that carry an area estimation design. */
+export const listPlannedTaskSets = async (campaignId: number): Promise<number[]> => {
+  const prefix = `${PREFIX}.${campaignId}.`;
+  return Object.keys(localStorage)
+    .filter((key) => key.startsWith(prefix))
+    .map((key) => Number(key.slice(prefix.length)))
+    .filter((id) => Number.isFinite(id));
+};
+
+export const loadPlan = async (
+  campaignId: number,
+  taskSetId: number
+): Promise<AreaEstimationPlan | null> => {
+  const raw = localStorage.getItem(storageKey(campaignId, taskSetId));
   if (!raw) return null;
   try {
     // A plan stored before a field existed still has to load. Merging onto the
@@ -135,14 +151,23 @@ export const loadPlan = async (campaignId: number): Promise<AreaEstimationPlan |
   }
 };
 
-export const savePlan = async (campaignId: number, plan: AreaEstimationPlan): Promise<void> => {
+export const savePlan = async (
+  campaignId: number,
+  taskSetId: number,
+  plan: AreaEstimationPlan
+): Promise<void> => {
   // Committed before returning: the wizard saves on every edit, and a write
   // that is still pending when the user navigates away is a lost plan.
-  localStorage.setItem(storageKey(campaignId), JSON.stringify(plan));
+  localStorage.setItem(storageKey(campaignId, taskSetId), JSON.stringify(plan));
 };
 
-export const clearPlan = async (campaignId: number): Promise<void> => {
-  localStorage.removeItem(storageKey(campaignId));
+/** Attach an empty design to a task set, making it an area estimation set. */
+export const createPlan = async (campaignId: number, taskSetId: number): Promise<void> => {
+  await savePlan(campaignId, taskSetId, emptyPlan());
+};
+
+export const clearPlan = async (campaignId: number, taskSetId: number): Promise<void> => {
+  localStorage.removeItem(storageKey(campaignId, taskSetId));
 };
 
 export interface Progress {
@@ -158,7 +183,7 @@ export interface Progress {
  * real ones: wide early, tightening as points come in.
  */
 export const loadProgress = async (
-  campaignId: number,
+  taskSetId: number,
   plan: AreaEstimationPlan,
   completedFraction: number
 ): Promise<Progress> => {
@@ -177,7 +202,7 @@ export const loadProgress = async (
       return {
         id: stratum.classId,
         pixelCount: stratum.pixelCount,
-        counts: drawCounts(plan, design.domain.strata, stratum.classId, done, campaignId),
+        counts: drawCounts(plan, design.domain.strata, stratum.classId, done, taskSetId),
       };
     });
   });

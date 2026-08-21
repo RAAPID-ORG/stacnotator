@@ -1,37 +1,29 @@
-import { useEffect, useState } from 'react';
-import { loadPlan } from './api';
-
-/**
- * The sample points live in one task set that belongs to the design.
- *
- * The set has to stay exactly what the sampling protocol drew: every task in
- * it carries a known inclusion probability, and a task added by hand carries
- * none. One such task makes the whole estimate indefensible, so the set is
- * read-only everywhere outside this feature.
- *
- * The backend will grow a purpose column on task sets to enforce this; until
- * then the plan names the set it owns and the UI locks that one.
- */
-
-export const AREA_ESTIMATION_TASK_SET_NAME = 'Area estimation sample';
+import { useCallback, useEffect, useState } from 'react';
+import { listPlannedTaskSets } from './api';
 
 export const LOCKED_TASK_SET_REASON =
-  'This set is managed by the area estimation design. Adding, importing or moving tasks into it would break the sampling probabilities the estimate depends on.';
+  'This set is managed by an area estimation design. Adding, importing or moving tasks into it would break the sampling probabilities the estimate depends on.';
 
-/** The locked set's id, or null when the campaign has no design. */
-export const useAreaEstimationTaskSet = (campaignId: number | null): number | null => {
-  const [taskSetId, setTaskSetId] = useState<number | null>(null);
+/**
+ * The sample points of an area estimate live in one task set, and that set has
+ * to stay exactly what the sampling protocol drew: every task in it carries a
+ * known inclusion probability, and a task added by hand carries none. One such
+ * task makes the whole estimate indefensible, so these sets are read-only
+ * everywhere outside this feature.
+ *
+ * A campaign may run several estimates, so this is a set of ids rather than
+ * one. The backend will grow a purpose column on task sets to enforce it;
+ * until then the stored designs name the sets they own.
+ */
+export const useAreaEstimationTaskSets = (campaignId: number | null) => {
+  const [taskSetIds, setTaskSetIds] = useState<ReadonlySet<number>>(new Set());
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     if (campaignId === null) return;
-    let cancelled = false;
-    void loadPlan(campaignId).then((plan) => {
-      if (!cancelled) setTaskSetId(plan?.taskSetId ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
+    void listPlannedTaskSets(campaignId).then((ids) => setTaskSetIds(new Set(ids)));
   }, [campaignId]);
 
-  return taskSetId;
+  useEffect(reload, [reload]);
+
+  return { taskSetIds, reload };
 };

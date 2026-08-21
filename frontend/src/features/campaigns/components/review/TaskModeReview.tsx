@@ -78,8 +78,8 @@ interface TaskModeReviewProps {
   onDeleteTasks?: (taskIds: number[]) => Promise<void>;
   onBatchUnassignTasks?: (taskIds: number[]) => Promise<void>;
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
-  /** Task set owned by another feature: tasks may not be moved in or out of it. */
-  lockedTaskSetId?: number | null;
+  /** Task sets owned by another feature: tasks may not be moved in or out of them. */
+  lockedTaskSetIds?: ReadonlySet<number>;
   onCreateSet?: (name: string) => Promise<number | null>;
   onAssignSelected?: (taskIds: number[]) => void;
   onOpenBulkAssign?: () => void;
@@ -98,7 +98,7 @@ export const TaskModeReview = ({
   onDeleteTasks,
   onBatchUnassignTasks,
   onMoveTasks,
-  lockedTaskSetId,
+  lockedTaskSetIds,
   onCreateSet,
   onAssignSelected,
   onOpenBulkAssign,
@@ -158,7 +158,7 @@ export const TaskModeReview = ({
   // Sets a selection may be moved into. The area estimation sample is not one:
   // its tasks are a drawn sample and a task added by hand has no inclusion
   // probability, which is what the whole estimate rests on.
-  const movableSets = taskSets.filter((set) => set.id !== lockedTaskSetId);
+  const movableSets = taskSets.filter((set) => !lockedTaskSetIds?.has(set.id));
   const labels = campaign?.settings.labels ?? [];
 
   const toggleLabel = (labelId: number) =>

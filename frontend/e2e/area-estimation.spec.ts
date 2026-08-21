@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { MOCK_CAMPAIGN } from './fixtures/mock-data';
 
 const SAMPLE_SET_ID = 99;
-const SAMPLE_SET_NAME = 'Area estimation sample';
+const SAMPLE_SET_NAME = 'Winter crops 2025';
 
 const set = (id: number, name: string, numTasks: number) => ({
   id,
@@ -14,8 +14,8 @@ const set = (id: number, name: string, numTasks: number) => ({
 });
 
 /**
- * The settings page needs the plain campaign GET, which the shared fixture
- * only mocks in its /detailed form for the annotation page.
+ * The tasks page needs the plain campaign GET, which the shared fixture only
+ * mocks in its /detailed form for the annotation page.
  */
 async function mockCampaignAdmin(page: Page): Promise<{ created: string[] }> {
   const created: string[] = [];
@@ -45,11 +45,18 @@ async function mockCampaignAdmin(page: Page): Promise<{ created: string[] }> {
   return { created };
 }
 
+/** Create an area estimation task set and land on its empty design. */
+async function startAreaEstimate(page: Page): Promise<void> {
+  await page.goto('/projects/7/campaigns/42/tasks');
+  await page.getByTestId('scope-new-area-set').click();
+  await page.getByPlaceholder('Area estimate name').fill(SAMPLE_SET_NAME);
+  await page.getByRole('button', { name: 'Create set' }).click();
+  await expect(page.getByRole('heading', { name: 'Map & Areas of Interest' })).toBeVisible();
+}
+
 /** Walk the wizard as far as the named step, leaving it filled in. */
 async function fillWizard(page: Page, upTo: 'prior' | 'design'): Promise<void> {
-  await page.goto('/projects/7/campaigns/42/settings');
-  await page.getByRole('tab', { name: 'Area Estimation' }).click();
-  await page.getByTestId('uae-start').click();
+  await startAreaEstimate(page);
 
   await page.getByTestId('uae-map-file').setInputFiles({
     name: 'cropmap_2025.tif',
@@ -79,28 +86,25 @@ test('sizes a sample from the target precision and locks the set it lives in', a
   const { created } = await mockCampaignAdmin(page);
   await fillWizard(page, 'design');
 
-  // The map's five classes each became a reporting class, the unmapped value
-  // did not, and the design meets the 5% default the target step starts on.
+  // The map's five classes each became a reporting class, the nodata value did
+  // not, and the design meets the 5% default the precision cards start on.
   const points = page.getByRole('spinbutton', { name: /^Sample points for / });
   await expect(points).toHaveCount(5);
   await expect(page.getByText(/Expected for the target class/)).toBeVisible();
   await expect(page.getByText(/^±[0-4]\.\d%$/)).toBeVisible();
 
   await page.getByTestId('uae-activate').click();
-  await expect(page.getByText('Turn off area estimation')).toBeVisible();
+  await expect(page.getByTestId('uae-edit-design')).toBeVisible();
   expect(created).toEqual([SAMPLE_SET_NAME]);
 
   // The sample set is closed to anything the design did not draw.
-  await page.goto(`/projects/7/campaigns/42/tasks?taskSet=${SAMPLE_SET_ID}`);
-  await expect(
-    page.getByRole('heading', { name: 'Managed by the area estimation design' })
-  ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Add annotation tasks' })).toHaveCount(0);
   await expect(page.getByTitle('Rename set')).toHaveCount(0);
   await expect(page.getByTitle('Delete set')).toHaveCount(0);
 
-  // Other sets keep their controls.
+  // Ordinary sets keep their controls, and their own way of getting tasks.
   await page.goto('/projects/7/campaigns/42/tasks?taskSet=1');
+  await expect(page.getByRole('heading', { name: 'Add annotation tasks' })).toBeVisible();
   await expect(page.getByTitle('Rename set')).toBeVisible();
 });
 
@@ -124,8 +128,11 @@ test('refuses a held-out test set as a prior and offers a pilot instead', async 
 
   // No prior means a pilot: a flat budget per class, not a precision target.
   await expect(page.getByRole('heading', { name: 'Pilot sample' })).toBeVisible();
+  await expect(page.getByTestId('uae-activate')).toBeEnabled();
+
+  // Its parameters are for experts and stay out of the way until asked for.
+  await expect(page.getByTestId('uae-pilot-budget')).toHaveCount(0);
+  await page.getByTestId('uae-customize-pilot').click();
   await expect(page.getByTestId('uae-pilot-budget')).toHaveValue('40');
   await expect(page.getByTestId('uae-pilot-floor')).toHaveValue('20');
-  await expect(page.getByText(/points in the pilot/)).toBeVisible();
-  await expect(page.getByTestId('uae-activate')).toBeEnabled();
 });

@@ -54,6 +54,7 @@ const curveTotals = (requested: number): number[] => {
 
 export const StepDesign = ({ plan, update }: Props) => {
   const [advanced, setAdvanced] = useState(false);
+  const [customPilot, setCustomPilot] = useState(false);
   const isCustom = !PRECISION_PRESETS.some((p) => Math.abs(plan.targetCv - p.cv) < 1e-9);
   const designs = designsOf(plan);
   const pilot = planNeedsPilot(plan);
@@ -82,44 +83,55 @@ export const StepDesign = ({ plan, update }: Props) => {
           design from what the pilot found, and the points already annotated count towards it.
         </StepHeading>
 
-        <div className="flex flex-wrap items-start gap-6">
-          <Field
-            label="Budget per class"
-            hint="What the pilot buys per class, then spread by how much of the map each covers."
-            className="w-[15rem]"
+        {!customPilot ? (
+          <button
+            type="button"
+            onClick={() => setCustomPilot(true)}
+            className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4 cursor-pointer self-start"
+            data-testid="uae-customize-pilot"
           >
-            <Input
-              type="number"
-              size="sm"
-              min={5}
-              max={500}
-              step={5}
-              value={plan.pilotBudgetPerClass}
-              onChange={(e) =>
-                update({ pilotBudgetPerClass: Number(e.target.value), overrides: {} })
-              }
-              data-testid="uae-pilot-budget"
-            />
-          </Field>
-          <Field
-            label="Floor per class"
-            hint="No class falls below this, however little of the map it covers."
-            className="w-[15rem]"
-          >
-            <Input
-              type="number"
-              size="sm"
-              min={0}
-              max={500}
-              step={5}
-              value={plan.pilotFloorPerClass}
-              onChange={(e) =>
-                update({ pilotFloorPerClass: Number(e.target.value), overrides: {} })
-              }
-              data-testid="uae-pilot-floor"
-            />
-          </Field>
-        </div>
+            Customize the pilot
+          </button>
+        ) : (
+          <div className="flex flex-wrap items-start gap-6">
+            <Field
+              label="Budget per class"
+              hint="What the pilot buys per class, then spread by how much of the map each covers."
+              className="w-[15rem]"
+            >
+              <Input
+                type="number"
+                size="sm"
+                min={5}
+                max={500}
+                step={5}
+                value={plan.pilotBudgetPerClass}
+                onChange={(e) =>
+                  update({ pilotBudgetPerClass: Number(e.target.value), overrides: {} })
+                }
+                data-testid="uae-pilot-budget"
+              />
+            </Field>
+            <Field
+              label="Floor per class"
+              hint="No class falls below this, however little of the map it covers."
+              className="w-[15rem]"
+            >
+              <Input
+                type="number"
+                size="sm"
+                min={0}
+                max={500}
+                step={5}
+                value={plan.pilotFloorPerClass}
+                onChange={(e) =>
+                  update({ pilotFloorPerClass: Number(e.target.value), overrides: {} })
+                }
+                data-testid="uae-pilot-floor"
+              />
+            </Field>
+          </div>
+        )}
 
         {designs.map((design) => (
           <div key={design.domain.id} className="space-y-2">

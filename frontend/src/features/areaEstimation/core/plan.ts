@@ -110,12 +110,6 @@ export interface AreaEstimationPlan {
   overrides: Record<string, number>;
   /** Set when the design has been turned into a sample the campaign works on. */
   activatedAt: string | null;
-  /**
-   * The task set the sample lives in. It belongs to the design: nothing else
-   * may add tasks to it, because every task in it carries a known inclusion
-   * probability and an ad-hoc addition would break that.
-   */
-  taskSetId: number | null;
 }
 
 export const emptyPlan = (): AreaEstimationPlan => ({
@@ -139,7 +133,6 @@ export const emptyPlan = (): AreaEstimationPlan => ({
   pilotFloorPerClass: DEFAULT_PILOT_FLOOR_PER_CLASS,
   overrides: {},
   activatedAt: null,
-  taskSetId: null,
 });
 
 /** A population that gets its own precision target and its own strata. */

@@ -16,7 +16,6 @@ import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath, projectPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
-import { AreaEstimationTab } from '~/features/areaEstimation/AreaEstimation';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -37,7 +36,7 @@ import {
   updateCampaignBbox,
 } from '~/api/client';
 
-const SETTINGS_TABS = ['general', 'imagery', 'timeseries', 'area-estimation'] as const;
+const SETTINGS_TABS = ['general', 'imagery', 'timeseries'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 const isSettingsTab = (t: string | null): t is SettingsTab =>
@@ -490,7 +489,6 @@ export const CampaignSettingsPage = () => {
                 { id: 'general', label: 'General Settings' },
                 { id: 'imagery', label: 'Imagery' },
                 { id: 'timeseries', label: 'Timeseries' },
-                { id: 'area-estimation', label: 'Area Estimation' },
               ]}
               activeId={activeTab}
               onChange={setActiveTab}
@@ -538,9 +536,6 @@ export const CampaignSettingsPage = () => {
                       campaignMode={campaign.mode || 'tasks'}
                       campaignSettings={campaign.settings || {}}
                     />
-                  )}
-                  {activeTab === 'area-estimation' && (
-                    <AreaEstimationTab campaignId={campaign.id} />
                   )}
                 </>
               )}

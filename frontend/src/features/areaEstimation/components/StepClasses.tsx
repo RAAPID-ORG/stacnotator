@@ -10,8 +10,6 @@ interface Props {
   update: (patch: Partial<AreaEstimationPlan>) => void;
 }
 
-const NEW_CLASS = '__new__';
-
 export const StepClasses = ({ plan, update }: Props) => {
   const unassigned = unassignedValues(plan);
   const totalPixels = pixelsFor(
@@ -38,19 +36,15 @@ export const StepClasses = ({ plan, update }: Props) => {
       });
       return;
     }
-    const label = plan.values.find((v) => v.value === value)?.label || `Value ${value}`;
     const stripped = plan.classes.map((c) => ({
       ...c,
       values: c.values.filter((v) => v !== value),
     }));
-    const classes =
-      toClassId === NEW_CLASS
-        ? [...stripped, { id: `class-${value}-${stripped.length}`, name: label, values: [value] }]
-        : stripped.map((c) => (c.id === toClassId ? { ...c, values: [...c.values, value] } : c));
     update({
       noDataValues: plan.noDataValues.filter((v) => v !== value),
-      classes: classes.filter((c) => c.values.length > 0 || c.id === toClassId),
-      targetClassId: plan.targetClassId,
+      classes: stripped.map((c) =>
+        c.id === toClassId ? { ...c, values: [...c.values, value] } : c
+      ),
       overrides: {},
     });
   };
@@ -183,7 +177,6 @@ export const StepClasses = ({ plan, update }: Props) => {
                             {c.name || 'Unnamed class'}
                           </option>
                         ))}
-                        <option value={NEW_CLASS}>+ A class of its own</option>
                         <option value={NO_DATA_CLASS_ID}>Nodata - not a class</option>
                       </Select>
                     </td>

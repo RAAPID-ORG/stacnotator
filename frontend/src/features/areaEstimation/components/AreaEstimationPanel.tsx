@@ -18,15 +18,25 @@ import { formatArea, formatCount, formatPercent } from './format';
  * must not see them: knowing the running total is exactly the kind of thing
  * that pulls a borderline label one way.
  */
-export const AreaEstimationPanel = ({ campaignId }: { campaignId: number }) => {
+/** Stands in until annotation counts come from the backend. */
+const PREVIEW_FRACTION = 0.4;
+
+export const AreaEstimationPanel = ({
+  campaignId,
+  taskSetId,
+  taskSetName,
+}: {
+  campaignId: number;
+  taskSetId: number;
+  taskSetName?: string;
+}) => {
   const [plan, setPlan] = useState<AreaEstimationPlan | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
-  const [preview, setPreview] = useState(0.4);
 
   useEffect(() => {
     let cancelled = false;
-    void loadPlan(campaignId).then((stored) => {
+    void loadPlan(campaignId, taskSetId).then((stored) => {
       if (cancelled) return;
       setPlan(stored);
       setLoading(false);
@@ -34,18 +44,18 @@ export const AreaEstimationPanel = ({ campaignId }: { campaignId: number }) => {
     return () => {
       cancelled = true;
     };
-  }, [campaignId]);
+  }, [campaignId, taskSetId]);
 
   useEffect(() => {
     if (!plan || !plan.activatedAt) return;
     let cancelled = false;
-    void loadProgress(campaignId, plan, preview).then((p) => {
+    void loadProgress(taskSetId, plan, PREVIEW_FRACTION).then((p) => {
       if (!cancelled) setProgress(p);
     });
     return () => {
       cancelled = true;
     };
-  }, [campaignId, plan, preview]);
+  }, [taskSetId, plan]);
 
   if (loading) {
     return (
@@ -65,7 +75,7 @@ export const AreaEstimationPanel = ({ campaignId }: { campaignId: number }) => {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="section-heading">Area estimate</h2>
+        <h2 className="section-heading">{taskSetName ?? 'Area estimate'}</h2>
         <div className="flex items-center gap-2">
           <Badge tone={pilot ? 'yellow' : 'brand'}>{pilot ? 'Pilot running' : 'Sampling'}</Badge>
           <Badge tone="neutral">Admins only</Badge>
@@ -139,23 +149,6 @@ export const AreaEstimationPanel = ({ campaignId }: { campaignId: number }) => {
               />
             );
           })}
-
-          <div className="rounded-lg border border-dashed border-neutral-300 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-wider text-neutral-500">Preview control</p>
-            <p className="mt-1 text-xs text-neutral-500 leading-snug">
-              Annotation counts are not wired to the backend yet. Drag to see how the estimates
-              behave as the sample fills up.
-            </p>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(preview * 100)}
-              onChange={(e) => setPreview(Number(e.target.value) / 100)}
-              className="mt-2 w-full cursor-pointer"
-              aria-label="Preview annotation progress"
-            />
-          </div>
         </div>
       </div>
     </section>

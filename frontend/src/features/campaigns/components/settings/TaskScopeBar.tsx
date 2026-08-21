@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import type { TaskSetOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
-import { IconCheck, IconClose, IconLock, IconPencil, IconTrash } from '~/shared/ui/Icons';
+import {
+  IconChart,
+  IconCheck,
+  IconClose,
+  IconLock,
+  IconPencil,
+  IconTrash,
+} from '~/shared/ui/Icons';
 import { LOCKED_TASK_SET_REASON } from '~/features/areaEstimation/AreaEstimation';
 
 export type TaskScope = 'all' | number;
@@ -15,8 +22,10 @@ interface Props {
   onCreateSet?: (name: string) => Promise<number | null>;
   onRenameSet?: (id: number, name: string) => Promise<void>;
   onDeleteSet?: (id: number) => Promise<boolean>;
-  /** A set owned by another feature, which nothing here may rename or delete. */
-  lockedSetId?: number | null;
+  /** Sets owned by another feature, which nothing here may rename or delete. */
+  lockedSetIds?: ReadonlySet<number>;
+  /** Omitted for a viewer, or where area estimation is not on offer. */
+  onCreateAreaEstimationSet?: (name: string) => Promise<number | null>;
 }
 
 import { pillCls } from '~/shared/ui/pill';
@@ -29,9 +38,11 @@ export const TaskScopeBar = ({
   onCreateSet,
   onRenameSet,
   onDeleteSet,
-  lockedSetId,
+  lockedSetIds,
+  onCreateAreaEstimationSet,
 }: Props) => {
-  const [creating, setCreating] = useState(false);
+  // Which kind of set the inline name field is about to create.
+  const [creating, setCreating] = useState<'plain' | 'area' | null>(null);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -43,7 +54,7 @@ export const TaskScopeBar = ({
 
   const cancelCreate = () => {
     setNewName('');
-    setCreating(false);
+    setCreating(null);
   };
 
   const handleCreate = async () => {
@@ -51,10 +62,11 @@ export const TaskScopeBar = ({
     if (!name) return;
     setSaving(true);
     try {
-      const id = await onCreateSet?.(name);
+      const create = creating === 'area' ? onCreateAreaEstimationSet : onCreateSet;
+      const id = await create?.(name);
       if (id != null) {
         setNewName('');
-        setCreating(false);
+        setCreating(null);
         onSelect(id);
       }
     } finally {
@@ -87,7 +99,7 @@ export const TaskScopeBar = ({
       </button>
       {taskSets.map((set) => {
         const active = scope === set.id;
-        const locked = set.id === lockedSetId;
+        const locked = lockedSetIds?.has(set.id) ?? false;
         if (renamingId === set.id) {
           return (
             <span key={set.id} className="flex items-center gap-1">
@@ -155,7 +167,7 @@ export const TaskScopeBar = ({
               if (e.key === 'Enter') handleCreate();
               if (e.key === 'Escape') cancelCreate();
             }}
-            placeholder="Set name"
+            placeholder={creating === 'area' ? 'Area estimate name' : 'Set name'}
             className="h-8 px-3 border border-brand-400 rounded-full text-sm"
             autoFocus
           />
@@ -180,14 +192,27 @@ export const TaskScopeBar = ({
           </button>
         </span>
       ) : (
-        <button
-          type="button"
-          className={`${pillCls(false)} border-dashed`}
-          onClick={() => setCreating(true)}
-          data-testid="scope-new-set"
-        >
-          + New set
-        </button>
+        <>
+          <button
+            type="button"
+            className={`${pillCls(false)} border-dashed`}
+            onClick={() => setCreating('plain')}
+            data-testid="scope-new-set"
+          >
+            + New set
+          </button>
+          {onCreateAreaEstimationSet && (
+            <button
+              type="button"
+              className={`${pillCls(false)} border-dashed`}
+              onClick={() => setCreating('area')}
+              data-testid="scope-new-area-set"
+            >
+              <IconChart className="w-3.5 h-3.5" />
+              Area estimate
+            </button>
+          )}
+        </>
       )}
 
       <ConfirmDialog

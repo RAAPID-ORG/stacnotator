@@ -194,9 +194,9 @@ export const VectorLayersEditor = ({ campaignId }: VectorLayersEditorProps) => {
               <li>
                 Must be a{' '}
                 <strong className="font-medium text-neutral-600">PMTiles vector archive</strong>{' '}
-                (`.pmtiles`) — read directly by the browser, no tiler required.
+                (`.pmtiles`) -read directly by the browser, no tiler required.
               </li>
-              <li>Reachable over HTTPS — a public URL, or one that includes a SAS token.</li>
+              <li>Reachable over HTTPS -a public URL, or one that includes a SAS token.</li>
               <li>
                 Set a source layer to render just one layer inside the archive; leave blank for all.
               </li>

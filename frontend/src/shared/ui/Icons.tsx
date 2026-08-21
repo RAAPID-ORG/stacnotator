@@ -199,6 +199,12 @@ export const IconFlag = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconChart = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M3 17V9M8 17V4M13 17v-5M18 17V7" />
+  </svg>
+);
+
 export const IconLock = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <rect x="4" y="9" width="12" height="8" rx="1.5" />

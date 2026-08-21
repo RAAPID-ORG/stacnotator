@@ -173,7 +173,7 @@ export const LabellingPolicyEditor = ({
   };
 
   return (
-    <div className="space-y-3">
+    <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
       {AXES.map((axis) => {
         const audience = value[axis.key] ?? emptyAudience;
         const kinds = new Set(audience.kinds ?? []);
@@ -182,10 +182,7 @@ export const LabellingPolicyEditor = ({
         const isNoOne = kinds.size === 0 && selectedMemberIds.size === 0;
 
         return (
-          <div
-            key={axis.key}
-            className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 space-y-3"
-          >
+          <li key={axis.key} className="py-4 space-y-3">
             <div>
               <h3 className="text-sm font-medium text-neutral-900">{axis.title}</h3>
               <p className="text-xs text-neutral-500 mt-0.5">{axis.description}</p>
@@ -235,7 +232,7 @@ export const LabellingPolicyEditor = ({
             </div>
 
             {members !== undefined && membersEnabled && (
-              <div className="rounded-md border border-neutral-200 bg-white p-2.5 max-h-40 overflow-y-auto space-y-1">
+              <div className="rounded-md border border-neutral-200 p-2.5 max-h-40 overflow-y-auto space-y-1">
                 {members.length === 0 ? (
                   <p className="text-xs text-neutral-400">No members in this project yet.</p>
                 ) : (
@@ -260,10 +257,10 @@ export const LabellingPolicyEditor = ({
             {isNoOne && (
               <p className="text-xs text-neutral-400 italic">No one - this axis is disabled.</p>
             )}
-          </div>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 };
 
