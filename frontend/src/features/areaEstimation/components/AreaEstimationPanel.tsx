@@ -7,7 +7,7 @@ import type { AreaEstimates } from '../core/estimate';
 import { estimateAreas } from '../core/estimate';
 import type { AreaEstimationPlan } from '../core/plan';
 import { domainsOf, planNeedsPilot } from '../core/plan';
-import { Explain, Note } from './Explain';
+import { Note, SubHeading } from './Explain';
 import { formatArea, formatCount, formatPercent } from './format';
 
 /**
@@ -99,21 +99,8 @@ export const AreaEstimationPanel = ({ campaignId }: { campaignId: number }) => {
             </Note>
           )}
 
-          {domains.map((domain) => {
-            const samples = progress?.samples[domain.id] ?? [];
-            if (samples.length === 0) return null;
-            const estimates = estimateAreas(samples, classIds, plan.raster?.areaPerPixel ?? 0);
-            return (
-              <EstimateTable
-                key={domain.id}
-                title={domains.length > 1 ? domain.name : null}
-                plan={plan}
-                estimates={estimates}
-              />
-            );
-          })}
-
-          <Explain
+          <SubHeading
+            title="Reading these numbers"
             technical={
               <p>
                 Areas come from the stratified estimator: p̂<sub>k</sub> = Σ W<sub>i</sub>
@@ -127,7 +114,21 @@ export const AreaEstimationPanel = ({ campaignId }: { campaignId: number }) => {
             Each row is what the annotated points say the area really is, with the range it could
             plausibly be. Where the map column sits outside that range, the map was systematically
             over- or under-calling that class.
-          </Explain>
+          </SubHeading>
+
+          {domains.map((domain) => {
+            const samples = progress?.samples[domain.id] ?? [];
+            if (samples.length === 0) return null;
+            const estimates = estimateAreas(samples, classIds, plan.raster?.areaPerPixel ?? 0);
+            return (
+              <EstimateTable
+                key={domain.id}
+                title={domains.length > 1 ? domain.name : null}
+                plan={plan}
+                estimates={estimates}
+              />
+            );
+          })}
 
           <div className="rounded-lg border border-dashed border-neutral-300 px-4 py-3">
             <p className="text-[11px] uppercase tracking-wider text-neutral-500">Preview control</p>

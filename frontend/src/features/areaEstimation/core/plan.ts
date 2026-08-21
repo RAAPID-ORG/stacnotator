@@ -342,7 +342,7 @@ export const PLAN_STEPS: { id: PlanStep; name: string }[] = [
   { id: 'data', name: 'Map & areas' },
   { id: 'classes', name: 'Classes' },
   { id: 'target', name: 'Precision' },
-  { id: 'prior', name: 'What we know' },
+  { id: 'prior', name: 'Priors' },
   { id: 'design', name: 'Design' },
 ];
 

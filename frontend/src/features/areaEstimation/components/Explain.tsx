@@ -1,3 +1,9 @@
+/**
+ * The small pieces every screen of this feature is written with: headings that
+ * can explain themselves, notes, and the choice card. There is no standalone
+ * explainer component - an explanation belongs to the text it explains, so the
+ * headings carry it.
+ */
 import { useState, type ReactNode } from 'react';
 
 interface Explanation {
@@ -42,18 +48,6 @@ const useLearnMore = ({ technical, source }: Explanation) => {
         </div>
       ) : null,
   };
-};
-
-/** An aside a step raises itself, rather than one attached to its heading. */
-export const Explain = ({ children, technical, source }: Explanation & { children: ReactNode }) => {
-  const { inlineLink, expansion } = useLearnMore({ technical, source });
-  return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-[13px] leading-relaxed text-blue-900">
-      {children}
-      {inlineLink}
-      {expansion}
-    </div>
-  );
 };
 
 export const Note = ({ tone, children }: { tone: 'warning' | 'error'; children: ReactNode }) => (

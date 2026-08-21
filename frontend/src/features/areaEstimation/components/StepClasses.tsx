@@ -62,10 +62,10 @@ export const StepClasses = ({ plan, update }: Props) => {
         }
         source="Olofsson et al. (2014), Section 2.1.1 on aggregating classes into strata."
       >
-        The classes you publish do not have to be the classes the map produced. Group them here. For
-        example, if your map separates winter wheat, barley and rye but you publish a single{' '}
-        <em>winter cereals</em> number, merge them into one class here. Fewer, larger classes need
-        fewer sample points to reach the same precision.
+        The classes you publish your statics on do not necesarrily have to be the classes the map
+        produced. Group them here. For example, if your map separates winter wheat, barley and rye
+        but you publish a single <em>winter cereals</em> number, merge them into one class here.
+        Fewer, larger classes need fewer sample points to reach the same precision.
       </StepHeading>
 
       <section className="space-y-3">
@@ -199,8 +199,8 @@ export const StepClasses = ({ plan, update }: Props) => {
                 title="Leave them out of the study area"
                 testId="uae-nodata-exclude"
               >
-                Right when the nodata pixels are outside what you report on -sea, another country,
-                permanent cloud. Your total then covers the mapped part only.
+                Right when the nodata pixels are outside what you report on - i.e sea, outside of
+                your area of interest etc.
               </ChoiceCard>
               <ChoiceCard
                 selected={plan.noDataHandling === 'stratum'}
@@ -208,8 +208,7 @@ export const StepClasses = ({ plan, update }: Props) => {
                 title="Sample them as their own group"
                 testId="uae-nodata-stratum"
               >
-                Right when they are land inside your country that the map simply failed on. Points
-                land there too, so crop that the map missed still reaches your total.
+                Right when they are land inside your country that the map simply failed on.
               </ChoiceCard>
             </div>
           </>

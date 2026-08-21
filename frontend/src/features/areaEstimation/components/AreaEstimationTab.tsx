@@ -10,7 +10,7 @@ import { clearPlan, loadPlan, savePlan } from '../api';
 import type { AreaEstimationPlan } from '../core/plan';
 import { designsOf, emptyPlan, planNeedsPilot, totalPoints, validatePlan } from '../core/plan';
 import { AREA_ESTIMATION_TASK_SET_NAME } from '../taskSet';
-import { Explain, StepHeading } from './Explain';
+import { StepHeading } from './Explain';
 import { PlanWizard } from './PlanWizard';
 import { formatCount, formatPercent } from './format';
 
@@ -144,12 +144,8 @@ export const AreaEstimationTab = ({ campaignId, onTaskSetsChanged }: Props) => {
 
 const Intro = ({ onStart }: { onStart: () => void }) => (
   <div className="space-y-6">
-    <StepHeading title="Unbiased area estimation">
-      Turn this campaign into a statistically defensible area estimate: how much cropland, forest or
-      built-up land there really is, with a confidence interval you can publish.
-    </StepHeading>
-
-    <Explain
+    <StepHeading
+      title="Unbiased area estimation"
       technical={
         <p>
           The campaign becomes the response design of a stratified random sample. The map supplies
@@ -159,10 +155,12 @@ const Intro = ({ onStart }: { onStart: () => void }) => (
       }
       source="Following Olofsson et al. (2014), Remote Sensing of Environment 148, 42-57."
     >
-      You supply a classified map and the areas you report on. The tool works out how many points to
-      check and where, annotators check them, and the area comes out of what they saw -with an
-      honest margin of error. The map only makes the sample efficient; it never enters the answer.
-    </Explain>
+      Turn this campaign into a statistically defensible area estimate: how much cropland, forest or
+      built-up land there really is, with a confidence interval you can publish. You supply a
+      classified map and the areas you report on, the tool works out how many points to check and
+      where, and the area comes out of what annotators saw. The map only makes the sample efficient;
+      it never enters the answer.
+    </StepHeading>
 
     <ol className="space-y-2 text-sm text-neutral-700">
       {[

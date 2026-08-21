@@ -7,7 +7,7 @@ import { stratumWeights } from '../core/design';
 import { SAMPLE_FLOOR_RATIONALE } from '../core/guidance';
 import type { AreaEstimationPlan, DomainDesign } from '../core/plan';
 import { designsOf, planNeedsPilot, totalPoints } from '../core/plan';
-import { Explain, Note, StepHeading, SubHeading } from './Explain';
+import { Note, StepHeading, SubHeading } from './Explain';
 import { formatCount, formatPercent } from './format';
 
 interface Props {
@@ -52,12 +52,8 @@ export const StepDesign = ({ plan, update }: Props) => {
   if (pilot) {
     return (
       <div className="space-y-8">
-        <StepHeading title="Pilot sample">
-          Without a usable prior, the campaign starts by measuring the map rather than guessing at
-          it.
-        </StepHeading>
-
-        <Explain
+        <StepHeading
+          title="Pilot sample"
           technical={
             <p>
               A flat budget per stratum with a proportional split gives every stratum enough points
@@ -67,9 +63,10 @@ export const StepDesign = ({ plan, update }: Props) => {
             </p>
           }
         >
-          These points are annotated first. When they are done, this page recomputes the full design
-          from what the pilot found, and the points already annotated count towards it.
-        </Explain>
+          Without a usable prior, the campaign starts by measuring the map rather than guessing at
+          it. These points are annotated first; when they are done, this page recomputes the full
+          design from what the pilot found, and the points already annotated count towards it.
+        </StepHeading>
 
         <Field
           label="Points per class in the pilot"
@@ -106,8 +103,22 @@ export const StepDesign = ({ plan, update }: Props) => {
 
   return (
     <div className="space-y-8">
-      <StepHeading title="Sample design">
-        How many points to annotate, and where they go. Everything here is editable.
+      <StepHeading
+        title="Sample design"
+        technical={
+          <p>
+            Expected precision is √(Σ W<sub>i</sub>² S<sub>i</sub>² / n<sub>i</sub>) divided by the
+            expected proportion, the design-stage form of the stratified standard error. It is an
+            anticipation under the assumed error matrix, not a guarantee: the interval you finally
+            publish comes from the annotated points.
+          </p>
+        }
+        source="Olofsson et al. (2014), Eq. 10 and Table 7."
+      >
+        How many points to annotate, and where they go. Everything here is editable. The precision
+        shown is what this design should deliver <em>if the map behaves as you said it would</em> on
+        the previous step; the real interval is computed from the annotated points and appears on
+        the campaign overview as work progresses.
       </StepHeading>
 
       <section className="space-y-3">
@@ -203,22 +214,6 @@ export const StepDesign = ({ plan, update }: Props) => {
       ))}
 
       <TotalsBar total={total} />
-
-      <Explain
-        technical={
-          <p>
-            Expected precision is √(Σ W<sub>i</sub>² S<sub>i</sub>² / n<sub>i</sub>) divided by the
-            expected proportion, the design-stage form of the stratified standard error. It is an
-            anticipation under the assumed error matrix, not a guarantee: the interval you finally
-            publish comes from the annotated points.
-          </p>
-        }
-        source="Olofsson et al. (2014), Eq. 10 and Table 7."
-      >
-        The precision shown is what this design should deliver{' '}
-        <em>if the map behaves as you said it would</em> on the previous step. The real interval is
-        computed from the annotated points and appears on the campaign overview as work progresses.
-      </Explain>
     </div>
   );
 };

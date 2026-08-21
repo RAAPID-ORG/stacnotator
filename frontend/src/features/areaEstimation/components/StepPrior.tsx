@@ -3,7 +3,7 @@ import { Input } from '~/shared/ui/forms';
 import { PRIOR_SOURCES, priorSource, type PriorFit, type PriorSourceId } from '../core/guidance';
 import type { AreaEstimationPlan } from '../core/plan';
 import { defaultCorrectShare, planNeedsPilot } from '../core/plan';
-import { ChoiceCard, Explain, Note, StepHeading, SubHeading } from './Explain';
+import { ChoiceCard, Note, StepHeading, SubHeading } from './Explain';
 
 interface Props {
   plan: AreaEstimationPlan;
@@ -35,12 +35,8 @@ export const StepPrior = ({ plan, update }: Props) => {
 
   return (
     <div className="space-y-8">
-      <StepHeading title="What do you already know about this map?">
-        To decide how many points each group needs, the tool needs a rough idea of how often the map
-        is right. A poor guess costs you a wider confidence interval, never a wrong answer.
-      </StepHeading>
-
-      <Explain
+      <StepHeading
+        title="What do you already know about this map?"
         technical={
           <>
             <p>
@@ -58,10 +54,11 @@ export const StepPrior = ({ plan, update }: Props) => {
         }
         source="Olofsson et al. (2014), Sections 2.2 and 5.1.1."
       >
-        This guess is only used to spread the points sensibly. It is <strong>not</strong> used to
-        compute your published area, so an optimistic or pessimistic guess cannot make your numbers
-        wrong.
-      </Explain>
+        To decide how many points each group needs, the tool needs a rough idea of how often the map
+        is right. That guess is only used to spread the points sensibly; it is <strong>not</strong>{' '}
+        used to compute your published area, so an optimistic or pessimistic guess costs you a wider
+        confidence interval, never a wrong answer.
+      </StepHeading>
 
       <section className="space-y-2">
         <SubHeading title="Where does your knowledge come from?" />
@@ -139,7 +136,8 @@ export const StepPrior = ({ plan, update }: Props) => {
       )}
 
       {plan.priorSourceId === 'none' && (
-        <Explain
+        <SubHeading
+          title="Starting with a pilot"
           technical={
             <p>
               The pilot is the first phase of a two-phase design. Its points are drawn from the same
@@ -153,7 +151,7 @@ export const StepPrior = ({ plan, update }: Props) => {
           annotated the tool measures how accurate the map actually is and proposes the full sample
           from real numbers. <strong>Pilot points are kept</strong> and count towards the final
           total.
-        </Explain>
+        </SubHeading>
       )}
     </div>
   );
