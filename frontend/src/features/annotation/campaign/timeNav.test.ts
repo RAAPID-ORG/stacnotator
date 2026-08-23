@@ -263,7 +263,34 @@ describe('visualization carried across navigation', () => {
     expect(collectionAddress(mvCat, 11, mvAddr(12, 0, '901'))).toEqual(mvAddr(11, 0, '900'));
   });
 
-  it('collectionAddress resets to the target source default when switching sources', () => {
+  it('collectionAddress carries the visualization into another source by name', () => {
+    const other = makeSource({
+      id: 2,
+      name: 'Other',
+      visualizations: [
+        makeViz({ id: 20, name: 'True Color' }),
+        makeViz({ id: 21, name: 'False Color' }),
+      ],
+      collections: [
+        makeCollection({
+          id: 300,
+          name: 'C',
+          slices: [makeSlice({ id: 3000, tile_urls: [trueColor, falseColor] })],
+        }),
+      ],
+    });
+    const multiSourceCat = buildImageryCatalog(
+      makeCampaign({ imagery_sources: [mvSource, other] })
+    );
+    expect(collectionAddress(multiSourceCat, 300, mvAddr(10, 0, '901'))).toEqual({
+      sourceId: 2,
+      collectionId: 300,
+      sliceIndex: 0,
+      vizId: '21',
+    });
+  });
+
+  it('collectionAddress falls back when the other source has no such visualization', () => {
     const other = makeSource({
       id: 2,
       name: 'Other',

@@ -20,8 +20,10 @@ import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
 // ---------------------------------------------------------------------------
 
 /** The address this window shows: the shared one when it is the active
- *  collection, else its own remembered slice (falling back to the
- *  collection's cover) over the collection's default source/visualization. */
+ *  collection, else its own remembered slice (falling back to the collection's
+ *  cover) rendered the way the page is being rendered - a visualization is a
+ *  way of looking at imagery, so picking one applies to every window that
+ *  publishes it, not only the map it was picked on. */
 export function windowAddress(
   catalog: ImageryCatalog,
   imagery: Pick<ImageryState, 'address' | 'windowSlices'>,
@@ -29,7 +31,7 @@ export function windowAddress(
 ): SliceAddress | null {
   if (imagery.address?.collectionId === collectionId) return imagery.address;
   const remembered = imagery.windowSlices[collectionId]?.selected;
-  return collectionAddress(catalog, collectionId, null, remembered);
+  return collectionAddress(catalog, collectionId, imagery.address, remembered);
 }
 
 /** Remember the pick and activate that exact address. The passed imagery is a
