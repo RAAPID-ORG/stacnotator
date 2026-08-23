@@ -16,8 +16,7 @@ import { SkeletonRows } from '~/shared/ui/Skeleton';
 import { listRowCls } from '~/shared/ui/listRow';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
-import { FeedbackList } from './FeedbackList';
-import { visualizerPath, visualizerUrl } from './route';
+import { visualizerFeedbackPath, visualizerPath, visualizerUrl } from './route';
 import { VisualizerEditor } from './VisualizerEditor';
 
 /**
@@ -34,7 +33,6 @@ export function ProjectVisualizersSection({
 }) {
   const [items, setItems] = useState<VisualizerListItemOut[] | null>(null);
   const [editing, setEditing] = useState<{ id: number | null } | null>(null);
-  const [readingFeedback, setReadingFeedback] = useState<VisualizerListItemOut | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const showAlert = useLayoutStore((s) => s.showAlert);
@@ -150,16 +148,17 @@ export function ProjectVisualizersSection({
 
               <div className="flex shrink-0 items-center gap-1">
                 {canManage && item.feedback_count > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setReadingFeedback(item)}
-                    title={`${item.feedback_count} feedback`}
+                  <a
+                    href={visualizerFeedbackPath(item.slug)}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`Read ${item.feedback_count} feedback on the map`}
                     data-testid="visualizer-feedback-count"
                     className="flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800"
                   >
                     <IconComment className="h-3.5 w-3.5" />
                     <span className="tabular-nums">{item.feedback_count}</span>
-                  </button>
+                  </a>
                 )}
                 <RowButton label="Copy link" onClick={() => copyLink(item)}>
                   {copied === item.id ? (
@@ -191,16 +190,6 @@ export function ProjectVisualizersSection({
             </div>
           ))}
         </div>
-      )}
-
-      {readingFeedback && (
-        <FeedbackList
-          visualizerId={readingFeedback.id}
-          visualizerName={readingFeedback.name}
-          slug={readingFeedback.slug}
-          onClose={() => setReadingFeedback(null)}
-          onChanged={() => void load()}
-        />
       )}
 
       {editing && (

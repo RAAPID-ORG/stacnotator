@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Toaster } from 'sonner';
-import { getSharedVisualizer, getVisualizerTilerToken, type VisualizerViewOut } from '~/api/client';
+import {
+  deleteVisualizerFeedback,
+  getSharedVisualizer,
+  getVisualizerTilerToken,
+  listVisualizerFeedback,
+  type VisualizerFeedbackOut,
+  type VisualizerViewOut,
+} from '~/api/client';
 import { ensureTilerSession, setTilerSessionMinter } from '~/api/tilerToken';
 import { Camera } from '~/shared/map/Camera';
 import { MapView } from '~/shared/map/MapView';
+import { useOverviewFollow } from '~/shared/map/minimap/follow';
 import type { GeocodingResult } from '~/shared/map/geocoding';
 import type { Bbox } from '~/shared/map/types';
 import { Badge } from '~/shared/ui/Badge';
@@ -17,8 +25,11 @@ import {
   IconMap,
 } from '~/shared/ui/Icons';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
-import { visualizerUrl } from './route';
+import { handleError } from '~/shared/utils/errorHandler';
+import { FEEDBACK_HASH, visualizerUrl } from './route';
 import { FeedbackPanel } from './viewer/FeedbackPanel';
+import { feedbackAreasLayer, feedbackBounds } from './viewer/feedbackAreas';
+import { FeedbackReview } from './viewer/FeedbackReview';
 import { TimeSlider } from './viewer/TimeSlider';
 import { ViewerSidebar } from './viewer/ViewerSidebar';
 import {
@@ -26,6 +37,7 @@ import {
   composeLayers,
   initialState,
   needsTilerSession,
+  restoreViewing,
   selectStep,
   workingZoom,
   zoomedPastArea,
@@ -34,6 +46,10 @@ import {
 
 const WORLD = { center: [0, 20] as [number, number], zoom: 2 };
 const AREA_PADDING_PX = 24;
+
+/** Close enough to see what a remark is about, far enough to still recognise
+ *  where it is - a box can be a few metres across. */
+const FEEDBACK_ZOOM_CAP = 17;
 
 /**
  * A visualizer, full screen and on its own.
@@ -53,7 +69,14 @@ export function VisualizerPage({ slug }: { slug: string }) {
   );
   const camera = useRef<Camera>(null);
   camera.current ??= new Camera(WORLD);
+  // The panel's overview follows this one; it is owned here so collapsing the
+  // panel does not throw away where the overview was looking.
+  const overview = useRef<Camera>(null);
+  overview.current ??= new Camera(WORLD);
   const [feedback, setFeedback] = useState<FeedbackMode>(null);
+  // Reviewing is reading the pile back on the map it is about; giving is the
+  // one-box form above. Only whoever can edit the visualizer gets the former.
+  const [review, setReview] = useState<Review | null>(null);
 
   const frameArea = (animateMs?: number) => {
     const area = view?.area;
@@ -120,7 +143,67 @@ export function VisualizerPage({ slug }: { slug: string }) {
     if (view) document.title = `${view.name} - STACNotator`;
   }, [view]);
 
+  // Linked to from the project page, so a reviewer lands on the map with the
+  // pile already open rather than having to find it.
+  useEffect(() => {
+    if (view?.can_edit && window.location.hash === FEEDBACK_HASH) void openReview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
   const source = view && state ? activeSource(view, state) : null;
+
+  const openReview = async () => {
+    if (!view) return;
+    try {
+      const { data } = await listVisualizerFeedback({ path: { visualizer_id: view.id } });
+      const items = data ?? [];
+      setReview({ items, selectedId: null });
+      if (items[0]) selectFeedback(items[0]);
+    } catch (error) {
+      handleError(error, 'Failed to load feedback');
+    }
+  };
+
+  const selectFeedback = (entry: VisualizerFeedbackOut) => {
+    setReview((current) => (current ? { ...current, selectedId: entry.id } : current));
+    setState((current) =>
+      view && current ? restoreViewing(view, current, entry.viewing) : current
+    );
+    camera.current?.fitBounds(feedbackBounds(entry), {
+      paddingPx: AREA_PADDING_PX,
+      maxZoom: FEEDBACK_ZOOM_CAP,
+      animateMs: 300,
+    });
+  };
+
+  const stepFeedback = (delta: number) => {
+    if (!review?.items.length) return;
+    const at = review.items.findIndex((entry) => entry.id === review.selectedId);
+    const next = review.items[(at + delta + review.items.length) % review.items.length];
+    if (next) selectFeedback(next);
+  };
+
+  const removeFeedback = async (entry: VisualizerFeedbackOut) => {
+    if (!view) return;
+    try {
+      await deleteVisualizerFeedback({
+        path: { visualizer_id: view.id, feedback_id: entry.id },
+      });
+      setReview((current) =>
+        current
+          ? { items: current.items.filter((row) => row.id !== entry.id), selectedId: null }
+          : current
+      );
+    } catch (error) {
+      handleError(error, 'Failed to delete the feedback');
+    }
+  };
+
+  const area = useMemo<Bbox | null>(() => {
+    const a = view?.area;
+    return a ? [a.west, a.south, a.east, a.north] : null;
+  }, [view?.area]);
+  useOverviewFollow(overview.current, camera.current, area);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -138,8 +221,9 @@ export function VisualizerPage({ slug }: { slug: string }) {
 
   const layers = useMemo(() => {
     const drawn = view && state ? composeLayers(view, state) : [];
+    if (review) drawn.push(feedbackAreasLayer(review.items, review.selectedId));
     return feedback?.area ? [...drawn, feedbackAreaLayer(feedback.area)] : drawn;
-  }, [view, state, feedback]);
+  }, [view, state, feedback, review]);
 
   if (failure) {
     return (
@@ -185,6 +269,8 @@ export function VisualizerPage({ slug }: { slug: string }) {
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           feedbackOpen={feedback !== null}
           onToggleFeedback={() => setFeedback((open) => (open ? null : { area: null }))}
+          reviewOpen={review !== null}
+          onToggleReview={() => (review ? setReview(null) : void openReview())}
         />
 
         {/* The panel sits beside the map rather than over it, so the map's own
@@ -252,9 +338,23 @@ export function VisualizerPage({ slug }: { slug: string }) {
               onChange={setState}
               onCollapse={() => setSidebarOpen(false)}
               onGoTo={goTo}
+              camera={camera.current}
+              overview={overview.current}
+              area={area}
             />
           )}
         </div>
+
+        {review && (
+          <FeedbackReview
+            items={review.items}
+            selectedId={review.selectedId}
+            onSelect={selectFeedback}
+            onStep={stepFeedback}
+            onDelete={(entry) => void removeFeedback(entry)}
+            onClose={() => setReview(null)}
+          />
+        )}
       </div>
     </Shell>
   );
@@ -262,6 +362,12 @@ export function VisualizerPage({ slug }: { slug: string }) {
 
 /** Null when not giving feedback; an area of null means "still drawing it". */
 type FeedbackMode = { area: Bbox | null } | null;
+
+/** The pile being read, and which remark of it the map is framed on. */
+interface Review {
+  items: VisualizerFeedbackOut[];
+  selectedId: number | null;
+}
 
 const FEEDBACK_LAYER_ID = 'feedback-area';
 
@@ -345,12 +451,16 @@ function Header({
   onToggleSidebar,
   feedbackOpen,
   onToggleFeedback,
+  reviewOpen,
+  onToggleReview,
 }: {
   view: VisualizerViewOut;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   feedbackOpen: boolean;
   onToggleFeedback: () => void;
+  reviewOpen: boolean;
+  onToggleReview: () => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -377,6 +487,19 @@ function Header({
         <span title="Only people with access to the project can open this link">
           <Badge tone="yellow">Unpublished</Badge>
         </span>
+      )}
+
+      {view.can_edit && (
+        <Button
+          variant={reviewOpen ? 'primary' : 'secondary'}
+          size="sm"
+          onClick={onToggleReview}
+          title="Read what people have said about places on this map"
+          data-testid="visualizer-review-toggle"
+          leading={<IconComment className="h-3.5 w-3.5" />}
+        >
+          <span className="hidden desktop:inline">Review</span>
+        </Button>
       )}
 
       {view.can_give_feedback && (

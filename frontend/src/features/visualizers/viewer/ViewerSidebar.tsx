@@ -1,11 +1,14 @@
 import type { VisualizerViewOut } from '~/api/client';
+import type { Camera } from '~/shared/map/Camera';
 import type { GeocodingResult } from '~/shared/map/geocoding';
 import { LocationSearch } from '~/shared/map/LocationSearch';
+import { Minimap } from '~/shared/map/minimap/Minimap';
+import type { Bbox } from '~/shared/map/types';
 import { RenderLegend } from '~/shared/imagery/RenderLegend';
 import { effectiveRenderConfig, isCustomized } from '~/shared/imagery/tileColors';
 import { IconChevronDoubleRight, IconExternalLink, IconSliders } from '~/shared/ui/Icons';
 import { pillCls } from '~/shared/ui/pill';
-import { activeSource, selectSource, type ViewerState } from '../viewerState';
+import { selectSource, type ViewerState } from '../viewerState';
 
 /**
  * Everything the map is showing, as a list you can reach into: which imagery,
@@ -17,14 +20,19 @@ export function ViewerSidebar({
   onChange,
   onCollapse,
   onGoTo,
+  camera,
+  overview,
+  area,
 }: {
   view: VisualizerViewOut;
   state: ViewerState;
   onChange: (next: ViewerState) => void;
   onCollapse: () => void;
   onGoTo: (result: GeocodingResult) => void;
+  camera: Camera;
+  overview: Camera;
+  area: Bbox | null;
 }) {
-  const source = activeSource(view, state);
   const registering = view.registration_status === 'registering';
 
   return (
@@ -48,60 +56,61 @@ export function ViewerSidebar({
         </button>
       </div>
 
-      <div className="border-b border-neutral-100 px-4 py-2.5">
-        {/* Always expanded: this is the panel's own field, not a map overlay
-            that has to earn its space, and collapsing only clears the query. */}
-        <LocationSearch expanded onExpandedChange={() => {}} onSelect={onGoTo} />
-      </div>
-
       <div className="min-h-0 flex-1 overflow-y-auto">
         {view.imagery.length > 0 && (
           <Section title="Imagery">
             <div className="space-y-1">
-              {view.imagery.map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => onChange(selectSource(view, state, entry.id))}
-                  data-testid="visualizer-source-option"
-                  data-active={entry.id === state.sourceId}
-                  className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${
-                    entry.id === state.sourceId
-                      ? 'bg-brand-50 font-medium text-brand-700'
-                      : 'text-neutral-700 hover:bg-neutral-50'
-                  }`}
-                >
-                  <span className="truncate">{entry.name}</span>
-                  <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">
-                    {entry.steps.length || (registering ? '…' : 0)}
-                  </span>
-                </button>
-              ))}
+              {view.imagery.map((entry) => {
+                const active = entry.id === state.sourceId;
+                return (
+                  <div key={entry.id}>
+                    <button
+                      type="button"
+                      onClick={() => onChange(selectSource(view, state, active ? null : entry.id))}
+                      data-testid="visualizer-source-option"
+                      data-active={active}
+                      title={active ? 'Hide this imagery' : 'Show this imagery'}
+                      className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${
+                        active
+                          ? 'bg-brand-50 font-medium text-brand-700'
+                          : 'text-neutral-700 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <span className="truncate">{entry.name}</span>
+                      <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">
+                        {entry.steps.length || (registering ? '…' : 0)}
+                      </span>
+                    </button>
+
+                    {/* Right under the imagery it belongs to: a visualization is
+                        a property of that source, not of the panel. */}
+                    {active && entry.visualizations.length > 1 && (
+                      <div className="flex flex-wrap gap-1 py-1.5 pl-2.5">
+                        {entry.visualizations.map((name) => (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => onChange({ ...state, visualization: name })}
+                            data-testid="visualizer-viz-option"
+                            className={pillCls(
+                              name === state.visualization,
+                              '!h-6 !px-2 !text-[11px]'
+                            )}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {registering && (
               <p className="mt-2 text-[11px] leading-snug text-amber-700">
                 Imagery is still registering. Dates appear as they finish.
               </p>
-            )}
-
-            {source && source.visualizations.length > 1 && (
-              <div className="mt-3">
-                <Label>Rendering</Label>
-                <div className="flex flex-wrap gap-1.5">
-                  {source.visualizations.map((name) => (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => onChange({ ...state, visualization: name })}
-                      data-testid="visualizer-viz-option"
-                      className={pillCls(name === state.visualization, '!h-7 !px-2.5 !text-xs')}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
-              </div>
             )}
           </Section>
         )}
@@ -248,6 +257,17 @@ export function ViewerSidebar({
             </div>
           </Section>
         )}
+
+        {/* Last, because it is about where you are looking rather than what is
+            drawn: the same overview the annotator has, with the same search. */}
+        <Section title="Location">
+          <div className="space-y-2">
+            <LocationSearch onSelect={onGoTo} />
+            <div className="h-32 overflow-hidden rounded border border-neutral-200">
+              <Minimap camera={overview} main={camera} roi={area} />
+            </div>
+          </div>
+        </Section>
       </div>
     </aside>
   );

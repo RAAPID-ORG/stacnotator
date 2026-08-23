@@ -4515,6 +4515,10 @@ export type VisualizerFeedbackCreate = {
      */
     overlay_id?: number | null;
     /**
+     * Verdict
+     */
+    verdict?: 'good' | 'wrong' | null;
+    /**
      * Suggested Value
      */
     suggested_value?: number | null;
@@ -4553,6 +4557,10 @@ export type VisualizerFeedbackOut = {
      * Layer Name
      */
     layer_name: string | null;
+    /**
+     * Verdict
+     */
+    verdict: 'good' | 'wrong' | null;
     /**
      * Suggested Label
      */

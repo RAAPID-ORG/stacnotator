@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { addVisualizerFeedback, type CategoricalEntry, type VisualizerViewOut } from '~/api/client';
+import {
+  addVisualizerFeedback,
+  type CategoricalEntry,
+  type VisualizerFeedbackCreate,
+  type VisualizerViewOut,
+} from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button, Field, Select, Textarea } from '~/shared/ui/forms';
 import { pillCls } from '~/shared/ui/pill';
@@ -29,13 +34,14 @@ export function FeedbackPanel({
 }) {
   const layers = classifiedOverlays(view);
   const [overlayId, setOverlayId] = useState<number | null>(layers[0]?.id ?? null);
+  const [verdict, setVerdict] = useState<Verdict>(null);
   const [suggested, setSuggested] = useState<CategoricalEntry | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const showAlert = useLayoutStore((s) => s.showAlert);
 
   const layer = layers.find((entry) => entry.id === overlayId) ?? null;
-  const valid = suggested !== null || note.trim().length > 0;
+  const valid = verdict !== null || suggested !== null || note.trim().length > 0;
 
   const submit = async () => {
     setSaving(true);
@@ -45,6 +51,7 @@ export function FeedbackPanel({
         body: {
           area: { west: area[0], south: area[1], east: area[2], north: area[3] },
           overlay_id: layer?.id ?? null,
+          verdict,
           suggested_value: suggested?.value ?? null,
           suggested_label: suggested ? suggested.label || String(suggested.value) : null,
           note: note.trim() || null,
@@ -73,6 +80,28 @@ export function FeedbackPanel({
       </div>
 
       <div className="space-y-3 p-4">
+        {/* Answerable in one click, so feedback can be counted rather than only
+            read. Everything below it stays optional. */}
+        <div className="flex gap-1.5">
+          {VERDICTS.map(({ value, label, idle, on }) => (
+            <button
+              key={value}
+              type="button"
+              data-testid="feedback-verdict"
+              data-value={value}
+              data-active={verdict === value}
+              onClick={() => setVerdict((current) => (current === value ? null : value))}
+              // Never pillCls's own active state: these carry their own colour.
+              className={pillCls(
+                false,
+                `!h-8 flex-1 justify-center !text-xs ${verdict === value ? on : idle}`
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {layers.length > 1 && (
           <Field label="About" htmlFor="feedback-layer">
             <Select
@@ -126,7 +155,7 @@ export function FeedbackPanel({
         <Field
           label="Note"
           htmlFor="feedback-note"
-          hint={layer ? 'Optional once you have picked a class.' : undefined}
+          hint={valid && !note ? 'Optional - add it if there is more to say.' : undefined}
         >
           <Textarea
             id="feedback-note"
@@ -149,6 +178,25 @@ export function FeedbackPanel({
     </div>
   );
 }
+
+type Verdict = VisualizerFeedbackCreate['verdict'];
+
+/** Tinted the way badges and alerts are tinted elsewhere: the colour carries
+ *  the meaning, the border carries the choice. */
+const VERDICTS: { value: NonNullable<Verdict>; label: string; idle: string; on: string }[] = [
+  {
+    value: 'good',
+    label: 'Looks good',
+    idle: '!border-green-200 !text-green-800 hover:!bg-green-50',
+    on: '!border-green-600 !bg-green-50 !text-green-900',
+  },
+  {
+    value: 'wrong',
+    label: 'Looks wrong',
+    idle: '!border-red-200 !text-red-800 hover:!bg-red-50',
+    on: '!border-red-600 !bg-red-50 !text-red-900',
+  },
+];
 
 interface ClassifiedOverlay {
   id: number;

@@ -3,6 +3,7 @@ import type { VisualizerImageryOut, VisualizerStepOut, VisualizerViewOut } from 
 import {
   composeLayers,
   initialState,
+  restoreViewing,
   selectSource,
   selectStep,
   zoomedPastArea,
@@ -129,6 +130,38 @@ describe('selectSource', () => {
   it('falls back to the new source first visualization when it has no match', () => {
     const next = selectSource(both, initialState(both), '2');
     expect(next.visualization).toBe('Natural');
+  });
+});
+
+describe('restoreViewing', () => {
+  const dashed = source({
+    id: '2',
+    name: 'Sentinel-2 - weekly',
+    steps: [step(9, '2024-03-04', '2024-03-10')],
+  });
+  const both = view({ imagery: [source(), dashed] });
+
+  it('puts the map back on the source and date a remark was made about', () => {
+    const state = initialState(both);
+    const restored = restoreViewing(both, state, 'Sentinel-2 - 2024-01-01');
+
+    expect(restored.sourceId).toBe('1');
+    expect(restored.stepIndex).toBe(0);
+  });
+
+  it('reads a source whose own name contains the separator', () => {
+    const restored = restoreViewing(both, initialState(both), 'Sentinel-2 - weekly - 2024-03-04');
+
+    expect(restored.sourceId).toBe('2');
+    expect(restored.stepIndex).toBe(0);
+  });
+
+  it('leaves the map alone when the source or date is gone', () => {
+    const state = initialState(both);
+
+    expect(restoreViewing(both, state, 'Landsat - 2024-01-01')).toBe(state);
+    expect(restoreViewing(both, state, null)).toBe(state);
+    expect(restoreViewing(both, state, 'Sentinel-2 - 1999-01-01').stepIndex).toBe(state.stepIndex);
   });
 });
 

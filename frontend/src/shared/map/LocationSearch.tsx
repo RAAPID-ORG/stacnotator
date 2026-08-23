@@ -5,20 +5,45 @@ import { buildPhotonUrl, parseGeocodingResponse, type GeocodingResult } from './
 const DEBOUNCE_MS = 300;
 const MIN_QUERY_LENGTH = 3;
 
+/** The small control that sits on a map, and the ordinary input that sits in a
+ *  form. Same search, two sizes. */
+const CHROME = {
+  overlay: {
+    root: 'flex items-center min-w-0',
+    icon: 'w-3 h-3 left-1.5',
+    input: 'pl-6 pr-6 py-0.5 text-xs rounded',
+    menu: 'mt-1 max-h-48 rounded text-xs',
+    option: 'px-2 py-1.5',
+  },
+  field: {
+    root: 'w-full',
+    icon: 'w-3.5 h-3.5 left-2.5',
+    input: 'h-8 pl-8 pr-2.5 text-xs rounded-md',
+    menu: 'mt-1 max-h-56 rounded-md text-xs',
+    option: 'px-2.5 py-1.5',
+  },
+} as const;
+
 interface LocationSearchProps {
-  /** Controlled expand state: collapsed renders only the magnifier icon button. */
-  expanded: boolean;
-  onExpandedChange: (expanded: boolean) => void;
   onSelect: (result: GeocodingResult) => void;
+  variant?: keyof typeof CHROME;
+  /** Collapsing is opt-in: pass both and the search shrinks to its magnifier
+   *  when closed. Left out, it is simply always open. */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   className?: string;
 }
 
 export function LocationSearch({
-  expanded,
-  onExpandedChange,
   onSelect,
+  variant = 'overlay',
+  expanded: expandedProp,
+  onExpandedChange,
   className,
 }: LocationSearchProps) {
+  const chrome = CHROME[variant];
+  const collapsible = expandedProp !== undefined;
+  const expanded = expandedProp ?? true;
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<GeocodingResult[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -77,9 +102,11 @@ export function LocationSearch({
     };
   }, [query]);
 
+  // Only when expanding was a deliberate act. A form field that grabs focus on
+  // mount steals it from whatever the form actually starts with.
   useEffect(() => {
-    if (expanded) inputRef.current?.focus();
-  }, [expanded]);
+    if (collapsible && expanded) inputRef.current?.focus();
+  }, [collapsible, expanded]);
 
   const collapse = () => {
     abortRef.current?.abort();
@@ -91,7 +118,7 @@ export function LocationSearch({
     setSuggestions([]);
     setIsOpen(false);
     setIsLoading(false);
-    onExpandedChange(false);
+    onExpandedChange?.(false);
   };
 
   const selectResult = (result: GeocodingResult) => {
@@ -132,11 +159,11 @@ export function LocationSearch({
   };
 
   return (
-    <div className={`flex items-center min-w-0 ${className ?? ''}`}>
-      {!expanded && (
+    <div className={`${chrome.root} ${className ?? ''}`}>
+      {collapsible && !expanded && (
         <button
           type="button"
-          onClick={() => onExpandedChange(true)}
+          onClick={() => onExpandedChange?.(true)}
           onMouseDown={(e) => e.stopPropagation()}
           className="p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
           title="Search location"
@@ -153,11 +180,13 @@ export function LocationSearch({
         <div className="relative">
           {isLoading ? (
             <span
-              className="absolute left-1.5 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin rounded-full border border-neutral-300 border-t-brand-600"
+              className={`absolute top-1/2 -translate-y-1/2 animate-spin rounded-full border border-neutral-300 border-t-brand-600 ${chrome.icon}`}
               data-testid="location-search-loading"
             />
           ) : (
-            <IconSearch className="w-3 h-3 absolute left-1.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            <IconSearch
+              className={`absolute top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none ${chrome.icon}`}
+            />
           )}
           <input
             ref={inputRef}
@@ -170,24 +199,28 @@ export function LocationSearch({
             onFocus={() => setIsOpen(suggestions.length > 0)}
             tabIndex={expanded ? 0 : -1}
             placeholder="Search location…"
-            className="w-full pl-6 pr-6 py-0.5 text-xs font-normal text-neutral-900 bg-white border border-neutral-300 rounded select-text focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400"
+            className={`w-full font-normal text-neutral-900 bg-white border border-neutral-300 select-text focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 ${chrome.input}`}
           />
-          <button
-            type="button"
-            // Runs on mousedown-before-blur, so preventDefault keeps the click
-            // from racing the input's dropdown-closing blur handler.
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={collapse}
-            tabIndex={expanded ? 0 : -1}
-            className="absolute right-0.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
-            title="Close search"
-            data-testid="location-search-close"
-          >
-            <IconClose className="w-3 h-3" />
-          </button>
+          {collapsible && (
+            <button
+              type="button"
+              // Runs on mousedown-before-blur, so preventDefault keeps the click
+              // from racing the input's dropdown-closing blur handler.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={collapse}
+              tabIndex={expanded ? 0 : -1}
+              className="absolute right-0.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
+              title="Close search"
+              data-testid="location-search-close"
+            >
+              <IconClose className="w-3 h-3" />
+            </button>
+          )}
         </div>
         {isOpen && suggestions.length > 0 && (
-          <ul className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-neutral-200 rounded shadow-lg text-xs font-normal z-[1100]">
+          <ul
+            className={`absolute left-0 right-0 overflow-y-auto bg-white border border-neutral-200 shadow-lg font-normal z-[1100] ${chrome.menu}`}
+          >
             {suggestions.map((result, index) => (
               <li key={`${result.label}-${result.center[0]}-${result.center[1]}`}>
                 <button
@@ -195,7 +228,7 @@ export function LocationSearch({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => selectResult(result)}
                   onMouseEnter={() => setHighlightIndex(index)}
-                  className={`w-full text-left px-2 py-1.5 truncate ${
+                  className={`w-full text-left truncate ${chrome.option} ${
                     index === highlightIndex
                       ? 'bg-brand-50 text-brand-800'
                       : 'text-neutral-700 hover:bg-neutral-50'

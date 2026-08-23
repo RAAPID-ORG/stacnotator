@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from sqlalchemy import (
@@ -21,6 +21,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+
+FeedbackVerdict = Literal["good", "wrong"]
 
 if TYPE_CHECKING:
     from src.auth.models import User
@@ -202,9 +204,10 @@ class VisualizerFeedback(Base):
         CheckConstraint("bbox_north BETWEEN -90 AND 90", name="feedback_bbox_north_range"),
         CheckConstraint("bbox_west < bbox_east", name="feedback_bbox_lon_order"),
         CheckConstraint("bbox_south < bbox_north", name="feedback_bbox_lat_order"),
-        # Silence is not feedback: it says either what it should be, or why.
+        CheckConstraint("verdict IN ('good', 'wrong')", name="feedback_verdict_values"),
+        # Silence is not feedback: it says how it looks, what it should be, or why.
         CheckConstraint(
-            "suggested_label IS NOT NULL OR note IS NOT NULL",
+            "verdict IS NOT NULL OR suggested_label IS NOT NULL OR note IS NOT NULL",
             name="feedback_says_something_check",
         ),
         Index("idx_visualizer_feedback_visualizer_id", "visualizer_id"),
@@ -229,6 +232,9 @@ class VisualizerFeedback(Base):
         ForeignKey("data.visualizer_overlays.id", ondelete="SET NULL"), nullable=True
     )
     layer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The one-click read on the area, which is what makes a pile of feedback
+    # countable rather than only readable.
+    verdict: Mapped[FeedbackVerdict | None] = mapped_column(String(16), nullable=True)
     suggested_value: Mapped[int | None] = mapped_column(Integer, nullable=True)
     suggested_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)

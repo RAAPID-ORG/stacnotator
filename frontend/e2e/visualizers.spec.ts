@@ -79,7 +79,7 @@ const PIXEL = Buffer.from(
   'base64'
 );
 
-const mockViewer = async (page: Page) => {
+const mockViewer = async (page: Page, over: Record<string, unknown> = {}) => {
   await page.route('**/tiles.test/**', (route) =>
     route.fulfill({ contentType: 'image/png', body: PIXEL })
   );
@@ -93,7 +93,7 @@ const mockViewer = async (page: Page) => {
     route.fulfill({ json: { expires_in: 3600 } })
   );
   await page.route(`**/api/shared-visualizers/${SLUG}`, (route) =>
-    route.fulfill({ json: SHARED_VISUALIZER })
+    route.fulfill({ json: { ...SHARED_VISUALIZER, ...over } })
   );
 };
 
@@ -169,6 +169,38 @@ test.describe('Shared visualizer', () => {
     expect(sent!.suggested_label).toBe('Wheat');
     expect(sent!.viewing).toBe('Sentinel-2 - May 2024');
     expect(sent!.area.west).toBeLessThan(sent!.area.east);
+  });
+
+  test('an admin reads the feedback over the imagery it was left on', async ({ appPage: page }) => {
+    await mockViewer(page, { can_edit: true });
+    await page.route('**/api/visualizers/3/feedback', (route) =>
+      route.fulfill({
+        json: [
+          {
+            id: 1,
+            created_at: '2024-06-02T10:00:00Z',
+            author: 'ivanna',
+            area: { west: 30.4, south: 50.3, east: 30.7, north: 50.5 },
+            layer_name: 'Yield prediction',
+            verdict: 'wrong',
+            suggested_label: 'Wheat',
+            note: 'Sunflower, not maize.',
+            viewing: 'Sentinel-2 - Mar 2024',
+          },
+        ],
+      })
+    );
+
+    // Linked to from the project page, which is why the hash opens it.
+    await page.goto(`/v/${SLUG}#feedback`);
+
+    const rows = page.getByTestId('visualizer-feedback-row');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('Looks wrong');
+    await expect(rows.first()).toContainText('Sunflower, not maize.');
+
+    // Reading a remark puts the map back on the date it was made about.
+    await expect(page.getByTestId('visualizer-time-slider')).toContainText('Mar 2024');
   });
 
   test('a visualizer the server will not serve says so instead of hanging', async ({

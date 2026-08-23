@@ -9,3 +9,9 @@ export const visualizerSlugFromPath = (pathname: string): string | null =>
   SLUG.exec(pathname)?.[1] ?? null;
 
 export const visualizerUrl = (slug: string) => `${window.location.origin}${visualizerPath(slug)}`;
+
+/** Reviewing feedback happens on the published map itself, so that a remark is
+ *  read over the imagery it was made about. */
+export const FEEDBACK_HASH = '#feedback';
+
+export const visualizerFeedbackPath = (slug: string) => `${visualizerPath(slug)}${FEEDBACK_HASH}`;

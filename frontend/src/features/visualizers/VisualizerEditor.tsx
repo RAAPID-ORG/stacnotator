@@ -201,8 +201,8 @@ export function VisualizerEditor({
           </Section>
 
           <Section
-            title="Area"
-            description="Where this visualizer is about. The map opens framed on it, and imagery set up below is searched over it."
+            title="Area of Interest"
+            description="The map opens framed on it and imagery set up below is searched over it."
           >
             <AreaField
               value={draft.area}
@@ -347,7 +347,7 @@ export function VisualizerEditor({
             <Section title="Overlays for this visualizer">
               <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
                 Create the visualizer first, then set up predictions and reference layers of its own
-                here. Overlays from a campaign can be picked above right away.
+                here.
               </p>
             </Section>
           )}

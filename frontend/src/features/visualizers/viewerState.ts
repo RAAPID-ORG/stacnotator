@@ -74,7 +74,8 @@ export function activeSource(
 }
 
 /**
- * Move to another source without losing the viewer's place in time.
+ * Move to another source without losing the viewer's place in time, or to none
+ * at all - a map of overlays over the backdrop is a thing people want to see.
  *
  * Sources cover their own periods at their own cadence, so the step index means
  * nothing across a switch - the date does. Keeps the visualization too when the
@@ -84,8 +85,9 @@ export function activeSource(
 export function selectSource(
   view: VisualizerViewOut,
   state: ViewerState,
-  sourceId: string
+  sourceId: string | null
 ): ViewerState {
+  if (sourceId === null) return { ...state, sourceId: null };
   const next = view.imagery.find((entry) => entry.id === sourceId);
   if (!next) return state;
   return {
@@ -96,6 +98,36 @@ export function selectSource(
       : (next.visualizations[0] ?? null),
     stepIndex: nearestStepIndex(next.steps, state.anchor),
   };
+}
+
+/**
+ * Put the map back the way it was when a remark was made.
+ *
+ * Feedback records what was on screen as one string ("<source> - <date>"),
+ * because a source or a date can be gone by the time it is read. Both halves
+ * can contain the separator, so a name that prefixes the string is only a
+ * candidate: the one whose remainder is a date it actually publishes wins.
+ * Anything that no longer resolves leaves the map where it is.
+ */
+export function restoreViewing(
+  view: VisualizerViewOut,
+  state: ViewerState,
+  viewing: string | null
+): ViewerState {
+  if (!viewing) return state;
+  const candidates = view.imagery
+    .filter((entry) => viewing.startsWith(`${entry.name} - `))
+    .sort((a, b) => b.name.length - a.name.length);
+
+  for (const source of candidates) {
+    const label = viewing.slice(source.name.length + 3);
+    const stepIndex = source.steps.findIndex((step) => step.label === label);
+    if (stepIndex !== -1) {
+      return selectStep(view, selectSource(view, state, source.id), stepIndex);
+    }
+  }
+  const source = candidates[0];
+  return source ? selectSource(view, state, source.id) : state;
 }
 
 /** Move along the current source's timeline, which is what sets the anchor. */

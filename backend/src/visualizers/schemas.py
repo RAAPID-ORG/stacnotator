@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.custom_layers.schemas import RenderConfig
 from src.imagery.schemas import BasemapCreate, BasemapOut, ImagerySourceCreate, ImagerySourceOut
+from src.visualizers.models import FeedbackVerdict
 
 
 class VisualizerImageryCreate(BaseModel):
@@ -234,6 +235,7 @@ class VisualizerFeedbackCreate(BaseModel):
 
     area: VisualizerArea
     overlay_id: int | None = None
+    verdict: FeedbackVerdict | None = None
     suggested_value: int | None = None
     suggested_label: str | None = Field(default=None, max_length=255)
     note: str | None = Field(default=None, max_length=2000)
@@ -241,8 +243,8 @@ class VisualizerFeedbackCreate(BaseModel):
 
     @model_validator(mode="after")
     def _says_something(self) -> "VisualizerFeedbackCreate":
-        if not self.suggested_label and not (self.note or "").strip():
-            raise ValueError("Say what it should be, or leave a note")
+        if not self.verdict and not self.suggested_label and not (self.note or "").strip():
+            raise ValueError("Say how it looks, what it should be, or leave a note")
         return self
 
 
@@ -252,6 +254,7 @@ class VisualizerFeedbackOut(BaseModel):
     author: str
     area: VisualizerArea
     layer_name: str | None
+    verdict: FeedbackVerdict | None
     suggested_label: str | None
     note: str | None
     viewing: str | None

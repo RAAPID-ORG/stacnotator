@@ -1,8 +1,7 @@
-import { useState } from 'react';
 import type { VisualizerArea, VisualizerOptionsOut } from '~/api/client';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { LocationSearch } from '~/shared/map/LocationSearch';
-import { Button } from '~/shared/ui/forms';
+import { Button, Select } from '~/shared/ui/forms';
 
 /**
  * The area a visualizer is about.
@@ -20,16 +19,14 @@ export function AreaField({
   onChange: (area: VisualizerArea | null) => void;
   options: VisualizerOptionsOut;
 }) {
-  const [searchExpanded, setSearchExpanded] = useState(true);
-
   const campaignAreas = options.campaigns.filter((campaign) => campaign.area !== null);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <div className="flex items-center gap-2">
         <LocationSearch
-          expanded={searchExpanded}
-          onExpandedChange={(next) => setSearchExpanded(next || true)}
+          variant="field"
+          className="min-w-0 flex-1"
           onSelect={(result) => {
             const [west, south, east, north] = result.extent ?? [
               result.center[0] - 0.5,
@@ -39,30 +36,34 @@ export function AreaField({
             ];
             onChange({ west, south, east, north });
           }}
-          className="max-w-64"
         />
+
+        {campaignAreas.length > 0 && (
+          <Select
+            size="sm"
+            aria-label="Take the area from a campaign"
+            className="!w-44 shrink-0"
+            value=""
+            onChange={(e) => {
+              const picked = campaignAreas.find((c) => String(c.campaign_id) === e.target.value);
+              if (picked) onChange(picked.area);
+            }}
+          >
+            <option value="">From a campaign…</option>
+            {campaignAreas.map((campaign) => (
+              <option key={campaign.campaign_id} value={campaign.campaign_id}>
+                {campaign.campaign_name}
+              </option>
+            ))}
+          </Select>
+        )}
+
         {value && (
-          <Button variant="quiet" size="sm" onClick={() => onChange(null)}>
+          <Button variant="secondary" size="sm" onClick={() => onChange(null)}>
             Clear
           </Button>
         )}
       </div>
-
-      {campaignAreas.length > 0 && !value && (
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-500">
-          <span>or take it from</span>
-          {campaignAreas.map((campaign) => (
-            <button
-              key={campaign.campaign_id}
-              type="button"
-              onClick={() => onChange(campaign.area)}
-              className="cursor-pointer rounded-full border border-neutral-200 px-2 py-0.5 text-neutral-700 transition-colors hover:border-brand-400 hover:text-brand-700"
-            >
-              {campaign.campaign_name}
-            </button>
-          ))}
-        </div>
-      )}
 
       {value ? (
         <BoundingBoxEditor
@@ -85,8 +86,7 @@ export function AreaField({
         />
       ) : (
         <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
-          Search for a place to set the area. Without one the map opens on the whole world, and
-          imagery cannot be set up here.
+          Without an area the map opens on the whole world, and imagery cannot be set up here.
         </p>
       )}
     </div>
