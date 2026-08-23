@@ -11,23 +11,18 @@ import type { LayerSpec } from '~/shared/map/types';
  * nothing in between that could disagree.
  */
 export interface ViewerState {
-  sourceId: number | null;
+  sourceId: string | null;
   visualization: string | null;
   stepIndex: number;
-  basemap: BasemapChoice;
   /** Keyed by overlay id, seeded from how the visualizer was published. */
   overlays: Record<number, { visible: boolean; opacity: number }>;
   /** Per-overlay colour edits the viewer made, never persisted. */
   renderOverrides: Record<number, RenderOverride>;
 }
 
-export const BASEMAP_CHOICES = ['light', 'dark', 'none'] as const;
-export type BasemapChoice = (typeof BASEMAP_CHOICES)[number];
-
-const BASEMAP_URLS: Record<Exclude<BasemapChoice, 'none'>, string> = {
-  light: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-  dark: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-};
+/** One keyless backdrop, so imagery has coastlines and place names around it
+ *  without anyone having to choose. */
+const BASEMAP_URL = 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
 
 const BASEMAP_ATTRIBUTION =
   '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -38,11 +33,10 @@ const VECTOR_Z = 8;
 export function initialState(view: VisualizerViewOut): ViewerState {
   const source = view.imagery[0] ?? null;
   return {
-    sourceId: source?.source_id ?? null,
+    sourceId: source?.id ?? null,
     visualization: source?.visualizations[0] ?? null,
     // The newest imagery is what people want to see first.
     stepIndex: Math.max(0, (source?.steps.length ?? 1) - 1),
-    basemap: 'dark',
     overlays: Object.fromEntries(
       view.overlays.map((o) => [o.id, { visible: o.visible, opacity: o.opacity }])
     ),
@@ -54,7 +48,7 @@ export function activeSource(
   view: VisualizerViewOut,
   state: ViewerState
 ): VisualizerImageryOut | null {
-  return view.imagery.find((entry) => entry.source_id === state.sourceId) ?? null;
+  return view.imagery.find((entry) => entry.id === state.sourceId) ?? null;
 }
 
 export function activeStep(view: VisualizerViewOut, state: ViewerState): VisualizerStepOut | null {
@@ -73,9 +67,9 @@ export function activeStep(view: VisualizerViewOut, state: ViewerState): Visuali
 export function selectSource(
   view: VisualizerViewOut,
   state: ViewerState,
-  sourceId: number
+  sourceId: string
 ): ViewerState {
-  const next = view.imagery.find((entry) => entry.source_id === sourceId);
+  const next = view.imagery.find((entry) => entry.id === sourceId);
   if (!next) return state;
   const current = activeStep(view, state);
   return {
@@ -123,16 +117,14 @@ function tileFor(step: VisualizerStepOut, visualization: string | null) {
 export function composeLayers(view: VisualizerViewOut, state: ViewerState): LayerSpec[] {
   const layers: LayerSpec[] = [];
 
-  if (state.basemap !== 'none') {
-    layers.push({
-      kind: 'raster',
-      id: `basemap-${state.basemap}`,
-      url: BASEMAP_URLS[state.basemap],
-      auth: 'none',
-      zIndex: 0,
-      attribution: BASEMAP_ATTRIBUTION,
-    });
-  }
+  layers.push({
+    kind: 'raster',
+    id: 'basemap',
+    url: BASEMAP_URL,
+    auth: 'none',
+    zIndex: 0,
+    attribution: BASEMAP_ATTRIBUTION,
+  });
 
   const source = activeSource(view, state);
   const step = source?.steps[state.stepIndex];

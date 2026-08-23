@@ -11,7 +11,7 @@ const step = (id: number, start: string, end: string, viz = 'True Color'): Visua
 });
 
 const source = (over: Partial<VisualizerImageryOut> = {}): VisualizerImageryOut => ({
-  source_id: 1,
+  id: '1',
   tile_proxy_base: '/api/7/imagery/slices',
   name: 'Sentinel-2',
   visualizations: ['True Color'],
@@ -34,6 +34,7 @@ const view = (over: Partial<VisualizerViewOut> = {}): VisualizerViewOut => ({
   imagery: [source()],
   overlays: [],
   can_edit: false,
+  can_give_feedback: false,
   registration_status: 'ready',
   ...over,
 });
@@ -64,7 +65,7 @@ describe('initialState', () => {
 
 describe('selectSource', () => {
   const landsat = source({
-    source_id: 2,
+    id: '2',
     name: 'Landsat',
     visualizations: ['Natural'],
     steps: [
@@ -77,11 +78,11 @@ describe('selectSource', () => {
 
   it('keeps the viewer at the same date rather than the same index', () => {
     const start = { ...initialState(both), stepIndex: 0 };
-    expect(selectSource(both, start, 2).stepIndex).toBe(1);
+    expect(selectSource(both, start, '2').stepIndex).toBe(1);
   });
 
   it('falls back to the new source first visualization when it has no match', () => {
-    const next = selectSource(both, initialState(both), 2);
+    const next = selectSource(both, initialState(both), '2');
     expect(next.visualization).toBe('Natural');
   });
 });
@@ -89,7 +90,7 @@ describe('selectSource', () => {
 describe('composeLayers', () => {
   it('draws the basemap under the imagery', () => {
     const layers = composeLayers(view(), initialState(view()));
-    expect(layers.map((l) => l.id)).toEqual(['basemap-dark', 'slice-2-True Color']);
+    expect(layers.map((l) => l.id)).toEqual(['basemap', 'slice-2-True Color']);
   });
 
   it('leaves out an overlay the viewer has hidden', () => {

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -65,6 +66,7 @@ class VisualizerListItemOut(BaseModel):
     is_public: bool
     imagery_count: int
     overlay_count: int
+    feedback_count: int
 
 
 class VisualizerTileOut(BaseModel):
@@ -83,7 +85,9 @@ class VisualizerStepOut(BaseModel):
 
 
 class VisualizerImageryOut(BaseModel):
-    source_id: int
+    # One source can offer two records at two cadences, so this is not the
+    # source's id. See timeline.timelines.
+    id: str
     # Where this source's key-proxied tiles are fetched from. A path rather than
     # an owner id because a campaign's and a visualizer's proxy routes differ,
     # and the viewer has no reason to care which it is looking at.
@@ -137,6 +141,8 @@ class VisualizerViewOut(BaseModel):
     imagery: list[VisualizerImageryOut]
     overlays: list[VisualizerOverlayOut]
     can_edit: bool
+    # Whether this viewer may leave feedback: signed in, on a published map.
+    can_give_feedback: bool
     # Its own imagery's registration run, so the viewer can say why a source it
     # lists has no dates yet rather than looking broken.
     registration_status: str
@@ -170,6 +176,9 @@ class SourceOptionOut(BaseModel):
     id: int
     name: str
     step_count: int
+    # One per dated record this source offers - two when its covers are a
+    # coarser record than its slices.
+    cadences: list[str]
     visualizations: list[str]
     start_date: str | None
     end_date: str | None
@@ -202,3 +211,31 @@ class VisualizerOptionsOut(BaseModel):
 
 class TilerSessionOut(BaseModel):
     expires_in: int
+
+
+class VisualizerFeedbackCreate(BaseModel):
+    """What a viewer says about one place on a published map."""
+
+    area: VisualizerArea
+    overlay_id: int | None = None
+    suggested_value: int | None = None
+    suggested_label: str | None = Field(default=None, max_length=255)
+    note: str | None = Field(default=None, max_length=2000)
+    viewing: str | None = Field(default=None, max_length=255)
+
+    @model_validator(mode="after")
+    def _says_something(self) -> "VisualizerFeedbackCreate":
+        if not self.suggested_label and not (self.note or "").strip():
+            raise ValueError("Say what it should be, or leave a note")
+        return self
+
+
+class VisualizerFeedbackOut(BaseModel):
+    id: int
+    created_at: datetime
+    author: str
+    area: VisualizerArea
+    layer_name: str | None
+    suggested_label: str | None
+    note: str | None
+    viewing: str | None

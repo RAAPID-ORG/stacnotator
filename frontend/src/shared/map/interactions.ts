@@ -11,7 +11,7 @@ import Modify from 'ol/interaction/Modify';
 import Translate from 'ol/interaction/Translate';
 import DragBox from 'ol/interaction/DragBox';
 import Snap from 'ol/interaction/Snap';
-import { altKeyOnly, shiftKeyOnly } from 'ol/events/condition';
+import { altKeyOnly, always, shiftKeyOnly } from 'ol/events/condition';
 import { toLonLat } from 'ol/proj';
 import GeoJSONFormat from 'ol/format/GeoJSON';
 import { LAYER_ID_PROP, featurePropsOf, layerFeatureId, toOlStyle } from './layers';
@@ -85,7 +85,9 @@ function sameEdit(a: InteractionSpec['edit'], b: InteractionSpec['edit']): boole
 function sameBoxSelect(a: InteractionSpec['boxSelect'], b: InteractionSpec['boxSelect']): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
-  return (a.hitLayerIds ?? []).join() === (b.hitLayerIds ?? []).join();
+  return (
+    (a.hitLayerIds ?? []).join() === (b.hitLayerIds ?? []).join() && a.condition === b.condition
+  );
 }
 
 /**
@@ -254,8 +256,10 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
   }
 
   if (spec.boxSelect) {
-    const { hitLayerIds } = spec.boxSelect;
-    const dragBox = new DragBox({ condition: shiftKeyOnly });
+    const { hitLayerIds, condition } = spec.boxSelect;
+    const dragBox = new DragBox({
+      condition: condition === 'always' ? always : shiftKeyOnly,
+    });
     dragBox.on('boxend', () => {
       const extent = dragBox.getGeometry().getExtent();
       attached.callbacks.onBox?.(bboxOfDragBox(dragBox), boxHits(map, hitLayerIds, extent));

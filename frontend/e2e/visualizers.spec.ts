@@ -23,8 +23,8 @@ const SHARED_VISUALIZER = {
   camera: { lon: 30.5, lat: 50.5, zoom: 8 },
   imagery: [
     {
-      source_id: 11,
-      campaign_id: 42,
+      id: '11',
+      tile_proxy_base: '/api/42/imagery/slices',
       name: 'Sentinel-2',
       visualizations: ['True Color'],
       default_zoom: 12,
@@ -46,13 +46,21 @@ const SHARED_VISUALIZER = {
       opacity: 0.8,
       campaign_id: 42,
       tile_url: 'https://tiler.test/searches/abc/tiles/WebMercatorQuad/{z}/{x}/{y}.png',
-      render_config: { mode: 'continuous', colormap_name: 'viridis', rescale: [0, 10] },
+      render_config: {
+        mode: 'categorical',
+        entries: [
+          { value: 1, color: '#f28e2b', label: 'Maize' },
+          { value: 2, color: '#4e79a7', label: 'Wheat' },
+        ],
+      },
       max_native_zoom: null,
       status: 'ready',
       mlops_url: null,
     },
   ],
   can_edit: false,
+  can_give_feedback: true,
+  registration_status: 'ready',
 };
 
 // 1x1 transparent PNG, so tile requests resolve instead of retrying.
@@ -110,9 +118,47 @@ test.describe('Shared visualizer', () => {
     // The overlay opens visible, with its colour scale reachable.
     const overlay = page.getByTestId('visualizer-overlay');
     await expect(overlay).toContainText('Yield prediction');
-    await expect(overlay.getByTestId('custom-map-legend-max')).toHaveValue('10');
+    await expect(overlay).toContainText('Maize');
     await overlay.getByRole('checkbox').uncheck();
-    await expect(overlay.getByTestId('custom-map-legend-max')).toHaveCount(0);
+    await expect(overlay).not.toContainText('Maize');
+  });
+
+  test('a signed-in viewer marks a place and says what it should be', async ({ appPage: page }) => {
+    await mockViewer(page);
+    let sent: {
+      suggested_label: string | null;
+      viewing: string | null;
+      area: { west: number; east: number };
+    } | null = null;
+    await page.route(`**/api/shared-visualizers/${SLUG}/feedback`, (route) => {
+      sent = route.request().postDataJSON();
+      return route.fulfill({ status: 201, json: {} });
+    });
+
+    await page.goto(`/v/${SLUG}`);
+    await expect(page.getByTestId('visualizer-time-slider')).toBeVisible();
+
+    await page.getByRole('button', { name: /Feedback/ }).click();
+    await expect(page.getByText('Drag a box over the area')).toBeVisible();
+
+    await page.mouse.move(360, 340);
+    await page.mouse.down();
+    await page.mouse.move(560, 500, { steps: 10 });
+    await page.mouse.up();
+
+    const panel = page.getByTestId('visualizer-feedback-panel');
+    await expect(panel).toBeVisible();
+    // The remark records what was on screen, not just where.
+    await expect(panel).toContainText('Sentinel-2 - May 2024');
+
+    await expect(page.getByRole('button', { name: 'Send feedback' })).toBeDisabled();
+    await panel.getByTestId('feedback-class').filter({ hasText: 'Wheat' }).click();
+    await page.getByRole('button', { name: 'Send feedback' }).click();
+
+    await expect(panel).toHaveCount(0);
+    expect(sent!.suggested_label).toBe('Wheat');
+    expect(sent!.viewing).toBe('Sentinel-2 - May 2024');
+    expect(sent!.area.west).toBeLessThan(sent!.area.east);
   });
 
   test('a visualizer the server will not serve says so instead of hanging', async ({

@@ -49,9 +49,18 @@ def _stub_load(monkeypatch):
 
 def test_published_visualizer_opens_for_a_visitor_with_no_account(_stub_load):
     _stub_load["visualizer"] = _visualizer(is_public=True)
-    visualizer, can_edit = _require_viewer(slug="abc", db=_db(), user=None)
-    assert visualizer is _stub_load["visualizer"]
-    assert can_edit is False
+    viewer = _require_viewer(slug="abc", db=_db(), user=None)
+    assert viewer.visualizer is _stub_load["visualizer"]
+    assert viewer.can_edit is False
+
+
+def test_feedback_takes_an_account_even_where_reading_does_not(_stub_load):
+    _stub_load["visualizer"] = _visualizer(is_public=True)
+    anonymous = _require_viewer(slug="abc", db=_db(), user=None)
+    assert anonymous.can_give_feedback is False
+
+    signed_in = _require_viewer(slug="abc", db=_db(), user=_user())
+    assert signed_in.can_give_feedback is True
 
 
 def test_unpublished_visualizer_is_not_served_to_a_visitor(_stub_load):
@@ -64,8 +73,7 @@ def test_unpublished_visualizer_is_not_served_to_a_visitor(_stub_load):
 def test_unpublished_visualizer_previews_for_a_project_member(_stub_load):
     _stub_load["visualizer"] = _visualizer(is_public=False)
     db = _db(membership=MagicMock(is_admin=False))
-    _, can_edit = _require_viewer(slug="abc", db=db, user=_user())
-    assert can_edit is False
+    assert _require_viewer(slug="abc", db=db, user=_user()).can_edit is False
 
 
 def test_unpublished_visualizer_is_hidden_from_an_outsider(_stub_load):
@@ -78,8 +86,7 @@ def test_unpublished_visualizer_is_hidden_from_an_outsider(_stub_load):
 def test_project_admin_may_edit(_stub_load):
     _stub_load["visualizer"] = _visualizer(is_public=True)
     db = _db(membership=MagicMock(is_admin=True))
-    _, can_edit = _require_viewer(slug="abc", db=db, user=_user())
-    assert can_edit is True
+    assert _require_viewer(slug="abc", db=db, user=_user()).can_edit is True
 
 
 def test_tile_session_covers_only_what_the_visualizer_draws_from():

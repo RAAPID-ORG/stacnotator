@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -18,6 +20,8 @@ from src.visualizers.schemas import (
     TilerSessionOut,
     VisualizerConfigOut,
     VisualizerCreate,
+    VisualizerFeedbackCreate,
+    VisualizerFeedbackOut,
     VisualizerListItemOut,
     VisualizerOptionsOut,
     VisualizerUpdate,
@@ -104,6 +108,25 @@ def update_visualizer(
     return service.config_out(service.update(db, visualizer, payload))
 
 
+@visualizer_router.get("/feedback", response_model=list[VisualizerFeedbackOut])
+def list_visualizer_feedback(
+    visualizer: Visualizer = Depends(_require_admin),
+    db: Session = Depends(get_db),
+):
+    return service.list_feedback(db, visualizer.id)
+
+
+@visualizer_router.delete("/feedback/{feedback_id}", status_code=204)
+def delete_visualizer_feedback(
+    feedback_id: int,
+    visualizer: Visualizer = Depends(_require_admin),
+    db: Session = Depends(get_db),
+):
+    if not service.delete_feedback(db, visualizer.id, feedback_id):
+        raise HTTPException(status_code=404, detail="Feedback not found")
+    return Response(status_code=204)
+
+
 @visualizer_router.delete("", status_code=204)
 def delete_visualizer(
     visualizer: Visualizer = Depends(_require_admin),
@@ -120,11 +143,26 @@ def delete_visualizer(
 shared_router = APIRouter(prefix="/shared-visualizers/{slug}", tags=["Visualizers"])
 
 
+@dataclass(frozen=True)
+class Viewer:
+    """A visualizer and what the person looking at it may do with it."""
+
+    visualizer: Visualizer
+    user: User | None
+    can_edit: bool
+
+    @property
+    def can_give_feedback(self) -> bool:
+        """Feedback is a platform contribution, so it takes an account - even
+        though reading a published map does not."""
+        return self.user is not None
+
+
 def _require_viewer(
     slug: str,
     db: Session = Depends(get_db),
     user: User | None = Depends(optional_user),
-) -> tuple[Visualizer, bool]:
+) -> Viewer:
     """The visualizer and whether this viewer may edit it.
 
     A published visualizer is readable by anyone; an unpublished one falls back
@@ -135,7 +173,7 @@ def _require_viewer(
     if user is None:
         if not visualizer.is_public:
             raise HTTPException(status_code=404, detail="Visualizer not found")
-        return visualizer, False
+        return Viewer(visualizer=visualizer, user=None, can_edit=False)
 
     project = visualizer.project
     membership = (
@@ -145,41 +183,57 @@ def _require_viewer(
     )
     can_edit = (membership is not None and membership.is_admin) or user.is_admin
     if visualizer.is_public or can_edit:
-        return visualizer, can_edit
+        return Viewer(visualizer=visualizer, user=user, can_edit=can_edit)
     if has_project_access(
         visibility=project.visibility,
         is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
         is_member=membership is not None,
         is_platform_admin=user.is_admin,
     ):
-        return visualizer, False
+        return Viewer(visualizer=visualizer, user=user, can_edit=False)
     raise HTTPException(status_code=404, detail="Visualizer not found")
 
 
 @shared_router.get("", response_model=VisualizerViewOut)
 def get_shared_visualizer(
-    viewer: tuple[Visualizer, bool] = Depends(_require_viewer),
+    viewer: Viewer = Depends(_require_viewer),
     db: Session = Depends(get_db),
 ):
-    visualizer, can_edit = viewer
-    return service.build_view(db, visualizer, can_edit=can_edit)
+    return service.build_view(
+        db,
+        viewer.visualizer,
+        can_edit=viewer.can_edit,
+        can_give_feedback=viewer.can_give_feedback,
+    )
+
+
+@shared_router.post("/feedback", response_model=VisualizerFeedbackOut, status_code=201)
+def add_visualizer_feedback(
+    payload: VisualizerFeedbackCreate,
+    viewer: Viewer = Depends(_require_viewer),
+    db: Session = Depends(get_db),
+):
+    """Leave a remark about one place on this map. Takes an account."""
+    if viewer.user is None:
+        raise HTTPException(status_code=401, detail="Sign in to leave feedback")
+    feedback = service.add_feedback(db, viewer.visualizer, payload, viewer.user)
+    return service.list_feedback(db, viewer.visualizer.id)[0] if feedback else None
 
 
 @shared_router.post("/tiler-token", response_model=TilerSessionOut)
 def get_visualizer_tiler_token(
     response: Response,
-    viewer: tuple[Visualizer, bool] = Depends(_require_viewer),
+    viewer: Viewer = Depends(_require_viewer),
 ):
     """Tile access for exactly the campaigns this visualizer draws from.
 
     Scoping the token to the visualizer's own campaigns is what lets a visitor
     with no account fetch its tiles without opening anything else.
     """
-    visualizer, _ = viewer
     set_tiler_cookie(
         response,
-        sub=f"visualizer:{visualizer.id}",
-        campaigns=service.tile_scopes(visualizer),
+        sub=f"visualizer:{viewer.visualizer.id}",
+        campaigns=service.tile_scopes(viewer.visualizer),
     )
     return TilerSessionOut(expires_in=TILER_TOKEN_TTL)
 

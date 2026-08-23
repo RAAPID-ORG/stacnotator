@@ -3431,6 +3431,10 @@ export type SourceOptionOut = {
      */
     step_count: number;
     /**
+     * Cadences
+     */
+    cadences: Array<string>;
+    /**
      * Visualizations
      */
     visualizations: Array<string>;
@@ -4460,6 +4464,70 @@ export type VisualizerCreate = {
 };
 
 /**
+ * VisualizerFeedbackCreate
+ *
+ * What a viewer says about one place on a published map.
+ */
+export type VisualizerFeedbackCreate = {
+    area: VisualizerArea;
+    /**
+     * Overlay Id
+     */
+    overlay_id?: number | null;
+    /**
+     * Suggested Value
+     */
+    suggested_value?: number | null;
+    /**
+     * Suggested Label
+     */
+    suggested_label?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Viewing
+     */
+    viewing?: string | null;
+};
+
+/**
+ * VisualizerFeedbackOut
+ */
+export type VisualizerFeedbackOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Author
+     */
+    author: string;
+    area: VisualizerArea;
+    /**
+     * Layer Name
+     */
+    layer_name: string | null;
+    /**
+     * Suggested Label
+     */
+    suggested_label: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Viewing
+     */
+    viewing: string | null;
+};
+
+/**
  * VisualizerImageryCreate
  */
 export type VisualizerImageryCreate = {
@@ -4474,9 +4542,9 @@ export type VisualizerImageryCreate = {
  */
 export type VisualizerImageryOut = {
     /**
-     * Source Id
+     * Id
      */
-    source_id: number;
+    id: string;
     /**
      * Tile Proxy Base
      */
@@ -4539,6 +4607,10 @@ export type VisualizerListItemOut = {
      * Overlay Count
      */
     overlay_count: number;
+    /**
+     * Feedback Count
+     */
+    feedback_count: number;
 };
 
 /**
@@ -4701,6 +4773,10 @@ export type VisualizerViewOut = {
      * Can Edit
      */
     can_edit: boolean;
+    /**
+     * Can Give Feedback
+     */
+    can_give_feedback: boolean;
     /**
      * Registration Status
      */
@@ -9457,6 +9533,72 @@ export type UpdateVisualizerResponses = {
 
 export type UpdateVisualizerResponse = UpdateVisualizerResponses[keyof UpdateVisualizerResponses];
 
+export type ListVisualizerFeedbackData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/feedback';
+};
+
+export type ListVisualizerFeedbackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizerFeedbackError = ListVisualizerFeedbackErrors[keyof ListVisualizerFeedbackErrors];
+
+export type ListVisualizerFeedbackResponses = {
+    /**
+     * Response Listvisualizerfeedback
+     *
+     * Successful Response
+     */
+    200: Array<VisualizerFeedbackOut>;
+};
+
+export type ListVisualizerFeedbackResponse = ListVisualizerFeedbackResponses[keyof ListVisualizerFeedbackResponses];
+
+export type DeleteVisualizerFeedbackData = {
+    body?: never;
+    path: {
+        /**
+         * Feedback Id
+         */
+        feedback_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/feedback/{feedback_id}';
+};
+
+export type DeleteVisualizerFeedbackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVisualizerFeedbackError = DeleteVisualizerFeedbackErrors[keyof DeleteVisualizerFeedbackErrors];
+
+export type DeleteVisualizerFeedbackResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVisualizerFeedbackResponse = DeleteVisualizerFeedbackResponses[keyof DeleteVisualizerFeedbackResponses];
+
 export type GetSharedVisualizerData = {
     body?: never;
     path: {
@@ -9486,6 +9628,36 @@ export type GetSharedVisualizerResponses = {
 };
 
 export type GetSharedVisualizerResponse = GetSharedVisualizerResponses[keyof GetSharedVisualizerResponses];
+
+export type AddVisualizerFeedbackData = {
+    body: VisualizerFeedbackCreate;
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/shared-visualizers/{slug}/feedback';
+};
+
+export type AddVisualizerFeedbackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddVisualizerFeedbackError = AddVisualizerFeedbackErrors[keyof AddVisualizerFeedbackErrors];
+
+export type AddVisualizerFeedbackResponses = {
+    /**
+     * Successful Response
+     */
+    201: VisualizerFeedbackOut;
+};
+
+export type AddVisualizerFeedbackResponse = AddVisualizerFeedbackResponses[keyof AddVisualizerFeedbackResponses];
 
 export type GetVisualizerTilerTokenData = {
     body?: never;

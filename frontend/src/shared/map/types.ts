@@ -105,11 +105,14 @@ export interface InteractionSpec {
     style?: StyleSpec;
   };
   boxSelect?: {
-    /** Shift+drag. `hits` holds the features of `hitLayerIds` inside the box,
-     *  empty when no layers were named - nothing outside this module can read
-     *  a rendered vector tile. */
+    /** `hits` holds the features of `hitLayerIds` inside the box, empty when no
+     *  layers were named - nothing outside this module can read a rendered
+     *  vector tile. */
     onBox: (bbox: Bbox, hits: BoxHit[]) => void;
     hitLayerIds?: LayerId[];
+    /** Shift+drag by default, so a box never competes with panning. A page in a
+     *  mode where drawing a box IS the gesture asks for 'always'. */
+    condition?: 'shift' | 'always';
   };
   snap?: boolean;
 }

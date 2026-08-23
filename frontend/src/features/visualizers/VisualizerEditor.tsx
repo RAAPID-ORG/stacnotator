@@ -6,6 +6,7 @@ import {
   updateVisualizer,
   type VisualizerArea,
   type VisualizerImageryCreate,
+  type SourceOptionOut,
   type VisualizerOptionsOut,
   type VisualizerOverlayCreate,
 } from '~/api/client';
@@ -382,15 +383,16 @@ const Section = ({
   </section>
 );
 
-const sourceNote = (source: {
-  step_count: number;
-  start_date: string | null;
-  end_date: string | null;
-}) => {
+/** A source that carries covers over a coarser period than its slices arrives
+ *  as two entries in the viewer, which is worth knowing before ticking it. */
+const sourceNote = (source: SourceOptionOut) => {
   if (source.step_count === 0) return 'No registered imagery yet';
   const span =
-    source.start_date && source.end_date ? ` - ${source.start_date} to ${source.end_date}` : '';
-  return `${source.step_count} ${source.step_count === 1 ? 'date' : 'dates'}${span}`;
+    source.start_date && source.end_date ? `, ${source.start_date} to ${source.end_date}` : '';
+  const dates = `${source.step_count} ${source.step_count === 1 ? 'date' : 'dates'}${span}`;
+  return source.cadences.length > 1
+    ? `Two timelines - ${source.cadences.join(' and ')} - ${dates}`
+    : `${source.cadences[0] ?? ''} - ${dates}`.replace(/^ - /, '');
 };
 
 function PickRow({

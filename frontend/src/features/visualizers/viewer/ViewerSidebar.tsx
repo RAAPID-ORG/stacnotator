@@ -3,7 +3,7 @@ import { RenderLegend } from '~/shared/imagery/RenderLegend';
 import { effectiveRenderConfig, isCustomized } from '~/shared/imagery/tileColors';
 import { IconChevronDoubleRight, IconExternalLink, IconSliders } from '~/shared/ui/Icons';
 import { pillCls } from '~/shared/ui/pill';
-import { activeSource, BASEMAP_CHOICES, selectSource, type ViewerState } from '../viewerState';
+import { activeSource, selectSource, type ViewerState } from '../viewerState';
 
 /**
  * Everything the map is showing, as a list you can reach into: which imagery,
@@ -25,7 +25,7 @@ export function ViewerSidebar({
 
   return (
     <aside
-      className="absolute inset-y-0 right-0 z-10 flex w-full flex-col border-l border-neutral-200 bg-white desktop:relative desktop:inset-auto desktop:w-80"
+      className="absolute inset-y-0 right-0 z-10 flex w-full flex-col border-l border-neutral-200 bg-white desktop:relative desktop:inset-auto desktop:w-64"
       data-testid="visualizer-sidebar"
     >
       <div className="flex items-center justify-between border-b border-neutral-100 px-4 pb-2 pt-3">
@@ -50,13 +50,13 @@ export function ViewerSidebar({
             <div className="space-y-1">
               {view.imagery.map((entry) => (
                 <button
-                  key={entry.source_id}
+                  key={entry.id}
                   type="button"
-                  onClick={() => onChange(selectSource(view, state, entry.source_id))}
+                  onClick={() => onChange(selectSource(view, state, entry.id))}
                   data-testid="visualizer-source-option"
-                  data-active={entry.source_id === state.sourceId}
+                  data-active={entry.id === state.sourceId}
                   className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${
-                    entry.source_id === state.sourceId
+                    entry.id === state.sourceId
                       ? 'bg-brand-50 font-medium text-brand-700'
                       : 'text-neutral-700 hover:bg-neutral-50'
                   }`}
@@ -214,21 +214,6 @@ export function ViewerSidebar({
             </div>
           </Section>
         )}
-
-        <Section title="Base map">
-          <div className="flex gap-1.5">
-            {BASEMAP_CHOICES.map((choice) => (
-              <button
-                key={choice}
-                type="button"
-                onClick={() => onChange({ ...state, basemap: choice })}
-                className={pillCls(choice === state.basemap, 'flex-1 justify-center capitalize')}
-              >
-                {choice}
-              </button>
-            ))}
-          </div>
-        </Section>
       </div>
     </aside>
   );

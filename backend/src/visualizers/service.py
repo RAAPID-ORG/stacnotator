@@ -10,10 +10,11 @@ per source (see ``timeline``), which is the whole reason the two can be mixed.
 import secrets
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from src import background
+from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.custom_layers.models import CustomMap, VectorLayer
 from src.imagery import registration
@@ -23,7 +24,12 @@ from src.imagery.registration import RegistrationSpec
 from src.imagery.schemas import ImagerySourceCreate, ImagerySourceOut
 from src.projects.models import Project
 from src.visualizers import timeline
-from src.visualizers.models import Visualizer, VisualizerImagery, VisualizerOverlay
+from src.visualizers.models import (
+    Visualizer,
+    VisualizerFeedback,
+    VisualizerImagery,
+    VisualizerOverlay,
+)
 from src.visualizers.schemas import (
     CampaignOptionsOut,
     LayerRestriction,
@@ -34,6 +40,8 @@ from src.visualizers.schemas import (
     VisualizerArea,
     VisualizerConfigOut,
     VisualizerCreate,
+    VisualizerFeedbackCreate,
+    VisualizerFeedbackOut,
     VisualizerImageryCreate,
     VisualizerImageryOut,
     VisualizerListItemOut,
@@ -92,12 +100,24 @@ def list_for_project(db: Session, project_id: int) -> list[VisualizerListItemOut
         db.execute(
             select(Visualizer)
             .where(Visualizer.project_id == project_id)
-            .options(selectinload(Visualizer.imagery), selectinload(Visualizer.overlays))
+            .options(
+                selectinload(Visualizer.imagery),
+                selectinload(Visualizer.overlays),
+                selectinload(Visualizer.imagery_sources),
+            )
             .order_by(Visualizer.name)
         )
         .scalars()
         .all()
     )
+    counts: dict[int, int] = {
+        visualizer_id: total
+        for visualizer_id, total in db.execute(
+            select(VisualizerFeedback.visualizer_id, func.count())
+            .where(VisualizerFeedback.visualizer_id.in_([v.id for v in rows]))
+            .group_by(VisualizerFeedback.visualizer_id)
+        ).all()
+    }
     return [
         VisualizerListItemOut(
             id=v.id,
@@ -105,8 +125,9 @@ def list_for_project(db: Session, project_id: int) -> list[VisualizerListItemOut
             name=v.name,
             description=v.description,
             is_public=v.is_public,
-            imagery_count=len(v.imagery),
+            imagery_count=len(v.imagery) + len(v.imagery_sources),
             overlay_count=len(v.overlays),
+            feedback_count=counts.get(v.id, 0),
         )
         for v in rows
     ]
@@ -348,7 +369,9 @@ def tile_scopes(visualizer: Visualizer) -> list[str]:
     return sorted(scopes)
 
 
-def build_view(db: Session, visualizer: Visualizer, *, can_edit: bool) -> VisualizerViewOut:
+def build_view(
+    db: Session, visualizer: Visualizer, *, can_edit: bool, can_give_feedback: bool
+) -> VisualizerViewOut:
     return VisualizerViewOut(
         id=visualizer.id,
         slug=visualizer.slug,
@@ -358,9 +381,10 @@ def build_view(db: Session, visualizer: Visualizer, *, can_edit: bool) -> Visual
         project_id=visualizer.project_id,
         project_name=visualizer.project.name,
         area=area_out(visualizer),
-        imagery=[_imagery_out(source) for source in browsable_sources(visualizer)],
+        imagery=[out for source in browsable_sources(visualizer) for out in _imagery_out(source)],
         overlays=[out for out in (_overlay_out(o) for o in visualizer.overlays) if out],
         can_edit=can_edit,
+        can_give_feedback=can_give_feedback,
         registration_status=visualizer.registration_status,
     )
 
@@ -383,7 +407,12 @@ def tile_proxy_base(owner: SourceOwner) -> str:
     return f"/api/visualizers/{owner.visualizer_id}/imagery/slices"
 
 
-def _imagery_out(source: ImagerySource) -> VisualizerImageryOut:
+def _imagery_out(source: ImagerySource) -> list[VisualizerImageryOut]:
+    """This source as the one or two dated records a visualizer offers.
+
+    A source with monthly composites over weekly acquisitions is two records,
+    and the cadence is what distinguishes them by name.
+    """
     tiles_by_slice = {
         s.id: {
             t.visualization_name: VisualizerTileOut(url=t.tile_url, provider=t.tile_provider)
@@ -392,41 +421,46 @@ def _imagery_out(source: ImagerySource) -> VisualizerImageryOut:
         for collection in source.collections
         for s in collection.slices
     }
-    steps = timeline.flatten(
-        [
-            timeline.SliceInput(
-                slice_id=s.id,
-                name=s.name,
-                start_date=s.start_date,
-                end_date=s.end_date,
-                is_dedicated_cover=(
-                    collection.has_dedicated_cover and index == collection.cover_slice_index
-                ),
-            )
-            for collection in source.collections
-            for index, s in enumerate(collection.slices)
-        ]
-    )
-    return VisualizerImageryOut(
-        source_id=source.id,
-        tile_proxy_base=tile_proxy_base(source.owner),
-        name=source.name,
-        visualizations=[v.name for v in source.visualizations],
-        default_zoom=source.default_zoom,
-        max_native_zoom=source.max_native_zoom,
-        has_api_key=source.has_api_key,
-        steps=[
-            VisualizerStepOut(
-                slice_id=step.slice_id,
-                label=step.label,
-                start_date=step.start_date,
-                end_date=step.end_date,
-                tiles=tiles_by_slice.get(step.slice_id, {}),
-            )
-            for step in steps
-            if tiles_by_slice.get(step.slice_id)
-        ],
-    )
+    records = timeline.timelines(_slice_inputs(source))
+    return [
+        VisualizerImageryOut(
+            id=f"{source.id}:{record.cadence}" if len(records) > 1 else str(source.id),
+            tile_proxy_base=tile_proxy_base(source.owner),
+            name=f"{source.name} {record.cadence}" if len(records) > 1 else source.name,
+            visualizations=[v.name for v in source.visualizations],
+            default_zoom=source.default_zoom,
+            max_native_zoom=source.max_native_zoom,
+            has_api_key=source.has_api_key,
+            steps=[
+                VisualizerStepOut(
+                    slice_id=step.slice_id,
+                    label=step.label,
+                    start_date=step.start_date,
+                    end_date=step.end_date,
+                    tiles=tiles_by_slice.get(step.slice_id, {}),
+                )
+                for step in record.steps
+                if tiles_by_slice.get(step.slice_id)
+            ],
+        )
+        for record in records
+    ]
+
+
+def _slice_inputs(source: ImagerySource) -> list[timeline.SliceInput]:
+    return [
+        timeline.SliceInput(
+            slice_id=s.id,
+            name=s.name,
+            start_date=s.start_date,
+            end_date=s.end_date,
+            is_dedicated_cover=(
+                collection.has_dedicated_cover and index == collection.cover_slice_index
+            ),
+        )
+        for collection in source.collections
+        for index, s in enumerate(collection.slices)
+    ]
 
 
 def _overlay_out(overlay: VisualizerOverlay) -> RasterOverlayOut | VectorOverlayOut | None:
@@ -520,25 +554,16 @@ def _campaign_area(campaign: Campaign) -> VisualizerArea | None:
 
 
 def _source_option(source: ImagerySource) -> SourceOptionOut:
-    steps = timeline.flatten(
-        [
-            timeline.SliceInput(
-                slice_id=s.id,
-                name=s.name,
-                start_date=s.start_date,
-                end_date=s.end_date,
-                is_dedicated_cover=(
-                    collection.has_dedicated_cover and index == collection.cover_slice_index
-                ),
-            )
-            for collection in source.collections
-            for index, s in enumerate(collection.slices)
-        ]
-    )
+    records = timeline.timelines(_slice_inputs(source))
+    steps = [step for record in records for step in record.steps]
+    steps.sort(key=lambda step: step.start_date)
     return SourceOptionOut(
         id=source.id,
         name=source.name,
         step_count=len(steps),
+        # What the picker will actually add. Two cadences means two entries in
+        # the viewer, which is worth knowing before ticking the box.
+        cadences=[record.cadence for record in records],
         visualizations=[v.name for v in source.visualizations],
         start_date=steps[0].start_date if steps else None,
         end_date=steps[-1].end_date if steps else None,
@@ -560,3 +585,82 @@ def source_restriction(source: ImagerySource) -> LayerRestriction | None:
     ):
         return "internal_storage"
     return None
+
+
+def add_feedback(
+    db: Session, visualizer: Visualizer, payload: VisualizerFeedbackCreate, user: User
+) -> VisualizerFeedback:
+    """Record a remark about one place on this map.
+
+    The layer's name is copied in beside its id: an overlay can be taken off a
+    visualizer, and the remark still has to say what it was about.
+    """
+    overlay = next((o for o in visualizer.overlays if o.id == payload.overlay_id), None)
+    if payload.overlay_id is not None and overlay is None:
+        raise HTTPException(status_code=400, detail="That layer is not on this visualizer")
+
+    feedback = VisualizerFeedback(
+        visualizer_id=visualizer.id,
+        created_by=user.id,
+        bbox_west=payload.area.west,
+        bbox_south=payload.area.south,
+        bbox_east=payload.area.east,
+        bbox_north=payload.area.north,
+        overlay_id=payload.overlay_id,
+        layer_name=_overlay_name(overlay),
+        suggested_value=payload.suggested_value,
+        suggested_label=payload.suggested_label,
+        note=(payload.note or "").strip() or None,
+        viewing=payload.viewing,
+    )
+    db.add(feedback)
+    db.commit()
+    return feedback
+
+
+def _overlay_name(overlay: VisualizerOverlay | None) -> str | None:
+    if overlay is None:
+        return None
+    if overlay.custom_map is not None:
+        return overlay.custom_map.name
+    return overlay.vector_layer.name if overlay.vector_layer else None
+
+
+def list_feedback(db: Session, visualizer_id: int) -> list[VisualizerFeedbackOut]:
+    rows = (
+        db.execute(
+            select(VisualizerFeedback)
+            .where(VisualizerFeedback.visualizer_id == visualizer_id)
+            .options(selectinload(VisualizerFeedback.user))
+            .order_by(VisualizerFeedback.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        VisualizerFeedbackOut(
+            id=row.id,
+            created_at=row.created_at,
+            author=row.user.display_name if row.user else "Deleted account",
+            area=VisualizerArea(
+                west=row.bbox_west,
+                south=row.bbox_south,
+                east=row.bbox_east,
+                north=row.bbox_north,
+            ),
+            layer_name=row.layer_name,
+            suggested_label=row.suggested_label,
+            note=row.note,
+            viewing=row.viewing,
+        )
+        for row in rows
+    ]
+
+
+def delete_feedback(db: Session, visualizer_id: int, feedback_id: int) -> bool:
+    row = db.get(VisualizerFeedback, feedback_id)
+    if row is None or row.visualizer_id != visualizer_id:
+        return False
+    db.delete(row)
+    db.commit()
+    return True

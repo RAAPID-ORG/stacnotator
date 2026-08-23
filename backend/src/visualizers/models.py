@@ -23,6 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
 if TYPE_CHECKING:
+    from src.auth.models import User
     from src.custom_layers.models import CustomMap, VectorLayer
     from src.imagery.models import ImagerySource
     from src.projects.models import Project
@@ -166,3 +167,56 @@ class VisualizerOverlay(Base):
     visualizer: Mapped["Visualizer"] = relationship(back_populates="overlays")
     custom_map: Mapped["CustomMap | None"] = relationship()
     vector_layer: Mapped["VectorLayer | None"] = relationship()
+
+
+class VisualizerFeedback(Base):
+    """What someone looking at a published map says about a place on it.
+
+    Feedback is about a spot rather than about the visualizer, which is why it
+    carries a box. The layer it is about and the class the person proposes are
+    both snapshotted as text as well as by id: a legend can be recoloured or a
+    layer removed, and the remark has to stay readable afterwards.
+    """
+
+    __tablename__ = "visualizer_feedback"
+    __table_args__ = (
+        CheckConstraint("bbox_west BETWEEN -180 AND 180", name="feedback_bbox_west_range"),
+        CheckConstraint("bbox_east BETWEEN -180 AND 180", name="feedback_bbox_east_range"),
+        CheckConstraint("bbox_south BETWEEN -90 AND 90", name="feedback_bbox_south_range"),
+        CheckConstraint("bbox_north BETWEEN -90 AND 90", name="feedback_bbox_north_range"),
+        CheckConstraint("bbox_west < bbox_east", name="feedback_bbox_lon_order"),
+        CheckConstraint("bbox_south < bbox_north", name="feedback_bbox_lat_order"),
+        # Silence is not feedback: it says either what it should be, or why.
+        CheckConstraint(
+            "suggested_label IS NOT NULL OR note IS NOT NULL",
+            name="feedback_says_something_check",
+        ),
+        Index("idx_visualizer_feedback_visualizer_id", "visualizer_id"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    visualizer_id: Mapped[int] = mapped_column(
+        ForeignKey("data.visualizers.id", ondelete="CASCADE"), nullable=False
+    )
+    created_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.current_timestamp(), nullable=False
+    )
+    bbox_west: Mapped[float] = mapped_column(Float, nullable=False)
+    bbox_south: Mapped[float] = mapped_column(Float, nullable=False)
+    bbox_east: Mapped[float] = mapped_column(Float, nullable=False)
+    bbox_north: Mapped[float] = mapped_column(Float, nullable=False)
+    overlay_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.visualizer_overlays.id", ondelete="SET NULL"), nullable=True
+    )
+    layer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    suggested_value: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    suggested_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What was on screen: source and date, so the remark can be placed in time.
+    viewing: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    user: Mapped["User | None"] = relationship()

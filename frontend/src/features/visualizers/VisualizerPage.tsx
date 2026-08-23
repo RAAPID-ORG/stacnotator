@@ -4,12 +4,20 @@ import { getSharedVisualizer, getVisualizerTilerToken, type VisualizerViewOut } 
 import { ensureTilerSession, setTilerSessionMinter } from '~/api/tilerToken';
 import { Camera } from '~/shared/map/Camera';
 import { MapView } from '~/shared/map/MapView';
+import type { Bbox } from '~/shared/map/types';
 import { Badge } from '~/shared/ui/Badge';
 import { Button } from '~/shared/ui/forms';
 import { HarvestMark, HARVEST_SITE } from '~/shared/ui/HarvestMark';
-import { IconChevronDoubleLeft, IconCheck, IconCopy, IconMap } from '~/shared/ui/Icons';
+import {
+  IconChevronDoubleLeft,
+  IconCheck,
+  IconComment,
+  IconCopy,
+  IconMap,
+} from '~/shared/ui/Icons';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { visualizerUrl } from './route';
+import { FeedbackPanel } from './viewer/FeedbackPanel';
 import { TimeSlider } from './viewer/TimeSlider';
 import { ViewerSidebar } from './viewer/ViewerSidebar';
 import {
@@ -42,6 +50,7 @@ export function VisualizerPage({ slug }: { slug: string }) {
   );
   const camera = useRef<Camera>(null);
   camera.current ??= new Camera(WORLD);
+  const [feedback, setFeedback] = useState<FeedbackMode>(null);
 
   const fitArea = () => {
     const area = view?.area;
@@ -107,7 +116,10 @@ export function VisualizerPage({ slug }: { slug: string }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [source]);
 
-  const layers = useMemo(() => (view && state ? composeLayers(view, state) : []), [view, state]);
+  const layers = useMemo(() => {
+    const drawn = view && state ? composeLayers(view, state) : [];
+    return feedback?.area ? [...drawn, feedbackAreaLayer(feedback.area)] : drawn;
+  }, [view, state, feedback]);
 
   if (failure) {
     return (
@@ -151,6 +163,8 @@ export function VisualizerPage({ slug }: { slug: string }) {
           view={view}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          feedbackOpen={feedback !== null}
+          onToggleFeedback={() => setFeedback((open) => (open ? null : { area: null }))}
         />
 
         {/* The panel sits beside the map rather than over it, so the map's own
@@ -158,7 +172,29 @@ export function VisualizerPage({ slug }: { slug: string }) {
             room for both, and it covers the map instead. */}
         <div className="relative flex min-h-0 flex-1">
           <div className="relative min-w-0 flex-1">
-            <MapView camera={camera.current!} layers={layers} attributionCollapsed />
+            <MapView
+              camera={camera.current!}
+              layers={layers}
+              attributionCollapsed
+              interactions={
+                feedback && !feedback.area
+                  ? {
+                      boxSelect: {
+                        condition: 'always',
+                        onBox: (area) => setFeedback({ area }),
+                      },
+                    }
+                  : undefined
+              }
+            />
+
+            {feedback && !feedback.area && (
+              <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+                <p className="rounded-full border border-neutral-200 bg-white/95 px-3 py-1 text-xs text-neutral-600 shadow-lg backdrop-blur-sm">
+                  Drag a box over the area you are commenting on
+                </p>
+              </div>
+            )}
 
             {view.imagery.length === 0 && view.overlays.length === 0 && (
               <p className="pointer-events-none absolute inset-x-0 top-8 text-center text-sm text-neutral-500">
@@ -169,12 +205,22 @@ export function VisualizerPage({ slug }: { slug: string }) {
             <ZoomNotice view={view} camera={camera.current!} onZoomToArea={fitArea} />
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4">
-              {source && (
-                <TimeSlider
-                  steps={source.steps}
-                  index={state.stepIndex}
-                  onSelect={(stepIndex) => setState({ ...state, stepIndex })}
+              {feedback?.area ? (
+                <FeedbackPanel
+                  view={view}
+                  area={feedback.area}
+                  viewing={viewingLabel(source, state.stepIndex)}
+                  onClose={() => setFeedback(null)}
+                  onSaved={() => setFeedback(null)}
                 />
+              ) : (
+                source && (
+                  <TimeSlider
+                    steps={source.steps}
+                    index={state.stepIndex}
+                    onSelect={(stepIndex) => setState({ ...state, stepIndex })}
+                  />
+                )
               )}
             </div>
           </div>
@@ -192,6 +238,47 @@ export function VisualizerPage({ slug }: { slug: string }) {
     </Shell>
   );
 }
+
+/** Null when not giving feedback; an area of null means "still drawing it". */
+type FeedbackMode = { area: Bbox | null } | null;
+
+const FEEDBACK_LAYER_ID = 'feedback-area';
+
+/** The box being commented on, drawn so the form is clearly about that spot. */
+const feedbackAreaLayer = (area: Bbox) => ({
+  kind: 'features' as const,
+  id: FEEDBACK_LAYER_ID,
+  zIndex: 20,
+  features: [
+    {
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [
+          [
+            [area[0], area[1]],
+            [area[2], area[1]],
+            [area[2], area[3]],
+            [area[0], area[3]],
+            [area[0], area[1]],
+          ],
+        ],
+      },
+    },
+  ],
+  style: {
+    stroke: { color: '#326247', width: 2 },
+    fill: { color: 'rgba(50, 98, 71, 0.15)' },
+  },
+});
+
+/** What was on screen when the remark was made, so it can be placed in time. */
+const viewingLabel = (
+  source: VisualizerViewOut['imagery'][number] | null,
+  stepIndex: number
+): string | null => {
+  const step = source?.steps[stepIndex];
+  return source && step ? `${source.name} - ${step.label}` : null;
+};
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <div className="h-[100dvh] w-full bg-canvas text-neutral-900">{children}</div>
@@ -235,10 +322,14 @@ function Header({
   view,
   sidebarOpen,
   onToggleSidebar,
+  feedbackOpen,
+  onToggleFeedback,
 }: {
   view: VisualizerViewOut;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
+  feedbackOpen: boolean;
+  onToggleFeedback: () => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -265,6 +356,18 @@ function Header({
         <span title="Only people with access to the project can open this link">
           <Badge tone="yellow">Unpublished</Badge>
         </span>
+      )}
+
+      {view.can_give_feedback && (
+        <Button
+          variant={feedbackOpen ? 'primary' : 'secondary'}
+          size="sm"
+          onClick={onToggleFeedback}
+          title="Tell the people who made this map about a place on it"
+          leading={<IconComment className="h-3.5 w-3.5" />}
+        >
+          <span className="hidden desktop:inline">Feedback</span>
+        </Button>
       )}
 
       <Button

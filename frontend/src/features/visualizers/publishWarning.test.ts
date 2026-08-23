@@ -16,6 +16,7 @@ const OPTIONS: VisualizerOptionsOut = {
           visualizations: ['True Color'],
           start_date: null,
           end_date: null,
+          cadences: ['monthly'],
           restriction: null,
         },
         {
@@ -25,6 +26,7 @@ const OPTIONS: VisualizerOptionsOut = {
           visualizations: ['Visual'],
           start_date: null,
           end_date: null,
+          cadences: ['monthly'],
           restriction: 'api_key',
         },
       ],
