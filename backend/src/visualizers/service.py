@@ -24,7 +24,6 @@ from src.imagery.models import (
     ImageryCollection,
     ImagerySlice,
     ImagerySource,
-    SourceOwner,
 )
 from src.imagery.registration import RegistrationSpec
 from src.imagery.schemas import (
@@ -32,6 +31,7 @@ from src.imagery.schemas import (
     ImagerySourceCreate,
     ImagerySourceOut,
 )
+from src.layers import LayerOwner
 from src.projects.models import Project
 from src.visualizers import timeline
 from src.visualizers.models import (
@@ -236,7 +236,7 @@ def _spawn_registration(
     if not pending or area is None:
         return
     registration.spawn_background_mosaic_registration(
-        SourceOwner(visualizer_id=visualizer_id),
+        LayerOwner(visualizer_id=visualizer_id),
         pending,
         [area.west, area.south, area.east, area.north],
     )
@@ -259,9 +259,9 @@ def _replace_layers(
 ) -> None:
     """The payload's lists are the whole truth; anything missing from them goes.
 
-    Layers are references, so replacing them costs nothing - there is no state
-    on a visualizer layer worth preserving across an edit beyond what the
-    payload already carries.
+    Only the entries pointing at a campaign's layers, though: an overlay set up
+    on this visualizer joins the list when it is created and leaves when it is
+    deleted, so the pick list has no business reconciling it.
     """
     source_ids = [entry.source_id for entry in imagery]
     _assert_in_project(db, visualizer.project_id, ImagerySource, source_ids, "imagery source")
@@ -286,24 +286,38 @@ def _replace_layers(
         VisualizerImagery(source_id=entry.source_id, display_order=index)
         for index, entry in enumerate(imagery)
     ]
-    visualizer.overlays = [
-        VisualizerOverlay(
-            custom_map_id=entry.custom_map_id,
-            vector_layer_id=entry.vector_layer_id,
-            visible=entry.visible,
-            opacity=entry.opacity,
-            display_order=index,
-        )
-        for index, entry in enumerate(overlays)
-    ]
     for entry in overlays:
         if (entry.custom_map_id is None) == (entry.vector_layer_id is None):
             raise HTTPException(status_code=400, detail="An overlay must name exactly one layer")
+
+    owned = [o for o in visualizer.overlays if _is_owned(o, visualizer.id)]
+    visualizer.overlays = [
+        *owned,
+        *(
+            VisualizerOverlay(
+                custom_map_id=entry.custom_map_id,
+                vector_layer_id=entry.vector_layer_id,
+                visible=entry.visible,
+                opacity=entry.opacity,
+                display_order=len(owned) + index,
+            )
+            for index, entry in enumerate(overlays)
+        ),
+    ]
     db.flush()
 
 
+def _is_owned(overlay: VisualizerOverlay, visualizer_id: int) -> bool:
+    layer = overlay.custom_map or overlay.vector_layer
+    return layer is not None and layer.visualizer_id == visualizer_id
+
+
 def _assert_in_project(db: Session, project_id: int, model, ids: list[int], label: str) -> None:
-    """A visualizer may only point at what its own project owns."""
+    """A visualizer may only link what its own project's campaigns own.
+
+    Layers it set up itself never come through here: those are managed by their
+    own editor, not by the pick list.
+    """
     if not ids:
         return
     found = set(
@@ -327,6 +341,7 @@ def _imagery_config(visualizer: Visualizer) -> list[VisualizerImageryCreate]:
 
 
 def _overlay_config(visualizer: Visualizer) -> list[VisualizerOverlayCreate]:
+    """The linked entries, which are the only ones the pick list edits."""
     return [
         VisualizerOverlayCreate(
             custom_map_id=entry.custom_map_id,
@@ -335,6 +350,7 @@ def _overlay_config(visualizer: Visualizer) -> list[VisualizerOverlayCreate]:
             opacity=entry.opacity,
         )
         for entry in visualizer.overlays
+        if not _is_owned(entry, visualizer.id)
     ]
 
 
@@ -382,7 +398,7 @@ def tile_scopes(visualizer: Visualizer) -> list[str]:
     }
     scopes |= {source.owner.tile_scope for source in visualizer.imagery_sources}
     scopes |= {
-        str(o.custom_map.campaign_id) for o in visualizer.overlays if o.custom_map is not None
+        o.custom_map.owner.tile_scope for o in visualizer.overlays if o.custom_map is not None
     }
     return sorted(scopes)
 
@@ -430,7 +446,7 @@ def browsable_sources(visualizer: Visualizer) -> list[ImagerySource]:
     return [*visualizer.imagery_sources, *linked]
 
 
-def tile_proxy_base(owner: SourceOwner) -> str:
+def tile_proxy_base(owner: LayerOwner) -> str:
     """The backend route serving this owner's key-proxied slice tiles."""
     if owner.campaign_id is not None:
         return f"/api/{owner.campaign_id}/imagery/slices"
@@ -694,3 +710,27 @@ def delete_feedback(db: Session, visualizer_id: int, feedback_id: int) -> bool:
     db.delete(row)
     db.commit()
     return True
+
+
+def link_owned_overlay(
+    db: Session,
+    visualizer: Visualizer,
+    *,
+    custom_map_id: int | None = None,
+    vector_layer_id: int | None = None,
+) -> None:
+    """Put an overlay this visualizer just set up onto its overlay list.
+
+    Everything the viewer draws hangs off that list - it is what carries how a
+    layer opens, and what feedback points at - so an overlay set up here joins
+    it at the moment it is created rather than waiting for the next save.
+    """
+    db.add(
+        VisualizerOverlay(
+            visualizer_id=visualizer.id,
+            custom_map_id=custom_map_id,
+            vector_layer_id=vector_layer_id,
+            display_order=len(visualizer.overlays),
+        )
+    )
+    db.commit()

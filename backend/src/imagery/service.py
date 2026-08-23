@@ -16,7 +16,6 @@ from src.imagery.models import (
     ImagerySource,
     ImageryView,
     SliceTileUrl,
-    SourceOwner,
     VisualizationTemplate,
 )
 from src.imagery.registration import RegistrationSpec
@@ -30,6 +29,7 @@ from src.imagery.schemas import (
     ImageryViewUpdate,
 )
 from src.imagery.tile_urls import update_collection_viz_params
+from src.layers import LayerOwner
 from src.organizations.models import Organization, OrganizationApiKey
 from src.tilers import providers, registry
 
@@ -365,7 +365,7 @@ def save_imagery_editor_state(
             pending = _update_source_in_place(db, db_src, src_create, src_idx, bbox)
         else:
             db_src, pending = _create_source(
-                db, SourceOwner(campaign_id=campaign.id), src_create, src_idx, bbox
+                db, LayerOwner(campaign_id=campaign.id), src_create, src_idx, bbox
             )
         pending_registrations.extend(pending)
         current_sources.append(db_src)
@@ -390,7 +390,7 @@ def save_imagery_editor_state(
     db.execute(delete(Basemap).where(Basemap.campaign_id == campaign.id))
     db.flush()
     created_basemaps = _create_basemaps(
-        db, SourceOwner(campaign_id=campaign.id), editor_state.basemaps
+        db, LayerOwner(campaign_id=campaign.id), editor_state.basemaps
     )
 
     db.flush()
@@ -569,7 +569,7 @@ def save_visualizer_imagery(
             )
         else:
             _, created = _create_source(
-                db, SourceOwner(visualizer_id=visualizer.id), src_create, index, bbox
+                db, LayerOwner(visualizer_id=visualizer.id), src_create, index, bbox
             )
             pending.extend(created)
     db.flush()
@@ -589,7 +589,7 @@ def save_visualizer_basemaps(db: Session, *, visualizer, basemaps: list[BasemapC
     )
     db.execute(delete(Basemap).where(Basemap.visualizer_id == visualizer.id))
     db.flush()
-    _create_basemaps(db, SourceOwner(visualizer_id=visualizer.id), basemaps)
+    _create_basemaps(db, LayerOwner(visualizer_id=visualizer.id), basemaps)
     db.flush()
 
 
@@ -865,7 +865,7 @@ def _update_collection_in_place(
 
 def _create_source(
     db: Session,
-    owner: SourceOwner,
+    owner: LayerOwner,
     src: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
@@ -999,7 +999,7 @@ def _create_collection_record(
 
 def _create_basemaps(
     db: Session,
-    owner: SourceOwner,
+    owner: LayerOwner,
     basemaps: list[BasemapCreate],
 ) -> list[Basemap]:
     created = []

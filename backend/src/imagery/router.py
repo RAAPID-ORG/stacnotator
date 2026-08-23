@@ -11,7 +11,6 @@ from src.canvas import service as canvas_service
 from src.canvas.schemas import CanvasLayoutCreateRequest
 from src.database import get_db
 from src.imagery import registration, service
-from src.imagery.models import SourceOwner
 from src.imagery.schemas import (
     ApiKeyStatusOut,
     ApiKeyUpdate,
@@ -21,6 +20,7 @@ from src.imagery.schemas import (
     ImageryViewOut,
     ImageryViewUpdate,
 )
+from src.layers import LayerOwner
 from src.organizations.schemas import OrganizationApiKeyOut, OrganizationApiKeysResponse
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -74,7 +74,7 @@ def save_imagery(
     db.commit()
     if pending:
         registration.spawn_background_mosaic_registration(
-            SourceOwner(campaign_id=campaign.id), pending, result["bbox"]
+            LayerOwner(campaign_id=campaign.id), pending, result["bbox"]
         )
     return {
         "sources": len(result["sources"]),

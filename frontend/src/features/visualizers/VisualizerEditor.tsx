@@ -17,6 +17,8 @@ import { IconGlobe, IconMap, IconWarning } from '~/shared/ui/Icons';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { Modal } from '~/shared/ui/Modal';
 import { handleError } from '~/shared/utils/errorHandler';
+import { CustomMapsEditor } from '~/features/campaigns/components/CustomMapsEditor';
+import { VectorLayersEditor } from '~/features/campaigns/components/VectorLayersEditor';
 import { AreaField } from './editor/AreaField';
 import {
   basemapsPayload,
@@ -221,9 +223,29 @@ export function VisualizerEditor({
             />
           </Section>
 
+          {visualizerId !== null && (
+            <Section
+              title="Overlays for this visualizer"
+              description="Predictions and reference layers set up here rather than reused. Added to the map as soon as they are created."
+            >
+              <div className="space-y-6">
+                <CustomMapsEditor
+                  ownerKind="visualizer"
+                  ownerId={visualizerId}
+                  projectId={projectId}
+                />
+                <VectorLayersEditor
+                  ownerKind="visualizer"
+                  ownerId={visualizerId}
+                  description="Reference layers drawn over the imagery, toggled from the viewer's panel."
+                />
+              </div>
+            </Section>
+          )}
+
           <Section
             title="From this project's campaigns"
-            description="Imagery and prediction overlays other campaigns already registered, reused as they stand."
+            description="Imagery and overlays other campaigns already registered, reused as they stand."
           >
             {options.campaigns.length === 0 ? (
               <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-6 text-center text-sm text-neutral-500">
@@ -320,6 +342,15 @@ export function VisualizerEditor({
               </>
             )}
           </Section>
+
+          {visualizerId === null && (
+            <Section title="Overlays for this visualizer">
+              <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
+                Create the visualizer first, then set up predictions and reference layers of its own
+                here. Overlays from a campaign can be picked above right away.
+              </p>
+            </Section>
+          )}
 
           <Section title="Publishing">
             <div className="flex items-start gap-3">

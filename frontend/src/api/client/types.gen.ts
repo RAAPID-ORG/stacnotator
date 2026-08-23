@@ -9443,6 +9443,266 @@ export type UpdateVectorLayerResponses = {
 
 export type UpdateVectorLayerResponse = UpdateVectorLayerResponses[keyof UpdateVectorLayerResponses];
 
+export type ListVisualizerCustomMapsData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/custom-maps';
+};
+
+export type ListVisualizerCustomMapsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizerCustomMapsError = ListVisualizerCustomMapsErrors[keyof ListVisualizerCustomMapsErrors];
+
+export type ListVisualizerCustomMapsResponses = {
+    /**
+     * Response Listvisualizercustommaps
+     *
+     * Successful Response
+     */
+    200: Array<CustomMapOut>;
+};
+
+export type ListVisualizerCustomMapsResponse = ListVisualizerCustomMapsResponses[keyof ListVisualizerCustomMapsResponses];
+
+export type CreateVisualizerCustomMapData = {
+    body: CustomMapCreate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/custom-maps';
+};
+
+export type CreateVisualizerCustomMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateVisualizerCustomMapError = CreateVisualizerCustomMapErrors[keyof CreateVisualizerCustomMapErrors];
+
+export type CreateVisualizerCustomMapResponses = {
+    /**
+     * Successful Response
+     */
+    201: CustomMapOut;
+};
+
+export type CreateVisualizerCustomMapResponse = CreateVisualizerCustomMapResponses[keyof CreateVisualizerCustomMapResponses];
+
+export type DeleteVisualizerCustomMapData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Map Id
+         */
+        map_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/custom-maps/{map_id}';
+};
+
+export type DeleteVisualizerCustomMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVisualizerCustomMapError = DeleteVisualizerCustomMapErrors[keyof DeleteVisualizerCustomMapErrors];
+
+export type DeleteVisualizerCustomMapResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVisualizerCustomMapResponse = DeleteVisualizerCustomMapResponses[keyof DeleteVisualizerCustomMapResponses];
+
+export type UpdateVisualizerCustomMapData = {
+    body: CustomMapUpdate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Map Id
+         */
+        map_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/custom-maps/{map_id}';
+};
+
+export type UpdateVisualizerCustomMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateVisualizerCustomMapError = UpdateVisualizerCustomMapErrors[keyof UpdateVisualizerCustomMapErrors];
+
+export type UpdateVisualizerCustomMapResponses = {
+    /**
+     * Successful Response
+     */
+    200: CustomMapOut;
+};
+
+export type UpdateVisualizerCustomMapResponse = UpdateVisualizerCustomMapResponses[keyof UpdateVisualizerCustomMapResponses];
+
+export type ListVisualizerVectorLayersData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/vector-layers';
+};
+
+export type ListVisualizerVectorLayersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizerVectorLayersError = ListVisualizerVectorLayersErrors[keyof ListVisualizerVectorLayersErrors];
+
+export type ListVisualizerVectorLayersResponses = {
+    /**
+     * Response Listvisualizervectorlayers
+     *
+     * Successful Response
+     */
+    200: Array<VectorLayerOut>;
+};
+
+export type ListVisualizerVectorLayersResponse = ListVisualizerVectorLayersResponses[keyof ListVisualizerVectorLayersResponses];
+
+export type CreateVisualizerVectorLayerData = {
+    body: VectorLayerCreate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/vector-layers';
+};
+
+export type CreateVisualizerVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateVisualizerVectorLayerError = CreateVisualizerVectorLayerErrors[keyof CreateVisualizerVectorLayerErrors];
+
+export type CreateVisualizerVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    201: VectorLayerOut;
+};
+
+export type CreateVisualizerVectorLayerResponse = CreateVisualizerVectorLayerResponses[keyof CreateVisualizerVectorLayerResponses];
+
+export type DeleteVisualizerVectorLayerData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Layer Id
+         */
+        layer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/vector-layers/{layer_id}';
+};
+
+export type DeleteVisualizerVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVisualizerVectorLayerError = DeleteVisualizerVectorLayerErrors[keyof DeleteVisualizerVectorLayerErrors];
+
+export type DeleteVisualizerVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVisualizerVectorLayerResponse = DeleteVisualizerVectorLayerResponses[keyof DeleteVisualizerVectorLayerResponses];
+
+export type UpdateVisualizerVectorLayerData = {
+    body: VectorLayerUpdate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Layer Id
+         */
+        layer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/vector-layers/{layer_id}';
+};
+
+export type UpdateVisualizerVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateVisualizerVectorLayerError = UpdateVisualizerVectorLayerErrors[keyof UpdateVisualizerVectorLayerErrors];
+
+export type UpdateVisualizerVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VectorLayerOut;
+};
+
+export type UpdateVisualizerVectorLayerResponse = UpdateVisualizerVectorLayerResponses[keyof UpdateVisualizerVectorLayerResponses];
+
 export type ListVisualizersData = {
     body?: never;
     path: {

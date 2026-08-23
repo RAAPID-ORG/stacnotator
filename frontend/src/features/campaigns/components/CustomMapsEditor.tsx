@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
+import { customMapApi, type OverlayOwnerKind } from './overlayOwner';
 import { Spinner } from '~/shared/ui/Spinner';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash, IconPlus, IconPencil, IconExternalLink } from '~/shared/ui/Icons';
@@ -11,14 +12,7 @@ import {
   CATEGORICAL_PALETTE,
   type ColormapName,
 } from '~/shared/colormaps/colormaps';
-import {
-  listCustomMaps,
-  createCustomMap,
-  updateCustomMap,
-  deleteCustomMap,
-  type CustomMapOut,
-  type CategoricalEntry,
-} from '~/api/client';
+import { type CustomMapOut, type CategoricalEntry } from '~/api/client';
 
 interface FormState {
   name: string;
@@ -109,11 +103,15 @@ const StatusBadge = ({ status, statusError }: StatusBadgeProps) => {
 };
 
 interface CustomMapsEditorProps {
-  campaignId: number;
+  ownerKind: OverlayOwnerKind;
+  ownerId: number;
   projectId: number;
 }
 
-export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProps) => {
+export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEditorProps) => {
+  // Memoised so the effects below can depend on it rather than on the owner's
+  // parts, and so a re-render never re-runs the fetch.
+  const api = useMemo(() => customMapApi(ownerKind, ownerId), [ownerKind, ownerId]);
   const { allowsInternalStorage } = useProjectTilers(projectId);
   const [maps, setMaps] = useState<CustomMapOut[]>([]);
   const [form, setForm] = useState<FormState>(defaultForm());
@@ -158,13 +156,13 @@ export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProp
   };
 
   const fetchMaps = useCallback(async () => {
-    const { data, error } = await listCustomMaps({ path: { campaign_id: campaignId } });
+    const { data, error } = await api.list();
     if (error) {
       handleError(error, 'Failed to load custom maps', { showUser: false });
       return;
     }
     if (data) setMaps(data);
-  }, [campaignId]);
+  }, [api]);
 
   useEffect(() => {
     fetchMaps();
@@ -175,7 +173,7 @@ export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProp
     const anyRegistering = maps.some((m) => m.status === 'registering');
     if (anyRegistering && !pollRef.current) {
       pollRef.current = setInterval(async () => {
-        const { data } = await listCustomMaps({ path: { campaign_id: campaignId } });
+        const { data } = await api.list();
         if (data) {
           setMaps(data);
           if (!data.some((m) => m.status === 'registering')) stopPoll();
@@ -184,7 +182,7 @@ export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProp
     } else if (!anyRegistering) {
       stopPoll();
     }
-  }, [maps, campaignId]);
+  }, [maps, api]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,12 +222,7 @@ export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProp
       };
 
       const { error } =
-        editingId === null
-          ? await createCustomMap({ path: { campaign_id: campaignId }, body })
-          : await updateCustomMap({
-              path: { campaign_id: campaignId, map_id: editingId },
-              body,
-            });
+        editingId === null ? await api.create(body) : await api.update(editingId, body);
       if (error) {
         handleError(error, editingId === null ? 'Failed to add custom map' : 'Failed to save map');
         return;
@@ -242,9 +235,7 @@ export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProp
   };
 
   const handleDelete = async (mapId: number) => {
-    const { error } = await deleteCustomMap({
-      path: { campaign_id: campaignId, map_id: mapId },
-    });
+    const { error } = await api.remove(mapId);
     if (error) {
       handleError(error, 'Failed to delete custom map');
       return;

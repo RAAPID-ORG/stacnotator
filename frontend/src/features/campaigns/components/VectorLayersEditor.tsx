@@ -1,13 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash } from '~/shared/ui/Icons';
 import { handleError } from '~/shared/utils/errorHandler';
-import {
-  listVectorLayers,
-  createVectorLayer,
-  deleteVectorLayer,
-  type VectorLayerOut,
-} from '~/api/client';
+import { type VectorLayerOut } from '~/api/client';
+import { vectorLayerApi, type OverlayOwnerKind } from './overlayOwner';
 
 interface FormState {
   name: string;
@@ -24,23 +20,36 @@ const defaultForm = (): FormState => ({
 });
 
 interface VectorLayersEditorProps {
-  campaignId: number;
+  ownerKind: OverlayOwnerKind;
+  ownerId: number;
+  /** Replaces the default blurb, which describes what these do in the
+   *  annotator - not what they do everywhere they can be set up. */
+  description?: string;
 }
 
-export const VectorLayersEditor = ({ campaignId }: VectorLayersEditorProps) => {
+const DEFAULT_DESCRIPTION =
+  'Toggle on/off in open mode, hover to highlight, and label features by clicking with the ' +
+  'Label vector tool.';
+
+export const VectorLayersEditor = ({
+  ownerKind,
+  ownerId,
+  description = DEFAULT_DESCRIPTION,
+}: VectorLayersEditorProps) => {
+  const api = useMemo(() => vectorLayerApi(ownerKind, ownerId), [ownerKind, ownerId]);
   const [layers, setLayers] = useState<VectorLayerOut[]>([]);
   const [form, setForm] = useState<FormState>(defaultForm());
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
   const fetchLayers = useCallback(async () => {
-    const { data, error } = await listVectorLayers({ path: { campaign_id: campaignId } });
+    const { data, error } = await api.list();
     if (error) {
       handleError(error, 'Failed to load vector layers', { showUser: false });
       return;
     }
     if (data) setLayers(data);
-  }, [campaignId]);
+  }, [api]);
 
   useEffect(() => {
     fetchLayers();
@@ -50,14 +59,11 @@ export const VectorLayersEditor = ({ campaignId }: VectorLayersEditorProps) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const { error } = await createVectorLayer({
-        path: { campaign_id: campaignId },
-        body: {
-          name: form.name,
-          pmtiles_url: form.pmtiles_url,
-          source_layer: form.source_layer.trim() || null,
-          color: form.color,
-        },
+      const { error } = await api.create({
+        name: form.name,
+        pmtiles_url: form.pmtiles_url,
+        source_layer: form.source_layer.trim() || null,
+        color: form.color,
       });
       if (error) {
         handleError(error, 'Failed to add vector layer');
@@ -72,9 +78,7 @@ export const VectorLayersEditor = ({ campaignId }: VectorLayersEditorProps) => {
   };
 
   const handleDelete = async (layerId: number) => {
-    const { error } = await deleteVectorLayer({
-      path: { campaign_id: campaignId, layer_id: layerId },
-    });
+    const { error } = await api.remove(layerId);
     if (error) {
       handleError(error, 'Failed to delete vector layer');
       return;
@@ -91,10 +95,7 @@ export const VectorLayersEditor = ({ campaignId }: VectorLayersEditorProps) => {
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
             Vector layers (PMTiles)
           </h4>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Toggle on/off in open mode, hover to highlight, and label features by clicking with the
-            Label vector tool.
-          </p>
+          <p className="text-xs text-neutral-500 mt-0.5">{description}</p>
         </div>
         {!showForm && (
           <button

@@ -102,6 +102,18 @@ class Visualizer(Base):
         back_populates="visualizer",
         cascade="all, delete-orphan",
     )
+    # Overlays set up here rather than reused from a campaign. Both kinds also
+    # appear in `overlays`, which is the list the viewer draws from.
+    custom_maps: Mapped[list["CustomMap"]] = relationship(
+        back_populates="visualizer",
+        cascade="all, delete-orphan",
+        order_by="CustomMap.display_order",
+    )
+    vector_layers: Mapped[list["VectorLayer"]] = relationship(
+        back_populates="visualizer",
+        cascade="all, delete-orphan",
+        order_by="VectorLayer.display_order",
+    )
     imagery: Mapped[list["VisualizerImagery"]] = relationship(
         back_populates="visualizer",
         cascade="all, delete-orphan",

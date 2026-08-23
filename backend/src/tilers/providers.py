@@ -224,9 +224,13 @@ def ingest_on_tiler(
 
 
 def register_cog_on_tiler(
-    tiler: TilerCfg, cog_url: str, campaign_id, internal_storage: bool = False
+    tiler: TilerCfg, cog_url: str, tile_scope: str, internal_storage: bool = False
 ) -> str:
-    """Register a single COG as a campaign-scoped pgstac search on the hosted tiler.
+    """Register a single COG as an owner-scoped pgstac search on the hosted tiler.
+
+    The scope is stamped under the tiler's ``campaign_id`` key because that is the
+    name the tiler matches against the browser token; it never parses the value,
+    which is how a visualizer gets a scope of its own (see ``layers.LayerOwner``).
 
     ``internal_storage`` marks the search so the tiler reads its assets with the managed
     identity. Returns the tiler search id, used to build the tile-URL template.
@@ -237,7 +241,7 @@ def register_cog_on_tiler(
         f"{_register_base(tiler)}/searches/register-cog",
         json={
             "cog_url": cog_url,
-            "campaign_id": str(campaign_id),
+            "campaign_id": tile_scope,
             "internal_storage": internal_storage,
         },
         headers={"Authorization": f"Bearer {token}"},

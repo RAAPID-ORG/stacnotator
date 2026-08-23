@@ -15,6 +15,7 @@ from src.projects.dependencies import require_project_access, require_project_ad
 from src.projects.models import Project, ProjectUser
 from src.tilers.tokens import TILER_TOKEN_TTL, set_tiler_cookie
 from src.visualizers import service
+from src.visualizers.dependencies import require_visualizer_admin
 from src.visualizers.models import Visualizer
 from src.visualizers.schemas import (
     TilerSessionOut,
@@ -74,19 +75,9 @@ visualizer_router = APIRouter(
 )
 
 
-def _require_admin(
-    visualizer_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_authenticated_user),
-) -> Visualizer:
-    visualizer = service.load(db, visualizer_id=visualizer_id)
-    require_project_admin(project_id=visualizer.project_id, db=db, user=user)
-    return visualizer
-
-
 @visualizer_router.get("", response_model=VisualizerConfigOut)
 def get_visualizer(
-    visualizer: Visualizer = Depends(_require_admin),
+    visualizer: Visualizer = Depends(require_visualizer_admin),
     db: Session = Depends(get_db),
 ):
     # The editor polls this while imagery registers; recover here if the run's
@@ -102,7 +93,7 @@ def get_visualizer(
 @visualizer_router.patch("", response_model=VisualizerConfigOut)
 def update_visualizer(
     payload: VisualizerUpdate,
-    visualizer: Visualizer = Depends(_require_admin),
+    visualizer: Visualizer = Depends(require_visualizer_admin),
     db: Session = Depends(get_db),
 ):
     return service.config_out(service.update(db, visualizer, payload))
@@ -110,7 +101,7 @@ def update_visualizer(
 
 @visualizer_router.get("/feedback", response_model=list[VisualizerFeedbackOut])
 def list_visualizer_feedback(
-    visualizer: Visualizer = Depends(_require_admin),
+    visualizer: Visualizer = Depends(require_visualizer_admin),
     db: Session = Depends(get_db),
 ):
     return service.list_feedback(db, visualizer.id)
@@ -119,7 +110,7 @@ def list_visualizer_feedback(
 @visualizer_router.delete("/feedback/{feedback_id}", status_code=204)
 def delete_visualizer_feedback(
     feedback_id: int,
-    visualizer: Visualizer = Depends(_require_admin),
+    visualizer: Visualizer = Depends(require_visualizer_admin),
     db: Session = Depends(get_db),
 ):
     if not service.delete_feedback(db, visualizer.id, feedback_id):
@@ -129,7 +120,7 @@ def delete_visualizer_feedback(
 
 @visualizer_router.delete("", status_code=204)
 def delete_visualizer(
-    visualizer: Visualizer = Depends(_require_admin),
+    visualizer: Visualizer = Depends(require_visualizer_admin),
     db: Session = Depends(get_db),
 ):
     service.delete(db, visualizer)

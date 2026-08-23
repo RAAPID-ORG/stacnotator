@@ -26,9 +26,9 @@ from src.imagery.models import (
     ImagerySlice,
     ImagerySource,
     SliceTileUrl,
-    SourceOwner,
 )
 from src.imagery.proxy import build_upstream_tile_url
+from src.layers import LayerOwner
 from src.organizations.models import OrganizationApiKey
 from src.tile_bulkhead import tile_db_slot
 from src.tilers import tokens
@@ -59,7 +59,7 @@ def _assert_scope(request: Request, scope: str) -> None:
 
     The cookie carries the scopes its holder may read; a campaign's is its bare
     id and a visualizer's is prefixed, so the two can never be mistaken for one
-    another. See ``imagery.models.SourceOwner``.
+    another. See ``imagery.models.LayerOwner``.
     """
     token = request.cookies.get("tiler_token")
     if not token:
@@ -73,11 +73,11 @@ def _assert_scope(request: Request, scope: str) -> None:
 
 
 def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
-    _assert_scope(request, SourceOwner(campaign_id=campaign_id).tile_scope)
+    _assert_scope(request, LayerOwner(campaign_id=campaign_id).tile_scope)
 
 
 def require_visualizer_tile_access(request: Request, visualizer_id: int = Path(...)) -> None:
-    _assert_scope(request, SourceOwner(visualizer_id=visualizer_id).tile_scope)
+    _assert_scope(request, LayerOwner(visualizer_id=visualizer_id).tile_scope)
 
 
 def _resolve_key(db: Session, layer: Basemap | ImagerySource) -> str | None:
@@ -133,12 +133,12 @@ async def proxy_basemap_tile(
     y: int,
 ) -> Response:
     url, encrypted_api_key = await _read(
-        _basemap_lookup(basemap_id, SourceOwner(campaign_id=campaign_id))
+        _basemap_lookup(basemap_id, LayerOwner(campaign_id=campaign_id))
     )
     return await _proxy(url, encrypted_api_key, z, x, y)
 
 
-def _basemap_lookup(basemap_id: int, owner: SourceOwner):
+def _basemap_lookup(basemap_id: int, owner: LayerOwner):
     """Resolve one basemap's upstream template and key, scoped to its owner."""
 
     def lookup(db: Session) -> tuple[str, str | None]:
@@ -150,7 +150,7 @@ def _basemap_lookup(basemap_id: int, owner: SourceOwner):
     return lookup
 
 
-def _slice_lookup(slice_id: int, visualization_name: str, owner: SourceOwner):
+def _slice_lookup(slice_id: int, visualization_name: str, owner: LayerOwner):
     """Resolve one slice's upstream template and key, scoped to its owner."""
 
     def lookup(db: Session) -> tuple[str, str | None]:
@@ -188,7 +188,7 @@ async def proxy_slice_tile(
     y: int,
 ) -> Response:
     tile_url, encrypted_api_key = await _read(
-        _slice_lookup(slice_id, visualization_name, SourceOwner(campaign_id=campaign_id))
+        _slice_lookup(slice_id, visualization_name, LayerOwner(campaign_id=campaign_id))
     )
     return await _proxy(tile_url, encrypted_api_key, z, x, y)
 
@@ -205,7 +205,7 @@ async def proxy_visualizer_basemap_tile(
     y: int,
 ) -> Response:
     tile_url, encrypted_api_key = await _read(
-        _basemap_lookup(basemap_id, SourceOwner(visualizer_id=visualizer_id))
+        _basemap_lookup(basemap_id, LayerOwner(visualizer_id=visualizer_id))
     )
     return await _proxy(tile_url, encrypted_api_key, z, x, y)
 
@@ -223,6 +223,6 @@ async def proxy_visualizer_slice_tile(
     y: int,
 ) -> Response:
     tile_url, encrypted_api_key = await _read(
-        _slice_lookup(slice_id, visualization_name, SourceOwner(visualizer_id=visualizer_id))
+        _slice_lookup(slice_id, visualization_name, LayerOwner(visualizer_id=visualizer_id))
     )
     return await _proxy(tile_url, encrypted_api_key, z, x, y)

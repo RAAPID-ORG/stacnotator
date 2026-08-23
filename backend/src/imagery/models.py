@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -16,36 +15,13 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.layers import LayerOwner
 
 if TYPE_CHECKING:
     from src.campaigns.models import Campaign
     from src.canvas.models import CanvasLayout
     from src.organizations.models import OrganizationApiKey
     from src.visualizers.models import Visualizer
-
-
-@dataclass(frozen=True)
-class SourceOwner:
-    """Who an imagery source belongs to, and the scope its tiles are served under.
-
-    Campaigns and visualizers both set imagery up the same way, so a source can
-    hang off either. The scope is the string the tiler and the tile proxy match
-    a request against: a campaign keeps its bare id, which is what every search
-    registered so far is stamped with, and a visualizer takes a prefixed one so
-    the two can never be confused for each other.
-    """
-
-    campaign_id: int | None = None
-    visualizer_id: int | None = None
-
-    @property
-    def tile_scope(self) -> str:
-        if self.campaign_id is not None:
-            return str(self.campaign_id)
-        return f"visualizer:{self.visualizer_id}"
-
-    def as_columns(self) -> dict[str, int | None]:
-        return {"campaign_id": self.campaign_id, "visualizer_id": self.visualizer_id}
 
 
 class ImagerySource(Base):
@@ -67,7 +43,7 @@ class ImagerySource(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # Exactly one owner. See SourceOwner for what that means for tile access.
+    # Exactly one owner. See LayerOwner for what that means for tile access.
     campaign_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.campaigns.id", ondelete="CASCADE"),
         nullable=True,
@@ -113,8 +89,8 @@ class ImagerySource(Base):
     )
 
     @property
-    def owner(self) -> SourceOwner:
-        return SourceOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
+    def owner(self) -> LayerOwner:
+        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
 
     @property
     def has_api_key(self) -> bool:
@@ -394,8 +370,8 @@ class Basemap(Base):
     organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
 
     @property
-    def owner(self) -> SourceOwner:
-        return SourceOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
+    def owner(self) -> LayerOwner:
+        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
 
     @property
     def has_api_key(self) -> bool:

@@ -14,6 +14,7 @@ from src.custom_layers.schemas import (
     VectorLayerUpdate,
 )
 from src.database import SessionLocal
+from src.layers import LayerOwner
 from src.tilers.providers import build_tile_url, register_cog_on_tiler, resolve_tiler
 
 logger = logging.getLogger(__name__)
@@ -23,16 +24,21 @@ class DuplicateCustomMapName(Exception):
     pass
 
 
-def _name_taken(db: Session, campaign_id: int, name: str, exclude_id: int | None = None) -> bool:
-    query = select(CustomMap.id).where(CustomMap.campaign_id == campaign_id, CustomMap.name == name)
+def _owned(model, owner: LayerOwner):
+    """Rows belonging to this owner and no other."""
+    return (model.campaign_id == owner.campaign_id) & (model.visualizer_id == owner.visualizer_id)
+
+
+def _name_taken(db: Session, owner: LayerOwner, name: str, exclude_id: int | None = None) -> bool:
+    query = select(CustomMap.id).where(_owned(CustomMap, owner), CustomMap.name == name)
     if exclude_id is not None:
         query = query.where(CustomMap.id != exclude_id)
     return db.execute(query).first() is not None
 
 
-def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMap:
+def _insert(db: Session, owner: LayerOwner, payload: CustomMapCreate) -> CustomMap:
     cm = CustomMap(
-        campaign_id=campaign_id,
+        **owner.as_columns(),
         name=payload.name,
         cog_url=payload.cog_url,
         render_config=payload.render_config.model_dump(mode="json"),
@@ -56,7 +62,7 @@ def run_registration(db: Session, cm: CustomMap) -> None:
     try:
         tiler = resolve_tiler(None)
         search_id = register_cog_on_tiler(
-            tiler, cm.cog_url, cm.campaign_id, internal_storage=cm.internal_storage
+            tiler, cm.cog_url, cm.owner.tile_scope, internal_storage=cm.internal_storage
         )
         # A colour edit can land while the tiler call is in flight, and update_custom_map
         # cannot restamp a map that has no search yet, so pick up the current config here.
@@ -86,41 +92,41 @@ def _spawn_registration(map_id: int) -> None:
     threading.Thread(target=_register_async, args=(map_id,), daemon=True).start()
 
 
-def create_custom_map(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMap:
-    if _name_taken(db, campaign_id, payload.name):
+def create_custom_map(db: Session, owner: LayerOwner, payload: CustomMapCreate) -> CustomMap:
+    if _name_taken(db, owner, payload.name):
         raise DuplicateCustomMapName(payload.name)
-    cm = _insert(db, campaign_id, payload)
+    cm = _insert(db, owner, payload)
     _spawn_registration(cm.id)
     return cm
 
 
-def list_custom_maps(db: Session, campaign_id: int) -> list[CustomMap]:
+def list_custom_maps(db: Session, owner: LayerOwner) -> list[CustomMap]:
     return list(
         db.execute(
             select(CustomMap)
-            .where(CustomMap.campaign_id == campaign_id)
+            .where(_owned(CustomMap, owner))
             .order_by(CustomMap.display_order, CustomMap.id)
         ).scalars()
     )
 
 
-def _get_custom_map(db: Session, campaign_id: int, map_id: int) -> CustomMap | None:
+def _get_custom_map(db: Session, owner: LayerOwner, map_id: int) -> CustomMap | None:
     return db.execute(
-        select(CustomMap).where(CustomMap.id == map_id, CustomMap.campaign_id == campaign_id)
+        select(CustomMap).where(CustomMap.id == map_id, _owned(CustomMap, owner))
     ).scalar_one_or_none()
 
 
 def update_custom_map(
-    db: Session, campaign_id: int, map_id: int, payload: CustomMapUpdate
+    db: Session, owner: LayerOwner, map_id: int, payload: CustomMapUpdate
 ) -> CustomMap | None:
-    cm = _get_custom_map(db, campaign_id, map_id)
+    cm = _get_custom_map(db, owner, map_id)
     if cm is None:
         return None
     data = payload.model_dump(exclude_unset=True)
     if (
         "name" in data
         and data["name"] != cm.name
-        and _name_taken(db, campaign_id, data["name"], exclude_id=map_id)
+        and _name_taken(db, owner, data["name"], exclude_id=map_id)
     ):
         raise DuplicateCustomMapName(data["name"])
     render_changed = False
@@ -154,8 +160,8 @@ def update_custom_map(
     return cm
 
 
-def delete_custom_map(db: Session, campaign_id: int, map_id: int) -> bool:
-    cm = _get_custom_map(db, campaign_id, map_id)
+def delete_custom_map(db: Session, owner: LayerOwner, map_id: int) -> bool:
+    cm = _get_custom_map(db, owner, map_id)
     if cm is None:
         return False
     db.delete(cm)
@@ -163,19 +169,19 @@ def delete_custom_map(db: Session, campaign_id: int, map_id: int) -> bool:
     return True
 
 
-def list_vector_layers(db: Session, campaign_id: int) -> list[VectorLayer]:
+def list_vector_layers(db: Session, owner: LayerOwner) -> list[VectorLayer]:
     return list(
         db.execute(
             select(VectorLayer)
-            .where(VectorLayer.campaign_id == campaign_id)
+            .where(_owned(VectorLayer, owner))
             .order_by(VectorLayer.display_order, VectorLayer.id)
         ).scalars()
     )
 
 
-def create_vector_layer(db: Session, campaign_id: int, payload: VectorLayerCreate) -> VectorLayer:
+def create_vector_layer(db: Session, owner: LayerOwner, payload: VectorLayerCreate) -> VectorLayer:
     layer = VectorLayer(
-        campaign_id=campaign_id,
+        **owner.as_columns(),
         name=payload.name,
         pmtiles_url=payload.pmtiles_url,
         source_layer=payload.source_layer,
@@ -187,18 +193,16 @@ def create_vector_layer(db: Session, campaign_id: int, payload: VectorLayerCreat
     return layer
 
 
-def _get_vector_layer(db: Session, campaign_id: int, layer_id: int) -> VectorLayer | None:
+def _get_vector_layer(db: Session, owner: LayerOwner, layer_id: int) -> VectorLayer | None:
     return db.execute(
-        select(VectorLayer).where(
-            VectorLayer.id == layer_id, VectorLayer.campaign_id == campaign_id
-        )
+        select(VectorLayer).where(VectorLayer.id == layer_id, _owned(VectorLayer, owner))
     ).scalar_one_or_none()
 
 
 def update_vector_layer(
-    db: Session, campaign_id: int, layer_id: int, payload: VectorLayerUpdate
+    db: Session, owner: LayerOwner, layer_id: int, payload: VectorLayerUpdate
 ) -> VectorLayer | None:
-    layer = _get_vector_layer(db, campaign_id, layer_id)
+    layer = _get_vector_layer(db, owner, layer_id)
     if layer is None:
         return None
     data = payload.model_dump(exclude_unset=True)
@@ -210,8 +214,8 @@ def update_vector_layer(
     return layer
 
 
-def delete_vector_layer(db: Session, campaign_id: int, layer_id: int) -> bool:
-    layer = _get_vector_layer(db, campaign_id, layer_id)
+def delete_vector_layer(db: Session, owner: LayerOwner, layer_id: int) -> bool:
+    layer = _get_vector_layer(db, owner, layer_id)
     if layer is None:
         return False
     db.delete(layer)

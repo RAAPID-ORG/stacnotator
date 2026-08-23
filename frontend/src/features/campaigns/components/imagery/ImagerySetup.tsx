@@ -39,8 +39,12 @@ export const ImagerySetup = ({ controller, campaignBbox = null }: ImagerySetupPr
             </p>
           </div>
           <div className="space-y-6">
-            <CustomMapsEditor campaignId={controller.campaignId} projectId={controller.projectId} />
-            <VectorLayersEditor campaignId={controller.campaignId} />
+            <CustomMapsEditor
+              ownerKind="campaign"
+              ownerId={controller.campaignId}
+              projectId={controller.projectId}
+            />
+            <VectorLayersEditor ownerKind="campaign" ownerId={controller.campaignId} />
           </div>
         </section>
       )}

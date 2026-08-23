@@ -37,7 +37,6 @@ from src.imagery.models import (
     ImagerySlice,
     ImagerySource,
     ImageryView,
-    SourceOwner,
 )
 from src.imagery.registration import (
     REGISTRATION_RUN,
@@ -46,6 +45,7 @@ from src.imagery.registration import (
     spawn_background_mosaic_registration,
 )
 from src.imagery.service import create_imagery_from_editor_state
+from src.layers import LayerOwner
 from src.organizations.models import (
     MEMBER_STATUS_ACTIVE,
     ORG_STATUS_APPROVED,
@@ -315,7 +315,7 @@ def create_campaign(
     # commit above isn't blocked on the slow parallel STAC calls).
     if pending_registrations:
         spawn_background_mosaic_registration(
-            SourceOwner(campaign_id=campaign_id), pending_registrations, registration_bbox
+            LayerOwner(campaign_id=campaign_id), pending_registrations, registration_bbox
         )
 
     # Background thread: embeddings

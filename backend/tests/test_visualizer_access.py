@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.imagery.models import SourceOwner
+from src.layers import LayerOwner
 from src.visualizers import service
 from src.visualizers.router import _require_viewer
 
@@ -90,13 +90,22 @@ def test_project_admin_may_edit(_stub_load):
 
 
 def test_tile_session_covers_only_what_the_visualizer_draws_from():
-    linked = MagicMock(source=MagicMock(owner=SourceOwner(campaign_id=42)))
+    linked = MagicMock(source=MagicMock(owner=LayerOwner(campaign_id=42)))
     visualizer = MagicMock(
         imagery=[linked],
-        imagery_sources=[MagicMock(owner=SourceOwner(visualizer_id=3))],
+        imagery_sources=[MagicMock(owner=LayerOwner(visualizer_id=3))],
         overlays=[
-            MagicMock(custom_map=MagicMock(campaign_id=7)),
+            MagicMock(custom_map=MagicMock(owner=LayerOwner(campaign_id=7))),
             MagicMock(custom_map=None),
         ],
     )
     assert service.tile_scopes(visualizer) == ["42", "7", "visualizer:3"]
+
+
+def test_tile_session_covers_an_overlay_the_visualizer_owns():
+    visualizer = MagicMock(
+        imagery=[],
+        imagery_sources=[],
+        overlays=[MagicMock(custom_map=MagicMock(owner=LayerOwner(visualizer_id=3)))],
+    )
+    assert service.tile_scopes(visualizer) == ["visualizer:3"]

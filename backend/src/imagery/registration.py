@@ -28,10 +28,10 @@ from src.imagery.models import (
     ImagerySlice,
     ImagerySource,
     SliceTileUrl,
-    SourceOwner,
 )
 from src.imagery.schemas import CollectionStacConfigCreate
 from src.imagery.tile_urls import _slice_viz_params
+from src.layers import LayerOwner
 from src.tilers import providers
 from src.visualizers.models import Visualizer
 
@@ -362,7 +362,7 @@ VISUALIZER_REGISTRATION_RUN = background.StatusField(
 )
 
 
-def status_run_for(owner: SourceOwner) -> tuple[int, background.StatusField]:
+def status_run_for(owner: LayerOwner) -> tuple[int, background.StatusField]:
     """The row and status columns a registration run for this owner writes to."""
     if owner.campaign_id is not None:
         return owner.campaign_id, REGISTRATION_RUN
@@ -372,7 +372,7 @@ def status_run_for(owner: SourceOwner) -> tuple[int, background.StatusField]:
 
 
 def spawn_background_mosaic_registration(
-    owner: SourceOwner,
+    owner: LayerOwner,
     pending_registrations: list[RegistrationSpec],
     bbox: list[float],
 ) -> None:
