@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VisualizerImageryOut, VisualizerStepOut, VisualizerViewOut } from '~/api/client';
-import { composeLayers, initialState, selectSource } from './viewerState';
+import { composeLayers, initialState, selectSource, zoomedPastArea } from './viewerState';
 
 const step = (id: number, start: string, end: string, viz = 'True Color'): VisualizerStepOut => ({
   slice_id: id,
@@ -12,7 +12,7 @@ const step = (id: number, start: string, end: string, viz = 'True Color'): Visua
 
 const source = (over: Partial<VisualizerImageryOut> = {}): VisualizerImageryOut => ({
   source_id: 1,
-  campaign_id: 7,
+  tile_proxy_base: '/api/7/imagery/slices',
   name: 'Sentinel-2',
   visualizations: ['True Color'],
   default_zoom: 15,
@@ -30,10 +30,11 @@ const view = (over: Partial<VisualizerViewOut> = {}): VisualizerViewOut => ({
   is_public: true,
   project_id: 2,
   project_name: 'Harvest',
-  camera: null,
+  area: null,
   imagery: [source()],
   overlays: [],
   can_edit: false,
+  registration_status: 'ready',
   ...over,
 });
 
@@ -138,5 +139,25 @@ describe('composeLayers', () => {
       url: expect.stringContaining('/api/7/imagery/slices/3/tiles/True%20Color/{z}/{x}/{y}'),
       auth: 'cookie',
     });
+  });
+});
+
+describe('zoomedPastArea', () => {
+  const area = { west: 30, south: 50, east: 31, north: 51 };
+
+  it('is quiet while the area still fills a useful part of the view', () => {
+    expect(zoomedPastArea(area, [29, 49, 32, 52])).toBe(false);
+  });
+
+  it('speaks up once the area is a speck', () => {
+    expect(zoomedPastArea(area, [-180, -85, 180, 85])).toBe(true);
+  });
+
+  it('has nothing to say without an area', () => {
+    expect(zoomedPastArea(null, [-180, -85, 180, 85])).toBe(false);
+  });
+
+  it('ignores a viewport that has not been measured yet', () => {
+    expect(zoomedPastArea(area, [0, 0, 0, 0])).toBe(false);
   });
 });

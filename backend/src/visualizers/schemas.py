@@ -1,8 +1,9 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.custom_layers.schemas import RenderConfig
+from src.imagery.schemas import ImagerySourceCreate, ImagerySourceOut
 
 
 class VisualizerImageryCreate(BaseModel):
@@ -16,19 +17,32 @@ class VisualizerOverlayCreate(BaseModel):
     opacity: float = Field(default=1.0, ge=0, le=1)
 
 
-class VisualizerCamera(BaseModel):
-    lon: float = Field(ge=-180, le=180)
-    lat: float = Field(ge=-90, le=90)
-    zoom: float = Field(ge=0, le=24)
+class VisualizerArea(BaseModel):
+    """The area a visualizer is about: what it opens framed on, and the extent
+    its own imagery is searched and registered over."""
+
+    west: float = Field(ge=-180, le=180)
+    south: float = Field(ge=-90, le=90)
+    east: float = Field(ge=-180, le=180)
+    north: float = Field(ge=-90, le=90)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> "VisualizerArea":
+        if self.west >= self.east or self.south >= self.north:
+            raise ValueError("Area must have west < east and south < north")
+        return self
 
 
 class VisualizerCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     is_public: bool = False
-    camera: VisualizerCamera | None = None
+    area: VisualizerArea | None = None
     imagery: list[VisualizerImageryCreate] = Field(default_factory=list)
     overlays: list[VisualizerOverlayCreate] = Field(default_factory=list)
+    # Imagery set up for this visualizer alone, in the same shape the campaign
+    # imagery editor produces. Registering it needs an area to search over.
+    own_imagery: list[ImagerySourceCreate] = Field(default_factory=list)
 
 
 class VisualizerUpdate(BaseModel):
@@ -37,9 +51,10 @@ class VisualizerUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     is_public: bool | None = None
-    camera: VisualizerCamera | None = None
+    area: VisualizerArea | None = None
     imagery: list[VisualizerImageryCreate] | None = None
     overlays: list[VisualizerOverlayCreate] | None = None
+    own_imagery: list[ImagerySourceCreate] | None = None
 
 
 class VisualizerListItemOut(BaseModel):
@@ -69,7 +84,10 @@ class VisualizerStepOut(BaseModel):
 
 class VisualizerImageryOut(BaseModel):
     source_id: int
-    campaign_id: int
+    # Where this source's key-proxied tiles are fetched from. A path rather than
+    # an owner id because a campaign's and a visualizer's proxy routes differ,
+    # and the viewer has no reason to care which it is looking at.
+    tile_proxy_base: str
     name: str
     visualizations: list[str]
     default_zoom: int
@@ -115,10 +133,13 @@ class VisualizerViewOut(BaseModel):
     is_public: bool
     project_id: int
     project_name: str
-    camera: VisualizerCamera | None
+    area: VisualizerArea | None
     imagery: list[VisualizerImageryOut]
     overlays: list[VisualizerOverlayOut]
     can_edit: bool
+    # Its own imagery's registration run, so the viewer can say why a source it
+    # lists has no dates yet rather than looking broken.
+    registration_status: str
 
 
 class VisualizerConfigOut(BaseModel):
@@ -130,9 +151,12 @@ class VisualizerConfigOut(BaseModel):
     name: str
     description: str | None
     is_public: bool
-    camera: VisualizerCamera | None
+    area: VisualizerArea | None
     imagery: list[VisualizerImageryCreate]
     overlays: list[VisualizerOverlayCreate]
+    own_imagery: list[ImagerySourceOut]
+    registration_status: str
+    registration_errors: list | None
 
 
 # Why a layer is not simply public imagery. Publishing one points anonymous
@@ -162,6 +186,9 @@ class OverlayOptionOut(BaseModel):
 class CampaignOptionsOut(BaseModel):
     campaign_id: int
     campaign_name: str
+    # The campaign's own extent, offered as the visualizer's area when picking
+    # from it - the imagery and predictions listed here cover exactly this.
+    area: VisualizerArea | None
     sources: list[SourceOptionOut]
     raster_overlays: list[OverlayOptionOut]
     vector_overlays: list[OverlayOptionOut]

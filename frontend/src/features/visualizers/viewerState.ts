@@ -139,7 +139,7 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
   const tile = step ? tileFor(step, state.visualization) : null;
   if (source && step && tile) {
     const url = needsKeyProxy(tile.url)
-      ? sliceProxyUrl(source.campaign_id, step.slice_id, state.visualization ?? '')
+      ? sliceProxyUrl(source.tile_proxy_base, step.slice_id, state.visualization ?? '')
       : tile.url;
     layers.push({
       kind: 'raster',
@@ -188,6 +188,26 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
   }
 
   return layers;
+}
+
+/** How much of the viewport the area of interest has to fill before imagery is
+ *  worth looking at. Below this the map is mostly basemap and the layer reads
+ *  as broken rather than as far away. */
+const AREA_VISIBLE_FRACTION = 0.08;
+
+/** Whether the map has been zoomed out past the area this visualizer is about.
+ *  Undecidable without an area, which is why that reads as "not too far". */
+export function zoomedPastArea(
+  area: VisualizerViewOut['area'],
+  bounds: [number, number, number, number]
+): boolean {
+  if (!area) return false;
+  const viewWidth = bounds[2] - bounds[0];
+  const viewHeight = bounds[3] - bounds[1];
+  if (viewWidth <= 0 || viewHeight <= 0) return false;
+  const widthFraction = (area.east - area.west) / viewWidth;
+  const heightFraction = (area.north - area.south) / viewHeight;
+  return Math.max(widthFraction, heightFraction) < AREA_VISIBLE_FRACTION;
 }
 
 /** Every campaign whose tiles this visualizer needs a tiler session for. */

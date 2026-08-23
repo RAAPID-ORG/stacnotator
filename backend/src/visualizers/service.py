@@ -1,9 +1,10 @@
 """Visualizer CRUD and the read model the viewer page draws.
 
-A visualizer never owns imagery: it points at sources and overlays that belong
-to campaigns in the same project. Everything here is either that reference
-bookkeeping or the projection from those campaign rows into the flat, cover-free
-shape ``VisualizerViewOut`` describes.
+A visualizer draws on two kinds of imagery. It can register its own, set up the
+same way a campaign's is and searched over the visualizer's own area; and it can
+point at sources and overlays already registered by campaigns in the same
+project. Both arrive at the viewer identically: as one flat, cover-free timeline
+per source (see ``timeline``), which is the whole reason the two can be mixed.
 """
 
 import secrets
@@ -12,9 +13,14 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from src import background
 from src.campaigns.models import Campaign
 from src.custom_layers.models import CustomMap, VectorLayer
-from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource
+from src.imagery import registration
+from src.imagery import service as imagery_service
+from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, SourceOwner
+from src.imagery.registration import RegistrationSpec
+from src.imagery.schemas import ImagerySourceCreate, ImagerySourceOut
 from src.projects.models import Project
 from src.visualizers import timeline
 from src.visualizers.models import Visualizer, VisualizerImagery, VisualizerOverlay
@@ -25,7 +31,7 @@ from src.visualizers.schemas import (
     RasterOverlayOut,
     SourceOptionOut,
     VectorOverlayOut,
-    VisualizerCamera,
+    VisualizerArea,
     VisualizerConfigOut,
     VisualizerCreate,
     VisualizerImageryCreate,
@@ -115,11 +121,13 @@ def create(db: Session, project: Project, payload: VisualizerCreate, user_id) ->
         is_public=payload.is_public,
         created_by=user_id,
     )
-    _apply_camera(visualizer, payload.camera)
+    _apply_area(visualizer, payload.area)
     db.add(visualizer)
     db.flush()
     _replace_layers(db, visualizer, payload.imagery, payload.overlays)
+    pending = _save_own_imagery(db, visualizer, payload.own_imagery)
     db.commit()
+    _spawn_registration(visualizer.id, pending, area_out(visualizer))
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -130,8 +138,8 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
         visualizer.description = payload.description
     if payload.is_public is not None:
         visualizer.is_public = payload.is_public
-    if payload.camera is not None:
-        _apply_camera(visualizer, payload.camera)
+    if payload.area is not None:
+        _apply_area(visualizer, payload.area)
     if payload.imagery is not None or payload.overlays is not None:
         _replace_layers(
             db,
@@ -139,7 +147,13 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
             payload.imagery if payload.imagery is not None else _imagery_config(visualizer),
             payload.overlays if payload.overlays is not None else _overlay_config(visualizer),
         )
+    pending = (
+        _save_own_imagery(db, visualizer, payload.own_imagery)
+        if payload.own_imagery is not None
+        else []
+    )
     db.commit()
+    _spawn_registration(visualizer.id, pending, area_out(visualizer))
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -148,14 +162,55 @@ def delete(db: Session, visualizer: Visualizer) -> None:
     db.commit()
 
 
-def _apply_camera(visualizer: Visualizer, camera: VisualizerCamera | None) -> None:
-    if camera is None:
-        return
-    visualizer.center_lon, visualizer.center_lat, visualizer.zoom = (
-        camera.lon,
-        camera.lat,
-        camera.zoom,
+def _save_own_imagery(
+    db: Session, visualizer: Visualizer, sources: list[ImagerySourceCreate]
+) -> list[RegistrationSpec]:
+    """Set up imagery for this visualizer alone, searched over its own area.
+
+    An area is what a STAC search is registered over, so imagery cannot be set
+    up before one is chosen - which is also why the editor asks for the area
+    first.
+    """
+    if sources and area_out(visualizer) is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Choose the area this visualizer covers before adding imagery to it",
+        )
+    pending = imagery_service.save_visualizer_imagery(
+        db, visualizer=visualizer, sources=sources, bbox=_bbox(visualizer)
     )
+    if pending:
+        background.begin_status_run(visualizer, registration.VISUALIZER_REGISTRATION_RUN)
+        visualizer.registration_errors = None
+    return pending
+
+
+def _bbox(visualizer: Visualizer) -> list[float]:
+    area = area_out(visualizer)
+    return [area.west, area.south, area.east, area.north] if area else []
+
+
+def _spawn_registration(
+    visualizer_id: int, pending: list[RegistrationSpec], area: VisualizerArea | None
+) -> None:
+    """Off the request path, after the commit - the STAC calls are slow enough
+    that holding the write transaction across them trips the idle backstop."""
+    if not pending or area is None:
+        return
+    registration.spawn_background_mosaic_registration(
+        SourceOwner(visualizer_id=visualizer_id),
+        pending,
+        [area.west, area.south, area.east, area.north],
+    )
+
+
+def _apply_area(visualizer: Visualizer, area: VisualizerArea | None) -> None:
+    if area is None:
+        return
+    visualizer.bbox_west = area.west
+    visualizer.bbox_south = area.south
+    visualizer.bbox_east = area.east
+    visualizer.bbox_north = area.north
 
 
 def _replace_layers(
@@ -253,25 +308,44 @@ def config_out(visualizer: Visualizer) -> VisualizerConfigOut:
         name=visualizer.name,
         description=visualizer.description,
         is_public=visualizer.is_public,
-        camera=_camera_out(visualizer),
+        area=area_out(visualizer),
         imagery=_imagery_config(visualizer),
         overlays=_overlay_config(visualizer),
+        own_imagery=[ImagerySourceOut.model_validate(s) for s in visualizer.imagery_sources],
+        registration_status=visualizer.registration_status,
+        registration_errors=visualizer.registration_errors,
     )
 
 
-def _camera_out(visualizer: Visualizer) -> VisualizerCamera | None:
-    if visualizer.center_lon is None or visualizer.center_lat is None or visualizer.zoom is None:
+def area_out(visualizer: Visualizer) -> VisualizerArea | None:
+    """The stored area, or None when no area has been chosen. The column check
+    keeps the four bounds all set or all null, so one test settles it."""
+    if visualizer.bbox_west is None:
         return None
-    return VisualizerCamera(
-        lon=visualizer.center_lon, lat=visualizer.center_lat, zoom=visualizer.zoom
+    return VisualizerArea(
+        west=visualizer.bbox_west,
+        south=visualizer.bbox_south,
+        east=visualizer.bbox_east,
+        north=visualizer.bbox_north,
     )
 
 
-def referenced_campaign_ids(visualizer: Visualizer) -> list[int]:
-    """Every campaign whose tiles this visualizer needs, for the tiler token."""
-    ids = {entry.source.campaign_id for entry in visualizer.imagery if entry.source}
-    ids |= {o.custom_map.campaign_id for o in visualizer.overlays if o.custom_map}
-    return sorted(ids)
+def tile_scopes(visualizer: Visualizer) -> list[str]:
+    """Every scope this visualizer's tiles are served under, for its tiler token.
+
+    A linked source or overlay is served under its campaign's scope; imagery the
+    visualizer registered itself is served under its own. Handing out exactly
+    these is what lets a visitor with no account fetch this visualizer's tiles
+    and nothing else.
+    """
+    scopes = {
+        entry.source.owner.tile_scope for entry in visualizer.imagery if entry.source is not None
+    }
+    scopes |= {source.owner.tile_scope for source in visualizer.imagery_sources}
+    scopes |= {
+        str(o.custom_map.campaign_id) for o in visualizer.overlays if o.custom_map is not None
+    }
+    return sorted(scopes)
 
 
 def build_view(db: Session, visualizer: Visualizer, *, can_edit: bool) -> VisualizerViewOut:
@@ -283,11 +357,30 @@ def build_view(db: Session, visualizer: Visualizer, *, can_edit: bool) -> Visual
         is_public=visualizer.is_public,
         project_id=visualizer.project_id,
         project_name=visualizer.project.name,
-        camera=_camera_out(visualizer),
-        imagery=[_imagery_out(entry.source) for entry in visualizer.imagery if entry.source],
+        area=area_out(visualizer),
+        imagery=[_imagery_out(source) for source in browsable_sources(visualizer)],
         overlays=[out for out in (_overlay_out(o) for o in visualizer.overlays) if out],
         can_edit=can_edit,
+        registration_status=visualizer.registration_status,
     )
+
+
+def browsable_sources(visualizer: Visualizer) -> list[ImagerySource]:
+    """Its own imagery first, then whatever it links from the project's campaigns.
+
+    The viewer draws no distinction between the two - a source is a source once
+    its intervals are flattened - so the only thing this decides is the order
+    they are offered in.
+    """
+    linked = [entry.source for entry in visualizer.imagery if entry.source is not None]
+    return [*visualizer.imagery_sources, *linked]
+
+
+def tile_proxy_base(owner: SourceOwner) -> str:
+    """The backend route serving this owner's key-proxied slice tiles."""
+    if owner.campaign_id is not None:
+        return f"/api/{owner.campaign_id}/imagery/slices"
+    return f"/api/visualizers/{owner.visualizer_id}/imagery/slices"
 
 
 def _imagery_out(source: ImagerySource) -> VisualizerImageryOut:
@@ -316,7 +409,7 @@ def _imagery_out(source: ImagerySource) -> VisualizerImageryOut:
     )
     return VisualizerImageryOut(
         source_id=source.id,
-        campaign_id=source.campaign_id,
+        tile_proxy_base=tile_proxy_base(source.owner),
         name=source.name,
         visualizations=[v.name for v in source.visualizations],
         default_zoom=source.default_zoom,
@@ -381,6 +474,7 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
                 ),
                 selectinload(Campaign.custom_maps),
                 selectinload(Campaign.vector_layers),
+                selectinload(Campaign.settings),
             )
             .order_by(Campaign.name)
         )
@@ -392,6 +486,7 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
             CampaignOptionsOut(
                 campaign_id=campaign.id,
                 campaign_name=campaign.name,
+                area=_campaign_area(campaign),
                 sources=[_source_option(source) for source in campaign.imagery_sources],
                 raster_overlays=[
                     OverlayOptionOut(
@@ -409,6 +504,18 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
             )
             for campaign in campaigns
         ]
+    )
+
+
+def _campaign_area(campaign: Campaign) -> VisualizerArea | None:
+    settings = campaign.settings
+    if settings is None:
+        return None
+    return VisualizerArea(
+        west=settings.bbox_west,
+        south=settings.bbox_south,
+        east=settings.bbox_east,
+        north=settings.bbox_north,
     )
 
 

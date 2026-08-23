@@ -1137,6 +1137,7 @@ export type CampaignOptionsOut = {
      * Campaign Name
      */
     campaign_name: string;
+    area: VisualizerArea | null;
     /**
      * Sources
      */
@@ -4350,21 +4351,28 @@ export type VisualizationTemplateOut = {
 };
 
 /**
- * VisualizerCamera
+ * VisualizerArea
+ *
+ * The area a visualizer is about: what it opens framed on, and the extent
+ * its own imagery is searched and registered over.
  */
-export type VisualizerCamera = {
+export type VisualizerArea = {
     /**
-     * Lon
+     * West
      */
-    lon: number;
+    west: number;
     /**
-     * Lat
+     * South
      */
-    lat: number;
+    south: number;
     /**
-     * Zoom
+     * East
      */
-    zoom: number;
+    east: number;
+    /**
+     * North
+     */
+    north: number;
 };
 
 /**
@@ -4397,7 +4405,7 @@ export type VisualizerConfigOut = {
      * Is Public
      */
     is_public: boolean;
-    camera: VisualizerCamera | null;
+    area: VisualizerArea | null;
     /**
      * Imagery
      */
@@ -4406,6 +4414,18 @@ export type VisualizerConfigOut = {
      * Overlays
      */
     overlays: Array<VisualizerOverlayCreate>;
+    /**
+     * Own Imagery
+     */
+    own_imagery: Array<ImagerySourceOut>;
+    /**
+     * Registration Status
+     */
+    registration_status: string;
+    /**
+     * Registration Errors
+     */
+    registration_errors: Array<unknown> | null;
 };
 
 /**
@@ -4424,7 +4444,7 @@ export type VisualizerCreate = {
      * Is Public
      */
     is_public?: boolean;
-    camera?: VisualizerCamera | null;
+    area?: VisualizerArea | null;
     /**
      * Imagery
      */
@@ -4433,6 +4453,10 @@ export type VisualizerCreate = {
      * Overlays
      */
     overlays?: Array<VisualizerOverlayCreate>;
+    /**
+     * Own Imagery
+     */
+    own_imagery?: Array<ImagerySourceCreate>;
 };
 
 /**
@@ -4454,9 +4478,9 @@ export type VisualizerImageryOut = {
      */
     source_id: number;
     /**
-     * Campaign Id
+     * Tile Proxy Base
      */
-    campaign_id: number;
+    tile_proxy_base: string;
     /**
      * Name
      */
@@ -4611,7 +4635,7 @@ export type VisualizerUpdate = {
      * Is Public
      */
     is_public?: boolean | null;
-    camera?: VisualizerCamera | null;
+    area?: VisualizerArea | null;
     /**
      * Imagery
      */
@@ -4620,6 +4644,10 @@ export type VisualizerUpdate = {
      * Overlays
      */
     overlays?: Array<VisualizerOverlayCreate> | null;
+    /**
+     * Own Imagery
+     */
+    own_imagery?: Array<ImagerySourceCreate> | null;
 };
 
 /**
@@ -4656,7 +4684,7 @@ export type VisualizerViewOut = {
      * Project Name
      */
     project_name: string;
-    camera: VisualizerCamera | null;
+    area: VisualizerArea | null;
     /**
      * Imagery
      */
@@ -4673,6 +4701,10 @@ export type VisualizerViewOut = {
      * Can Edit
      */
     can_edit: boolean;
+    /**
+     * Registration Status
+     */
+    registration_status: string;
 };
 
 /**
@@ -8766,6 +8798,54 @@ export type ProxySliceTileErrors = {
 export type ProxySliceTileError = ProxySliceTileErrors[keyof ProxySliceTileErrors];
 
 export type ProxySliceTileResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ProxyVisualizerSliceTileData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Slice Id
+         */
+        slice_id: number;
+        /**
+         * Visualization Name
+         */
+        visualization_name: string;
+        /**
+         * Z
+         */
+        z: number;
+        /**
+         * X
+         */
+        x: number;
+        /**
+         * Y
+         */
+        y: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}';
+};
+
+export type ProxyVisualizerSliceTileErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProxyVisualizerSliceTileError = ProxyVisualizerSliceTileErrors[keyof ProxyVisualizerSliceTileErrors];
+
+export type ProxyVisualizerSliceTileResponses = {
     /**
      * Successful Response
      */

@@ -16,6 +16,7 @@ from src.imagery.models import (
     ImagerySource,
     ImageryView,
     SliceTileUrl,
+    SourceOwner,
     VisualizationTemplate,
 )
 from src.imagery.registration import RegistrationSpec
@@ -363,7 +364,9 @@ def save_imagery_editor_state(
             db_src = existing_sources[src_create.id]
             pending = _update_source_in_place(db, db_src, src_create, src_idx, bbox)
         else:
-            db_src, pending = _create_source(db, campaign.id, src_create, src_idx, bbox)
+            db_src, pending = _create_source(
+                db, SourceOwner(campaign_id=campaign.id), src_create, src_idx, bbox
+            )
         pending_registrations.extend(pending)
         current_sources.append(db_src)
 
@@ -513,6 +516,61 @@ def _stac_config_changed(existing: CollectionStacConfig | None, incoming) -> boo
         or existing.tile_provider != incoming.tiler
         or existing.internal_storage != incoming.internal_storage
     )
+
+
+def save_visualizer_imagery(
+    db: Session,
+    *,
+    visualizer,
+    sources: list[ImagerySourceCreate],
+    bbox: list[float],
+) -> list[RegistrationSpec]:
+    """Reconcile a visualizer's own imagery, the way a campaign's is reconciled.
+
+    Same rules as ``save_imagery_editor_state``: an entry with an id updates in
+    place, one without is created, and anything in the database but missing from
+    the payload is deleted. A visualizer has no views, no canvas layouts and no
+    basemaps of its own, so none of that reconciliation applies here - which is
+    the whole difference between the two.
+
+    Does not commit. The caller commits, then hands the returned specs to
+    ``spawn_background_mosaic_registration`` so the STAC calls run off the
+    request path.
+    """
+    editor_state = ImageryEditorStateCreate(sources=sources, basemaps=[])
+    organization = visualizer.project.organization
+    _resolve_tilers(organization, editor_state)
+    _validate_organization_keys(organization, editor_state)
+
+    existing = {s.id: s for s in visualizer.imagery_sources}
+    payload_ids = {s.id for s in sources if s.id is not None}
+    for source_id, source in list(existing.items()):
+        if source_id not in payload_ids:
+            db.delete(source)
+            del existing[source_id]
+
+    for src_create in sources:
+        if src_create.id is None or src_create.id not in existing:
+            continue
+        keep = {c.id for c in src_create.collections if c.id is not None}
+        for collection in list(existing[src_create.id].collections):
+            if collection.id not in keep:
+                db.delete(collection)
+    db.flush()
+
+    pending: list[RegistrationSpec] = []
+    for index, src_create in enumerate(sources):
+        if src_create.id and src_create.id in existing:
+            pending.extend(
+                _update_source_in_place(db, existing[src_create.id], src_create, index, bbox)
+            )
+        else:
+            _, created = _create_source(
+                db, SourceOwner(visualizer_id=visualizer.id), src_create, index, bbox
+            )
+            pending.extend(created)
+    db.flush()
+    return pending
 
 
 def _update_source_in_place(
@@ -787,7 +845,7 @@ def _update_collection_in_place(
 
 def _create_source(
     db: Session,
-    campaign_id: int,
+    owner: SourceOwner,
     src: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
@@ -796,7 +854,7 @@ def _create_source(
     Returns (source, pending_registrations)."""
     pending: list[RegistrationSpec] = []
     source = ImagerySource(
-        campaign_id=campaign_id,
+        **owner.as_columns(),
         name=src.name,
         crosshair_hex6=src.crosshair_hex6,
         default_zoom=src.default_zoom,

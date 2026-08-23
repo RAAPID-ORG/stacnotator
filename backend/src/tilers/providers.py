@@ -254,7 +254,7 @@ ASSET_SIGNER_MANAGED_IDENTITY = "azure_managed_identity"
 
 
 def register_on_tiler(
-    tiler: TilerCfg, search_body: dict, campaign_id, internal_storage: bool = False
+    tiler: TilerCfg, search_body: dict, tile_scope: str, internal_storage: bool = False
 ) -> str:
     """Register a search (CQL2 body) on a hosted titiler-pgstac tiler.
 
@@ -263,7 +263,10 @@ def register_on_tiler(
     marker when the collection is internal storage, and authenticate with a short-lived
     ``searches:write`` token. Returns the search id.
     """
-    metadata = {"campaign_id": str(campaign_id)}
+    # The tiler matches this string against the browser token's `campaigns`
+    # claim; it never parses it, which is what lets a visualizer own a scope of
+    # its own without the tiler knowing visualizers exist.
+    metadata = {"campaign_id": tile_scope}
     if internal_storage:
         metadata["asset_signer"] = ASSET_SIGNER_MANAGED_IDENTITY
     body = {**search_body, "metadata": metadata}

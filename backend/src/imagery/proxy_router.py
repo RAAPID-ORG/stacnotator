@@ -20,7 +20,14 @@ from starlette.concurrency import run_in_threadpool
 from src import net_guard
 from src.crypto import DecryptionError, decrypt
 from src.database import SessionLocal
-from src.imagery.models import Basemap, ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
+from src.imagery.models import (
+    Basemap,
+    ImageryCollection,
+    ImagerySlice,
+    ImagerySource,
+    SliceTileUrl,
+    SourceOwner,
+)
 from src.imagery.proxy import build_upstream_tile_url
 from src.organizations.models import OrganizationApiKey
 from src.tile_bulkhead import tile_db_slot
@@ -47,8 +54,13 @@ def _with_session[T](lookup: Callable[[Session], T]) -> T:
         db.close()
 
 
-def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
-    """Authorize a tile request from the ``tiler_token`` cookie for this campaign."""
+def _assert_scope(request: Request, scope: str) -> None:
+    """Authorize a tile request from the ``tiler_token`` cookie for one owner.
+
+    The cookie carries the scopes its holder may read; a campaign's is its bare
+    id and a visualizer's is prefixed, so the two can never be mistaken for one
+    another. See ``imagery.models.SourceOwner``.
+    """
     token = request.cookies.get("tiler_token")
     if not token:
         raise HTTPException(status_code=401, detail="Missing tiler session")
@@ -56,8 +68,16 @@ def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
         claims = tokens.verify(token)
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid tiler session") from None
-    if str(campaign_id) not in claims.get("campaigns", []):
-        raise HTTPException(status_code=403, detail="No access to this campaign")
+    if scope not in claims.get("campaigns", []):
+        raise HTTPException(status_code=403, detail="No access to this imagery")
+
+
+def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
+    _assert_scope(request, SourceOwner(campaign_id=campaign_id).tile_scope)
+
+
+def require_visualizer_tile_access(request: Request, visualizer_id: int = Path(...)) -> None:
+    _assert_scope(request, SourceOwner(visualizer_id=visualizer_id).tile_scope)
 
 
 def _resolve_key(db: Session, layer: Basemap | ImagerySource) -> str | None:
@@ -122,6 +142,31 @@ async def proxy_basemap_tile(
     return await _proxy(url, encrypted_api_key, z, x, y)
 
 
+def _slice_lookup(slice_id: int, visualization_name: str, owner: SourceOwner):
+    """Resolve one slice's upstream template and key, scoped to its owner."""
+
+    def lookup(db: Session) -> tuple[str, str | None]:
+        source = db.execute(
+            select(ImagerySource)
+            .join(ImageryCollection, ImageryCollection.source_id == ImagerySource.id)
+            .join(ImagerySlice, ImagerySlice.collection_id == ImageryCollection.id)
+            .where(ImagerySlice.id == slice_id)
+        ).scalar_one_or_none()
+        if source is None or source.owner != owner:
+            raise HTTPException(status_code=404, detail="Slice not found")
+        tile = db.execute(
+            select(SliceTileUrl).where(
+                SliceTileUrl.slice_id == slice_id,
+                SliceTileUrl.visualization_name == visualization_name,
+            )
+        ).scalar_one_or_none()
+        if tile is None:
+            raise HTTPException(status_code=404, detail="Tile URL not found")
+        return tile.tile_url, _resolve_key(db, source)
+
+    return lookup
+
+
 @router.get(
     "/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}",
     dependencies=[Depends(require_tile_access)],
@@ -134,24 +179,25 @@ async def proxy_slice_tile(
     x: int,
     y: int,
 ) -> Response:
-    def lookup(db: Session) -> tuple[str, str | None]:
-        source = db.execute(
-            select(ImagerySource)
-            .join(ImageryCollection, ImageryCollection.source_id == ImagerySource.id)
-            .join(ImagerySlice, ImagerySlice.collection_id == ImageryCollection.id)
-            .where(ImagerySlice.id == slice_id)
-        ).scalar_one_or_none()
-        if source is None or source.campaign_id != campaign_id:
-            raise HTTPException(status_code=404, detail="Slice not found")
-        tile = db.execute(
-            select(SliceTileUrl).where(
-                SliceTileUrl.slice_id == slice_id,
-                SliceTileUrl.visualization_name == visualization_name,
-            )
-        ).scalar_one_or_none()
-        if tile is None:
-            raise HTTPException(status_code=404, detail="Tile URL not found")
-        return tile.tile_url, _resolve_key(db, source)
+    tile_url, encrypted_api_key = await _read(
+        _slice_lookup(slice_id, visualization_name, SourceOwner(campaign_id=campaign_id))
+    )
+    return await _proxy(tile_url, encrypted_api_key, z, x, y)
 
-    tile_url, encrypted_api_key = await _read(lookup)
+
+@router.get(
+    "/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}",
+    dependencies=[Depends(require_visualizer_tile_access)],
+)
+async def proxy_visualizer_slice_tile(
+    visualizer_id: int,
+    slice_id: int,
+    visualization_name: str,
+    z: int,
+    x: int,
+    y: int,
+) -> Response:
+    tile_url, encrypted_api_key = await _read(
+        _slice_lookup(slice_id, visualization_name, SourceOwner(visualizer_id=visualizer_id))
+    )
     return await _proxy(tile_url, encrypted_api_key, z, x, y)

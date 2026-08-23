@@ -17,12 +17,14 @@ export function resolveBasemapUrl(campaignId: number, basemap: { id: number; url
     : basemap.url;
 }
 
-/** The proxy route for one slice's tiles under a named visualization. */
-export function sliceProxyUrl(campaignId: number, sliceId: number, vizName: string): string {
-  return apiUrl(
-    `/api/${campaignId}/imagery/slices/${sliceId}/tiles/${encodeURIComponent(vizName)}/{z}/{x}/{y}`
-  );
+/** One slice's tiles under a named visualization, off the proxy route its
+ *  owner is served from (a campaign's and a visualizer's differ). */
+export function sliceProxyUrl(base: string, sliceId: number, vizName: string): string {
+  return apiUrl(`${base}/${sliceId}/tiles/${encodeURIComponent(vizName)}/{z}/{x}/{y}`);
 }
+
+/** Where a campaign's key-proxied slice tiles are fetched from. */
+export const campaignProxyBase = (campaignId: number) => `/api/${campaignId}/imagery/slices`;
 
 const ATTRIBUTIONS: Array<[string, string]> = [
   [

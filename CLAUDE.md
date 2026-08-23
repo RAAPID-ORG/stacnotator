@@ -62,7 +62,7 @@ The in-repo `backend/.venv` is stale. Always run backend tooling via `uv run` (`
 
 ## Backend architecture
 
-FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `organizations`, `projects`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `planet` (Planet Basemaps browsing for the same wizard: series list, a series' mosaics as ready tile templates), `custom_layers` (campaign overlay layers: COG custom maps + PMTiles vector layers), `visualizers` (published project-scoped maps over imagery and overlays other campaigns registered; owns no imagery of its own, and serves the one route in the app reachable without an account). Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
+FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `organizations`, `projects`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `planet` (Planet Basemaps browsing for the same wizard: series list, a series' mosaics as ready tile templates), `custom_layers` (campaign overlay layers: COG custom maps + PMTiles vector layers), `visualizers` (published project-scoped maps; registers imagery of its own over its area and/or links what campaigns already registered, and serves the one route in the app reachable without an account). Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
 
 Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` — FastAPI endpoints, dependency wiring
@@ -78,7 +78,7 @@ Cross-cutting: `config.py` (pydantic-settings `Settings`, env-driven; `get_setti
 
 ### Data model (imagery)
 
-An imagery **source** holds many time-period **collections** (e.g. monthly); each collection has a Cover slice plus finer **slices** (e.g. weekly) that annotators browse. Date-nearest imagery search spans the whole source, not a single collection. Campaign creation kicks off **background threads** for mosaic registration (STAC searches → item storage → tile URLs) and embedding computation (Earth Engine); both track status `registering → ready/failed` and annotation is blocked until ready.
+An imagery **source** belongs to exactly one owner - a campaign or a visualizer (`SourceOwner` in `imagery/models.py`, which also decides the scope its tiles are served under). It holds many time-period **collections** (e.g. monthly); each collection has a Cover slice plus finer **slices** (e.g. weekly) that annotators browse. A visualizer ignores that structure and flattens it into one dated list. Date-nearest imagery search spans the whole source, not a single collection. Campaign creation kicks off **background threads** for mosaic registration (STAC searches → item storage → tile URLs) and embedding computation (Earth Engine); both track status `registering → ready/failed` and annotation is blocked until ready.
 
 ### Tile flow
 

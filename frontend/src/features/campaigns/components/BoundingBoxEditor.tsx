@@ -5,6 +5,11 @@ import { COUNTRY_BBOXES } from '~/features/campaigns/utils/countryBboxes';
 import { Input } from '~/shared/ui/forms';
 
 interface BoundingBoxEditorProps {
+  /** Replaces the default heading, or drops it when null - a caller that has
+   *  already introduced the area does not want it introduced twice. */
+  heading?: { title: string; description: string } | null;
+  /** The country picker. Off for callers bringing their own place search. */
+  showCountrySearch?: boolean;
   value: {
     bbox_west: number;
     bbox_south: number;
@@ -19,7 +24,19 @@ interface BoundingBoxEditorProps {
   }) => void;
 }
 
-export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) => {
+const DEFAULT_HEADING = {
+  title: 'Bounding Box',
+  description:
+    'The geographic area where imagery can be loaded for this campaign. Search for a country or ' +
+    'region, or set coordinates manually.',
+};
+
+export const BoundingBoxEditor = ({
+  value,
+  onChange,
+  heading = DEFAULT_HEADING,
+  showCountrySearch = true,
+}: BoundingBoxEditorProps) => {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const rectangleRef = useRef<L.Rectangle | null>(null);
@@ -279,19 +296,18 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
 
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-medium text-neutral-700 mb-1">Bounding Box</h3>
-        <p className="text-xs text-neutral-500">
-          The geographic area where imagery can be loaded for this campaign. Search for a country or
-          region, or set coordinates manually.
-        </p>
-      </div>
+      {heading && (
+        <div>
+          <h3 className="text-sm font-medium text-neutral-700 mb-1">{heading.title}</h3>
+          <p className="text-xs text-neutral-500">{heading.description}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column: Search + Coordinate Inputs */}
         <div className="lg:col-span-1 space-y-4">
           {/* Country / Region Search */}
-          <div className="relative" ref={searchRef}>
+          <div className={`relative ${showCountrySearch ? '' : 'hidden'}`} ref={searchRef}>
             <div className="flex items-center gap-1.5">
               <div className="relative flex-1">
                 <svg

@@ -7,6 +7,7 @@ const OPTIONS: VisualizerOptionsOut = {
     {
       campaign_id: 42,
       campaign_name: 'Ukraine maize',
+      area: null,
       sources: [
         {
           id: 11,

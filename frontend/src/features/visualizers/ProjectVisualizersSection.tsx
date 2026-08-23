@@ -79,8 +79,8 @@ export function ProjectVisualizersSection({
         <div>
           <h2 className="section-heading">Visualizers</h2>
           <p className="section-description">
-            A full-screen map over this project&apos;s imagery and prediction overlays, with a date
-            slider. Publish one and anyone with the link can open it, no account needed.
+            Publish maps that let people explore imagery and predicted layers together. A published
+            map can stay internal to the project, or be fully public to anyone with the link.
           </p>
         </div>
         {canManage && (

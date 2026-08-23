@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
+from src import background
 from src.auth.dependencies import optional_user, require_authenticated_user
 from src.auth.models import User
 from src.database import get_db
+from src.imagery import registration
 from src.organizations.service import is_active_org_member
 from src.projects.access import has_project_access
 from src.projects.dependencies import require_project_access, require_project_admin
@@ -79,7 +81,17 @@ def _require_admin(
 
 
 @visualizer_router.get("", response_model=VisualizerConfigOut)
-def get_visualizer(visualizer: Visualizer = Depends(_require_admin)):
+def get_visualizer(
+    visualizer: Visualizer = Depends(_require_admin),
+    db: Session = Depends(get_db),
+):
+    # The editor polls this while imagery registers; recover here if the run's
+    # worker died, so nobody is left watching "registering" forever.
+    if visualizer.registration_status == "registering" and background.fail_stale_status_runs(
+        db, (registration.VISUALIZER_REGISTRATION_RUN,), row_id=visualizer.id
+    ):
+        db.commit()
+        db.refresh(visualizer)
     return service.config_out(visualizer)
 
 
@@ -167,7 +179,7 @@ def get_visualizer_tiler_token(
     set_tiler_cookie(
         response,
         sub=f"visualizer:{visualizer.id}",
-        campaigns=service.referenced_campaign_ids(visualizer),
+        campaigns=service.tile_scopes(visualizer),
     )
     return TilerSessionOut(expires_in=TILER_TOKEN_TTL)
 

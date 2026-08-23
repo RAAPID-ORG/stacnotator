@@ -21,11 +21,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src import background
+from src.campaigns.models import Campaign
 from src.config import get_settings
-from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
+from src.imagery.models import (
+    ImageryCollection,
+    ImagerySlice,
+    ImagerySource,
+    SliceTileUrl,
+    SourceOwner,
+)
 from src.imagery.schemas import CollectionStacConfigCreate
 from src.imagery.tile_urls import _slice_viz_params
 from src.tilers import providers
+from src.visualizers.models import Visualizer
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +110,7 @@ def _register_all_stac_browser_collections(
     db: Session,
     pending: list[RegistrationSpec],
     bbox: list[float],
-    campaign_id: int,
+    tile_scope: str,
 ) -> list[dict]:
     """Register mosaics for all stac_browser collections in parallel with retries.
     Returns a list of error dicts for failed slices (empty on full success).
@@ -274,7 +282,7 @@ def _register_all_stac_browser_collections(
                     slice_ref,
                     bbox,
                     custom_query,
-                    campaign_id,
+                    tile_scope,
                     tilers_by_name[task["tiler_name"]],
                 ),
                 "Hosted tiler",
@@ -332,17 +340,39 @@ def _register_all_stac_browser_collections(
 # The imagery domain's background run: mosaic registration and collection
 # refresh both report through this status/heartbeat pair on the campaign.
 REGISTRATION_RUN = background.StatusField(
+    model=Campaign,
     status_column="registration_status",
     heartbeat_column="registration_heartbeat_at",
+    errors_column="registration_errors",
     interrupted_error=(
         "Imagery registration was interrupted by a server restart. "
         "Save the imagery again or refresh the affected collection to retry."
     ),
 )
 
+VISUALIZER_REGISTRATION_RUN = background.StatusField(
+    model=Visualizer,
+    status_column="registration_status",
+    heartbeat_column="registration_heartbeat_at",
+    errors_column="registration_errors",
+    interrupted_error=(
+        "Imagery registration was interrupted by a server restart. "
+        "Save the visualizer again to retry."
+    ),
+)
+
+
+def status_run_for(owner: SourceOwner) -> tuple[int, background.StatusField]:
+    """The row and status columns a registration run for this owner writes to."""
+    if owner.campaign_id is not None:
+        return owner.campaign_id, REGISTRATION_RUN
+    if owner.visualizer_id is not None:
+        return owner.visualizer_id, VISUALIZER_REGISTRATION_RUN
+    raise ValueError("An imagery source must belong to a campaign or a visualizer")
+
 
 def spawn_background_mosaic_registration(
-    campaign_id: int,
+    owner: SourceOwner,
     pending_registrations: list[RegistrationSpec],
     bbox: list[float],
 ) -> None:
@@ -358,12 +388,13 @@ def spawn_background_mosaic_registration(
     the thread hands it straight to registration without touching any ORM
     object from the request session.
     """
+    row_id, field = status_run_for(owner)
     background.spawn_status_run(
-        campaign_id,
-        REGISTRATION_RUN,
+        row_id,
+        field,
         name="mosaic registration",
         work=lambda db: _register_all_stac_browser_collections(
-            db, pending_registrations, bbox, campaign_id
+            db, pending_registrations, bbox, owner.tile_scope
         ),
         sanitize_error=lambda exc: f"Mosaic registration: {_sanitize_stac_error(exc)}",
     )
@@ -473,7 +504,7 @@ def _register_mpc_slice(stac, db_slice, bbox: list[float], search_query: dict | 
     return search_id
 
 
-def _register_hosted_slice(stac, db_slice, bbox, search_query, campaign_id, tiler) -> str:
+def _register_hosted_slice(stac, db_slice, bbox, search_query, tile_scope: str, tiler) -> str:
     """Ingest the slice's AOI into the hosted tiler's pgstac, then register the search.
 
     Returns the tiler's search id. The tiler runs the ingest server-side (the backend never
@@ -491,7 +522,7 @@ def _register_hosted_slice(stac, db_slice, bbox, search_query, campaign_id, tile
         )
     body = _resolved_search_body(search_query, bbox, db_slice)
     return providers.register_on_tiler(
-        tiler, body, campaign_id, internal_storage=stac.internal_storage
+        tiler, body, tile_scope, internal_storage=stac.internal_storage
     )
 
 
@@ -565,7 +596,7 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
                                 sl,
                                 bbox,
                                 custom_query,
-                                campaign_id,
+                                str(campaign_id),
                                 providers.resolve_tiler(provider),
                             )
                     except Exception:

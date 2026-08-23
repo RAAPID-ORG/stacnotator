@@ -10,6 +10,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
+from src.imagery.models import SourceOwner
 from src.visualizers import service
 from src.visualizers.router import _require_viewer
 
@@ -81,12 +82,14 @@ def test_project_admin_may_edit(_stub_load):
     assert can_edit is True
 
 
-def test_tile_session_covers_only_the_campaigns_the_visualizer_draws_from():
+def test_tile_session_covers_only_what_the_visualizer_draws_from():
+    linked = MagicMock(source=MagicMock(owner=SourceOwner(campaign_id=42)))
     visualizer = MagicMock(
-        imagery=[MagicMock(source=MagicMock(campaign_id=42))],
+        imagery=[linked],
+        imagery_sources=[MagicMock(owner=SourceOwner(visualizer_id=3))],
         overlays=[
             MagicMock(custom_map=MagicMock(campaign_id=7)),
             MagicMock(custom_map=None),
         ],
     )
-    assert service.referenced_campaign_ids(visualizer) == [7, 42]
+    assert service.tile_scopes(visualizer) == ["42", "7", "visualizer:3"]

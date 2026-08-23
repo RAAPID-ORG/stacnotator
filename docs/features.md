@@ -76,15 +76,16 @@ Every campaign supports both; who may do what is governed by the labelling polic
 
 ## Visualizers
 
-A visualizer is a published map over what a project has already registered: a full-screen viewer at `/v/<slug>` with a header bar, a date slider and a collapsible layer panel. Set up under Project > Visualizers.
+A visualizer is a published map: a full-screen viewer at `/v/<slug>` with a header bar, a date slider and a collapsible layer panel. Set up under Project > Visualizers.
 
-- **Built by picking, not by configuring** - a visualizer points at imagery sources and overlays belonging to campaigns in the same project. There is no second imagery wizard, and a source re-registered for its campaign is immediately newer in every visualizer showing it
-- **One flat timeline** - the collections and cover slices a source is authored with carry no meaning here; the viewer sees the source's intervals as a single dated list, oldest to newest, and opens on the most recent
+- **An area of interest** - what the map opens framed on, and the extent this visualizer's own imagery is searched over. Searched for by place, adjusted by dragging the box, or taken from a campaign in the project. Zoom out past it and the viewer says so and offers the way back
+- **Imagery, two ways** - set up here from a STAC catalog or Planet with the same wizard a campaign's imagery uses, registered for this visualizer alone; or picked from what the project's campaigns already registered and reused as it stands. Both are explained in the editor, because they are not the same thing
+- **One flat timeline** - however imagery got here, the viewer sees a single dated list per source. The collections and cover slices a source is authored with carry no meaning in a visualizer, so every interval is offered, oldest to newest, and covers are left out
 - **Layer panel** - pick the imagery source and its visualization, toggle overlays, set their opacity, and edit a prediction overlay's colormap and range in place (the same legend the annotator uses). Viewer-side colour edits are never saved back
 - **Base map** - a keyless CARTO light/dark backdrop under everything, so an imagery footprint has context around it
-- **Publishing** - `Anyone with the link` makes the slug openable with no account, independent of the project's own visibility; otherwise it stays a working preview for people who can already open the project. The share link is copied from the project list or the viewer's header, and a project admin can save the opening camera straight from the viewer
-- **Tile access** - a published visualizer mints its own tiler cookie scoped to exactly the campaigns it draws from, so a visitor with no account can fetch its tiles and nothing else
+- **Publishing** - `Anyone with the link` makes the slug openable with no account, independent of the project's own visibility; otherwise it stays a working preview for people who can already open the project
 - **Publishing what is not open data** - a source behind a provider key, or a layer reading internal storage, is served with the organization's own credentials. The editor names those layers as soon as the publish toggle goes on and asks for an explicit confirm before saving, because anonymous traffic then spends that quota and reaches imagery the licence may not allow redistributing
+- **Tile access** - a published visualizer mints its own tiler cookie scoped to exactly what it draws from: the campaigns behind its linked layers, plus its own scope for imagery it registered itself. A visitor with no account can fetch those tiles and nothing else
 
 ## Tile Serving
 

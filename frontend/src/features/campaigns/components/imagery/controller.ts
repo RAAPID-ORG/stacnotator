@@ -331,7 +331,7 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
   };
 }
 
-function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
+export function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
   const vizNames = src.visualizations.map((v) => v.name);
   return {
     id: String(src.id),

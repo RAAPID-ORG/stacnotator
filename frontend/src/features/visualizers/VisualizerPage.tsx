@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Toaster } from 'sonner';
-import {
-  getSharedVisualizer,
-  getVisualizerTilerToken,
-  updateVisualizer,
-  type VisualizerViewOut,
-} from '~/api/client';
+import { getSharedVisualizer, getVisualizerTilerToken, type VisualizerViewOut } from '~/api/client';
 import { ensureTilerSession, setTilerSessionMinter } from '~/api/tilerToken';
 import { Camera } from '~/shared/map/Camera';
 import { MapView } from '~/shared/map/MapView';
+import { Badge } from '~/shared/ui/Badge';
+import { Button } from '~/shared/ui/forms';
 import { HarvestMark, HARVEST_SITE } from '~/shared/ui/HarvestMark';
 import { IconChevronDoubleLeft, IconCheck, IconCopy, IconMap } from '~/shared/ui/Icons';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
-import { handleError } from '~/shared/utils/errorHandler';
 import { visualizerUrl } from './route';
 import { TimeSlider } from './viewer/TimeSlider';
 import { ViewerSidebar } from './viewer/ViewerSidebar';
@@ -21,10 +17,12 @@ import {
   composeLayers,
   initialState,
   needsTilerSession,
+  zoomedPastArea,
   type ViewerState,
 } from './viewerState';
 
 const WORLD = { center: [0, 20] as [number, number], zoom: 2 };
+const AREA_PADDING_PX = 24;
 
 /**
  * A visualizer, full screen and on its own.
@@ -37,10 +35,22 @@ export function VisualizerPage({ slug }: { slug: string }) {
   const [view, setView] = useState<VisualizerViewOut | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [state, setState] = useState<ViewerState | null>(null);
-  // On a phone the panel covers the map, so it starts out of the way.
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 640);
+  // On a touch device the panel covers the map, so it starts out of the way.
+  // Same test the `desktop:` variant makes.
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  );
   const camera = useRef<Camera>(null);
   camera.current ??= new Camera(WORLD);
+
+  const fitArea = () => {
+    const area = view?.area;
+    if (!area) return;
+    camera.current?.fitBounds([area.west, area.south, area.east, area.north], {
+      paddingPx: AREA_PADDING_PX,
+      animateMs: 300,
+    });
+  };
 
   useEffect(() => {
     // Tiles for this page are authorized by the visualizer, not by whoever is
@@ -61,11 +71,9 @@ export function VisualizerPage({ slug }: { slug: string }) {
         if (cancelled || !data) return;
         setView(data);
         setState(initialState(data));
-        if (data.camera) {
-          camera.current?.moveTo({
-            center: [data.camera.lon, data.camera.lat],
-            zoom: data.camera.zoom,
-          });
+        if (data.area) {
+          const { west, south, east, north } = data.area;
+          camera.current?.fitBounds([west, south, east, north], { paddingPx: AREA_PADDING_PX });
         }
         if (needsTilerSession(data)) await ensureTilerSession(slug);
       } catch {
@@ -105,9 +113,9 @@ export function VisualizerPage({ slug }: { slug: string }) {
     return (
       <Shell>
         <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-          <IconMap className="h-8 w-8 text-white/25" />
-          <p className="text-sm text-white/60">{failure}</p>
-          <a href="/" className="text-xs text-brand-400 underline hover:text-brand-300">
+          <IconMap className="h-8 w-8 text-neutral-300" />
+          <p className="text-sm text-neutral-600">{failure}</p>
+          <a href="/" className="text-xs text-brand-700 underline hover:text-brand-800">
             Go to STACNotator
           </a>
         </div>
@@ -125,11 +133,22 @@ export function VisualizerPage({ slug }: { slug: string }) {
 
   return (
     <Shell>
-      <Toaster position="top-center" closeButton theme="dark" />
+      <Toaster
+        position="top-center"
+        closeButton
+        toastOptions={{
+          classNames: {
+            toast: 'rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm',
+            title: 'text-sm font-medium text-neutral-900',
+            description: 'text-xs text-neutral-600',
+            error: 'border-l-2 border-l-red-500',
+            success: 'border-l-2 border-l-brand-600',
+          },
+        }}
+      />
       <div className="flex h-full flex-col">
         <Header
           view={view}
-          camera={camera.current!}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
         />
@@ -142,10 +161,12 @@ export function VisualizerPage({ slug }: { slug: string }) {
             <MapView camera={camera.current!} layers={layers} attributionCollapsed />
 
             {view.imagery.length === 0 && view.overlays.length === 0 && (
-              <p className="pointer-events-none absolute inset-x-0 top-8 text-center text-sm text-white/50">
+              <p className="pointer-events-none absolute inset-x-0 top-8 text-center text-sm text-neutral-500">
                 Nothing has been added to this visualizer yet.
               </p>
             )}
+
+            <ZoomNotice view={view} camera={camera.current!} onZoomToArea={fitArea} />
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4">
               {source && (
@@ -173,22 +194,53 @@ export function VisualizerPage({ slug }: { slug: string }) {
 }
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
-  <div className="h-[100dvh] w-full bg-neutral-950 text-white">{children}</div>
+  <div className="h-[100dvh] w-full bg-canvas text-neutral-900">{children}</div>
 );
+
+/**
+ * Zoomed out far enough that the imagery is a speck, the map reads as broken
+ * rather than as far away. Says so, and offers the way back.
+ */
+function ZoomNotice({
+  view,
+  camera,
+  onZoomToArea,
+}: {
+  view: VisualizerViewOut;
+  camera: Camera;
+  onZoomToArea: () => void;
+}) {
+  const [tooFar, setTooFar] = useState(false);
+
+  useEffect(() => {
+    const update = () => setTooFar(zoomedPastArea(view.area, camera.getBounds()));
+    update();
+    return camera.onChange(update);
+  }, [view.area, camera]);
+
+  if (!tooFar) return null;
+  return (
+    <div className="pointer-events-auto absolute inset-x-0 top-3 flex justify-center">
+      <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 py-1 pl-3 pr-1 text-xs text-neutral-600 shadow-lg backdrop-blur-sm">
+        Zoom in to see the imagery
+        <Button variant="quiet" size="sm" className="!h-6 !px-2" onClick={onZoomToArea}>
+          Zoom to area
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function Header({
   view,
-  camera,
   sidebarOpen,
   onToggleSidebar,
 }: {
   view: VisualizerViewOut;
-  camera: Camera;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const [savedView, setSavedView] = useState(false);
 
   const copyLink = () => {
     void navigator.clipboard?.writeText(visualizerUrl(view.slug));
@@ -196,95 +248,48 @@ function Header({
     setTimeout(() => setCopied(false), 1600);
   };
 
-  const saveCamera = async () => {
-    const { center, zoom } = camera.getState();
-    try {
-      await updateVisualizer({
-        path: { visualizer_id: view.id },
-        body: { camera: { lon: center[0], lat: center[1], zoom } },
-      });
-      setSavedView(true);
-      setTimeout(() => setSavedView(false), 1600);
-    } catch (error) {
-      handleError(error, 'Could not save this view');
-    }
-  };
-
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-white/10 bg-neutral-900 px-4">
+    <header className="flex shrink-0 items-center gap-3 border-b border-neutral-200 bg-white px-2 py-1.5 desktop:px-4">
       <a href={HARVEST_SITE} target="_blank" rel="noreferrer" className="shrink-0">
-        <HarvestMark className="h-6 w-auto opacity-80 transition-opacity hover:opacity-100" />
+        <HarvestMark className="h-7 w-auto" />
       </a>
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-sm font-medium leading-tight">{view.name}</h1>
-        <p className="truncate text-[11px] leading-tight text-white/40">
+        <h1 className="truncate text-sm font-medium leading-tight text-neutral-900">{view.name}</h1>
+        <p className="truncate text-[11px] leading-tight text-neutral-500">
           {view.project_name}
           {view.description ? ` - ${view.description}` : ''}
         </p>
       </div>
 
       {!view.is_public && (
-        <span
-          className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-300"
-          title="Only people with access to the project can open this link"
-        >
-          Unpublished
+        <span title="Only people with access to the project can open this link">
+          <Badge tone="yellow">Unpublished</Badge>
         </span>
       )}
 
-      {view.can_edit && (
-        <HeaderButton
-          onClick={() => void saveCamera()}
-          label="Save this as the opening view"
-          className="hidden sm:flex"
-        >
-          {savedView ? 'Saved' : 'Save view'}
-        </HeaderButton>
-      )}
-
-      <HeaderButton
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={copyLink}
-        label="Copy the link to this visualizer"
-        icon={copied ? <IconCheck className="h-3.5 w-3.5" /> : <IconCopy className="h-3.5 w-3.5" />}
+        title="Copy the link to this visualizer"
+        leading={
+          copied ? <IconCheck className="h-3.5 w-3.5" /> : <IconCopy className="h-3.5 w-3.5" />
+        }
       >
-        {copied ? 'Copied' : 'Share'}
-      </HeaderButton>
+        <span className="hidden desktop:inline">{copied ? 'Copied' : 'Share'}</span>
+      </Button>
 
       {!sidebarOpen && (
-        <HeaderButton
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onToggleSidebar}
-          label="Show layers"
-          icon={<IconChevronDoubleLeft className="h-3.5 w-3.5" />}
+          title="Show layers"
+          leading={<IconChevronDoubleLeft className="h-3.5 w-3.5" />}
         >
-          Layers
-        </HeaderButton>
+          <span className="hidden desktop:inline">Layers</span>
+        </Button>
       )}
     </header>
   );
 }
-
-/** Icon-only on a phone: the title needs the room more than the words do. */
-const HeaderButton = ({
-  onClick,
-  label,
-  icon,
-  className,
-  children,
-}: {
-  onClick: () => void;
-  label: string;
-  icon?: React.ReactNode;
-  className?: string;
-  children: React.ReactNode;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={label}
-    aria-label={label}
-    className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/70 transition-colors hover:bg-white/10 hover:text-white ${className ?? ''}`}
-  >
-    {icon}
-    <span className={icon ? 'hidden sm:inline' : undefined}>{children}</span>
-  </button>
-);

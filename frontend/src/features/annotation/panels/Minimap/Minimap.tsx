@@ -15,8 +15,8 @@ import {
   type RasterLayerSpec,
 } from '~/shared/map/types';
 import { exploreRefitTarget, tasksModeTarget } from './followTarget';
-import { type GeocodingResult } from './geocoding';
-import { LocationSearch } from './LocationSearch';
+import { type GeocodingResult } from '~/shared/map/geocoding';
+import { LocationSearch } from '~/shared/map/LocationSearch';
 import {
   campaignBboxLayer,
   centerOfBounds,

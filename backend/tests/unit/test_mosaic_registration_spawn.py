@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.imagery import registration
+from src.imagery.models import SourceOwner
 from src.imagery.registration import RegistrationSpec
 from src.imagery.schemas import CollectionStacConfigCreate
 
@@ -40,7 +41,7 @@ class TestRegistrationSpec:
 class TestSpawnBackgroundMosaicRegistration:
     def test_spawns_the_registration_status_run(self, spawn):
         registration.spawn_background_mosaic_registration(
-            campaign_id=1, pending_registrations=[_make_spec()], bbox=[0, 0, 1, 1]
+            SourceOwner(campaign_id=1), pending_registrations=[_make_spec()], bbox=[0, 0, 1, 1]
         )
 
         spawn.assert_called_once()
@@ -54,17 +55,17 @@ class TestSpawnBackgroundMosaicRegistration:
 
         specs = [_make_spec()]
         registration.spawn_background_mosaic_registration(
-            campaign_id=1, pending_registrations=specs, bbox=[0, 0, 1, 1]
+            SourceOwner(campaign_id=1), pending_registrations=specs, bbox=[0, 0, 1, 1]
         )
         db = MagicMock()
         assert spawn.call_args.kwargs["work"](db) == []
 
-        register.assert_called_once_with(db, specs, [0, 0, 1, 1], 1)
+        register.assert_called_once_with(db, specs, [0, 0, 1, 1], "1")
         db.get.assert_not_called()
 
     def test_sanitizer_prefixes_the_domain(self, spawn):
         registration.spawn_background_mosaic_registration(
-            campaign_id=1, pending_registrations=[_make_spec()], bbox=[0, 0, 1, 1]
+            SourceOwner(campaign_id=1), pending_registrations=[_make_spec()], bbox=[0, 0, 1, 1]
         )
 
         sanitized = spawn.call_args.kwargs["sanitize_error"](ValueError("Unknown tiler 'bogus'"))

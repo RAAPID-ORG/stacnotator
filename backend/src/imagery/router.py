@@ -11,6 +11,7 @@ from src.canvas import service as canvas_service
 from src.canvas.schemas import CanvasLayoutCreateRequest
 from src.database import get_db
 from src.imagery import registration, service
+from src.imagery.models import SourceOwner
 from src.imagery.schemas import (
     ApiKeyStatusOut,
     ApiKeyUpdate,
@@ -72,7 +73,9 @@ def save_imagery(
         campaign.registration_errors = None
     db.commit()
     if pending:
-        registration.spawn_background_mosaic_registration(campaign.id, pending, result["bbox"])
+        registration.spawn_background_mosaic_registration(
+            SourceOwner(campaign_id=campaign.id), pending, result["bbox"]
+        )
     return {
         "sources": len(result["sources"]),
         "views": len(result["views"]),

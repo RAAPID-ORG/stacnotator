@@ -29,7 +29,7 @@ from src.custom_layers.router import router as custom_layers_router
 from src.database import SessionLocal
 from src.earth_engine import initialize_earth_engine
 from src.imagery.proxy_router import router as imagery_proxy_router
-from src.imagery.registration import REGISTRATION_RUN
+from src.imagery.registration import REGISTRATION_RUN, VISUALIZER_REGISTRATION_RUN
 from src.imagery.router import router as imagery_router
 from src.organizations.router import router as organizations_router
 from src.planet.router import router as planet_router
@@ -99,7 +99,9 @@ def _sweep_stale_background_runs() -> None:
     try:
         db = SessionLocal()
         try:
-            fail_stale_status_runs(db, (REGISTRATION_RUN, EMBEDDING_RUN))
+            fail_stale_status_runs(
+                db, (REGISTRATION_RUN, EMBEDDING_RUN, VISUALIZER_REGISTRATION_RUN)
+            )
             db.commit()
         finally:
             db.close()

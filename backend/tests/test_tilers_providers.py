@@ -69,7 +69,7 @@ def _fake_post(monkeypatch, payload):
 
 def test_register_on_tiler_posts_search_with_campaign(monkeypatch):
     captured = _fake_post(monkeypatch, {"id": "search-xyz"})
-    out = providers.register_on_tiler(TILER, {"collections": ["sentinel-2-l2a"]}, campaign_id=42)
+    out = providers.register_on_tiler(TILER, {"collections": ["sentinel-2-l2a"]}, tile_scope="42")
     assert out == "search-xyz"
     assert captured["url"] == "https://tiler-one.example.com/searches/register"
     assert captured["json"]["metadata"] == {"campaign_id": "42"}
@@ -79,7 +79,7 @@ def test_register_on_tiler_posts_search_with_campaign(monkeypatch):
 def test_register_on_tiler_stamps_asset_signer_for_internal_storage(monkeypatch):
     captured = _fake_post(monkeypatch, {"id": "s"})
     providers.register_on_tiler(
-        TILER, {"collections": ["c"]}, campaign_id=42, internal_storage=True
+        TILER, {"collections": ["c"]}, tile_scope="42", internal_storage=True
     )
     assert captured["json"]["metadata"] == {
         "campaign_id": "42",
@@ -89,7 +89,7 @@ def test_register_on_tiler_stamps_asset_signer_for_internal_storage(monkeypatch)
 
 def test_register_on_tiler_omits_marker_by_default(monkeypatch):
     captured = _fake_post(monkeypatch, {"id": "s"})
-    providers.register_on_tiler(TILER, {"collections": ["c"]}, campaign_id=42)
+    providers.register_on_tiler(TILER, {"collections": ["c"]}, tile_scope="42")
     assert "asset_signer" not in captured["json"]["metadata"]
 
 

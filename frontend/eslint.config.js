@@ -64,6 +64,7 @@ export default tseslint.config(
       'src/features/annotation/components/FormFields.tsx',
       'src/features/annotation/panels/ImageryWindow/ImageryWindow.tsx',
       'src/features/annotation/panels/MainMap/MainMap.tsx',
+      'src/features/visualizers/editor/OwnImagery.tsx',
     ],
     rules: {
       'react-refresh/only-export-components': 'off',

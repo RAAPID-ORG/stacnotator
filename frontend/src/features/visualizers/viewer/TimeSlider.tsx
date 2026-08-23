@@ -34,7 +34,7 @@ export function TimeSlider({
 
   return (
     <div
-      className="pointer-events-auto w-[min(46rem,calc(100vw-2rem))] rounded-xl border border-white/10 bg-neutral-900/85 px-3 py-2.5 text-white shadow-2xl backdrop-blur"
+      className="pointer-events-auto w-[min(46rem,calc(100vw-2rem))] rounded-xl border border-neutral-200 bg-white/95 px-3 py-2.5 shadow-xl backdrop-blur-sm"
       data-testid="visualizer-time-slider"
     >
       <div className="flex items-center gap-2">
@@ -45,12 +45,12 @@ export function TimeSlider({
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
             <span
-              className="truncate text-sm font-medium tabular-nums"
+              className="truncate text-sm font-medium tabular-nums text-neutral-900"
               data-testid="visualizer-step-label"
             >
               {current?.label}
             </span>
-            <span className="shrink-0 text-[11px] text-white/40 tabular-nums">
+            <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">
               {index + 1} / {steps.length}
             </span>
           </div>
@@ -80,7 +80,7 @@ export function TimeSlider({
             }}
             className="group relative mt-1.5 h-6 cursor-pointer touch-none select-none"
           >
-            <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/15" />
+            <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-neutral-200" />
             <div
               className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-brand-500"
               style={{ width: `${((index + 0.5) / steps.length) * 100}%` }}
@@ -90,13 +90,13 @@ export function TimeSlider({
                 key={s.slice_id}
                 title={s.label}
                 className={`absolute top-1/2 h-2 w-px -translate-y-1/2 ${
-                  i === index ? 'bg-transparent' : 'bg-white/25'
+                  i === index ? 'bg-transparent' : 'bg-neutral-300'
                 }`}
                 style={{ left: `${((i + 0.5) / steps.length) * 100}%` }}
               />
             ))}
             <span
-              className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-neutral-900 bg-white shadow transition-transform group-hover:scale-110"
+              className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-brand-600 shadow transition-transform group-hover:scale-110"
               style={{ left: `${((index + 0.5) / steps.length) * 100}%` }}
             />
           </div>
@@ -106,7 +106,7 @@ export function TimeSlider({
               {years.map((mark) => (
                 <span
                   key={mark.year}
-                  className="absolute -translate-x-1/2 text-[10px] text-white/35 tabular-nums"
+                  className="absolute -translate-x-1/2 text-[10px] tabular-nums text-neutral-400"
                   style={{ left: `${mark.ratio * 100}%` }}
                 >
                   {mark.year}
@@ -146,7 +146,7 @@ function SliderButton({
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="shrink-0 cursor-pointer rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-default disabled:opacity-25 disabled:hover:bg-transparent"
+      className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
     >
       {children}
     </button>

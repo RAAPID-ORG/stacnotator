@@ -1,4 +1,9 @@
-import { needsKeyProxy, isProxiedTileUrl, sliceProxyUrl } from '~/shared/imagery/tileUrls';
+import {
+  campaignProxyBase,
+  isProxiedTileUrl,
+  needsKeyProxy,
+  sliceProxyUrl,
+} from '~/shared/imagery/tileUrls';
 import { stampLegendOverride, type LegendOverride } from '~/shared/imagery/tileColors';
 import type { ImageryCatalog } from './imagery';
 import type { SliceAddress } from './imageryNav';
@@ -34,7 +39,7 @@ export function sliceRaster(
   if (!entry) throw new Error(`no tile url for "${viz.name}" on slice ${slice.id}`);
 
   const raw = needsKeyProxy(entry.tile_url)
-    ? sliceProxyUrl(cat.campaignId, slice.id, viz.name)
+    ? sliceProxyUrl(campaignProxyBase(cat.campaignId), slice.id, viz.name)
     : entry.tile_url;
   const url = stampLegendOverride(raw, override);
 

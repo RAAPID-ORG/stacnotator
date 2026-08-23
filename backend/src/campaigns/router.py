@@ -114,7 +114,7 @@ def get_campaign(
         campaign.registration_status,
         campaign.embedding_status,
     ) and background.fail_stale_status_runs(
-        db, (REGISTRATION_RUN, EMBEDDING_RUN), campaign_id=campaign_id
+        db, (REGISTRATION_RUN, EMBEDDING_RUN), row_id=campaign_id
     ):
         db.commit()
         db.expire_all()

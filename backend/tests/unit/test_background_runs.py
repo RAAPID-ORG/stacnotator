@@ -7,10 +7,13 @@ from unittest.mock import ANY, MagicMock
 import pytest
 
 from src import background
+from src.campaigns.models import Campaign
 
 FIELD = background.StatusField(
+    model=Campaign,
     status_column="registration_status",
     heartbeat_column="registration_heartbeat_at",
+    errors_column="registration_errors",
     interrupted_error="interrupted - retry",
 )
 
@@ -133,19 +136,19 @@ class TestFailStaleStatusRuns:
         assert "registration_status = 'registering'" in sql
         assert "registration_heartbeat_at IS NULL" in sql
         assert "make_interval" in sql
-        assert "id = :campaign_id" not in sql
+        assert "id = :row_id" not in sql
 
     def test_campaign_filter_scopes_the_update(self):
         db = MagicMock()
         db.execute.return_value.scalars.return_value.all.return_value = []
 
-        flipped = background.fail_stale_status_runs(db, (FIELD,), campaign_id=42)
+        flipped = background.fail_stale_status_runs(db, (FIELD,), row_id=42)
 
         assert flipped == 0
         sql = str(db.execute.call_args.args[0])
         params = db.execute.call_args.args[1]
-        assert "id = :campaign_id" in sql
-        assert params["campaign_id"] == 42
+        assert "id = :row_id" in sql
+        assert params["row_id"] == 42
 
     def test_the_retry_hint_is_what_gets_appended(self):
         db = MagicMock()

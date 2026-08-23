@@ -17,6 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -37,6 +38,16 @@ class Visualizer(Base):
 
     __tablename__ = "visualizers"
     __table_args__ = (
+        CheckConstraint("bbox_west BETWEEN -180 AND 180", name="visualizers_bbox_west_range"),
+        CheckConstraint("bbox_east BETWEEN -180 AND 180", name="visualizers_bbox_east_range"),
+        CheckConstraint("bbox_south BETWEEN -90 AND 90", name="visualizers_bbox_south_range"),
+        CheckConstraint("bbox_north BETWEEN -90 AND 90", name="visualizers_bbox_north_range"),
+        CheckConstraint("bbox_west < bbox_east", name="visualizers_bbox_lon_order"),
+        CheckConstraint("bbox_south < bbox_north", name="visualizers_bbox_lat_order"),
+        CheckConstraint(
+            "num_nonnulls(bbox_west, bbox_south, bbox_east, bbox_north) IN (0, 4)",
+            name="visualizers_bbox_all_or_none",
+        ),
         Index("idx_visualizers_project_id", "project_id"),
         {"schema": "data"},
     )
@@ -53,17 +64,39 @@ class Visualizer(Base):
     # Publishing is a deliberate act on the visualizer, independent of the
     # project's visibility: an internal project can publish one map.
     is_public: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
-    center_lon: Mapped[float | None] = mapped_column(Float, nullable=True)
-    center_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
-    zoom: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # The area this visualizer is about: what it opens framed on, and the extent
+    # its own STAC searches are registered over. All four are set together or
+    # none are, which is what "no area chosen yet" looks like.
+    bbox_west: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bbox_south: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bbox_east: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bbox_north: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.current_timestamp(), nullable=False
     )
+    # Set while this visualizer's own imagery is being registered, exactly as a
+    # campaign tracks its own. pending|registering|ready|failed.
+    registration_status: Mapped[str] = mapped_column(
+        String(20), server_default="ready", nullable=False
+    )
+    registration_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    registration_errors: Mapped[list | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     project: Mapped["Project"] = relationship()
+    # Imagery registered for this visualizer alone. Sources linked from a
+    # campaign are not here - those are referenced through `imagery`.
+    imagery_sources: Mapped[list["ImagerySource"]] = relationship(
+        back_populates="visualizer",
+        cascade="all, delete-orphan",
+        order_by="ImagerySource.display_order",
+    )
     imagery: Mapped[list["VisualizerImagery"]] = relationship(
         back_populates="visualizer",
         cascade="all, delete-orphan",
