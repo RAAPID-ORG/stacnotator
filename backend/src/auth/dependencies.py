@@ -49,6 +49,21 @@ async def require_authenticated_user(
     return user
 
 
+async def optional_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User | None:
+    """The signed-in user, or None when the request carries no usable credential.
+
+    For the endpoints that serve a public audience and members from the same
+    route: the caller decides what an anonymous viewer may see.
+    """
+    try:
+        return await require_authenticated_user(request, db)
+    except HTTPException:
+        return None
+
+
 def require_admin(
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),

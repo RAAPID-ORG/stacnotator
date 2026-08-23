@@ -1,0 +1,135 @@
+from datetime import datetime
+from typing import TYPE_CHECKING
+from uuid import UUID
+
+from sqlalchemy import (
+    TIMESTAMP,
+    Boolean,
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Identity,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from src.database import Base
+
+if TYPE_CHECKING:
+    from src.custom_layers.models import CustomMap, VectorLayer
+    from src.imagery.models import ImagerySource
+    from src.projects.models import Project
+
+
+class Visualizer(Base):
+    """A published map over imagery and overlays a project has already registered.
+
+    It owns no imagery of its own: each layer points at a source or overlay
+    belonging to one of the project's campaigns, which is what lets a visualizer
+    be set up in seconds and stay in step with the campaign it draws from.
+    """
+
+    __tablename__ = "visualizers"
+    __table_args__ = (
+        Index("idx_visualizers_project_id", "project_id"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("data.projects.id", ondelete="CASCADE"), nullable=False
+    )
+    # The share link's only secret. Unguessable so a public visualizer can be
+    # handed out by URL without exposing the project's id space.
+    slug: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Publishing is a deliberate act on the visualizer, independent of the
+    # project's visibility: an internal project can publish one map.
+    is_public: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
+    center_lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    center_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    zoom: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.current_timestamp(), nullable=False
+    )
+
+    project: Mapped["Project"] = relationship()
+    imagery: Mapped[list["VisualizerImagery"]] = relationship(
+        back_populates="visualizer",
+        cascade="all, delete-orphan",
+        order_by="VisualizerImagery.display_order",
+    )
+    overlays: Mapped[list["VisualizerOverlay"]] = relationship(
+        back_populates="visualizer",
+        cascade="all, delete-orphan",
+        order_by="VisualizerOverlay.display_order",
+    )
+
+
+class VisualizerImagery(Base):
+    """One browsable imagery source in a visualizer.
+
+    The source's collections and cover slices carry no meaning here - the
+    visualizer flattens them into one dated timeline (see ``timeline.py``).
+    """
+
+    __tablename__ = "visualizer_imagery"
+    __table_args__ = (
+        UniqueConstraint("visualizer_id", "source_id", name="uq_visualizer_imagery_source"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    visualizer_id: Mapped[int] = mapped_column(
+        ForeignKey("data.visualizers.id", ondelete="CASCADE"), nullable=False
+    )
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_sources.id", ondelete="CASCADE"), nullable=False
+    )
+    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+
+    visualizer: Mapped["Visualizer"] = relationship(back_populates="imagery")
+    source: Mapped["ImagerySource"] = relationship()
+
+
+class VisualizerOverlay(Base):
+    """One overlay drawn above the imagery, plus how it opens."""
+
+    __tablename__ = "visualizer_overlays"
+    __table_args__ = (
+        CheckConstraint(
+            "(custom_map_id IS NULL) <> (vector_layer_id IS NULL)",
+            name="visualizer_overlays_one_target_check",
+        ),
+        CheckConstraint("opacity BETWEEN 0 AND 1", name="visualizer_overlays_opacity_check"),
+        Index("idx_visualizer_overlays_visualizer_id", "visualizer_id"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    visualizer_id: Mapped[int] = mapped_column(
+        ForeignKey("data.visualizers.id", ondelete="CASCADE"), nullable=False
+    )
+    custom_map_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.custom_maps.id", ondelete="CASCADE"), nullable=True
+    )
+    vector_layer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.vector_layers.id", ondelete="CASCADE"), nullable=True
+    )
+    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+    visible: Mapped[bool] = mapped_column(Boolean, server_default="true", nullable=False)
+    opacity: Mapped[float] = mapped_column(Float, server_default="1", nullable=False)
+
+    visualizer: Mapped["Visualizer"] = relationship(back_populates="overlays")
+    custom_map: Mapped["CustomMap | None"] = relationship()
+    vector_layer: Mapped["VectorLayer | None"] = relationship()

@@ -1126,6 +1126,32 @@ export type CampaignListItemOut = {
 };
 
 /**
+ * CampaignOptionsOut
+ */
+export type CampaignOptionsOut = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Campaign Name
+     */
+    campaign_name: string;
+    /**
+     * Sources
+     */
+    sources: Array<SourceOptionOut>;
+    /**
+     * Raster Overlays
+     */
+    raster_overlays: Array<OverlayOptionOut>;
+    /**
+     * Vector Overlays
+     */
+    vector_overlays: Array<OverlayOptionOut>;
+};
+
+/**
  * CampaignOut
  */
 export type CampaignOut = {
@@ -2873,6 +2899,24 @@ export type OrganizationsListResponse = {
 };
 
 /**
+ * OverlayOptionOut
+ */
+export type OverlayOptionOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
  * PairwiseAgreement
  *
  * Agreement percentage between two annotators.
@@ -3157,6 +3201,53 @@ export type ProjectsListResponse = {
 };
 
 /**
+ * RasterOverlayOut
+ */
+export type RasterOverlayOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Visible
+     */
+    visible: boolean;
+    /**
+     * Opacity
+     */
+    opacity: number;
+    /**
+     * Kind
+     */
+    kind?: 'raster';
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Tile Url
+     */
+    tile_url: string | null;
+    render_config: RenderConfig;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom: number | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Mlops Url
+     */
+    mlops_url: string | null;
+};
+
+/**
  * RenderConfig
  */
 export type RenderConfig = {
@@ -3316,6 +3407,36 @@ export type SliceTileUrlOut = {
      * Mosaic Id
      */
     mosaic_id?: string | null;
+};
+
+/**
+ * SourceOptionOut
+ */
+export type SourceOptionOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Step Count
+     */
+    step_count: number;
+    /**
+     * Visualizations
+     */
+    visualizations: Array<string>;
+    /**
+     * Start Date
+     */
+    start_date: string | null;
+    /**
+     * End Date
+     */
+    end_date: string | null;
 };
 
 /**
@@ -3622,6 +3743,16 @@ export type TilerOption = {
      * Allows Ingest
      */
     allows_ingest?: boolean;
+};
+
+/**
+ * TilerSessionOut
+ */
+export type TilerSessionOut = {
+    /**
+     * Expires In
+     */
+    expires_in: number;
 };
 
 /**
@@ -4145,6 +4276,44 @@ export type VectorLayerUpdate = {
 };
 
 /**
+ * VectorOverlayOut
+ */
+export type VectorOverlayOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Visible
+     */
+    visible: boolean;
+    /**
+     * Opacity
+     */
+    opacity: number;
+    /**
+     * Kind
+     */
+    kind?: 'vector';
+    /**
+     * Pmtiles Url
+     */
+    pmtiles_url: string;
+    /**
+     * Source Layer
+     */
+    source_layer: string | null;
+    /**
+     * Color
+     */
+    color: string;
+};
+
+/**
  * VisualizationTemplateCreate
  */
 export type VisualizationTemplateCreate = {
@@ -4170,6 +4339,332 @@ export type VisualizationTemplateOut = {
      * Display Order
      */
     display_order: number;
+};
+
+/**
+ * VisualizerCamera
+ */
+export type VisualizerCamera = {
+    /**
+     * Lon
+     */
+    lon: number;
+    /**
+     * Lat
+     */
+    lat: number;
+    /**
+     * Zoom
+     */
+    zoom: number;
+};
+
+/**
+ * VisualizerConfigOut
+ *
+ * The stored configuration, as the editor needs it back.
+ */
+export type VisualizerConfigOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Is Public
+     */
+    is_public: boolean;
+    camera: VisualizerCamera | null;
+    /**
+     * Imagery
+     */
+    imagery: Array<VisualizerImageryCreate>;
+    /**
+     * Overlays
+     */
+    overlays: Array<VisualizerOverlayCreate>;
+};
+
+/**
+ * VisualizerCreate
+ */
+export type VisualizerCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Is Public
+     */
+    is_public?: boolean;
+    camera?: VisualizerCamera | null;
+    /**
+     * Imagery
+     */
+    imagery?: Array<VisualizerImageryCreate>;
+    /**
+     * Overlays
+     */
+    overlays?: Array<VisualizerOverlayCreate>;
+};
+
+/**
+ * VisualizerImageryCreate
+ */
+export type VisualizerImageryCreate = {
+    /**
+     * Source Id
+     */
+    source_id: number;
+};
+
+/**
+ * VisualizerImageryOut
+ */
+export type VisualizerImageryOut = {
+    /**
+     * Source Id
+     */
+    source_id: number;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Visualizations
+     */
+    visualizations: Array<string>;
+    /**
+     * Default Zoom
+     */
+    default_zoom: number;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom: number | null;
+    /**
+     * Has Api Key
+     */
+    has_api_key: boolean;
+    /**
+     * Steps
+     */
+    steps: Array<VisualizerStepOut>;
+};
+
+/**
+ * VisualizerListItemOut
+ */
+export type VisualizerListItemOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Is Public
+     */
+    is_public: boolean;
+    /**
+     * Imagery Count
+     */
+    imagery_count: number;
+    /**
+     * Overlay Count
+     */
+    overlay_count: number;
+};
+
+/**
+ * VisualizerOptionsOut
+ *
+ * What this project has available to put on a visualizer.
+ */
+export type VisualizerOptionsOut = {
+    /**
+     * Campaigns
+     */
+    campaigns: Array<CampaignOptionsOut>;
+};
+
+/**
+ * VisualizerOverlayCreate
+ */
+export type VisualizerOverlayCreate = {
+    /**
+     * Custom Map Id
+     */
+    custom_map_id?: number | null;
+    /**
+     * Vector Layer Id
+     */
+    vector_layer_id?: number | null;
+    /**
+     * Visible
+     */
+    visible?: boolean;
+    /**
+     * Opacity
+     */
+    opacity?: number;
+};
+
+/**
+ * VisualizerStepOut
+ */
+export type VisualizerStepOut = {
+    /**
+     * Slice Id
+     */
+    slice_id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Tiles
+     */
+    tiles: {
+        [key: string]: VisualizerTileOut;
+    };
+};
+
+/**
+ * VisualizerTileOut
+ */
+export type VisualizerTileOut = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Provider
+     */
+    provider: string | null;
+};
+
+/**
+ * VisualizerUpdate
+ *
+ * Absent fields stay as they are; a present list replaces the stored one.
+ */
+export type VisualizerUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Is Public
+     */
+    is_public?: boolean | null;
+    camera?: VisualizerCamera | null;
+    /**
+     * Imagery
+     */
+    imagery?: Array<VisualizerImageryCreate> | null;
+    /**
+     * Overlays
+     */
+    overlays?: Array<VisualizerOverlayCreate> | null;
+};
+
+/**
+ * VisualizerViewOut
+ *
+ * Everything the viewer page draws, and nothing about how it was authored.
+ */
+export type VisualizerViewOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Is Public
+     */
+    is_public: boolean;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Project Name
+     */
+    project_name: string;
+    camera: VisualizerCamera | null;
+    /**
+     * Imagery
+     */
+    imagery: Array<VisualizerImageryOut>;
+    /**
+     * Overlays
+     */
+    overlays: Array<({
+        kind: 'raster';
+    } & RasterOverlayOut) | ({
+        kind: 'vector';
+    } & VectorOverlayOut)>;
+    /**
+     * Can Edit
+     */
+    can_edit: boolean;
 };
 
 /**
@@ -8691,3 +9186,245 @@ export type UpdateVectorLayerResponses = {
 };
 
 export type UpdateVectorLayerResponse = UpdateVectorLayerResponses[keyof UpdateVectorLayerResponses];
+
+export type ListVisualizersData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/visualizers';
+};
+
+export type ListVisualizersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizersError = ListVisualizersErrors[keyof ListVisualizersErrors];
+
+export type ListVisualizersResponses = {
+    /**
+     * Response Listvisualizers
+     *
+     * Successful Response
+     */
+    200: Array<VisualizerListItemOut>;
+};
+
+export type ListVisualizersResponse = ListVisualizersResponses[keyof ListVisualizersResponses];
+
+export type CreateVisualizerData = {
+    body: VisualizerCreate;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/visualizers';
+};
+
+export type CreateVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateVisualizerError = CreateVisualizerErrors[keyof CreateVisualizerErrors];
+
+export type CreateVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    201: VisualizerConfigOut;
+};
+
+export type CreateVisualizerResponse = CreateVisualizerResponses[keyof CreateVisualizerResponses];
+
+export type ListVisualizerOptionsData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/visualizers/options';
+};
+
+export type ListVisualizerOptionsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizerOptionsError = ListVisualizerOptionsErrors[keyof ListVisualizerOptionsErrors];
+
+export type ListVisualizerOptionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualizerOptionsOut;
+};
+
+export type ListVisualizerOptionsResponse = ListVisualizerOptionsResponses[keyof ListVisualizerOptionsResponses];
+
+export type DeleteVisualizerData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}';
+};
+
+export type DeleteVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVisualizerError = DeleteVisualizerErrors[keyof DeleteVisualizerErrors];
+
+export type DeleteVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVisualizerResponse = DeleteVisualizerResponses[keyof DeleteVisualizerResponses];
+
+export type GetVisualizerData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}';
+};
+
+export type GetVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetVisualizerError = GetVisualizerErrors[keyof GetVisualizerErrors];
+
+export type GetVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualizerConfigOut;
+};
+
+export type GetVisualizerResponse = GetVisualizerResponses[keyof GetVisualizerResponses];
+
+export type UpdateVisualizerData = {
+    body: VisualizerUpdate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}';
+};
+
+export type UpdateVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateVisualizerError = UpdateVisualizerErrors[keyof UpdateVisualizerErrors];
+
+export type UpdateVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualizerConfigOut;
+};
+
+export type UpdateVisualizerResponse = UpdateVisualizerResponses[keyof UpdateVisualizerResponses];
+
+export type GetSharedVisualizerData = {
+    body?: never;
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/shared-visualizers/{slug}';
+};
+
+export type GetSharedVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSharedVisualizerError = GetSharedVisualizerErrors[keyof GetSharedVisualizerErrors];
+
+export type GetSharedVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualizerViewOut;
+};
+
+export type GetSharedVisualizerResponse = GetSharedVisualizerResponses[keyof GetSharedVisualizerResponses];
+
+export type GetVisualizerTilerTokenData = {
+    body?: never;
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/shared-visualizers/{slug}/tiler-token';
+};
+
+export type GetVisualizerTilerTokenErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetVisualizerTilerTokenError = GetVisualizerTilerTokenErrors[keyof GetVisualizerTilerTokenErrors];
+
+export type GetVisualizerTilerTokenResponses = {
+    /**
+     * Successful Response
+     */
+    200: TilerSessionOut;
+};
+
+export type GetVisualizerTilerTokenResponse = GetVisualizerTilerTokenResponses[keyof GetVisualizerTilerTokenResponses];

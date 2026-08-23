@@ -16,10 +16,9 @@ from src.auth.schemas import (
     UserOutDetailed,
 )
 from src.campaigns.service import visible_campaign_ids
-from src.config import get_settings
 from src.database import get_db
 from src.tilers import registry
-from src.tilers.tokens import mint as mint_tiler_token
+from src.tilers.tokens import TILER_TOKEN_TTL, set_tiler_cookie
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -60,9 +59,6 @@ def accept_terms(
     return service.accept_terms(db, user, request.version)
 
 
-TILER_TOKEN_TTL = 3600  # 1 hour
-
-
 @router.get("/tiler-token")
 def get_tiler_token(
     response: Response,
@@ -70,19 +66,7 @@ def get_tiler_token(
     db: Session = Depends(get_db),
 ):
     """Set a short-lived, campaign-scoped tiler HttpOnly cookie (authenticated users only)."""
-    settings = get_settings()
-    campaigns = [str(cid) for cid in visible_campaign_ids(db, user.id)]
-    token = mint_tiler_token(str(user.id), campaigns, scope=["tiles:read"], ttl=TILER_TOKEN_TTL)
-    response.set_cookie(
-        key="tiler_token",
-        value=token,
-        max_age=TILER_TOKEN_TTL,
-        httponly=True,
-        secure=settings.TILER_COOKIE_SECURE,
-        samesite=settings.TILER_COOKIE_SAMESITE,
-        domain=settings.TILER_COOKIE_DOMAIN,
-        path="/",
-    )
+    set_tiler_cookie(response, sub=str(user.id), campaigns=visible_campaign_ids(db, user.id))
     return {"expires_in": TILER_TOKEN_TTL}
 
 
