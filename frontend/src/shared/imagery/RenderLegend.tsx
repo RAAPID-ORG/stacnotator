@@ -93,6 +93,13 @@ function ContinuousBody({
   );
 }
 
+/** A class is hidden by drawing it fully transparent: the colormap the tiler
+ *  is handed carries the alpha, so this needs nothing the legend cannot already
+ *  express - and "reset colours" brings it back with everything else. */
+const HIDDEN_ALPHA = '00';
+
+const isHidden = (color: string) => withHash(color).slice(7).toLowerCase() === HIDDEN_ALPHA;
+
 function CategoricalBody({
   config,
   onChange,
@@ -101,31 +108,44 @@ function CategoricalBody({
   onChange: (patch: RenderOverride) => void;
 }) {
   const entries = config.entries ?? [];
+  const patchEntry = (value: number, color: string) =>
+    onChange({ entries: entries.map((x) => (x.value === value ? { ...x, color } : x)) });
+
   return (
     <>
       {entries.map((entry) => {
         // <input type="color"> only speaks #rrggbb, so any stored alpha is
         // carried across untouched rather than silently dropped.
         const hex = withHash(entry.color);
+        const rgb = hex.slice(0, 7);
         const alpha = hex.slice(7);
+        const hidden = isHidden(entry.color);
+        const name = entry.label || String(entry.value);
         return (
           <div key={entry.value} className="flex items-center gap-1">
             <input
               type="color"
-              value={hex.slice(0, 7)}
+              value={rgb}
               data-testid="custom-map-legend-color"
-              onChange={(e) =>
-                onChange({
-                  entries: entries.map((x) =>
-                    x.value === entry.value ? { ...x, color: e.target.value + alpha } : x
-                  ),
-                })
-              }
-              title={`Recolour ${entry.label || entry.value}`}
-              aria-label={`Colour for ${entry.label || entry.value}`}
-              className="h-3 w-3 cursor-pointer rounded-sm border-0 bg-transparent p-0"
+              onChange={(e) => patchEntry(entry.value, e.target.value + alpha)}
+              title={`Recolour ${name}`}
+              aria-label={`Colour for ${name}`}
+              className={`h-3 w-3 cursor-pointer rounded-sm border-0 bg-transparent p-0 ${
+                hidden ? 'opacity-25' : ''
+              }`}
             />
-            <span>{entry.label ?? String(entry.value)}</span>
+            <button
+              type="button"
+              data-testid="custom-map-legend-class"
+              data-hidden={hidden}
+              onClick={() => patchEntry(entry.value, rgb + (hidden ? 'ff' : HIDDEN_ALPHA))}
+              title={hidden ? `Show ${name}` : `Hide ${name}`}
+              className={`cursor-pointer text-left text-inherit ${
+                hidden ? 'line-through opacity-50' : ''
+              }`}
+            >
+              {name}
+            </button>
           </div>
         );
       })}

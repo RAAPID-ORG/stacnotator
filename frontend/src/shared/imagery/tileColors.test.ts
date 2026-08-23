@@ -132,3 +132,32 @@ describe('stampLegendOverride', () => {
     expect(stampLegendOverride(raw, {})).toBe(raw);
   });
 });
+
+describe('hiding a class', () => {
+  // The legend hides a class by zeroing its alpha, so the whole feature rides
+  // on the colormap carrying that byte through to the tiler.
+  const hidden = applyRenderOverride(catUrl, CATEGORICAL, {
+    entries: [
+      { value: 1, color: '#ff000000', label: 'crop' },
+      { value: 2, color: '#00ff00', label: 'other' },
+    ],
+  });
+
+  it('reaches the tiler as a transparent entry, the rest untouched', () => {
+    expect(JSON.parse(query(hidden).get('colormap')!)).toEqual({
+      '1': [255, 0, 0, 0],
+      '2': [0, 255, 0, 255],
+    });
+  });
+
+  it('counts as customized, so the reset is offered', () => {
+    expect(
+      isCustomized(CATEGORICAL, {
+        entries: [
+          { value: 1, color: '#ff000000', label: 'crop' },
+          { value: 2, color: '#00ff00', label: 'other' },
+        ],
+      })
+    ).toBe(true);
+  });
+});

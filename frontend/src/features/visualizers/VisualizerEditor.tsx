@@ -76,6 +76,10 @@ export function VisualizerEditor({
   const [options, setOptions] = useState<VisualizerOptionsOut | null>(null);
   const [draft, setDraft] = useState<Draft | null>(visualizerId === null ? EMPTY : null);
   const [saving, setSaving] = useState(false);
+  // The manual forms open on their own where a visualizer already has layers of
+  // its own, so editing one does not hide what is there behind a link.
+  const [addingImagery, setAddingImagery] = useState(false);
+  const [addingOverlay, setAddingOverlay] = useState(false);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
 
@@ -147,6 +151,12 @@ export function VisualizerEditor({
 
   const ready = draft !== null && options !== null;
   const restricted: RestrictedLayer[] = draft && options ? restrictedSelection(options, draft) : [];
+  const campaigns = options?.campaigns ?? [];
+  const campaignsWithSources = campaigns.filter((c) => c.sources.length > 0);
+  const campaignsWithOverlays = campaigns.filter(
+    (c) => c.raster_overlays.length > 0 || c.vector_overlays.length > 0
+  );
+
   const layerCount = ready
     ? draft.imagery.length + draft.overlays.length + draft.ownImagery.sources.length
     : 0;
@@ -212,46 +222,10 @@ export function VisualizerEditor({
           </Section>
 
           <Section
-            title="Imagery and backdrops for this visualizer"
-            description="Set up from a STAC catalog or Planet, the same way a campaign's imagery is. Registered for this visualizer alone."
+            title="Imagery"
+            description="What the date slider steps through, and the backdrop under it."
           >
-            <OwnImagery
-              state={draft.ownImagery}
-              onChange={(ownImagery) => setDraft({ ...draft, ownImagery })}
-              area={draft.area}
-              projectId={projectId}
-            />
-          </Section>
-
-          {visualizerId !== null && (
-            <Section
-              title="Overlays for this visualizer"
-              description="Predictions and reference layers set up here rather than reused. Added to the map as soon as they are created."
-            >
-              <div className="space-y-6">
-                <CustomMapsEditor
-                  ownerKind="visualizer"
-                  ownerId={visualizerId}
-                  projectId={projectId}
-                />
-                <VectorLayersEditor
-                  ownerKind="visualizer"
-                  ownerId={visualizerId}
-                  description="Reference layers drawn over the imagery, toggled from the viewer's panel."
-                />
-              </div>
-            </Section>
-          )}
-
-          <Section
-            title="From this project's campaigns"
-            description="Imagery and overlays other campaigns already registered, reused as they stand."
-          >
-            {options.campaigns.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-6 text-center text-sm text-neutral-500">
-                This project has no campaigns to draw from yet.
-              </p>
-            ) : (
+            {campaignsWithSources.length > 0 && (
               <>
                 <p className="mb-3 rounded-md bg-neutral-50 px-2.5 py-2 text-[11px] leading-relaxed text-neutral-600">
                   A campaign browses imagery as windows, each with a cover image composited over the
@@ -259,98 +233,130 @@ export function VisualizerEditor({
                   every one of that source&apos;s intervals in one list, oldest to newest, with the
                   cover images left out.
                 </p>
-                <div className="space-y-4">
-                  {options.campaigns.map((campaign) => {
-                    const empty =
-                      campaign.sources.length === 0 &&
-                      campaign.raster_overlays.length === 0 &&
-                      campaign.vector_overlays.length === 0;
-                    if (empty) return null;
-                    return (
-                      <section key={campaign.campaign_id}>
-                        <h4 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-neutral-700">
-                          <IconMap className="h-3.5 w-3.5 text-neutral-400" />
-                          {campaign.campaign_name}
-                        </h4>
-                        <div className="overflow-hidden rounded-lg border border-neutral-200">
-                          {campaign.sources.map((source) => (
-                            <PickRow
-                              key={`source-${source.id}`}
-                              checked={draft.imagery.some((e) => e.source_id === source.id)}
-                              onToggle={(checked) =>
-                                setDraft({
-                                  ...draft,
-                                  imagery: checked
-                                    ? [...draft.imagery, { source_id: source.id }]
-                                    : draft.imagery.filter((e) => e.source_id !== source.id),
-                                })
-                              }
-                              title={source.name}
-                              note={sourceNote(source)}
-                              disabled={source.step_count === 0}
-                            />
-                          ))}
-                          {campaign.raster_overlays.map((overlay) => (
-                            <PickRow
-                              key={`raster-${overlay.id}`}
-                              checked={draft.overlays.some((e) => e.custom_map_id === overlay.id)}
-                              onToggle={(checked) =>
-                                setDraft({
-                                  ...draft,
-                                  overlays: checked
-                                    ? [
-                                        ...draft.overlays,
-                                        { custom_map_id: overlay.id, visible: true, opacity: 0.8 },
-                                      ]
-                                    : draft.overlays.filter((e) => e.custom_map_id !== overlay.id),
-                                })
-                              }
-                              title={overlay.name}
-                              note={
-                                overlay.status === 'ready'
-                                  ? 'Overlay'
-                                  : `Overlay - ${overlay.status}`
-                              }
-                            />
-                          ))}
-                          {campaign.vector_overlays.map((overlay) => (
-                            <PickRow
-                              key={`vector-${overlay.id}`}
-                              checked={draft.overlays.some((e) => e.vector_layer_id === overlay.id)}
-                              onToggle={(checked) =>
-                                setDraft({
-                                  ...draft,
-                                  overlays: checked
-                                    ? [
-                                        ...draft.overlays,
-                                        { vector_layer_id: overlay.id, visible: true, opacity: 1 },
-                                      ]
-                                    : draft.overlays.filter(
-                                        (e) => e.vector_layer_id !== overlay.id
-                                      ),
-                                })
-                              }
-                              title={overlay.name}
-                              note="Vector layer"
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    );
-                  })}
-                </div>
+                <CampaignGroups
+                  campaigns={campaignsWithSources}
+                  rows={(campaign) =>
+                    campaign.sources.map((source) => (
+                      <PickRow
+                        key={`source-${source.id}`}
+                        checked={draft.imagery.some((e) => e.source_id === source.id)}
+                        onToggle={(checked) =>
+                          setDraft({
+                            ...draft,
+                            imagery: checked
+                              ? [...draft.imagery, { source_id: source.id }]
+                              : draft.imagery.filter((e) => e.source_id !== source.id),
+                          })
+                        }
+                        title={source.name}
+                        note={sourceNote(source)}
+                        disabled={source.step_count === 0}
+                      />
+                    ))
+                  }
+                />
               </>
             )}
+
+            <Manual
+              open={addingImagery}
+              onOpen={() => setAddingImagery(true)}
+              label={
+                campaignsWithSources.length > 0
+                  ? 'Add other imagery'
+                  : 'Set up imagery for this visualizer'
+              }
+              hint="From a STAC catalog or Planet, the same way a campaign's imagery is. Registered for this visualizer alone."
+            >
+              <OwnImagery
+                state={draft.ownImagery}
+                onChange={(ownImagery) => setDraft({ ...draft, ownImagery })}
+                area={draft.area}
+                projectId={projectId}
+              />
+            </Manual>
           </Section>
 
-          {visualizerId === null && (
-            <Section title="Overlays for this visualizer">
+          <Section
+            title="Overlays"
+            description="Predictions and reference layers drawn over the imagery."
+          >
+            {campaignsWithOverlays.length > 0 && (
+              <CampaignGroups
+                campaigns={campaignsWithOverlays}
+                rows={(campaign) => [
+                  ...campaign.raster_overlays.map((overlay) => (
+                    <PickRow
+                      key={`raster-${overlay.id}`}
+                      checked={draft.overlays.some((e) => e.custom_map_id === overlay.id)}
+                      onToggle={(checked) =>
+                        setDraft({
+                          ...draft,
+                          overlays: checked
+                            ? [
+                                ...draft.overlays,
+                                { custom_map_id: overlay.id, visible: true, opacity: 0.8 },
+                              ]
+                            : draft.overlays.filter((e) => e.custom_map_id !== overlay.id),
+                        })
+                      }
+                      title={overlay.name}
+                      note={overlay.status === 'ready' ? 'Raster' : `Raster - ${overlay.status}`}
+                    />
+                  )),
+                  ...campaign.vector_overlays.map((overlay) => (
+                    <PickRow
+                      key={`vector-${overlay.id}`}
+                      checked={draft.overlays.some((e) => e.vector_layer_id === overlay.id)}
+                      onToggle={(checked) =>
+                        setDraft({
+                          ...draft,
+                          overlays: checked
+                            ? [
+                                ...draft.overlays,
+                                { vector_layer_id: overlay.id, visible: true, opacity: 1 },
+                              ]
+                            : draft.overlays.filter((e) => e.vector_layer_id !== overlay.id),
+                        })
+                      }
+                      title={overlay.name}
+                      note="Vector"
+                    />
+                  )),
+                ]}
+              />
+            )}
+
+            {visualizerId === null ? (
               <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
-                Create the visualizer first, then set up predictions and reference layers of its own
-                here.
+                Create the visualizer first, then set up overlays of its own here.
               </p>
-            </Section>
-          )}
+            ) : (
+              <Manual
+                open={addingOverlay}
+                onOpen={() => setAddingOverlay(true)}
+                label={
+                  campaignsWithOverlays.length > 0
+                    ? 'Add another overlay'
+                    : 'Add an overlay to this visualizer'
+                }
+                hint="Set up here rather than reused. Added to the map as soon as they are created."
+              >
+                <div className="space-y-6">
+                  <CustomMapsEditor
+                    ownerKind="visualizer"
+                    ownerId={visualizerId}
+                    projectId={projectId}
+                  />
+                  <VectorLayersEditor
+                    ownerKind="visualizer"
+                    ownerId={visualizerId}
+                    description="Reference layers drawn over the imagery, toggled from the viewer's panel."
+                  />
+                </div>
+              </Manual>
+            )}
+          </Section>
 
           <Section title="Publishing">
             <div className="flex items-start gap-3">
@@ -399,6 +405,58 @@ export function VisualizerEditor({
     </Modal>
   );
 }
+
+/** A campaign's own layers, offered as they stand. Campaigns with nothing to
+ *  offer are left out rather than listed empty. */
+const CampaignGroups = ({
+  campaigns,
+  rows,
+}: {
+  campaigns: VisualizerOptionsOut['campaigns'];
+  rows: (campaign: VisualizerOptionsOut['campaigns'][number]) => React.ReactNode[];
+}) => (
+  <div className="space-y-4">
+    {campaigns.map((campaign) => (
+      <section key={campaign.campaign_id}>
+        <h4 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-neutral-700">
+          <IconMap className="h-3.5 w-3.5 text-neutral-400" />
+          {campaign.campaign_name}
+        </h4>
+        <div className="overflow-hidden rounded-lg border border-neutral-200">{rows(campaign)}</div>
+      </section>
+    ))}
+  </div>
+);
+
+/** Setting a layer up by hand is the second offer, so it stays a link until
+ *  it is wanted - the form behind it is as long as a campaign's own. */
+const Manual = ({
+  open,
+  onOpen,
+  label,
+  hint,
+  children,
+}: {
+  open: boolean;
+  onOpen: () => void;
+  label: string;
+  hint: string;
+  children: React.ReactNode;
+}) =>
+  open ? (
+    <div className="mt-4 border-t border-neutral-100 pt-4">
+      <p className="mb-3 text-xs text-neutral-500">{hint}</p>
+      {children}
+    </div>
+  ) : (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="mt-3 cursor-pointer text-xs text-brand-700 underline decoration-brand-300 underline-offset-4 transition-colors hover:text-brand-900 hover:decoration-brand-700"
+    >
+      + {label}
+    </button>
+  );
 
 const Section = ({
   title,

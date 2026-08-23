@@ -8,7 +8,6 @@ import { RenderLegend } from '~/shared/imagery/RenderLegend';
 import { effectiveRenderConfig, isCustomized } from '~/shared/imagery/tileColors';
 import { IconChevronDoubleRight, IconExternalLink, IconSliders } from '~/shared/ui/Icons';
 import { Select } from '~/shared/ui/forms';
-import { pillCls } from '~/shared/ui/pill';
 import { selectSource, type ViewerState } from '../viewerState';
 
 /**
@@ -65,29 +64,14 @@ export function ViewerSidebar({
                 const active = entry.id === state.sourceId;
                 return (
                   <div key={entry.id}>
-                    <button
-                      type="button"
+                    <LayerRow
+                      active={active}
                       onClick={() => onChange(selectSource(view, state, active ? null : entry.id))}
-                      data-testid="visualizer-source-option"
-                      data-active={active}
+                      testId="visualizer-source-option"
                       title={active ? 'Hide this imagery' : 'Show this imagery'}
-                      className={`flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors ${
-                        active
-                          ? 'bg-brand-50 font-medium text-brand-800'
-                          : 'text-neutral-700 hover:bg-neutral-50'
-                      }`}
-                    >
-                      <span
-                        aria-hidden
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                          active ? 'bg-brand-600' : 'bg-neutral-300'
-                        }`}
-                      />
-                      <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                      <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">
-                        {entry.steps.length || (registering ? '…' : 0)}
-                      </span>
-                    </button>
+                      name={entry.name}
+                      trailing={entry.steps.length || (registering ? '…' : 0)}
+                    />
 
                     {/* Right under the imagery it belongs to: a visualization is
                         a property of that source, not of the panel. A source can
@@ -241,25 +225,20 @@ export function ViewerSidebar({
         )}
         {view.basemaps.length > 0 && (
           <Section title="Base map">
-            <div className="flex flex-wrap gap-1.5">
-              {view.basemaps.map((basemap) => (
-                <button
-                  key={basemap.id}
-                  type="button"
-                  onClick={() => onChange({ ...state, basemapId: basemap.id })}
-                  data-testid="visualizer-basemap-option"
-                  className={pillCls(basemap.id === state.basemapId, '!h-7 !px-2.5 !text-xs')}
-                >
-                  {basemap.name}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => onChange({ ...state, basemapId: null })}
-                className={pillCls(state.basemapId === null, '!h-7 !px-2.5 !text-xs')}
-              >
-                None
-              </button>
+            <div className="space-y-0.5">
+              {view.basemaps.map((basemap) => {
+                const active = basemap.id === state.basemapId;
+                return (
+                  <LayerRow
+                    key={basemap.id}
+                    active={active}
+                    onClick={() => onChange({ ...state, basemapId: active ? null : basemap.id })}
+                    testId="visualizer-basemap-option"
+                    title={active ? 'Hide this backdrop' : 'Show this backdrop'}
+                    name={basemap.name}
+                  />
+                );
+              })}
             </div>
           </Section>
         )}
@@ -280,6 +259,45 @@ export function ViewerSidebar({
     </aside>
   );
 }
+
+/** One line in the panel: what it is, whether it is drawn, and a count where
+ *  there is one. Imagery and backdrops are the same kind of choice, so they
+ *  read the same and toggle the same. */
+const LayerRow = ({
+  active,
+  onClick,
+  testId,
+  title,
+  name,
+  trailing,
+}: {
+  active: boolean;
+  onClick: () => void;
+  testId: string;
+  title: string;
+  name: string;
+  trailing?: React.ReactNode;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    data-testid={testId}
+    data-active={active}
+    title={title}
+    className={`flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors ${
+      active ? 'bg-brand-50 font-medium text-brand-800' : 'text-neutral-700 hover:bg-neutral-50'
+    }`}
+  >
+    <span
+      aria-hidden
+      className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? 'bg-brand-600' : 'bg-neutral-300'}`}
+    />
+    <span className="min-w-0 flex-1 truncate">{name}</span>
+    {trailing !== undefined && (
+      <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">{trailing}</span>
+    )}
+  </button>
+);
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <section className="border-t border-neutral-100 px-4 py-3 first:border-t-0">
