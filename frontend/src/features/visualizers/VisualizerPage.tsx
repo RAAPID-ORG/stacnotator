@@ -4,6 +4,7 @@ import { getSharedVisualizer, getVisualizerTilerToken, type VisualizerViewOut } 
 import { ensureTilerSession, setTilerSessionMinter } from '~/api/tilerToken';
 import { Camera } from '~/shared/map/Camera';
 import { MapView } from '~/shared/map/MapView';
+import type { GeocodingResult } from '~/shared/map/geocoding';
 import type { Bbox } from '~/shared/map/types';
 import { Badge } from '~/shared/ui/Badge';
 import { Button } from '~/shared/ui/forms';
@@ -26,6 +27,7 @@ import {
   initialState,
   needsTilerSession,
   selectStep,
+  workingZoom,
   zoomedPastArea,
   type ViewerState,
 } from './viewerState';
@@ -53,13 +55,29 @@ export function VisualizerPage({ slug }: { slug: string }) {
   camera.current ??= new Camera(WORLD);
   const [feedback, setFeedback] = useState<FeedbackMode>(null);
 
-  const fitArea = () => {
+  const frameArea = (animateMs?: number) => {
     const area = view?.area;
     if (!area) return;
     camera.current?.fitBounds([area.west, area.south, area.east, area.north], {
       paddingPx: AREA_PADDING_PX,
-      animateMs: 300,
+      minZoom: workingZoom(view),
+      animateMs,
     });
+  };
+
+  /** Jump to a searched place, never further out than the imagery is worth. */
+  const goTo = (result: GeocodingResult) => {
+    if (!view) return;
+    const floor = workingZoom(view);
+    if (result.extent) {
+      camera.current?.fitBounds(result.extent, {
+        paddingPx: AREA_PADDING_PX,
+        minZoom: floor,
+        animateMs: 300,
+      });
+      return;
+    }
+    camera.current?.moveTo({ center: result.center, zoom: floor }, { animateMs: 300 });
   };
 
   useEffect(() => {
@@ -83,7 +101,10 @@ export function VisualizerPage({ slug }: { slug: string }) {
         setState(initialState(data));
         if (data.area) {
           const { west, south, east, north } = data.area;
-          camera.current?.fitBounds([west, south, east, north], { paddingPx: AREA_PADDING_PX });
+          camera.current?.fitBounds([west, south, east, north], {
+            paddingPx: AREA_PADDING_PX,
+            minZoom: workingZoom(data),
+          });
         }
         if (needsTilerSession(data)) await ensureTilerSession(slug);
       } catch {
@@ -201,7 +222,7 @@ export function VisualizerPage({ slug }: { slug: string }) {
               </p>
             )}
 
-            <ZoomNotice view={view} camera={camera.current!} onZoomToArea={fitArea} />
+            <ZoomNotice view={view} camera={camera.current!} onZoomToArea={() => frameArea(300)} />
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-4">
               {feedback?.area ? (
@@ -230,6 +251,7 @@ export function VisualizerPage({ slug }: { slug: string }) {
               state={state}
               onChange={setState}
               onCollapse={() => setSidebarOpen(false)}
+              onGoTo={goTo}
             />
           )}
         </div>

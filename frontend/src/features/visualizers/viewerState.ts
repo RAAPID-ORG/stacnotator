@@ -7,6 +7,7 @@ import {
   needsKeyProxy,
   sliceProxyUrl,
 } from '~/shared/imagery/tileUrls';
+import { DEFAULT_MAP_ZOOM } from '~/shared/map/Camera';
 import type { LayerSpec } from '~/shared/map/types';
 
 /**
@@ -231,6 +232,18 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
   }
 
   return layers;
+}
+
+/**
+ * The scale this visualizer's imagery is meant to be looked at.
+ *
+ * An area can be a whole country, and framing one in full puts a Sentinel-2
+ * mosaic a few pixels across. Sources already declare the zoom they are worth
+ * viewing at, so that is the floor: a large area opens centred on itself rather
+ * than in full. Roughly 5 km across the map at the usual value.
+ */
+export function workingZoom(view: VisualizerViewOut): number {
+  return view.imagery[0]?.default_zoom ?? DEFAULT_MAP_ZOOM;
 }
 
 /** How much of the viewport the area of interest has to fill before imagery is

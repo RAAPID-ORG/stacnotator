@@ -1,4 +1,6 @@
 import type { VisualizerViewOut } from '~/api/client';
+import type { GeocodingResult } from '~/shared/map/geocoding';
+import { LocationSearch } from '~/shared/map/LocationSearch';
 import { RenderLegend } from '~/shared/imagery/RenderLegend';
 import { effectiveRenderConfig, isCustomized } from '~/shared/imagery/tileColors';
 import { IconChevronDoubleRight, IconExternalLink, IconSliders } from '~/shared/ui/Icons';
@@ -14,11 +16,13 @@ export function ViewerSidebar({
   state,
   onChange,
   onCollapse,
+  onGoTo,
 }: {
   view: VisualizerViewOut;
   state: ViewerState;
   onChange: (next: ViewerState) => void;
   onCollapse: () => void;
+  onGoTo: (result: GeocodingResult) => void;
 }) {
   const source = activeSource(view, state);
   const registering = view.registration_status === 'registering';
@@ -42,6 +46,12 @@ export function ViewerSidebar({
         >
           <IconChevronDoubleRight className="h-4 w-4" />
         </button>
+      </div>
+
+      <div className="border-b border-neutral-100 px-4 py-2.5">
+        {/* Always expanded: this is the panel's own field, not a map overlay
+            that has to earn its space, and collapsing only clears the query. */}
+        <LocationSearch expanded onExpandedChange={() => {}} onSelect={onGoTo} />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

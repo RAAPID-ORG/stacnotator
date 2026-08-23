@@ -14,7 +14,12 @@ export class Camera {
   private readonly listeners = new Set<(s: CameraSnapshot) => void>();
   private frame: number | null = null;
   private attached = false;
-  private pendingFit: { bbox: Bbox; paddingPx?: number; maxZoom?: number } | null = null;
+  private pendingFit: {
+    bbox: Bbox;
+    paddingPx?: number;
+    maxZoom?: number;
+    minZoom?: number;
+  } | null = null;
 
   constructor(initial: CameraState) {
     this.view = new View({
@@ -117,17 +122,47 @@ export class Camera {
     this.moveTo({ zoom: (this.view.getZoom() ?? 0) + delta }, opts);
   }
 
-  fitBounds(bbox: Bbox, opts?: { paddingPx?: number; maxZoom?: number; animateMs?: number }): void {
+  /**
+   * Frame a box.
+   *
+   * `minZoom` is the scale below which the data stops being worth looking at:
+   * a box far larger than what it holds is framed at its centre rather than in
+   * full, because fitting it would put the content a few pixels across.
+   */
+  fitBounds(
+    bbox: Bbox,
+    opts?: { paddingPx?: number; maxZoom?: number; minZoom?: number; animateMs?: number }
+  ): void {
     if (!this.attached) {
-      this.pendingFit = { bbox, paddingPx: opts?.paddingPx, maxZoom: opts?.maxZoom };
+      this.pendingFit = {
+        bbox,
+        paddingPx: opts?.paddingPx,
+        maxZoom: opts?.maxZoom,
+        minZoom: opts?.minZoom,
+      };
       return;
     }
     const pad = opts?.paddingPx ?? 0;
+    const previous = this.getState();
+
+    // Landed immediately rather than animated, because the floor below has to
+    // read the zoom the fit chose - during an animation the view still reports
+    // the one it is leaving. Where a glide was asked for, the target computed
+    // here is animated to instead, all before anything paints.
     this.view.fit(transformExtent(bbox, WGS84, MERCATOR), {
       padding: [pad, pad, pad, pad],
       maxZoom: opts?.maxZoom,
-      duration: opts?.animateMs,
     });
+    const minZoom = opts?.minZoom;
+    if (minZoom !== undefined && (this.view.getZoom() ?? minZoom) < minZoom) {
+      this.view.setZoom(minZoom);
+    }
+
+    if (opts?.animateMs) {
+      const target = this.getState();
+      this.moveTo(previous);
+      this.moveTo(target, { animateMs: opts.animateMs });
+    }
   }
 
   /** Mirror another camera, snapping rather than animating: followers track

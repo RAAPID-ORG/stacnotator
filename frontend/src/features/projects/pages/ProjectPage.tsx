@@ -256,9 +256,11 @@ const CampaignsList = ({
           <IconDocument className="w-6 h-6 text-brand-600" />
         </div>
         <p className="text-base text-neutral-800 font-medium mb-1">No campaigns yet</p>
-        <p className="text-sm text-neutral-500 mb-5">
+        <p className="mx-auto mb-5 max-w-md text-sm text-neutral-500">
+          A campaign is how imagery gets labelled: annotators visit locations or explore freely, and
+          record what they see.{' '}
           {canCreate
-            ? 'Create the first campaign in this project to get started.'
+            ? 'Create the first one in this project to get started.'
             : "You'll see campaigns here once one is created."}
         </p>
         {canCreate && (
@@ -271,19 +273,32 @@ const CampaignsList = ({
   }
 
   return (
-    <ul className="divide-y divide-neutral-100">
-      {campaigns.map((campaign, index) => (
-        <MotionListItem key={campaign.id} index={index}>
-          <CampaignRow
-            campaign={campaign}
-            onOpen={() => onOpen(campaign)}
-            onDuplicate={() => onDuplicate(campaign)}
-          />
-        </MotionListItem>
-      ))}
-    </ul>
+    <>
+      <CampaignsIntro />
+      <ul className="divide-y divide-neutral-100">
+        {campaigns.map((campaign, index) => (
+          <MotionListItem key={campaign.id} index={index}>
+            <CampaignRow
+              campaign={campaign}
+              onOpen={() => onOpen(campaign)}
+              onDuplicate={() => onDuplicate(campaign)}
+            />
+          </MotionListItem>
+        ))}
+      </ul>
+    </>
   );
 };
+
+const CampaignsIntro = () => (
+  <div className="mb-4">
+    <h2 className="section-heading">Campaigns</h2>
+    <p className="section-description">
+      Label geospatial imagery: annotators visit locations or explore freely, and record what they
+      see. A campaign holds the imagery to look at, the labels to apply, and the people doing it.
+    </p>
+  </div>
+);
 
 const CampaignRow = ({
   campaign,

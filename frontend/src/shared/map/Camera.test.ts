@@ -124,6 +124,25 @@ describe('fitBounds', () => {
     expect(camera.getState().zoom).toBeCloseTo(12, 6);
   });
 
+  it('never zooms out past minZoom on a huge bbox', () => {
+    const camera = attachedCamera({ center: [0, 0], zoom: 2 });
+    camera.fitBounds([-20, -20, 20, 20], { minZoom: 12 });
+    expect(camera.getState().zoom).toBeCloseTo(12, 6);
+    // Still centred on what it could not frame in full.
+    expect(camera.getState().center[0]).toBeCloseTo(0, 6);
+  });
+
+  it('holds minZoom when the move is animated', async () => {
+    // A fit with a duration reports the zoom it is leaving rather than the one
+    // it chose, so the floor has to be applied to the computed target. Starting
+    // in tighter than the floor means a broken clamp lands past it, not short.
+    const camera = attachedCamera({ center: [0, 0], zoom: 18 });
+    camera.fitBounds([-20, -20, 20, 20], { minZoom: 12, animateMs: 1 });
+    await nextFrame();
+    await nextFrame();
+    expect(camera.getState().zoom).toBeCloseTo(12, 6);
+  });
+
   it('zooms out further with padding', () => {
     const tight = attachedCamera({ center: [0, 0], zoom: 2 });
     tight.fitBounds([10, 40, 20, 50]);
