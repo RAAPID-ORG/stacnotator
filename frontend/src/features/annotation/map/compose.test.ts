@@ -19,7 +19,7 @@ import type {
   LayerSpec,
   RasterLayerSpec,
   VectorTileLayerSpec,
-} from '../map/types';
+} from '~/shared/map/types';
 import {
   type ComposeContext,
   ANNOTATION_DELTA_LAYER_ID,

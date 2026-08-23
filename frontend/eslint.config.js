@@ -106,6 +106,7 @@ export default tseslint.config(
                 '**/panels/*',
                 '**/chrome/*',
                 '**/map/*',
+                '!~/shared/map/types',
                 '**/canvas/*',
                 'react',
                 'ol',

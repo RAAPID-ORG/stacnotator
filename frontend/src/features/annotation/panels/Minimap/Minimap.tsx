@@ -4,16 +4,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getAnnotationDensity, type AnnotationDensityCell } from '~/api/client';
 import { IconExternalLink } from '~/shared/ui/Icons';
 import { useContainerSize } from '../../canvas/useContainerSize';
-import { mainCamera, minimapCamera, useCameraZoom } from '../../map/camera';
-import { MapView } from '../../map/MapView';
-import { type Camera } from '../../map/camera';
+import { mainCamera, minimapCamera } from '../../map/camera';
+import { type Camera, useCameraZoom } from '~/shared/map/Camera';
+import { MapView } from '~/shared/map/MapView';
 import {
   type Bbox,
   type FeatureLayerSpec,
   type LayerSpec,
   type LonLat,
   type RasterLayerSpec,
-} from '../../map/types';
+} from '~/shared/map/types';
 import { exploreRefitTarget, tasksModeTarget } from './followTarget';
 import { type GeocodingResult } from './geocoding';
 import { LocationSearch } from './LocationSearch';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Bbox } from '../../map/types';
+import type { Bbox } from '~/shared/map/types';
 import {
   MINIMAP_PADDING_FACTOR,
   TASK_OVERVIEW_ZOOM,

@@ -12,7 +12,7 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import type { FeatureLike } from 'ol/Feature';
 import type MapBrowserEvent from 'ol/MapBrowserEvent';
-import type { Camera } from './camera';
+import type { Camera } from './Camera';
 import {
   LAYER_ID_PROP,
   destroyLayer,

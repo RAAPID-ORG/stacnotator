@@ -9,9 +9,9 @@ import { usePrefsStore } from '../../stores/prefs';
 import { useSavedAnnotations, useWorkStore } from '../../stores/work';
 import { cameraFor, mainCamera, releaseCamera } from '../../map/camera';
 import { useMapFocus } from '../../stores/tasks';
-import { setForegroundMapLoading } from '../../map/tileLoading';
+import { setForegroundMapLoading } from '~/shared/map/tileLoading';
 import { composeLayers, type ComposeState } from '../../map/compose';
-import { MapView } from '../../map/MapView';
+import { MapView } from '~/shared/map/MapView';
 import { PillSpinner, StatusPill } from '../../components/StatusPill';
 import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
 

@@ -10,7 +10,8 @@ import {
   makeViz,
 } from '../testing/fixtures';
 import { buildImageryCatalog } from './imagery';
-import { sliceRaster, isProxiedTileUrl, resolveBasemapUrl } from './tileUrls';
+import { isProxiedTileUrl, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
+import { sliceRaster } from './tileUrls';
 
 const source = makeSource({
   id: 1,

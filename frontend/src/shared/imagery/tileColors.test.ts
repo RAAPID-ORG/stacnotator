@@ -5,7 +5,7 @@ import {
   effectiveRenderConfig,
   isCustomized,
   stampLegendOverride,
-} from './tileColors';
+} from '~/shared/imagery/tileColors';
 
 const TILES = 'https://tiler.test/searches/s1/tiles/WebMercatorQuad/{z}/{x}/{y}.png';
 

@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import OLMap from 'ol/Map';
-import { Camera } from './camera';
+import { Camera } from './Camera';
 import { MapView } from './MapView';
 
 // jsdom has neither of these; OL constructs a ResizeObserver per map and asks

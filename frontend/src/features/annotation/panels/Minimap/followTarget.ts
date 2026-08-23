@@ -1,4 +1,4 @@
-import type { Bbox, LonLat } from '../../map/types';
+import type { Bbox, LonLat } from '~/shared/map/types';
 
 /** Fixed task-mode zoom: always centred on the task, at a stable scale. */
 export const TASK_OVERVIEW_ZOOM = 8;

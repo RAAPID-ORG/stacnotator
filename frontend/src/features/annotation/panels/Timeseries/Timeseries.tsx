@@ -2,7 +2,7 @@ import { useCampaignStore } from '../../stores/campaign';
 import { useEffect, useMemo, useState } from 'react';
 import type { TimeseriesWindow } from '../../campaign/timeseries';
 import { Spinner } from '~/shared/ui/Spinner';
-import type { LonLat } from '../../map/types';
+import type { LonLat } from '~/shared/map/types';
 import { useWorkStore } from '../../stores/work';
 import { useMapFocus } from '../../stores/tasks';
 import { Chart, type ChartPoint } from './TimeseriesChart';

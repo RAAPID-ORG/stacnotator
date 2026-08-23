@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { Camera } from './camera';
+import { Camera } from './Camera';
 import type { CameraSnapshot } from './types';
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

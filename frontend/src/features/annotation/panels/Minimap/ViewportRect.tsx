@@ -1,6 +1,6 @@
 import { fromLonLat, toLonLat } from 'ol/proj';
-import type { StyleSpec } from '../../campaign/labelStyle';
-import type { Bbox, FeatureLayerSpec, LonLat } from '../../map/types';
+import type { StyleSpec } from '~/shared/map/types';
+import type { Bbox, FeatureLayerSpec, LonLat } from '~/shared/map/types';
 
 export const VIEWPORT_RECT_LAYER_ID = 'minimap-viewport';
 

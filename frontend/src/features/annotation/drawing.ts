@@ -20,7 +20,7 @@ import {
 } from './campaign/annotation';
 import { resolveLabelStyle, toDraftStyleSpec } from './campaign/labelStyle';
 import { isAnnotationLayer, PROBE_LAYER_ID, probeIndexOf, vectorLayerId } from './map/compose';
-import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from './map/types';
+import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from '~/shared/map/types';
 import {
   campaignState,
   formFields,

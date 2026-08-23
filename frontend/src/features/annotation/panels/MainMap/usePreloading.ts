@@ -13,7 +13,7 @@ import {
   type GroupProgress,
   type PreloadJob,
 } from '../../map/preloader';
-import { type Bbox, type LonLat } from '../../map/types';
+import { type Bbox, type LonLat } from '~/shared/map/types';
 
 /** In-flight cap per tier. Heavy suits links where the server, not the pipe,
  *  is the bottleneck; the lower tiers leave bandwidth and HTTP/2 stream

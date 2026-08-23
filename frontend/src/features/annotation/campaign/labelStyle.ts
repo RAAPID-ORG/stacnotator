@@ -1,3 +1,4 @@
+import type { StyleSpec } from '~/shared/map/types';
 import type { GeometryType } from './annotation';
 
 export interface LabelStyle {
@@ -6,16 +7,6 @@ export interface LabelStyle {
   strokeColor: string;
   strokeOpacity: number;
   strokeWidth: number;
-}
-
-/** Paint description the map layer translates into an OpenLayers style. */
-export interface StyleSpec {
-  stroke?: { color: string; width: number; dash?: number[] };
-  fill?: { color: string };
-  circle?: { radius: number; stroke?: { color: string; width: number }; fill?: { color: string } };
-  /** Two crossing lines spanning `size` pixels, centred on the point. */
-  cross?: { size: number; stroke: { color: string; width: number } };
-  text?: { label: string; color: string; haloColor?: string };
 }
 
 export interface Emphasis {

@@ -1,6 +1,13 @@
-import type { StyleSpec } from '../campaign/labelStyle';
+/** Paint description the map layer translates into an OpenLayers style. */
+export interface StyleSpec {
+  stroke?: { color: string; width: number; dash?: number[] };
+  fill?: { color: string };
+  circle?: { radius: number; stroke?: { color: string; width: number }; fill?: { color: string } };
+  /** Two crossing lines spanning `size` pixels, centred on the point. */
+  cross?: { size: number; stroke: { color: string; width: number } };
+  text?: { label: string; color: string; haloColor?: string };
+}
 
-export type { StyleSpec };
 export type LayerId = string;
 export type LonLat = [number, number];
 export type Bbox = [number, number, number, number];

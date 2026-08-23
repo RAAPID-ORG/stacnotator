@@ -9,7 +9,7 @@ import {
   widenFilterForTask,
   type TaskFilter,
 } from '../campaign/tasks';
-import type { GeoFeature, LonLat } from '../map/types';
+import type { GeoFeature, LonLat } from '~/shared/map/types';
 import { useCampaignStore } from './campaign';
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';

@@ -1,8 +1,9 @@
 import { type ImageryCatalog } from '../campaign/imagery';
 import { type ImageryNavState } from '../campaign/imageryNav';
 import { apiUrl } from '~/api/base';
-import { basemapAttribution, resolveBasemapUrl, sliceRaster } from '../campaign/tileUrls';
-import { applyRenderOverride, type LegendOverride } from '../campaign/tileColors';
+import { basemapAttribution, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
+import { sliceRaster } from '../campaign/tileUrls';
+import { applyRenderOverride, type LegendOverride } from '~/shared/imagery/tileColors';
 import {
   resolveLabelStyle,
   toDraftStyleSpec,
@@ -11,7 +12,7 @@ import {
 } from '../campaign/labelStyle';
 import type { ExtendedLabel } from '../campaign/annotation';
 import type { WorkMode } from '../stores/campaign';
-import type { GeoFeature, LayerId, LayerSpec, LonLat, StyleSpec } from './types';
+import type { GeoFeature, LayerId, LayerSpec, LonLat, StyleSpec } from '~/shared/map/types';
 
 export const TILE_SKELETON_LAYER_ID = 'tile-skeleton';
 export const ANNOTATION_LAYER_ID = 'annotations';

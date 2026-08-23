@@ -7,7 +7,7 @@ import {
   effectiveRenderConfig,
   isCustomized,
   type RenderOverride,
-} from '../../../campaign/tileColors';
+} from '~/shared/imagery/tileColors';
 import { useImageryStore } from '../../../stores/imagery';
 import { usePrefsStore } from '../../../stores/prefs';
 

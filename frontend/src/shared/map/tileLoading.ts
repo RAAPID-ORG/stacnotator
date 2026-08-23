@@ -14,7 +14,7 @@ import type VectorTile from 'ol/VectorTile';
 import { unByKey } from 'ol/Observable';
 import { ensureTilerSession } from '~/api/tilerToken';
 import { authManager } from '~/features/auth/index';
-import { isProxiedTileUrl } from '../campaign/tileUrls';
+import { isProxiedTileUrl } from '~/shared/imagery/tileUrls';
 
 export type CrossOrigin = 'anonymous' | 'use-credentials';
 
