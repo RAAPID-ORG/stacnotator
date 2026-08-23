@@ -21,25 +21,25 @@ const RULES: { id: AllocationRule; name: string; description: string; theory: st
     id: 'neyman',
     name: 'Optimal for the target class',
     description:
-      'Puts points where the target class is most uncertain, giving the smallest confidence interval for it at a given total.',
+      'Concentrates the sample where the target class is most uncertain, giving the smallest confidence interval for it at a given sample size.',
     theory:
-      'Neyman allocation: n_i proportional to W_i·S_i, the share of the map times how mixed that class is expected to be. It is the exact minimiser of the target class variance for a fixed total, so no other rule beats it on that one number - and it is the reason a pure class gets few points while a mixed one gets many.',
+      'Neyman allocation: n_i proportional to W_i·S_i, the stratum weight times the stratum standard deviation. It is the exact minimiser of the target class variance for a fixed total sample size, so no other rule beats it on that one estimate - and it is why a stratum the map gets almost always right receives few units while a mixed stratum receives many.',
   },
   {
     id: 'proportional',
-    name: 'By size of each class',
+    name: 'Proportional to stratum weight',
     description:
-      'Best for the overall accuracy of the map and for the largest classes, at the cost of the rare ones.',
+      'Best for overall accuracy and for the largest strata, at the cost of the rare ones.',
     theory:
-      'Proportional allocation: n_i proportional to W_i alone. Every point then carries the same weight, which makes the estimator self-weighting and minimises the variance of overall accuracy. Rare classes get almost nothing, which is what the per-class floor exists to correct.',
+      'Proportional allocation: n_i proportional to W_i alone. Every sampling unit then carries the same weight, which makes the estimator self-weighting and minimises the variance of overall accuracy. Rare strata receive almost nothing, which is what the per-stratum minimum exists to correct.',
   },
   {
     id: 'equal',
-    name: 'The same for every class',
+    name: 'Equal across strata',
     description:
-      'Best when the accuracy of each individual class matters more than any area figure. Wasteful for area estimation.',
+      'Best when the accuracy of each individual class matters more than any area figure. Inefficient for area estimation.',
     theory:
-      "Equal allocation: n_i = n/k. It equalises the precision of each class's user's accuracy, which is why accuracy assessments use it, but it over-samples small classes badly for area, where a class's contribution to the total is weighted by W_i.",
+      "Equal allocation: n_i = n/k. It equalises the precision of each stratum's user's accuracy, which is why accuracy assessments favour it, but it heavily over-samples small strata for area estimation, where a stratum's contribution to the total is weighted by W_i.",
   },
 ];
 
@@ -71,17 +71,17 @@ export const StepDesign = ({ plan, update }: Props) => {
           title="Pilot sample"
           technical={
             <p>
-              A flat budget per stratum with a proportional split gives every stratum enough points
-              to estimate its own user&apos;s accuracy to within roughly ±0.07 at 50 points, which
-              is enough to drive the Neyman allocation of the remaining sample. The pilot points
+              A flat budget per stratum with a proportional split gives every stratum enough units
+              to estimate its own user&apos;s accuracy to within roughly ±0.07 at 50 units, which is
+              enough to drive the Neyman allocation of the remaining sample size. The pilot units
               remain part of the final stratified sample.
             </p>
           }
         >
           Without a usable accuracy estimate, the campaign starts by measuring the map rather than
-          guessing at it. These points are annotated first; when they are done, this page recomputes
-          the full design from what the pilot found, and the points already annotated count towards
-          it.
+          guessing at it. These units are annotated first; once they are done, this page recomputes
+          the full design from the accuracies the pilot measured, and the units already annotated
+          count towards it.
         </StepHeading>
 
         {!customPilot ? (
@@ -157,15 +157,16 @@ export const StepDesign = ({ plan, update }: Props) => {
             Expected precision is √(Σ W<sub>i</sub>² S<sub>i</sub>² / n<sub>i</sub>) divided by the
             expected proportion, the design-stage form of the stratified standard error. It is an
             anticipation under the assumed error matrix, not a guarantee: the interval you finally
-            publish comes from the annotated points.
+            publish is computed from the annotated sampling units.
           </p>
         }
         source="Olofsson et al. (2014), Eq. 10 and Table 7."
       >
-        How many points to annotate, and where they go. Everything here is editable. The precision
-        shown is what this design should deliver <em>if the map behaves as you said it would</em> on
-        the previous step; the real interval is computed from the annotated points and appears on
-        the campaign overview as work progresses.
+        The sample size, and how it is allocated across the strata. Every figure here is editable.
+        The precision shown is what this design is expected to deliver{' '}
+        <em>under the conjectured accuracies</em> of the previous step; the interval you publish is
+        computed from the annotated sampling units and appears on the campaign overview as work
+        progresses.
       </StepHeading>
 
       <section className="space-y-3">
@@ -176,15 +177,15 @@ export const StepDesign = ({ plan, update }: Props) => {
               Allocation trades precision between strata. Neyman allocation minimises the variance
               of one estimator, so the objective has to be named before the sample sizes can be
               solved. Choosing a different target later only changes the allocation, never the
-              validity of points already collected.
+              validity of units already collected.
             </p>
           }
           source="Olofsson et al. (2014), Section 5.1.2."
         >
-          The class whose area drives the sample size; the others are still estimated, and you will
-          see how precise each of them comes out. Pick the crop your ministry publishes and defends,
-          usually the one with the biggest policy or market consequence. A rare class is expensive
-          to pin down, so making a 2% class the target costs far more points than a 30% class.
+          The class whose area drives the sample size. Every other class is still estimated, and you
+          will see the precision each of them reaches. Choose the crop your office publishes and has
+          to defend, usually the one with the greatest policy or market consequence. A rare class is
+          expensive to pin down: making a 2% class the target costs far more units than a 30% class.
         </SubHeading>
         <Field className="max-w-sm">
           <Select
@@ -216,8 +217,8 @@ export const StepDesign = ({ plan, update }: Props) => {
         >
           How much uncertainty you are willing to publish alongside the number, stated as a
           percentage <em>of the number itself</em>. At 5%, an estimate of 1.00 Mha comes with a 95%
-          confidence interval of roughly ±0.10 Mha. Tighter targets cost points steeply: halving the
-          interval needs about four times the sample.
+          confidence interval of roughly ±0.10 Mha. Tighter targets are costly: halving the interval
+          requires roughly four times the sample size.
         </SubHeading>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -316,7 +317,7 @@ export const StepDesign = ({ plan, update }: Props) => {
           <Field
             label={
               <span className="inline-flex items-center gap-1">
-                Minimum points per class
+                Minimum sample size per stratum
                 <InfoPopover>{SAMPLE_FLOOR_RATIONALE}</InfoPopover>
               </span>
             }
@@ -335,7 +336,7 @@ export const StepDesign = ({ plan, update }: Props) => {
           </Field>
 
           <SubHeading
-            title="How points are spread across the classes"
+            title="How the sample size is allocated across strata"
             technical={
               <p>
                 With n<sub>i</sub> = a<sub>i</sub>n, the variance of the stratified estimator is
@@ -348,8 +349,7 @@ export const StepDesign = ({ plan, update }: Props) => {
             }
             source="Cochran (1977), Eqs. 5.25 and 5.26; Olofsson et al. (2014), Section 5.1.2."
           >
-            All three give unbiased estimates. They differ only in which number ends up most
-            precise.
+            All three are design-unbiased. They differ only in which estimate ends up most precise.
           </SubHeading>
           <div className="space-y-1.5">
             {RULES.map((rule) => (
@@ -405,17 +405,9 @@ const DesignTable = ({
     <table className="w-full text-sm">
       <thead>
         <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
-          <th className="py-2 font-medium">Class</th>
-          <th className="py-2 font-medium w-24 text-right">Share</th>
-          {!pilot && (
-            <th
-              className="py-2 font-medium w-24 text-right"
-              title="Expected user's accuracy: of what the map calls this class, how much really is it"
-            >
-              Assumed UA
-            </th>
-          )}
-          <th className="py-2 font-medium w-28 text-right">Points</th>
+          <th className="py-2 font-medium">Stratum</th>
+          <th className="py-2 font-medium w-28 text-right">Stratum weight</th>
+          <th className="py-2 pl-10 font-medium w-32 text-right">Sample size</th>
         </tr>
       </thead>
       <tbody>
@@ -437,20 +429,13 @@ const DesignTable = ({
             <td className="py-2 text-right text-neutral-600 tabular-nums">
               {formatPercent(weights[i])}
             </td>
-            {!pilot && (
-              <td className="py-2 text-right text-neutral-500 tabular-nums">
-                {stratum.isNoData
-                  ? '-'
-                  : formatPercent(plan.correctShares[stratum.classId] ?? 0.85, 0)}
-              </td>
-            )}
-            <td className="py-2">
+            <td className="py-2 pl-10">
               <Input
                 type="number"
                 size="sm"
                 min={0}
                 className="text-right tabular-nums"
-                aria-label={`Sample points for ${stratum.className}`}
+                aria-label={`Sample size for ${stratum.className}`}
                 value={byId.get(stratum.id) ?? 0}
                 onChange={(e) => onSetPoints(stratum.id, Number(e.target.value))}
               />
@@ -461,10 +446,8 @@ const DesignTable = ({
       {!pilot && (
         <tfoot>
           <tr>
-            <td colSpan={2} className="pt-3 text-sm text-neutral-700">
-              Expected for the target class
-            </td>
-            <td colSpan={2} className="pt-3 text-right">
+            <td className="pt-3 text-sm text-neutral-700">Expected for the target class</td>
+            <td colSpan={2} className="pt-3 pl-10 text-right">
               <Badge tone={meetsTarget ? 'green' : 'yellow'}>
                 ±{formatPercent(design.precision.cv)}
                 {meetsTarget ? '' : ` - target is ±${formatPercent(plan.targetCv, 0)}`}
@@ -483,7 +466,7 @@ const TotalsBar = ({ total, pilot }: { total: number; pilot?: boolean }) => (
       {formatCount(total)}
     </span>
     <span className="ml-2 text-sm text-neutral-600">
-      {pilot ? 'points in the pilot' : 'points to annotate'}
+      {pilot ? 'sampling units in the pilot' : 'sampling units to annotate'}
     </span>
   </div>
 );

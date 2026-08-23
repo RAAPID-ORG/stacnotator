@@ -6,11 +6,21 @@
  */
 import { useState, type ReactNode } from 'react';
 
+/**
+ * The wizard's inline offer to expand something, deliberately quieter than the
+ * sentence it hangs off: an offer, not a competing headline. Exported because
+ * a few expansions hold a form control and cannot go through the hook below.
+ */
+export const expandLinkCls =
+  'cursor-pointer text-xs text-brand-700 underline decoration-brand-300 underline-offset-4 hover:decoration-brand-600';
+
 interface Explanation {
   /** The statistical justification, hidden until asked for. */
   technical?: ReactNode;
   /** Where in the literature it comes from. */
   source?: string;
+  /** Overrides the offer, for an expansion that is not about the statistics. */
+  moreLabel?: string;
 }
 
 /**
@@ -19,17 +29,11 @@ interface Explanation {
  * link can sit inside a step's own paragraph rather than beside it, which is
  * the difference between an aside and a sentence a user will actually follow.
  */
-const useLearnMore = ({ technical, source }: Explanation) => {
+const useLearnMore = ({ technical, source, moreLabel }: Explanation) => {
   const [open, setOpen] = useState(false);
 
-  // Deliberately quieter than the sentence it hangs off: an offer, not a
-  // competing headline.
   const link = (label: string) => (
-    <button
-      type="button"
-      onClick={() => setOpen(!open)}
-      className="text-xs text-brand-700 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-600 cursor-pointer"
-    >
+    <button type="button" onClick={() => setOpen(!open)} className={expandLinkCls}>
       {label}
     </button>
   );
@@ -37,7 +41,9 @@ const useLearnMore = ({ technical, source }: Explanation) => {
   return {
     /** Goes at the end of the sentence it explains. */
     inlineLink:
-      technical && !open ? <> {link('Learn more about the statistics behind this.')}</> : null,
+      technical && !open ? (
+        <> {link(moreLabel ?? 'Learn more about the statistics behind this.')}</>
+      ) : null,
     /** Goes directly below that sentence, once asked for. */
     expansion:
       technical && open ? (
@@ -64,11 +70,10 @@ export const Note = ({ tone, children }: { tone: 'warning' | 'error'; children: 
 
 export const StepHeading = ({
   title,
-  technical,
-  source,
   children,
+  ...explanation
 }: Explanation & { title: string; children?: ReactNode }) => {
-  const { inlineLink, expansion } = useLearnMore({ technical, source });
+  const { inlineLink, expansion } = useLearnMore(explanation);
   return (
     <div>
       <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
@@ -85,11 +90,10 @@ export const StepHeading = ({
 
 export const SubHeading = ({
   title,
-  technical,
-  source,
   children,
+  ...explanation
 }: Explanation & { title: string; children?: ReactNode }) => {
-  const { inlineLink, expansion } = useLearnMore({ technical, source });
+  const { inlineLink, expansion } = useLearnMore(explanation);
   return (
     <div>
       <h3 className="text-sm font-medium text-neutral-900">{title}</h3>

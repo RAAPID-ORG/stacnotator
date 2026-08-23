@@ -68,8 +68,10 @@ async function fillWizard(page: Page, upTo: 'prior' | 'design'): Promise<void> {
     mimeType: 'application/json',
     buffer: Buffer.from('{}'),
   });
-  // Counting runs itself once there is a map and an area to count inside.
-  await expect(page.getByText(/pixels in the study area/)).toBeVisible();
+  // Counting runs itself, first over the whole map and again once the areas
+  // narrow it. Anchoring on the end of the line waits for the second one: only
+  // the whole-map count carries a trailing clause.
+  await expect(page.getByText(/pixels in the reporting area$/)).toBeVisible();
 
   await page.getByTestId('uae-continue').click();
   await page.getByTestId('uae-continue').click();
@@ -86,15 +88,22 @@ test('sizes a sample from the target precision and locks the set it lives in', a
   const { created } = await mockCampaignAdmin(page);
   await fillWizard(page, 'design');
 
-  // The map's five classes each became a reporting class, the nodata value did
-  // not, and the design meets the 5% default the precision cards start on.
-  const points = page.getByRole('spinbutton', { name: /^Sample points for / });
-  await expect(points).toHaveCount(5);
+  // The map's five classes each became a stratum, the nodata value did not,
+  // and the design meets the 5% default the precision cards start on.
+  const perStratum = page.getByRole('spinbutton', { name: /^Sample size for / });
+  await expect(perStratum).toHaveCount(5);
   await expect(page.getByText(/Expected for the target class/)).toBeVisible();
   await expect(page.getByText(/^±[0-4]\.\d%$/)).toBeVisible();
 
+  // The wizard owns the page while it is open: the set list and the task table
+  // cannot be acted on until the sample is drawn, and would otherwise repeat
+  // under every step.
+  await expect(page.getByTestId('task-scope-bar')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /^Annotation tasks/ })).toHaveCount(0);
+
   await page.getByTestId('uae-activate').click();
   await expect(page.getByTestId('uae-edit-design')).toBeVisible();
+  await expect(page.getByTestId('task-scope-bar')).toBeVisible();
   expect(created).toEqual([SAMPLE_SET_NAME]);
 
   // The sample set is closed to anything the design did not draw.
@@ -116,25 +125,29 @@ test('sizes a sample from the target precision and locks the set it lives in', a
   await expect(taskSets.getByText(SAMPLE_SET_NAME)).toHaveCount(0);
 });
 
-test('refuses a held-out test set as a prior and offers a pilot instead', async ({
+test('takes a test set for allocation only, and pilots when nothing is known', async ({
   appPage: page,
 }) => {
   await mockCampaignAdmin(page);
   await fillWizard(page, 'prior');
 
-  // Choosing it expands the card with why it cannot be used and what to do.
+  // A test set is admissible, because the conjecture only ever drives the
+  // allocation. Choosing it expands the card with that reasoning and the
+  // pitfalls that keep it out of anything published.
   await page.getByTestId('uae-prior-held_out_test_set').click();
-  await expect(
-    page.getByTestId('uae-prior-held_out_test_set').getByText(/Test sets are almost never/)
-  ).toBeVisible();
+  const testSetCard = page.getByTestId('uae-prior-held_out_test_set');
+  await expect(testSetCard.getByText(/allocate the sample across strata/)).toBeVisible();
+  await expect(testSetCard.getByText(/almost never a probability sample/)).toBeVisible();
   await page.getByTestId('uae-continue').click();
-  await expect(page.getByTestId('uae-activate')).toBeDisabled();
+  await page.getByTestId('uae-target-class').selectOption({ label: 'Winter wheat' });
+  await expect(page.getByTestId('uae-activate')).toBeEnabled();
 
-  await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await page.getByTestId('uae-prior-none').click();
   await page.getByTestId('uae-continue').click();
 
-  // No prior means a pilot: a flat budget per class, not a precision target.
+  // No accuracy information at all is what forces a pilot: a flat budget per
+  // stratum, not a precision target.
   await expect(page.getByRole('heading', { name: 'Pilot sample' })).toBeVisible();
   await expect(page.getByTestId('uae-activate')).toBeEnabled();
 
@@ -143,4 +156,75 @@ test('refuses a held-out test set as a prior and offers a pilot instead', async 
   await page.getByTestId('uae-customize-pilot').click();
   await expect(page.getByTestId('uae-pilot-budget')).toHaveValue('40');
   await expect(page.getByTestId('uae-pilot-floor')).toHaveValue('20');
+});
+
+test('proposes an equal-area projection and keeps nodata handling out of the way', async ({
+  appPage: page,
+}) => {
+  await mockCampaignAdmin(page);
+  await startAreaEstimate(page);
+
+  await page.getByTestId('uae-map-file').setInputFiles({
+    name: 'cropmap_2025.tif',
+    mimeType: 'image/tiff',
+    buffer: Buffer.from('raster'),
+  });
+
+  // The projection is proposed from what the map covers and stated in a
+  // sentence; nobody has to choose one to get a correct area.
+  await expect(
+    page.getByText(/Lambert azimuthal equal-area projection centred on this map/)
+  ).toBeVisible();
+  const crs = page.getByTestId('uae-equal-area-crs');
+  await expect(crs).toHaveCount(0);
+
+  // Anything PROJ understands can still be typed over it, under advanced.
+  await page.getByRole('button', { name: /Change the default equal-area projection/ }).click();
+  await expect(crs).toHaveValue(/^\+proj=laea /);
+  await crs.fill('EPSG:4326');
+  await expect(page.getByText(/does not preserve area/)).toBeVisible();
+  await page.getByTestId('uae-use-proposed-crs').click();
+  await expect(crs).toHaveValue(/^\+proj=laea /);
+
+  await page.getByTestId('uae-areas-file').setInputFiles({
+    name: 'oblast_regions.geojson',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{}'),
+  });
+  await expect(page.getByText(/pixels in the reporting area$/)).toBeVisible();
+  await page.getByTestId('uae-continue').click();
+
+  // Nodata is excluded by default and says so; changing it is an advanced
+  // option rather than a question everyone has to answer.
+  await expect(page.getByText(/excluded from the sample/)).toBeVisible();
+  await expect(page.getByTestId('uae-nodata-stratum')).toHaveCount(0);
+  await page.getByTestId('uae-classes-advanced').click();
+  await expect(page.getByTestId('uae-nodata-stratum')).toBeVisible();
+});
+
+test('a map that already covers the reporting area needs no boundary file', async ({
+  appPage: page,
+}) => {
+  await mockCampaignAdmin(page);
+  await startAreaEstimate(page);
+
+  await page.getByTestId('uae-map-file').setInputFiles({
+    name: 'cropmap_2025.tif',
+    mimeType: 'image/tiff',
+    buffer: Buffer.from('raster'),
+  });
+
+  // The census runs against the map's own extent, with nothing uploaded.
+  await expect(
+    page.getByText(/pixels in the reporting area, which is the whole map/)
+  ).toBeVisible();
+
+  // And the design solves from it, so the wizard reaches an activatable sample.
+  await page.getByTestId('uae-continue').click();
+  await page.getByTestId('uae-continue').click();
+  await page.getByTestId('uae-prior-last_season_map').click();
+  await page.getByTestId('uae-continue').click();
+  await page.getByTestId('uae-target-class').selectOption({ label: 'Winter wheat' });
+  await expect(page.getByRole('spinbutton', { name: /^Sample size for / })).toHaveCount(5);
+  await expect(page.getByTestId('uae-activate')).toBeEnabled();
 });

@@ -33,7 +33,7 @@ export const AreaEstimationPanel = ({
   campaignId: number;
   taskSetId: number;
   taskSetName?: string;
-  /** The running numbers are for admins; the points are for everyone. */
+  /** The running numbers are for admins; the sampling units are for everyone. */
   showEstimates?: boolean;
   onAnnotate?: () => void;
   onOpenDesign?: () => void;
@@ -102,7 +102,7 @@ export const AreaEstimationPanel = ({
           <div>
             <div className="flex items-baseline justify-between text-sm">
               <span className="text-neutral-700">
-                {formatCount(done)} of {formatCount(planned)} sample points annotated
+                {formatCount(done)} of {formatCount(planned)} sampling units annotated
               </span>
               <span className="text-neutral-500 tabular-nums">
                 {planned > 0 ? formatPercent(done / planned, 0) : '-'}
@@ -120,7 +120,7 @@ export const AreaEstimationPanel = ({
         {showEstimates && drawn && done < planned && (
           <Note tone="warning">
             The sample is incomplete. These figures are already unbiased, but their confidence
-            intervals will keep narrowing, and any point still unannotated could move them. Do not
+            intervals will keep narrowing, and any unit still unannotated could move them. Do not
             publish them yet.
           </Note>
         )}
@@ -145,7 +145,7 @@ export const AreaEstimationPanel = ({
             }
             source="Olofsson et al. (2014), Eqs. 9 to 11."
           >
-            Each row is what the annotated points say the area really is, with the range it could
+            Each row is what the annotated units say the area really is, with the range it could
             plausibly be. Where the map column sits outside that range, the map was systematically
             over- or under-calling that class. <strong>UA</strong> (user&apos;s accuracy) is how
             much of what the map called this class really was it; <strong>PA</strong>
@@ -262,7 +262,7 @@ const EstimateTable = ({
               <td colSpan={6} className="pt-3 text-xs text-neutral-500">
                 Overall map accuracy {formatPercent(estimates.overallAccuracy.value, 1)} ±{' '}
                 {formatPercent(estimates.overallAccuracy.marginOfError, 1)}, from{' '}
-                {formatCount(estimates.totalAnnotated)} annotated points.
+                {formatCount(estimates.totalAnnotated)} annotated sampling units.
               </td>
             </tr>
           </tfoot>

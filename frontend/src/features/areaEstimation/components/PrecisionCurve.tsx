@@ -27,8 +27,8 @@ interface Props {
 
 /**
  * Precision against sample size. The point of showing it is that the curves
- * flatten: past the knee more points buy very little, and a target set just
- * left of it costs far more than one set just right.
+ * flatten: past the knee more sampling units buy very little, and a target set
+ * just left of it costs far more than one set just right.
  */
 export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }: Props) => {
   const [hoverTotal, setHoverTotal] = useState<number | null>(null);
@@ -117,8 +117,8 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
           y2={PAD.top + PLOT_H}
           stroke={hoverTotal === null ? '#171717' : '#a3a3a3'}
         />
-        {/* Sits on the line rather than only in the caption below: the number
-            of points is what the reader is dragging the line to find. */}
+        {/* Sits on the line rather than only in the caption below: the sample
+            size is what the reader is dragging the line to find. */}
         <text
           x={Math.min(Math.max(x(readoutTotal), PAD.left + 30), PAD.left + PLOT_W - 30)}
           y={PAD.top - 8}
@@ -127,7 +127,7 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
           fontWeight="600"
           fill={hoverTotal === null ? '#171717' : '#525252'}
         >
-          {formatCount(readoutTotal)} points
+          n = {formatCount(readoutTotal)}
         </text>
 
         {series.map((s, i) => {
@@ -166,13 +166,14 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
           {formatCount(maxTotal)}
         </text>
         <text x={PAD.left + PLOT_W / 2} y={H - 6} textAnchor="middle" fontSize="9" fill="#a3a3a3">
-          sample points to annotate
+          total sample size
         </text>
       </svg>
 
       <figcaption className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[11px] text-neutral-500">
         <span className="font-medium text-neutral-700">
-          At {formatCount(readoutTotal)} points{hoverTotal === null ? ' (this design)' : ''}:
+          At n = {formatCount(readoutTotal)}
+          {hoverTotal === null ? ' (this design)' : ''}:
         </span>
         {series.map((s, i) => {
           const cv = cvAt(s, readoutTotal);

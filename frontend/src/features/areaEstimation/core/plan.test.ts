@@ -4,7 +4,12 @@ import {
   designsOf,
   domainsOf,
   emptyPlan,
+  laeaFor,
+  looksNotEqualArea,
   precisionCurves,
+  proposedEqualAreaCrs,
+  reportingAreas,
+  WHOLE_MAP_AREA_ID,
   oneClassPerValue,
   stratumId,
   studyAreaPixels,
@@ -23,6 +28,7 @@ const basePlan = (): AreaEstimationPlan => ({
     isEqualArea: true,
     areaPerPixel: 100,
     resolutionMeters: 10,
+    bbox: { west: 22.1, south: 44.4, east: 40.2, north: 52.4 },
   },
   values: [
     { value: 0, label: 'Nodata' },
@@ -199,10 +205,15 @@ describe('validatePlan', () => {
     expect(validatePlan(basePlan())).toEqual([]);
   });
 
-  it('asks for the map, the areas and the classes on an empty plan', () => {
+  it('asks for the map and the classes on an empty plan', () => {
     const steps = validatePlan(emptyPlan()).map((i) => i.step);
     expect(steps).toContain('data');
     expect(steps).toContain('classes');
+  });
+
+  it('does not require an area of interest, since the map can be the whole of it', () => {
+    const plan = { ...basePlan(), areas: [] };
+    expect(validatePlan(plan).some((i) => /area of interest/i.test(i.message))).toBe(false);
   });
 
   it('asks for a target class once a prior removes the need for a pilot', () => {
@@ -215,9 +226,9 @@ describe('validatePlan', () => {
     expect(validatePlan(plan).some((i) => i.step === 'design')).toBe(false);
   });
 
-  it('refuses a held-out test set as a prior', () => {
+  it('accepts a held-out test set, which only ever informs the allocation', () => {
     const issues = validatePlan({ ...basePlan(), priorSourceId: 'held_out_test_set' });
-    expect(issues.map((i) => i.step)).toContain('prior');
+    expect(issues.map((i) => i.step)).not.toContain('prior');
   });
 
   it('refuses a single reporting class', () => {
@@ -230,6 +241,50 @@ describe('validatePlan', () => {
     const plan = basePlan();
     plan.classes = [{ id: 'cereal', name: 'Winter cereals', values: [1] }];
     plan.targetClassId = 'cereal';
-    expect(validatePlan(plan).some((i) => i.message.includes('every map value'))).toBe(true);
+    expect(validatePlan(plan).some((i) => i.message.includes('every map class'))).toBe(true);
+  });
+});
+
+describe('the projection areas are computed in', () => {
+  it('proposes an equal-area projection centred on what the map covers', () => {
+    const crs = proposedEqualAreaCrs(basePlan().raster!);
+    expect(crs).toBe(
+      '+proj=laea +lat_0=48.4 +lon_0=31.15 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
+    );
+  });
+
+  it('has nothing to propose for a map whose extent is unknown', () => {
+    const raster = { ...basePlan().raster!, bbox: undefined };
+    expect(proposedEqualAreaCrs(raster)).toBeNull();
+  });
+
+  it('rounds the centre, since only shape distortion depends on it', () => {
+    expect(laeaFor(1.23456, -7.65432)).toContain('+lat_0=1.23 +lon_0=-7.65');
+  });
+
+  it('flags the projections whose pixels plainly do not carry equal area', () => {
+    expect(looksNotEqualArea('EPSG:4326')).toBe(true);
+    expect(looksNotEqualArea('EPSG:3857')).toBe(true);
+    expect(looksNotEqualArea('+proj=utm +zone=35 +datum=WGS84')).toBe(true);
+    expect(looksNotEqualArea('EPSG:6933')).toBe(false);
+    expect(looksNotEqualArea(laeaFor(48.4, 31.15))).toBe(false);
+  });
+
+  it('does not mistake an unrelated code that merely contains the digits', () => {
+    expect(looksNotEqualArea('EPSG:43267')).toBe(false);
+  });
+});
+
+describe('reporting without an area of interest', () => {
+  it('stands one whole-map area in, so there is still exactly one domain', () => {
+    const plan = { ...basePlan(), areas: [] };
+
+    expect(reportingAreas(plan).map((a) => a.id)).toEqual([WHOLE_MAP_AREA_ID]);
+    expect(domainsOf(plan)).toHaveLength(1);
+  });
+
+  it('leaves an uploaded set of areas alone', () => {
+    const plan = basePlan();
+    expect(reportingAreas(plan)).toBe(plan.areas);
   });
 });

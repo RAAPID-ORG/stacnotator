@@ -43,6 +43,14 @@ export interface RasterBand {
   description: string | null;
 }
 
+/** Geographic extent in WGS84 degrees. */
+export interface Bbox {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
 export interface RasterInfo {
   name: string;
   bands: RasterBand[];
@@ -52,7 +60,41 @@ export interface RasterInfo {
   /** Square metres covered by one pixel. */
   areaPerPixel: number;
   resolutionMeters: number;
+  /**
+   * What the map covers, which is what the projection is proposed for.
+   * Optional because a plan stored before this field existed has no extent to
+   * offer, and a projection can only be proposed for a map we can measure.
+   */
+  bbox?: Bbox;
 }
+
+const round2 = (value: number) => Number(value.toFixed(2));
+
+/**
+ * A Lambert azimuthal equal-area projection centred on a point.
+ *
+ * LAEA preserves area everywhere on the grid, not only near its centre, so the
+ * centre affects how distorted shapes look and never how much a pixel counts
+ * for. That is why proposing one from the map's own extent is enough: it needs
+ * to be roughly right, not exact.
+ */
+export const laeaFor = (lat: number, lon: number): string =>
+  `+proj=laea +lat_0=${round2(lat)} +lon_0=${round2(lon)} +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs`;
+
+/** The equal-area projection to offer for a map, or null when its extent is unknown. */
+export const proposedEqualAreaCrs = ({ bbox }: RasterInfo): string | null =>
+  bbox ? laeaFor((bbox.south + bbox.north) / 2, (bbox.west + bbox.east) / 2) : null;
+
+/**
+ * Whether a projection is one whose pixels plainly do not carry equal area.
+ * Deliberately a short blacklist rather than a validator: PROJ cannot be
+ * resolved in the browser, so this catches the mistakes that actually happen
+ * (leaving the map in lat/lon, or reaching for web mercator) and stays quiet
+ * about everything else.
+ */
+export const looksNotEqualArea = (crs: string): boolean =>
+  /(^|[^0-9])(4326|3857|900913)([^0-9]|$)/.test(crs) ||
+  /\+proj=(longlat|merc|utm|tmerc|lcc|stere|somerc)\b/i.test(crs);
 
 export interface MapValue {
   value: number;
@@ -164,11 +206,25 @@ const countPixels = (
   }, 0);
 };
 
+/** The one area an estimate covers when no boundary file was uploaded. */
+export const WHOLE_MAP_AREA_ID = 'whole-map';
+
+/**
+ * Areas of interest are optional: a map that already covers exactly what is
+ * being reported on needs no boundary. Standing in one synthetic area for that
+ * case keeps the census, the domains and the stratum weights on a single path
+ * instead of forking every one of them on `areas.length`.
+ */
+export const reportingAreas = (plan: AreaEstimationPlan): StudyArea[] =>
+  plan.areas.length > 0
+    ? plan.areas
+    : [{ id: WHOLE_MAP_AREA_ID, name: 'The whole map', featureCount: 1 }];
+
 /** Pixels the census counted for a set of map values, across every area. */
 export const pixelsFor = (plan: AreaEstimationPlan, values: readonly number[]): number =>
   countPixels(
     plan.census,
-    plan.areas.map((a) => a.id),
+    reportingAreas(plan).map((a) => a.id),
     values
   );
 
@@ -178,10 +234,11 @@ export const pixelsFor = (plan: AreaEstimationPlan, values: readonly number[]): 
  * its own copy of every stratum.
  */
 export const domainsOf = (plan: AreaEstimationPlan): Domain[] => {
+  const areas = reportingAreas(plan);
   const groups =
     plan.domainMode === 'per_area'
-      ? plan.areas.map((a) => ({ id: a.id, name: a.name, areaIds: [a.id] }))
-      : [{ id: 'all', name: 'Whole study area', areaIds: plan.areas.map((a) => a.id) }];
+      ? areas.map((a) => ({ id: a.id, name: a.name, areaIds: [a.id] }))
+      : [{ id: 'all', name: 'Whole study area', areaIds: areas.map((a) => a.id) }];
 
   return groups.map((group) => {
     const strata: DomainStratum[] = plan.classes.map((cls) => ({
@@ -392,14 +449,14 @@ export interface StepIssue {
 
 export type PlanStep = 'data' | 'classes' | 'prior' | 'design';
 
-// The prior comes before the design because the design is where the whole
-// trade-off is settled, and it cannot be drawn until the map's accuracy is
-// assumed. Nothing about the prior depends on the target class.
+// The conjectured accuracies come before the design because the design is
+// where the whole trade-off is settled, and the allocation cannot be solved
+// until they are stated. Nothing about them depends on the target class.
 export const PLAN_STEPS: { id: PlanStep; name: string }[] = [
   { id: 'data', name: 'Map & areas' },
-  { id: 'classes', name: 'Classes' },
+  { id: 'classes', name: 'Classes & strata' },
   { id: 'prior', name: 'Map accuracy' },
-  { id: 'design', name: 'Design' },
+  { id: 'design', name: 'Sample design' },
 ];
 
 export const validatePlan = (plan: AreaEstimationPlan): StepIssue[] => {
@@ -409,31 +466,27 @@ export const validatePlan = (plan: AreaEstimationPlan): StepIssue[] => {
   if (!plan.raster) add('data', 'Add the map that will be used to stratify the sample.');
   if (!plan.equalAreaCrs.trim())
     add('data', 'Choose the equal-area projection areas are computed in.');
-  if (plan.areas.length === 0) add('data', 'Add at least one area of interest.');
-  if (plan.raster && !plan.census) add('data', 'Count the map’s pixels inside the areas.');
+  if (plan.raster && !plan.census) add('data', 'Count the map’s pixels in the reporting area.');
   if (plan.values.some((v) => !v.label.trim()))
-    add('data', 'Give every map value a name so the classes can be read.');
+    add('data', 'Name every map class so the strata can be defined.');
 
   if (plan.classes.length < 2)
     add('classes', 'Define at least two reporting classes; one class cannot be estimated alone.');
   if (plan.classes.some((c) => c.values.length === 0))
-    add('classes', 'Every reporting class needs at least one map value.');
+    add('classes', 'Every reporting class needs at least one map class assigned to it.');
   if (unassignedValues(plan).length > 0)
-    add('classes', 'Put every map value into a class, or mark it as nodata.');
+    add('classes', 'Assign every map class to a stratum, or mark it as nodata.');
 
   // A pilot is sized by a flat budget per class, so it needs no target yet;
   // the target is chosen when the pilot's results size the full design.
   if (!plan.targetClassId && !planNeedsPilot(plan))
-    add('design', 'Choose the class the sample size should be sized for.');
+    add('design', 'Choose the target class the sample size is solved for.');
   if (plan.targetCv <= 0 || plan.targetCv >= 1)
     add('design', 'Target precision must be between 0 and 100 percent.');
 
-  if (plan.priorSourceId === 'held_out_test_set')
-    add('prior', 'A held-out test set cannot be used; pick another source or run a pilot.');
-
   const designs = designsOf(plan);
   if (plan.classes.length >= 2 && totalPoints(designs) === 0)
-    add('design', 'The design has no sample points; check the pixel counts and the target.');
+    add('design', 'The design has no sampling units; check the pixel counts and the target class.');
 
   return issues;
 };

@@ -98,7 +98,7 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
               leading={activating ? <Spinner size="xs" variant="white" /> : undefined}
               data-testid="uae-activate"
             >
-              Draw {formatCount(totalPoints(designsOf(plan)))} sample points
+              Draw {formatCount(totalPoints(designsOf(plan)))} sampling units
             </Button>
           </div>
         ) : (

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { listPlannedTaskSets, loadPlan, savePlan } from './api';
-import { emptyPlan } from './core/plan';
+import { emptyPlan, proposedEqualAreaCrs } from './core/plan';
 
 const CAMPAIGN = 42;
 const TASK_SET = 7;
@@ -36,6 +36,25 @@ describe('loadPlan', () => {
     const loaded = await loadPlan(CAMPAIGN, TASK_SET);
 
     expect(loaded?.equalAreaCrs).toBe(emptyPlan().equalAreaCrs);
+  });
+
+  it('loads a plan whose stored map predates the extent being recorded', async () => {
+    const plan = emptyPlan();
+    const { bbox: _dropped, ...raster } = {
+      name: 'cropmap.tif',
+      bands: [{ index: 1 }],
+      crs: 'EPSG:6933',
+      isEqualArea: true,
+      areaPerPixel: 100,
+      resolutionMeters: 10,
+      bbox: { west: 0, south: 0, east: 1, north: 1 },
+    };
+    localStorage.setItem(KEY, JSON.stringify({ ...plan, raster }));
+
+    const loaded = await loadPlan(CAMPAIGN, TASK_SET);
+
+    expect(loaded?.raster?.bbox).toBeUndefined();
+    expect(proposedEqualAreaCrs(loaded!.raster!)).toBeNull();
   });
 
   it('returns null rather than throwing on a corrupt entry', async () => {

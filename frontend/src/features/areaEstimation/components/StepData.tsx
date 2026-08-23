@@ -6,9 +6,15 @@ import { FileInput } from '~/shared/ui/FileInput';
 import { handleError } from '~/shared/utils/errorHandler';
 import { censusPixels, inspectRaster, parseStudyAreas } from '../api';
 import type { AreaEstimationPlan, MapValue, StudyArea } from '../core/plan';
-import { pixelsFor, studyAreaPixels } from '../core/plan';
+import {
+  looksNotEqualArea,
+  pixelsFor,
+  proposedEqualAreaCrs,
+  reportingAreas,
+  studyAreaPixels,
+} from '../core/plan';
 import { EQUAL_AREA_PROJECTIONS } from '../core/guidance';
-import { ChoiceCard, Note, StepHeading, SubHeading } from './Explain';
+import { ChoiceCard, expandLinkCls, Note, StepHeading, SubHeading } from './Explain';
 import { formatPixels } from './format';
 
 interface Props {
@@ -18,6 +24,7 @@ interface Props {
 
 export const StepData = ({ plan, update }: Props) => {
   const [inspecting, setInspecting] = useState(false);
+  const [crsOpen, setCrsOpen] = useState(false);
   const [counting, setCounting] = useState(false);
   const [mapUrl, setMapUrl] = useState('');
   const [mapSource, setMapSource] = useState<'file' | 'url'>('file');
@@ -79,11 +86,13 @@ export const StepData = ({ plan, update }: Props) => {
   // key is what the count depends on, so a rename or a class edit does not
   // trigger a pointless recount.
   const censusKey =
-    plan.raster && plan.areas.length > 0 && plan.values.length > 0
+    plan.raster && plan.values.length > 0
       ? [
           plan.raster.name,
           plan.bandIndex,
-          plan.areas.map((a) => a.id).join(','),
+          reportingAreas(plan)
+            .map((a) => a.id)
+            .join(','),
           plan.values.length,
         ].join('|')
       : null;
@@ -95,7 +104,7 @@ export const StepData = ({ plan, update }: Props) => {
     countedKey.current = censusKey;
     let cancelled = false;
     setCounting(true);
-    censusPixels(raster, plan.bandIndex, plan.areas, plan.values)
+    censusPixels(raster, plan.bandIndex, reportingAreas(plan), plan.values)
       .then((census) => {
         if (!cancelled) update({ census });
       })
@@ -122,6 +131,9 @@ export const StepData = ({ plan, update }: Props) => {
     update({ areas: plan.areas.filter((a) => a.id !== id), census: null });
 
   const missingNames = plan.values.filter((v) => !v.label.trim()).length;
+  // Null for a map whose extent is unknown, which is a plan stored before the
+  // extent was recorded: the offer disappears, the field still works.
+  const proposedCrs = plan.raster ? proposedEqualAreaCrs(plan.raster) : null;
 
   return (
     <div className="space-y-8">
@@ -143,15 +155,15 @@ export const StepData = ({ plan, update }: Props) => {
         }
         source="Olofsson et al. (2014), Good practices for estimating area and assessing accuracy of land change, Sections 2.1.1 and 4.4."
       >
-        The map you upload is used to divide the country into groups, so that the sample spends most
-        of its points where they matter. The area figures you publish will come from what annotators
-        see at the sample points, <strong>not</strong> from the map. That is what makes the result
-        unbiased even when the initial map is imperfect.
+        The map you upload divides the reporting area into strata, so that the sample spends most of
+        its units where they matter. The area figures you publish come from what annotators see at
+        the sampling units, <strong>not</strong> from the map. That is what makes the result
+        unbiased even when the map itself is imperfect.
       </StepHeading>
 
       <section className="space-y-3">
-        <SubHeading title="1. Stratification map">
-          A classified raster: one integer per pixel specifying the predicted class.
+        <SubHeading title="Step 1 - Stratification map">
+          A classified raster: one integer per pixel giving the predicted class.
         </SubHeading>
 
         {!plan.raster ? (
@@ -236,8 +248,8 @@ export const StepData = ({ plan, update }: Props) => {
               </li>
             </ul>
 
-            <div className="flex flex-wrap items-start gap-6">
-              {plan.raster.bands.length > 1 && (
+            {plan.raster.bands.length > 1 && (
+              <div className="flex flex-wrap items-start gap-6">
                 <Field
                   label="Band"
                   hint="Which band of the file holds the classification."
@@ -258,39 +270,95 @@ export const StepData = ({ plan, update }: Props) => {
                     ))}
                   </Select>
                 </Field>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <p className="text-xs leading-snug text-neutral-500">
+                {plan.equalAreaCrs === proposedCrs ? (
+                  <>
+                    Areas are computed in a Lambert azimuthal equal-area projection centred on this
+                    map. It preserves area everywhere, which is the only property pixel counts
+                    depend on, so there is nothing to choose here unless your office publishes in a
+                    particular projection.
+                  </>
+                ) : (
+                  <>
+                    Areas are computed in{' '}
+                    <code className="font-mono text-[11px] text-neutral-700">
+                      {plan.equalAreaCrs}
+                    </code>
+                    .
+                  </>
+                )}{' '}
+                <button
+                  type="button"
+                  onClick={() => setCrsOpen(!crsOpen)}
+                  className={expandLinkCls}
+                  data-testid="uae-crs-advanced"
+                >
+                  {crsOpen ? 'Show less.' : 'Change the default equal-area projection.'}
+                </button>
+              </p>
+
+              {crsOpen && (
+                <>
+                  <Field
+                    label="Areas computed in"
+                    hint="Pixel counts only stand for area on an equal-area grid, so they are reprojected into this one before they become stratum weights. Any PROJ string or EPSG code is accepted."
+                  >
+                    <Input
+                      size="sm"
+                      value={plan.equalAreaCrs}
+                      onChange={(e) => update({ equalAreaCrs: e.target.value })}
+                      className="font-mono text-[11px]"
+                      spellCheck={false}
+                      list="uae-equal-area-crs-options"
+                      data-testid="uae-equal-area-crs"
+                      aria-label="Projection areas are computed in"
+                    />
+                    <datalist id="uae-equal-area-crs-options">
+                      {proposedCrs && <option value={proposedCrs} />}
+                      {EQUAL_AREA_PROJECTIONS.map((crs) => (
+                        <option key={crs.code} value={crs.code}>
+                          {crs.name}
+                        </option>
+                      ))}
+                    </datalist>
+                  </Field>
+
+                  {proposedCrs && plan.equalAreaCrs !== proposedCrs && (
+                    <p className="text-xs leading-snug text-neutral-500">
+                      <button
+                        type="button"
+                        onClick={() => update({ equalAreaCrs: proposedCrs })}
+                        className="cursor-pointer text-brand-700 underline decoration-brand-300 underline-offset-4 hover:decoration-brand-600"
+                        data-testid="uae-use-proposed-crs"
+                      >
+                        Use the projection proposed for this map.
+                      </button>
+                    </p>
+                  )}
+                </>
               )}
 
-              <Field
-                label="Areas computed in"
-                hint={
-                  plan.raster.isEqualArea
-                    ? 'Taken from the map, which is already an equal-area projection.'
-                    : 'The map is in latitude/longitude, where pixel size varies with latitude. Counts are reprojected into this equal-area projection before they become stratum weights.'
-                }
-                className="w-80"
-              >
-                <Select
-                  size="sm"
-                  value={plan.equalAreaCrs}
-                  data-testid="uae-equal-area-crs"
-                  onChange={(e) => update({ equalAreaCrs: e.target.value })}
-                >
-                  {EQUAL_AREA_PROJECTIONS.map((crs) => (
-                    <option key={crs.code} value={crs.code}>
-                      {crs.code} - {crs.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              {/* Stays out of the collapsed section: a projection that does not
+                  preserve area is wrong, not merely unusual. */}
+              {looksNotEqualArea(plan.equalAreaCrs) && (
+                <Note tone="warning">
+                  This projection does not preserve area, so pixel counts taken in it are not
+                  proportional to ground area and the stratum weights would be wrong.
+                </Note>
+              )}
             </div>
           </div>
         )}
 
         {plan.raster && (
           <div className="space-y-3 pt-2">
-            <SubHeading title="Class names">
-              Every distinct value in the band, and what to call it. Which of them are nodata, and
-              what to do with those, is settled on the next step.
+            <SubHeading title="Map class names">
+              Every distinct value in the band, and the class it stands for. Which of them are
+              nodata is settled on the next step.
             </SubHeading>
 
             {plan.values.length === 0 ? (
@@ -332,9 +400,12 @@ export const StepData = ({ plan, update }: Props) => {
 
       {plan.raster && (
         <section className="space-y-3">
-          <SubHeading title="2. Areas of interest">
-            One or more vector files. Every feature becomes an area you can report on; a feature
-            made of several separate pieces is still one area.
+          <SubHeading title="Step 2 - Areas of interest (optional)">
+            Leave this empty and the whole of the map is the reporting area: one sample, one set of
+            figures, covering everything the raster spans. Add boundaries when the estimate has to
+            stop at one, or be reported region by region. Upload a file of oblasts, for example, and
+            each feature becomes an area you can report on; a feature made of several separate
+            pieces is still one area.
           </SubHeading>
 
           <FileInput
@@ -358,18 +429,19 @@ export const StepData = ({ plan, update }: Props) => {
             </ul>
           )}
 
-          {plan.areas.length > 0 && (
-            <p className="flex items-center gap-2 text-xs text-neutral-500">
-              {counting ? (
-                <>
-                  <Spinner size="xs" />
-                  Counting map pixels in these areas…
-                </>
-              ) : plan.census ? (
-                <>{formatPixels(studyAreaPixels(plan))} pixels in the study area</>
-              ) : null}
-            </p>
-          )}
+          <p className="flex items-center gap-2 text-xs text-neutral-500">
+            {counting ? (
+              <>
+                <Spinner size="xs" />
+                Counting map pixels in the reporting area…
+              </>
+            ) : plan.census ? (
+              <>
+                {formatPixels(studyAreaPixels(plan))} pixels in the reporting area
+                {plan.areas.length === 0 ? ', which is the whole map' : ''}
+              </>
+            ) : null}
+          </p>
 
           {plan.areas.length > 1 && (
             <div className="space-y-2 pt-1">
@@ -390,8 +462,8 @@ export const StepData = ({ plan, update }: Props) => {
                   title="A separate number for each area"
                   testId="uae-domain-per-area"
                 >
-                  Each area gets its own sample and reaches the precision you ask for on its own.
-                  Expect the total number of points to multiply by the number of areas.
+                  Each area gets its own sample and reaches the requested precision on its own.
+                  Expect the total sample size to multiply by the number of areas.
                 </ChoiceCard>
               </div>
             </div>

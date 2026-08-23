@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { Button, IconButton, Input, Select } from '~/shared/ui/forms';
 import { IconPlus, IconTrash } from '~/shared/ui/Icons';
 import type { AreaEstimationPlan, ReportingClass } from '../core/plan';
 import { NO_DATA_CLASS_ID, pixelsFor, unassignedValues } from '../core/plan';
-import { ChoiceCard, Note, StepHeading, SubHeading } from './Explain';
+import { ChoiceCard, expandLinkCls, Note, StepHeading, SubHeading } from './Explain';
 import { formatPercent } from './format';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export const StepClasses = ({ plan, update }: Props) => {
+  const [advanced, setAdvanced] = useState(false);
   const unassigned = unassignedValues(plan);
   const totalPixels = pixelsFor(
     plan,
@@ -59,38 +61,104 @@ export const StepClasses = ({ plan, update }: Props) => {
 
   const removeClass = (id: string) => setClasses(plan.classes.filter((c) => c.id !== id));
 
+  const nodataSection = (
+    <section className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
+      <SubHeading
+        title="Nodata pixels"
+        technical={
+          <p>
+            Excluding nodata removes it from the target population: the stratum weights are
+            renormalised over what remains and the reported total area shrinks accordingly. Keeping
+            it as a stratum leaves it in the population and allows sampling units inside it to carry
+            a real reference label, which is what recovers area the map failed to assign. Nodata is
+            never a reporting class either way.
+          </p>
+        }
+      >
+        Nodata pixels are not a class you report on, but they are still ground. The choice defines
+        the target population, and therefore what your published total covers.
+      </SubHeading>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <ChoiceCard
+          selected={plan.noDataHandling === 'exclude'}
+          onSelect={() => update({ noDataHandling: 'exclude', overrides: {} })}
+          title="Exclude them from the target population"
+          testId="uae-nodata-exclude"
+        >
+          Correct when the nodata pixels lie outside what you report on: sea, another country,
+          permanent cloud. Your published total then covers the mapped part only.
+        </ChoiceCard>
+        <ChoiceCard
+          selected={plan.noDataHandling === 'stratum'}
+          onSelect={() => update({ noDataHandling: 'stratum', overrides: {} })}
+          title="Keep them as their own stratum"
+          testId="uae-nodata-stratum"
+        >
+          Correct when they are land inside your reporting area that the map simply failed on.
+          Sampling units fall there too, so crop the map missed still enters your total.
+        </ChoiceCard>
+      </div>
+    </section>
+  );
+
   return (
     <div className="space-y-8">
       <StepHeading
-        title="What you want to report on"
+        title="Reporting classes and strata"
         technical={
           <>
             <p>
-              Each reporting class becomes one stratum. Merging map classes before sampling is
-              usually better than reporting them separately and adding the results afterwards: a
-              merged stratum carries a single sample size that can be pushed to the precision you
-              need, whereas separate thin strata each need their own floor.
+              Each reporting class becomes one stratum. Aggregating map classes before sampling is
+              usually preferable to reporting them separately and summing afterwards: a merged
+              stratum carries a single sample size that can be driven to the precision required,
+              whereas thin strata each need their own minimum.
             </p>
             <p className="mt-1.5">
-              Grouping does not bias anything. The reference labels annotators give are recorded
-              against the same class list, so the estimated error matrix stays square.
+              Aggregation introduces no bias. The reference labels are recorded against this same
+              class list, so the estimated error matrix stays square and the stratum weights
+              continue to sum to one.
             </p>
           </>
         }
-        source="Olofsson et al. (2014), Section 2.1.1 on aggregating classes into strata."
+        source="Olofsson et al. (2014), Section 2.1.1 on aggregating map classes into strata."
       >
-        The classes you publish do not have to be the classes the map produced. If your map
-        separates wheat, barley and rye but you publish a single <em>winter cereals</em> number,
-        send all three to the same class here. Fewer, larger classes need fewer points to reach the
-        same precision.
+        The classes you publish need not be the classes the map produced. If the map separates
+        wheat, barley and rye but you report a single <em>winter cereals</em> figure, assign all
+        three to one reporting class here. Each reporting class becomes one stratum of the sample
+        design, so fewer and larger classes reach a given precision with a smaller sample.
       </StepHeading>
 
       <section className="space-y-6">
         <div className="space-y-3">
-          <SubHeading title="Reporting classes">
-            The rows of your published table. A reporting class is often several of the map&apos;s
-            own classes put together: a map that separates wheat, barley and rye still reports one
-            winter cereals figure.
+          <SubHeading
+            title="Step 1 - Define class names"
+            moreLabel="What photointerpretable means."
+            technical={
+              <>
+                <p>
+                  An annotator looking at the imagery available at a sampling unit has to be able to
+                  decide reliably whether that unit is the class. This is a requirement of the
+                  response design rather than a preference.
+                </p>
+                <p className="mt-1.5">
+                  The estimator treats the reference classification as correct, so error in it is
+                  not averaged away by a larger sample: it propagates directly into the estimated
+                  area and the estimated accuracies. It is the one error a probability sample cannot
+                  correct for.
+                </p>
+                <p className="mt-1.5">
+                  Where two classes cannot be separated on screen, merge them in step 2 and report
+                  the combined class. A coarser class annotators can apply consistently is worth
+                  more than a finer one they cannot.
+                </p>
+              </>
+            }
+            source="Olofsson et al. (2014), Section 3 on the response design."
+          >
+            The rows of your published table. Each one becomes a stratum of the sample design, and
+            each is a label an annotator will be asked to assign at a sampling unit. Every class
+            must therefore be <strong>photointerpretable</strong>.
           </SubHeading>
 
           <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
@@ -138,18 +206,38 @@ export const StepClasses = ({ plan, update }: Props) => {
         </div>
 
         <div className="space-y-3">
-          <SubHeading title="What goes into each">
-            Every value the map produces has to be reported somewhere. Send two to the same class to
-            merge them.
+          <SubHeading title="Step 2 - Assign classes to strata (merge)">
+            Every class the map produces has to be accounted for. Two or more map classes assigned
+            to the same reporting class are merged into a single stratum.
           </SubHeading>
+
+          {plan.noDataValues.length > 0 && (
+            <>
+              <p className="text-xs leading-snug text-neutral-500">
+                {plan.noDataHandling === 'exclude'
+                  ? 'Pixels marked nodata are excluded from the sample and from the area you publish: no sampling unit falls on them.'
+                  : 'Pixels marked nodata are kept as their own stratum, so sampling units fall on them too and ground the map failed to classify still enters your published total.'}{' '}
+                <button
+                  type="button"
+                  onClick={() => setAdvanced(!advanced)}
+                  className={expandLinkCls}
+                  data-testid="uae-classes-advanced"
+                >
+                  {advanced ? 'Show less.' : 'Advanced options.'}
+                </button>
+              </p>
+
+              {advanced && nodataSection}
+            </>
+          )}
 
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
                 <th className="py-2 font-medium w-16">Value</th>
-                <th className="py-2 font-medium">From the map</th>
-                <th className="py-2 pr-6 font-medium w-20 text-right">Share</th>
-                <th className="py-2 font-medium w-64">Reported as</th>
+                <th className="py-2 font-medium">Map class</th>
+                <th className="py-2 pr-6 font-medium w-24 text-right">Stratum weight</th>
+                <th className="py-2 font-medium w-64">Assigned to</th>
               </tr>
             </thead>
             <tbody>
@@ -168,7 +256,7 @@ export const StepClasses = ({ plan, update }: Props) => {
                         size="sm"
                         value={assigned}
                         invalid={assigned === ''}
-                        aria-label={`Reporting class for ${value.label || value.value}`}
+                        aria-label={`Stratum for map class ${value.label || value.value}`}
                         onChange={(e) => assign(value.value, e.target.value || null)}
                       >
                         <option value="">Not assigned</option>
@@ -177,7 +265,7 @@ export const StepClasses = ({ plan, update }: Props) => {
                             {c.name || 'Unnamed class'}
                           </option>
                         ))}
-                        <option value={NO_DATA_CLASS_ID}>Nodata - not a class</option>
+                        <option value={NO_DATA_CLASS_ID}>Nodata - not a reporting class</option>
                       </Select>
                     </td>
                   </tr>
@@ -188,55 +276,13 @@ export const StepClasses = ({ plan, update }: Props) => {
 
           {unassigned.length > 0 && (
             <Note tone="warning">
-              {unassigned.length} map value{unassigned.length === 1 ? ' is' : 's are'} not reported
-              anywhere yet. Every pixel of the study area has to belong somewhere, otherwise the
-              stratum weights do not add up to the area you are reporting on.
+              {unassigned.length} map class{unassigned.length === 1 ? ' is' : 'es are'} not assigned
+              yet. Every pixel of the reporting area has to fall in exactly one stratum, otherwise
+              the stratum weights do not sum to the area you are reporting on.
             </Note>
           )}
         </div>
       </section>
-
-      {plan.noDataValues.length > 0 && (
-        <section className="space-y-3">
-          <SubHeading
-            title="Nodata pixels"
-            technical={
-              <p>
-                Excluding a value removes it from the population: the stratum weights are
-                renormalised over what remains and the reported total area shrinks accordingly.
-                Keeping it as a stratum leaves it in the population and lets sample points inside it
-                carry a real class label, which is what recovers the crop area the map missed.
-                Nodata is never a reporting class either way, because nobody wants to publish the
-                area of a gap in their own map.
-              </p>
-            }
-          >
-            Nodata pixels are not a class you report on, but they are still ground. What you do with
-            them changes what your published total covers.
-          </SubHeading>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <ChoiceCard
-              selected={plan.noDataHandling === 'exclude'}
-              onSelect={() => update({ noDataHandling: 'exclude', overrides: {} })}
-              title="Leave them out of the study area"
-              testId="uae-nodata-exclude"
-            >
-              Right when the nodata pixels are outside what you report on: sea, another country,
-              permanent cloud. Your total then covers the mapped part only.
-            </ChoiceCard>
-            <ChoiceCard
-              selected={plan.noDataHandling === 'stratum'}
-              onSelect={() => update({ noDataHandling: 'stratum', overrides: {} })}
-              title="Sample them as their own group"
-              testId="uae-nodata-stratum"
-            >
-              Right when they are land inside your country that the map simply failed on. Points
-              land there too, so crop that the map missed still reaches your total.
-            </ChoiceCard>
-          </div>
-        </section>
-      )}
     </div>
   );
 };

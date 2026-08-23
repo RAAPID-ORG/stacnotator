@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
 import { TaskModeReview } from '~/features/campaigns/components/review/TaskModeReview';
 import Statistics from '~/features/campaigns/components/review/Statistics';
@@ -16,6 +16,7 @@ import type {
 } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 import { FileInput } from '~/shared/ui/FileInput';
+import { IconChevronLeft } from '~/shared/ui/Icons';
 import { AreaEstimationSetup } from '~/features/areaEstimation/AreaEstimation';
 
 interface Props {
@@ -88,12 +89,20 @@ export const TasksTab: React.FC<Props> = ({
   const scopedSet = taskScope === 'all' ? undefined : taskSets.find((s) => s.id === taskScope);
   const scopeIsLocked = taskScope !== 'all' && (areaEstimationSets?.has(taskScope) ?? false);
 
+  // While a design is being written the page is the wizard and nothing else:
+  // the set list and the task table would otherwise repeat under every step of
+  // it, and neither can be acted on until the sample is drawn.
+  const [designEditing, setDesignEditing] = useState(false);
+  useEffect(() => setDesignEditing(false), [taskScope]);
+  const writingDesign = scopeIsLocked && designEditing;
+
   const areaEstimationSection = scopedSet && (
     <section className={sectionCls}>
       <AreaEstimationSetup
         campaignId={campaignId}
         taskSetId={scopedSet.id}
         taskSetName={scopedSet.name}
+        onEditingChange={setDesignEditing}
       />
     </section>
   );
@@ -211,7 +220,7 @@ export const TasksTab: React.FC<Props> = ({
           <div>{tasksTableHeading}</div>
           <p className="text-sm text-neutral-500">
             {scopeIsLocked
-              ? 'No points drawn yet. They appear here once the design above is finished.'
+              ? 'No sampling units drawn yet. They appear here once the design above is finished.'
               : !canManage
                 ? 'No annotation tasks in this set yet.'
                 : taskScope === 'all'
@@ -226,31 +235,44 @@ export const TasksTab: React.FC<Props> = ({
   return (
     <div id="tab-tasks" role="tabpanel">
       <section className="sticky top-0 z-20 -mx-6 -mt-6 mb-6 rounded-t-xl border-b border-neutral-100 bg-white/85 px-6 pb-4 pt-6 backdrop-blur-sm">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-          Task set
-        </p>
-        <TaskScopeBar
-          scope={taskScope}
-          taskSets={taskSets}
-          totalTasks={totalTasks}
-          onSelect={onSelectScope}
-          onCreateSet={canManage ? onCreateSetScoped : undefined}
-          onRenameSet={canManage ? onRenameTaskSet : undefined}
-          onDeleteSet={canManage ? onDeleteTaskSet : undefined}
-          lockedSetIds={areaEstimationSets}
-        />
+        {writingDesign ? (
+          <button
+            type="button"
+            onClick={() => onSelectScope('all')}
+            className="flex items-center gap-1.5 text-sm text-neutral-500 transition-colors hover:text-neutral-800"
+          >
+            <IconChevronLeft className="h-4 w-4" />
+            Back to task sets
+          </button>
+        ) : (
+          <>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              Task set
+            </p>
+            <TaskScopeBar
+              scope={taskScope}
+              taskSets={taskSets}
+              totalTasks={totalTasks}
+              onSelect={onSelectScope}
+              onCreateSet={canManage ? onCreateSetScoped : undefined}
+              onRenameSet={canManage ? onRenameTaskSet : undefined}
+              onDeleteSet={canManage ? onDeleteTaskSet : undefined}
+              lockedSetIds={areaEstimationSets}
+            />
+          </>
+        )}
       </section>
 
       {/* The wrapper makes `first:` strip the border of whichever section comes
           right below the scope bar, which already draws its own bottom line. */}
       <div>
-        {scopedTasks.length > 0 && bbox && (
+        {!writingDesign && scopedTasks.length > 0 && bbox && (
           <section className={sectionCls}>
             <TaskLocationsMap tasks={scopedTasks} bbox={bbox} />
           </section>
         )}
 
-        {scopedTasks.length > 0 && (
+        {!writingDesign && scopedTasks.length > 0 && (
           <section className={sectionCls}>
             <Statistics
               campaignId={campaignId}
@@ -270,7 +292,7 @@ export const TasksTab: React.FC<Props> = ({
           />
         )}
 
-        {tasksTable}
+        {!writingDesign && tasksTable}
       </div>
     </div>
   );

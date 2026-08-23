@@ -11,7 +11,7 @@
  */
 
 import type { AreaEstimationPlan, MapValue, PixelCensus, RasterInfo, StudyArea } from './core/plan';
-import { NO_DATA_CLASS_ID, designsOf, emptyPlan } from './core/plan';
+import { NO_DATA_CLASS_ID, designsOf, emptyPlan, proposedEqualAreaCrs } from './core/plan';
 import { DEFAULT_EQUAL_AREA_CRS } from './core/guidance';
 import type { StratumSample } from './core/estimate';
 
@@ -64,24 +64,29 @@ export interface RasterInspection {
   noDataValuesByBand: Record<number, number[]>;
 }
 
+/** What the fixture map covers, and therefore what its projection is sized to. */
+const FIXTURE_BBOX = { west: 22.1, south: 44.4, east: 40.2, north: 52.4 };
+
 export const inspectRaster = async (fileName: string): Promise<RasterInspection> => {
   await sleep(LATENCY_MS);
   // A geographic CRS is the common mistake: pixel areas vary with latitude, so
   // pixel counts are not proportional to area. Surfaced rather than corrected.
   const isEqualArea = !/4326|wgs ?84|latlon/i.test(fileName);
+  const raster = {
+    name: fileName,
+    bands: [
+      { index: 1, description: 'crop_type' },
+      { index: 2, description: 'crop_type_no_legend' },
+    ],
+    crs: isEqualArea ? 'EPSG:6933 (World Equal Area)' : 'EPSG:4326 (WGS 84 lat/lon)',
+    isEqualArea,
+    areaPerPixel: 100,
+    resolutionMeters: 10,
+    bbox: FIXTURE_BBOX,
+  };
   return {
-    equalAreaCrs: isEqualArea ? 'EPSG:6933' : DEFAULT_EQUAL_AREA_CRS,
-    raster: {
-      name: fileName,
-      bands: [
-        { index: 1, description: 'crop_type' },
-        { index: 2, description: 'crop_type_no_legend' },
-      ],
-      crs: isEqualArea ? 'EPSG:6933 (World Equal Area)' : 'EPSG:4326 (WGS 84 lat/lon)',
-      isEqualArea,
-      areaPerPixel: 100,
-      resolutionMeters: 10,
-    },
+    equalAreaCrs: proposedEqualAreaCrs(raster) ?? DEFAULT_EQUAL_AREA_CRS,
+    raster,
     legendByBand: { 1: CROP_LEGEND, 2: [] },
     noDataValuesByBand: { 1: [0], 2: [] },
   };
@@ -143,8 +148,9 @@ export const loadPlan = async (
   if (!raw) return null;
   try {
     // A plan stored before a field existed still has to load. Merging onto the
-    // current shape is what keeps the type honest: nothing downstream should
-    // have to defend against a field that was simply not written yet.
+    // current shape covers the plan's own fields; it is shallow, so a field
+    // added inside a nested shape has to be optional there and stay optional
+    // until this is a real endpoint with a schema behind it.
     return { ...emptyPlan(), ...(JSON.parse(raw) as Partial<AreaEstimationPlan>) };
   } catch {
     return null;
@@ -171,14 +177,14 @@ export const clearPlan = async (campaignId: number, taskSetId: number): Promise<
 };
 
 export interface Progress {
-  /** Sample points drawn per domain, keyed by stratum id. */
+  /** Sampling units drawn per domain, keyed by stratum id. */
   samples: Record<string, StratumSample[]>;
   annotated: number;
   planned: number;
 }
 
 /**
- * Stands in for the running tally of annotated sample points. The counts are
+ * Stands in for the running tally of annotated sampling units. The counts are
  * drawn from the plan's own prior so the estimates the admin sees behave like
  * real ones: wide early, tightening as points come in.
  */

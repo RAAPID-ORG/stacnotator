@@ -2,13 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { listPlannedTaskSets } from './api';
 
 export const LOCKED_TASK_SET_REASON =
-  'This set is managed by an area estimation design. Adding, importing or moving tasks into it would break the sampling probabilities the estimate depends on.';
+  'This set is managed by an area estimation design. Adding, importing or moving tasks into it would break the inclusion probabilities the estimate depends on.';
 
 /**
- * The sample points of an area estimate live in one task set, and that set has
- * to stay exactly what the sampling protocol drew: every task in it carries a
- * known inclusion probability, and a task added by hand carries none. One such
- * task makes the whole estimate indefensible, so these sets are read-only
+ * The sampling units of an area estimate live in one task set, and that set
+ * has to stay exactly what the sampling protocol drew: every task in it carries
+ * a known inclusion probability, and a task added by hand carries none. One
+ * such task makes the whole estimate indefensible, so these sets are read-only
  * everywhere outside this feature.
  *
  * A campaign may run several estimates, so this is a set of ids rather than
