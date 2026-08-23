@@ -144,7 +144,7 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
       key: 'campaigns',
       label: 'Campaigns',
       path: projectPath(projectId),
-      active: onProjectIndex && tab !== 'members' && tab !== 'settings',
+      active: onProjectIndex && tab === null,
       depth: 1,
     },
     ...[...info.campaigns]
@@ -156,6 +156,13 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
         active: c.id === campaignId,
         depth: 2 as const,
       })),
+    {
+      key: 'visualizers',
+      label: 'Visualizers',
+      path: `${projectPath(projectId)}?tab=visualizers`,
+      active: onProjectIndex && tab === 'visualizers',
+      depth: 1,
+    },
     ...(canSeeMembers
       ? [
           {

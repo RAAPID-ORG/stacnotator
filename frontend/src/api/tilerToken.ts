@@ -9,6 +9,31 @@
 
 import { getTilerToken as refreshTilerCookie } from './client';
 
+/** Sets the cookie and reports how long it lasts, in seconds. */
+export type TilerSessionMinter = () => Promise<number>;
+
+const signedInUserMinter: TilerSessionMinter = async () => {
+  const { data, error } = await refreshTilerCookie();
+  const body = data as { expires_in: number } | undefined;
+  if (error || !body) throw new Error('Failed to refresh tiler session');
+  return body.expires_in;
+};
+
+let minter = signedInUserMinter;
+
+/**
+ * Point the tiler session at a different source of cookies.
+ *
+ * A shared visualizer mints from its own slug, so a visitor with no account
+ * still gets tile access - scoped to that visualizer's campaigns and nothing
+ * else. Passing null restores the signed-in user's own session.
+ */
+export function setTilerSessionMinter(next: TilerSessionMinter | null): void {
+  minter = next ?? signedInUserMinter;
+  cookieExpiry = 0;
+  mintedForCampaign = null;
+}
+
 let cookieExpiry = 0;
 let inflight: Promise<void> | null = null;
 // The campaign id the current cookie was last minted for. The cookie is a snapshot of the
@@ -34,12 +59,7 @@ export async function ensureTilerSession(campaignId?: string): Promise<void> {
 
   inflight = (async () => {
     try {
-      const { data, error } = await refreshTilerCookie();
-      const body = data as { expires_in: number } | undefined;
-      if (error || !body) {
-        throw new Error('Failed to refresh tiler session');
-      }
-      cookieExpiry = Date.now() / 1000 + body.expires_in;
+      cookieExpiry = Date.now() / 1000 + (await minter());
       if (campaignId != null) mintedForCampaign = campaignId;
     } finally {
       inflight = null;

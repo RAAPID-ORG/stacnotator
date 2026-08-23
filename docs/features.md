@@ -74,6 +74,17 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - **Custom maps (COG overlays)** - e.g. model predictions, rendered by the hosted tiler; continuous or categorical render config, colormaps, editable legend, optional MLOps link, internal-storage support
 - **Vector layers (PMTiles)** - toggleable overlay layers fetched straight from storage; hover highlight, and a label-vector tool (`B`) that creates annotations from clicked vector features (single or batch)
 
+## Visualizers
+
+A visualizer is a published map over what a project has already registered: a full-screen viewer at `/v/<slug>` with a header bar, a date slider and a collapsible layer panel. Set up under Project > Visualizers.
+
+- **Built by picking, not by configuring** - a visualizer points at imagery sources and overlays belonging to campaigns in the same project. There is no second imagery wizard, and a source re-registered for its campaign is immediately newer in every visualizer showing it
+- **One flat timeline** - the collections and cover slices a source is authored with carry no meaning here; the viewer sees the source's intervals as a single dated list, oldest to newest, and opens on the most recent
+- **Layer panel** - pick the imagery source and its visualization, toggle overlays, set their opacity, and edit a prediction overlay's colormap and range in place (the same legend the annotator uses). Viewer-side colour edits are never saved back
+- **Base map** - a keyless CARTO light/dark backdrop under everything, so an imagery footprint has context around it
+- **Publishing** - `Anyone with the link` makes the slug openable with no account, independent of the project's own visibility; otherwise it stays a working preview for people who can already open the project. The share link is copied from the project list or the viewer's header, and a project admin can save the opening camera straight from the viewer
+- **Tile access** - a published visualizer mints its own tiler cookie scoped to exactly the campaigns it draws from, so a visitor with no account can fetch its tiles and nothing else. Note that publishing imagery served through the backend key proxy (Planet, other keyed providers) spends that key's quota on anonymous traffic
+
 ## Tile Serving
 
 Tile providers, selected automatically per visualization:

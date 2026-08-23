@@ -275,8 +275,13 @@ function featureStyle(layer: VectorLayer<VectorSource<Feature>>) {
   };
 }
 
+/** Layers that carry no opacity of their own are drawn fully opaque. */
+const opacityOf = (spec: LayerSpec): number =>
+  (spec.kind === 'features' ? undefined : spec.opacity) ?? 1;
+
 export function createLayer(spec: LayerSpec): BaseLayer {
   const layer = buildLayer(spec);
+  layer.setOpacity(opacityOf(spec));
   layer.set(LAYER_ID_PROP, spec.id);
   layer.set(SPEC_PROP, spec);
   layer.setVisible(spec.visible ?? true);
@@ -389,11 +394,11 @@ export function updateLayer(layer: BaseLayer, prev: LayerSpec, next: LayerSpec):
 
   if (prev.visible !== next.visible) layer.setVisible(next.visible ?? true);
   if (prev.zIndex !== next.zIndex) layer.setZIndex(next.zIndex ?? 0);
+  if (opacityOf(prev) !== opacityOf(next)) layer.setOpacity(opacityOf(next));
 
   if (needsNewSource(prev, next)) replaceSource(layer, next);
 
   if (next.kind === 'raster' && prev.kind === 'raster') {
-    if (prev.opacity !== next.opacity) layer.setOpacity(next.opacity ?? 1);
     if (prev.preload !== next.preload) (layer as TileLayer<XYZ>).setPreload(next.preload ?? 0);
     return;
   }

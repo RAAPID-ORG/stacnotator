@@ -48,6 +48,7 @@ export interface VectorTileLayerSpec {
   auth?: 'bearer' | 'none';
   /** Called per feature per frame: keep it cheap and return few distinct specs. */
   style: StyleSpec | ((featureProps: Record<string, unknown>) => StyleSpec | null);
+  opacity?: number;
   zIndex?: number;
   visible?: boolean;
   minZoom?: number;

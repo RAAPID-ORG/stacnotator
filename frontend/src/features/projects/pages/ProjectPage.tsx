@@ -23,8 +23,9 @@ import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import TabNavigator from '~/shared/ui/TabNavigator';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
+import { ProjectVisualizersSection } from '~/features/visualizers/ProjectVisualizersSection';
 
-const PROJECT_TABS = ['campaigns', 'members', 'settings'] as const;
+const PROJECT_TABS = ['campaigns', 'visualizers', 'members', 'settings'] as const;
 type ProjectTab = (typeof PROJECT_TABS)[number];
 
 const isProjectTab = (t: string | null): t is ProjectTab => PROJECT_TABS.some((tab) => tab === t);
@@ -191,6 +192,7 @@ const ProjectTabs = ({
   const canSeeMembers = isAdmin || (project.is_member ?? false);
   const availableTabs: ProjectTab[] = [
     'campaigns',
+    'visualizers',
     ...(canSeeMembers ? (['members'] as const) : []),
     ...(isAdmin ? (['settings'] as const) : []),
   ];
@@ -214,6 +216,10 @@ const ProjectTabs = ({
             onCreate={onCreateCampaign}
             onDuplicate={onDuplicateCampaign}
           />
+        )}
+
+        {activeTab === 'visualizers' && (
+          <ProjectVisualizersSection projectId={project.id} canManage={isAdmin} />
         )}
 
         {activeTab === 'members' && (
