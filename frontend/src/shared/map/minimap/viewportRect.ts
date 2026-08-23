@@ -1,6 +1,5 @@
 import { fromLonLat, toLonLat } from 'ol/proj';
-import type { StyleSpec } from '~/shared/map/types';
-import type { Bbox, FeatureLayerSpec, LonLat } from '~/shared/map/types';
+import type { Bbox, FeatureLayerSpec, LonLat, StyleSpec } from '../types';
 
 export const VIEWPORT_RECT_LAYER_ID = 'minimap-viewport';
 
@@ -56,13 +55,12 @@ export function viewportRectLayer(bounds: Bbox, zIndex = 5): FeatureLayerSpec {
   };
 }
 
-export function campaignBboxLayer(bounds: Bbox): FeatureLayerSpec {
+/** The area the overview is about, drawn as a dashed outline behind everything. */
+export function roiOutlineLayer(bounds: Bbox): FeatureLayerSpec {
   return {
     kind: 'features',
-    id: 'minimap-campaign-bbox',
-    features: [
-      { id: 'minimap-campaign-bbox', geometry: { type: 'Polygon', coordinates: [ringOf(bounds)] } },
-    ],
+    id: 'minimap-roi',
+    features: [{ id: 'minimap-roi', geometry: { type: 'Polygon', coordinates: [ringOf(bounds)] } }],
     style: { stroke: { color: 'rgba(150,150,150,0.9)', width: 1, dash: [4, 4] } },
     zIndex: 1,
   };

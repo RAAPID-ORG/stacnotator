@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { centerOfBounds, containsPoint, translateBounds } from './ViewportRect';
+import { centerOfBounds, containsPoint, translateBounds } from './viewportRect';
 
 describe('minimap viewport dragging', () => {
   it('starts only from inside the viewport rectangle', () => {

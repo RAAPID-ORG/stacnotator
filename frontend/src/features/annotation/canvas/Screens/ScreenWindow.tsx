@@ -3,7 +3,7 @@ import ReactGridLayout, { getCompactor } from 'react-grid-layout';
 import { PANEL_DRAG_CANCEL_SELECTOR, PANEL_DRAG_HANDLE_CLASS, PanelHost } from '../PanelHost';
 import { GRID_COLS, GRID_MARGIN, ROW_HEIGHT, type LayoutItem } from '../grid';
 import type { PanelDef } from '../../panels/panels';
-import { useContainerSize } from '../useContainerSize';
+import { useContainerSize } from '~/shared/hooks/useContainerSize';
 
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const;
 const DRAG_HANDLE_SELECTOR = `.${PANEL_DRAG_HANDLE_CLASS}`;

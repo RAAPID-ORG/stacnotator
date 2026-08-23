@@ -1,4 +1,6 @@
-import type { Bbox, LonLat } from '~/shared/map/types';
+import { useEffect } from 'react';
+import type { Camera } from '../Camera';
+import type { Bbox, LonLat } from '../types';
 
 /** Fixed task-mode zoom: always centred on the task, at a stable scale. */
 export const TASK_OVERVIEW_ZOOM = 8;
@@ -53,14 +55,14 @@ export function needsRefit(
   return area(viewportBounds) / minimapArea < minAreaRatio;
 }
 
-/** Explore mode's continuous refit decision: the padded box to fit when the
- *  current minimap bounds no longer show the viewport well, else null (no
- *  change - the caller skips the fit entirely).
+/** The continuous refit decision: the padded box to fit when the current
+ *  minimap bounds no longer show the viewport well, else null (no change - the
+ *  caller skips the fit entirely).
  *
- *  While the minimap still shows the campaign ROI it holds that view until the
- *  viewport leaves it - seeing the whole ROI is the point, however small the
- *  viewport looks inside it. */
-export function exploreRefitTarget(
+ *  While the minimap still shows the ROI it holds that view until the viewport
+ *  leaves it - seeing the whole area is the point, however small the viewport
+ *  looks inside it. */
+export function refitTarget(
   minimapBounds: Bbox,
   viewportBounds: Bbox,
   roiOverview: boolean
@@ -69,4 +71,37 @@ export function exploreRefitTarget(
     ? !contains(minimapBounds, viewportBounds)
     : needsRefit(minimapBounds, viewportBounds);
   return stale ? paddedBounds(viewportBounds) : null;
+}
+
+const REFIT_ANIMATE_MS = 300;
+
+/** Keeps the ROI outline off the minimap's edges when it opens on it. */
+const ROI_FIT_PADDING_PX = 12;
+
+/**
+ * Opens the overview on `roi` and holds that view until the main camera walks
+ * out of it, then keeps a padded box around the viewport from there on.
+ *
+ * Turn it off with `enabled` where another rule takes over (task mode pins the
+ * overview to a fixed zoom instead).
+ */
+export function useOverviewFollow(
+  minimap: Camera,
+  main: Camera,
+  roi: Bbox | null,
+  enabled = true
+): void {
+  useEffect(() => {
+    if (!enabled) return;
+    let showingRoi = roi !== null;
+    minimap.fitBounds(roi ?? paddedBounds(main.getBounds()), {
+      paddingPx: roi ? ROI_FIT_PADDING_PX : 0,
+    });
+    return main.onChange(() => {
+      const target = refitTarget(minimap.getBounds(), main.getBounds(), showingRoi);
+      if (!target) return;
+      showingRoi = false;
+      minimap.fitBounds(target, { animateMs: REFIT_ANIMATE_MS });
+    });
+  }, [minimap, main, roi, enabled]);
 }

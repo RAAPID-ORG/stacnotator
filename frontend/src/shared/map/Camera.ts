@@ -204,3 +204,16 @@ export function useCameraZoom(camera: Camera): number {
   useEffect(() => camera.onChange((state) => setZoom(state.zoom)), [camera]);
   return zoom;
 }
+
+/** Live bounds of a camera, refreshed on its rAF-coalesced onChange. */
+export function useCameraBounds(camera: Camera): Bbox {
+  const [bounds, setBounds] = useState(() => camera.getBounds());
+  useEffect(() => camera.onChange((s) => setBounds(s.bounds)), [camera]);
+  return bounds;
+}
+
+export function useCameraCenter(camera: Camera): LonLat {
+  const [center, setCenter] = useState<LonLat>(() => camera.getState().center);
+  useEffect(() => camera.onChange((s) => setCenter(s.center)), [camera]);
+  return center;
+}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { pageKeymap } from '../../keymap';
 import { SliceCommentButton } from '../../chrome/SliceComments';
-import { useContainerSize } from '../../canvas/useContainerSize';
+import { useContainerSize } from '~/shared/hooks/useContainerSize';
 import { hotkeyTip } from '../../hotkeys';
 import { collectionsInView } from '../../campaign/imagery';
 import { computeTaskProgress } from '../../campaign/tasks';

@@ -3,11 +3,11 @@ import type { Bbox } from '~/shared/map/types';
 import {
   MINIMAP_PADDING_FACTOR,
   TASK_OVERVIEW_ZOOM,
-  exploreRefitTarget,
+  refitTarget,
   needsRefit,
   paddedBounds,
   tasksModeTarget,
-} from './followTarget';
+} from './follow';
 
 describe('tasksModeTarget', () => {
   it('centres on the main camera at the fixed overview zoom', () => {
@@ -52,29 +52,29 @@ describe('needsRefit', () => {
   });
 });
 
-describe('exploreRefitTarget', () => {
+describe('refitTarget', () => {
   it('returns null (no refit) when the viewport is already well shown', () => {
     const minimap: Bbox = [-10, -10, 10, 10];
     const viewport: Bbox = [-4, -4, 4, 4];
-    expect(exploreRefitTarget(minimap, viewport, false)).toBeNull();
+    expect(refitTarget(minimap, viewport, false)).toBeNull();
   });
 
   it('returns a padded fit of the viewport when a refit is needed', () => {
     const minimap: Bbox = [-1, -1, 1, 1];
     const viewport: Bbox = [-5, -5, 5, 5];
-    expect(exploreRefitTarget(minimap, viewport, false)).toEqual(paddedBounds(viewport));
+    expect(refitTarget(minimap, viewport, false)).toEqual(paddedBounds(viewport));
   });
 
   it('keeps the ROI overview when the viewport is a sliver inside it', () => {
     const roi: Bbox = [-10, -10, 10, 10];
     const tinyViewport: Bbox = [-0.5, -0.5, 0.5, 0.5];
-    expect(exploreRefitTarget(roi, tinyViewport, true)).toBeNull();
-    expect(exploreRefitTarget(roi, tinyViewport, false)).toEqual(paddedBounds(tinyViewport));
+    expect(refitTarget(roi, tinyViewport, true)).toBeNull();
+    expect(refitTarget(roi, tinyViewport, false)).toEqual(paddedBounds(tinyViewport));
   });
 
   it('leaves the ROI overview once the viewport moves outside it', () => {
     const roi: Bbox = [-10, -10, 10, 10];
     const viewport: Bbox = [12, 12, 14, 14];
-    expect(exploreRefitTarget(roi, viewport, true)).toEqual(paddedBounds(viewport));
+    expect(refitTarget(roi, viewport, true)).toEqual(paddedBounds(viewport));
   });
 });
