@@ -25,7 +25,7 @@ from src.database import Base
 if TYPE_CHECKING:
     from src.auth.models import User
     from src.custom_layers.models import CustomMap, VectorLayer
-    from src.imagery.models import ImagerySource
+    from src.imagery.models import Basemap, ImagerySource
     from src.projects.models import Project
 
 
@@ -97,6 +97,10 @@ class Visualizer(Base):
         back_populates="visualizer",
         cascade="all, delete-orphan",
         order_by="ImagerySource.display_order",
+    )
+    basemaps: Mapped[list["Basemap"]] = relationship(
+        back_populates="visualizer",
+        cascade="all, delete-orphan",
     )
     imagery: Mapped[list["VisualizerImagery"]] = relationship(
         back_populates="visualizer",

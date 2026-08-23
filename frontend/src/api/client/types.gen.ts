@@ -4380,6 +4380,38 @@ export type VisualizerArea = {
 };
 
 /**
+ * VisualizerBasemapOut
+ *
+ * A backdrop the visualizer offers, the same kind a campaign configures.
+ */
+export type VisualizerBasemapOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom: number | null;
+    /**
+     * Has Api Key
+     */
+    has_api_key: boolean;
+    /**
+     * Tile Proxy Base
+     */
+    tile_proxy_base: string;
+};
+
+/**
  * VisualizerConfigOut
  *
  * The stored configuration, as the editor needs it back.
@@ -4423,6 +4455,10 @@ export type VisualizerConfigOut = {
      */
     own_imagery: Array<ImagerySourceOut>;
     /**
+     * Basemaps
+     */
+    basemaps: Array<BasemapOut>;
+    /**
      * Registration Status
      */
     registration_status: string;
@@ -4461,6 +4497,10 @@ export type VisualizerCreate = {
      * Own Imagery
      */
     own_imagery?: Array<ImagerySourceCreate>;
+    /**
+     * Basemaps
+     */
+    basemaps?: Array<BasemapCreate>;
 };
 
 /**
@@ -4720,6 +4760,10 @@ export type VisualizerUpdate = {
      * Own Imagery
      */
     own_imagery?: Array<ImagerySourceCreate> | null;
+    /**
+     * Basemaps
+     */
+    basemaps?: Array<BasemapCreate> | null;
 };
 
 /**
@@ -4761,6 +4805,10 @@ export type VisualizerViewOut = {
      * Imagery
      */
     imagery: Array<VisualizerImageryOut>;
+    /**
+     * Basemaps
+     */
+    basemaps: Array<VisualizerBasemapOut>;
     /**
      * Overlays
      */
@@ -8874,6 +8922,50 @@ export type ProxySliceTileErrors = {
 export type ProxySliceTileError = ProxySliceTileErrors[keyof ProxySliceTileErrors];
 
 export type ProxySliceTileResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ProxyVisualizerBasemapTileData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Basemap Id
+         */
+        basemap_id: number;
+        /**
+         * Z
+         */
+        z: number;
+        /**
+         * X
+         */
+        x: number;
+        /**
+         * Y
+         */
+        y: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}';
+};
+
+export type ProxyVisualizerBasemapTileErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProxyVisualizerBasemapTileError = ProxyVisualizerBasemapTileErrors[keyof ProxyVisualizerBasemapTileErrors];
+
+export type ProxyVisualizerBasemapTileResponses = {
     /**
      * Successful Response
      */

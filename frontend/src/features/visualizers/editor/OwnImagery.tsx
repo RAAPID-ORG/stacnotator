@@ -1,13 +1,26 @@
 import { useState } from 'react';
-import type { ImagerySourceCreate, ImagerySourceOut, VisualizerArea } from '~/api/client';
+import type {
+  BasemapCreate,
+  BasemapOut,
+  ImagerySourceCreate,
+  ImagerySourceOut,
+  VisualizerArea,
+} from '~/api/client';
 import {
   mapSourceOutToFe,
   useDraftController,
 } from '~/features/campaigns/components/imagery/controller';
-import { sourceToBackend } from '~/features/campaigns/components/imagery/draftSync';
+import {
+  basemapToBackend,
+  sourceToBackend,
+} from '~/features/campaigns/components/imagery/draftSync';
+import { BasemapList } from '~/features/campaigns/components/imagery/BasemapList';
 import { SourceEditor } from '~/features/campaigns/components/imagery/SourceEditor';
 import { SourcesTab } from '~/features/campaigns/components/imagery/SourcesTab';
-import type { ImageryStepState } from '~/features/campaigns/components/imagery/types';
+import {
+  DEFAULT_BASEMAPS,
+  type ImageryStepState,
+} from '~/features/campaigns/components/imagery/types';
 
 /**
  * Imagery set up for this visualizer alone.
@@ -38,22 +51,24 @@ export function OwnImagery({
   const [editingId, setEditingId] = useState<string | null>(null);
   const editing = editingId ? (state.sources.find((s) => s.id === editingId) ?? null) : null;
 
-  if (!area) {
-    return (
-      <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
-        Choose the area above first. Imagery is searched and registered over it.
-      </p>
-    );
-  }
-
   return (
-    <>
-      <SourcesTab
-        controller={controller}
-        campaignBbox={bbox}
-        onEditSource={setEditingId}
-        description={null}
-      />
+    <div className="space-y-6">
+      {area ? (
+        <SourcesTab
+          controller={controller}
+          campaignBbox={bbox}
+          onEditSource={setEditingId}
+          description={null}
+        />
+      ) : (
+        <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
+          Choose the area above first. Imagery is searched and registered over it.
+        </p>
+      )}
+
+      {/* Backdrops need no area: they are whole-world tile services. */}
+      <BasemapList controller={controller} />
+
       {editing && (
         <SourceEditor
           source={editing}
@@ -62,18 +77,36 @@ export function OwnImagery({
           onClose={() => setEditingId(null)}
         />
       )}
-    </>
+    </div>
   );
 }
 
-export const emptyImageryState = (): ImageryStepState => ({ sources: [], basemaps: [] });
+/** A new visualizer starts with the same backdrops the annotator offers, so
+ *  the map is never bare and nobody has to paste a tile URL to begin. */
+export const emptyImageryState = (): ImageryStepState => ({
+  sources: [],
+  basemaps: [...DEFAULT_BASEMAPS],
+});
 
-/** The stored sources, back in the shape the editor works in. */
-export const imageryStateFrom = (sources: ImagerySourceOut[]): ImageryStepState => ({
+/** The stored setup, back in the shape the editor works in. */
+export const imageryStateFrom = (
+  sources: ImagerySourceOut[],
+  basemaps: BasemapOut[]
+): ImageryStepState => ({
   sources: sources.map(mapSourceOutToFe),
-  basemaps: [],
+  basemaps: basemaps.map((basemap) => ({
+    id: String(basemap.id),
+    name: basemap.name,
+    url: basemap.url,
+    maxNativeZoom: basemap.max_native_zoom ?? undefined,
+    hasApiKey: basemap.has_api_key,
+    organizationApiKeyId: basemap.organization_api_key_id ?? null,
+  })),
 });
 
 /** The payload the visualizer's save endpoint takes for its own imagery. */
 export const ownImageryPayload = (state: ImageryStepState): ImagerySourceCreate[] =>
   state.sources.map(sourceToBackend);
+
+export const basemapsPayload = (state: ImageryStepState): BasemapCreate[] =>
+  state.basemaps.map(basemapToBackend);

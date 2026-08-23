@@ -19,9 +19,19 @@ from src.campaigns.models import Campaign
 from src.custom_layers.models import CustomMap, VectorLayer
 from src.imagery import registration
 from src.imagery import service as imagery_service
-from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, SourceOwner
+from src.imagery.models import (
+    Basemap,
+    ImageryCollection,
+    ImagerySlice,
+    ImagerySource,
+    SourceOwner,
+)
 from src.imagery.registration import RegistrationSpec
-from src.imagery.schemas import ImagerySourceCreate, ImagerySourceOut
+from src.imagery.schemas import (
+    BasemapOut,
+    ImagerySourceCreate,
+    ImagerySourceOut,
+)
 from src.projects.models import Project
 from src.visualizers import timeline
 from src.visualizers.models import (
@@ -38,6 +48,7 @@ from src.visualizers.schemas import (
     SourceOptionOut,
     VectorOverlayOut,
     VisualizerArea,
+    VisualizerBasemapOut,
     VisualizerConfigOut,
     VisualizerCreate,
     VisualizerFeedbackCreate,
@@ -83,6 +94,7 @@ def load(db: Session, *, visualizer_id: int | None = None, slug: str | None = No
         _source_loads(),
         selectinload(Visualizer.overlays).selectinload(VisualizerOverlay.custom_map),
         selectinload(Visualizer.overlays).selectinload(VisualizerOverlay.vector_layer),
+        selectinload(Visualizer.basemaps),
     )
     stmt = (
         stmt.where(Visualizer.id == visualizer_id)
@@ -147,6 +159,7 @@ def create(db: Session, project: Project, payload: VisualizerCreate, user_id) ->
     db.flush()
     _replace_layers(db, visualizer, payload.imagery, payload.overlays)
     pending = _save_own_imagery(db, visualizer, payload.own_imagery)
+    imagery_service.save_visualizer_basemaps(db, visualizer=visualizer, basemaps=payload.basemaps)
     db.commit()
     _spawn_registration(visualizer.id, pending, area_out(visualizer))
     return load(db, visualizer_id=visualizer.id)
@@ -173,6 +186,10 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
         if payload.own_imagery is not None
         else []
     )
+    if payload.basemaps is not None:
+        imagery_service.save_visualizer_basemaps(
+            db, visualizer=visualizer, basemaps=payload.basemaps
+        )
     db.commit()
     _spawn_registration(visualizer.id, pending, area_out(visualizer))
     return load(db, visualizer_id=visualizer.id)
@@ -333,6 +350,7 @@ def config_out(visualizer: Visualizer) -> VisualizerConfigOut:
         imagery=_imagery_config(visualizer),
         overlays=_overlay_config(visualizer),
         own_imagery=[ImagerySourceOut.model_validate(s) for s in visualizer.imagery_sources],
+        basemaps=[BasemapOut.model_validate(b) for b in visualizer.basemaps],
         registration_status=visualizer.registration_status,
         registration_errors=visualizer.registration_errors,
     )
@@ -382,10 +400,22 @@ def build_view(
         project_name=visualizer.project.name,
         area=area_out(visualizer),
         imagery=[out for source in browsable_sources(visualizer) for out in _imagery_out(source)],
+        basemaps=[_basemap_out(b) for b in visualizer.basemaps],
         overlays=[out for out in (_overlay_out(o) for o in visualizer.overlays) if out],
         can_edit=can_edit,
         can_give_feedback=can_give_feedback,
         registration_status=visualizer.registration_status,
+    )
+
+
+def _basemap_out(basemap: Basemap) -> VisualizerBasemapOut:
+    return VisualizerBasemapOut(
+        id=basemap.id,
+        name=basemap.name,
+        url=basemap.url,
+        max_native_zoom=basemap.max_native_zoom,
+        has_api_key=basemap.has_api_key,
+        tile_proxy_base=f"/api/visualizers/{basemap.visualizer_id}/imagery/basemaps",
     )
 
 

@@ -25,6 +25,7 @@ import {
   composeLayers,
   initialState,
   needsTilerSession,
+  selectStep,
   zoomedPastArea,
   type ViewerState,
 } from './viewerState';
@@ -106,15 +107,13 @@ export function VisualizerPage({ slug }: { slug: string }) {
       if (e.target instanceof HTMLElement && e.target.closest('input, select, textarea')) return;
       e.preventDefault();
       setState((current) => {
-        if (!current || !source) return current;
-        const last = source.steps.length - 1;
-        const next = current.stepIndex + (e.key === 'ArrowRight' ? 1 : -1);
-        return { ...current, stepIndex: Math.min(last, Math.max(0, next)) };
+        if (!current || !view) return current;
+        return selectStep(view, current, current.stepIndex + (e.key === 'ArrowRight' ? 1 : -1));
       });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [source]);
+  }, [view]);
 
   const layers = useMemo(() => {
     const drawn = view && state ? composeLayers(view, state) : [];
@@ -218,7 +217,7 @@ export function VisualizerPage({ slug }: { slug: string }) {
                   <TimeSlider
                     steps={source.steps}
                     index={state.stepIndex}
-                    onSelect={(stepIndex) => setState({ ...state, stepIndex })}
+                    onSelect={(stepIndex) => setState(selectStep(view, state, stepIndex))}
                   />
                 )
               )}

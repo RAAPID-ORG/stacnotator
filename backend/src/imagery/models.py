@@ -356,14 +356,24 @@ class Basemap(Base):
 
     __tablename__ = "basemaps"
     __table_args__ = (
+        CheckConstraint(
+            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
+            name="basemaps_one_owner_check",
+        ),
         Index("idx_basemaps_campaign_id", "campaign_id"),
+        Index("idx_basemaps_visualizer_id", "visualizer_id"),
         {"schema": "data"},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[int] = mapped_column(
+    # Exactly one owner, as on ImagerySource.
+    campaign_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+    )
+    visualizer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.visualizers.id", ondelete="CASCADE"),
+        nullable=True,
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
@@ -379,8 +389,13 @@ class Basemap(Base):
         ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
     )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")
+    campaign: Mapped["Campaign | None"] = relationship(back_populates="basemaps")
+    visualizer: Mapped["Visualizer | None"] = relationship(back_populates="basemaps")
     organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
+
+    @property
+    def owner(self) -> SourceOwner:
+        return SourceOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
 
     @property
     def has_api_key(self) -> bool:

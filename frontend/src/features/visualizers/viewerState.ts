@@ -1,6 +1,12 @@
 import type { VisualizerImageryOut, VisualizerStepOut, VisualizerViewOut } from '~/api/client';
 import { applyRenderOverride, type RenderOverride } from '~/shared/imagery/tileColors';
-import { needsKeyProxy, sliceProxyUrl } from '~/shared/imagery/tileUrls';
+import { apiUrl } from '~/api/base';
+import {
+  basemapAttribution,
+  isProxiedTileUrl,
+  needsKeyProxy,
+  sliceProxyUrl,
+} from '~/shared/imagery/tileUrls';
 import type { LayerSpec } from '~/shared/map/types';
 
 /**
@@ -14,17 +20,30 @@ export interface ViewerState {
   sourceId: string | null;
   visualization: string | null;
   stepIndex: number;
+  /**
+   * Where in time the viewer is, independent of any one source's steps.
+   *
+   * Sources step at their own cadences, so a source switch has to re-find the
+   * step nearest to a date. Re-deriving that date from the step just landed on
+   * would make each switch drift: a month lands on the week whose middle is
+   * nearest, whose own middle then lands on a different month. Anchoring to the
+   * date the viewer actually chose keeps a switch back exact.
+   */
+  anchor: number;
   /** Keyed by overlay id, seeded from how the visualizer was published. */
   overlays: Record<number, { visible: boolean; opacity: number }>;
   /** Per-overlay colour edits the viewer made, never persisted. */
   renderOverrides: Record<number, RenderOverride>;
+  /** Which configured backdrop is drawn. Null means none - except where the
+   *  visualizer configured none at all, when the built-in one stands in. */
+  basemapId: number | null;
 }
 
-/** One keyless backdrop, so imagery has coastlines and place names around it
- *  without anyone having to choose. */
-const BASEMAP_URL = 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+/** Drawn when a visualizer configures no backdrop of its own, so imagery always
+ *  has coastlines and place names around it. Keyless, hence no setup. */
+const DEFAULT_BASEMAP_URL = 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
 
-const BASEMAP_ATTRIBUTION =
+const DEFAULT_BASEMAP_ATTRIBUTION =
   '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const OVERLAY_Z = 3;
@@ -37,10 +56,12 @@ export function initialState(view: VisualizerViewOut): ViewerState {
     visualization: source?.visualizations[0] ?? null,
     // The newest imagery is what people want to see first.
     stepIndex: Math.max(0, (source?.steps.length ?? 1) - 1),
+    anchor: midpointOf(source?.steps[(source?.steps.length ?? 1) - 1]),
     overlays: Object.fromEntries(
       view.overlays.map((o) => [o.id, { visible: o.visible, opacity: o.opacity }])
     ),
     renderOverrides: {},
+    basemapId: view.basemaps[0]?.id ?? null,
   };
 }
 
@@ -49,11 +70,6 @@ export function activeSource(
   state: ViewerState
 ): VisualizerImageryOut | null {
   return view.imagery.find((entry) => entry.id === state.sourceId) ?? null;
-}
-
-export function activeStep(view: VisualizerViewOut, state: ViewerState): VisualizerStepOut | null {
-  const source = activeSource(view, state);
-  return source?.steps[state.stepIndex] ?? null;
 }
 
 /**
@@ -71,25 +87,40 @@ export function selectSource(
 ): ViewerState {
   const next = view.imagery.find((entry) => entry.id === sourceId);
   if (!next) return state;
-  const current = activeStep(view, state);
   return {
     ...state,
     sourceId,
     visualization: next.visualizations.includes(state.visualization ?? '')
       ? state.visualization
       : (next.visualizations[0] ?? null),
-    stepIndex: current ? nearestStepIndex(next.steps, current.start_date) : next.steps.length - 1,
+    stepIndex: nearestStepIndex(next.steps, state.anchor),
   };
 }
 
-/** The step whose midpoint is closest to a date, or 0 when there are none. */
-export function nearestStepIndex(steps: VisualizerStepOut[], isoDate: string): number {
+/** Move along the current source's timeline, which is what sets the anchor. */
+export function selectStep(
+  view: VisualizerViewOut,
+  state: ViewerState,
+  stepIndex: number
+): ViewerState {
+  const steps = activeSource(view, state)?.steps ?? [];
+  const clamped = Math.min(Math.max(stepIndex, 0), Math.max(steps.length - 1, 0));
+  return { ...state, stepIndex: clamped, anchor: midpointOf(steps[clamped]) };
+}
+
+/** The step covering an instant, or failing that the one whose middle is
+ *  nearest to it. Falls back to the newest when there is nothing to compare. */
+export function nearestStepIndex(steps: VisualizerStepOut[], anchor: number): number {
   if (steps.length === 0) return 0;
-  const target = midpoint({ start_date: isoDate, end_date: isoDate });
+  if (!Number.isFinite(anchor)) return steps.length - 1;
+
+  const covering = steps.findIndex((step) => start(step) <= anchor && anchor <= end(step) + DAY_MS);
+  if (covering !== -1) return covering;
+
   let best = 0;
   let bestDistance = Infinity;
   steps.forEach((step, index) => {
-    const distance = Math.abs(midpoint(step) - target);
+    const distance = Math.abs(midpointOf(step) - anchor);
     if (distance < bestDistance) {
       best = index;
       bestDistance = distance;
@@ -98,8 +129,12 @@ export function nearestStepIndex(steps: VisualizerStepOut[], isoDate: string): n
   return best;
 }
 
-const midpoint = (step: { start_date: string; end_date: string }): number =>
-  (Date.parse(`${step.start_date}T00:00:00Z`) + Date.parse(`${step.end_date}T00:00:00Z`)) / 2;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const start = (step: VisualizerStepOut) => Date.parse(`${step.start_date}T00:00:00Z`);
+const end = (step: VisualizerStepOut) => Date.parse(`${step.end_date}T00:00:00Z`);
+
+export const midpointOf = (step: VisualizerStepOut | undefined): number =>
+  step ? (start(step) + end(step)) / 2 : NaN;
 
 /**
  * The tile for a step under the chosen visualization.
@@ -117,14 +152,30 @@ function tileFor(step: VisualizerStepOut, visualization: string | null) {
 export function composeLayers(view: VisualizerViewOut, state: ViewerState): LayerSpec[] {
   const layers: LayerSpec[] = [];
 
-  layers.push({
-    kind: 'raster',
-    id: 'basemap',
-    url: BASEMAP_URL,
-    auth: 'none',
-    zIndex: 0,
-    attribution: BASEMAP_ATTRIBUTION,
-  });
+  const basemap = view.basemaps.find((entry) => entry.id === state.basemapId);
+  if (basemap) {
+    const url = needsKeyProxy(basemap.url)
+      ? apiUrl(`${basemap.tile_proxy_base}/${basemap.id}/tiles/{z}/{x}/{y}`)
+      : basemap.url;
+    layers.push({
+      kind: 'raster',
+      id: `basemap-${basemap.id}`,
+      url,
+      auth: isProxiedTileUrl(url) ? 'cookie' : 'none',
+      maxZoom: basemap.max_native_zoom ?? undefined,
+      zIndex: 0,
+      attribution: basemapAttribution(basemap.url),
+    });
+  } else if (view.basemaps.length === 0) {
+    layers.push({
+      kind: 'raster',
+      id: 'basemap',
+      url: DEFAULT_BASEMAP_URL,
+      auth: 'none',
+      zIndex: 0,
+      attribution: DEFAULT_BASEMAP_ATTRIBUTION,
+    });
+  }
 
   const source = activeSource(view, state);
   const step = source?.steps[state.stepIndex];
@@ -202,12 +253,16 @@ export function zoomedPastArea(
   return Math.max(widthFraction, heightFraction) < AREA_VISIBLE_FRACTION;
 }
 
-/** Every campaign whose tiles this visualizer needs a tiler session for. */
+/** Whether anything here is served behind the tiler cookie. */
 export function needsTilerSession(view: VisualizerViewOut): boolean {
   const imagery = view.imagery.some((source) =>
     source.steps.some((step) =>
       Object.values(step.tiles).some((tile) => tile.provider !== 'mpc' || source.has_api_key)
     )
   );
-  return imagery || view.overlays.some((overlay) => overlay.kind === 'raster');
+  return (
+    imagery ||
+    view.overlays.some((overlay) => overlay.kind === 'raster') ||
+    view.basemaps.some((basemap) => basemap.has_api_key)
+  );
 }

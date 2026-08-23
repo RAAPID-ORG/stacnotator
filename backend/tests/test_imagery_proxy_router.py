@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from src import net_guard
 from src.imagery import proxy_router
+from src.imagery.models import SourceOwner
 from src.imagery.proxy_router import require_tile_access
 from src.main import app
 
@@ -22,7 +23,13 @@ def _serve_basemap(monkeypatch, url: str, log: list[str]) -> None:
     class FakeSession:
         def get(self, model, pk):
             log.append("db")
-            return SimpleNamespace(id=pk, campaign_id=CAMPAIGN_ID, url=url, encrypted_api_key="enc")
+            return SimpleNamespace(
+                id=pk,
+                campaign_id=CAMPAIGN_ID,
+                owner=SourceOwner(campaign_id=CAMPAIGN_ID),
+                url=url,
+                encrypted_api_key="enc",
+            )
 
         def close(self):
             log.append("close")

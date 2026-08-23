@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.custom_layers.schemas import RenderConfig
-from src.imagery.schemas import ImagerySourceCreate, ImagerySourceOut
+from src.imagery.schemas import BasemapCreate, BasemapOut, ImagerySourceCreate, ImagerySourceOut
 
 
 class VisualizerImageryCreate(BaseModel):
@@ -44,6 +44,7 @@ class VisualizerCreate(BaseModel):
     # Imagery set up for this visualizer alone, in the same shape the campaign
     # imagery editor produces. Registering it needs an area to search over.
     own_imagery: list[ImagerySourceCreate] = Field(default_factory=list)
+    basemaps: list[BasemapCreate] = Field(default_factory=list)
 
 
 class VisualizerUpdate(BaseModel):
@@ -56,6 +57,7 @@ class VisualizerUpdate(BaseModel):
     imagery: list[VisualizerImageryCreate] | None = None
     overlays: list[VisualizerOverlayCreate] | None = None
     own_imagery: list[ImagerySourceCreate] | None = None
+    basemaps: list[BasemapCreate] | None = None
 
 
 class VisualizerListItemOut(BaseModel):
@@ -127,6 +129,18 @@ class VectorOverlayOut(OverlayOutBase):
 VisualizerOverlayOut = Annotated[RasterOverlayOut | VectorOverlayOut, Field(discriminator="kind")]
 
 
+class VisualizerBasemapOut(BaseModel):
+    """A backdrop the visualizer offers, the same kind a campaign configures."""
+
+    id: int
+    name: str
+    url: str
+    max_native_zoom: int | None
+    has_api_key: bool
+    # Where a key-protected backdrop's tiles are fetched from, as on imagery.
+    tile_proxy_base: str
+
+
 class VisualizerViewOut(BaseModel):
     """Everything the viewer page draws, and nothing about how it was authored."""
 
@@ -139,6 +153,7 @@ class VisualizerViewOut(BaseModel):
     project_name: str
     area: VisualizerArea | None
     imagery: list[VisualizerImageryOut]
+    basemaps: list[VisualizerBasemapOut]
     overlays: list[VisualizerOverlayOut]
     can_edit: bool
     # Whether this viewer may leave feedback: signed in, on a published map.
@@ -161,6 +176,7 @@ class VisualizerConfigOut(BaseModel):
     imagery: list[VisualizerImageryCreate]
     overlays: list[VisualizerOverlayCreate]
     own_imagery: list[ImagerySourceOut]
+    basemaps: list[BasemapOut]
     registration_status: str
     registration_errors: list | None
 

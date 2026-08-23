@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { VisualizerImageryOut, VisualizerStepOut, VisualizerViewOut } from '~/api/client';
-import { composeLayers, initialState, selectSource, zoomedPastArea } from './viewerState';
+import {
+  composeLayers,
+  initialState,
+  selectSource,
+  selectStep,
+  zoomedPastArea,
+} from './viewerState';
 
 const step = (id: number, start: string, end: string, viz = 'True Color'): VisualizerStepOut => ({
   slice_id: id,
@@ -32,6 +38,7 @@ const view = (over: Partial<VisualizerViewOut> = {}): VisualizerViewOut => ({
   project_name: 'Harvest',
   area: null,
   imagery: [source()],
+  basemaps: [],
   overlays: [],
   can_edit: false,
   can_give_feedback: false,
@@ -77,8 +84,46 @@ describe('selectSource', () => {
   const both = view({ imagery: [source(), landsat] });
 
   it('keeps the viewer at the same date rather than the same index', () => {
-    const start = { ...initialState(both), stepIndex: 0 };
+    const start = selectStep(both, initialState(both), 0);
     expect(selectSource(both, start, '2').stepIndex).toBe(1);
+  });
+
+  it('comes back to where it was when the source is switched and switched back', () => {
+    // A month lands on the week nearest its middle, whose own middle would land
+    // on a different month if the date were re-derived from it each time.
+    const monthly = view({
+      imagery: [
+        source({
+          id: '1:monthly',
+          name: 'Sentinel-2 monthly',
+          steps: [
+            step(10, '2024-05-01', '2024-05-31'),
+            step(11, '2024-06-01', '2024-06-30'),
+            step(12, '2024-07-01', '2024-07-31'),
+          ],
+        }),
+        source({
+          id: '1:weekly',
+          name: 'Sentinel-2 weekly',
+          steps: [
+            step(20, '2024-05-27', '2024-06-02'),
+            step(21, '2024-06-03', '2024-06-09'),
+            step(22, '2024-06-10', '2024-06-16'),
+            step(23, '2024-06-17', '2024-06-23'),
+            step(24, '2024-06-24', '2024-06-30'),
+          ],
+        }),
+      ],
+    });
+
+    let state = selectStep(monthly, initialState(monthly), 1);
+    const startedOn = state.stepIndex;
+
+    for (let round = 0; round < 3; round++) {
+      state = selectSource(monthly, state, '1:weekly');
+      state = selectSource(monthly, state, '1:monthly');
+      expect(state.stepIndex).toBe(startedOn);
+    }
   });
 
   it('falls back to the new source first visualization when it has no match', () => {

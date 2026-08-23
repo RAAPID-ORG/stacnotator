@@ -37,6 +37,16 @@ const SHARED_VISUALIZER = {
       ],
     },
   ],
+  basemaps: [
+    {
+      id: 91,
+      name: 'CartoDB Light',
+      url: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+      max_native_zoom: 20,
+      has_api_key: false,
+      tile_proxy_base: '/api/visualizers/3/imagery/basemaps',
+    },
+  ],
   overlays: [
     {
       kind: 'raster',

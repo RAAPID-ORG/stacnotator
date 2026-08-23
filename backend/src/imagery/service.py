@@ -389,7 +389,9 @@ def save_imagery_editor_state(
     # Basemaps: replace wholesale (small list, no inbound FKs).
     db.execute(delete(Basemap).where(Basemap.campaign_id == campaign.id))
     db.flush()
-    created_basemaps = _create_basemaps(db, campaign.id, editor_state.basemaps)
+    created_basemaps = _create_basemaps(
+        db, SourceOwner(campaign_id=campaign.id), editor_state.basemaps
+    )
 
     db.flush()
 
@@ -529,9 +531,10 @@ def save_visualizer_imagery(
 
     Same rules as ``save_imagery_editor_state``: an entry with an id updates in
     place, one without is created, and anything in the database but missing from
-    the payload is deleted. A visualizer has no views, no canvas layouts and no
-    basemaps of its own, so none of that reconciliation applies here - which is
-    the whole difference between the two.
+    the payload is deleted. A visualizer has no views and no canvas layouts, so
+    that reconciliation is absent here - which is the whole difference between
+    the two. Basemaps are saved separately, so naming one never implies
+    anything about the other.
 
     Does not commit. The caller commits, then hands the returned specs to
     ``spawn_background_mosaic_registration`` so the STAC calls run off the
@@ -571,6 +574,23 @@ def save_visualizer_imagery(
             pending.extend(created)
     db.flush()
     return pending
+
+
+def save_visualizer_basemaps(db: Session, *, visualizer, basemaps: list[BasemapCreate]) -> None:
+    """Replace a visualizer's backdrops wholesale, exactly as a campaign's are.
+
+    A basemap is a name, a URL and a zoom cap; there is no per-row state worth
+    reconciling in place, which is why both owners replace rather than merge.
+    Does not commit.
+    """
+    _validate_organization_keys(
+        visualizer.project.organization,
+        ImageryEditorStateCreate(sources=[], basemaps=basemaps),
+    )
+    db.execute(delete(Basemap).where(Basemap.visualizer_id == visualizer.id))
+    db.flush()
+    _create_basemaps(db, SourceOwner(visualizer_id=visualizer.id), basemaps)
+    db.flush()
 
 
 def _update_source_in_place(
@@ -979,13 +999,13 @@ def _create_collection_record(
 
 def _create_basemaps(
     db: Session,
-    campaign_id: int,
+    owner: SourceOwner,
     basemaps: list[BasemapCreate],
 ) -> list[Basemap]:
     created = []
     for bm in basemaps:
         obj = Basemap(
-            campaign_id=campaign_id,
+            **owner.as_columns(),
             name=bm.name,
             url=bm.url,
             max_native_zoom=bm.max_native_zoom,

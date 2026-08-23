@@ -214,6 +214,30 @@ export function ViewerSidebar({
             </div>
           </Section>
         )}
+        {view.basemaps.length > 0 && (
+          <Section title="Base map">
+            <div className="flex flex-wrap gap-1.5">
+              {view.basemaps.map((basemap) => (
+                <button
+                  key={basemap.id}
+                  type="button"
+                  onClick={() => onChange({ ...state, basemapId: basemap.id })}
+                  data-testid="visualizer-basemap-option"
+                  className={pillCls(basemap.id === state.basemapId, '!h-7 !px-2.5 !text-xs')}
+                >
+                  {basemap.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => onChange({ ...state, basemapId: null })}
+                className={pillCls(state.basemapId === null, '!h-7 !px-2.5 !text-xs')}
+              >
+                None
+              </button>
+            </div>
+          </Section>
+        )}
       </div>
     </aside>
   );

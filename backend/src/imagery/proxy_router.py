@@ -132,14 +132,22 @@ async def proxy_basemap_tile(
     x: int,
     y: int,
 ) -> Response:
+    url, encrypted_api_key = await _read(
+        _basemap_lookup(basemap_id, SourceOwner(campaign_id=campaign_id))
+    )
+    return await _proxy(url, encrypted_api_key, z, x, y)
+
+
+def _basemap_lookup(basemap_id: int, owner: SourceOwner):
+    """Resolve one basemap's upstream template and key, scoped to its owner."""
+
     def lookup(db: Session) -> tuple[str, str | None]:
         basemap = db.get(Basemap, basemap_id)
-        if basemap is None or basemap.campaign_id != campaign_id:
+        if basemap is None or basemap.owner != owner:
             raise HTTPException(status_code=404, detail="Basemap not found")
         return basemap.url, _resolve_key(db, basemap)
 
-    url, encrypted_api_key = await _read(lookup)
-    return await _proxy(url, encrypted_api_key, z, x, y)
+    return lookup
 
 
 def _slice_lookup(slice_id: int, visualization_name: str, owner: SourceOwner):
@@ -181,6 +189,23 @@ async def proxy_slice_tile(
 ) -> Response:
     tile_url, encrypted_api_key = await _read(
         _slice_lookup(slice_id, visualization_name, SourceOwner(campaign_id=campaign_id))
+    )
+    return await _proxy(tile_url, encrypted_api_key, z, x, y)
+
+
+@router.get(
+    "/visualizers/{visualizer_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}",
+    dependencies=[Depends(require_visualizer_tile_access)],
+)
+async def proxy_visualizer_basemap_tile(
+    visualizer_id: int,
+    basemap_id: int,
+    z: int,
+    x: int,
+    y: int,
+) -> Response:
+    tile_url, encrypted_api_key = await _read(
+        _basemap_lookup(basemap_id, SourceOwner(visualizer_id=visualizer_id))
     )
     return await _proxy(tile_url, encrypted_api_key, z, x, y)
 

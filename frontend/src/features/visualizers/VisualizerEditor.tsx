@@ -19,6 +19,7 @@ import { Modal } from '~/shared/ui/Modal';
 import { handleError } from '~/shared/utils/errorHandler';
 import { AreaField } from './editor/AreaField';
 import {
+  basemapsPayload,
   emptyImageryState,
   imageryStateFrom,
   OwnImagery,
@@ -96,7 +97,7 @@ export function VisualizerEditor({
             area: existing.data.area,
             imagery: existing.data.imagery,
             overlays: existing.data.overlays,
-            ownImagery: imageryStateFrom(existing.data.own_imagery),
+            ownImagery: imageryStateFrom(existing.data.own_imagery, existing.data.basemaps),
           });
         }
       } catch (error) {
@@ -125,6 +126,7 @@ export function VisualizerEditor({
         imagery: draft.imagery,
         overlays: draft.overlays,
         own_imagery: ownImageryPayload(draft.ownImagery),
+        basemaps: basemapsPayload(draft.ownImagery),
       };
       if (visualizerId === null) {
         await createVisualizer({ path: { project_id: projectId }, body });
@@ -208,7 +210,7 @@ export function VisualizerEditor({
           </Section>
 
           <Section
-            title="Imagery for this visualizer"
+            title="Imagery and backdrops for this visualizer"
             description="Set up from a STAC catalog or Planet, the same way a campaign's imagery is. Registered for this visualizer alone."
           >
             <OwnImagery
