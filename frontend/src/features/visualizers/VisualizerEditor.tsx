@@ -10,10 +10,16 @@ import {
 } from '~/api/client';
 import { Modal } from '~/shared/ui/Modal';
 import { Button, Field, Input, Switch, Textarea } from '~/shared/ui/forms';
-import { IconGlobe, IconMap } from '~/shared/ui/Icons';
+import { IconGlobe, IconMap, IconWarning } from '~/shared/ui/Icons';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
+import {
+  publishConfirm,
+  restrictedSelection,
+  RESTRICTION_TEXT,
+  type RestrictedLayer,
+} from './publishWarning';
 
 interface Draft {
   name: string;
@@ -47,6 +53,7 @@ export function VisualizerEditor({
   const [draft, setDraft] = useState<Draft | null>(visualizerId === null ? EMPTY : null);
   const [saving, setSaving] = useState(false);
   const showAlert = useLayoutStore((s) => s.showAlert);
+  const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +90,8 @@ export function VisualizerEditor({
 
   const save = async () => {
     if (!draft) return;
+    const confirm = draft.isPublic ? publishConfirm(restricted) : null;
+    if (confirm && !(await showConfirmDialog(confirm))) return;
     setSaving(true);
     try {
       const body = {
@@ -108,6 +117,7 @@ export function VisualizerEditor({
   };
 
   const ready = draft !== null && options !== null;
+  const restricted: RestrictedLayer[] = draft && options ? restrictedSelection(options, draft) : [];
   const valid =
     ready && draft.name.trim().length > 0 && draft.imagery.length + draft.overlays.length > 0;
 
@@ -178,6 +188,26 @@ export function VisualizerEditor({
                   ? 'The link opens for anyone, with no account. Only what you add here is exposed.'
                   : 'Only people who can already open this project can see it.'}
               </p>
+              {draft.isPublic && restricted.length > 0 && (
+                <div className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+                  <p className="flex items-center gap-1.5 font-medium">
+                    <IconWarning className="h-3.5 w-3.5 shrink-0" />
+                    Not open imagery
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {restricted.map((layer) => (
+                      <li key={`${layer.reason}-${layer.name}`}>
+                        <span className="font-medium">{layer.name}</span> is{' '}
+                        {RESTRICTION_TEXT[layer.reason]}.
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1">
+                    Anonymous traffic spends that quota, and your licence may not let you
+                    redistribute the imagery.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

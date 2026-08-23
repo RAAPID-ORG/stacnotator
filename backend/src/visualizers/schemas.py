@@ -135,6 +135,11 @@ class VisualizerConfigOut(BaseModel):
     overlays: list[VisualizerOverlayCreate]
 
 
+# Why a layer is not simply public imagery. Publishing one points anonymous
+# traffic at a credential the organization owns.
+LayerRestriction = Literal["api_key", "internal_storage"]
+
+
 class SourceOptionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -144,12 +149,14 @@ class SourceOptionOut(BaseModel):
     visualizations: list[str]
     start_date: str | None
     end_date: str | None
+    restriction: LayerRestriction | None
 
 
 class OverlayOptionOut(BaseModel):
     id: int
     name: str
     status: str
+    restriction: LayerRestriction | None
 
 
 class CampaignOptionsOut(BaseModel):

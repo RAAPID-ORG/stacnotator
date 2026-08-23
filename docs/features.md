@@ -83,7 +83,8 @@ A visualizer is a published map over what a project has already registered: a fu
 - **Layer panel** - pick the imagery source and its visualization, toggle overlays, set their opacity, and edit a prediction overlay's colormap and range in place (the same legend the annotator uses). Viewer-side colour edits are never saved back
 - **Base map** - a keyless CARTO light/dark backdrop under everything, so an imagery footprint has context around it
 - **Publishing** - `Anyone with the link` makes the slug openable with no account, independent of the project's own visibility; otherwise it stays a working preview for people who can already open the project. The share link is copied from the project list or the viewer's header, and a project admin can save the opening camera straight from the viewer
-- **Tile access** - a published visualizer mints its own tiler cookie scoped to exactly the campaigns it draws from, so a visitor with no account can fetch its tiles and nothing else. Note that publishing imagery served through the backend key proxy (Planet, other keyed providers) spends that key's quota on anonymous traffic
+- **Tile access** - a published visualizer mints its own tiler cookie scoped to exactly the campaigns it draws from, so a visitor with no account can fetch its tiles and nothing else
+- **Publishing what is not open data** - a source behind a provider key, or a layer reading internal storage, is served with the organization's own credentials. The editor names those layers as soon as the publish toggle goes on and asks for an explicit confirm before saving, because anonymous traffic then spends that quota and reaches imagery the licence may not allow redistributing
 
 ## Tile Serving
 

@@ -20,6 +20,7 @@ from src.visualizers import timeline
 from src.visualizers.models import Visualizer, VisualizerImagery, VisualizerOverlay
 from src.visualizers.schemas import (
     CampaignOptionsOut,
+    LayerRestriction,
     OverlayOptionOut,
     RasterOverlayOut,
     SourceOptionOut,
@@ -373,7 +374,10 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
             .options(
                 selectinload(Campaign.imagery_sources).options(
                     selectinload(ImagerySource.visualizations),
-                    selectinload(ImagerySource.collections).selectinload(ImageryCollection.slices),
+                    selectinload(ImagerySource.collections).options(
+                        selectinload(ImageryCollection.slices),
+                        selectinload(ImageryCollection.stac_config),
+                    ),
                 ),
                 selectinload(Campaign.custom_maps),
                 selectinload(Campaign.vector_layers),
@@ -390,11 +394,16 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
                 campaign_name=campaign.name,
                 sources=[_source_option(source) for source in campaign.imagery_sources],
                 raster_overlays=[
-                    OverlayOptionOut(id=cm.id, name=cm.name, status=cm.status)
+                    OverlayOptionOut(
+                        id=cm.id,
+                        name=cm.name,
+                        status=cm.status,
+                        restriction="internal_storage" if cm.internal_storage else None,
+                    )
                     for cm in campaign.custom_maps
                 ],
                 vector_overlays=[
-                    OverlayOptionOut(id=vl.id, name=vl.name, status="ready")
+                    OverlayOptionOut(id=vl.id, name=vl.name, status="ready", restriction=None)
                     for vl in campaign.vector_layers
                 ],
             )
@@ -426,4 +435,21 @@ def _source_option(source: ImagerySource) -> SourceOptionOut:
         visualizations=[v.name for v in source.visualizations],
         start_date=steps[0].start_date if steps else None,
         end_date=steps[-1].end_date if steps else None,
+        restriction=source_restriction(source),
     )
+
+
+def source_restriction(source: ImagerySource) -> LayerRestriction | None:
+    """Whether serving this source's tiles spends something the organization owns.
+
+    A key-proxied source is fetched with the org's provider credential, and an
+    internal-storage one with the tiler's managed identity. Either way, publishing
+    it points anonymous traffic at a credential rather than at open imagery.
+    """
+    if source.has_api_key:
+        return "api_key"
+    if any(
+        c.stac_config is not None and c.stac_config.internal_storage for c in source.collections
+    ):
+        return "internal_storage"
+    return None

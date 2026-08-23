@@ -2914,6 +2914,10 @@ export type OverlayOptionOut = {
      * Status
      */
     status: string;
+    /**
+     * Restriction
+     */
+    restriction: 'api_key' | 'internal_storage' | null;
 };
 
 /**
@@ -3437,6 +3441,10 @@ export type SourceOptionOut = {
      * End Date
      */
     end_date: string | null;
+    /**
+     * Restriction
+     */
+    restriction: 'api_key' | 'internal_storage' | null;
 };
 
 /**
