@@ -7,6 +7,7 @@ import type { Bbox } from '~/shared/map/types';
 import { RenderLegend } from '~/shared/imagery/RenderLegend';
 import { effectiveRenderConfig, isCustomized } from '~/shared/imagery/tileColors';
 import { IconChevronDoubleRight, IconExternalLink, IconSliders } from '~/shared/ui/Icons';
+import { Select } from '~/shared/ui/forms';
 import { pillCls } from '~/shared/ui/pill';
 import { selectSource, type ViewerState } from '../viewerState';
 
@@ -59,7 +60,7 @@ export function ViewerSidebar({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {view.imagery.length > 0 && (
           <Section title="Imagery">
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {view.imagery.map((entry) => {
                 const active = entry.id === state.sourceId;
                 return (
@@ -70,37 +71,42 @@ export function ViewerSidebar({
                       data-testid="visualizer-source-option"
                       data-active={active}
                       title={active ? 'Hide this imagery' : 'Show this imagery'}
-                      className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${
+                      className={`flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors ${
                         active
-                          ? 'bg-brand-50 font-medium text-brand-700'
+                          ? 'bg-brand-50 font-medium text-brand-800'
                           : 'text-neutral-700 hover:bg-neutral-50'
                       }`}
                     >
-                      <span className="truncate">{entry.name}</span>
-                      <span className="shrink-0 text-[11px] tabular-nums text-neutral-400">
+                      <span
+                        aria-hidden
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                          active ? 'bg-brand-600' : 'bg-neutral-300'
+                        }`}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                      <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">
                         {entry.steps.length || (registering ? '…' : 0)}
                       </span>
                     </button>
 
                     {/* Right under the imagery it belongs to: a visualization is
-                        a property of that source, not of the panel. */}
+                        a property of that source, not of the panel. A source can
+                        publish a dozen, so it is a list rather than a row. */}
                     {active && entry.visualizations.length > 1 && (
-                      <div className="flex flex-wrap gap-1 py-1.5 pl-2.5">
+                      <Select
+                        size="sm"
+                        aria-label="Rendering"
+                        data-testid="visualizer-viz-select"
+                        className="!mt-1 !h-7 !text-[11px]"
+                        value={state.visualization ?? ''}
+                        onChange={(e) => onChange({ ...state, visualization: e.target.value })}
+                      >
                         {entry.visualizations.map((name) => (
-                          <button
-                            key={name}
-                            type="button"
-                            onClick={() => onChange({ ...state, visualization: name })}
-                            data-testid="visualizer-viz-option"
-                            className={pillCls(
-                              name === state.visualization,
-                              '!h-6 !px-2 !text-[11px]'
-                            )}
-                          >
+                          <option key={name} value={name}>
                             {name}
-                          </button>
+                          </option>
                         ))}
-                      </div>
+                      </Select>
                     )}
                   </div>
                 );
@@ -257,17 +263,19 @@ export function ViewerSidebar({
             </div>
           </Section>
         )}
+      </div>
 
-        {/* Last, because it is about where you are looking rather than what is
-            drawn: the same overview the annotator has, with the same search. */}
-        <Section title="Location">
-          <div className="space-y-2">
-            <LocationSearch onSelect={onGoTo} />
-            <div className="h-32 overflow-hidden rounded border border-neutral-200">
-              <Minimap camera={overview} main={camera} roi={area} />
-            </div>
+      {/* Pinned under the list rather than flowing after it: where you are
+          looking does not belong to the layers, and a reviewer wants it in the
+          same corner however many layers there happen to be. */}
+      <div className="shrink-0 border-t border-neutral-200 px-4 py-3">
+        <Label>Location</Label>
+        <div className="space-y-2">
+          <LocationSearch onSelect={onGoTo} />
+          <div className="h-32 overflow-hidden rounded border border-neutral-200">
+            <Minimap camera={overview} main={camera} roi={area} />
           </div>
-        </Section>
+        </div>
       </div>
     </aside>
   );
