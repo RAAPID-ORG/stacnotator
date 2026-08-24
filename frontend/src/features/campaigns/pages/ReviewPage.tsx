@@ -1,9 +1,7 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
-import { getCampaign, type CampaignOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { handleError } from '~/shared/utils/errorHandler';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
 import { OpenModeReview } from '../components/review/OpenModeReview';
@@ -11,14 +9,14 @@ import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSect
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
+import { useCampaign } from '../hooks/useCampaign';
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
 
-  const [campaign, setCampaign] = useState<CampaignOut | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const { data: campaign, isPending: loading } = useCampaign(campaignId);
 
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
@@ -26,21 +24,6 @@ export const ReviewPage = () => {
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Annotations');
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        const campaignRes = await getCampaign({ path: { campaign_id: campaignId } });
-        setCampaign(campaignRes.data!);
-      } catch (err) {
-        handleError(err, 'Failed to load campaign');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [campaignId]);
 
   if (!loading && !campaign) {
     return (

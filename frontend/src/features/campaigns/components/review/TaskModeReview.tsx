@@ -1,14 +1,10 @@
 import { useEffect, useState, useMemo, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
-import {
-  getAllAnnotationTasks,
-  listTaskSets,
-  type AnnotationTaskOut,
-  type CampaignOut,
-  type TaskSetOut,
-} from '~/api/client';
+import { type AnnotationTaskOut, type CampaignOut, type TaskSetOut } from '~/api/client';
+import { getAllAnnotationTasksOptions, listTaskSetsOptions } from '~/api/queries';
 import { campaignPath } from '~/app/routes';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -18,7 +14,6 @@ import {
   getTaskStatusColor,
 } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT, formatDuration } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
 import { AnnotationDistributionMap } from './AnnotationDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
@@ -84,6 +79,9 @@ interface TaskModeReviewProps {
   onOpenReviewerAssign?: () => void;
 }
 
+const NO_TASKS: AnnotationTaskOut[] = [];
+const NO_TASK_SETS: TaskSetOut[] = [];
+
 export const TaskModeReview = ({
   campaign,
   campaignId,
@@ -109,10 +107,6 @@ export const TaskModeReview = ({
   const currentUser = useAccountStore((state) => state.account);
   const isExternallyDriven = tasksProp !== undefined;
 
-  const [fetchedTasks, setFetchedTasks] = useState<AnnotationTaskOut[]>([]);
-  const [fetchedTaskSets, setFetchedTaskSets] = useState<TaskSetOut[]>([]);
-  const [loading, setLoading] = useState(!isExternallyDriven);
-
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
@@ -130,28 +124,23 @@ export const TaskModeReview = ({
   const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
 
-  useEffect(() => {
-    if (isExternallyDriven) return;
-    const loadTasks = async () => {
-      try {
-        setLoading(true);
-        const [tasksRes, taskSetsRes] = await Promise.all([
-          getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
-          listTaskSets({ path: { campaign_id: campaignId } }),
-        ]);
-        setFetchedTasks(tasksRes.data!.tasks);
-        setFetchedTaskSets(taskSetsRes.data ?? []);
-      } catch (err) {
-        handleError(err, 'Failed to load tasks');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadTasks();
-  }, [campaignId, isExternallyDriven]);
+  // The tasks page hands its own scoped list down; on the annotations page this
+  // component is the one that asks.
+  const path = { campaign_id: campaignId };
+  const fetchedTasks = useQuery({
+    ...getAllAnnotationTasksOptions({ path }),
+    enabled: !isExternallyDriven,
+    meta: { errorMessage: 'Failed to load tasks' },
+  });
+  const fetchedTaskSets = useQuery({
+    ...listTaskSetsOptions({ path }),
+    enabled: !isExternallyDriven,
+    meta: { errorMessage: 'Failed to load task sets' },
+  });
 
-  const tasks = tasksProp ?? fetchedTasks;
-  const taskSets = taskSetsProp ?? fetchedTaskSets;
+  const loading = !isExternallyDriven && fetchedTasks.isPending;
+  const tasks = tasksProp ?? fetchedTasks.data?.tasks ?? NO_TASKS;
+  const taskSets = taskSetsProp ?? fetchedTaskSets.data ?? NO_TASK_SETS;
   const labels = campaign?.settings.labels ?? [];
 
   const toggleLabel = (labelId: number) =>

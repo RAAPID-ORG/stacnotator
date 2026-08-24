@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash } from '~/shared/ui/Icons';
-import { handleError } from '~/shared/utils/errorHandler';
 import { type VectorLayerOut } from '~/api/client';
 import { vectorLayerApi, type OverlayOwnerKind } from './overlayOwner';
+
+const NO_LAYERS: VectorLayerOut[] = [];
 
 interface FormState {
   name: string;
@@ -37,54 +39,46 @@ export const VectorLayersEditor = ({
   description = DEFAULT_DESCRIPTION,
 }: VectorLayersEditorProps) => {
   const api = useMemo(() => vectorLayerApi(ownerKind, ownerId), [ownerKind, ownerId]);
-  const [layers, setLayers] = useState<VectorLayerOut[]>([]);
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(defaultForm());
-  const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  const fetchLayers = useCallback(async () => {
-    const { data, error } = await api.list();
-    if (error) {
-      handleError(error, 'Failed to load vector layers', { showUser: false });
-      return;
-    }
-    if (data) setLayers(data);
-  }, [api]);
+  const { data: layers = NO_LAYERS } = useQuery({
+    queryKey: api.queryKey,
+    queryFn: async () => (await api.list()).data ?? NO_LAYERS,
+    meta: { errorMessage: 'Failed to load vector layers', showUser: false },
+  });
 
-  useEffect(() => {
-    fetchLayers();
-  }, [fetchLayers]);
+  const reloadLayers = () => queryClient.invalidateQueries({ queryKey: api.queryKey });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      const { error } = await api.create({
-        name: form.name,
-        pmtiles_url: form.pmtiles_url,
-        source_layer: form.source_layer.trim() || null,
-        color: form.color,
-      });
-      if (error) {
-        handleError(error, 'Failed to add vector layer');
-        return;
-      }
+  const create = useMutation({
+    mutationFn: api.create,
+    meta: { errorMessage: 'Failed to add vector layer' },
+    onSuccess: () => {
       setForm(defaultForm());
       setShowForm(false);
-      await fetchLayers();
-    } finally {
-      setSubmitting(false);
-    }
+      void reloadLayers();
+    },
+  });
+  const submitting = create.isPending;
+
+  const remove = useMutation({
+    mutationFn: api.remove,
+    meta: { errorMessage: 'Failed to delete vector layer' },
+    onSuccess: reloadLayers,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    create.mutate({
+      name: form.name,
+      pmtiles_url: form.pmtiles_url,
+      source_layer: form.source_layer.trim() || null,
+      color: form.color,
+    });
   };
 
-  const handleDelete = async (layerId: number) => {
-    const { error } = await api.remove(layerId);
-    if (error) {
-      handleError(error, 'Failed to delete vector layer');
-      return;
-    }
-    setLayers((prev) => prev.filter((l) => l.id !== layerId));
-  };
+  const handleDelete = (layerId: number) => remove.mutate(layerId);
 
   // Rendered as a subsection of the settings "Overlays" section (ImagerySetup
   // owns the section header), alongside the raster-layers subsection.

@@ -1,7 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import type { CampaignCreate, ProjectOut, ProjectUserOut } from '~/api/client';
-import { createCampaign, getProject, getProjectUsers } from '~/api/client';
+import type { CampaignCreate, ProjectUserOut } from '~/api/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  createCampaignMutation,
+  getProjectOptions,
+  getProjectUsersOptions,
+  listProjectCampaignsQueryKey,
+} from '~/api/queries';
 import {
   DEFAULT_LABELLING_POLICY,
   withAnyoneSeeded,
@@ -25,7 +31,8 @@ import type { ImageryStepState } from '../components/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
+
+const NO_USERS: ProjectUserOut[] = [];
 
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
@@ -37,11 +44,18 @@ export const CreateCampaignPage = () => {
 
   const [step, setStep] = useState(1);
   const [showValidation, setShowValidation] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
 
-  const [project, setProject] = useState<ProjectOut | null>(null);
-  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
-  const [loadingProject, setLoadingProject] = useState(true);
+  const path = { project_id: projectId };
+  const { data: project, isPending: loadingProject } = useQuery({
+    ...getProjectOptions({ path }),
+    meta: { errorMessage: 'Failed to load project' },
+  });
+  const { data: projectUsersData } = useQuery({
+    ...getProjectUsersOptions({ path }),
+    meta: { errorMessage: 'Failed to load project members' },
+  });
+  const projectUsers = projectUsersData?.users ?? NO_USERS;
 
   useEffect(() => {
     setBreadcrumbs([
@@ -71,33 +85,14 @@ export const CreateCampaignPage = () => {
 
   // Runs before the wizard is interactive (a skeleton covers the load), so
   // seeding the policy here can't overwrite anything the user picked.
+  const projectIsPublic = project?.visibility === 'public';
   useEffect(() => {
-    const loadProject = async () => {
-      try {
-        setLoadingProject(true);
-        const [projectRes, usersRes] = await Promise.all([
-          getProject({ path: { project_id: projectId } }),
-          getProjectUsers({ path: { project_id: projectId } }),
-        ]);
-        setProject(projectRes.data ?? null);
-        setProjectUsers(usersRes.data?.users ?? []);
-        if (projectRes.data?.visibility === 'public') {
-          setForm((current) => ({
-            ...current,
-            labelling_policy: withAnyoneSeeded(
-              current.labelling_policy ?? DEFAULT_LABELLING_POLICY
-            ),
-          }));
-        }
-      } catch (err) {
-        handleError(err, 'Failed to load project');
-      } finally {
-        setLoadingProject(false);
-      }
-    };
-
-    loadProject();
-  }, [projectId]);
+    if (!projectIsPublic) return;
+    setForm((current) => ({
+      ...current,
+      labelling_policy: withAnyoneSeeded(current.labelling_policy ?? DEFAULT_LABELLING_POLICY),
+    }));
+  }, [projectIsPublic]);
 
   const [imageryState, setImageryState] = useState<ImageryStepState>(createInitialImageryState);
 
@@ -158,31 +153,29 @@ export const CreateCampaignPage = () => {
     }
   };
 
-  const handleSubmit = async () => {
+  const create = useMutation({
+    ...createCampaignMutation(),
+    meta: { errorMessage: 'Failed to create campaign' },
+    onMutate: () => showLoadingOverlay('Creating campaign...'),
+    onSettled: hideLoadingOverlay,
+    onSuccess: (campaign) => {
+      void queryClient.invalidateQueries({ queryKey: listProjectCampaignsQueryKey({ path }) });
+      showAlert(
+        campaign.registration_status === 'registering'
+          ? 'Campaign created. Mosaic registration is running in the background...'
+          : 'Campaign created successfully',
+        campaign.registration_status === 'registering' ? 'info' : 'success'
+      );
+      navigate(campaignPath(campaign.project_id, campaign.id, 'annotate'));
+    },
+  });
+  const isSubmitting = create.isPending;
+
+  const handleSubmit = () => {
     if (isSubmitting) return;
     setShowValidation(true);
     if (!validation.isValid) return;
-
-    setIsSubmitting(true);
-    try {
-      showLoadingOverlay('Creating campaign...');
-      const { data: campaign } = await createCampaign({ body: form });
-      if (campaign?.registration_status === 'registering') {
-        showAlert('Campaign created. Mosaic registration is running in the background...', 'info');
-      } else {
-        showAlert('Campaign created successfully', 'success');
-      }
-      if (campaign) {
-        navigate(campaignPath(campaign.project_id, campaign.id, 'annotate'));
-      } else {
-        navigate(projectPath(projectId));
-      }
-    } catch (err) {
-      handleError(err, 'Failed to create campaign');
-    } finally {
-      hideLoadingOverlay();
-      setIsSubmitting(false);
-    }
+    create.mutate({ body: form });
   };
 
   // Only project admins may add campaigns to a project.

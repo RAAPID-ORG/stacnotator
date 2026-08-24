@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
 import { ImportFeaturesSection } from '~/features/campaigns/components/settings/ImportFeaturesSection';
 import { Button } from '~/shared/ui/forms';
@@ -24,30 +25,36 @@ import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
 import { FadeIn } from '~/shared/ui/motion';
 
 import {
-  getAllAnnotationTasks,
-  getCampaign,
-  getProjectUsers,
-  ingestAnnotationTasksFromCsv,
-  ingestAnnotationTasksFromGeojson,
-  assignTasksToUsers,
-  batchUnassignTasks,
-  assignReviewers,
-  deleteAnnotationTasks,
-  listTaskSets,
-  createTaskSet,
-  renameTaskSet,
-  deleteTaskSet,
-  moveTasksToSet,
   type AnnotationTaskOut,
-  type CampaignOut,
   type GenerateTasksResponse,
   type ProjectUserOut,
   type TaskSetOut,
 } from '~/api/client';
+import {
+  assignReviewersMutation,
+  assignTasksToUsersMutation,
+  batchUnassignTasksMutation,
+  createTaskSetMutation,
+  deleteAnnotationTasksMutation,
+  deleteTaskSetMutation,
+  getAllAnnotationTasksOptions,
+  getAllAnnotationTasksQueryKey,
+  getProjectUsersOptions,
+  ingestAnnotationTasksFromCsvMutation,
+  ingestAnnotationTasksFromGeojsonMutation,
+  listTaskSetsOptions,
+  listTaskSetsQueryKey,
+  moveTasksToSetMutation,
+  renameTaskSetMutation,
+} from '~/api/queries';
+import { useCampaign } from '../hooks/useCampaign';
+
+const NO_TASKS: AnnotationTaskOut[] = [];
+const NO_TASK_SETS: TaskSetOut[] = [];
+const NO_USERS: ProjectUserOut[] = [];
 
 export const CampaignTasksPage = () => {
   const campaignId = useCampaignIdParam();
@@ -55,68 +62,114 @@ export const CampaignTasksPage = () => {
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
 
-  const [campaign, setCampaign] = useState<CampaignOut | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [annotationTasks, setAnnotationTasks] = useState<AnnotationTaskOut[]>([]);
-  const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
-  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
-  const [uploadingTasks, setUploadingTasks] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [showReviewerModal, setShowReviewerModal] = useState(false);
   const [assignSelectedTaskIds, setAssignSelectedTaskIds] = useState<number[]>([]);
 
+  const showAlert = useLayoutStore((state) => state.showAlert);
+  const path = { campaign_id: campaignId };
+
+  const { data: campaign, isPending: loading } = useCampaign(campaignId);
+
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const projectId = campaign?.project_id ?? routeProjectId;
-  const showAlert = useLayoutStore((state) => state.showAlert);
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Tasks');
 
-  const reloadTaskSets = useCallback(async () => {
-    const { data, error } = await listTaskSets({ path: { campaign_id: campaignId } });
-    if (error) {
-      handleError(error, 'Failed to load task sets');
-      return;
-    }
-    if (data) {
-      setTaskSets(data);
-    }
-  }, [campaignId]);
+  const { data: tasksData } = useQuery({
+    ...getAllAnnotationTasksOptions({ path }),
+    meta: { errorMessage: 'Failed to load tasks' },
+  });
+  const annotationTasks = tasksData?.tasks ?? NO_TASKS;
 
-  // Load campaign, tasks, task sets, and users up front - this page is
-  // dedicated to task management so there's no tab-gated lazy loading.
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        const [campaignRes, tasksRes] = await Promise.all([
-          getCampaign({ path: { campaign_id: campaignId } }),
-          getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
-        ]);
-        setCampaign(campaignRes.data ?? null);
-        setAnnotationTasks(tasksRes.data?.tasks ?? []);
-        // Assignable users are the owning project's members, so this has to
-        // wait for the campaign to know which project to ask about.
-        if (campaignRes.data) {
-          const usersRes = await getProjectUsers({
-            path: { project_id: campaignRes.data.project_id },
-          });
-          setProjectUsers(usersRes.data?.users ?? []);
-        }
-        await reloadTaskSets();
-      } catch (err) {
-        handleError(err, 'Failed to load campaign');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const { data: taskSets = NO_TASK_SETS } = useQuery({
+    ...listTaskSetsOptions({ path }),
+    meta: { errorMessage: 'Failed to load task sets' },
+  });
 
-    load();
-  }, [campaignId, reloadTaskSets]);
+  // Assignable users are the owning project's members, so this waits for the
+  // campaign to say which project to ask about.
+  const { data: projectUsersData } = useQuery({
+    ...getProjectUsersOptions({ path: { project_id: campaign?.project_id ?? 0 } }),
+    enabled: campaign !== undefined,
+    meta: { errorMessage: 'Failed to load project members' },
+  });
+  const projectUsers = projectUsersData?.users ?? NO_USERS;
+
+  const reloadAnnotationTasks = () =>
+    queryClient.invalidateQueries({ queryKey: getAllAnnotationTasksQueryKey({ path }) });
+  const reloadTaskSets = () =>
+    queryClient.invalidateQueries({ queryKey: listTaskSetsQueryKey({ path }) });
+  // A set's counters move whenever its tasks do, so the two travel together.
+  const reloadTasksAndSets = () => {
+    void reloadAnnotationTasks();
+    void reloadTaskSets();
+  };
+
+  // The modals report their own failures and keep their form state, so these
+  // stay quiet and reject.
+  const quiet = (errorMessage: string) => ({ meta: { errorMessage, showUser: false } });
+
+  const uploadGeojson = useMutation({
+    ...ingestAnnotationTasksFromGeojsonMutation(),
+    meta: { errorMessage: 'Failed to upload annotation tasks' },
+  });
+  const uploadCsv = useMutation({
+    ...ingestAnnotationTasksFromCsvMutation(),
+    meta: { errorMessage: 'Failed to upload annotation tasks' },
+  });
+  const createSet = useMutation({
+    ...createTaskSetMutation(),
+    meta: { errorMessage: 'Failed to create task set' },
+    onSuccess: reloadTaskSets,
+  });
+  const renameSet = useMutation({
+    ...renameTaskSetMutation(),
+    meta: { errorMessage: 'Failed to rename task set' },
+    onSuccess: reloadTaskSets,
+  });
+  const deleteSet = useMutation({
+    ...deleteTaskSetMutation(),
+    meta: { errorMessage: 'Failed to delete task set' },
+    onSuccess: reloadTasksAndSets,
+  });
+  const moveTasks = useMutation({
+    ...moveTasksToSetMutation(),
+    meta: { errorMessage: 'Failed to move tasks' },
+    onSuccess: reloadTasksAndSets,
+  });
+  const assignTasks = useMutation({
+    ...assignTasksToUsersMutation(),
+    ...quiet('Failed to assign tasks'),
+    onSuccess: reloadTasksAndSets,
+  });
+  const assignReviewersTo = useMutation({
+    ...assignReviewersMutation(),
+    ...quiet('Failed to assign reviewers'),
+    onSuccess: reloadAnnotationTasks,
+  });
+  const unassignTasks = useMutation({
+    ...batchUnassignTasksMutation(),
+    ...quiet('Failed to unassign tasks'),
+    onSuccess: reloadAnnotationTasks,
+  });
+  const deleteTasks = useMutation({
+    ...deleteAnnotationTasksMutation(),
+    ...quiet('Failed to delete tasks'),
+    onSuccess: reloadTasksAndSets,
+  });
+
+  const uploadingTasks = uploadGeojson.isPending || uploadCsv.isPending;
+  const saving =
+    assignTasks.isPending ||
+    assignReviewersTo.isPending ||
+    unassignTasks.isPending ||
+    deleteTasks.isPending;
 
   // Without a URL param the scope starts on the campaign's first (default) set;
   // "All tasks" is an explicit choice carried as taskSet=all.
@@ -166,231 +219,106 @@ export const CampaignTasksPage = () => {
     [campaign]
   );
 
-  const handleUploadAnnotationTasks = async () => {
+  const handleUploadAnnotationTasks = () => {
     if (!taskFile || taskScope === 'all') return;
-    try {
-      setUploadingTasks(true);
-      const name = taskFile.name.toLowerCase();
-
-      if (name.endsWith('.geojson') || name.endsWith('.json')) {
-        await ingestAnnotationTasksFromGeojson({
-          path: { campaign_id: campaignId },
-          body: { file: taskFile, task_set_id: taskScope } as never,
-        });
-      } else {
-        await ingestAnnotationTasksFromCsv({
-          path: { campaign_id: campaignId },
-          body: { file: taskFile, task_set_id: taskScope } as never,
-        });
+    const body = { file: taskFile, task_set_id: taskScope } as never;
+    const name = taskFile.name.toLowerCase();
+    const upload = name.endsWith('.geojson') || name.endsWith('.json') ? uploadGeojson : uploadCsv;
+    upload.mutate(
+      { path, body },
+      {
+        onSuccess: () => {
+          setTaskFile(null);
+          showAlert('Annotation task(s) uploaded successfully', 'success');
+          reloadTasksAndSets();
+        },
       }
-
-      setTaskFile(null);
-      showAlert('Annotation task(s) uploaded successfully', 'success');
-
-      // Reload annotation tasks
-      const { data: tasksData } = await getAllAnnotationTasks({
-        path: { campaign_id: campaignId },
-      });
-      setAnnotationTasks(tasksData!.tasks);
-      await reloadTaskSets();
-    } catch (err) {
-      handleError(err, 'Failed to upload annotation tasks');
-    } finally {
-      setUploadingTasks(false);
-    }
-  };
-
-  const reloadAnnotationTasks = async () => {
-    try {
-      const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: campaignId },
-      });
-      setAnnotationTasks(data!.tasks);
-    } catch (err) {
-      handleError(err, 'Failed to reload annotation tasks', { showUser: false });
-    }
+    );
   };
 
   const handleCreateTaskSet = async (name: string): Promise<number | null> => {
     try {
-      const { data, error } = await createTaskSet({
-        path: { campaign_id: campaignId },
-        body: { name },
-      });
-      if (error) throw error;
-      await reloadTaskSets();
-      return data?.id ?? null;
-    } catch (err) {
-      handleError(err, 'Failed to create task set');
+      const created = await createSet.mutateAsync({ path, body: { name } });
+      return created.id;
+    } catch {
       return null;
     }
   };
 
   const handleRenameTaskSet = async (id: number, name: string) => {
-    try {
-      const { error } = await renameTaskSet({
-        path: { campaign_id: campaignId, task_set_id: id },
-        body: { name },
-      });
-      if (error) throw error;
-      await reloadTaskSets();
-    } catch (err) {
-      handleError(err, 'Failed to rename task set');
-    }
+    await renameSet.mutateAsync({ path: { ...path, task_set_id: id }, body: { name } });
   };
 
   const handleDeleteTaskSet = async (id: number): Promise<boolean> => {
     try {
-      const { error } = await deleteTaskSet({
-        path: { campaign_id: campaignId, task_set_id: id },
-      });
-      if (error) throw error;
-      await Promise.all([reloadTaskSets(), reloadAnnotationTasks()]);
+      await deleteSet.mutateAsync({ path: { ...path, task_set_id: id } });
       return true;
-    } catch (err) {
-      handleError(err, 'Failed to delete task set');
+    } catch {
       return false;
     }
   };
 
   const handleMoveTasks = async (taskIds: number[], taskSetId: number) => {
-    try {
-      const { error } = await moveTasksToSet({
-        path: { campaign_id: campaignId, task_set_id: taskSetId },
-        body: { task_ids: taskIds },
-      });
-      if (error) throw error;
-      await Promise.all([reloadAnnotationTasks(), reloadTaskSets()]);
-      showAlert(`Moved ${taskIds.length} task(s)`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to move tasks');
-    }
+    await moveTasks.mutateAsync(
+      { path: { ...path, task_set_id: taskSetId }, body: { task_ids: taskIds } },
+      { onSuccess: () => showAlert(`Moved ${taskIds.length} task(s)`, 'success') }
+    );
   };
 
-  const handleTasksGenerated = async (response: GenerateTasksResponse) => {
+  const handleTasksGenerated = (response: GenerateTasksResponse) => {
     showAlert(`${response.num_tasks_created} tasks generated successfully`, 'success');
-
-    // Reload annotation tasks to show the new ones
-    try {
-      const { data: tasksData } = await getAllAnnotationTasks({
-        path: { campaign_id: campaignId },
-      });
-      setAnnotationTasks(tasksData!.tasks);
-      await reloadTaskSets();
-    } catch (err) {
-      handleError(err, 'Failed to reload annotation tasks', { showUser: false });
-    }
+    reloadTasksAndSets();
   };
 
   const handleBulkAssignTasks = async (intent: BulkAssignIntent) => {
-    try {
-      setSaving(true);
-
-      const body = {
+    const result = await assignTasks.mutateAsync({
+      path,
+      body: {
         ...(intent.strategy === 'even'
           ? { strategy: 'even' as const, user_ids: intent.userIds }
           : { strategy: 'fixed_per_user' as const, user_task_counts: intent.userTaskCounts }),
         ...taskScopeBody,
-      };
-
-      const { data } = await assignTasksToUsers({
-        path: { campaign_id: campaignId },
-        body,
-      });
-
-      // Refresh tasks to get updated assignments
-      const { data: tasksData } = await getAllAnnotationTasks({
-        path: { campaign_id: campaignId },
-      });
-      setAnnotationTasks(tasksData!.tasks);
-
-      showAlert(`${data!.total_assigned} task(s) assigned successfully`, 'success');
-      setShowAssignmentModal(false);
-    } catch (err) {
-      handleError(err, 'Failed to assign tasks');
-      throw err;
-    } finally {
-      setSaving(false);
-    }
+      },
+    });
+    showAlert(`${result.total_assigned} task(s) assigned successfully`, 'success');
+    setShowAssignmentModal(false);
   };
 
   const handleAssignSelected = async (mapping: Record<number, string[]>) => {
-    try {
-      setSaving(true);
-
-      const { data } = await assignTasksToUsers({
-        path: { campaign_id: campaignId },
-        body: {
-          strategy: 'explicit',
-          task_assignments: Object.fromEntries(Object.entries(mapping)),
-        },
-      });
-
-      const { data: tasksData } = await getAllAnnotationTasks({
-        path: { campaign_id: campaignId },
-      });
-      setAnnotationTasks(tasksData!.tasks);
-      await reloadTaskSets();
-
-      showAlert(`${data!.total_assigned} task(s) assigned`, 'success');
-      setAssignSelectedTaskIds([]);
-    } catch (err) {
-      handleError(err, 'Failed to assign selected tasks');
-      throw err;
-    } finally {
-      setSaving(false);
-    }
+    const result = await assignTasks.mutateAsync({
+      path,
+      body: { strategy: 'explicit', task_assignments: Object.fromEntries(Object.entries(mapping)) },
+    });
+    showAlert(`${result.total_assigned} task(s) assigned`, 'success');
+    setAssignSelectedTaskIds([]);
   };
 
   const handleAssignReviewers = async (pattern: AssignmentPattern) => {
-    try {
-      setSaving(true);
-
-      if (pattern.type === 'percentage') {
-        await assignReviewers({
-          path: { campaign_id: campaignId },
-          body: {
-            pattern: 'percentage',
+    const body =
+      pattern.type === 'percentage'
+        ? {
+            pattern: 'percentage' as const,
             percentage: pattern.percentage,
             num_reviewers: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
             ...taskScopeBody,
-          },
-        });
-        showAlert(
-          `Assigned ${pattern.reviewersPerTask} reviewers to ${pattern.percentage}% of tasks`,
-          'success'
-        );
-      } else if (pattern.type === 'fixed') {
-        await assignReviewers({
-          path: { campaign_id: campaignId },
-          body: {
-            pattern: 'fixed',
+          }
+        : {
+            pattern: 'fixed' as const,
             num_tasks: pattern.numTasks,
             fixed_num_reviewers: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
             ...taskScopeBody,
-          },
-        });
-        showAlert(
-          `Assigned ${pattern.reviewersPerTask} reviewers to ${pattern.numTasks} tasks`,
-          'success'
-        );
-      }
+          };
 
-      // Refresh tasks to get updated assignments
-      const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: campaignId },
-      });
-      setAnnotationTasks(data!.tasks);
-
-      setShowReviewerModal(false);
-    } catch (err) {
-      handleError(err, 'Failed to assign reviewers');
-      throw err;
-    } finally {
-      setSaving(false);
-    }
+    await assignReviewersTo.mutateAsync({ path, body });
+    showAlert(
+      pattern.type === 'percentage'
+        ? `Assigned ${pattern.reviewersPerTask} reviewers to ${pattern.percentage}% of tasks`
+        : `Assigned ${pattern.reviewersPerTask} reviewers to ${pattern.numTasks} tasks`,
+      'success'
+    );
+    setShowReviewerModal(false);
   };
 
   const handleBatchUnassignTasks = async (taskIds: number[]) => {
@@ -398,27 +326,8 @@ export const CampaignTasksPage = () => {
       showAlert('No tasks selected', 'error');
       return;
     }
-
-    try {
-      setSaving(true);
-
-      await batchUnassignTasks({
-        path: { campaign_id: campaignId },
-        body: { task_ids: taskIds },
-      });
-
-      const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: campaignId },
-      });
-      setAnnotationTasks(data!.tasks);
-
-      showAlert(`Unassigned all users from ${taskIds.length} task(s)`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to unassign tasks');
-      throw err;
-    } finally {
-      setSaving(false);
-    }
+    await unassignTasks.mutateAsync({ path, body: { task_ids: taskIds } });
+    showAlert(`Unassigned all users from ${taskIds.length} task(s)`, 'success');
   };
 
   const handleDeleteTasks = async (taskIds: number[]) => {
@@ -426,26 +335,8 @@ export const CampaignTasksPage = () => {
       showAlert('No tasks selected', 'error');
       return;
     }
-
-    try {
-      setSaving(true);
-
-      await deleteAnnotationTasks({
-        path: { campaign_id: campaignId },
-        body: { task_ids: taskIds },
-      });
-
-      // Remove deleted tasks from local state
-      setAnnotationTasks((tasks) => tasks.filter((task) => !taskIds.includes(task.id)));
-      await reloadTaskSets();
-
-      showAlert(`${taskIds.length} task(s) deleted successfully`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to delete tasks');
-      throw err;
-    } finally {
-      setSaving(false);
-    }
+    await deleteTasks.mutateAsync({ path, body: { task_ids: taskIds } });
+    showAlert(`${taskIds.length} task(s) deleted successfully`, 'success');
   };
 
   if (!loading && !campaign) return null;

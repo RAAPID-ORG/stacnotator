@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
-  createVisualizer,
-  getVisualizer,
-  listVisualizerOptions,
-  updateVisualizer,
   type VisualizerArea,
   type VisualizerImageryCreate,
   type SourceOptionOut,
   type VisualizerOptionsOut,
   type VisualizerOverlayCreate,
 } from '~/api/client';
+import {
+  createVisualizerMutation,
+  getVisualizerOptions,
+  listVisualizerOptionsOptions,
+  updateVisualizerMutation,
+} from '~/api/queries';
 import type { ImageryStepState } from '~/features/campaigns/components/imagery/types';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button, Field, Input, Switch, Textarea } from '~/shared/ui/forms';
 import { IconGlobe, IconMap, IconWarning } from '~/shared/ui/Icons';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { Modal } from '~/shared/ui/Modal';
-import { handleError } from '~/shared/utils/errorHandler';
 import { CustomMapsEditor } from '~/features/campaigns/components/CustomMapsEditor';
 import { VectorLayersEditor } from '~/features/campaigns/components/VectorLayersEditor';
 import { AreaField } from './editor/AreaField';
@@ -73,9 +75,7 @@ export function VisualizerEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [options, setOptions] = useState<VisualizerOptionsOut | null>(null);
   const [draft, setDraft] = useState<Draft | null>(visualizerId === null ? EMPTY : null);
-  const [saving, setSaving] = useState(false);
   // The manual forms open on their own where a visualizer already has layers of
   // its own, so editing one does not hide what is there behind a link.
   const [addingImagery, setAddingImagery] = useState(false);
@@ -83,70 +83,74 @@ export function VisualizerEditor({
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
 
+  const optionsQuery = useQuery({
+    ...listVisualizerOptionsOptions({ path: { project_id: projectId } }),
+    meta: { errorMessage: 'Failed to load what this project has to show' },
+  });
+  const existingQuery = useQuery({
+    ...getVisualizerOptions({ path: { visualizer_id: visualizerId ?? 0 } }),
+    enabled: visualizerId !== null,
+    meta: { errorMessage: 'Failed to load the visualizer' },
+  });
+
+  const options = optionsQuery.data ?? null;
+  const existing = existingQuery.data;
+
+  // The editor works on a draft; the stored visualizer only seeds it, once.
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [optionsRes, existing] = await Promise.all([
-          listVisualizerOptions({ path: { project_id: projectId } }),
-          visualizerId === null
-            ? Promise.resolve(null)
-            : getVisualizer({ path: { visualizer_id: visualizerId } }),
-        ]);
-        if (cancelled) return;
-        setOptions(optionsRes.data ?? { campaigns: [] });
-        if (existing?.data) {
-          setDraft({
-            name: existing.data.name,
-            description: existing.data.description ?? '',
-            isPublic: existing.data.is_public,
-            area: existing.data.area,
-            imagery: existing.data.imagery,
-            overlays: existing.data.overlays,
-            ownImagery: imageryStateFrom(existing.data.own_imagery, existing.data.basemaps),
-          });
-        }
-      } catch (error) {
-        handleError(error, 'Failed to load what this project has to show');
-        onClose();
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // onClose is stable enough for a mount-time load; re-running would refetch on every render.
+    if (!existing) return;
+    setDraft({
+      name: existing.name,
+      description: existing.description ?? '',
+      isPublic: existing.is_public,
+      area: existing.area,
+      imagery: existing.imagery,
+      overlays: existing.overlays,
+      ownImagery: imageryStateFrom(existing.own_imagery, existing.basemaps),
+    });
+  }, [existing]);
+
+  // Nothing to edit if we cannot read what the project has to offer.
+  useEffect(() => {
+    if (optionsQuery.isError || existingQuery.isError) onClose();
+    // onClose identity changes on every parent render; only the failure matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, visualizerId]);
+  }, [optionsQuery.isError, existingQuery.isError]);
+
+  const create = useMutation({
+    ...createVisualizerMutation(),
+    meta: { errorMessage: 'Failed to save the visualizer' },
+    onSuccess: () => {
+      showAlert('Visualizer created', 'success');
+      onSaved();
+    },
+  });
+  const update = useMutation({
+    ...updateVisualizerMutation(),
+    meta: { errorMessage: 'Failed to save the visualizer' },
+    onSuccess: () => {
+      showAlert('Visualizer saved', 'success');
+      onSaved();
+    },
+  });
+  const saving = create.isPending || update.isPending;
 
   const save = async () => {
     if (!draft) return;
     const confirm = draft.isPublic ? publishConfirm(restricted) : null;
     if (confirm && !(await showConfirmDialog(confirm))) return;
-    setSaving(true);
-    try {
-      const body = {
-        name: draft.name.trim(),
-        description: draft.description.trim(),
-        is_public: draft.isPublic,
-        area: draft.area,
-        imagery: draft.imagery,
-        overlays: draft.overlays,
-        own_imagery: ownImageryPayload(draft.ownImagery),
-        basemaps: basemapsPayload(draft.ownImagery),
-      };
-      if (visualizerId === null) {
-        await createVisualizer({ path: { project_id: projectId }, body });
-        showAlert('Visualizer created', 'success');
-      } else {
-        await updateVisualizer({ path: { visualizer_id: visualizerId }, body });
-        showAlert('Visualizer saved', 'success');
-      }
-      onSaved();
-    } catch (error) {
-      handleError(error, 'Failed to save the visualizer');
-    } finally {
-      setSaving(false);
-    }
+    const body = {
+      name: draft.name.trim(),
+      description: draft.description.trim(),
+      is_public: draft.isPublic,
+      area: draft.area,
+      imagery: draft.imagery,
+      overlays: draft.overlays,
+      own_imagery: ownImageryPayload(draft.ownImagery),
+      basemaps: basemapsPayload(draft.ownImagery),
+    };
+    if (visualizerId === null) create.mutate({ path: { project_id: projectId }, body });
+    else update.mutate({ path: { visualizer_id: visualizerId }, body });
   };
 
   const ready = draft !== null && options !== null;

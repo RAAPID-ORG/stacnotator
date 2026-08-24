@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { deleteVisualizer, listVisualizers, type VisualizerListItemOut } from '~/api/client';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type VisualizerListItemOut } from '~/api/client';
+import {
+  deleteVisualizerMutation,
+  listVisualizersOptions,
+  listVisualizersQueryKey,
+} from '~/api/queries';
 import { Button } from '~/shared/ui/forms';
 import { Delayed } from '~/shared/ui/Delayed';
 import {
@@ -15,7 +21,6 @@ import {
 import { SkeletonRows } from '~/shared/ui/Skeleton';
 import { listRowCls } from '~/shared/ui/listRow';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { handleError } from '~/shared/utils/errorHandler';
 import { visualizerFeedbackPath, visualizerPath, visualizerUrl } from './route';
 import { VisualizerEditor } from './VisualizerEditor';
 
@@ -31,25 +36,32 @@ export function ProjectVisualizersSection({
   projectId: number;
   canManage: boolean;
 }) {
-  const [items, setItems] = useState<VisualizerListItemOut[] | null>(null);
   const [editing, setEditing] = useState<{ id: number | null } | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const showAlert = useLayoutStore((s) => s.showAlert);
+  const queryClient = useQueryClient();
+  const path = { project_id: projectId };
 
-  const load = useCallback(async () => {
-    try {
-      const { data } = await listVisualizers({ path: { project_id: projectId } });
-      setItems(data ?? []);
-    } catch (error) {
-      handleError(error, 'Failed to load visualizers');
-      setItems([]);
-    }
-  }, [projectId]);
+  // Null until the first answer arrives, which is what tells the skeleton from
+  // a project with no visualizers yet.
+  const { data } = useQuery({
+    ...listVisualizersOptions({ path }),
+    meta: { errorMessage: 'Failed to load visualizers' },
+  });
+  const items = data ?? null;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const reloadVisualizers = () =>
+    queryClient.invalidateQueries({ queryKey: listVisualizersQueryKey({ path }) });
+
+  const removeVisualizer = useMutation({
+    ...deleteVisualizerMutation(),
+    meta: { errorMessage: 'Failed to delete the visualizer' },
+    onSuccess: () => {
+      showAlert('Visualizer deleted', 'success');
+      void reloadVisualizers();
+    },
+  });
 
   const copyLink = (item: VisualizerListItemOut) => {
     void navigator.clipboard?.writeText(visualizerUrl(item.slug));
@@ -65,13 +77,7 @@ export function ProjectVisualizersSection({
       isDangerous: true,
     });
     if (!confirmed) return;
-    try {
-      await deleteVisualizer({ path: { visualizer_id: item.id } });
-      showAlert('Visualizer deleted', 'success');
-      void load();
-    } catch (error) {
-      handleError(error, 'Failed to delete the visualizer');
-    }
+    removeVisualizer.mutate({ path: { visualizer_id: item.id } });
   };
 
   return (
@@ -199,7 +205,7 @@ export function ProjectVisualizersSection({
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
-            void load();
+            void reloadVisualizers();
           }}
         />
       )}

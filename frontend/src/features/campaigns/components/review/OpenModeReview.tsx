@@ -1,18 +1,18 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
+import { type AnnotationOut, type CampaignOut } from '~/api/client';
 import {
-  batchDeleteAnnotations,
-  getAllAnnotationsForCampaign,
-  type AnnotationOut,
-  type CampaignOut,
-} from '~/api/client';
+  batchDeleteAnnotationsMutation,
+  getAllAnnotationsForCampaignOptions,
+  getAllAnnotationsForCampaignQueryKey,
+} from '~/api/queries';
 import { campaignPath } from '~/app/routes';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst, extractCentroidFromWKT } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
 import { OpenModeDistributionMap } from './OpenModeDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
@@ -34,6 +34,8 @@ interface OpenModeReviewProps {
   subHeader?: ReactNode;
 }
 
+const NO_ANNOTATIONS: AnnotationOut[] = [];
+
 export const OpenModeReview = ({
   campaign,
   campaignId,
@@ -45,8 +47,13 @@ export const OpenModeReview = ({
   const currentUser = useAccountStore((state) => state.account);
   const showAlert = useLayoutStore((state) => state.showAlert);
 
-  const [annotations, setAnnotations] = useState<AnnotationOut[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const path = { campaign_id: campaignId };
+
+  const { data: annotations = NO_ANNOTATIONS, isPending: loading } = useQuery({
+    ...getAllAnnotationsForCampaignOptions({ path }),
+    meta: { errorMessage: 'Failed to load annotations' },
+  });
   const [highlightedAnnotationId, setHighlightedAnnotationId] = useState<number | null>(null);
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -58,24 +65,20 @@ export const OpenModeReview = ({
 
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<number>>(new Set());
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
-  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        const annotationsRes = await getAllAnnotationsForCampaign({
-          path: { campaign_id: campaignId },
-        });
-        setAnnotations(annotationsRes.data || []);
-      } catch (err) {
-        handleError(err, 'Failed to load annotations');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [campaignId]);
+  const batchDelete = useMutation({
+    ...batchDeleteAnnotationsMutation(),
+    meta: { errorMessage: 'Failed to delete annotations' },
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({
+        queryKey: getAllAnnotationsForCampaignQueryKey({ path }),
+      });
+      setSelectedAnnotationIds(new Set());
+      setConfirmBatchDelete(false);
+      showAlert(`Deleted ${result.deleted_count} annotation(s)`, 'success');
+    },
+  });
+  const isBatchDeleting = batchDelete.isPending;
 
   const uniqueUsers = useMemo((): UserInfo[] => {
     const m = new Map<string, UserInfo>();
@@ -201,30 +204,9 @@ export const OpenModeReview = ({
     });
   };
 
-  const handleBatchDelete = async () => {
+  const handleBatchDelete = () => {
     if (selectedAnnotationIds.size === 0) return;
-    const ids = Array.from(selectedAnnotationIds);
-    try {
-      setIsBatchDeleting(true);
-      const { data, error } = await batchDeleteAnnotations({
-        path: { campaign_id: campaignId },
-        body: { annotation_ids: ids },
-      });
-      if (error || !data) {
-        throw new Error(
-          (error as { detail?: string } | undefined)?.detail ?? 'Failed to delete annotations'
-        );
-      }
-      const idSet = new Set(ids);
-      setAnnotations((prev) => prev.filter((a) => !idSet.has(a.id)));
-      setSelectedAnnotationIds(new Set());
-      setConfirmBatchDelete(false);
-      showAlert(`Deleted ${data.deleted_count} annotation(s)`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to delete annotations');
-    } finally {
-      setIsBatchDeleting(false);
-    }
+    batchDelete.mutate({ path, body: { annotation_ids: Array.from(selectedAnnotationIds) } });
   };
 
   // Open the annotator where the annotation came from: task-bound ones jump

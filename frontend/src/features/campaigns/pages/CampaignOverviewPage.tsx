@@ -1,57 +1,43 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
-import { getCampaign, listTaskSets, type CampaignOut, type TaskSetOut } from '~/api/client';
+import { type TaskSetOut } from '~/api/client';
+import { listTaskSetsOptions } from '~/api/queries';
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { IconFlag, IconGear, IconMap } from '~/shared/ui/Icons';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { campaignPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
+import { useCampaign } from '../hooks/useCampaign';
+
+const NO_TASK_SETS: TaskSetOut[] = [];
 
 export const CampaignOverviewPage = () => {
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
 
-  const [campaign, setCampaign] = useState<CampaignOut | null>(null);
-  const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
   const currentUserId = useAccountStore((s) => s.account?.id ?? null);
+
+  const { data: campaign, isPending: loading } = useCampaign(campaignId);
+  const { data: taskSets = NO_TASK_SETS } = useQuery({
+    ...listTaskSetsOptions({ path: { campaign_id: campaignId } }),
+    meta: { errorMessage: 'Failed to load task sets' },
+  });
+  const isAdmin = campaign?.viewer_is_admin ?? false;
 
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const projectId = campaign?.project_id ?? routeProjectId;
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        const [campaignRes, taskSetsRes] = await Promise.all([
-          getCampaign({ path: { campaign_id: campaignId } }),
-          listTaskSets({ path: { campaign_id: campaignId } }),
-        ]);
-        setCampaign(campaignRes.data ?? null);
-        setTaskSets(taskSetsRes.data ?? []);
-        setIsAdmin(campaignRes.data?.viewer_is_admin ?? false);
-      } catch (err) {
-        handleError(err, 'Failed to load campaign');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [campaignId]);
 
   if (!loading && !campaign) {
     return (

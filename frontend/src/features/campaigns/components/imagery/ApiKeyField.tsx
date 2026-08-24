@@ -1,12 +1,9 @@
-import { useEffect, useState } from 'react';
-import {
-  listCampaignOrganizationKeys,
-  type ApiKeyUpdate,
-  type OrganizationApiKeyOut,
-} from '~/api/client';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { type ApiKeyUpdate, type OrganizationApiKeyOut } from '~/api/client';
+import { listCampaignOrganizationKeysOptions } from '~/api/queries';
 import { Input, Select } from '~/shared/ui/forms';
 import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
-import { handleError } from '~/shared/utils/errorHandler';
 
 interface ApiKeyFieldProps {
   /** Absent in the create wizard - there is no campaign to scope keys to yet. */
@@ -22,6 +19,8 @@ interface ApiKeyFieldProps {
 }
 
 const MANUAL = 'manual';
+
+const NO_KEYS: OrganizationApiKeyOut[] = [];
 
 /**
  * Where this layer's provider key comes from: one of the organization's shared
@@ -40,22 +39,15 @@ export const ApiKeyField = ({
   const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
   const [configured, setConfigured] = useState(!!hasApiKey);
   const [orgKeyId, setOrgKeyId] = useState<number | null>(organizationApiKeyId ?? null);
-  const [orgKeys, setOrgKeys] = useState<OrganizationApiKeyOut[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!persisted || campaignId == null) return;
-    let cancelled = false;
-    void listCampaignOrganizationKeys({ path: { campaign_id: campaignId } })
-      .then(({ data }) => {
-        if (!cancelled) setOrgKeys(data?.items ?? []);
-      })
-      .catch((err) => handleError(err, 'Failed to load organization keys', { showUser: false }));
-    return () => {
-      cancelled = true;
-    };
-  }, [persisted, campaignId]);
+  const { data: orgKeysData } = useQuery({
+    ...listCampaignOrganizationKeysOptions({ path: { campaign_id: campaignId ?? 0 } }),
+    enabled: persisted && campaignId != null,
+    meta: { errorMessage: 'Failed to load organization keys', showUser: false },
+  });
+  const orgKeys = orgKeysData?.items ?? NO_KEYS;
 
   const explainer = (
     <p className="text-[11px] text-neutral-500 leading-snug">

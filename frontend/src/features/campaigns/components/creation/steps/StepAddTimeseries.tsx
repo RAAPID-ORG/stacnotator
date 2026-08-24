@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
-  getTimeseriesCreationOptions,
   type CampaignCreate,
   type SpectralIndexOut,
   type TimeSeriesCreate,
   type TimeSeriesOptionsOut,
 } from '~/api/client';
+import { getTimeseriesCreationOptionsOptions } from '~/api/queries';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
 import { MonthPicker } from '~/shared/ui/MonthPicker';
 import { Input, Select, Button } from '~/shared/ui/forms';
 import { IconCheck, IconClose } from '~/shared/ui/Icons';
@@ -51,7 +51,10 @@ export const StepAddTimeseries = ({
    *  automatically. */
   knownWindowNames?: string[];
 }) => {
-  const [tsOptions, setTsOptions] = useState<TimeSeriesOptionsOut | null>(null);
+  const { data: tsOptions = null } = useQuery({
+    ...getTimeseriesCreationOptionsOptions(),
+    meta: { errorMessage: 'Failed to load timeseries options' },
+  });
   // Per-item flag: user is typing the name of a brand-new window (vs picking an
   // existing one). Kept out of the item so an empty name still reads as default.
   const [newWindowFor, setNewWindowFor] = useState<Record<number, boolean>>({});
@@ -118,18 +121,6 @@ export const StepAddTimeseries = ({
     setNewWindowFor((m) => ({ ...m, [index]: false }));
     if (!keep) updateItem(index, { window_name: DEFAULT_TIMESERIES_WINDOW_NAME });
   };
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { data } = await getTimeseriesCreationOptions();
-        setTsOptions(data!);
-      } catch (err) {
-        handleError(err, 'Failed to load timeseries options');
-      }
-    };
-    fetchData();
-  }, []);
 
   return (
     <div className="space-y-6">
