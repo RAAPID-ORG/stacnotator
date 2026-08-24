@@ -35,7 +35,7 @@ import {
   listProjectCampaignsQueryKey,
   updateCampaignNameMutation,
 } from '~/api/queries';
-import { useCampaign, useRefreshCampaign } from '../hooks/useCampaign';
+import { useCampaign, useRefreshCampaign } from '../hooks/campaignQueries';
 
 const SETTINGS_TABS = ['general', 'imagery', 'timeseries'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
@@ -60,9 +60,7 @@ export const CampaignSettingsPage = () => {
 
   // Registration and embedding run in the background after creation, so this
   // page keeps re-asking until they settle.
-  const { data: campaign, isPending: loading } = useCampaign(campaignId, {
-    pollWhileRegistering: true,
-  });
+  const { campaign, loading } = useCampaign(campaignId, { pollWhileRegistering: true });
   const refreshCampaign = useRefreshCampaign(campaignId);
 
   // Campaign wins over the URL param, which only stands in until it loads and

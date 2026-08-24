@@ -1,8 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 
 import { type TaskSetOut } from '~/api/client';
-import { listTaskSetsOptions } from '~/api/queries';
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Button } from '~/shared/ui/forms';
@@ -15,9 +13,7 @@ import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { campaignPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
-import { useCampaign } from '../hooks/useCampaign';
-
-const NO_TASK_SETS: TaskSetOut[] = [];
+import { useCampaign, useCampaignTaskSets } from '../hooks/campaignQueries';
 
 export const CampaignOverviewPage = () => {
   const campaignId = useCampaignIdParam();
@@ -26,11 +22,8 @@ export const CampaignOverviewPage = () => {
 
   const currentUserId = useAccountStore((s) => s.account?.id ?? null);
 
-  const { data: campaign, isPending: loading } = useCampaign(campaignId);
-  const { data: taskSets = NO_TASK_SETS } = useQuery({
-    ...listTaskSetsOptions({ path: { campaign_id: campaignId } }),
-    meta: { errorMessage: 'Failed to load task sets' },
-  });
+  const { campaign, loading } = useCampaign(campaignId);
+  const { taskSets } = useCampaignTaskSets(campaignId);
   const isAdmin = campaign?.viewer_is_admin ?? false;
 
   // Campaign wins over the URL param, which only stands in until it loads and

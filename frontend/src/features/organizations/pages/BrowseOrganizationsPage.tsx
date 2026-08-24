@@ -17,7 +17,7 @@ import { Skeleton } from '~/shared/ui/Skeleton';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { useRefreshOrganizations } from '../hooks/useOrganizations';
 
-const NONE: OrganizationDirectoryEntry[] = [];
+const NO_ORGS: OrganizationDirectoryEntry[] = [];
 
 /** The note is optional, but it is all an org admin has to go on, so the form
  *  asks for it rather than firing the request off a bare button. */
@@ -124,7 +124,7 @@ export const BrowseOrganizationsPage = () => {
     ...listOrganizationDirectoryOptions(),
     meta: { errorMessage: 'Failed to load organizations', showUser: false },
   });
-  const items = data?.items ?? NONE;
+  const items = data?.items ?? NO_ORGS;
 
   useEffect(() => {
     setBreadcrumbs([{ label: 'Organizations' }]);

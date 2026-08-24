@@ -16,7 +16,7 @@ export type OrganizationApiKeysProps = {
   organizationId: number;
 };
 
-const NONE: OrganizationApiKeyOut[] = [];
+const NO_KEYS: OrganizationApiKeyOut[] = [];
 
 /** Provider keys the org's campaigns can share. The secret is write-only: it
  *  goes to the backend encrypted at rest and is never read back, so a key can
@@ -37,7 +37,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
     ...listOrganizationApiKeysOptions({ path }),
     meta: { errorMessage: 'Failed to load API keys' },
   });
-  const keys = data?.items ?? NONE;
+  const keys = data?.items ?? NO_KEYS;
 
   const refetchKeys = () =>
     queryClient.invalidateQueries({ queryKey: listOrganizationApiKeysQueryKey({ path }) });

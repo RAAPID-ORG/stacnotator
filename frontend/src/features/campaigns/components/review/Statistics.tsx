@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { type AnnotatorInfo, type PairwiseAgreement } from '~/api/client';
-import { getCampaignStatisticsEndpointOptions } from '~/api/queries';
+import { useCampaignStatistics } from '~/features/campaigns/hooks/campaignQueries';
 import { formatDuration } from '~/shared/utils/utility';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
@@ -36,14 +35,7 @@ const displayName = (annotator: AnnotatorInfo) =>
 const Statistics = ({ campaignId }: StatisticsProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const {
-    data: statistics,
-    isPending: loading,
-    error,
-  } = useQuery({
-    ...getCampaignStatisticsEndpointOptions({ path: { campaign_id: campaignId } }),
-    meta: { errorMessage: 'Failed to load statistics', showUser: false },
-  });
+  const { statistics, loading, error } = useCampaignStatistics(campaignId);
 
   const heading = <h2 className="section-heading">Inter-annotator agreement</h2>;
 

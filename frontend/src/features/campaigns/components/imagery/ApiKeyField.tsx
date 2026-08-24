@@ -45,6 +45,8 @@ export const ApiKeyField = ({
   const { data: orgKeysData } = useQuery({
     ...listCampaignOrganizationKeysOptions({ path: { campaign_id: campaignId ?? 0 } }),
     enabled: persisted && campaignId != null,
+    // Without the shared keys the field still takes a typed value, so a
+    // failure here narrows the choice rather than breaking the form.
     meta: { errorMessage: 'Failed to load organization keys', showUser: false },
   });
   const orgKeys = orgKeysData?.items ?? NO_KEYS;

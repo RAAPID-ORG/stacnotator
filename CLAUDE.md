@@ -106,17 +106,36 @@ generated key after a write.
   `meta: { errorMessage, showUser? }`; the cache-level handler calls
   `handleError`. Do not wrap calls in try/catch to toast.
 - **Loads render their failure in place, actions toast.** Set
-  `showUser: false` where a surface shows the error itself, or where a child
-  component awaits the handler and reports for you (the admin tables, the
-  assignment modals).
-- **Retries and refetch-on-focus are off** so one mocked route means one
-  request under Playwright. Keep it that way.
+  `showUser: false` where the surface shows the error itself or deliberately
+  degrades without it (say why in a comment when there is no error UI). Use
+  `meta: reportedByCaller(msg)` where a child awaits the handler and reports
+  for you - the admin tables and assignment modals - so the toast is not
+  doubled.
+- **Freshness is two tiers.** The default (30s stale, no focus refetch) suits
+  data only an admin changes: organizations, projects, members, campaign
+  settings. Lists other users change while you watch - task progress, task
+  sets, the review annotations, statistics - opt into `SHARED_WORK` from
+  `queryClient.ts` (re-read every mount, refetch on window focus). Deliberately
+  not a timer: those endpoints return a whole campaign's tasks or annotations
+  unpaginated. Background jobs (mosaic registration, custom-map registration)
+  use a `refetchInterval` that reads the record's own status and stops itself.
+  The annotation page opts out of all of this: it syncs deltas against a cursor
+  every 5s (`annotation/stores/work.ts`), which is what real-time editing needs.
+- **Retries are off, and focus-refetch is off by default** so one mocked route
+  means one request under Playwright. Keep it that way; `SHARED_WORK` is the
+  only opt-in.
 - **Client state stays in Zustand** (`org.store.ts`, `layout.store.ts`, the
   annotation stores). A store that caches a server list is the thing this
   replaced; don't add one back.
 - Deliberately still imperative: file uploads and downloads that report through
   a callback and own no list, and `features/annotation` + the imagery wizard
   (`campaigns/components/imagery/`), which have their own state machines.
+- A read shared by more than one surface gets a named hook returning domain
+  values plus `loading`/`error`, not the query object - `useOrganizations`,
+  `app/projectRoute.ts`, and `campaigns/hooks/campaignQueries.ts`, which is
+  where the campaign freshness split and its invalidation helpers are stated
+  once instead of repeated across the admin tabs. A page's own one-off read
+  stays a `useQuery` in the page.
 - Component tests that touch a query use `renderWithQuery` and mock
   `~/api/client/sdk.gen` - mocking `~/api/client` only catches direct callers.
 

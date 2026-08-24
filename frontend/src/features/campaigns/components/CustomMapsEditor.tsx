@@ -159,6 +159,8 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
     queryFn: async () => (await api.list()).data ?? NO_MAPS,
     refetchInterval: (query) =>
       query.state.data?.some((m) => m.status === 'registering') ? REGISTRATION_POLL_MS : false,
+    // A failure leaves the list empty rather than blocking the editor, so it
+    // is logged without a toast.
     meta: { errorMessage: 'Failed to load custom maps', showUser: false },
   });
 

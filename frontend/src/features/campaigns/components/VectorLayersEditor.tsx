@@ -46,6 +46,7 @@ export const VectorLayersEditor = ({
   const { data: layers = NO_LAYERS } = useQuery({
     queryKey: api.queryKey,
     queryFn: async () => (await api.list()).data ?? NO_LAYERS,
+    // As above: an empty list is a usable editor, an alert is just noise.
     meta: { errorMessage: 'Failed to load vector layers', showUser: false },
   });
 

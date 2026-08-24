@@ -1,14 +1,14 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { type AnnotationOut, type CampaignOut } from '~/api/client';
 import {
   batchDeleteAnnotationsMutation,
-  getAllAnnotationsForCampaignOptions,
   getAllAnnotationsForCampaignQueryKey,
 } from '~/api/queries';
+import { useCampaignAnnotations } from '~/features/campaigns/hooks/campaignQueries';
 import { campaignPath } from '~/app/routes';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
@@ -34,8 +34,6 @@ interface OpenModeReviewProps {
   subHeader?: ReactNode;
 }
 
-const NO_ANNOTATIONS: AnnotationOut[] = [];
-
 export const OpenModeReview = ({
   campaign,
   campaignId,
@@ -50,10 +48,7 @@ export const OpenModeReview = ({
   const queryClient = useQueryClient();
   const path = { campaign_id: campaignId };
 
-  const { data: annotations = NO_ANNOTATIONS, isPending: loading } = useQuery({
-    ...getAllAnnotationsForCampaignOptions({ path }),
-    meta: { errorMessage: 'Failed to load annotations' },
-  });
+  const { annotations, loading } = useCampaignAnnotations(campaignId);
   const [highlightedAnnotationId, setHighlightedAnnotationId] = useState<number | null>(null);
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);

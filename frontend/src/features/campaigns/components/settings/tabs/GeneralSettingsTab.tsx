@@ -12,7 +12,7 @@ import {
   updateResearchSharingMutation,
   updateSampleExtentMutation,
 } from '~/api/queries';
-import { useRefreshCampaign } from '~/features/campaigns/hooks/useCampaign';
+import { useRefreshCampaign } from '~/features/campaigns/hooks/campaignQueries';
 import { projectPath } from '~/app/routes';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';

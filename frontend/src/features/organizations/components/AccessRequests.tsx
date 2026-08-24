@@ -13,7 +13,7 @@ export type AccessRequestsProps = {
   organizationId: number;
 };
 
-const NONE: AccessRequestOut[] = [];
+const NO_REQUESTS: AccessRequestOut[] = [];
 
 const actionClass =
   'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors ' +
@@ -31,7 +31,7 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
     ...listOrganizationAccessRequestsOptions({ path }),
     meta: { errorMessage: 'Failed to load access requests' },
   });
-  const requests = data?.items ?? NONE;
+  const requests = data?.items ?? NO_REQUESTS;
 
   const afterDecision = () => {
     void queryClient.invalidateQueries({

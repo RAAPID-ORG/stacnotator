@@ -4,7 +4,7 @@ import { type OrganizationOut } from '~/api/client';
 import { listOrganizationsOptions, listOrganizationsQueryKey } from '~/api/queries';
 import { APPROVED } from '../utils/organizations';
 
-const NONE: OrganizationOut[] = [];
+const NO_ORGS: OrganizationOut[] = [];
 
 /** One cache entry for the viewer's organizations, shared by every consumer, so
  *  the sidebar switcher and the pages can never disagree about the list. The
@@ -21,7 +21,7 @@ const organizationsQuery = () => ({
 export const useOrganizations = (options?: { approvedOnly?: boolean }) => {
   const approvedOnly = options?.approvedOnly ?? false;
   const { data, isPending, error } = useQuery(organizationsQuery());
-  const items = data?.items ?? NONE;
+  const items = data?.items ?? NO_ORGS;
 
   const orgs = useMemo(
     () => (approvedOnly ? items.filter((org) => org.status === APPROVED) : items),

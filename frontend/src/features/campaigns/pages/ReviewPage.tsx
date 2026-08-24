@@ -9,14 +9,14 @@ import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSect
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
-import { useCampaign } from '../hooks/useCampaign';
+import { useCampaign } from '../hooks/campaignQueries';
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
 
   const [showImport, setShowImport] = useState(false);
-  const { data: campaign, isPending: loading } = useCampaign(campaignId);
+  const { campaign, loading } = useCampaign(campaignId);
 
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.

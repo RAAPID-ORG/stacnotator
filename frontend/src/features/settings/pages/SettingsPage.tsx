@@ -21,6 +21,7 @@ import {
   setOrganizationTilersMutation,
   updateInternalStorageMutation,
 } from '~/api/queries';
+import { reportedByCaller } from '~/api/queryClient';
 import { useAccountStore } from '~/shared/stores/account.store';
 import {
   useOrganizations,
@@ -134,13 +135,9 @@ export const SettingsPage = () => {
 
   const refetchUsers = () => queryClient.invalidateQueries({ queryKey: listUsersQueryKey({}) });
 
-  // The admin tables await these handlers and report failures themselves, which
-  // is why the mutations stay quiet and the callers use mutateAsync.
-  const silent = (errorMessage: string) => ({ errorMessage, showUser: false });
-
   const grant = useMutation({
     ...grantAdminMutation(),
-    meta: silent('Failed to grant admin'),
+    meta: reportedByCaller('Failed to grant admin'),
     onSuccess: (result) => {
       void refetchUsers();
       showAlert(`${result.success.length} user(s) granted admin successfully`, 'success');
@@ -148,7 +145,7 @@ export const SettingsPage = () => {
   });
   const revoke = useMutation({
     ...revokeAdminMutation(),
-    meta: silent('Failed to revoke admin'),
+    meta: reportedByCaller('Failed to revoke admin'),
     onSuccess: (result) => {
       void refetchUsers();
       showAlert(`${result.success.length} admin role(s) revoked successfully`, 'success');
@@ -157,22 +154,22 @@ export const SettingsPage = () => {
 
   const approve = useMutation({
     ...approveOrganizationMutation(),
-    meta: silent('Failed to approve organization'),
+    meta: reportedByCaller('Failed to approve organization'),
     onSuccess: refreshOrganizations,
   });
   const reject = useMutation({
     ...rejectOrganizationMutation(),
-    meta: silent('Failed to reject organization'),
+    meta: reportedByCaller('Failed to reject organization'),
     onSuccess: refreshOrganizations,
   });
   const internalStorage = useMutation({
     ...updateInternalStorageMutation(),
-    meta: silent('Failed to update internal storage'),
+    meta: reportedByCaller('Failed to update internal storage'),
     onSuccess: refreshOrganizations,
   });
   const saveTilers = useMutation({
     ...setOrganizationTilersMutation(),
-    meta: silent('Failed to save organization access'),
+    meta: reportedByCaller('Failed to save organization access'),
   });
 
   const editUsername = useMutation({

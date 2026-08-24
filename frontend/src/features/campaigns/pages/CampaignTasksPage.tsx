@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
 import { ImportFeaturesSection } from '~/features/campaigns/components/settings/ImportFeaturesSection';
 import { Button } from '~/shared/ui/forms';
@@ -27,12 +27,7 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { FadeIn } from '~/shared/ui/motion';
 
-import {
-  type AnnotationTaskOut,
-  type GenerateTasksResponse,
-  type ProjectUserOut,
-  type TaskSetOut,
-} from '~/api/client';
+import { type GenerateTasksResponse, type ProjectUserOut } from '~/api/client';
 import {
   assignReviewersMutation,
   assignTasksToUsersMutation,
@@ -40,20 +35,22 @@ import {
   createTaskSetMutation,
   deleteAnnotationTasksMutation,
   deleteTaskSetMutation,
-  getAllAnnotationTasksOptions,
-  getAllAnnotationTasksQueryKey,
   getProjectUsersOptions,
   ingestAnnotationTasksFromCsvMutation,
   ingestAnnotationTasksFromGeojsonMutation,
-  listTaskSetsOptions,
-  listTaskSetsQueryKey,
   moveTasksToSetMutation,
   renameTaskSetMutation,
 } from '~/api/queries';
-import { useCampaign } from '../hooks/useCampaign';
+import { reportedByCaller } from '~/api/queryClient';
+import {
+  useCampaign,
+  useCampaignTasks,
+  useCampaignTaskSets,
+  useRefreshCampaignTasks,
+  useRefreshCampaignTaskSets,
+  useRefreshCampaignWork,
+} from '../hooks/campaignQueries';
 
-const NO_TASKS: AnnotationTaskOut[] = [];
-const NO_TASK_SETS: TaskSetOut[] = [];
 const NO_USERS: ProjectUserOut[] = [];
 
 export const CampaignTasksPage = () => {
@@ -62,7 +59,6 @@ export const CampaignTasksPage = () => {
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
 
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
@@ -73,7 +69,7 @@ export const CampaignTasksPage = () => {
   const showAlert = useLayoutStore((state) => state.showAlert);
   const path = { campaign_id: campaignId };
 
-  const { data: campaign, isPending: loading } = useCampaign(campaignId);
+  const { campaign, loading } = useCampaign(campaignId);
 
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
@@ -81,16 +77,8 @@ export const CampaignTasksPage = () => {
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Tasks');
 
-  const { data: tasksData } = useQuery({
-    ...getAllAnnotationTasksOptions({ path }),
-    meta: { errorMessage: 'Failed to load tasks' },
-  });
-  const annotationTasks = tasksData?.tasks ?? NO_TASKS;
-
-  const { data: taskSets = NO_TASK_SETS } = useQuery({
-    ...listTaskSetsOptions({ path }),
-    meta: { errorMessage: 'Failed to load task sets' },
-  });
+  const { tasks: annotationTasks } = useCampaignTasks(campaignId);
+  const { taskSets } = useCampaignTaskSets(campaignId);
 
   // Assignable users are the owning project's members, so this waits for the
   // campaign to say which project to ask about.
@@ -101,19 +89,9 @@ export const CampaignTasksPage = () => {
   });
   const projectUsers = projectUsersData?.users ?? NO_USERS;
 
-  const reloadAnnotationTasks = () =>
-    queryClient.invalidateQueries({ queryKey: getAllAnnotationTasksQueryKey({ path }) });
-  const reloadTaskSets = () =>
-    queryClient.invalidateQueries({ queryKey: listTaskSetsQueryKey({ path }) });
-  // A set's counters move whenever its tasks do, so the two travel together.
-  const reloadTasksAndSets = () => {
-    void reloadAnnotationTasks();
-    void reloadTaskSets();
-  };
-
-  // The modals report their own failures and keep their form state, so these
-  // stay quiet and reject.
-  const quiet = (errorMessage: string) => ({ meta: { errorMessage, showUser: false } });
+  const reloadAnnotationTasks = useRefreshCampaignTasks(campaignId);
+  const reloadTaskSets = useRefreshCampaignTaskSets(campaignId);
+  const reloadTasksAndSets = useRefreshCampaignWork(campaignId);
 
   const uploadGeojson = useMutation({
     ...ingestAnnotationTasksFromGeojsonMutation(),
@@ -145,22 +123,22 @@ export const CampaignTasksPage = () => {
   });
   const assignTasks = useMutation({
     ...assignTasksToUsersMutation(),
-    ...quiet('Failed to assign tasks'),
+    meta: reportedByCaller('Failed to assign tasks'),
     onSuccess: reloadTasksAndSets,
   });
   const assignReviewersTo = useMutation({
     ...assignReviewersMutation(),
-    ...quiet('Failed to assign reviewers'),
+    meta: reportedByCaller('Failed to assign reviewers'),
     onSuccess: reloadAnnotationTasks,
   });
   const unassignTasks = useMutation({
     ...batchUnassignTasksMutation(),
-    ...quiet('Failed to unassign tasks'),
+    meta: reportedByCaller('Failed to unassign tasks'),
     onSuccess: reloadAnnotationTasks,
   });
   const deleteTasks = useMutation({
     ...deleteAnnotationTasksMutation(),
-    ...quiet('Failed to delete tasks'),
+    meta: reportedByCaller('Failed to delete tasks'),
     onSuccess: reloadTasksAndSets,
   });
 
