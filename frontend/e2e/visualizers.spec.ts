@@ -107,7 +107,7 @@ test.describe('Shared visualizer', () => {
 
     await page.goto(`/v/${SLUG}`);
 
-    await expect(page.getByTestId('sidebar-project-nav')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Projects' })).toHaveCount(0);
 
     await expect(page.getByRole('heading', { name: SHARED_VISUALIZER.name })).toBeVisible();
     await expect(page.getByTestId('visualizer-sidebar')).toContainText('Sentinel-2');

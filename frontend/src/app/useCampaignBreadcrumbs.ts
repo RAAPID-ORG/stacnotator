@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { campaignPath, projectPath, projectsPath } from '~/app/routes';
-import { useProjectName } from '~/app/SidebarProjectNav';
+import { useProject } from '~/app/projectRoute';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
@@ -13,7 +13,7 @@ export function useCampaignBreadcrumbs(
   subpage?: string
 ) {
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
-  const projectName = useProjectName(projectId);
+  const projectName = useProject(projectId).project?.name ?? null;
 
   useEffect(() => {
     if (!campaignName) return;

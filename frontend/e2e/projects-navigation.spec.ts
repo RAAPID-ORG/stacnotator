@@ -125,14 +125,10 @@ test.describe('Projects list', () => {
       MOCK_PROJECT_CAMPAIGNS.items[0].name
     );
 
-    // Inside a project the sidebar gains its wayfinding block; the viewer is a
-    // project admin, so every tab entry is offered.
-    const projectNav = appPage.getByTestId('sidebar-project-nav');
-    await expect(projectNav).toBeVisible();
-    await expect(projectNav).toContainText(MOCK_PROJECT.name);
-    await expect(projectNav.getByRole('button', { name: 'Members' })).toBeVisible();
+    // The viewer is a project admin, so the page offers every tab.
+    await expect(appPage.getByRole('tab', { name: 'Members' })).toBeVisible();
 
-    await projectNav.getByRole('button', { name: 'Settings' }).click();
+    await appPage.getByRole('tab', { name: 'Settings' }).click();
     await expect(appPage).toHaveURL(new RegExp(`/projects/${MOCK_PROJECT.id}\\?tab=settings$`));
   });
 });

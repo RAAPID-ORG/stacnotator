@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
+import { useQuery } from '@tanstack/react-query';
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
-import { useProjectNavInfo } from '~/app/SidebarProjectNav';
+import { useProject } from '~/app/projectRoute';
+import { listProjectCampaignsOptions } from '~/api/queries';
 import { type CampaignListItemOut, type CampaignOut, type ProjectOut } from '~/api/client';
 import { DuplicateCampaignModal } from '~/features/campaigns/components/DuplicateCampaignModal';
 import { ProjectSettingsSection } from '~/features/projects/components/ProjectSettingsSection';
@@ -23,6 +25,8 @@ type ProjectTab = (typeof PROJECT_TABS)[number];
 
 const isProjectTab = (t: string | null): t is ProjectTab => PROJECT_TABS.some((tab) => tab === t);
 
+const NO_CAMPAIGNS: CampaignListItemOut[] = [];
+
 export const ProjectPage = () => {
   const projectId = useProjectIdParam();
   const navigate = useNavigate();
@@ -36,9 +40,12 @@ export const ProjectPage = () => {
   const tabParam = searchParams.get('tab');
   const requestedTab: ProjectTab = isProjectTab(tabParam) ? tabParam : 'campaigns';
 
-  // Shared with the sidebar nav, which resolves the same project for the same
-  // route - one pair of requests between them.
-  const { project, campaigns, loading } = useProjectNavInfo(projectId);
+  const { project, loading } = useProject(projectId);
+  const { data: campaignsData } = useQuery({
+    ...listProjectCampaignsOptions({ path: { project_id: projectId } }),
+    meta: { errorMessage: 'Failed to load campaigns' },
+  });
+  const campaigns = campaignsData?.items ?? NO_CAMPAIGNS;
 
   useEffect(() => {
     setBreadcrumbs([
