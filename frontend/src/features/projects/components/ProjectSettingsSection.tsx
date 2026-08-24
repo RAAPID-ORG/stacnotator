@@ -144,14 +144,12 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
             Who can open this project and work on its campaigns. Changes apply immediately.
           </p>
         </div>
-        <div className="max-w-xl">
-          <ProjectVisibilityPicker
-            value={project.visibility}
-            onChange={handleVisibilityChange}
-            disabled={saving}
-            name="project-visibility-settings"
-          />
-        </div>
+        <ProjectVisibilityPicker
+          value={project.visibility}
+          onChange={handleVisibilityChange}
+          disabled={saving}
+          name="project-visibility-settings"
+        />
       </section>
 
       <section className={sectionCls}>

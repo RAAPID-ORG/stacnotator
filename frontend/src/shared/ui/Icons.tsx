@@ -207,6 +207,13 @@ export const IconSliders = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconLock = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <rect x="4" y="9" width="12" height="8" rx="1.5" />
+    <path d="M7 9V6.5a3 3 0 016 0V9" />
+  </svg>
+);
+
 export const IconBuilding = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M4 17V4a1 1 0 011-1h7a1 1 0 011 1v13M13 8h2a1 1 0 011 1v8M2.5 17h15" />

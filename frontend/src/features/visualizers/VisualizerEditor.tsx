@@ -228,10 +228,11 @@ export function VisualizerEditor({
             {campaignsWithSources.length > 0 && (
               <>
                 <p className="mb-3 rounded-md bg-neutral-50 px-2.5 py-2 text-[11px] leading-relaxed text-neutral-600">
-                  A campaign browses imagery as windows, each with a cover image composited over the
-                  whole window. A visualizer has a date slider instead, so what you get here is
-                  every one of that source&apos;s intervals in one list, oldest to newest, with the
-                  cover images left out.
+                  A campaign browses imagery as windows, often with a cover image composited over
+                  the whole temporal window. A visualizer has a date slider instead. Cover
+                  composites covering the whole temporal window, will result in an additional
+                  imagery source here, as each source needs evenly discrete steps for it's
+                  timeslider.
                 </p>
                 <CampaignGroups
                   campaigns={campaignsWithSources}
