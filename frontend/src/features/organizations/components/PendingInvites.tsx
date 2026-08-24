@@ -1,55 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
 import type { InviteOut } from '~/api/client';
-import { handleError } from '~/shared/utils/errorHandler';
 
 /** Shown next to both add-by-email flows and on invited results. */
 export const INVITE_SIGNUP_NOTE =
   'They need to sign up at stacnotator.io with this email address; they will join automatically after signing up.';
 
 interface PendingInvitesProps {
-  listInvites: () => Promise<InviteOut[]>;
-  revokeInvite: (inviteId: number) => Promise<void>;
-  /** Bump after an add-by-email round so freshly created invites appear. */
-  reloadKey: number;
+  invites: InviteOut[];
+  onRevoke: (invite: InviteOut) => void;
+  /** The invite currently being revoked, so only its own button goes quiet. */
+  revokingId: number | null;
   className?: string;
 }
 
 /** The unconsumed email pre-authorizations for one organization or project:
- *  addresses that were added before signing up. Renders nothing while empty. */
+ *  addresses that were added before signing up. Renders nothing while empty.
+ *  The owner supplies the list, since only it knows which API holds them. */
 export const PendingInvites = ({
-  listInvites,
-  revokeInvite,
-  reloadKey,
+  invites,
+  onRevoke,
+  revokingId,
   className,
 }: PendingInvitesProps) => {
-  const [invites, setInvites] = useState<InviteOut[]>([]);
-  const [busyId, setBusyId] = useState<number | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setInvites(await listInvites());
-    } catch (err) {
-      handleError(err, 'Failed to load pending signups');
-    }
-  }, [listInvites]);
-
-  useEffect(() => {
-    void load();
-    // reloadKey is the parent's signal that the invite set may have changed.
-  }, [load, reloadKey]);
-
-  const handleRevoke = async (invite: InviteOut) => {
-    setBusyId(invite.id);
-    try {
-      await revokeInvite(invite.id);
-      await load();
-    } catch (err) {
-      handleError(err, 'Failed to revoke invite');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   if (invites.length === 0) return null;
 
   return (
@@ -74,8 +45,8 @@ export const PendingInvites = ({
             </span>
             <button
               type="button"
-              onClick={() => handleRevoke(invite)}
-              disabled={busyId === invite.id}
+              onClick={() => onRevoke(invite)}
+              disabled={revokingId === invite.id}
               className="inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Revoke

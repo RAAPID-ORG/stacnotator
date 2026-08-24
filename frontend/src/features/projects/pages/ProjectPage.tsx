@@ -2,14 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
-import { primeNavInfo } from '~/app/SidebarProjectNav';
-import {
-  getProject,
-  listProjectCampaigns,
-  type CampaignListItemOut,
-  type CampaignOut,
-  type ProjectOut,
-} from '~/api/client';
+import { useProjectNavInfo } from '~/app/SidebarProjectNav';
+import { type CampaignListItemOut, type CampaignOut, type ProjectOut } from '~/api/client';
 import { DuplicateCampaignModal } from '~/features/campaigns/components/DuplicateCampaignModal';
 import { ProjectSettingsSection } from '~/features/projects/components/ProjectSettingsSection';
 import { ProjectUsersSection } from '~/features/projects/components/ProjectUsersSection';
@@ -22,7 +16,6 @@ import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import TabNavigator from '~/shared/ui/TabNavigator';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
 import { ProjectVisualizersSection } from '~/features/visualizers/ProjectVisualizersSection';
 
 const PROJECT_TABS = ['campaigns', 'visualizers', 'members', 'settings'] as const;
@@ -37,44 +30,15 @@ export const ProjectPage = () => {
 
   const showAlert = useLayoutStore((state) => state.showAlert);
 
-  const [project, setProject] = useState<ProjectOut | null>(null);
-  const [campaigns, setCampaigns] = useState<CampaignListItemOut[]>([]);
   const [duplicating, setDuplicating] = useState<CampaignListItemOut | null>(null);
-  const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tabParam = searchParams.get('tab');
   const requestedTab: ProjectTab = isProjectTab(tabParam) ? tabParam : 'campaigns';
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        setLoading(true);
-        const [projectRes, campaignsRes] = await Promise.all([
-          getProject({ path: { project_id: projectId } }),
-          listProjectCampaigns({ path: { project_id: projectId } }),
-        ]);
-        if (cancelled) return;
-        setProject(projectRes.data ?? null);
-        setCampaigns(campaignsRes.data?.items ?? []);
-        if (projectRes.data) {
-          primeNavInfo(projectId, {
-            project: projectRes.data,
-            campaigns: campaignsRes.data?.items ?? [],
-          });
-        }
-      } catch (err) {
-        if (!cancelled) handleError(err, 'Failed to load project');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
+  // Shared with the sidebar nav, which resolves the same project for the same
+  // route - one pair of requests between them.
+  const { project, campaigns, loading } = useProjectNavInfo(projectId);
 
   useEffect(() => {
     setBreadcrumbs([
@@ -84,12 +48,6 @@ export const ProjectPage = () => {
   }, [project, setBreadcrumbs]);
 
   if (!loading && !project) return null;
-
-  // Keeps the sidebar nav in step with renames and other settings updates.
-  const handleProjectUpdated = (updated: ProjectOut) => {
-    setProject(updated);
-    primeNavInfo(projectId, { project: updated, campaigns });
-  };
 
   // Land in the copy's settings: the whole point of duplicating is tweaking
   // the few remaining differences right away.
@@ -147,7 +105,6 @@ export const ProjectPage = () => {
             onOpenCampaign={(campaign) => navigate(campaignPath(project.id, campaign.id))}
             onCreateCampaign={() => navigate(newCampaignPath(project.id))}
             onDuplicateCampaign={setDuplicating}
-            onProjectUpdated={handleProjectUpdated}
           />
         ) : (
           <Delayed>
@@ -175,7 +132,6 @@ interface ProjectTabsProps {
   onOpenCampaign: (campaign: CampaignListItemOut) => void;
   onCreateCampaign: () => void;
   onDuplicateCampaign: (campaign: CampaignListItemOut) => void;
-  onProjectUpdated: (updated: ProjectOut) => void;
 }
 
 const ProjectTabs = ({
@@ -186,7 +142,6 @@ const ProjectTabs = ({
   onOpenCampaign,
   onCreateCampaign,
   onDuplicateCampaign,
-  onProjectUpdated,
 }: ProjectTabsProps) => {
   const isAdmin = project.is_admin ?? false;
   const canSeeMembers = isAdmin || (project.is_member ?? false);
@@ -226,9 +181,7 @@ const ProjectTabs = ({
           <ProjectUsersSection projectId={project.id} canManage={isAdmin} />
         )}
 
-        {activeTab === 'settings' && (
-          <ProjectSettingsSection project={project} onUpdated={onProjectUpdated} />
-        )}
+        {activeTab === 'settings' && <ProjectSettingsSection project={project} />}
       </div>
     </div>
   );

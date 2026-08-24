@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type OrganizationDirectoryEntry } from '~/api/client';
 import {
-  listOrganizationDirectory,
-  requestOrganizationAccess,
-  type OrganizationDirectoryEntry,
-} from '~/api/client';
+  listOrganizationDirectoryOptions,
+  listOrganizationDirectoryQueryKey,
+  requestOrganizationAccessMutation,
+} from '~/api/queries';
 import { organizationPath } from '~/app/routes';
 import { Link } from 'react-router-dom';
 import { useLayoutStore } from '~/shared/stores/layout.store';
@@ -12,8 +14,10 @@ import { Delayed } from '~/shared/ui/Delayed';
 import { Button, Field, Textarea } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton } from '~/shared/ui/Skeleton';
-import { handleError } from '~/shared/utils/errorHandler';
-import { useOrganizationsStore } from '../stores/organizations.store';
+import { extractErrorMessage } from '~/shared/utils/errorHandler';
+import { useRefreshOrganizations } from '../hooks/useOrganizations';
+
+const NONE: OrganizationDirectoryEntry[] = [];
 
 /** The note is optional, but it is all an org admin has to go on, so the form
  *  asks for it rather than firing the request off a bare button. */
@@ -24,25 +28,30 @@ const RequestForm = ({
 }: {
   org: OrganizationDirectoryEntry;
   onCancel: () => void;
-  onSent: () => Promise<void>;
+  onSent: () => void;
 }) => {
+  const queryClient = useQueryClient();
+  const refreshMine = useRefreshOrganizations();
   const [note, setNote] = useState('');
-  const [sending, setSending] = useState(false);
 
-  const send = async () => {
-    setSending(true);
-    try {
-      await requestOrganizationAccess({
-        path: { organization_id: org.id },
-        body: { note: note.trim() || null },
-      });
-      await onSent();
-    } catch (err) {
-      handleError(err, 'Failed to send access request');
-    } finally {
-      setSending(false);
-    }
-  };
+  const request = useMutation({
+    ...requestOrganizationAccessMutation(),
+    meta: { errorMessage: 'Failed to send access request' },
+    // The row's own badge comes from the directory; an approved request turns
+    // into a membership, so the sidebar's list of "my organizations" moves too.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: listOrganizationDirectoryQueryKey() });
+      void refreshMine();
+      onSent();
+    },
+  });
+  const sending = request.isPending;
+
+  const send = () =>
+    request.mutate({
+      path: { organization_id: org.id },
+      body: { note: note.trim() || null },
+    });
 
   return (
     <div className="mt-3 space-y-3 max-w-xl">
@@ -68,13 +77,7 @@ const RequestForm = ({
   );
 };
 
-const OrganizationRow = ({
-  org,
-  onRequested,
-}: {
-  org: OrganizationDirectoryEntry;
-  onRequested: () => Promise<void>;
-}) => {
+const OrganizationRow = ({ org }: { org: OrganizationDirectoryEntry }) => {
   const [requesting, setRequesting] = useState(false);
 
   return (
@@ -103,10 +106,7 @@ const OrganizationRow = ({
         <RequestForm
           org={org}
           onCancel={() => setRequesting(false)}
-          onSent={async () => {
-            setRequesting(false);
-            await onRequested();
-          }}
+          onSent={() => setRequesting(false)}
         />
       )}
     </li>
@@ -115,37 +115,20 @@ const OrganizationRow = ({
 
 export const BrowseOrganizationsPage = () => {
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
-  const refreshMine = useOrganizationsStore((s) => s.refresh);
-  const [items, setItems] = useState<OrganizationDirectoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  const {
+    data,
+    isPending: loading,
+    error,
+  } = useQuery({
+    ...listOrganizationDirectoryOptions(),
+    meta: { errorMessage: 'Failed to load organizations', showUser: false },
+  });
+  const items = data?.items ?? NONE;
 
   useEffect(() => {
     setBreadcrumbs([{ label: 'Organizations' }]);
   }, [setBreadcrumbs]);
-
-  const load = useCallback(async () => {
-    try {
-      const { data } = await listOrganizationDirectory();
-      setItems(data?.items ?? []);
-      setError(null);
-    } catch (err) {
-      setError(handleError(err, 'Failed to load organizations', { showUser: false }));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // An approved request turns into a membership, so the sidebar's own list of
-  // "my organizations" has to be re-read too.
-  const afterRequest = async () => {
-    await load();
-    await refreshMine();
-  };
 
   return (
     <div className="flex-1 overflow-auto">
@@ -159,7 +142,11 @@ export const BrowseOrganizationsPage = () => {
           </div>
         </header>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <p className="text-sm text-red-600">
+            {extractErrorMessage(error, 'Failed to load organizations')}
+          </p>
+        )}
 
         {loading ? (
           <Delayed>
@@ -176,7 +163,7 @@ export const BrowseOrganizationsPage = () => {
             data-testid="organization-directory"
           >
             {items.map((org) => (
-              <OrganizationRow key={org.id} org={org} onRequested={afterRequest} />
+              <OrganizationRow key={org.id} org={org} />
             ))}
           </ul>
         )}

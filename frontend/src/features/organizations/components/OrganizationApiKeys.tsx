@@ -1,94 +1,82 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type OrganizationApiKeyOut } from '~/api/client';
 import {
-  createOrganizationApiKey,
-  deleteOrganizationApiKey,
-  listOrganizationApiKeys,
-  rotateOrganizationApiKey,
-  type OrganizationApiKeyOut,
-} from '~/api/client';
+  createOrganizationApiKeyMutation,
+  deleteOrganizationApiKeyMutation,
+  listOrganizationApiKeysOptions,
+  listOrganizationApiKeysQueryKey,
+  rotateOrganizationApiKeyMutation,
+} from '~/api/queries';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
-import { handleError } from '~/shared/utils/errorHandler';
 
 export type OrganizationApiKeysProps = {
   organizationId: number;
 };
+
+const NONE: OrganizationApiKeyOut[] = [];
 
 /** Provider keys the org's campaigns can share. The secret is write-only: it
  *  goes to the backend encrypted at rest and is never read back, so a key can
  *  be replaced but never displayed. */
 export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps) => {
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
-  const [keys, setKeys] = useState<OrganizationApiKeyOut[]>([]);
+  const queryClient = useQueryClient();
+  const path = { organization_id: organizationId };
+
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
   const [rotatingId, setRotatingId] = useState<number | null>(null);
   const [rotateValue, setRotateValue] = useState('');
   const [rotateConfirmed, setRotateConfirmed] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const { data } = await listOrganizationApiKeys({ path: { organization_id: organizationId } });
-      setKeys(data?.items ?? []);
-    } catch (err) {
-      handleError(err, 'Failed to load API keys');
-    }
-  }, [organizationId]);
+  const { data } = useQuery({
+    ...listOrganizationApiKeysOptions({ path }),
+    meta: { errorMessage: 'Failed to load API keys' },
+  });
+  const keys = data?.items ?? NONE;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const refetchKeys = () =>
+    queryClient.invalidateQueries({ queryKey: listOrganizationApiKeysQueryKey({ path }) });
 
-  const run = async (action: () => Promise<unknown>, failure: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      await load();
-      return true;
-    } catch (err) {
-      setError(handleError(err, failure, { showUser: false }));
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const add = async () => {
-    const ok = await run(
-      () =>
-        createOrganizationApiKey({
-          path: { organization_id: organizationId },
-          body: { name: name.trim(), value: value.trim() },
-        }),
-      'Failed to add key'
-    );
-    if (ok) {
+  const create = useMutation({
+    ...createOrganizationApiKeyMutation(),
+    meta: { errorMessage: 'Failed to add key' },
+    onSuccess: () => {
+      void refetchKeys();
       setName('');
       setValue('');
       setReadOnlyConfirmed(false);
-    }
-  };
-
-  const rotate = async (key: OrganizationApiKeyOut) => {
-    const ok = await run(
-      () =>
-        rotateOrganizationApiKey({
-          path: { organization_id: organizationId, key_id: key.id },
-          body: { value: rotateValue.trim() },
-        }),
-      'Failed to replace key'
-    );
-    if (ok) {
+    },
+  });
+  const rotateKey = useMutation({
+    ...rotateOrganizationApiKeyMutation(),
+    meta: { errorMessage: 'Failed to replace key' },
+    onSuccess: () => {
+      void refetchKeys();
       setRotatingId(null);
       setRotateValue('');
       setRotateConfirmed(false);
-    }
-  };
+    },
+  });
+  const removeKey = useMutation({
+    ...deleteOrganizationApiKeyMutation(),
+    meta: { errorMessage: 'Failed to delete key' },
+    onSuccess: refetchKeys,
+  });
+
+  const busy = create.isPending || rotateKey.isPending || removeKey.isPending;
+
+  const add = () => create.mutate({ path, body: { name: name.trim(), value: value.trim() } });
+
+  const rotate = (key: OrganizationApiKeyOut) =>
+    rotateKey.mutate({
+      path: { ...path, key_id: key.id },
+      body: { value: rotateValue.trim() },
+    });
 
   const remove = async (key: OrganizationApiKeyOut) => {
     const confirmed = await showConfirmDialog({
@@ -98,10 +86,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
       isDangerous: true,
     });
     if (!confirmed) return;
-    await run(
-      () => deleteOrganizationApiKey({ path: { organization_id: organizationId, key_id: key.id } }),
-      'Failed to delete key'
-    );
+    removeKey.mutate({ path: { ...path, key_id: key.id } });
   };
 
   return (
@@ -111,8 +96,6 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
         Provider keys shared across this organization. Store one here and any campaign can use it
         without seeing the secret; replacing it here updates every campaign at once.
       </p>
-
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
 
       {keys.length > 0 && (
         <ul className="mt-3 divide-y divide-neutral-100 border border-neutral-200 rounded-xl bg-white">

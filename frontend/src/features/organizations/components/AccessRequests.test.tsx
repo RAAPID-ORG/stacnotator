@@ -1,25 +1,29 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('~/api/client', async () => {
-  const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
+vi.mock('~/api/client/sdk.gen', async () => {
+  const actual =
+    await vi.importActual<typeof import('~/api/client/sdk.gen')>('~/api/client/sdk.gen');
   return {
     ...actual,
     listOrganizationAccessRequests: vi.fn(),
     approveOrganizationAccessRequest: vi.fn(),
     rejectOrganizationAccessRequest: vi.fn(),
+    listOrganizations: vi.fn(),
   };
 });
 
 import {
   approveOrganizationAccessRequest,
   listOrganizationAccessRequests,
+  listOrganizations,
   rejectOrganizationAccessRequest,
-  type AccessRequestOut,
-} from '~/api/client';
+} from '~/api/client/sdk.gen';
+import type { AccessRequestOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { apiSuccess } from '~/shared/testing/apiSuccess';
+import { renderWithQuery } from '~/shared/testing/renderWithQuery';
 import { AccessRequests } from './AccessRequests';
 
 const REQUEST: AccessRequestOut = {
@@ -34,12 +38,16 @@ beforeEach(() => {
   vi.mocked(listOrganizationAccessRequests).mockReset();
   vi.mocked(approveOrganizationAccessRequest).mockReset().mockResolvedValue(apiSuccess(undefined));
   vi.mocked(rejectOrganizationAccessRequest).mockReset().mockResolvedValue(apiSuccess(undefined));
+  // A decision invalidates the organization list for its pending-count badge.
+  vi.mocked(listOrganizations)
+    .mockReset()
+    .mockResolvedValue(apiSuccess({ items: [] }));
 });
 
 describe('AccessRequests', () => {
   it('shows the requester email and their note', async () => {
     vi.mocked(listOrganizationAccessRequests).mockResolvedValue(listed([REQUEST]));
-    render(<AccessRequests organizationId={7} />);
+    renderWithQuery(<AccessRequests organizationId={7} />);
 
     expect(await screen.findByText('ada@example.org')).toBeTruthy();
     expect(screen.getByText('Working on the maize campaign')).toBeTruthy();
@@ -47,7 +55,7 @@ describe('AccessRequests', () => {
 
   it('stays out of the way when nobody is waiting', async () => {
     vi.mocked(listOrganizationAccessRequests).mockResolvedValue(listed([]));
-    const { container } = render(<AccessRequests organizationId={7} />);
+    const { container } = renderWithQuery(<AccessRequests organizationId={7} />);
 
     await waitFor(() => expect(listOrganizationAccessRequests).toHaveBeenCalled());
     expect(container.innerHTML).toBe('');
@@ -57,20 +65,20 @@ describe('AccessRequests', () => {
     vi.mocked(listOrganizationAccessRequests)
       .mockResolvedValueOnce(listed([REQUEST]))
       .mockResolvedValue(listed([]));
-    render(<AccessRequests organizationId={7} />);
+    renderWithQuery(<AccessRequests organizationId={7} />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Approve' }));
 
-    expect(approveOrganizationAccessRequest).toHaveBeenCalledWith({
-      path: { organization_id: 7, user_id: 'u-1' },
-    });
+    expect(approveOrganizationAccessRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ path: { organization_id: 7, user_id: 'u-1' } })
+    );
     await waitFor(() => expect(screen.queryByText('ada@example.org')).toBeNull());
   });
 
   it('confirms before rejecting, and does nothing when the admin backs out', async () => {
     vi.mocked(listOrganizationAccessRequests).mockResolvedValue(listed([REQUEST]));
     useLayoutStore.setState({ showConfirmDialog: () => Promise.resolve(false) });
-    render(<AccessRequests organizationId={7} />);
+    renderWithQuery(<AccessRequests organizationId={7} />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Reject' }));
     expect(rejectOrganizationAccessRequest).not.toHaveBeenCalled();

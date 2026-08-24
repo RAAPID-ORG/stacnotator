@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from 'src/app/App';
 import 'src/styles/app.css';
 import { RootErrorFallback } from 'src/shared/ui/RootErrorFallback';
@@ -10,6 +11,7 @@ import { AuthProvider } from 'src/app/providers/AuthProvider';
 import { AuthGate } from 'src/features/auth/ui/AuthGate';
 import { legalKeyFromPath } from 'src/features/legal/docs';
 import { visualizerSlugFromPath } from 'src/features/visualizers/route';
+import { queryClient } from 'src/api/queryClient';
 
 const LegalPage = lazy(() => import('src/features/legal/LegalPage'));
 const VisualizerPage = lazy(() =>
@@ -42,22 +44,24 @@ const visualizerSlug = visualizerSlugFromPath(window.location.pathname);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary FallbackComponent={RootErrorFallback}>
-    {legalKey ? (
-      <Suspense fallback={null}>
-        <LegalPage doc={legalKey} />
-      </Suspense>
-    ) : visualizerSlug ? (
-      <AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      {legalKey ? (
         <Suspense fallback={null}>
-          <VisualizerPage slug={visualizerSlug} />
+          <LegalPage doc={legalKey} />
         </Suspense>
-      </AuthProvider>
-    ) : (
-      <AuthProvider>
-        <AuthGate>
-          <App />
-        </AuthGate>
-      </AuthProvider>
-    )}
+      ) : visualizerSlug ? (
+        <AuthProvider>
+          <Suspense fallback={null}>
+            <VisualizerPage slug={visualizerSlug} />
+          </Suspense>
+        </AuthProvider>
+      ) : (
+        <AuthProvider>
+          <AuthGate>
+            <App />
+          </AuthGate>
+        </AuthProvider>
+      )}
+    </QueryClientProvider>
   </ErrorBoundary>
 );

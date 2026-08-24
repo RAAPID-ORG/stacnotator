@@ -1,37 +1,42 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { type OrganizationOut } from '~/api/client';
-import { useOrganizationsStore } from '../stores/organizations.store';
+import { listOrganizationsOptions, listOrganizationsQueryKey } from '~/api/queries';
 import { APPROVED } from '../utils/organizations';
 
-export interface UseOrganizations {
-  orgs: OrganizationOut[];
-  loading: boolean;
-  error: string | null;
-  refresh: () => Promise<void>;
-}
+const NONE: OrganizationOut[] = [];
+
+/** One cache entry for the viewer's organizations, shared by every consumer, so
+ *  the sidebar switcher and the pages can never disagree about the list. The
+ *  surfaces render their own failure, hence no toast. */
+const organizationsQuery = () => ({
+  ...listOrganizationsOptions(),
+  meta: { errorMessage: 'Failed to load organizations', showUser: false },
+});
 
 /** The organizations the current user belongs to, with viewer-relative
- *  `is_admin` and `status`. Backed by a shared store: the list is fetched once
- *  and every consumer reads the same items, so a `refresh()` anywhere reaches
- *  all of them. With `approvedOnly`, only organizations that can own projects
- *  are returned - an empty result then means the user cannot create a project
- *  yet. */
-export const useOrganizations = (options?: { approvedOnly?: boolean }): UseOrganizations => {
+ *  `is_admin` and `status`. With `approvedOnly`, only organizations that can own
+ *  projects are returned - an empty result then means the user cannot create a
+ *  project yet. */
+export const useOrganizations = (options?: { approvedOnly?: boolean }) => {
   const approvedOnly = options?.approvedOnly ?? false;
-  const items = useOrganizationsStore((s) => s.items);
-  const loading = useOrganizationsStore((s) => s.loading);
-  const error = useOrganizationsStore((s) => s.error);
-  const ensureLoaded = useOrganizationsStore((s) => s.ensureLoaded);
-  const refresh = useOrganizationsStore((s) => s.refresh);
-
-  useEffect(() => {
-    void ensureLoaded();
-  }, [ensureLoaded]);
+  const { data, isPending, error } = useQuery(organizationsQuery());
+  const items = data?.items ?? NONE;
 
   const orgs = useMemo(
     () => (approvedOnly ? items.filter((org) => org.status === APPROVED) : items),
     [items, approvedOnly]
   );
 
-  return { orgs, loading, error, refresh };
+  return { orgs, loading: isPending, error };
+};
+
+/** For anything that changes the viewer's membership or an organization's own
+ *  state - the list carries both, plus the pending counts the badges read. */
+export const useRefreshOrganizations = () => {
+  const queryClient = useQueryClient();
+  return useCallback(
+    () => queryClient.invalidateQueries({ queryKey: listOrganizationsQueryKey() }),
+    [queryClient]
+  );
 };

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PROJECT_ROUTE, useProjectNavInfo } from '~/app/SidebarProjectNav';
-import { useOrganizationsStore } from '~/features/organizations/stores/organizations.store';
+import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
 import { useOrgStore } from '~/shared/stores/org.store';
 
 /**
@@ -17,8 +17,8 @@ import { useOrgStore } from '~/shared/stores/org.store';
 export function useOrgScope(): void {
   const { pathname } = useLocation();
   const projectId = Number(pathname.match(PROJECT_ROUTE)?.[1]) || null;
-  const organizationId = useProjectNavInfo(projectId)?.project.organization_id ?? null;
-  const memberships = useOrganizationsStore((s) => s.items);
+  const organizationId = useProjectNavInfo(projectId).project?.organization_id ?? null;
+  const { orgs: memberships } = useOrganizations();
 
   useEffect(() => {
     if (organizationId === null) return;

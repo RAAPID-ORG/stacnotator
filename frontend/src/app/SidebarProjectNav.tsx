@@ -1,85 +1,44 @@
-import { Fragment, useEffect, useSyncExternalStore } from 'react';
+import { Fragment } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import {
-  getProject,
-  listProjectCampaigns,
-  type CampaignListItemOut,
-  type ProjectOut,
-} from '~/api/client';
+import { useQuery } from '@tanstack/react-query';
+import type { CampaignListItemOut } from '~/api/client';
+import { getProjectOptions, listProjectCampaignsOptions } from '~/api/queries';
 import { campaignPath, projectPath } from '~/app/routes';
 
-export interface ProjectNavInfo {
-  project: ProjectOut;
-  campaigns: CampaignListItemOut[];
-}
+const NO_CAMPAIGNS: CampaignListItemOut[] = [];
 
-const navInfoCache = new Map<number, ProjectNavInfo>();
-const pendingLoads = new Set<number>();
-const listeners = new Set<() => void>();
+/** The project the current route is about, plus its campaigns. The one place
+ *  the app resolves "which project is this", so the breadcrumb, the sidebar,
+ *  the org scope and ProjectPage all read the same answer - literally the same
+ *  two cache entries, so opening a project never fetches it twice. */
+export const useProjectNavInfo = (projectId: number | null) => {
+  // project_id is only read once `enabled` lets the query run; the placeholder
+  // keeps the hooks unconditional on routes outside a project.
+  const path = { project_id: projectId ?? 0 };
+  const enabled = projectId !== null;
 
-const notify = () => listeners.forEach((listener) => listener());
+  const project = useQuery({
+    ...getProjectOptions({ path }),
+    enabled,
+    meta: { errorMessage: 'Failed to load project' },
+  });
+  const campaigns = useQuery({
+    ...listProjectCampaignsOptions({ path }),
+    enabled,
+    meta: { errorMessage: 'Failed to load campaigns' },
+  });
 
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
+  return {
+    project: project.data,
+    campaigns: campaigns.data?.items ?? NO_CAMPAIGNS,
+    loading: enabled && project.isPending,
   };
-};
-
-/** Pages that already fetched the project (ProjectPage) feed the sidebar so
- *  it never double-fetches and immediately reflects renames or campaign-list
- *  changes. */
-export const primeNavInfo = (projectId: number, info: ProjectNavInfo) => {
-  navInfoCache.set(projectId, info);
-  notify();
-};
-
-/** The cache is identity-scoped; sign-out drops it alongside the org stores. */
-export const clearNavInfoCache = () => {
-  navInfoCache.clear();
-  pendingLoads.clear();
-  notify();
-};
-
-/** Fallback for deep entry (straight into a campaign route) where ProjectPage
- *  never mounted to prime the cache: one parallel fetch per project id. */
-const ensureNavInfo = (projectId: number) => {
-  if (navInfoCache.has(projectId) || pendingLoads.has(projectId)) return;
-  pendingLoads.add(projectId);
-  Promise.all([
-    getProject({ path: { project_id: projectId } }),
-    listProjectCampaigns({ path: { project_id: projectId } }),
-  ])
-    .then(([projectRes, campaignsRes]) => {
-      if (projectRes.data) {
-        primeNavInfo(projectId, {
-          project: projectRes.data,
-          campaigns: campaignsRes.data?.items ?? [],
-        });
-      }
-    })
-    .catch(() => undefined)
-    .finally(() => pendingLoads.delete(projectId));
-};
-
-/** A project from the nav cache, fetched on demand for deep entries (straight
- *  into a campaign route). The one place the app resolves "which project is
- *  this route about", so the breadcrumb, the sidebar and the org scope all
- *  read the same answer. */
-export const useProjectNavInfo = (projectId: number | null): ProjectNavInfo | undefined => {
-  const info = useSyncExternalStore(subscribe, () =>
-    projectId === null ? undefined : navInfoCache.get(projectId)
-  );
-  useEffect(() => {
-    if (projectId !== null) ensureNavInfo(projectId);
-  }, [projectId]);
-  return info;
 };
 
 /** Feeds the project crumb on campaign pages, whose API responses only carry
  *  the project id. */
 export const useProjectName = (projectId: number | null): string | null =>
-  useProjectNavInfo(projectId)?.project.name ?? null;
+  useProjectNavInfo(projectId).project?.name ?? null;
 
 export const PROJECT_ROUTE = /^\/projects\/(\d+)(?:\/campaigns\/(\d+))?/;
 
@@ -107,21 +66,9 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
   const projectId = match ? Number(match[1]) : null;
   const campaignId = match?.[2] ? Number(match[2]) : null;
 
-  // On the project index ProjectPage is about to prime the cache with its own
-  // fetches; only deeper routes need the standalone fallback load.
-  const onProjectIndexRoute = projectId !== null && location.pathname === projectPath(projectId);
+  const { project, campaigns } = useProjectNavInfo(projectId);
 
-  const info = useSyncExternalStore(subscribe, () =>
-    projectId === null ? undefined : navInfoCache.get(projectId)
-  );
-
-  useEffect(() => {
-    if (projectId !== null && !onProjectIndexRoute) ensureNavInfo(projectId);
-  }, [projectId, onProjectIndexRoute]);
-
-  if (projectId === null || info === undefined) return null;
-
-  const { project } = info;
+  if (projectId === null || project === undefined) return null;
 
   const tab = new URLSearchParams(location.search).get('tab');
   const onProjectIndex = location.pathname === projectPath(projectId);
@@ -147,7 +94,7 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
       active: onProjectIndex && tab === null,
       depth: 1,
     },
-    ...[...info.campaigns]
+    ...[...campaigns]
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
       .map((c) => ({
         key: `campaign-${c.id}`,

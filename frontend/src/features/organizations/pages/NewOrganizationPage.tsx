@@ -1,62 +1,60 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { requestOrganization } from '~/api/client';
+import { useMutation } from '@tanstack/react-query';
+import { requestOrganizationMutation } from '~/api/queries';
 import { organizationPath, projectsPath } from '~/app/routes';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
-import { handleError } from '~/shared/utils/errorHandler';
-import { useOrganizations } from '../hooks/useOrganizations';
+import { extractErrorMessage } from '~/shared/utils/errorHandler';
+import { useRefreshOrganizations } from '../hooks/useOrganizations';
 
 export const NewOrganizationPage = () => {
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
-  const { refresh } = useOrganizations();
+  const refreshOrganizations = useRefreshOrganizations();
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [requestedName, setRequestedName] = useState<string | null>(null);
 
   useEffect(() => {
     setBreadcrumbs([{ label: 'New organization' }]);
   }, [setBreadcrumbs]);
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError('Name is required');
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-    try {
-      const { data } = await requestOrganization({
-        body: { name: trimmedName, description: description.trim() || null },
-      });
-      if (!data) {
-        setError('The server did not return the new organization');
-        return;
-      }
-      await refresh();
-      if (data.status === 'pending') {
-        setRequestedName(data.name);
+  // A platform admin's own request is approved on creation, so the response
+  // decides between landing in the new organization and waiting for review.
+  const request = useMutation({
+    ...requestOrganizationMutation(),
+    meta: { errorMessage: 'Failed to request organization', showUser: false },
+    onSuccess: (organization) => {
+      void refreshOrganizations();
+      if (organization.status === 'pending') {
+        setRequestedName(organization.name);
         setName('');
         setDescription('');
       } else {
-        setActiveOrgId(data.id);
-        navigate(organizationPath(data.id));
+        setActiveOrgId(organization.id);
+        navigate(organizationPath(organization.id));
       }
-    } catch (err) {
-      setError(handleError(err, 'Failed to request organization', { showUser: false }));
-    } finally {
-      setSubmitting(false);
+    },
+  });
+
+  const submitting = request.isPending;
+  const error = nameError ?? (request.error && extractErrorMessage(request.error)) ?? null;
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setNameError('Name is required');
+      return;
     }
+    setNameError(null);
+    request.mutate({ body: { name: trimmedName, description: description.trim() || null } });
   };
 
   return (
