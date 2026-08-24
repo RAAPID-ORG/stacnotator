@@ -90,7 +90,35 @@ Feature-sliced under `frontend/src/`:
 - `app/` — `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `AppSidebar.tsx`)
 - `features/<name>/` — `annotation`, `campaigns`, `auth`, `settings`, `home`. Most have `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`; `annotation` is layered instead (below). Custom-layers UI follows the surface split: authoring editors under `campaigns/components/`, runtime controls under the annotation panels that own them
 - `shared/` — cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`), `colormaps/` (tiler colormap definitions + select, used by the campaign editors and the annotation legend), `map/` (the OpenLayers engine: `MapView`, `layers.ts`, `Camera`, `tileLoading.ts`, `interactions.ts` - any page that draws a map mounts these), `imagery/` (pure tile URL and render-param mechanics, plus the editable `RenderLegend`)
-- `api/` — generated client (`client/`), `hey-api.ts` config, plus `stacBrowser.ts` and `tilerToken.ts`
+- `api/` — generated client (`client/`), `hey-api.ts` config, `queries.ts` (the generated react-query option factories), `queryClient.ts` (the shared cache), plus `stacBrowser.ts` and `tilerToken.ts`
+
+### Server state outside the annotation page
+
+Every platform surface - projects, organizations, settings, campaign admin,
+visualizer authoring - reads through **TanStack Query**, never through a
+`useEffect` + `useState` fetch. The option and mutation factories are generated
+from the same OpenAPI schema as the client (`~/api/queries`), so there are no
+hand-written query keys or wrapper hooks: `useQuery(listProjectsOptions())`,
+`useMutation(updateProjectMutation())`, and `invalidateQueries` with the
+generated key after a write.
+
+- **`queryClient.ts` owns error reporting.** Each query and mutation carries
+  `meta: { errorMessage, showUser? }`; the cache-level handler calls
+  `handleError`. Do not wrap calls in try/catch to toast.
+- **Loads render their failure in place, actions toast.** Set
+  `showUser: false` where a surface shows the error itself, or where a child
+  component awaits the handler and reports for you (the admin tables, the
+  assignment modals).
+- **Retries and refetch-on-focus are off** so one mocked route means one
+  request under Playwright. Keep it that way.
+- **Client state stays in Zustand** (`org.store.ts`, `layout.store.ts`, the
+  annotation stores). A store that caches a server list is the thing this
+  replaced; don't add one back.
+- Deliberately still imperative: file uploads and downloads that report through
+  a callback and own no list, and `features/annotation` + the imagery wizard
+  (`campaigns/components/imagery/`), which have their own state machines.
+- Component tests that touch a query use `renderWithQuery` and mock
+  `~/api/client/sdk.gen` - mocking `~/api/client` only catches direct callers.
 
 ### The annotation feature
 
