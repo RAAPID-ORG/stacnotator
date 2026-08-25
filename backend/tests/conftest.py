@@ -40,3 +40,14 @@ def sample_settings_data(sample_labels):
         "bbox_east": 10.0,
         "bbox_north": 55.0,
     }
+
+
+@pytest.fixture(autouse=True)
+def _clear_tile_target_cache():
+    """The proxy caches a tile's upstream target per process, which otherwise carries a
+    layer's URL from one test into the next and makes failures depend on test order."""
+    from src.imagery.proxy_router import reset_target_cache
+
+    reset_target_cache()
+    yield
+    reset_target_cache()

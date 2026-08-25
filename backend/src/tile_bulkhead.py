@@ -32,6 +32,7 @@ class TileCapacityError(Exception):
 
 
 _slots: asyncio.Semaphore | None = None
+_upstream_slots: asyncio.Semaphore | None = None
 
 
 def _semaphore() -> asyncio.Semaphore:
@@ -43,9 +44,17 @@ def _semaphore() -> asyncio.Semaphore:
     return _slots
 
 
+def _upstream_semaphore() -> asyncio.Semaphore:
+    global _upstream_slots
+    if _upstream_slots is None:
+        _upstream_slots = asyncio.Semaphore(get_settings().TILE_UPSTREAM_MAX_CONCURRENCY)
+    return _upstream_slots
+
+
 def reset_for_tests() -> None:
-    global _slots
+    global _slots, _upstream_slots
     _slots = None
+    _upstream_slots = None
 
 
 @asynccontextmanager
@@ -71,3 +80,26 @@ async def tile_slot() -> AsyncIterator[None]:
     """
     async with tile_db_slot():
         yield
+
+
+@asynccontextmanager
+async def tile_upstream_slot() -> AsyncIterator[None]:
+    """Hold a provider-fetch slot for the duration of the block.
+
+    Separate from the database budget on purpose. A proxied tile spends almost all of
+    its life waiting on someone else's server while holding no connection of ours, so
+    the two need very different ceilings: the DB budget is small because connections are
+    scarce, this one is large because idle sockets are cheap. Bounding it at all is what
+    stops a tile storm from exhausting file descriptors.
+    """
+    settings = get_settings()
+    try:
+        await asyncio.wait_for(
+            _upstream_semaphore().acquire(), timeout=settings.TILE_UPSTREAM_QUEUE_TIMEOUT
+        )
+    except TimeoutError as exc:
+        raise TileCapacityError("timed out waiting for a tile upstream slot") from exc
+    try:
+        yield
+    finally:
+        _upstream_semaphore().release()

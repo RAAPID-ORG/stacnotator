@@ -132,6 +132,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
     """
 
     _inflight = 0
+    _tile_inflight = 0
 
     # Admission control. A worker that accepts more work than it can run collapses
     # rather than degrading: everything queues, breaches gunicorn's timeout together,
@@ -145,18 +146,20 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
         timing = perf.start()
 
-        limit = settings.MAX_INFLIGHT_REQUESTS
-        if (
-            limit
-            and RequestContextMiddleware._inflight >= limit
-            and request.url.path not in RequestContextMiddleware._ALWAYS_ADMIT
-        ):
+        cls = RequestContextMiddleware
+        path = request.url.path
+        is_tile = _is_proxy_tile(path)
+        limit = settings.MAX_INFLIGHT_TILE_REQUESTS if is_tile else settings.MAX_INFLIGHT_REQUESTS
+        current = cls._tile_inflight if is_tile else cls._inflight
+
+        if limit and current >= limit and path not in cls._ALWAYS_ADMIT:
             logger.warning(
-                "Shedding request | %s %s inflight=%d limit=%d request_id=%s",
+                "Shedding request | %s %s inflight=%d limit=%d tile=%s request_id=%s",
                 request.method,
-                request.url.path,
-                RequestContextMiddleware._inflight,
+                path,
+                current,
                 limit,
+                is_tile,
                 request_id,
             )
             return JSONResponse(
@@ -165,11 +168,17 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 headers={"Retry-After": "2", "X-Request-ID": request_id},
             )
 
-        RequestContextMiddleware._inflight += 1
+        if is_tile:
+            cls._tile_inflight += 1
+        else:
+            cls._inflight += 1
         try:
             response = await call_next(request)
         finally:
-            RequestContextMiddleware._inflight -= 1
+            if is_tile:
+                cls._tile_inflight -= 1
+            else:
+                cls._inflight -= 1
         elapsed_ms = (perf_counter() - timing.started) * 1000
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Response-Time-ms"] = f"{elapsed_ms:.0f}"
@@ -178,16 +187,28 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         if slow or settings.LOG_REQUEST_TIMING:
             logger.log(
                 logging.WARNING if slow else logging.INFO,
-                "perf | %s %s %s %.0fms %s inflight=%d request_id=%s",
+                "perf | %s %s %s %.0fms %s inflight=%d tiles=%d request_id=%s",
                 request.method,
                 _route_template(request),
                 response.status_code,
                 elapsed_ms,
                 perf.breakdown(timing),
                 RequestContextMiddleware._inflight,
+                RequestContextMiddleware._tile_inflight,
                 request_id,
             )
         return response
+
+
+def _is_proxy_tile(path: str) -> bool:
+    """Whether this is an imagery proxy tile, which gets its own admission budget.
+
+    Proxy tiles only. Annotation vector tiles also live under a ``/tiles/`` path but do
+    real database work, so they stay under the API's budget where that work is counted.
+    Matched on the raw path because the route is not resolved until after this
+    middleware has already decided whether to admit the request.
+    """
+    return "/imagery/" in path and "/tiles/" in path
 
 
 def _route_template(request: Request) -> str:

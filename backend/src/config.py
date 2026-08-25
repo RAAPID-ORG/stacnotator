@@ -100,6 +100,23 @@ class Settings(BaseSettings):
     # so patience here is expensive and worth little.
     DB_TILE_QUEUE_TIMEOUT: float = 5.0
 
+    # Proxy tiles resolve their target from an in-process cache, so the hot path holds
+    # no database connection at all - what needs bounding is sockets to the provider.
+    #
+    # Sustained tiles/sec = (this x WORKERS) / upstream latency, so at 4 workers and the
+    # ~1.5s a cold provider fetch takes, 384 is what buys ~1000 tiles/sec. The ceiling on
+    # raising it further is file descriptors, not memory: this many outbound sockets plus
+    # MAX_INFLIGHT_TILE_REQUESTS inbound ones must stay under the process nofile limit,
+    # and 384 + 512 = 896 leaves headroom under a conservative 1024.
+    TILE_UPSTREAM_MAX_CONCURRENCY: int = 384
+    TILE_UPSTREAM_QUEUE_TIMEOUT: float = 10.0
+
+    # A tile's upstream target changes only when an admin edits the layer, so caching it
+    # briefly removes one query and one pool checkout from every single tile. The TTL is
+    # what bounds how long an edit takes to show up.
+    TILE_TARGET_CACHE_TTL: float = 60.0
+    TILE_TARGET_CACHE_SIZE: int = 4096
+
     # AnyIO threadpool size for sync routes. Must exceed (DB_POOL_SIZE +
     # DB_MAX_OVERFLOW) so a sync `get_db` dependency's cleanup is never starved of a
     # thread under load (which leaks the connection). The DB pool -not this -stays
@@ -115,6 +132,14 @@ class Settings(BaseSettings):
     # turns a fast failure into a slow one that also holds a thread. This is per worker,
     # so the replica's real ceiling is this times WORKERS. 0 disables shedding.
     MAX_INFLIGHT_REQUESTS: int = 32
+
+    # Proxy tiles get their own admission budget. Once their target is cached they are
+    # almost pure I/O wait, so the number that keeps the API responsive is far too low
+    # for them - and sharing one counter means a single map refresh can shut the
+    # platform out of its own worker. Separate counters keep both properties.
+    # Sized with TILE_UPSTREAM_MAX_CONCURRENCY so the two together stay inside the
+    # process file-descriptor limit; see the note there.
+    MAX_INFLIGHT_TILE_REQUESTS: int = 512
 
     # Requests at or above this get one WARNING line with their duration and the
     # number of requests in flight at the time. Per-request INFO logging would

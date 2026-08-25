@@ -166,3 +166,73 @@ def test_a_tiny_pool_still_leaves_one_slot_each():
     settings = _sized(1, 1)
     assert settings.TILE_DB_SLOTS >= 1
     assert (2 - settings.TILE_DB_SLOTS) >= 1
+
+
+def _upstream_settings(slots: int, timeout: float):
+    return lambda: SimpleNamespace(
+        TILE_UPSTREAM_MAX_CONCURRENCY=slots, TILE_UPSTREAM_QUEUE_TIMEOUT=timeout
+    )
+
+
+def test_the_upstream_budget_ships_far_larger_than_the_db_budget():
+    """They bound different scarce things. Connections are few; a socket idling on a
+    provider is cheap, and sizing both alike is what capped the proxy at ~60 tiles/s."""
+    from src.config import get_settings as real_settings
+
+    s = real_settings()
+    assert s.TILE_UPSTREAM_MAX_CONCURRENCY > s.TILE_DB_SLOTS * 4
+
+
+def test_concurrent_provider_fetches_are_capped_at_the_upstream_count(monkeypatch):
+    monkeypatch.setattr(tile_bulkhead, "get_settings", _upstream_settings(3, 5.0))
+
+    async def main() -> int:
+        live = 0
+        peak = 0
+        release = asyncio.Event()
+
+        async def fetch():
+            nonlocal live, peak
+            async with tile_bulkhead.tile_upstream_slot():
+                live += 1
+                peak = max(peak, live)
+                await release.wait()
+                live -= 1
+
+        tasks = [asyncio.create_task(fetch()) for _ in range(12)]
+        await asyncio.sleep(0)
+        release.set()
+        await asyncio.gather(*tasks)
+        return peak
+
+    assert asyncio.run(main()) == 3
+
+
+def test_a_provider_fetch_sheds_rather_than_queueing_forever(monkeypatch):
+    monkeypatch.setattr(tile_bulkhead, "get_settings", _upstream_settings(1, 0.01))
+
+    async def main():
+        async with tile_bulkhead.tile_upstream_slot():
+            with pytest.raises(TileCapacityError):
+                async with tile_bulkhead.tile_upstream_slot():
+                    pass
+
+    asyncio.run(main())
+
+
+def test_the_two_budgets_are_independent(monkeypatch):
+    """A tile waiting on a provider must not be holding a database slot - that coupling
+    is exactly what the split removes."""
+    monkeypatch.setattr(tile_bulkhead, "get_settings", _settings(1, 0.01))
+
+    async def main():
+        async with tile_db_slot():
+            pass
+        monkeypatch.setattr(tile_bulkhead, "get_settings", _upstream_settings(1, 0.01))
+        async with tile_bulkhead.tile_upstream_slot():
+            # The DB budget is untouched while a provider fetch is in flight.
+            monkeypatch.setattr(tile_bulkhead, "get_settings", _settings(1, 0.01))
+            async with tile_db_slot():
+                pass
+
+    asyncio.run(main())

@@ -7,11 +7,17 @@ usual Firebase bearer. The provider key is decrypted here and never reaches the 
 This is a separate router (not ``imagery.router``) precisely so it is *not* under that
 router's ``require_authenticated_user`` bearer dependency.
 
-Every route holds a tile bulkhead slot for its whole life, not just for the database
-lookup: the slow part is the uncached upstream provider fetch, and an uncapped burst of
-those piles up while the campaign pages sharing this process wait behind them.
+Two things bound this path, and they are deliberately different sizes. The database
+lookup holds a tile *DB* slot, because connections are scarce - but it almost never runs,
+since a tile's upstream target changes only when an admin edits the layer and is cached
+here for a minute. The provider fetch holds a tile *upstream* slot instead, which is far
+larger, because a proxied tile spends its life waiting on someone else's server while
+holding no connection of ours. Holding the DB budget across that wait, as this module
+used to, capped the whole proxy at roughly sixty tiles a second.
 """
 
+import time
+from collections import OrderedDict
 from collections.abc import Callable
 
 import httpx
@@ -22,28 +28,80 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from src import net_guard
+from src.config import get_settings
 from src.crypto import DecryptionError, decrypt
 from src.database import SessionLocal
 from src.imagery.models import Basemap, ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
 from src.imagery.proxy import build_upstream_tile_url
 from src.organizations.models import OrganizationApiKey
-from src.tile_bulkhead import tile_slot
+from src.tile_bulkhead import tile_db_slot, tile_upstream_slot
 from src.tilers import tokens
 
 router = APIRouter(tags=["Imagery Tiles"])
 
 # Guarded: the template is a stored, campaign-admin-supplied URL, so the fetch is
 # only as trustworthy as whatever that admin typed.
-_client = net_guard.guarded_async_client(timeout=15.0)
+#
+# httpx defaults to 100 connections, which on its own capped the proxy well below the
+# upstream bulkhead it now sits behind. The two are sized together so the semaphore is
+# the thing that queues, not the connection pool silently underneath it.
+_settings = get_settings()
+_client = net_guard.guarded_async_client(
+    timeout=15.0,
+    limits=httpx.Limits(
+        max_connections=_settings.TILE_UPSTREAM_MAX_CONCURRENCY,
+        max_keepalive_connections=max(32, _settings.TILE_UPSTREAM_MAX_CONCURRENCY // 4),
+    ),
+)
+
+# Resolved tile targets, keyed by what identifies the layer. One query and one pool
+# checkout per tile is the difference between a proxy that scales and one that does not,
+# and the value changes only when an admin edits the layer - so it is cached for
+# TILE_TARGET_CACHE_TTL and the edit shows up within that. Only successes are stored: a
+# 404 stays uncached so a newly created layer works immediately.
+_targets: OrderedDict[tuple, tuple[float, tuple[str, str | None]]] = OrderedDict()
 
 
-async def _read[T](lookup: Callable[[Session], T]) -> T:
-    """Resolve a tile's upstream target.
+def _cache_get(key: tuple) -> tuple[str, str | None] | None:
+    entry = _targets.get(key)
+    if entry is None:
+        return None
+    expires, value = entry
+    if expires <= time.monotonic():
+        _targets.pop(key, None)
+        return None
+    _targets.move_to_end(key)
+    return value
 
-    No bulkhead here: the route already holds a tile slot, and the semaphore is not
-    reentrant - a second acquire per request would deadlock at saturation.
+
+def _cache_put(key: tuple, value: tuple[str, str | None]) -> None:
+    settings = get_settings()
+    _targets[key] = (time.monotonic() + settings.TILE_TARGET_CACHE_TTL, value)
+    _targets.move_to_end(key)
+    while len(_targets) > settings.TILE_TARGET_CACHE_SIZE:
+        _targets.popitem(last=False)
+
+
+def reset_target_cache() -> None:
+    _targets.clear()
+
+
+async def _resolve(
+    key: tuple, lookup: Callable[[Session], tuple[str, str | None]]
+) -> tuple[str, str | None]:
+    """The tile's upstream target, from cache when possible.
+
+    Only the miss touches the database, and only the miss holds a DB slot. The slot is
+    taken here rather than on the route so it is released before the provider fetch,
+    which is the slow part and needs no connection.
     """
-    return await run_in_threadpool(_with_session, lookup)
+    hit = _cache_get(key)
+    if hit is not None:
+        return hit
+    async with tile_db_slot():
+        value = await run_in_threadpool(_with_session, lookup)
+    _cache_put(key, value)
+    return value
 
 
 def _with_session[T](lookup: Callable[[Session], T]) -> T:
@@ -87,7 +145,8 @@ async def _proxy(template: str, encrypted_api_key: str | None, z: int, x: int, y
         raise HTTPException(status_code=500, detail="Provider API key could not be read") from e
     url = build_upstream_tile_url(template, z, x, y, api_key)
     try:
-        resp = await _client.get(url)
+        async with tile_upstream_slot():
+            resp = await _client.get(url)
         resp.raise_for_status()
     except net_guard.UnsafeUrlError as e:
         raise HTTPException(status_code=502, detail=f"Upstream tile URL rejected: {e}") from e
@@ -110,7 +169,7 @@ def _image_media_type(upstream: str | None) -> str:
 
 @router.get(
     "/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}",
-    dependencies=[Depends(tile_slot), Depends(require_tile_access)],
+    dependencies=[Depends(require_tile_access)],
 )
 async def proxy_basemap_tile(
     campaign_id: int,
@@ -125,13 +184,13 @@ async def proxy_basemap_tile(
             raise HTTPException(status_code=404, detail="Basemap not found")
         return basemap.url, _resolve_key(db, basemap)
 
-    url, encrypted_api_key = await _read(lookup)
+    url, encrypted_api_key = await _resolve(("basemap", campaign_id, basemap_id), lookup)
     return await _proxy(url, encrypted_api_key, z, x, y)
 
 
 @router.get(
     "/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}",
-    dependencies=[Depends(tile_slot), Depends(require_tile_access)],
+    dependencies=[Depends(require_tile_access)],
 )
 async def proxy_slice_tile(
     campaign_id: int,
@@ -160,5 +219,7 @@ async def proxy_slice_tile(
             raise HTTPException(status_code=404, detail="Tile URL not found")
         return tile.tile_url, _resolve_key(db, source)
 
-    tile_url, encrypted_api_key = await _read(lookup)
+    tile_url, encrypted_api_key = await _resolve(
+        ("slice", campaign_id, slice_id, visualization_name), lookup
+    )
     return await _proxy(tile_url, encrypted_api_key, z, x, y)

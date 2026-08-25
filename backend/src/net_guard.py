@@ -182,5 +182,8 @@ def guarded_client(*, limits: httpx.Limits | None = None, **kwargs: Any) -> http
     return httpx.Client(transport=transport, **kwargs)
 
 
-def guarded_async_client(**kwargs: Any) -> httpx.AsyncClient:
-    return httpx.AsyncClient(transport=GuardedAsyncTransport(), **kwargs)
+def guarded_async_client(*, limits: httpx.Limits | None = None, **kwargs: Any) -> httpx.AsyncClient:
+    """As :func:`guarded_client`, async. ``limits`` belongs to the transport, so like the
+    sync variant it cannot be passed through ``kwargs``."""
+    transport = GuardedAsyncTransport(limits=limits) if limits else GuardedAsyncTransport()
+    return httpx.AsyncClient(transport=transport, **kwargs)
