@@ -45,7 +45,7 @@ from src.campaigns.schemas import (
     UpdateResearchSharingRequest,
     UpdateSampleExtentRequest,
 )
-from src.database import get_db
+from src.database import get_db, release
 from src.filenames import clean_filename
 from src.imagery.registration import REGISTRATION_RUN
 from src.organizations.service import is_active_org_member
@@ -138,7 +138,11 @@ def get_campaign_summary(
     """The campaign without its imagery, for pages that never render it."""
     _recover_stale_registration(db, campaign)
     summary = CampaignSummaryOut.model_validate(service.get_campaign_summary(db, campaign_id))
-    return _with_viewer_roles(summary, db, user, campaign.project_id)
+    out = _with_viewer_roles(summary, db, user, campaign.project_id)
+    # The response is fully materialized here, so the connection is no longer needed and
+    # holding it through serialization is pure cost. See database.release.
+    release(db)
+    return out
 
 
 @router.post(
@@ -543,6 +547,7 @@ def export_task_assignments(
       already on the task (informational, ignored on re-import).
     - `users.csv`: the campaign's members with roles, so the admin knows which
       emails are valid to use in the assignee/reviewer columns.
+
     """
     assignments_df, users_df = assignments.build_task_assignments_export(db, campaign)
 

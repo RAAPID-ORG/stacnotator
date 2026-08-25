@@ -1,7 +1,7 @@
 import logging
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from src import perf
 from src.config import get_settings
@@ -71,3 +71,19 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def release(db: Session) -> None:
+    """Return this request's connection to the pool now, before the response is built.
+
+    ``get_db`` otherwise holds it until the dependency's ``finally``, which FastAPI runs
+    *after* serializing the response - so a request that finished its queries in 154ms
+    can occupy a connection for 250ms. Under load the pool is the scarcest thing in the
+    system and hold time is what decides how much of it a request costs, so that tail is
+    worth giving back on the busiest reads.
+
+    Only safe once the response has been materialized away from the ORM. Anything that
+    lazy-loads after this raises ``DetachedInstanceError``; the session itself stays
+    usable, and a later query simply checks a connection out again.
+    """
+    db.close()
