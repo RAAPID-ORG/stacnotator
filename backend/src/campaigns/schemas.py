@@ -238,7 +238,14 @@ class CampaignSettingsCreate(BaseModel):
         }
 
 
-class CampaignOut(BaseModel):
+class CampaignSummaryOut(BaseModel):
+    """A campaign without its imagery. What the overview, tasks and review pages read.
+
+    Serving those from `CampaignOut` meant loading the whole imagery tree - sources,
+    collections, slices, tile URLs - for pages that render a name and a settings object,
+    at around twenty sequential queries instead of a handful.
+    """
+
     id: int
     project_id: int
     name: str
@@ -255,14 +262,17 @@ class CampaignOut(BaseModel):
     viewer_is_authoritative_reviewer: bool = False
 
     settings: CampaignSettingsOut
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CampaignOut(CampaignSummaryOut):
     imagery_sources: list[ImagerySourceOut]
     imagery_views: list[ImageryViewOut]
     basemaps: list[BasemapOut]
     custom_maps: list[CustomMapOut] = []
     vector_layers: list[VectorLayerOut] = []
     time_series: list[TimeSeriesOut]
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class CampaignCreate(BaseModel):

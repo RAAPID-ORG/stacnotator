@@ -6,7 +6,7 @@ import {
   batchDeleteAnnotations,
   getAllAnnotationsForCampaign,
   type AnnotationOut,
-  type CampaignOut,
+  type CampaignSummaryOut,
 } from '~/api/client';
 import { campaignPath } from '~/app/routes';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -26,7 +26,7 @@ import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 import type { ReactNode } from 'react';
 
 interface OpenModeReviewProps {
-  campaign: CampaignOut;
+  campaign: CampaignSummaryOut;
   campaignId: number;
   // Extra action rendered first in the header row (e.g. the import toggle).
   headerActions?: ReactNode;

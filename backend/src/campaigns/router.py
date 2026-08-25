@@ -24,6 +24,7 @@ from src.campaigns.schemas import (
     CampaignOutFull,
     CampaignsListResponse,
     CampaignStatistics,
+    CampaignSummaryOut,
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
     ImportTaskAssignmentsResult,
@@ -60,7 +61,9 @@ router = APIRouter(
 )
 
 
-def _with_viewer_roles[T: CampaignOut](out: T, db: Session, user: User, project_id: int) -> T:
+def _with_viewer_roles[T: CampaignSummaryOut](
+    out: T, db: Session, user: User, project_id: int
+) -> T:
     """Stamp the caller's own roles on the owning project onto a campaign
     response, so clients don't need a second round-trip to the member list.
 
@@ -101,6 +104,19 @@ def list_all_campaigns(
     return CampaignsListResponse(items=items)
 
 
+def _recover_stale_registration(db: Session, campaign: Campaign) -> None:
+    """The UI polls while a campaign is "registering"; recover here if the run's worker
+    died, so the user is unblocked without waiting for a restart."""
+    if "registering" in (
+        campaign.registration_status,
+        campaign.embedding_status,
+    ) and background.fail_stale_status_runs(
+        db, (REGISTRATION_RUN, EMBEDDING_RUN), campaign_id=campaign.id
+    ):
+        db.commit()
+        db.expire_all()
+
+
 @router.get("/{campaign_id}", response_model=CampaignOut)
 def get_campaign(
     campaign_id: int,
@@ -108,17 +124,21 @@ def get_campaign(
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    # The UI polls this while a campaign is "registering"; recover here if the
-    # run's worker died, so the user is unblocked without waiting for a restart.
-    if "registering" in (
-        campaign.registration_status,
-        campaign.embedding_status,
-    ) and background.fail_stale_status_runs(
-        db, (REGISTRATION_RUN, EMBEDDING_RUN), campaign_id=campaign_id
-    ):
-        db.commit()
-        db.expire_all()
+    _recover_stale_registration(db, campaign)
     return _campaign_out(service.get_campaign_full(db, campaign_id), db, user)
+
+
+@router.get("/{campaign_id}/summary", response_model=CampaignSummaryOut)
+def get_campaign_summary(
+    campaign_id: int,
+    campaign: Campaign = Depends(require_campaign_access),
+    user: User = Depends(require_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """The campaign without its imagery, for pages that never render it."""
+    _recover_stale_registration(db, campaign)
+    summary = CampaignSummaryOut.model_validate(service.get_campaign_summary(db, campaign_id))
+    return _with_viewer_roles(summary, db, user, campaign.project_id)
 
 
 @router.post(

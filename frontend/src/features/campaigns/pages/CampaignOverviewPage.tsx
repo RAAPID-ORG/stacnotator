@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 
 import {
   createTaskSet,
-  getCampaign,
+  getCampaignSummary,
   listTaskSets,
-  type CampaignOut,
+  type CampaignSummaryOut,
   type TaskSetOut,
 } from '~/api/client';
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
@@ -33,7 +33,7 @@ export const CampaignOverviewPage = () => {
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
 
-  const [campaign, setCampaign] = useState<CampaignOut | null>(null);
+  const [campaign, setCampaign] = useState<CampaignSummaryOut | null>(null);
   const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -79,7 +79,7 @@ export const CampaignOverviewPage = () => {
       try {
         setLoading(true);
         const [campaignRes, taskSetsRes] = await Promise.all([
-          getCampaign({ path: { campaign_id: campaignId } }),
+          getCampaignSummary({ path: { campaign_id: campaignId } }),
           listTaskSets({ path: { campaign_id: campaignId } }),
         ]);
         setCampaign(campaignRes.data ?? null);

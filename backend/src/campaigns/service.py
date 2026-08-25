@@ -188,6 +188,20 @@ _CAMPAIGN_FULL_LOAD_OPTIONS = (
 )
 
 
+def get_campaign_summary(db: Session, campaign_id: int) -> Campaign:
+    """Load only what `CampaignSummaryOut` serializes: the row and its settings.
+
+    Deliberately not `_CAMPAIGN_FULL_LOAD_OPTIONS` - that chain walks the imagery tree
+    in about a dozen sequential queries, which the pages using this never read.
+    """
+    campaign = db.execute(
+        select(Campaign).options(joinedload(Campaign.settings)).where(Campaign.id == campaign_id)
+    ).scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return campaign
+
+
 def get_campaign_full(db: Session, campaign_id: int) -> Campaign:
     """Load a campaign with every relationship that CampaignOut serializes."""
     campaign = (

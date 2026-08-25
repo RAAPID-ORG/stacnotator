@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
-import { getCampaign, type CampaignOut } from '~/api/client';
+import { getCampaignSummary, type CampaignSummaryOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
@@ -16,7 +16,7 @@ export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
 
-  const [campaign, setCampaign] = useState<CampaignOut | null>(null);
+  const [campaign, setCampaign] = useState<CampaignSummaryOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
 
@@ -31,7 +31,7 @@ export const ReviewPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const campaignRes = await getCampaign({ path: { campaign_id: campaignId } });
+        const campaignRes = await getCampaignSummary({ path: { campaign_id: campaignId } });
         setCampaign(campaignRes.data!);
       } catch (err) {
         handleError(err, 'Failed to load campaign');

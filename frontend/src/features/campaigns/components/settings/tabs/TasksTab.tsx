@@ -10,7 +10,7 @@ import {
 } from '~/features/campaigns/components/settings/TaskScopeBar';
 import type {
   AnnotationTaskOut,
-  CampaignOut,
+  CampaignSummaryOut,
   GenerateTasksResponse,
   TaskSetOut,
 } from '~/api/client';
@@ -20,7 +20,7 @@ import { IconChevronLeft } from '~/shared/ui/Icons';
 import { AreaEstimationSetup } from '~/features/areaEstimation/AreaEstimation';
 
 interface Props {
-  campaign: CampaignOut;
+  campaign: CampaignSummaryOut;
   /** Members may read the task list; changing what is in it is an admin's. */
   canManage: boolean;
   // Already filtered to the active scope by the page (single source of truth).

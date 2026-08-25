@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { exportAnnotations, exportAnnotationsGeojson, type CampaignOut } from '~/api/client';
+import { exportAnnotations, exportAnnotationsGeojson, type CampaignSummaryOut } from '~/api/client';
 import { Dropdown } from '~/shared/ui/motion';
 import { handleError } from '~/shared/utils/errorHandler';
 
 interface ExportDropdownProps {
   campaignId: number;
-  campaign: CampaignOut;
+  campaign: CampaignSummaryOut;
   disabled: boolean;
   /** Show the "merge on agreement" toggle. Hidden in open mode where it
    *  has no meaning (no tasks, no multi-annotator merging). Default true. */

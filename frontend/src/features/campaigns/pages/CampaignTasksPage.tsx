@@ -30,7 +30,7 @@ import { useAreaEstimationTaskSets } from '~/features/areaEstimation/AreaEstimat
 
 import {
   getAllAnnotationTasks,
-  getCampaign,
+  getCampaignSummary,
   getProjectUsers,
   ingestAnnotationTasksFromCsv,
   ingestAnnotationTasksFromGeojson,
@@ -44,7 +44,7 @@ import {
   deleteTaskSet,
   moveTasksToSet,
   type AnnotationTaskOut,
-  type CampaignOut,
+  type CampaignSummaryOut,
   type GenerateTasksResponse,
   type ProjectUserOut,
   type TaskSetOut,
@@ -57,7 +57,7 @@ export const CampaignTasksPage = () => {
   const navigate = useNavigate();
   const [showImport, setShowImport] = useState(false);
 
-  const [campaign, setCampaign] = useState<CampaignOut | null>(null);
+  const [campaign, setCampaign] = useState<CampaignSummaryOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -96,7 +96,7 @@ export const CampaignTasksPage = () => {
       try {
         setLoading(true);
         const [campaignRes, tasksRes] = await Promise.all([
-          getCampaign({ path: { campaign_id: campaignId } }),
+          getCampaignSummary({ path: { campaign_id: campaignId } }),
           getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
         ]);
         setCampaign(campaignRes.data ?? null);

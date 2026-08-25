@@ -1443,6 +1443,73 @@ export type CampaignStatistics = {
 };
 
 /**
+ * CampaignSummaryOut
+ *
+ * A campaign without its imagery. What the overview, tasks and review pages read.
+ *
+ * Serving those from `CampaignOut` meant loading the whole imagery tree - sources,
+ * collections, slices, tile URLs - for pages that render a name and a settings object,
+ * at around twenty sequential queries instead of a handful.
+ */
+export type CampaignSummaryOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Mode
+     */
+    mode: 'tasks' | 'open';
+    /**
+     * Is Public
+     */
+    is_public?: boolean;
+    /**
+     * Registration Status
+     */
+    registration_status?: string;
+    /**
+     * Embedding Status
+     */
+    embedding_status?: string;
+    /**
+     * Registration Errors
+     */
+    registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Annotations Version
+     */
+    annotations_version?: number;
+    /**
+     * Viewer Is Admin
+     */
+    viewer_is_admin?: boolean;
+    /**
+     * Viewer Is Member
+     */
+    viewer_is_member?: boolean;
+    /**
+     * Viewer Is Authoritative Reviewer
+     */
+    viewer_is_authoritative_reviewer?: boolean;
+    settings: CampaignSettingsOut;
+};
+
+/**
  * CampaignsListResponse
  */
 export type CampaignsListResponse = {
@@ -6141,6 +6208,36 @@ export type GetCampaignResponses = {
 };
 
 export type GetCampaignResponse = GetCampaignResponses[keyof GetCampaignResponses];
+
+export type GetCampaignSummaryData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/summary';
+};
+
+export type GetCampaignSummaryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCampaignSummaryError = GetCampaignSummaryErrors[keyof GetCampaignSummaryErrors];
+
+export type GetCampaignSummaryResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignSummaryOut;
+};
+
+export type GetCampaignSummaryResponse = GetCampaignSummaryResponses[keyof GetCampaignSummaryResponses];
 
 export type DuplicateCampaignData = {
     body: CampaignDuplicateRequest;

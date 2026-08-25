@@ -6,7 +6,7 @@ import {
   getAllAnnotationTasks,
   listTaskSets,
   type AnnotationTaskOut,
-  type CampaignOut,
+  type CampaignSummaryOut,
   type TaskSetOut,
 } from '~/api/client';
 import { campaignPath } from '~/app/routes';
@@ -62,7 +62,7 @@ const IconFunnel = ({ className }: { className?: string }) => (
 const NO_LABEL = -1;
 
 interface TaskModeReviewProps {
-  campaign?: CampaignOut;
+  campaign?: CampaignSummaryOut;
   campaignId: number;
   /** External task list (e.g. the tasks page's scoped/reloadable set). Omit to have this component fetch and own its data, as on the annotations page. */
   tasks?: AnnotationTaskOut[];
