@@ -81,9 +81,12 @@ class Settings(BaseSettings):
     # holds a connection, which with `get_db` is the whole request.
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
-    # Fail a request fast if no pooled connection frees up in this many seconds,
-    # instead of hanging (and piling up) when the DB is saturated.
-    DB_POOL_TIMEOUT: int = 10
+    # Fail a request fast if no pooled connection frees up in this many seconds.
+    # Deliberately short: a waiting request holds a worker thread and an in-flight slot
+    # for the whole wait, so patience here consumes the very capacity that would let
+    # the queue drain. Under load nearly every waiter times out anyway, and a fast 500
+    # frees the thread for a request that can actually be served.
+    DB_POOL_TIMEOUT: int = 3
     # Postgres reaps a connection left idle-in-transaction this long (ms), so a
     # leaked session self-heals back into the pool instead of wedging it forever.
     DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: int = 15000
@@ -107,11 +110,11 @@ class Settings(BaseSettings):
     # heartbeat. Too many threads starve it into killing the worker as unresponsive.
     THREAD_POOL_MAX: int = 40
 
-    # Most requests one worker will accept at once before shedding with 503. Set a
-    # little above the connection pool: past that point a request cannot get a
-    # connection anyway, so admitting it only converts a fast failure into a slow one
-    # that also occupies a thread. 0 disables shedding.
-    MAX_INFLIGHT_REQUESTS: int = 45
+    # Most requests one worker will accept at once before shedding with 503. Just above
+    # the pool: past that a request cannot get a connection anyway, so admitting it only
+    # turns a fast failure into a slow one that also holds a thread. This is per worker,
+    # so the replica's real ceiling is this times WORKERS. 0 disables shedding.
+    MAX_INFLIGHT_REQUESTS: int = 32
 
     # Requests at or above this get one WARNING line with their duration and the
     # number of requests in flight at the time. Per-request INFO logging would
