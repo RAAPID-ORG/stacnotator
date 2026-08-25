@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
 from src.auth.models import User
-from src.campaigns.models import Campaign
+from src.campaigns.models import Campaign, TaskSet
 from src.campaigns.schemas import (
     AssignTasksToUsersRequest,
     AssignTasksToUsersResult,
@@ -21,6 +21,10 @@ from src.projects.models import ProjectUser
 
 ASSIGNMENTS_CSV_COLUMNS = [
     "annotation_number",
+    # Which set a task belongs to. Informational like the annotation columns - import
+    # matches on annotation_number, which is unique campaign-wide - but without it a
+    # full-campaign export is unreadable once a campaign has more than one set.
+    "task_set",
     "assignees",
     "reviewers",
     "annotation_count",
@@ -496,7 +500,7 @@ def _label_id_to_name(campaign: Campaign) -> dict[int, str]:
 
 
 def build_task_assignments_export(
-    db: Session, campaign: Campaign
+    db: Session, campaign: Campaign, task_set_id: int | None = None
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Build the two export tables for a campaign's task assignments.
 
@@ -506,17 +510,18 @@ def build_task_assignments_export(
       the task (informational, so an admin can avoid reassigning done work).
     - users_df: the campaign's members with roles, so the admin knows which
       emails are valid to paste into the assignee/reviewer columns.
+
+    ``task_set_id`` narrows the export to one set. The users table is unchanged either
+    way: who may be assigned is a campaign-level fact, and an admin editing one set's
+    assignments needs the same list of valid emails.
     """
     campaign_id = campaign.id
     label_names = _label_id_to_name(campaign)
 
-    tasks = list(
-        db.scalars(
-            select(AnnotationTask)
-            .where(AnnotationTask.campaign_id == campaign_id)
-            .order_by(AnnotationTask.annotation_number)
-        ).all()
-    )
+    task_query = select(AnnotationTask).where(AnnotationTask.campaign_id == campaign_id)
+    if task_set_id is not None:
+        task_query = task_query.where(AnnotationTask.task_set_id == task_set_id)
+    tasks = list(db.scalars(task_query.order_by(AnnotationTask.annotation_number)).all())
     task_ids = [task.id for task in tasks]
 
     assignees_by_task: dict[int, list[str]] = defaultdict(list)
@@ -545,6 +550,13 @@ def build_task_assignments_export(
         for task_id, email, label_id in annotation_rows:
             annotations_by_task[task_id].append((email, label_id))
 
+    set_names = {
+        row[0]: row[1]
+        for row in db.execute(
+            select(TaskSet.id, TaskSet.name).where(TaskSet.campaign_id == campaign_id)
+        ).all()
+    }
+
     assignment_records = []
     for task in tasks:
         annotations = sorted(annotations_by_task.get(task.id, []), key=lambda pair: pair[0])
@@ -555,6 +567,7 @@ def build_task_assignments_export(
         assignment_records.append(
             {
                 "annotation_number": task.annotation_number,
+                "task_set": set_names.get(task.task_set_id, ""),
                 "assignees": ", ".join(sorted(assignees_by_task.get(task.id, []))),
                 "reviewers": ", ".join(sorted(reviewers_by_task.get(task.id, []))),
                 "annotation_count": len(annotations),

@@ -536,6 +536,7 @@ def move_tasks_to_set(
 @router.get("/{campaign_id}/export-task-assignments")
 def export_task_assignments(
     campaign_id: int,
+    task_set_id: int | None = None,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
@@ -548,8 +549,11 @@ def export_task_assignments(
     - `users.csv`: the campaign's members with roles, so the admin knows which
       emails are valid to use in the assignee/reviewer columns.
 
+    ``task_set_id`` narrows the archive to one set, so an admin working on a single set
+    is not handed every task in the campaign. Import stays campaign-wide either way:
+    it matches on `annotation_number`, which is unique across the campaign.
     """
-    assignments_df, users_df = assignments.build_task_assignments_export(db, campaign)
+    assignments_df, users_df = assignments.build_task_assignments_export(db, campaign, task_set_id)
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
