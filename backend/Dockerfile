@@ -59,6 +59,13 @@ EXPOSE 8000
 # Run alembic migrations, then start the application with Gunicorn.
 # Workers: 2 * CPU cores + 1 (override with WORKERS env var)
 # Worker class: uvicorn for async support
+#
+# max-requests is a leak backstop, not a load control, and 1000 made it the latter:
+# UvicornWorker hands it to uvicorn's limit_max_requests, which counts every request at
+# the protocol layer - including the 503s the tile bulkhead sheds. Under tile load that
+# recycled every worker every ~16s (81 boots in five minutes, measured), and each recycle
+# throws away that worker's warm connection pool and drops its in-flight requests. At
+# 50000 the backstop still exists but fires on the order of hours rather than seconds.
 CMD ["sh", "-c", "alembic upgrade head && exec gunicorn src.main:app \
     --workers ${WORKERS:-1} \
     --worker-class uvicorn.workers.UvicornWorker \
@@ -66,8 +73,8 @@ CMD ["sh", "-c", "alembic upgrade head && exec gunicorn src.main:app \
     --timeout ${TIMEOUT:-60} \
     --graceful-timeout ${GRACEFUL_TIMEOUT:-30} \
     --keep-alive ${KEEPALIVE:-5} \
-    --max-requests ${MAX_REQUESTS:-1000} \
-    --max-requests-jitter ${MAX_REQUESTS_JITTER:-50} \
+    --max-requests ${MAX_REQUESTS:-50000} \
+    --max-requests-jitter ${MAX_REQUESTS_JITTER:-5000} \
     --access-logfile - \
     --error-logfile - \
     --log-level info \
