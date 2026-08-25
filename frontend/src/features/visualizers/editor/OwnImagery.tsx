@@ -30,6 +30,34 @@ import {
  * by any campaign endpoint. What differs is only what happens to the result -
  * the viewer flattens every collection into one list of dates.
  */
+/**
+ * The backdrops the visualizer will draw under everything else.
+ *
+ * Its own view over the same draft state rather than part of the imagery wizard: a
+ * visualizer starts with backdrops already chosen, and they need no area, so burying
+ * them inside "set up imagery" hid the ones that were going to be used behind a step
+ * about adding new ones.
+ */
+export function VisualizerBasemaps({
+  state,
+  onChange,
+  area,
+  projectId,
+}: {
+  state: ImageryStepState;
+  onChange: (next: ImageryStepState) => void;
+  area: VisualizerArea | null;
+  projectId: number;
+}) {
+  const controller = useDraftController({
+    projectId,
+    state,
+    setState: onChange,
+    campaignBbox: area ? [area.west, area.south, area.east, area.north] : null,
+  });
+  return <BasemapList controller={controller} />;
+}
+
 export function OwnImagery({
   state,
   onChange,
@@ -65,9 +93,6 @@ export function OwnImagery({
           Choose the area above first. Imagery is searched and registered over it.
         </p>
       )}
-
-      {/* Backdrops need no area: they are whole-world tile services. */}
-      <BasemapList controller={controller} />
 
       {editing && (
         <SourceEditor

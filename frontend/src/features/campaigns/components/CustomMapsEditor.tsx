@@ -154,13 +154,18 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
 
   // A freshly added map registers with the tiler in the background, so the list
   // keeps re-reading until nothing is mid-registration.
-  const { data: maps = NO_MAPS } = useQuery({
+  const {
+    data: maps = NO_MAPS,
+    isError: mapsFailed,
+    refetch: refetchMaps,
+  } = useQuery({
     queryKey: api.queryKey,
     queryFn: async () => (await api.list()).data ?? NO_MAPS,
     refetchInterval: (query) =>
       query.state.data?.some((m) => m.status === 'registering') ? REGISTRATION_POLL_MS : false,
-    // A failure leaves the list empty rather than blocking the editor, so it
-    // is logged without a toast.
+    // No toast: the list says so itself, in place, with a way to try again. An empty
+    // list and silence is indistinguishable from having no layers, which is how a 500
+    // here went unnoticed until someone tried to add the same layer twice.
     meta: { errorMessage: 'Failed to load custom maps', showUser: false },
   });
 
@@ -247,9 +252,15 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-          Raster layers (COG)
-        </h4>
+        <div>
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+            Raster layers (COG)
+          </h4>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Predictions or classifications drawn over the imagery, toggled from the viewer&rsquo;s
+            panel.
+          </p>
+        </div>
         {!showForm && (
           <button
             type="button"
@@ -261,7 +272,18 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
         )}
       </div>
 
-      {maps.length === 0 && !showForm ? (
+      {mapsFailed ? (
+        <div className="flex items-center gap-3 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          <span className="flex-1">Could not load the raster layers.</span>
+          <button
+            type="button"
+            onClick={() => void refetchMaps()}
+            className="font-medium underline underline-offset-2 hover:text-red-900"
+          >
+            Try again
+          </button>
+        </div>
+      ) : maps.length === 0 && !showForm ? (
         <p className="text-xs text-neutral-400 italic">No raster layers configured.</p>
       ) : (
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">

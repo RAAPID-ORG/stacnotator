@@ -2050,7 +2050,11 @@ export type CustomMapOut = {
     /**
      * Campaign Id
      */
-    campaign_id: number;
+    campaign_id?: number | null;
+    /**
+     * Visualizer Id
+     */
+    visualizer_id?: number | null;
     /**
      * Name
      */
@@ -4508,7 +4512,11 @@ export type VectorLayerOut = {
     /**
      * Campaign Id
      */
-    campaign_id: number;
+    campaign_id?: number | null;
+    /**
+     * Visualizer Id
+     */
+    visualizer_id?: number | null;
     /**
      * Name
      */

@@ -60,7 +60,11 @@ class CustomMapOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    campaign_id: int
+    # A custom map belongs to a campaign or a visualizer, never both, so each id is
+    # optional. Requiring campaign_id made listing a visualizer's own maps fail
+    # validation on the way out - a 500 on a plain read.
+    campaign_id: int | None = None
+    visualizer_id: int | None = None
     name: str
     cog_url: str
     render_config: RenderConfig
@@ -93,7 +97,9 @@ class VectorLayerOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    campaign_id: int
+    # As CustomMapOut: owned by a campaign or a visualizer, so neither id is required.
+    campaign_id: int | None = None
+    visualizer_id: int | None = None
     name: str
     pmtiles_url: str
     source_layer: str | None

@@ -85,22 +85,13 @@ export const ProjectPage = () => {
               <Skeleton className="h-7 w-52" />
             )}
             {project ? (
-              <p className="page-subtitle">
-                {project.description?.trim() ||
-                  `${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'}`}
-              </p>
+              project.description?.trim() && (
+                <p className="page-subtitle">{project.description.trim()}</p>
+              )
             ) : (
               <Skeleton className="h-4 w-64 mt-2" />
             )}
           </div>
-          {project && (project.is_admin ?? false) && (
-            <Button
-              onClick={() => navigate(newCampaignPath(project.id))}
-              leading={<IconPlus className="w-4 h-4" />}
-            >
-              New campaign
-            </Button>
-          )}
         </header>
 
         {project ? (
@@ -208,33 +199,34 @@ const CampaignsList = ({
   onOpen,
   onCreate,
   onDuplicate,
-}: CampaignsListProps) => {
-  if (campaigns.length === 0) {
-    return (
-      <div className="text-center py-16">
-        <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
-          <IconDocument className="w-6 h-6 text-brand-600" />
-        </div>
-        <p className="text-base text-neutral-800 font-medium mb-1">No campaigns yet</p>
-        <p className="mx-auto mb-5 max-w-md text-sm text-neutral-500">
-          A campaign is how imagery gets labelled: annotators visit locations or explore freely, and
-          record what they see.{' '}
+}: CampaignsListProps) => (
+  <>
+    <div className="mb-4 flex items-start justify-between gap-4">
+      <div>
+        <h2 className="section-heading">Campaigns</h2>
+        <p className="section-description">
+          Label remote sensing imagery interactively with your team either task based or
+          explorative.
+        </p>
+      </div>
+      {canCreate && (
+        <Button size="sm" onClick={onCreate} leading={<IconPlus className="h-4 w-4" />}>
+          New campaign
+        </Button>
+      )}
+    </div>
+
+    {campaigns.length === 0 ? (
+      <div className="rounded-lg border border-dashed border-neutral-200 px-6 py-10 text-center">
+        <IconDocument className="mx-auto h-6 w-6 text-neutral-300" />
+        <p className="mt-2 text-sm text-neutral-600">No campaigns yet.</p>
+        <p className="mt-1 text-xs text-neutral-500">
           {canCreate
             ? 'Create the first one in this project to get started.'
             : "You'll see campaigns here once one is created."}
         </p>
-        {canCreate && (
-          <Button onClick={onCreate} leading={<IconPlus className="w-4 h-4" />}>
-            Create campaign
-          </Button>
-        )}
       </div>
-    );
-  }
-
-  return (
-    <>
-      <CampaignsIntro />
+    ) : (
       <ul className="divide-y divide-neutral-100">
         {campaigns.map((campaign, index) => (
           <MotionListItem key={campaign.id} index={index}>
@@ -246,18 +238,8 @@ const CampaignsList = ({
           </MotionListItem>
         ))}
       </ul>
-    </>
-  );
-};
-
-const CampaignsIntro = () => (
-  <div className="mb-4">
-    <h2 className="section-heading">Campaigns</h2>
-    <p className="section-description">
-      Label geospatial imagery: annotators visit locations or explore freely, and record what they
-      see. A campaign holds the imagery to look at, the labels to apply, and the people doing it.
-    </p>
-  </div>
+    )}
+  </>
 );
 
 const CampaignRow = ({

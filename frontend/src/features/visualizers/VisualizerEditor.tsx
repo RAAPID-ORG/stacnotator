@@ -28,6 +28,7 @@ import {
   imageryStateFrom,
   OwnImagery,
   ownImageryPayload,
+  VisualizerBasemaps,
 } from './editor/OwnImagery';
 import {
   publishConfirm,
@@ -69,11 +70,15 @@ export function VisualizerEditor({
   visualizerId,
   onClose,
   onSaved,
+  onCreated,
 }: {
   projectId: number;
   visualizerId: number | null;
   onClose: () => void;
   onSaved: () => void;
+  /** A visualizer was created. The panel stays open on it so its own overlays and
+   *  layers, which need an id to be created against, can be set up straight away. */
+  onCreated: (id: number) => void;
 }) {
   const [draft, setDraft] = useState<Draft | null>(visualizerId === null ? EMPTY : null);
   // The manual forms open on their own where a visualizer already has layers of
@@ -120,9 +125,9 @@ export function VisualizerEditor({
   const create = useMutation({
     ...createVisualizerMutation(),
     meta: { errorMessage: 'Failed to save the visualizer' },
-    onSuccess: () => {
-      showAlert('Visualizer created', 'success');
-      onSaved();
+    onSuccess: (created) => {
+      showAlert('Visualizer created. You can now add overlays of its own.', 'success');
+      onCreated(created.id);
     },
   });
   const update = useMutation({
@@ -263,6 +268,18 @@ export function VisualizerEditor({
               </>
             )}
 
+            {/* Shown outright, not behind "add imagery": these are the backdrops the
+                visualizer already has, and a new one starts with a full set. Carries
+                the same separator as the Manual blocks below it. */}
+            <div className="mt-4 border-t border-neutral-100 pt-4">
+              <VisualizerBasemaps
+                state={draft.ownImagery}
+                onChange={(ownImagery) => setDraft({ ...draft, ownImagery })}
+                area={draft.area}
+                projectId={projectId}
+              />
+            </div>
+
             <Manual
               open={addingImagery}
               onOpen={() => setAddingImagery(true)}
@@ -284,7 +301,7 @@ export function VisualizerEditor({
 
           <Section
             title="Overlays"
-            description="Predictions and reference layers drawn over the imagery."
+            description="Predictions and reference layers drawn over the imagery. You can add more, not yet registered, overlays after setting up the visualizer."
           >
             {campaignsWithOverlays.length > 0 && (
               <CampaignGroups
@@ -333,8 +350,9 @@ export function VisualizerEditor({
             )}
 
             {visualizerId === null ? (
-              <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
-                Create the visualizer first, then set up overlays of its own here.
+              <p className="mt-4 rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
+                An overlay is stored against the visualizer, so create it first. This panel stays
+                open afterwards and you can add them straight away.
               </p>
             ) : (
               <Manual
@@ -347,7 +365,10 @@ export function VisualizerEditor({
                 }
                 hint="Set up here rather than reused. Added to the map as soon as they are created."
               >
-                <div className="space-y-6">
+                {/* Two kinds of overlay, each with its own header and add action, so
+                    they are separated the way the sections above are rather than
+                    stacked into one column. */}
+                <div className="space-y-6 divide-y divide-neutral-100 [&>*+*]:pt-6">
                   <CustomMapsEditor
                     ownerKind="visualizer"
                     ownerId={visualizerId}
@@ -422,12 +443,18 @@ const CampaignGroups = ({
 }) => (
   <div className="space-y-4">
     {campaigns.map((campaign) => (
-      <section key={campaign.campaign_id}>
-        <h4 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-neutral-700">
+      // The campaign name is the head of its own list rather than a caption floating
+      // above one: same box, same horizontal padding as the rows, tinted and with a
+      // straight edge where the first option meets it.
+      <section
+        key={campaign.campaign_id}
+        className="overflow-hidden rounded-lg border border-neutral-200"
+      >
+        <h4 className="flex items-center gap-1.5 border-b border-neutral-200 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-700">
           <IconMap className="h-3.5 w-3.5 text-neutral-400" />
-          {campaign.campaign_name}
+          <span className="truncate">{campaign.campaign_name}</span>
         </h4>
-        <div className="overflow-hidden rounded-lg border border-neutral-200">{rows(campaign)}</div>
+        {rows(campaign)}
       </section>
     ))}
   </div>

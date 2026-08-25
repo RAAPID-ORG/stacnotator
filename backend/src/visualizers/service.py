@@ -282,10 +282,22 @@ def _replace_layers(
     if len(set(source_ids)) != len(source_ids):
         raise HTTPException(status_code=400, detail="An imagery source is listed twice")
 
-    visualizer.imagery = [
-        VisualizerImagery(source_id=entry.source_id, display_order=index)
-        for index, entry in enumerate(imagery)
-    ]
+    # Reconciled in place rather than replaced wholesale. Assigning a fresh list makes
+    # SQLAlchemy delete every existing row and insert new ones in the same flush, and it
+    # does not guarantee the deletes go first - so re-saving a config that keeps a
+    # source it already had violates uq_visualizer_imagery_source. Keeping the row that
+    # is already there sidesteps the ordering question entirely, and preserves its id.
+    existing = {link.source_id: link for link in visualizer.imagery}
+    kept: list[VisualizerImagery] = []
+    for index, wanted in enumerate(imagery):
+        link = existing.pop(wanted.source_id, None)
+        if link is None:
+            link = VisualizerImagery(source_id=wanted.source_id)
+        link.display_order = index
+        kept.append(link)
+    for dropped in existing.values():
+        visualizer.imagery.remove(dropped)
+    visualizer.imagery = kept
     for entry in overlays:
         if (entry.custom_map_id is None) == (entry.vector_layer_id is None):
             raise HTTPException(status_code=400, detail="An overlay must name exactly one layer")

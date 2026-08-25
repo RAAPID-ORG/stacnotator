@@ -16,6 +16,7 @@ import {
   IconGlobe,
   IconMap,
   IconPencil,
+  IconPlus,
   IconTrash,
 } from '~/shared/ui/Icons';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
@@ -91,7 +92,11 @@ export function ProjectVisualizersSection({
           </p>
         </div>
         {canManage && (
-          <Button size="sm" onClick={() => setEditing({ id: null })}>
+          <Button
+            size="sm"
+            onClick={() => setEditing({ id: null })}
+            leading={<IconPlus className="h-4 w-4" />}
+          >
             New visualizer
           </Button>
         )}
@@ -205,6 +210,13 @@ export function ProjectVisualizersSection({
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
+            void reloadVisualizers();
+          }}
+          // Overlays are created against a visualizer that has to exist first, so a
+          // brand new one stays open on its own id rather than closing - otherwise
+          // setting one up means saving, finding it in the list, and reopening it.
+          onCreated={(id) => {
+            setEditing({ id });
             void reloadVisualizers();
           }}
         />

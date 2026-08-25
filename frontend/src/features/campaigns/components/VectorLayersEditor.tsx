@@ -43,10 +43,16 @@ export const VectorLayersEditor = ({
   const [form, setForm] = useState<FormState>(defaultForm());
   const [showForm, setShowForm] = useState(false);
 
-  const { data: layers = NO_LAYERS } = useQuery({
+  const {
+    data: layers = NO_LAYERS,
+    isError: layersFailed,
+    refetch: refetchLayers,
+  } = useQuery({
     queryKey: api.queryKey,
     queryFn: async () => (await api.list()).data ?? NO_LAYERS,
     // As above: an empty list is a usable editor, an alert is just noise.
+    // No toast: the list reports its own failure, as in CustomMapsEditor. Silence
+    // here is indistinguishable from having no layers.
     meta: { errorMessage: 'Failed to load vector layers', showUser: false },
   });
 
@@ -103,7 +109,18 @@ export const VectorLayersEditor = ({
         )}
       </div>
 
-      {layers.length === 0 && !showForm ? (
+      {layersFailed ? (
+        <div className="flex items-center gap-3 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          <span className="flex-1">Could not load the vector layers.</span>
+          <button
+            type="button"
+            onClick={() => void refetchLayers()}
+            className="font-medium underline underline-offset-2 hover:text-red-900"
+          >
+            Try again
+          </button>
+        </div>
+      ) : layers.length === 0 && !showForm ? (
         <p className="text-xs text-neutral-400 italic">No vector layers configured.</p>
       ) : (
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
