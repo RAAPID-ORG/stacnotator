@@ -547,9 +547,9 @@ test.describe.skip('Flag for review', () => {
 
 test.describe('Annotations page View deep link', () => {
   test.beforeEach(async ({ annotationPage }) => {
-    // The annotations page fetches the plain campaign record; the annotator
+    // The annotations page reads the campaign without its imagery; the annotator
     // fixtures only mock /detailed, so the catch-all would serve {}.
-    await annotationPage.route('**/api/campaigns/42', async (route) => {
+    await annotationPage.route('**/api/campaigns/42/summary', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
       await route.fulfill({ json: MOCK_CAMPAIGN });
     });

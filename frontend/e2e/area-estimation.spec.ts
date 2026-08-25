@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/annotator-fixture';
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 import { MOCK_CAMPAIGN } from './fixtures/mock-data';
 
 const SAMPLE_SET_ID = 99;
@@ -14,17 +14,19 @@ const set = (id: number, name: string, numTasks: number) => ({
 });
 
 /**
- * The tasks page needs the plain campaign GET, which the shared fixture only
- * mocks in its /detailed form for the annotation page.
+ * The overview and tasks pages read the campaign without its imagery, which the
+ * shared fixture only mocks in its /detailed form for the annotation page.
  */
 async function mockCampaignAdmin(page: Page): Promise<{ created: string[] }> {
   const created: string[] = [];
   const sets = [set(1, 'Default', 3)];
 
-  await page.route('**/api/campaigns/42', async (route) => {
+  const campaign = async (route: Route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     await route.fulfill({ json: { ...MOCK_CAMPAIGN, viewer_is_admin: true } });
-  });
+  };
+  await page.route('**/api/campaigns/42', campaign);
+  await page.route('**/api/campaigns/42/summary', campaign);
 
   await page.route('**/api/campaigns/*/task-sets', async (route) => {
     const request = route.request();
