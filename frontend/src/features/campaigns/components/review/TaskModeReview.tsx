@@ -2,13 +2,8 @@ import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
-import {
-  getAllAnnotationTasks,
-  listTaskSets,
-  type AnnotationTaskOut,
-  type CampaignSummaryOut,
-  type TaskSetOut,
-} from '~/api/client';
+import { type AnnotationTaskOut, type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
+import { useCampaignTasks, useCampaignTaskSets } from '~/features/campaigns/hooks/campaignQueries';
 import { campaignPath } from '~/app/routes';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -18,8 +13,7 @@ import {
   getTaskStatusColor,
 } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT, formatDuration } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
-import { AnnotationDistributionMap } from './AnnotationDistributionMap';
+import { TasksByLabelMap } from './TasksByLabelMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
@@ -112,10 +106,6 @@ export const TaskModeReview = ({
   const currentUser = useAccountStore((state) => state.account);
   const isExternallyDriven = tasksProp !== undefined;
 
-  const [fetchedTasks, setFetchedTasks] = useState<AnnotationTaskOut[]>([]);
-  const [fetchedTaskSets, setFetchedTaskSets] = useState<TaskSetOut[]>([]);
-  const [loading, setLoading] = useState(!isExternallyDriven);
-
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
@@ -133,27 +123,15 @@ export const TaskModeReview = ({
   const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
 
-  useEffect(() => {
-    if (isExternallyDriven) return;
-    const loadTasks = async () => {
-      try {
-        setLoading(true);
-        const [tasksRes, taskSetsRes] = await Promise.all([
-          getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
-          listTaskSets({ path: { campaign_id: campaignId } }),
-        ]);
-        setFetchedTasks(tasksRes.data!.tasks);
-        setFetchedTaskSets(taskSetsRes.data ?? []);
-      } catch (err) {
-        handleError(err, 'Failed to load tasks');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadTasks();
-  }, [campaignId, isExternallyDriven]);
+  // The tasks page hands its own scoped list down; on the annotations page this
+  // component is the one that asks.
+  const fetched = useCampaignTasks(campaignId, { enabled: !isExternallyDriven });
+  const { taskSets: fetchedTaskSets } = useCampaignTaskSets(campaignId, {
+    enabled: !isExternallyDriven,
+  });
 
-  const tasks = tasksProp ?? fetchedTasks;
+  const loading = fetched.loading;
+  const tasks = tasksProp ?? fetched.tasks;
   const taskSets = taskSetsProp ?? fetchedTaskSets;
   // Sets a selection may be moved into. The area estimation sample is not one:
   // its tasks are a drawn sample and a task added by hand has no inclusion
@@ -384,7 +362,7 @@ export const TaskModeReview = ({
         {/* Map - sits above the surface, no card wrapper */}
         {!embedded && campaign && tasks.length > 0 && (
           <div className="mb-6">
-            <AnnotationDistributionMap
+            <TasksByLabelMap
               tasks={tasks}
               labels={campaign.settings.labels}
               bbox={{

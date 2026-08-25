@@ -29,6 +29,7 @@ from src.imagery.schemas import (
     ImageryViewUpdate,
 )
 from src.imagery.tile_urls import update_collection_viz_params
+from src.layers import LayerOwner
 from src.organizations.models import Organization, OrganizationApiKey
 from src.tilers import providers, registry
 
@@ -363,7 +364,9 @@ def save_imagery_editor_state(
             db_src = existing_sources[src_create.id]
             pending = _update_source_in_place(db, db_src, src_create, src_idx, bbox)
         else:
-            db_src, pending = _create_source(db, campaign.id, src_create, src_idx, bbox)
+            db_src, pending = _create_source(
+                db, LayerOwner(campaign_id=campaign.id), src_create, src_idx, bbox
+            )
         pending_registrations.extend(pending)
         current_sources.append(db_src)
 
@@ -386,7 +389,9 @@ def save_imagery_editor_state(
     # Basemaps: replace wholesale (small list, no inbound FKs).
     db.execute(delete(Basemap).where(Basemap.campaign_id == campaign.id))
     db.flush()
-    created_basemaps = _create_basemaps(db, campaign.id, editor_state.basemaps)
+    created_basemaps = _create_basemaps(
+        db, LayerOwner(campaign_id=campaign.id), editor_state.basemaps
+    )
 
     db.flush()
 
@@ -513,6 +518,79 @@ def _stac_config_changed(existing: CollectionStacConfig | None, incoming) -> boo
         or existing.tile_provider != incoming.tiler
         or existing.internal_storage != incoming.internal_storage
     )
+
+
+def save_visualizer_imagery(
+    db: Session,
+    *,
+    visualizer,
+    sources: list[ImagerySourceCreate],
+    bbox: list[float],
+) -> list[RegistrationSpec]:
+    """Reconcile a visualizer's own imagery, the way a campaign's is reconciled.
+
+    Same rules as ``save_imagery_editor_state``: an entry with an id updates in
+    place, one without is created, and anything in the database but missing from
+    the payload is deleted. A visualizer has no views and no canvas layouts, so
+    that reconciliation is absent here - which is the whole difference between
+    the two. Basemaps are saved separately, so naming one never implies
+    anything about the other.
+
+    Does not commit. The caller commits, then hands the returned specs to
+    ``spawn_background_mosaic_registration`` so the STAC calls run off the
+    request path.
+    """
+    editor_state = ImageryEditorStateCreate(sources=sources, basemaps=[])
+    organization = visualizer.project.organization
+    _resolve_tilers(organization, editor_state)
+    _validate_organization_keys(organization, editor_state)
+
+    existing = {s.id: s for s in visualizer.imagery_sources}
+    payload_ids = {s.id for s in sources if s.id is not None}
+    for source_id, source in list(existing.items()):
+        if source_id not in payload_ids:
+            db.delete(source)
+            del existing[source_id]
+
+    for src_create in sources:
+        if src_create.id is None or src_create.id not in existing:
+            continue
+        keep = {c.id for c in src_create.collections if c.id is not None}
+        for collection in list(existing[src_create.id].collections):
+            if collection.id not in keep:
+                db.delete(collection)
+    db.flush()
+
+    pending: list[RegistrationSpec] = []
+    for index, src_create in enumerate(sources):
+        if src_create.id and src_create.id in existing:
+            pending.extend(
+                _update_source_in_place(db, existing[src_create.id], src_create, index, bbox)
+            )
+        else:
+            _, created = _create_source(
+                db, LayerOwner(visualizer_id=visualizer.id), src_create, index, bbox
+            )
+            pending.extend(created)
+    db.flush()
+    return pending
+
+
+def save_visualizer_basemaps(db: Session, *, visualizer, basemaps: list[BasemapCreate]) -> None:
+    """Replace a visualizer's backdrops wholesale, exactly as a campaign's are.
+
+    A basemap is a name, a URL and a zoom cap; there is no per-row state worth
+    reconciling in place, which is why both owners replace rather than merge.
+    Does not commit.
+    """
+    _validate_organization_keys(
+        visualizer.project.organization,
+        ImageryEditorStateCreate(sources=[], basemaps=basemaps),
+    )
+    db.execute(delete(Basemap).where(Basemap.visualizer_id == visualizer.id))
+    db.flush()
+    _create_basemaps(db, LayerOwner(visualizer_id=visualizer.id), basemaps)
+    db.flush()
 
 
 def _update_source_in_place(
@@ -787,7 +865,7 @@ def _update_collection_in_place(
 
 def _create_source(
     db: Session,
-    campaign_id: int,
+    owner: LayerOwner,
     src: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
@@ -796,7 +874,7 @@ def _create_source(
     Returns (source, pending_registrations)."""
     pending: list[RegistrationSpec] = []
     source = ImagerySource(
-        campaign_id=campaign_id,
+        **owner.as_columns(),
         name=src.name,
         crosshair_hex6=src.crosshair_hex6,
         default_zoom=src.default_zoom,
@@ -921,13 +999,13 @@ def _create_collection_record(
 
 def _create_basemaps(
     db: Session,
-    campaign_id: int,
+    owner: LayerOwner,
     basemaps: list[BasemapCreate],
 ) -> list[Basemap]:
     created = []
     for bm in basemaps:
         obj = Basemap(
-            campaign_id=campaign_id,
+            **owner.as_columns(),
             name=bm.name,
             url=bm.url,
             max_native_zoom=bm.max_native_zoom,

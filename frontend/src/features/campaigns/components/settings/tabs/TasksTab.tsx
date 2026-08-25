@@ -30,8 +30,8 @@ interface Props {
   taskFile: File | null;
   setTaskFile: (f: File | null) => void;
   uploadingTasks: boolean;
-  handleUploadAnnotationTasks: () => Promise<void>;
-  handleTasksGenerated: (response: GenerateTasksResponse) => Promise<void>;
+  handleUploadAnnotationTasks: () => void;
+  handleTasksGenerated: (response: GenerateTasksResponse) => void;
   onTaskGenerationError: (message: string) => void;
   onOpenBulkAssign: () => void;
   onOpenReviewerAssign: () => void;

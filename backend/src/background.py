@@ -1,4 +1,4 @@
-"""Liveness protocol for campaign-scoped background runs.
+"""Liveness protocol for background runs.
 
 Long-running background work executes on daemon threads inside web workers -
 and web workers are disposable: gunicorn recycles them after --max-requests,
@@ -7,9 +7,9 @@ takes its threads with it, which would leave the run's status column stuck at
 "registering" forever.
 
 This module is mechanism only; it knows nothing about which runs exist. A
-domain that owns background work declares a ``StatusField`` (its status and
-heartbeat columns on data.campaigns, plus the user-facing message shown when a
-dead run is swept) and drives it with:
+domain that owns background work declares a ``StatusField`` (the table its
+status, heartbeat and errors columns live on, plus the user-facing message
+shown when a dead run is swept) and drives it with:
 
 - ``begin_status_run``: status = "registering" plus a fresh heartbeat, in the
   caller's transaction, committed before the spawn.
@@ -31,9 +31,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 
 from sqlalchemy import func, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import DeclarativeBase, Session
 
-from src.campaigns.models import Campaign
 from src.database import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -46,54 +45,61 @@ STALE_AFTER_SECONDS = 180.0
 
 @dataclass(frozen=True)
 class StatusField:
-    """One kind of background run: its column pair on data.campaigns and the
-    registration_errors entry written when a dead run is swept.
+    """One kind of background run: where its status lives and what a swept run says.
 
-    Column names cannot be bound as query parameters, so this module's statements
-    interpolate them. Construction therefore checks both names against the real
-    campaigns table: a StatusField that could carry anything else into SQL simply
-    cannot be built. Every instance is a module-level constant, so a bad name is a
-    startup failure rather than something a background thread discovers at 3am.
+    Table and column names cannot be bound as query parameters, so this module's
+    statements interpolate them. Construction therefore checks every name against
+    the real mapped table: a StatusField that could carry anything else into SQL
+    simply cannot be built. Every instance is a module-level constant, so a bad
+    name is a startup failure rather than something a background thread discovers
+    at 3am.
     """
 
+    model: type[DeclarativeBase]
     status_column: str
     heartbeat_column: str
+    errors_column: str
     interrupted_error: str
 
     def __post_init__(self) -> None:
-        columns = Campaign.__table__.columns.keys()
-        for name in (self.status_column, self.heartbeat_column):
+        columns = self.model.__table__.columns.keys()
+        for name in (self.status_column, self.heartbeat_column, self.errors_column):
             if name not in columns:
-                raise ValueError(f"{name!r} is not a column on data.campaigns")
+                raise ValueError(f"{name!r} is not a column on {self.table}")
+
+    @property
+    def table(self) -> str:
+        """Schema-qualified, which is what a Table renders as."""
+        return str(self.model.__table__)
 
 
-def begin_status_run(campaign, field: StatusField) -> None:
+def begin_status_run(row, field: StatusField) -> None:
     """Mark a run as starting: status = "registering" plus a fresh heartbeat.
 
     Must happen in the caller's transaction, committed before spawn_status_run,
     so no observer can ever see "registering" without a heartbeat to judge it by.
     """
-    setattr(campaign, field.status_column, "registering")
-    setattr(campaign, field.heartbeat_column, func.now())
+    setattr(row, field.status_column, "registering")
+    setattr(row, field.heartbeat_column, func.now())
 
 
-def _stamp_heartbeat(campaign_id: int, field: StatusField) -> None:
+def _stamp_heartbeat(row_id: int, field: StatusField) -> None:
     """One beat, on its own short-lived connection so the pool is never held."""
     db = SessionLocal()
     try:
         db.execute(
-            text(f"UPDATE data.campaigns SET {field.heartbeat_column} = now() WHERE id = :id"),
-            {"id": campaign_id},
+            text(f"UPDATE {field.table} SET {field.heartbeat_column} = now() WHERE id = :id"),
+            {"id": row_id},
         )
         db.commit()
     except Exception:
-        logger.warning("Heartbeat write failed for campaign %d", campaign_id, exc_info=True)
+        logger.warning("Heartbeat write failed for %s %d", field.table, row_id, exc_info=True)
     finally:
         db.close()
 
 
 @contextmanager
-def heartbeat(campaign_id: int, field: StatusField) -> Iterator[None]:
+def heartbeat(row_id: int, field: StatusField) -> Iterator[None]:
     """Keep the run's heartbeat fresh for as long as the with-block executes.
 
     Stamps once on entry, then every HEARTBEAT_INTERVAL_SECONDS from a side
@@ -104,11 +110,11 @@ def heartbeat(campaign_id: int, field: StatusField) -> Iterator[None]:
 
     def _beat() -> None:
         while not stop.wait(HEARTBEAT_INTERVAL_SECONDS):
-            _stamp_heartbeat(campaign_id, field)
+            _stamp_heartbeat(row_id, field)
 
-    _stamp_heartbeat(campaign_id, field)
+    _stamp_heartbeat(row_id, field)
     thread = threading.Thread(
-        target=_beat, daemon=True, name=f"heartbeat-{field.status_column}-{campaign_id}"
+        target=_beat, daemon=True, name=f"heartbeat-{field.status_column}-{row_id}"
     )
     thread.start()
     try:
@@ -120,20 +126,20 @@ def heartbeat(campaign_id: int, field: StatusField) -> Iterator[None]:
 
 def finish_status_run(
     db: Session,
-    campaign_id: int,
+    row_id: int,
     *,
     field: StatusField,
     status: str,
     errors: list[dict],
 ) -> None:
-    """Atomically flip a run's status column and append to registration_errors.
+    """Atomically flip a run's status column and append to its errors column.
 
-    Two runs can finish the same campaign around the same time. A
-    read-modify-write on registration_errors (read the list, append in Python,
-    write the whole list back) lets whichever thread commits second silently
-    overwrite the other's errors. This does the append inside the UPDATE
-    itself, so both threads' errors survive no matter which commits first -
-    the single writer of registration_errors is this statement.
+    Two runs can finish the same row around the same time. A read-modify-write
+    on the errors column (read the list, append in Python, write the whole list
+    back) lets whichever thread commits second silently overwrite the other's
+    errors. This does the append inside the UPDATE itself, so both threads'
+    errors survive no matter which commits first - the single writer of that
+    column is this statement.
 
     Does not commit; the caller commits alongside whatever else it writes in
     the same transaction.
@@ -143,22 +149,22 @@ def finish_status_run(
     db.flush()
     db.execute(
         text(
-            "UPDATE data.campaigns "
-            "SET registration_errors = coalesce(registration_errors, '[]'::jsonb) "
+            f"UPDATE {field.table} "
+            f"SET {field.errors_column} = coalesce({field.errors_column}, '[]'::jsonb) "
             "        || cast(:new_errors AS jsonb), "
             f"    {field.status_column} = :status "
-            "WHERE id = :campaign_id"
+            "WHERE id = :row_id"
         ),
         {
             "new_errors": json.dumps(errors),
             "status": status,
-            "campaign_id": campaign_id,
+            "row_id": row_id,
         },
     )
 
 
 def spawn_status_run(
-    campaign_id: int,
+    row_id: int,
     field: StatusField,
     *,
     name: str,
@@ -177,12 +183,12 @@ def spawn_status_run(
     def _run() -> None:
         db = SessionLocal()
         try:
-            logger.info("Background %s started for campaign %d", name, campaign_id)
-            with heartbeat(campaign_id, field):
+            logger.info("Background %s started for %s %d", name, field.table, row_id)
+            with heartbeat(row_id, field):
                 errors = work(db) or []
             finish_status_run(
                 db,
-                campaign_id,
+                row_id,
                 field=field,
                 status="failed" if errors else "ready",
                 errors=errors,
@@ -190,20 +196,21 @@ def spawn_status_run(
             db.commit()
             if errors:
                 logger.warning(
-                    "Background %s for campaign %d finished with %d errors",
+                    "Background %s for %s %d finished with %d errors",
                     name,
-                    campaign_id,
+                    field.table,
+                    row_id,
                     len(errors),
                 )
             else:
-                logger.info("Background %s completed for campaign %d", name, campaign_id)
+                logger.info("Background %s completed for %s %d", name, field.table, row_id)
         except Exception as exc:
-            logger.exception("Background %s failed for campaign %d", name, campaign_id)
+            logger.exception("Background %s failed for %s %d", name, field.table, row_id)
             db.rollback()
             try:
                 finish_status_run(
                     db,
-                    campaign_id,
+                    row_id,
                     field=field,
                     status="failed",
                     errors=[{"error": sanitize_error(exc)}],
@@ -218,10 +225,10 @@ def spawn_status_run(
 
 
 def fail_stale_status_runs(
-    db: Session, fields: Iterable[StatusField], campaign_id: int | None = None
+    db: Session, fields: Iterable[StatusField], row_id: int | None = None
 ) -> int:
     """Flip dead runs ("registering" with a stale or missing heartbeat) to
-    "failed" with the field's retry hint appended to registration_errors.
+    "failed" with the field's retry hint appended to its errors column.
 
     The status guard is inside the UPDATE itself, so concurrent sweeps (several
     workers booting, or a sweep racing the poll endpoint) cannot double-append.
@@ -230,8 +237,8 @@ def fail_stale_status_runs(
     flipped = 0
     for field in fields:
         sql = (
-            "UPDATE data.campaigns "
-            "SET registration_errors = coalesce(registration_errors, '[]'::jsonb) "
+            f"UPDATE {field.table} "
+            f"SET {field.errors_column} = coalesce({field.errors_column}, '[]'::jsonb) "
             "        || cast(:interrupted AS jsonb), "
             f"    {field.status_column} = 'failed' "
             f"WHERE {field.status_column} = 'registering' "
@@ -242,14 +249,15 @@ def fail_stale_status_runs(
             "interrupted": json.dumps([{"error": field.interrupted_error}]),
             "stale": STALE_AFTER_SECONDS,
         }
-        if campaign_id is not None:
-            sql += " AND id = :campaign_id"
-            params["campaign_id"] = campaign_id
+        if row_id is not None:
+            sql += " AND id = :row_id"
+            params["row_id"] = row_id
         swept = db.execute(text(sql + " RETURNING id"), params).scalars().all()
         if swept:
             logger.warning(
-                "Swept dead %s run(s) to 'failed' for campaign(s) %s",
+                "Swept dead %s run(s) to 'failed' for %s %s",
                 field.status_column,
+                field.table,
                 list(swept),
             )
         flipped += len(swept)

@@ -9,21 +9,28 @@ interface SourcesTabProps {
   campaignBbox?: number[] | null;
   /** Open the shared source editor for the given source id. */
   onEditSource: (sourceId: string) => void;
+  /** Replaces the default blurb, or drops it when null - a caller that has
+   *  already said what these sources are does not want it said twice. */
+  description?: string | null;
 }
 
-export const SourcesTab = ({ controller, campaignBbox = null, onEditSource }: SourcesTabProps) => {
+const DEFAULT_DESCRIPTION =
+  'Define where imagery comes from. Each source represents a dataset (e.g. Sentinel-2, ' +
+  'Landsat, NAIP) with collections covering specific time periods.';
+
+export const SourcesTab = ({
+  controller,
+  campaignBbox = null,
+  onEditSource,
+  description = DEFAULT_DESCRIPTION,
+}: SourcesTabProps) => {
   const [wizardOpen, setWizardOpen] = useState(false);
 
   const sources = controller.state.sources;
 
   return (
     <div className="space-y-3">
-      <div>
-        <p className="text-xs text-neutral-500 mt-0.5">
-          Define where imagery comes from. Each source represents a dataset (e.g. Sentinel-2,
-          Landsat, NAIP) with collections covering specific time periods.
-        </p>
-      </div>
+      {description && <p className="text-xs text-neutral-500 mt-0.5">{description}</p>}
 
       <div className="flex flex-wrap gap-2">
         {sources.map((source) => {

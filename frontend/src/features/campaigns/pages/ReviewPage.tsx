@@ -1,25 +1,23 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
-import { getCampaignSummary, type CampaignSummaryOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { handleError } from '~/shared/utils/errorHandler';
 import { IconUploadFilled } from '~/shared/ui/Icons';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
-import { OpenModeReview } from '../components/review/OpenModeReview';
+import { AnnotationsReview } from '../components/review/AnnotationsReview';
 import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSection';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
+import { useCampaignSummary } from '../hooks/campaignQueries';
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
 
-  const [campaign, setCampaign] = useState<CampaignSummaryOut | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const { campaign, loading } = useCampaignSummary(campaignId);
 
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
@@ -27,21 +25,6 @@ export const ReviewPage = () => {
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Annotations');
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        const campaignRes = await getCampaignSummary({ path: { campaign_id: campaignId } });
-        setCampaign(campaignRes.data!);
-      } catch (err) {
-        handleError(err, 'Failed to load campaign');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [campaignId]);
 
   if (!loading && !campaign) {
     return (
@@ -56,7 +39,7 @@ export const ReviewPage = () => {
   return (
     <Fragment>
       {campaign ? (
-        <OpenModeReview
+        <AnnotationsReview
           campaign={campaign}
           campaignId={campaignId}
           headerActions={

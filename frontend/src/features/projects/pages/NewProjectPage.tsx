@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { createProject } from '~/api/client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createProjectMutation, listProjectsQueryKey } from '~/api/queries';
 import { newOrganizationPath, projectPath, projectsPath } from '~/app/routes';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useOrgStore } from '~/shared/stores/org.store';
@@ -10,8 +11,11 @@ import { IconPlus } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
 import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonForm } from '~/shared/ui/Skeleton';
-import { handleError } from '~/shared/utils/errorHandler';
-import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
+import { extractErrorMessage } from '~/shared/utils/errorHandler';
+import {
+  useOrganizations,
+  useRefreshOrganizations,
+} from '~/features/organizations/hooks/useOrganizations';
 import { ProjectVisibilityPicker } from '../components/ProjectVisibilityPicker';
 import { type ProjectVisibility } from '../components/projectVisibility';
 
@@ -20,13 +24,25 @@ export const NewProjectPage = () => {
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
-  const { orgs: organizations, loading, error, refresh } = useOrganizations({ approvedOnly: true });
+  const queryClient = useQueryClient();
+  const { orgs: organizations, loading, error } = useOrganizations({ approvedOnly: true });
+  const refreshOrganizations = useRefreshOrganizations();
 
   const [organizationId, setOrganizationId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<ProjectVisibility>('private');
-  const [submitting, setSubmitting] = useState(false);
+
+  const create = useMutation({
+    ...createProjectMutation(),
+    meta: { errorMessage: 'Failed to create project' },
+    onSuccess: (project) => {
+      void queryClient.invalidateQueries({ queryKey: listProjectsQueryKey() });
+      showAlert('Project created', 'success');
+      navigate(project ? projectPath(project.id) : projectsPath());
+    },
+  });
+  const submitting = create.isPending;
 
   useEffect(() => {
     setBreadcrumbs([{ label: 'Projects', path: projectsPath() }, { label: 'New project' }]);
@@ -41,26 +57,16 @@ export const NewProjectPage = () => {
     });
   }, [organizations, activeOrgId]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (organizationId === null || !name.trim() || submitting) return;
-
-    setSubmitting(true);
-    try {
-      const { data: project } = await createProject({
-        body: {
-          organization_id: organizationId,
-          name: name.trim(),
-          description: description.trim() || null,
-          visibility,
-        },
-      });
-      showAlert('Project created', 'success');
-      navigate(project ? projectPath(project.id) : projectsPath());
-    } catch (err) {
-      handleError(err, 'Failed to create project');
-    } finally {
-      setSubmitting(false);
-    }
+    create.mutate({
+      body: {
+        organization_id: organizationId,
+        name: name.trim(),
+        description: description.trim() || null,
+        visibility,
+      },
+    });
   };
 
   return (
@@ -85,8 +91,10 @@ export const NewProjectPage = () => {
               <p className="text-base text-neutral-800 font-medium mb-1">
                 Could not load organizations
               </p>
-              <p className="text-sm text-neutral-500 mb-5">{error}</p>
-              <Button variant="secondary" onClick={() => refresh()}>
+              <p className="text-sm text-neutral-500 mb-5">
+                {extractErrorMessage(error, 'Failed to load organizations')}
+              </p>
+              <Button variant="secondary" onClick={() => refreshOrganizations()}>
                 Try again
               </Button>
             </div>

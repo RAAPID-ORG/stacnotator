@@ -9,11 +9,13 @@ backend->tiler register calls use it as a ``Bearer`` token with scope ``searches
 import time
 
 import jwt
+from fastapi import Response
 
 from src.config import get_settings
 
 ALGORITHM = "HS256"
 DEFAULT_TTL = 3600
+TILER_TOKEN_TTL = 3600  # 1 hour
 
 
 def mint(
@@ -39,3 +41,22 @@ def verify(token: str) -> dict:
     Used by the tile-proxy to authorize browser tile requests from the ``tiler_token`` cookie.
     """
     return jwt.decode(token, get_settings().TILER_TOKEN_SECRET, algorithms=[ALGORITHM])
+
+
+def set_tiler_cookie(response: Response, *, sub: str, campaigns: list) -> None:
+    """Attach the browser's ``tiles:read`` cookie for exactly these campaigns.
+
+    The subject is whatever the caller is granting access on behalf of - a user
+    for the app, a visualizer for a shared link - and never reaches the client.
+    """
+    settings = get_settings()
+    response.set_cookie(
+        key="tiler_token",
+        value=mint(sub, campaigns, scope=["tiles:read"], ttl=TILER_TOKEN_TTL),
+        max_age=TILER_TOKEN_TTL,
+        httponly=True,
+        secure=settings.TILER_COOKIE_SECURE,
+        samesite=settings.TILER_COOKIE_SAMESITE,
+        domain=settings.TILER_COOKIE_DOMAIN,
+        path="/",
+    )

@@ -1,26 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type AddUsersByEmailResult, type OrganizationUserOut } from '~/api/client';
 import {
-  addOrganizationUsers,
-  demoteOrganizationAdmin,
-  getOrganizationUsers,
-  listOrganizationInvites,
-  makeOrganizationAdmin,
-  removeOrganizationMember,
-  revokeOrganizationInvite,
-  type AddUsersByEmailResult,
-  type OrganizationUserOut,
-} from '~/api/client';
+  addOrganizationUsersMutation,
+  demoteOrganizationAdminMutation,
+  getOrganizationUsersOptions,
+  getOrganizationUsersQueryKey,
+  listOrganizationInvitesOptions,
+  listOrganizationInvitesQueryKey,
+  makeOrganizationAdminMutation,
+  removeOrganizationMemberMutation,
+  revokeOrganizationInviteMutation,
+} from '~/api/queries';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge } from '~/shared/ui/Badge';
 import { Button, Field, Textarea } from '~/shared/ui/forms';
-import { handleError } from '~/shared/utils/errorHandler';
+import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { parseEmailList } from '~/shared/utils/utility';
 import { INVITE_SIGNUP_NOTE, PendingInvites } from './PendingInvites';
 
 export type OrganizationMembersProps = {
   organizationId: number;
 };
+
+const NO_MEMBERS: OrganizationUserOut[] = [];
 
 const rowActionClass =
   'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors ' +
@@ -31,75 +35,71 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
   // Emails only reach platform admins; everyone else manages members by name.
   const showEmails = useAccountStore((s) => s.account?.is_admin ?? false);
 
-  const [members, setMembers] = useState<OrganizationUserOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const path = { organization_id: organizationId };
 
   const [emailsText, setEmailsText] = useState('');
-  const [adding, setAdding] = useState(false);
   const [addResult, setAddResult] = useState<AddUsersByEmailResult | null>(null);
   const [malformed, setMalformed] = useState<string[]>([]);
-  const [invitesReload, setInvitesReload] = useState(0);
 
-  const loadInvites = useCallback(async () => {
-    const { data } = await listOrganizationInvites({
-      path: { organization_id: organizationId },
-    });
-    return data?.items ?? [];
-  }, [organizationId]);
+  const membersQuery = useQuery({
+    ...getOrganizationUsersOptions({ path }),
+    meta: { errorMessage: 'Failed to load organization members', showUser: false },
+  });
+  const members = membersQuery.data?.users ?? NO_MEMBERS;
 
-  const revokeInvite = useCallback(
-    async (inviteId: number) => {
-      await revokeOrganizationInvite({
-        path: { organization_id: organizationId, invite_id: inviteId },
-      });
+  const invitesQuery = useQuery({
+    ...listOrganizationInvitesOptions({ path }),
+    meta: { errorMessage: 'Failed to load pending signups' },
+  });
+
+  const refetchMembers = () =>
+    queryClient.invalidateQueries({ queryKey: getOrganizationUsersQueryKey({ path }) });
+  const refetchInvites = () =>
+    queryClient.invalidateQueries({ queryKey: listOrganizationInvitesQueryKey({ path }) });
+
+  const promote = useMutation({
+    ...makeOrganizationAdminMutation(),
+    meta: { errorMessage: 'Failed to update member role' },
+    onSuccess: refetchMembers,
+  });
+  const demote = useMutation({
+    ...demoteOrganizationAdminMutation(),
+    meta: { errorMessage: 'Failed to update member role' },
+    onSuccess: refetchMembers,
+  });
+  const removeMemberMutation = useMutation({
+    ...removeOrganizationMemberMutation(),
+    meta: { errorMessage: 'Failed to remove member' },
+    onSuccess: refetchMembers,
+  });
+  const revoke = useMutation({
+    ...revokeOrganizationInviteMutation(),
+    meta: { errorMessage: 'Failed to revoke invite' },
+    onSuccess: refetchInvites,
+  });
+  // An added address either becomes a member or waits as an invite, so both
+  // lists below can have moved.
+  const add = useMutation({
+    ...addOrganizationUsersMutation(),
+    meta: { errorMessage: 'Failed to add members' },
+    onSuccess: (result) => {
+      setAddResult(result);
+      setEmailsText('');
+      void refetchMembers();
+      void refetchInvites();
     },
-    [organizationId]
-  );
+  });
 
-  const loadMembers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data } = await getOrganizationUsers({ path: { organization_id: organizationId } });
-      setMembers(data?.users ?? []);
-      setError(null);
-    } catch (err) {
-      setError(handleError(err, 'Failed to load organization members', { showUser: false }));
-    } finally {
-      setLoading(false);
-    }
-  }, [organizationId]);
+  const loading = membersQuery.isPending;
+  const adding = add.isPending;
+  const busy = promote.isPending || demote.isPending || removeMemberMutation.isPending;
 
-  useEffect(() => {
-    void loadMembers();
-  }, [loadMembers]);
-
-  const runMemberAction = async (action: () => Promise<unknown>, failureContext: string) => {
-    setBusy(true);
-    try {
-      await action();
-      await loadMembers();
-      setError(null);
-    } catch (err) {
-      setError(handleError(err, failureContext, { showUser: false }));
-    } finally {
-      setBusy(false);
-    }
+  const toggleAdmin = (member: OrganizationUserOut) => {
+    const vars = { path: { ...path, user_id: member.user.id } };
+    if (member.is_admin) demote.mutate(vars);
+    else promote.mutate(vars);
   };
-
-  const toggleAdmin = (member: OrganizationUserOut) =>
-    runMemberAction(
-      () =>
-        member.is_admin
-          ? demoteOrganizationAdmin({
-              path: { organization_id: organizationId, user_id: member.user.id },
-            })
-          : makeOrganizationAdmin({
-              path: { organization_id: organizationId, user_id: member.user.id },
-            }),
-      'Failed to update member role'
-    );
 
   const removeMember = async (member: OrganizationUserOut) => {
     const confirmed = await showConfirmDialog({
@@ -109,39 +109,17 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
       isDangerous: true,
     });
     if (!confirmed) return;
-    await runMemberAction(
-      () =>
-        removeOrganizationMember({
-          path: { organization_id: organizationId, user_id: member.user.id },
-        }),
-      'Failed to remove member'
-    );
+    removeMemberMutation.mutate({ path: { ...path, user_id: member.user.id } });
   };
 
-  const addMembers = async () => {
+  const addMembers = () => {
     const { emails, invalid } = parseEmailList(emailsText);
     setMalformed(invalid);
     if (emails.length === 0) {
       setAddResult(null);
       return;
     }
-
-    setAdding(true);
-    try {
-      const { data } = await addOrganizationUsers({
-        path: { organization_id: organizationId },
-        body: { emails },
-      });
-      setAddResult(data ?? null);
-      setEmailsText('');
-      setInvitesReload((n) => n + 1);
-      await loadMembers();
-      setError(null);
-    } catch (err) {
-      setError(handleError(err, 'Failed to add members', { showUser: false }));
-    } finally {
-      setAdding(false);
-    }
+    add.mutate({ path, body: { emails } });
   };
 
   return (
@@ -198,9 +176,9 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
           )}
         </div>
         <PendingInvites
-          listInvites={loadInvites}
-          revokeInvite={revokeInvite}
-          reloadKey={invitesReload}
+          invites={invitesQuery.data?.items ?? []}
+          onRevoke={(invite) => revoke.mutate({ path: { ...path, invite_id: invite.id } })}
+          revokingId={revoke.isPending ? (revoke.variables.path.invite_id ?? null) : null}
           className="mt-6 max-w-xl"
         />
       </section>
@@ -209,7 +187,11 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
         <h2 className="section-heading">
           Members <span className="text-neutral-400 font-normal">({members.length})</span>
         </h2>
-        {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+        {membersQuery.error && (
+          <p className="text-xs text-red-600 mb-3">
+            {extractErrorMessage(membersQuery.error, 'Failed to load organization members')}
+          </p>
+        )}
 
         <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white">
           <table className="w-full text-sm" data-testid="org-members-table">

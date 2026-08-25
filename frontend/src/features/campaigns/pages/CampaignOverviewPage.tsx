@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import {
-  createTaskSet,
-  getAnnotationFacets,
-  getCampaignSummary,
-  listTaskSets,
-  type CampaignSummaryOut,
-  type TaskSetOut,
-} from '~/api/client';
+import { createTaskSet, type TaskSetOut } from '~/api/client';
+import { getAnnotationFacetsOptions } from '~/api/queries';
+import { useQuery } from '@tanstack/react-query';
+import { useCampaignSummary, useCampaignTaskSets } from '../hooks/campaignQueries';
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Button, Field, Input } from '~/shared/ui/forms';
@@ -35,11 +31,18 @@ export const CampaignOverviewPage = () => {
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
 
-  const [campaign, setCampaign] = useState<CampaignSummaryOut | null>(null);
-  const [annotationCount, setAnnotationCount] = useState<number | null>(null);
-  const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // The summary, not the full campaign: this page renders no imagery, and the full
+  // read pulls sources, collections, slices and tile URLs with it.
+  const { campaign, loading } = useCampaignSummary(campaignId);
+  const { taskSets } = useCampaignTaskSets(campaignId);
+  // Only for the count on the Annotations button, so a failure must not take the page
+  // with it - it renders without the number.
+  const { data: facets } = useQuery({
+    ...getAnnotationFacetsOptions({ path: { campaign_id: campaignId } }),
+    meta: { errorMessage: 'Failed to load annotation counts', showUser: false },
+  });
+  const annotationCount = facets?.total ?? null;
+  const isAdmin = campaign?.viewer_is_admin ?? false;
   const currentUserId = useAccountStore((s) => s.account?.id ?? null);
   const { taskSetIds: areaEstimationSets, reload: reloadEstimates } =
     useAreaEstimationTaskSets(campaignId);
@@ -76,30 +79,6 @@ export const CampaignOverviewPage = () => {
       setCreatingEstimate(false);
     }
   };
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        // Facets rides along with the two the page already makes: it is one grouped
-        // query and it is what puts a number on the Annotations button.
-        const [campaignRes, taskSetsRes, facetsRes] = await Promise.all([
-          getCampaignSummary({ path: { campaign_id: campaignId } }),
-          listTaskSets({ path: { campaign_id: campaignId } }),
-          getAnnotationFacets({ path: { campaign_id: campaignId } }).catch(() => null),
-        ]);
-        setCampaign(campaignRes.data ?? null);
-        setTaskSets(taskSetsRes.data ?? []);
-        setAnnotationCount(facetsRes?.data?.total ?? null);
-        setIsAdmin(campaignRes.data?.viewer_is_admin ?? false);
-      } catch (err) {
-        handleError(err, 'Failed to load campaign');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [campaignId]);
 
   if (!loading && !campaign) {
     return (
@@ -273,7 +252,7 @@ export const CampaignOverviewPage = () => {
               <h2 className="section-heading">Area estimates</h2>
               {isAdmin && (
                 <InlineAddAction onClick={() => setNamingEstimate('')}>
-                  New estimate
+                  New area estimate
                 </InlineAddAction>
               )}
             </div>
@@ -289,7 +268,7 @@ export const CampaignOverviewPage = () => {
                     confidence interval.
                   </p>
                   <Button variant="secondary" onClick={() => setNamingEstimate('')}>
-                    New estimate
+                    New area estimate
                   </Button>
                 </div>
               </div>

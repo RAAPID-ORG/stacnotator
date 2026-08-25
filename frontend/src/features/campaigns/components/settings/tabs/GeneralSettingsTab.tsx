@@ -1,21 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type {
-  CampaignOut,
-  CampaignSettingsCreate,
-  LabelBase,
-  LabellingPolicy,
-  ProjectUserOut,
-} from '~/api/client';
+import { useMutation } from '@tanstack/react-query';
+import type { CampaignOut, LabelBase, LabellingPolicy, ProjectUserOut } from '~/api/client';
 import {
-  updateCampaignFormFields,
-  updateCampaignGuide,
-  updateResearchSharing,
-  updateCampaignLabels,
-  updateEmbeddingYear,
-  updateLabellingPolicy,
-  updateSampleExtent,
-} from '~/api/client';
+  updateCampaignBboxMutation,
+  updateCampaignFormFieldsMutation,
+  updateCampaignGuideMutation,
+  updateCampaignLabelsMutation,
+  updateEmbeddingYearMutation,
+  updateLabellingPolicyMutation,
+  updateResearchSharingMutation,
+  updateSampleExtentMutation,
+} from '~/api/queries';
+import { useRefreshCampaign } from '~/features/campaigns/hooks/campaignQueries';
 import { projectPath } from '~/app/routes';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
@@ -27,7 +24,6 @@ import {
 } from '~/features/campaigns/utils/formFields';
 import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { handleError } from '~/shared/utils/errorHandler';
 import { Button, Field, Input, Select, Switch, Textarea } from '~/shared/ui/forms';
 
 const LIST_FORMATTER = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
@@ -37,11 +33,8 @@ interface Props {
   campaignName: string;
   setCampaignName: (s: string) => void;
   saving: boolean;
-  onSaveName: () => Promise<void>;
-  onSaveSettings: () => Promise<void>;
-  onUpdateSettings: (updates: Partial<CampaignSettingsCreate>) => void;
+  onSaveName: () => void;
   onOpenDelete: () => void;
-  onCampaignUpdated?: (campaign: CampaignOut) => void;
   projectUsers: ProjectUserOut[];
 }
 
@@ -51,32 +44,62 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   setCampaignName,
   saving,
   onSaveName,
-  onSaveSettings,
-  onUpdateSettings,
   onOpenDelete,
-  onCampaignUpdated,
   projectUsers,
 }) => {
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
+  const refreshCampaign = useRefreshCampaign(campaign.id);
+
+  // Every editor below saves one slice of the campaign and then re-reads it,
+  // which is also what keeps the page header and the sidebar honest.
+  const path = { campaign_id: campaign.id };
+  const saved = (errorMessage: string, message: string) => ({
+    meta: { errorMessage },
+    onSuccess: () => {
+      void refreshCampaign();
+      showAlert(message, 'success');
+    },
+  });
 
   // Embedding year local state
   const currentYear = new Date().getFullYear();
   const [embeddingYear, setEmbeddingYear] = useState<number | null>(
     campaign.settings.embedding_year ?? null
   );
-  const [savingEmbeddingYear, setSavingEmbeddingYear] = useState(false);
+  const saveEmbeddingYear = useMutation({
+    ...updateEmbeddingYearMutation(),
+    meta: { errorMessage: 'Failed to update embedding year' },
+    onSuccess: (result) => {
+      void refreshCampaign();
+      showAlert(
+        result.embeddings_recomputed
+          ? `Embeddings recomputed for ${embeddingYear}`
+          : 'Embedding year updated',
+        'success'
+      );
+    },
+  });
+  const savingEmbeddingYear = saveEmbeddingYear.isPending;
 
   const embeddingYearChanged = embeddingYear !== (campaign.settings.embedding_year ?? null);
 
   const [guideMarkdown, setGuideMarkdown] = useState(campaign.settings.guide_markdown ?? '');
-  const [savingGuide, setSavingGuide] = useState(false);
+  const saveGuide = useMutation({
+    ...updateCampaignGuideMutation(),
+    ...saved('Failed to update guide', 'Campaign guide updated'),
+  });
+  const savingGuide = saveGuide.isPending;
   const guideChanged = guideMarkdown !== (campaign.settings.guide_markdown ?? '');
 
   // Labels editor local draft. Adds (new id) and renames (existing id, new
   // name) are allowed; deletes are blocked by the editor and the backend.
   const [labelsDraft, setLabelsDraft] = useState<LabelBase[]>(campaign.settings.labels);
-  const [savingLabels, setSavingLabels] = useState(false);
+  const saveLabels = useMutation({
+    ...updateCampaignLabelsMutation(),
+    ...saved('Failed to update labels', 'Labels updated'),
+  });
+  const savingLabels = saveLabels.isPending;
   const labelsChanged = JSON.stringify(labelsDraft) !== JSON.stringify(campaign.settings.labels);
   const labelsAreValid =
     labelsDraft.every((l) => l.name.trim().length > 0) &&
@@ -101,23 +124,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       });
       if (!ok) return;
     }
-    try {
-      setSavingLabels(true);
-      const res = await updateCampaignLabels({
-        path: { campaign_id: campaign.id },
-        body: { labels: labelsDraft },
-      });
-      if (res.error || !res.data) {
-        handleError(res.error, 'Failed to update labels');
-        return;
-      }
-      if (onCampaignUpdated) onCampaignUpdated(res.data);
-      showAlert('Labels updated', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to update labels');
-    } finally {
-      setSavingLabels(false);
-    }
+    saveLabels.mutate({ path, body: { labels: labelsDraft } });
   };
 
   // Custom form fields local draft. Edits (same id) and adds (new id) are
@@ -127,7 +134,11 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   const [formFieldsDraft, setFormFieldsDraft] = useState<FormField[]>(
     campaign.settings.form_fields ?? []
   );
-  const [savingFormFields, setSavingFormFields] = useState(false);
+  const saveFormFields = useMutation({
+    ...updateCampaignFormFieldsMutation(),
+    ...saved('Failed to update form fields', 'Form fields updated'),
+  });
+  const savingFormFields = saveFormFields.isPending;
   const savedFormFields = useMemo(
     () => campaign.settings.form_fields ?? [],
     [campaign.settings.form_fields]
@@ -169,68 +180,43 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       });
       if (!ok) return;
     }
-    try {
-      setSavingFormFields(true);
-      const res = await updateCampaignFormFields({
-        path: { campaign_id: campaign.id },
-        body: { form_fields: formFieldsDraft },
-      });
-      if (res.error || !res.data) {
-        handleError(res.error, 'Failed to update form fields');
-        return;
-      }
-      if (onCampaignUpdated) onCampaignUpdated(res.data);
-      showAlert('Form fields updated', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to update form fields');
-    } finally {
-      setSavingFormFields(false);
-    }
+    saveFormFields.mutate({ path, body: { form_fields: formFieldsDraft } });
   };
 
   // Labelling policy local draft.
   const [policyDraft, setPolicyDraft] = useState<LabellingPolicy>(
     campaign.settings.labelling_policy
   );
-  const [savingPolicy, setSavingPolicy] = useState(false);
+  const savePolicy = useMutation({
+    ...updateLabellingPolicyMutation(),
+    meta: { errorMessage: 'Failed to update labelling access' },
+    onSuccess: (policy) => {
+      // The server normalises the audiences, so the draft follows what it stored.
+      setPolicyDraft(policy);
+      void refreshCampaign();
+      showAlert('Labelling access updated', 'success');
+    },
+  });
+  const savingPolicy = savePolicy.isPending;
   const policyChanged =
     JSON.stringify(policyDraft) !== JSON.stringify(campaign.settings.labelling_policy);
 
   const handleSavePolicy = async () => {
     if (!policyChanged) return;
-    try {
-      setSavingPolicy(true);
-      const noOne = { kinds: [], user_ids: [] };
-      const res = await updateLabellingPolicy({
-        path: { campaign_id: campaign.id },
-        // PATCH replaces the whole policy, so every axis must be present.
-        body: {
-          explore: policyDraft.explore ?? noOne,
-          unassigned_tasks: policyDraft.unassigned_tasks ?? noOne,
-          assigned_tasks: policyDraft.assigned_tasks ?? noOne,
-          complete_assigned: policyDraft.complete_assigned ?? noOne,
-          // Its own default is "campaign admins", not "no one", so an unset
-          // draft must not be sent as an empty audience.
-          ...(policyDraft.modify_others ? { modify_others: policyDraft.modify_others } : {}),
-        },
-      });
-      if (res.error || !res.data) {
-        handleError(res.error, 'Failed to update labelling access');
-        return;
-      }
-      setPolicyDraft(res.data);
-      if (onCampaignUpdated) {
-        onCampaignUpdated({
-          ...campaign,
-          settings: { ...campaign.settings, labelling_policy: res.data },
-        });
-      }
-      showAlert('Labelling access updated', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to update labelling access');
-    } finally {
-      setSavingPolicy(false);
-    }
+    const noOne = { kinds: [], user_ids: [] };
+    savePolicy.mutate({
+      path,
+      // PATCH replaces the whole policy, so every axis must be present.
+      body: {
+        explore: policyDraft.explore ?? noOne,
+        unassigned_tasks: policyDraft.unassigned_tasks ?? noOne,
+        assigned_tasks: policyDraft.assigned_tasks ?? noOne,
+        complete_assigned: policyDraft.complete_assigned ?? noOne,
+        // Its own default is "campaign admins", not "no one", so an unset
+        // draft must not be sent as an empty audience.
+        ...(policyDraft.modify_others ? { modify_others: policyDraft.modify_others } : {}),
+      },
+    });
   };
 
   // Sample extent local state
@@ -239,89 +225,42 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       ? String(campaign.settings.sample_extent_meters)
       : ''
   );
-  const [savingExtent, setSavingExtent] = useState(false);
-  const [savingResearchSharing, setSavingResearchSharing] = useState(false);
+  const saveExtent = useMutation({
+    ...updateSampleExtentMutation(),
+    ...saved('Failed to update sample extent', 'Sample extent updated'),
+  });
+  const savingExtent = saveExtent.isPending;
+  const saveResearchSharing = useMutation({
+    ...updateResearchSharingMutation(),
+    meta: { errorMessage: 'Failed to update research sharing' },
+    onSuccess: refreshCampaign,
+  });
+  const savingResearchSharing = saveResearchSharing.isPending;
   const parsedExtent = sampleExtent.trim() === '' ? null : Number(sampleExtent);
   const extentValid = parsedExtent === null || (Number.isFinite(parsedExtent) && parsedExtent > 0);
   const extentChanged = parsedExtent !== (campaign.settings.sample_extent_meters ?? null);
-  const handleSaveGuide = async () => {
+  const handleSaveGuide = () => {
     if (!guideChanged) return;
-    try {
-      setSavingGuide(true);
-      const res = await updateCampaignGuide({
-        path: { campaign_id: campaign.id },
-        body: { guide_markdown: guideMarkdown || null },
-      });
-      if (res.error || !res.data) {
-        handleError(res.error, 'Failed to update guide');
-        return;
-      }
-      if (onCampaignUpdated) {
-        onCampaignUpdated({
-          ...campaign,
-          settings: { ...campaign.settings, guide_markdown: guideMarkdown || null },
-        });
-      }
-      showAlert('Campaign guide updated', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to update guide');
-    } finally {
-      setSavingGuide(false);
-    }
+    saveGuide.mutate({ path, body: { guide_markdown: guideMarkdown || null } });
   };
 
-  const handleResearchSharing = async (research_sharing: boolean) => {
-    try {
-      setSavingResearchSharing(true);
-      const res = await updateResearchSharing({
-        path: { campaign_id: campaign.id },
-        body: { research_sharing },
-      });
-      if (res.error || !res.data) {
-        handleError(res.error, 'Failed to update research sharing');
-        return;
+  const handleResearchSharing = (research_sharing: boolean) =>
+    saveResearchSharing.mutate(
+      { path, body: { research_sharing } },
+      {
+        onSuccess: () =>
+          showAlert(
+            research_sharing
+              ? 'Annotations from this campaign may now be published as research data'
+              : 'Research sharing turned off',
+            'success'
+          ),
       }
-      onCampaignUpdated?.({
-        ...campaign,
-        settings: { ...campaign.settings, research_sharing },
-      });
-      showAlert(
-        research_sharing
-          ? 'Annotations from this campaign may now be published as research data'
-          : 'Research sharing turned off',
-        'success'
-      );
-    } catch (err) {
-      handleError(err, 'Failed to update research sharing');
-    } finally {
-      setSavingResearchSharing(false);
-    }
-  };
+    );
 
-  const handleSaveExtent = async () => {
+  const handleSaveExtent = () => {
     if (!extentChanged || !extentValid) return;
-    try {
-      setSavingExtent(true);
-      const res = await updateSampleExtent({
-        path: { campaign_id: campaign.id },
-        body: { sample_extent_meters: parsedExtent },
-      });
-      if (res.error || !res.data) {
-        handleError(res.error, 'Failed to update sample extent');
-        return;
-      }
-      if (onCampaignUpdated) {
-        onCampaignUpdated({
-          ...campaign,
-          settings: { ...campaign.settings, sample_extent_meters: parsedExtent },
-        });
-      }
-      showAlert('Sample extent updated', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to update sample extent');
-    } finally {
-      setSavingExtent(false);
-    }
+    saveExtent.mutate({ path, body: { sample_extent_meters: parsedExtent } });
   };
 
   const handleSaveEmbeddingYear = async () => {
@@ -339,39 +278,29 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       if (!confirmed) return;
     }
 
-    try {
-      setSavingEmbeddingYear(true);
-      const res = await updateEmbeddingYear({
-        path: { campaign_id: campaign.id },
-        body: { embedding_year: embeddingYear },
-      });
+    saveEmbeddingYear.mutate({ path, body: { embedding_year: embeddingYear } });
+  };
 
-      if (res.error || !res.data) {
-        handleError(res.error, 'Failed to update embedding year');
-        return;
-      }
+  const [bboxDraft, setBboxDraft] = useState({
+    bbox_west: campaign.settings.bbox_west,
+    bbox_south: campaign.settings.bbox_south,
+    bbox_east: campaign.settings.bbox_east,
+    bbox_north: campaign.settings.bbox_north,
+  });
+  const saveBbox = useMutation({
+    ...updateCampaignBboxMutation(),
+    ...saved('Failed to save settings', 'Campaign settings updated successfully'),
+  });
+  const savingBbox = saveBbox.isPending;
+  const bboxChanged =
+    bboxDraft.bbox_west !== campaign.settings.bbox_west ||
+    bboxDraft.bbox_south !== campaign.settings.bbox_south ||
+    bboxDraft.bbox_east !== campaign.settings.bbox_east ||
+    bboxDraft.bbox_north !== campaign.settings.bbox_north;
 
-      if (res.data.embeddings_recomputed) {
-        showAlert(`Embeddings recomputed for ${embeddingYear}`, 'success');
-      } else {
-        showAlert('Embedding year updated', 'success');
-      }
-
-      // Propagate the updated embedding_year back to parent
-      if (onCampaignUpdated) {
-        onCampaignUpdated({
-          ...campaign,
-          settings: {
-            ...campaign.settings,
-            embedding_year: res.data.embedding_year ?? null,
-          },
-        });
-      }
-    } catch (err) {
-      handleError(err, 'Failed to update embedding year');
-    } finally {
-      setSavingEmbeddingYear(false);
-    }
+  const handleSaveBbox = () => {
+    if (!bboxChanged) return;
+    saveBbox.mutate({ path, body: bboxDraft });
   };
 
   const sectionCls =
@@ -444,15 +373,10 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           </p>
         </div>
         <BoundingBoxEditor
-          value={{
-            bbox_west: campaign.settings.bbox_west,
-            bbox_south: campaign.settings.bbox_south,
-            bbox_east: campaign.settings.bbox_east,
-            bbox_north: campaign.settings.bbox_north,
-          }}
-          onChange={(updates) => onUpdateSettings(updates)}
+          value={bboxDraft}
+          onChange={(updates) => setBboxDraft((current) => ({ ...current, ...updates }))}
         />
-        <Button onClick={onSaveSettings} disabled={saving}>
+        <Button onClick={handleSaveBbox} disabled={savingBbox || !bboxChanged}>
           Save settings
         </Button>
       </section>

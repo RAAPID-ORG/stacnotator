@@ -1,7 +1,7 @@
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
-import type { Bbox } from './types';
-import { crossOriginForTile, ensureSessionFor, type CrossOrigin } from './tileLoading';
+import type { Bbox } from '~/shared/map/types';
+import { crossOriginForTile, ensureSessionFor, type CrossOrigin } from '~/shared/map/tileLoading';
 
 export interface PreloadJob {
   priority: number;

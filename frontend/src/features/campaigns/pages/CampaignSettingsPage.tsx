@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '~/shared/ui/forms';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
@@ -18,23 +19,23 @@ import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
 import { FadeIn } from '~/shared/ui/motion';
 
 import {
-  createTimeseriesForCampaign,
-  getCampaign,
-  getProjectUsers,
-  deleteCampaign,
-  deleteTimeseries,
-  type CampaignOut,
   type ImagerySourceOut,
   type ProjectUserOut,
   type TimeSeriesCreate,
   type TimeSeriesOut,
-  updateCampaignName,
-  updateCampaignBbox,
 } from '~/api/client';
+import {
+  createTimeseriesForCampaignMutation,
+  deleteCampaignMutation,
+  deleteTimeseriesMutation,
+  getProjectUsersOptions,
+  listProjectCampaignsQueryKey,
+  updateCampaignNameMutation,
+} from '~/api/queries';
+import { useCampaign, useRefreshCampaign } from '../hooks/campaignQueries';
 
 const SETTINGS_TABS = ['general', 'imagery', 'timeseries'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
@@ -42,28 +43,33 @@ type SettingsTab = (typeof SETTINGS_TABS)[number];
 const isSettingsTab = (t: string | null): t is SettingsTab =>
   (SETTINGS_TABS as readonly string[]).includes(t ?? '');
 
+const NO_IMAGERY: ImagerySourceOut[] = [];
+const NO_TIMESERIES: TimeSeriesOut[] = [];
+const NO_USERS: ProjectUserOut[] = [];
+
 export const CampaignSettingsPage = () => {
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
 
-  const [campaign, setCampaign] = useState<CampaignOut | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const initialTab: SettingsTab = isSettingsTab(tabParam) ? tabParam : 'general';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
+  // Registration and embedding run in the background after creation, so this
+  // page keeps re-asking until they settle.
+  const { campaign, loading } = useCampaign(campaignId, { pollWhileRegistering: true });
+  const refreshCampaign = useRefreshCampaign(campaignId);
+
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const projectId = campaign?.project_id ?? routeProjectId;
+  const imagery = campaign?.imagery_sources ?? NO_IMAGERY;
+  const timeseries = campaign?.time_series ?? NO_TIMESERIES;
 
-  // Form states
   const [campaignName, setCampaignName] = useState('');
-  const [imagery, setImagery] = useState<ImagerySourceOut[]>([]);
-  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
-  const [timeseries, setTimeseries] = useState<TimeSeriesOut[]>([]);
   const [newTimeseries, setNewTimeseries] = useState<TimeSeriesCreate[]>([]);
 
   // Confirm dialog states
@@ -86,27 +92,13 @@ export const CampaignSettingsPage = () => {
     [campaign?.settings]
   );
 
-  // Refetch the campaign after imagery edits are persisted so local state
-  // reflects server truth (and the controller clears its dirty flag).
-  const handleImageryChanged = useCallback(async () => {
-    try {
-      const { data } = await getCampaign({ path: { campaign_id: campaignId } });
-      if (data) {
-        setCampaign(data);
-        setImagery(data.imagery_sources);
-      }
-    } catch {
-      /* silent refresh */
-    }
-  }, [campaignId]);
-
   const imageryController = usePersistedController({
     campaignId: campaignId,
     projectId,
     imagery,
     basemaps: campaign?.basemaps ?? [],
     campaignBbox,
-    refetch: handleImageryChanged,
+    refetch: refreshCampaign,
   });
 
   // Warn if the user navigates away with unsaved imagery edits.
@@ -117,202 +109,121 @@ export const CampaignSettingsPage = () => {
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Settings');
 
-  // Load campaign data (core data only)
+  // The name is edited in place, so it needs a draft of its own - seeded when
+  // the campaign arrives and re-seeded if the stored name moves under us.
+  const savedName = campaign?.name;
   useEffect(() => {
-    const loadCampaign = async () => {
-      try {
-        setLoading(true);
-        const { data } = await getCampaign({ path: { campaign_id: campaignId } });
-        setCampaign(data!);
-        setCampaignName(data!.name);
-        setImagery(data!.imagery_sources);
-        setTimeseries(data!.time_series);
-      } catch (err) {
-        handleError(err, 'Failed to load campaign');
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (savedName !== undefined) setCampaignName(savedName);
+  }, [savedName]);
 
-    loadCampaign();
-  }, [campaignId]);
-
-  // Poll while any background work is in progress
   const isAnyRegistering =
     campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
 
+  // Only the transition out of "registering" is worth announcing; the poll
+  // itself lives in useCampaign.
+  const wasRegistering = useRef(false);
   useEffect(() => {
-    if (!campaign || !isAnyRegistering) return;
-    const interval = setInterval(async () => {
-      try {
-        const { data } = await getCampaign({ path: { campaign_id: campaignId } });
-        if (data) {
-          setCampaign(data);
-          setImagery(data.imagery_sources);
-          const stillRegistering =
-            data.registration_status === 'registering' || data.embedding_status === 'registering';
-          if (!stillRegistering) {
-            clearInterval(interval);
-            const hasFailed =
-              data.registration_status === 'failed' || data.embedding_status === 'failed';
-            showAlert(
-              hasFailed
-                ? 'Background setup completed with some errors. Check settings.'
-                : 'Campaign setup completed successfully',
-              hasFailed ? 'warning' : 'success'
-            );
-          }
-        }
-      } catch {
-        /* silent poll */
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isAnyRegistering, campaignId, showAlert]);
+    if (isAnyRegistering) {
+      wasRegistering.current = true;
+      return;
+    }
+    if (!wasRegistering.current || !campaign) return;
+    wasRegistering.current = false;
+    const failed =
+      campaign.registration_status === 'failed' || campaign.embedding_status === 'failed';
+    showAlert(
+      failed
+        ? 'Background setup completed with some errors. Check settings.'
+        : 'Campaign setup completed successfully',
+      failed ? 'warning' : 'success'
+    );
+  }, [isAnyRegistering, campaign, showAlert]);
 
   // The general tab's labelling access needs the project's member list for the
-  // "selected members" picker. Re-fetched whenever the tab becomes active so
-  // membership changes made in project settings stay current.
+  // "selected members" picker.
   const campaignProjectId = campaign?.project_id;
-  useEffect(() => {
-    if (activeTab !== 'general' || campaignProjectId === undefined) return;
+  const { data: projectUsersData } = useQuery({
+    ...getProjectUsersOptions({ path: { project_id: campaignProjectId ?? 0 } }),
+    enabled: activeTab === 'general' && campaignProjectId !== undefined,
+    meta: { errorMessage: 'Failed to load project members' },
+  });
+  const projectUsers = projectUsersData?.users ?? NO_USERS;
 
-    const loadUsers = async () => {
-      try {
-        const { data } = await getProjectUsers({
-          path: { project_id: campaignProjectId },
-        });
-        setProjectUsers(data!.users);
-      } catch (err) {
-        handleError(err, 'Failed to load project members');
-      }
-    };
-
-    loadUsers();
-  }, [activeTab, campaignProjectId]);
-
-  const handleSaveName = async () => {
-    if (!campaign || campaignName === campaign.name) return;
-    try {
-      setSaving(true);
-      await updateCampaignName({
-        path: { campaign_id: campaignId },
-        body: { name: campaignName },
-      });
-
-      // Update local state immediately
-      setCampaign({ ...campaign, name: campaignName });
-
+  const renameCampaign = useMutation({
+    ...updateCampaignNameMutation(),
+    meta: { errorMessage: 'Failed to save campaign name' },
+    onSuccess: () => {
+      void refreshCampaign();
       showAlert('Campaign name updated successfully', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to save campaign name');
-      setCampaignName(campaign.name);
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onError: () => setCampaignName(campaign?.name ?? ''),
+  });
 
-  const handleSaveSettings = async () => {
-    if (!campaign) return;
-    try {
-      setSaving(true);
-      await updateCampaignBbox({
-        path: { campaign_id: campaignId },
-        body: {
-          bbox_west: campaign.settings.bbox_west,
-          bbox_east: campaign.settings.bbox_east,
-          bbox_north: campaign.settings.bbox_north,
-          bbox_south: campaign.settings.bbox_south,
-        },
+  const removeCampaign = useMutation({
+    ...deleteCampaignMutation(),
+    meta: { errorMessage: 'Failed to delete campaign' },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: listProjectCampaignsQueryKey({ path: { project_id: projectId } }),
       });
-
-      // Local state is already updated via the onChange handler, no need to update again
-
-      showAlert('Campaign settings updated successfully', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to save settings');
-
-      // Reload campaign to revert changes on error
-      try {
-        const { data } = await getCampaign({ path: { campaign_id: campaignId } });
-        setCampaign(data!);
-      } catch (reloadErr) {
-        handleError(reloadErr, 'Failed to reload campaign after error', { showUser: false });
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteTimeseries = async () => {
-    if (!deleteConfirm?.timeseriesId) return;
-
-    try {
-      setSaving(true);
-
-      await deleteTimeseries({
-        path: {
-          campaign_id: campaignId,
-          timeseries_id: deleteConfirm.timeseriesId,
-        },
-      });
-
-      // Update local state immediately
-      setTimeseries(timeseries.filter((ts) => ts.id !== deleteConfirm.timeseriesId));
-      setDeleteConfirm(null);
-      showAlert('Timeseries deleted successfully', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to delete timeseries');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteCampaign = async () => {
-    if (!campaign) return;
-
-    try {
-      setSaving(true);
-
-      await deleteCampaign({
-        path: { campaign_id: campaignId },
-      });
-
       showAlert('Campaign deleted successfully', 'success');
       setShowDeleteCampaignDialog(false);
-
-      // Navigate to campaigns list after successful deletion
       navigate(projectPath(projectId));
-    } catch (err) {
-      handleError(err, 'Failed to delete campaign');
-    } finally {
-      setSaving(false);
-    }
+    },
+  });
+
+  const removeTimeseries = useMutation({
+    ...deleteTimeseriesMutation(),
+    meta: { errorMessage: 'Failed to delete timeseries' },
+    onSuccess: () => {
+      void refreshCampaign();
+      setDeleteConfirm(null);
+      showAlert('Timeseries deleted successfully', 'success');
+    },
+  });
+
+  const addTimeseries = useMutation({
+    ...createTimeseriesForCampaignMutation(),
+    meta: { errorMessage: 'Failed to add timeseries' },
+    onSuccess: (result) => {
+      void refreshCampaign();
+      setNewTimeseries([]);
+      showAlert(`${result.new_items.length} timeseries added successfully`, 'success');
+    },
+  });
+
+  const saving =
+    renameCampaign.isPending ||
+    removeCampaign.isPending ||
+    removeTimeseries.isPending ||
+    addTimeseries.isPending;
+
+  const handleSaveName = () => {
+    if (!campaign || campaignName === campaign.name) return;
+    renameCampaign.mutate({ path: { campaign_id: campaignId }, body: { name: campaignName } });
   };
 
-  const handleAddTimeseries = async () => {
-    if (newTimeseries.length === 0) return;
-    try {
-      setSaving(true);
-      const timeSeriesCleaned = newTimeseries.map((ts) => ({
-        ...ts,
-        start_ym: ts.start_ym ? ts.start_ym.replace(/-/g, '') : ts.start_ym,
-        end_ym: ts.end_ym ? ts.end_ym.replace(/-/g, '') : ts.end_ym,
-      }));
+  const handleDeleteTimeseries = () => {
+    if (!deleteConfirm?.timeseriesId) return;
+    removeTimeseries.mutate({
+      path: { campaign_id: campaignId, timeseries_id: deleteConfirm.timeseriesId },
+    });
+  };
 
-      const timeseriesToCreate = { timeseries: timeSeriesCleaned };
-      const { data } = await createTimeseriesForCampaign({
-        path: { campaign_id: campaignId },
-        body: timeseriesToCreate,
-      });
-      setTimeseries([...timeseries, ...data!.new_items]);
-      setNewTimeseries([]);
-      showAlert(`${data!.new_items.length} timeseries added successfully`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to add timeseries');
-    } finally {
-      setSaving(false);
-    }
+  const handleDeleteCampaign = () => removeCampaign.mutate({ path: { campaign_id: campaignId } });
+
+  const handleAddTimeseries = () => {
+    if (newTimeseries.length === 0) return;
+    addTimeseries.mutate({
+      path: { campaign_id: campaignId },
+      body: {
+        timeseries: newTimeseries.map((ts) => ({
+          ...ts,
+          start_ym: ts.start_ym ? ts.start_ym.replace(/-/g, '') : ts.start_ym,
+          end_ym: ts.end_ym ? ts.end_ym.replace(/-/g, '') : ts.end_ym,
+        })),
+      },
+    });
   };
 
   if (!loading && !campaign) return null;
@@ -509,12 +420,7 @@ export const CampaignSettingsPage = () => {
                       setCampaignName={setCampaignName}
                       saving={saving}
                       onSaveName={handleSaveName}
-                      onSaveSettings={handleSaveSettings}
-                      onUpdateSettings={(updates) =>
-                        setCampaign({ ...campaign, settings: { ...campaign.settings, ...updates } })
-                      }
                       onOpenDelete={() => setShowDeleteCampaignDialog(true)}
-                      onCampaignUpdated={(updated) => setCampaign(updated)}
                       projectUsers={projectUsers}
                     />
                   )}

@@ -1,24 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
-import { handleError } from '~/shared/utils/errorHandler';
+import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { parseEmailList, searchUsers } from '~/shared/utils/utility';
+import { type AddUsersByEmailResult, type ProjectUserOut, type UserOut } from '~/api/client';
 import {
-  addProjectUsers,
-  addProjectUsersByIds,
-  demoteProjectAdmin,
-  demoteProjectAuthoritativeReviewer,
-  getProjectUsers,
-  listProjectInvites,
-  listUsers,
-  makeProjectAdmin,
-  makeProjectAuthoritativeReviewer,
-  removeProjectUser,
-  revokeProjectInvite,
-  type AddUsersByEmailResult,
-  type ProjectUserOut,
-  type UserOut,
-} from '~/api/client';
+  addProjectUsersByIdsMutation,
+  addProjectUsersMutation,
+  demoteProjectAdminMutation,
+  demoteProjectAuthoritativeReviewerMutation,
+  getProjectUsersOptions,
+  getProjectUsersQueryKey,
+  listProjectInvitesOptions,
+  listProjectInvitesQueryKey,
+  listUsersOptions,
+  makeProjectAdminMutation,
+  makeProjectAuthoritativeReviewerMutation,
+  removeProjectUserMutation,
+  revokeProjectInviteMutation,
+} from '~/api/queries';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import {
@@ -31,6 +32,9 @@ interface ProjectUsersSectionProps {
   canManage: boolean;
 }
 
+const NO_MEMBERS: ProjectUserOut[] = [];
+const NO_USERS: UserOut[] = [];
+
 /** Emails only reach platform admins, so everyone else picks and reads
  *  members by name. */
 const pickerLabel = (user: UserOut) =>
@@ -40,87 +44,52 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
   const showAlert = useLayoutStore((state) => state.showAlert);
   const showEmails = useAccountStore((state) => state.account?.is_admin ?? false);
 
-  const [users, setUsers] = useState<ProjectUserOut[]>([]);
-  const [allUsers, setAllUsers] = useState<UserOut[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
+  const path = { project_id: projectId };
 
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [addingUser, setAddingUser] = useState(false);
   const [userQuery, setUserQuery] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const pickerRef = useRef<HTMLDivElement>(null);
 
   const [emailsText, setEmailsText] = useState('');
-  const [addingEmails, setAddingEmails] = useState(false);
   const [emailResult, setEmailResult] = useState<AddUsersByEmailResult | null>(null);
   const [malformedEmails, setMalformedEmails] = useState<string[]>([]);
-  const [invitesReload, setInvitesReload] = useState(0);
 
-  const loadInvites = useCallback(async () => {
-    const { data } = await listProjectInvites({ path: { project_id: projectId } });
-    return data?.items ?? [];
-  }, [projectId]);
+  const membersQuery = useQuery({
+    ...getProjectUsersOptions({ path }),
+    meta: { errorMessage: 'Failed to load project members', showUser: false },
+  });
+  const users = membersQuery.data?.users ?? NO_MEMBERS;
+  const loading = membersQuery.isPending;
 
-  const handleRevokeInvite = useCallback(
-    async (inviteId: number) => {
-      await revokeProjectInvite({ path: { project_id: projectId, invite_id: inviteId } });
-    },
-    [projectId]
+  const invitesQuery = useQuery({
+    ...listProjectInvitesOptions({ path }),
+    meta: { errorMessage: 'Failed to load pending signups' },
+  });
+
+  const platformUsers = useQuery({
+    ...listUsersOptions({}),
+    enabled: canManage,
+    meta: { errorMessage: 'Failed to load users available to add' },
+  });
+
+  // Platform admins get the raw records, where the username is null until the
+  // person has picked one; the picker needs something to show.
+  const allUsers = useMemo(
+    () =>
+      (platformUsers.data ?? NO_USERS).map((user) => ({
+        ...user,
+        display_name: user.display_name || (user.email ?? 'Unnamed user'),
+      })),
+    [platformUsers.data]
   );
 
-  const loadUsers = useCallback(async () => {
-    const { data } = await getProjectUsers({ path: { project_id: projectId } });
-    setUsers(data?.users ?? []);
-  }, [projectId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        setLoading(true);
-        await loadUsers();
-        if (cancelled) return;
-        setLoadError(null);
-      } catch (err) {
-        if (cancelled) return;
-        setLoadError(handleError(err, 'Failed to load project members', { showUser: false }));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadUsers]);
-
-  useEffect(() => {
-    if (!canManage) return;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const { data } = await listUsers({});
-        // Platform admins get the raw records, where the username is null
-        // until the person has picked one; the picker needs something to show.
-        if (!cancelled)
-          setAllUsers(
-            (data ?? []).map((user) => ({
-              ...user,
-              display_name: user.display_name || (user.email ?? 'Unnamed user'),
-            }))
-          );
-      } catch (err) {
-        if (!cancelled) handleError(err, 'Failed to load users available to add');
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [canManage]);
+  const refetchMembers = () =>
+    queryClient.invalidateQueries({ queryKey: getProjectUsersQueryKey({ path }) });
+  const refetchInvites = () =>
+    queryClient.invalidateQueries({ queryKey: listProjectInvitesQueryKey({ path }) });
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -141,113 +110,117 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
       ?.scrollIntoView({ block: 'nearest' });
   }, [pickerOpen, activeIndex]);
 
-  const refetchAfterMutation = async () => {
-    try {
-      await loadUsers();
-    } catch (err) {
-      handleError(err, 'Failed to refresh project members');
-    }
-  };
-
-  const handleAddUser = async () => {
-    const selectedUser = allUsers.find((u) => u.id === selectedUserId);
-    if (!selectedUser) return;
-
-    try {
-      setAddingUser(true);
-      await addProjectUsersByIds({
-        path: { project_id: projectId },
-        body: { user_ids: [selectedUser.id] },
-      });
-      await refetchAfterMutation();
+  const addById = useMutation({
+    ...addProjectUsersByIdsMutation(),
+    meta: { errorMessage: 'Failed to add user' },
+    onSuccess: () => {
+      void refetchMembers();
       setSelectedUserId('');
       setUserQuery('');
-      showAlert(`${selectedUser.display_name} added to project`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to add user');
-    } finally {
-      setAddingUser(false);
-    }
+    },
+  });
+  // An added address either becomes a member or waits as an invite.
+  const addByEmail = useMutation({
+    ...addProjectUsersMutation(),
+    meta: { errorMessage: 'Failed to add users by email' },
+    onSuccess: (result) => {
+      setEmailResult(result);
+      setEmailsText('');
+      void refetchMembers();
+      void refetchInvites();
+    },
+  });
+  const promote = useMutation({
+    ...makeProjectAdminMutation(),
+    meta: { errorMessage: 'Failed to update project role' },
+    onSuccess: refetchMembers,
+  });
+  const demote = useMutation({
+    ...demoteProjectAdminMutation(),
+    meta: { errorMessage: 'Failed to update project role' },
+    onSuccess: refetchMembers,
+  });
+  const addReviewer = useMutation({
+    ...makeProjectAuthoritativeReviewerMutation(),
+    meta: { errorMessage: 'Failed to update reviewer status' },
+    onSuccess: refetchMembers,
+  });
+  const dropReviewer = useMutation({
+    ...demoteProjectAuthoritativeReviewerMutation(),
+    meta: { errorMessage: 'Failed to update reviewer status' },
+    onSuccess: refetchMembers,
+  });
+  const removeUser = useMutation({
+    ...removeProjectUserMutation(),
+    meta: { errorMessage: 'Failed to remove user' },
+    onSuccess: refetchMembers,
+  });
+  const revokeInvite = useMutation({
+    ...revokeProjectInviteMutation(),
+    meta: { errorMessage: 'Failed to revoke invite' },
+    onSuccess: refetchInvites,
+  });
+
+  const addingUser = addById.isPending;
+  const addingEmails = addByEmail.isPending;
+  const saving =
+    promote.isPending ||
+    demote.isPending ||
+    addReviewer.isPending ||
+    dropReviewer.isPending ||
+    removeUser.isPending;
+
+  const handleAddUser = () => {
+    const selectedUser = allUsers.find((u) => u.id === selectedUserId);
+    if (!selectedUser) return;
+    addById.mutate(
+      { path, body: { user_ids: [selectedUser.id] } },
+      { onSuccess: () => showAlert(`${selectedUser.display_name} added to project`, 'success') }
+    );
   };
 
-  const handleAddEmails = async () => {
+  const handleAddEmails = () => {
     const { emails, invalid } = parseEmailList(emailsText);
     setMalformedEmails(invalid);
     if (emails.length === 0) {
       setEmailResult(null);
       return;
     }
+    addByEmail.mutate({ path, body: { emails } });
+  };
 
-    try {
-      setAddingEmails(true);
-      const { data } = await addProjectUsers({
-        path: { project_id: projectId },
-        body: { emails },
+  const handleToggleAdmin = (member: ProjectUserOut) => {
+    const vars = { path: { ...path, user_id: member.user.id } };
+    const name = member.user.display_name;
+    if (member.is_admin) {
+      demote.mutate(vars, { onSuccess: () => showAlert(`${name} demoted to member`, 'success') });
+    } else {
+      promote.mutate(vars, { onSuccess: () => showAlert(`${name} promoted to admin`, 'success') });
+    }
+  };
+
+  const handleToggleReviewer = (member: ProjectUserOut) => {
+    const vars = { path: { ...path, user_id: member.user.id } };
+    const name = member.user.display_name;
+    if (member.is_authoritative_reviewer) {
+      dropReviewer.mutate(vars, {
+        onSuccess: () => showAlert(`${name} removed as authoritative reviewer`, 'success'),
       });
-      setEmailResult(data ?? null);
-      setEmailsText('');
-      setInvitesReload((n) => n + 1);
-      await refetchAfterMutation();
-    } catch (err) {
-      handleError(err, 'Failed to add users by email');
-    } finally {
-      setAddingEmails(false);
+    } else {
+      addReviewer.mutate(vars, {
+        onSuccess: () => showAlert(`${name} is now an authoritative reviewer`, 'success'),
+      });
     }
   };
 
-  const handleToggleAdmin = async (member: ProjectUserOut) => {
-    const path = { project_id: projectId, user_id: member.user.id };
-    try {
-      setSaving(true);
-      if (member.is_admin) {
-        await demoteProjectAdmin({ path });
-        showAlert(`${member.user.display_name} demoted to member`, 'success');
-      } else {
-        await makeProjectAdmin({ path });
-        showAlert(`${member.user.display_name} promoted to admin`, 'success');
-      }
-      await refetchAfterMutation();
-    } catch (err) {
-      handleError(err, 'Failed to update project role');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleToggleReviewer = async (member: ProjectUserOut) => {
-    const path = { project_id: projectId, user_id: member.user.id };
-    try {
-      setSaving(true);
-      if (member.is_authoritative_reviewer) {
-        await demoteProjectAuthoritativeReviewer({ path });
-        showAlert(`${member.user.display_name} removed as authoritative reviewer`, 'success');
-      } else {
-        await makeProjectAuthoritativeReviewer({ path });
-        showAlert(`${member.user.display_name} is now an authoritative reviewer`, 'success');
-      }
-      await refetchAfterMutation();
-    } catch (err) {
-      handleError(err, 'Failed to update reviewer status');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRemoveUser = async (member: ProjectUserOut) => {
+  const handleRemoveUser = (member: ProjectUserOut) => {
     if (!window.confirm(`Remove ${member.user.display_name} from this project?`)) return;
-
-    try {
-      setSaving(true);
-      await removeProjectUser({
-        path: { project_id: projectId, user_id: member.user.id },
-      });
-      await refetchAfterMutation();
-      showAlert(`${member.user.display_name} removed from project`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to remove user');
-    } finally {
-      setSaving(false);
-    }
+    removeUser.mutate(
+      { path: { ...path, user_id: member.user.id } },
+      {
+        onSuccess: () => showAlert(`${member.user.display_name} removed from project`, 'success'),
+      }
+    );
   };
 
   const availableUsers = allUsers.filter((u) => !users.some((pu) => pu.user.id === u.id));
@@ -273,10 +246,12 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     );
   }
 
-  if (loadError) {
+  if (membersQuery.error) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-red-600">{loadError}</p>
+        <p className="text-red-600">
+          {extractErrorMessage(membersQuery.error, 'Failed to load project members')}
+        </p>
       </div>
     );
   }
@@ -448,9 +423,13 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
               </div>
             )}
             <PendingInvites
-              listInvites={loadInvites}
-              revokeInvite={handleRevokeInvite}
-              reloadKey={invitesReload}
+              invites={invitesQuery.data?.items ?? []}
+              onRevoke={(invite) =>
+                revokeInvite.mutate({ path: { ...path, invite_id: invite.id } })
+              }
+              revokingId={
+                revokeInvite.isPending ? (revokeInvite.variables.path.invite_id ?? null) : null
+              }
             />
           </section>
         </>

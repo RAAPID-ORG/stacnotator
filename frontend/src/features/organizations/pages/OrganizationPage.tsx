@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { updateOrganization, type OrganizationOut } from '~/api/client';
+import { useMutation } from '@tanstack/react-query';
+import { type OrganizationOut } from '~/api/client';
+import { updateOrganizationMutation } from '~/api/queries';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge, type BadgeTone } from '~/shared/ui/Badge';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { Delayed } from '~/shared/ui/Delayed';
 import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
-import { handleError } from '~/shared/utils/errorHandler';
+import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { AccessRequests } from '../components/AccessRequests';
 import { OrganizationApiKeys } from '../components/OrganizationApiKeys';
 import { OrganizationMembers } from '../components/OrganizationMembers';
-import { useOrganizations } from '../hooks/useOrganizations';
+import { useOrganizations, useRefreshOrganizations } from '../hooks/useOrganizations';
 
 const STATUS_TONES: Record<string, BadgeTone> = {
   approved: 'green',
@@ -19,45 +21,44 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   rejected: 'red',
 };
 
-type DetailsFormProps = {
-  org: OrganizationOut;
-  onSaved: () => Promise<void>;
-};
-
-const DetailsForm = ({ org, onSaved }: DetailsFormProps) => {
+const DetailsForm = ({ org }: { org: OrganizationOut }) => {
+  const refreshOrganizations = useRefreshOrganizations();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(org.name);
   const [description, setDescription] = useState(org.description ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const save = useMutation({
+    ...updateOrganizationMutation(),
+    meta: { errorMessage: 'Failed to save organization', showUser: false },
+    onSuccess: () => {
+      void refreshOrganizations();
+      setEditing(false);
+    },
+  });
+
+  const saving = save.isPending;
+  const error = nameError ?? (save.error && extractErrorMessage(save.error)) ?? null;
 
   const startEditing = () => {
     setName(org.name);
     setDescription(org.description ?? '');
-    setError(null);
+    setNameError(null);
+    save.reset();
     setEditing(true);
   };
 
-  const save = async () => {
+  const submit = () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError('Name is required');
+      setNameError('Name is required');
       return;
     }
-    setSaving(true);
-    try {
-      await updateOrganization({
-        path: { organization_id: org.id },
-        body: { name: trimmedName, description: description.trim() || null },
-      });
-      await onSaved();
-      setEditing(false);
-      setError(null);
-    } catch (err) {
-      setError(handleError(err, 'Failed to save organization', { showUser: false }));
-    } finally {
-      setSaving(false);
-    }
+    setNameError(null);
+    save.mutate({
+      path: { organization_id: org.id },
+      body: { name: trimmedName, description: description.trim() || null },
+    });
   };
 
   if (!editing) {
@@ -98,7 +99,7 @@ const DetailsForm = ({ org, onSaved }: DetailsFormProps) => {
         />
       </Field>
       <div className="flex gap-2">
-        <Button onClick={save} disabled={saving}>
+        <Button onClick={submit} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
         </Button>
         <Button variant="secondary" onClick={() => setEditing(false)} disabled={saving}>
@@ -113,7 +114,8 @@ export const OrganizationPage = () => {
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const { orgId } = useParams();
   const organizationId = Number(orgId);
-  const { orgs, loading, error, refresh } = useOrganizations();
+  const { orgs, loading, error } = useOrganizations();
+  const refreshOrganizations = useRefreshOrganizations();
 
   const org = orgs.find((o) => o.id === organizationId);
 
@@ -128,10 +130,12 @@ export const OrganizationPage = () => {
           <header className="page-header">
             <div>
               <h1 className="page-title">Organization</h1>
-              <p className="page-subtitle">Could not load organizations. {error}</p>
+              <p className="page-subtitle">
+                Could not load organizations. {extractErrorMessage(error)}
+              </p>
             </div>
           </header>
-          <Button variant="secondary" onClick={() => refresh()}>
+          <Button variant="secondary" onClick={() => refreshOrganizations()}>
             Try again
           </Button>
         </FadeIn>
@@ -175,7 +179,7 @@ export const OrganizationPage = () => {
 
         {org ? (
           <>
-            <DetailsForm org={org} onSaved={refresh} />
+            <DetailsForm org={org} />
             <AccessRequests organizationId={org.id} />
             <OrganizationApiKeys organizationId={org.id} />
             <OrganizationMembers organizationId={org.id} />

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
-import { listProjects, type ProjectOut } from '~/api/client';
+import { type ProjectOut } from '~/api/client';
+import { listProjectsOptions } from '~/api/queries';
 import { newOrganizationPath, newProjectPath, projectPath } from '~/app/routes';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useOrgStore } from '~/shared/stores/org.store';
@@ -10,7 +12,6 @@ import { IconFolder, IconPlus } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
-import { handleError } from '~/shared/utils/errorHandler';
 import { ProjectRow } from '../components/ProjectRow';
 import {
   defaultProjectFilter,
@@ -21,20 +22,21 @@ import {
 } from '../components/projectFilters';
 import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
 
+const NO_PROJECTS: ProjectOut[] = [];
+
 export const ProjectsPage = () => {
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
-  const {
-    orgs: memberships,
-    loading: orgsLoading,
-    error: orgsError,
-    refresh: refreshOrgs,
-  } = useOrganizations();
+  const { orgs: memberships, loading: orgsLoading, error: orgsError } = useOrganizations();
   const { orgs: approvedOrgs } = useOrganizations({ approvedOnly: true });
 
-  const [projects, setProjects] = useState<ProjectOut[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isPending: loading } = useQuery({
+    ...listProjectsOptions(),
+    meta: { errorMessage: 'Failed to load projects' },
+  });
+  const projects = data?.items ?? NO_PROJECTS;
+
   // Until the user picks a filter it tracks the active org, which may still be
   // resolving on first run (auto-select of the first approved org).
   const [userFilter, setUserFilter] = useState<ProjectFilter | null>(null);
@@ -43,29 +45,6 @@ export const ProjectsPage = () => {
   useEffect(() => {
     setBreadcrumbs([{ label: 'Projects' }]);
   }, [setBreadcrumbs]);
-
-  // The organization list is fetched once per session and then outlives every
-  // navigation, so a membership approved (or an organization approved) while
-  // the tab was open would otherwise stay stale until a reload. Coming back
-  // here is the natural moment to re-ask.
-  useEffect(() => {
-    void refreshOrgs();
-  }, [refreshOrgs]);
-
-  useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const { data } = await listProjects();
-        setProjects(data?.items ?? []);
-      } catch (err) {
-        handleError(err, 'Failed to load projects');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProjects();
-  }, []);
 
   const belongsToAnyOrg = memberships.length > 0;
 

@@ -32,7 +32,12 @@ from src.campaigns.schemas import (
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.canvas.service import new_default_main_layout
 from src.database import SessionLocal
-from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
+from src.imagery.models import (
+    ImageryCollection,
+    ImagerySlice,
+    ImagerySource,
+    ImageryView,
+)
 from src.imagery.registration import (
     REGISTRATION_RUN,
     RegistrationSpec,
@@ -40,6 +45,7 @@ from src.imagery.registration import (
     spawn_background_mosaic_registration,
 )
 from src.imagery.service import create_imagery_from_editor_state
+from src.layers import LayerOwner
 from src.organizations.models import (
     MEMBER_STATUS_ACTIVE,
     ORG_STATUS_APPROVED,
@@ -325,7 +331,9 @@ def create_campaign(
     # Background thread: mosaic registration (off the request path so the
     # commit above isn't blocked on the slow parallel STAC calls).
     if pending_registrations:
-        spawn_background_mosaic_registration(campaign_id, pending_registrations, registration_bbox)
+        spawn_background_mosaic_registration(
+            LayerOwner(campaign_id=campaign_id), pending_registrations, registration_bbox
+        )
 
     # Background thread: embeddings
     if embedding_year is not None:

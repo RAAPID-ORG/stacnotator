@@ -30,7 +30,7 @@ from src.custom_layers.router import router as custom_layers_router
 from src.database import SessionLocal
 from src.earth_engine import initialize_earth_engine
 from src.imagery.proxy_router import router as imagery_proxy_router
-from src.imagery.registration import REGISTRATION_RUN
+from src.imagery.registration import REGISTRATION_RUN, VISUALIZER_REGISTRATION_RUN
 from src.imagery.router import router as imagery_router
 from src.organizations.router import router as organizations_router
 from src.planet.router import router as planet_router
@@ -40,6 +40,7 @@ from src.sampling_design.router import router as sampling_design_router
 from src.stac_browser.router import router as stac_browser_router
 from src.tile_bulkhead import TileCapacityError
 from src.timeseries.router import router as timeseries_router
+from src.visualizers.router import router as visualizers_router
 
 settings = get_settings()
 
@@ -99,7 +100,9 @@ def _sweep_stale_background_runs() -> None:
     try:
         db = SessionLocal()
         try:
-            fail_stale_status_runs(db, (REGISTRATION_RUN, EMBEDDING_RUN))
+            fail_stale_status_runs(
+                db, (REGISTRATION_RUN, EMBEDDING_RUN, VISUALIZER_REGISTRATION_RUN)
+            )
             db.commit()
         finally:
             db.close()
@@ -375,4 +378,5 @@ app.include_router(imagery_proxy_router, prefix="/api")
 app.include_router(stac_browser_router, prefix="/api")
 app.include_router(planet_router, prefix="/api")
 app.include_router(custom_layers_router, prefix="/api")
+app.include_router(visualizers_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

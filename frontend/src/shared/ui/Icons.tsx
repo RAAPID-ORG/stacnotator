@@ -205,18 +205,18 @@ export const IconChart = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
-export const IconLock = ({ className = 'w-4 h-4' }: IconProps) => (
-  <svg {...defaults} className={className}>
-    <rect x="4" y="9" width="12" height="8" rx="1.5" />
-    <path d="M7 9V6a3 3 0 0 1 6 0v3" />
-  </svg>
-);
-
 export const IconSliders = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M3 6h2M9 6h8M3 14h8M15 14h2" />
     <circle cx="7" cy="6" r="2" />
     <circle cx="13" cy="14" r="2" />
+  </svg>
+);
+
+export const IconLock = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <rect x="4" y="9" width="12" height="8" rx="1.5" />
+    <path d="M7 9V6.5a3 3 0 016 0V9" />
   </svg>
 );
 

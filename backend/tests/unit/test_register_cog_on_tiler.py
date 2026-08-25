@@ -35,7 +35,7 @@ def test_register_cog_posts_and_returns_id(monkeypatch):
     monkeypatch.setattr(providers, "_register_base", lambda tiler: "https://tiler.test")
     captured = _fake_post(monkeypatch, {"id": "search-123"})
 
-    result = providers.register_cog_on_tiler(TILER, "https://x/y.tif", 42)
+    result = providers.register_cog_on_tiler(TILER, "https://x/y.tif", "42")
 
     assert result == "search-123"
     assert captured["url"] == "https://tiler.test/searches/register-cog"
@@ -51,7 +51,7 @@ def test_register_cog_forwards_internal_storage(monkeypatch):
     monkeypatch.setattr(providers, "_register_base", lambda tiler: "https://tiler.test")
     captured = _fake_post(monkeypatch, {"id": "s"})
 
-    providers.register_cog_on_tiler(TILER, "https://x/y.tif", 42, internal_storage=True)
+    providers.register_cog_on_tiler(TILER, "https://x/y.tif", "42", internal_storage=True)
 
     assert captured["json"]["internal_storage"] is True
 

@@ -19,6 +19,7 @@ from src.annotation.models import (
     Embedding as EmbeddingRow,
 )
 from src.annotation.schemas import KnnValidationStatusOut, ValidateLabelSubmissionsResponse
+from src.campaigns.models import Campaign
 from src.earth_engine import ensure_earth_engine
 from src.imagery.registration import sanitize_error_message
 
@@ -478,8 +479,10 @@ def _sanitize_embedding_error(exc: Exception) -> str:
 
 # The embeddings domain's background run on the campaign.
 EMBEDDING_RUN = background.StatusField(
+    model=Campaign,
     status_column="embedding_status",
     heartbeat_column="embedding_heartbeat_at",
+    errors_column="registration_errors",
     interrupted_error=(
         "Embedding computation was interrupted by a server restart. "
         "Trigger it again from the campaign settings to retry."

@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FormField } from '../campaign/annotation';
-import type { LonLat } from '../map/types';
+import type { LonLat } from '~/shared/map/types';
 import { apiSuccess, makeAnnotation, makeCampaign } from '~/features/annotation/testing/fixtures';
 import { seedCampaign } from '../testing/seed';
 import { deltaIds, deltaWrites, emptyDelta, TILE_REFRESH_AFTER } from '../campaign/annotationDelta';

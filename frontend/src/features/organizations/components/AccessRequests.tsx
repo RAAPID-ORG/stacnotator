@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type AccessRequestOut } from '~/api/client';
 import {
-  approveOrganizationAccessRequest,
-  listOrganizationAccessRequests,
-  rejectOrganizationAccessRequest,
-  type AccessRequestOut,
-} from '~/api/client';
+  approveOrganizationAccessRequestMutation,
+  listOrganizationAccessRequestsOptions,
+  listOrganizationAccessRequestsQueryKey,
+  rejectOrganizationAccessRequestMutation,
+} from '~/api/queries';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { useOrganizationsStore } from '../stores/organizations.store';
-import { handleError } from '~/shared/utils/errorHandler';
+import { useRefreshOrganizations } from '../hooks/useOrganizations';
 
 export type AccessRequestsProps = {
   organizationId: number;
 };
+
+const NO_REQUESTS: AccessRequestOut[] = [];
 
 const actionClass =
   'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors ' +
@@ -21,38 +23,44 @@ const actionClass =
  *  nothing while there are none, so a quiet org keeps a quiet page. */
 export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
-  const [requests, setRequests] = useState<AccessRequestOut[]>([]);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const refreshOrganizations = useRefreshOrganizations();
+  const path = { organization_id: organizationId };
 
-  const load = useCallback(async () => {
-    try {
-      const { data } = await listOrganizationAccessRequests({
-        path: { organization_id: organizationId },
-      });
-      setRequests(data?.items ?? []);
-    } catch (err) {
-      handleError(err, 'Failed to load access requests');
-    }
-  }, [organizationId]);
+  const { data } = useQuery({
+    ...listOrganizationAccessRequestsOptions({ path }),
+    meta: { errorMessage: 'Failed to load access requests' },
+  });
+  const requests = data?.items ?? NO_REQUESTS;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const afterDecision = () => {
+    void queryClient.invalidateQueries({
+      queryKey: listOrganizationAccessRequestsQueryKey({ path }),
+    });
+    // The organization list carries the pending count the sidebar badges.
+    void refreshOrganizations();
+  };
 
-  const decide = async (request: AccessRequestOut, approve: boolean) => {
-    setBusyId(request.user.id);
-    try {
-      const path = { organization_id: organizationId, user_id: request.user.id };
-      if (approve) await approveOrganizationAccessRequest({ path });
-      else await rejectOrganizationAccessRequest({ path });
-      await load();
-      // The organization list carries the pending count the sidebar badges.
-      void useOrganizationsStore.getState().refresh();
-    } catch (err) {
-      handleError(err, approve ? 'Failed to approve request' : 'Failed to reject request');
-    } finally {
-      setBusyId(null);
-    }
+  const approve = useMutation({
+    ...approveOrganizationAccessRequestMutation(),
+    meta: { errorMessage: 'Failed to approve request' },
+    onSuccess: afterDecision,
+  });
+  const deny = useMutation({
+    ...rejectOrganizationAccessRequestMutation(),
+    meta: { errorMessage: 'Failed to reject request' },
+    onSuccess: afterDecision,
+  });
+
+  // Only one decision can be in flight, so the pending mutation's own
+  // variables say which row to disable.
+  const deciding = approve.isPending ? approve.variables : deny.isPending ? deny.variables : null;
+  const busyId = deciding?.path.user_id ?? null;
+
+  const decide = (request: AccessRequestOut, shouldApprove: boolean) => {
+    const vars = { path: { ...path, user_id: request.user.id } };
+    if (shouldApprove) approve.mutate(vars);
+    else deny.mutate(vars);
   };
 
   const reject = async (request: AccessRequestOut) => {
@@ -62,7 +70,7 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
       confirmText: 'Reject',
       isDangerous: true,
     });
-    if (confirmed) await decide(request, false);
+    if (confirmed) decide(request, false);
   };
 
   if (requests.length === 0) return null;

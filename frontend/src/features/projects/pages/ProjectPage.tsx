@@ -1,15 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
+import { useQuery } from '@tanstack/react-query';
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
-import { primeNavInfo } from '~/app/SidebarProjectNav';
-import {
-  getProject,
-  listProjectCampaigns,
-  type CampaignListItemOut,
-  type CampaignOut,
-  type ProjectOut,
-} from '~/api/client';
+import { useProject } from '~/app/projectRoute';
+import { listProjectCampaignsOptions } from '~/api/queries';
+import { type CampaignListItemOut, type CampaignOut, type ProjectOut } from '~/api/client';
 import { DuplicateCampaignModal } from '~/features/campaigns/components/DuplicateCampaignModal';
 import { ProjectSettingsSection } from '~/features/projects/components/ProjectSettingsSection';
 import { ProjectUsersSection } from '~/features/projects/components/ProjectUsersSection';
@@ -22,12 +18,14 @@ import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import TabNavigator from '~/shared/ui/TabNavigator';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { handleError } from '~/shared/utils/errorHandler';
+import { ProjectVisualizersSection } from '~/features/visualizers/ProjectVisualizersSection';
 
-const PROJECT_TABS = ['campaigns', 'members', 'settings'] as const;
+const PROJECT_TABS = ['campaigns', 'visualizers', 'members', 'settings'] as const;
 type ProjectTab = (typeof PROJECT_TABS)[number];
 
 const isProjectTab = (t: string | null): t is ProjectTab => PROJECT_TABS.some((tab) => tab === t);
+
+const NO_CAMPAIGNS: CampaignListItemOut[] = [];
 
 export const ProjectPage = () => {
   const projectId = useProjectIdParam();
@@ -36,44 +34,18 @@ export const ProjectPage = () => {
 
   const showAlert = useLayoutStore((state) => state.showAlert);
 
-  const [project, setProject] = useState<ProjectOut | null>(null);
-  const [campaigns, setCampaigns] = useState<CampaignListItemOut[]>([]);
   const [duplicating, setDuplicating] = useState<CampaignListItemOut | null>(null);
-  const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tabParam = searchParams.get('tab');
   const requestedTab: ProjectTab = isProjectTab(tabParam) ? tabParam : 'campaigns';
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        setLoading(true);
-        const [projectRes, campaignsRes] = await Promise.all([
-          getProject({ path: { project_id: projectId } }),
-          listProjectCampaigns({ path: { project_id: projectId } }),
-        ]);
-        if (cancelled) return;
-        setProject(projectRes.data ?? null);
-        setCampaigns(campaignsRes.data?.items ?? []);
-        if (projectRes.data) {
-          primeNavInfo(projectId, {
-            project: projectRes.data,
-            campaigns: campaignsRes.data?.items ?? [],
-          });
-        }
-      } catch (err) {
-        if (!cancelled) handleError(err, 'Failed to load project');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
+  const { project, loading } = useProject(projectId);
+  const { data: campaignsData } = useQuery({
+    ...listProjectCampaignsOptions({ path: { project_id: projectId } }),
+    meta: { errorMessage: 'Failed to load campaigns' },
+  });
+  const campaigns = campaignsData?.items ?? NO_CAMPAIGNS;
 
   useEffect(() => {
     setBreadcrumbs([
@@ -83,12 +55,6 @@ export const ProjectPage = () => {
   }, [project, setBreadcrumbs]);
 
   if (!loading && !project) return null;
-
-  // Keeps the sidebar nav in step with renames and other settings updates.
-  const handleProjectUpdated = (updated: ProjectOut) => {
-    setProject(updated);
-    primeNavInfo(projectId, { project: updated, campaigns });
-  };
 
   // Land in the copy's settings: the whole point of duplicating is tweaking
   // the few remaining differences right away.
@@ -146,7 +112,6 @@ export const ProjectPage = () => {
             onOpenCampaign={(campaign) => navigate(campaignPath(project.id, campaign.id))}
             onCreateCampaign={() => navigate(newCampaignPath(project.id))}
             onDuplicateCampaign={setDuplicating}
-            onProjectUpdated={handleProjectUpdated}
           />
         ) : (
           <Delayed>
@@ -174,7 +139,6 @@ interface ProjectTabsProps {
   onOpenCampaign: (campaign: CampaignListItemOut) => void;
   onCreateCampaign: () => void;
   onDuplicateCampaign: (campaign: CampaignListItemOut) => void;
-  onProjectUpdated: (updated: ProjectOut) => void;
 }
 
 const ProjectTabs = ({
@@ -185,12 +149,12 @@ const ProjectTabs = ({
   onOpenCampaign,
   onCreateCampaign,
   onDuplicateCampaign,
-  onProjectUpdated,
 }: ProjectTabsProps) => {
   const isAdmin = project.is_admin ?? false;
   const canSeeMembers = isAdmin || (project.is_member ?? false);
   const availableTabs: ProjectTab[] = [
     'campaigns',
+    'visualizers',
     ...(canSeeMembers ? (['members'] as const) : []),
     ...(isAdmin ? (['settings'] as const) : []),
   ];
@@ -216,13 +180,15 @@ const ProjectTabs = ({
           />
         )}
 
+        {activeTab === 'visualizers' && (
+          <ProjectVisualizersSection projectId={project.id} canManage={isAdmin} />
+        )}
+
         {activeTab === 'members' && (
           <ProjectUsersSection projectId={project.id} canManage={isAdmin} />
         )}
 
-        {activeTab === 'settings' && (
-          <ProjectSettingsSection project={project} onUpdated={onProjectUpdated} />
-        )}
+        {activeTab === 'settings' && <ProjectSettingsSection project={project} />}
       </div>
     </div>
   );
@@ -250,9 +216,11 @@ const CampaignsList = ({
           <IconDocument className="w-6 h-6 text-brand-600" />
         </div>
         <p className="text-base text-neutral-800 font-medium mb-1">No campaigns yet</p>
-        <p className="text-sm text-neutral-500 mb-5">
+        <p className="mx-auto mb-5 max-w-md text-sm text-neutral-500">
+          A campaign is how imagery gets labelled: annotators visit locations or explore freely, and
+          record what they see.{' '}
           {canCreate
-            ? 'Create the first campaign in this project to get started.'
+            ? 'Create the first one in this project to get started.'
             : "You'll see campaigns here once one is created."}
         </p>
         {canCreate && (
@@ -265,19 +233,32 @@ const CampaignsList = ({
   }
 
   return (
-    <ul className="divide-y divide-neutral-100">
-      {campaigns.map((campaign, index) => (
-        <MotionListItem key={campaign.id} index={index}>
-          <CampaignRow
-            campaign={campaign}
-            onOpen={() => onOpen(campaign)}
-            onDuplicate={() => onDuplicate(campaign)}
-          />
-        </MotionListItem>
-      ))}
-    </ul>
+    <>
+      <CampaignsIntro />
+      <ul className="divide-y divide-neutral-100">
+        {campaigns.map((campaign, index) => (
+          <MotionListItem key={campaign.id} index={index}>
+            <CampaignRow
+              campaign={campaign}
+              onOpen={() => onOpen(campaign)}
+              onDuplicate={() => onDuplicate(campaign)}
+            />
+          </MotionListItem>
+        ))}
+      </ul>
+    </>
   );
 };
+
+const CampaignsIntro = () => (
+  <div className="mb-4">
+    <h2 className="section-heading">Campaigns</h2>
+    <p className="section-description">
+      Label geospatial imagery: annotators visit locations or explore freely, and record what they
+      see. A campaign holds the imagery to look at, the labels to apply, and the people doing it.
+    </p>
+  </div>
+);
 
 const CampaignRow = ({
   campaign,

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     ForeignKey,
     Index,
     Integer,
@@ -17,24 +18,43 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
 
 from src.database import Base
+from src.layers import LayerOwner
 
 if TYPE_CHECKING:
     from src.campaigns.models import Campaign
+    from src.visualizers.models import Visualizer
 
 
-class CustomMap(Base):
+class _OwnedLayer:
+    """The owner columns and relationships shared by both overlay kinds."""
+
+    campaign_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"), nullable=True
+    )
+    visualizer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.visualizers.id", ondelete="CASCADE"), nullable=True
+    )
+
+    @property
+    def owner(self) -> LayerOwner:
+        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
+
+
+class CustomMap(Base, _OwnedLayer):
     """A campaign-scoped single-band prediction map (COG) rendered as an overlay."""
 
     __tablename__ = "custom_maps"
     __table_args__ = (
         UniqueConstraint("campaign_id", "name", name="uq_custom_maps_campaign_name"),
+        CheckConstraint(
+            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
+            name="custom_maps_one_owner_check",
+        ),
+        Index("idx_custom_maps_visualizer_id", "visualizer_id"),
         {"schema": "data"},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"), nullable=False
-    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     cog_url: Mapped[str] = mapped_column(Text, nullable=False)
     render_config: Mapped[dict] = mapped_column(JSONB, nullable=False)
@@ -52,10 +72,11 @@ class CustomMap(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="custom_maps")
+    campaign: Mapped["Campaign | None"] = relationship(back_populates="custom_maps")
+    visualizer: Mapped["Visualizer | None"] = relationship(back_populates="custom_maps")
 
 
-class VectorLayer(Base):
+class VectorLayer(Base, _OwnedLayer):
     """A campaign-scoped PMTiles vector layer rendered client-side in open mode.
 
     Just a ``.pmtiles`` URL the frontend reads directly via HTTP range requests.
@@ -63,14 +84,16 @@ class VectorLayer(Base):
 
     __tablename__ = "vector_layers"
     __table_args__ = (
+        CheckConstraint(
+            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
+            name="vector_layers_one_owner_check",
+        ),
         Index("idx_vector_layers_campaign_id", "campaign_id"),
+        Index("idx_vector_layers_visualizer_id", "visualizer_id"),
         {"schema": "data"},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"), nullable=False
-    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     pmtiles_url: Mapped[str] = mapped_column(Text, nullable=False)
     # If multi layer source: source-layer name to render. null renders every layer.
@@ -81,4 +104,5 @@ class VectorLayer(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="vector_layers")
+    campaign: Mapped["Campaign | None"] = relationship(back_populates="vector_layers")
+    visualizer: Mapped["Visualizer | None"] = relationship(back_populates="vector_layers")

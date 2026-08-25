@@ -1,52 +1,12 @@
-import { apiUrl } from '~/api/base';
+import {
+  campaignProxyBase,
+  isProxiedTileUrl,
+  needsKeyProxy,
+  sliceProxyUrl,
+} from '~/shared/imagery/tileUrls';
+import { stampLegendOverride, type LegendOverride } from '~/shared/imagery/tileColors';
 import type { ImageryCatalog } from './imagery';
 import type { SliceAddress } from './imageryNav';
-import { stampLegendOverride, type LegendOverride } from './tileColors';
-
-// Provider tiles needing an API key go through the backend proxy, which holds
-// the key encrypted and attaches it server-side.
-const needsKeyProxy = (template: string): boolean => template.includes('{api_key}');
-
-/** Our proxy routes require the tiler cookie, exactly like self-hosted tilers. */
-export function isProxiedTileUrl(url: string): boolean {
-  return /\/imagery\/(?:basemaps|slices)\/[^/]+\/tiles\//.test(url);
-}
-
-export function resolveBasemapUrl(campaignId: number, basemap: { id: number; url: string }) {
-  return needsKeyProxy(basemap.url)
-    ? apiUrl(`/api/${campaignId}/imagery/basemaps/${basemap.id}/tiles/{z}/{x}/{y}`)
-    : basemap.url;
-}
-
-const ATTRIBUTIONS: Array<[string, string]> = [
-  [
-    'carto',
-    '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  ],
-  [
-    'opentopomap',
-    '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>) &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  ],
-  [
-    'arcgisonline',
-    '&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Sources: Esri, Maxar, Earthstar Geographics',
-  ],
-  [
-    'esri',
-    '&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Sources: Esri, Maxar, Earthstar Geographics',
-  ],
-  [
-    'openstreetmap',
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  ],
-];
-
-/** Credit line for the basemap providers we ship. An unrecognised provider
- *  gets none rather than a made-up one. */
-export function basemapAttribution(url: string): string | undefined {
-  const lower = url.toLowerCase();
-  return ATTRIBUTIONS.find(([needle]) => lower.includes(needle))?.[1];
-}
 
 export interface SliceRaster {
   id: string;
@@ -79,9 +39,7 @@ export function sliceRaster(
   if (!entry) throw new Error(`no tile url for "${viz.name}" on slice ${slice.id}`);
 
   const raw = needsKeyProxy(entry.tile_url)
-    ? apiUrl(
-        `/api/${cat.campaignId}/imagery/slices/${slice.id}/tiles/${encodeURIComponent(viz.name)}/{z}/{x}/{y}`
-      )
+    ? sliceProxyUrl(campaignProxyBase(cat.campaignId), slice.id, viz.name)
     : entry.tile_url;
   const url = stampLegendOverride(raw, override);
 

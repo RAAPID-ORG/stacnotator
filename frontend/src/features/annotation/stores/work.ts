@@ -38,7 +38,7 @@ import {
   type SliceNotes,
 } from '../campaign/sliceComments';
 import type { SavedAnnotations } from '../map/compose';
-import type { LonLat } from '../map/types';
+import type { LonLat } from '~/shared/map/types';
 import { campaignState, formFields, useCampaignStore } from './campaign';
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';

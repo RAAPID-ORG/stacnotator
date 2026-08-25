@@ -1,7 +1,10 @@
 """File-conversion helpers for overlay data: proper COGs and PMTiles."""
 
-from collections.abc import Iterable
+import json
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Literal
 
 import numpy as np
@@ -160,22 +163,56 @@ def merge_to_cog(
 
 
 def to_pmtiles(
-    src: str | Path,
+    src: "str | Path | Mapping[str, Any] | Sequence[Any] | Any",
     dst: str | Path | None = None,
     layer: str | None = None,
     min_zoom: int = 0,
     max_zoom: int = 14,
 ) -> Path:
-    """Convert a vector file (GeoJSON, GPKG, Shapefile, FlatGeobuf, ...) to PMTiles.
+    """Convert vector data to PMTiles.
+
+    ``src`` is a file GDAL reads (GeoJSON, GPKG, Shapefile, FlatGeobuf, ...) or
+    features already in memory: a GeoJSON FeatureCollection, an iterable of
+    Features, or anything exposing ``__geo_interface__`` (a GeoDataFrame, a
+    shapely geometry). In-memory features are WGS84, as GeoJSON defines them,
+    and need a ``dst`` since there is no source name to derive one from.
 
     The result is served to browsers directly via HTTP range requests, ready for
     ``campaign.register_vector_overlay``. ``layer`` names the tile layer (defaults
     to the source stem); raise ``max_zoom`` for very dense data.
+
+    Tiles are always Web Mercator - that is what PMTiles and every viewer of it
+    assume - so a source in any other CRS is reprojected on the way in. A source
+    with no CRS at all cannot be, and is refused rather than written to the wrong
+    place on the map.
     """
-    src = Path(src)
+    if isinstance(src, (str, Path)):
+        return _file_to_pmtiles(Path(src), dst, layer, min_zoom, max_zoom)
+    with _as_geojson_file(_feature_collection(src)) as tmp:
+        if dst is None:
+            raise ValueError(
+                "dst is required when passing features rather than a file, e.g. "
+                'to_pmtiles(features, "fields.pmtiles")'
+            )
+        return _file_to_pmtiles(tmp, dst, layer or Path(dst).stem, min_zoom, max_zoom)
+
+
+def _file_to_pmtiles(
+    src: Path,
+    dst: str | Path | None,
+    layer: str | None,
+    min_zoom: int,
+    max_zoom: int,
+) -> Path:
     dst = Path(dst) if dst else src.with_suffix(".pmtiles")
 
     meta, _index, geometry, field_data = raw.read(src)
+    if not meta["crs"]:
+        raise ValueError(
+            f"{src} declares no CRS, so its coordinates cannot be placed on the map. "
+            "Set one on the source (GeoJSON is always WGS84; a Shapefile needs its "
+            ".prj) and convert again."
+        )
     raw.write(
         dst,
         geometry,
@@ -188,6 +225,40 @@ def to_pmtiles(
         dataset_options={"MINZOOM": str(min_zoom), "MAXZOOM": str(max_zoom)},
     )
     return dst
+
+
+def _feature_collection(data: Any) -> dict[str, Any]:
+    """Features in any of the shapes people hold them in, as one GeoJSON dict."""
+    obj = getattr(data, "__geo_interface__", data)
+    if isinstance(obj, Mapping):
+        kind = obj.get("type")
+        if kind == "FeatureCollection":
+            return dict(obj)
+        if kind == "Feature":
+            return {"type": "FeatureCollection", "features": [dict(obj)]}
+        if kind:  # a bare geometry
+            return {
+                "type": "FeatureCollection",
+                "features": [{"type": "Feature", "geometry": dict(obj), "properties": {}}],
+            }
+    if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes)):
+        features = [_feature_collection(item)["features"][0] for item in obj]
+        if features:
+            return {"type": "FeatureCollection", "features": features}
+    raise ValueError(
+        "features must be a GeoJSON FeatureCollection, an iterable of Features, or "
+        "an object with __geo_interface__ (e.g. a GeoDataFrame)"
+    )
+
+
+@contextmanager
+def _as_geojson_file(collection: dict[str, Any]) -> "Iterator[Path]":
+    """GeoJSON on disk is the shortest honest route into GDAL: one reader, one
+    writer, and the CRS is defined by the format rather than guessed."""
+    with TemporaryDirectory() as folder:
+        path = Path(folder) / "features.geojson"
+        path.write_text(json.dumps(collection))
+        yield path
 
 
 def _expand_sources(sources: str | Path | Iterable[str | Path]) -> list[Path]:

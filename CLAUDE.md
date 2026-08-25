@@ -62,7 +62,7 @@ The in-repo `backend/.venv` is stale. Always run backend tooling via `uv run` (`
 
 ## Backend architecture
 
-FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `organizations`, `projects`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `planet` (Planet Basemaps browsing for the same wizard: series list, a series' mosaics as ready tile templates), `custom_layers` (campaign overlay layers: COG custom maps + PMTiles vector layers). Tile *serving* lives in the separate tiler service -this backend only registers mosaics and mints tiler access tokens.
+FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `organizations`, `projects`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `planet` (Planet Basemaps browsing for the same wizard: series list, a series' mosaics as ready tile templates), `custom_layers` (overlay layers: COG custom maps + PMTiles vector layers, owned by a campaign or a visualizer), `visualizers` (published project-scoped maps; registers imagery of its own over its area and/or links what campaigns already registered, and serves the one route in the app reachable without an account). Tile *serving* lives in the separate tiler service - this backend only registers mosaics and mints tiler access tokens.
 
 Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` -FastAPI endpoints, dependency wiring
@@ -78,7 +78,7 @@ Cross-cutting: `config.py` (pydantic-settings `Settings`, env-driven; `get_setti
 
 ### Data model (imagery)
 
-An imagery **source** holds many time-period **collections** (e.g. monthly); each collection has a Cover slice plus finer **slices** (e.g. weekly) that annotators browse. Date-nearest imagery search spans the whole source, not a single collection. Campaign creation kicks off **background threads** for mosaic registration (STAC searches → item storage → tile URLs) and embedding computation (Earth Engine); both track status `registering → ready/failed` and annotation is blocked until ready.
+Every layer table - imagery sources, basemaps, custom maps, vector layers - belongs to exactly one owner, a campaign or a visualizer (`LayerOwner` in `src/layers.py`, which also decides the scope its tiles are served under). It holds many time-period **collections** (e.g. monthly); each collection has a Cover slice plus finer **slices** (e.g. weekly) that annotators browse. A visualizer ignores that structure and flattens it into one dated list. Date-nearest imagery search spans the whole source, not a single collection. Campaign creation kicks off **background threads** for mosaic registration (STAC searches → item storage → tile URLs) and embedding computation (Earth Engine); both track status `registering → ready/failed` and annotation is blocked until ready.
 
 ### Tile flow
 
@@ -87,25 +87,87 @@ For MPC collections with first-valid compositing, the frontend fetches tiles **d
 ## Frontend architecture
 
 Feature-sliced under `frontend/src/`:
-- `app/` -`router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `AppSidebar.tsx`)
-- `features/<name>/` -`annotation`, `campaigns`, `auth`, `settings`, `home`. Most have `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`; `annotation` is layered instead (below). Custom-layers UI follows the surface split: authoring editors under `campaigns/components/`, runtime controls under the annotation panels that own them
-- `shared/` -cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`), `colormaps/` (tiler colormap definitions + select, used by the campaign editors and the annotation legend)
-- `api/` -generated client (`client/`), `hey-api.ts` config, plus `stacBrowser.ts` and `tilerToken.ts`
+- `app/` - `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `AppSidebar.tsx`)
+- `features/<name>/` - `annotation`, `campaigns`, `auth`, `settings`, `home`. Most have `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`; `annotation` is layered instead (below). Custom-layers UI follows the surface split: authoring editors under `campaigns/components/`, runtime controls under the annotation panels that own them
+- `shared/` - cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`), `colormaps/` (tiler colormap definitions + select, used by the campaign editors and the annotation legend), `map/` (the OpenLayers engine: `MapView`, `layers.ts`, `Camera`, `tileLoading.ts`, `interactions.ts` - any page that draws a map mounts these), `imagery/` (pure tile URL and render-param mechanics, plus the editable `RenderLegend`)
+- `api/` - generated client (`client/`), `hey-api.ts` config, `queries.ts` (the generated react-query option factories), `queryClient.ts` (the shared cache), plus `stacBrowser.ts` and `tilerToken.ts`
+
+### Reading a campaign: summary or full
+
+`GET /campaigns/{id}` returns a campaign **with all of its imagery** - sources,
+collections, slices, tile URLs, basemaps, overlays, time series. That is around 22
+sequential round trips and most of a second, and only two surfaces render any of it:
+the settings editor and the annotation page. Everything else reads
+`GET /campaigns/{id}/summary` (`useCampaignSummary`), which loads the settings
+relationship and nothing else.
+
+`CampaignOut` inherits from `CampaignSummaryOut` so the two shapes cannot drift, and
+`test_campaign_summary_schema.py` fails if imagery creeps back into the summary. The
+trap is the other direction and has already happened once in a merge: swapping
+`useCampaignSummary` for `useCampaign` compiles, renders identically, and quietly puts
+the heavy read back on a page that shows none of it.
+
+### Server state outside the annotation page
+
+Every platform surface - projects, organizations, settings, campaign admin,
+visualizer authoring - reads through **TanStack Query**, never through a
+`useEffect` + `useState` fetch. The option and mutation factories are generated
+from the same OpenAPI schema as the client (`~/api/queries`), so there are no
+hand-written query keys or wrapper hooks: `useQuery(listProjectsOptions())`,
+`useMutation(updateProjectMutation())`, and `invalidateQueries` with the
+generated key after a write.
+
+- **`queryClient.ts` owns error reporting.** Each query and mutation carries
+  `meta: { errorMessage, showUser? }`; the cache-level handler calls
+  `handleError`. Do not wrap calls in try/catch to toast.
+- **Loads render their failure in place, actions toast.** Set
+  `showUser: false` where the surface shows the error itself or deliberately
+  degrades without it (say why in a comment when there is no error UI). Use
+  `meta: reportedByCaller(msg)` where a child awaits the handler and reports
+  for you - the admin tables and assignment modals - so the toast is not
+  doubled.
+- **Freshness is two tiers.** The default (30s stale, no focus refetch) suits
+  data only an admin changes: organizations, projects, members, campaign
+  settings. Lists other users change while you watch - task progress, task
+  sets, the review annotations, statistics - opt into `SHARED_WORK` from
+  `queryClient.ts` (re-read every mount, refetch on window focus). Deliberately
+  not a timer: those endpoints return a whole campaign's tasks or annotations
+  unpaginated. Background jobs (mosaic registration, custom-map registration)
+  use a `refetchInterval` that reads the record's own status and stops itself.
+  The annotation page opts out of all of this: it syncs deltas against a cursor
+  every 5s (`annotation/stores/work.ts`), which is what real-time editing needs.
+- **Retries are off, and focus-refetch is off by default** so one mocked route
+  means one request under Playwright. Keep it that way; `SHARED_WORK` is the
+  only opt-in.
+- **Client state stays in Zustand** (`org.store.ts`, `layout.store.ts`, the
+  annotation stores). A store that caches a server list is the thing this
+  replaced; don't add one back.
+- Deliberately still imperative: file uploads and downloads that report through
+  a callback and own no list, and `features/annotation` + the imagery wizard
+  (`campaigns/components/imagery/`), which have their own state machines.
+- A read shared by more than one surface gets a named hook returning domain
+  values plus `loading`/`error`, not the query object - `useOrganizations`,
+  `app/projectRoute.ts`, and `campaigns/hooks/campaignQueries.ts`, which is
+  where the campaign freshness split and its invalidation helpers are stated
+  once instead of repeated across the admin tabs. A page's own one-off read
+  stays a `useQuery` in the page.
+- Component tests that touch a query use `renderWithQuery` and mock
+  `~/api/client/sdk.gen` - mocking `~/api/client` only catches direct callers.
 
 ### The annotation feature
 
 The heart of the app. Under `features/annotation/`, grouped by what a thing *is*:
 
-- `campaign/` -what a campaign is made of, as plain data and functions, one subject per file: `imagery.ts` (the `ImageryCatalog`: sources, collections, slices indexed by id), `imageryNav.ts` (the browsing address plus slice/collection stepping and source cycling), `tileUrls.ts` (slice and basemap tile URLs, key-proxy routing), `tileColors.ts` (colormap/rescale/categorical overrides and how they are stamped onto a tile URL), `timeseries.ts` (window grouping), `annotation.ts` (labels, geometry, form values, validation), `labelStyle.ts`, `tasks.ts` (claims, filtering, review rows, export). No React, no OpenLayers, no stores -enforced by `no-restricted-imports`, and what makes it unit-testable without any of them.
-- `stores/` -the Zustand stores. `campaign.ts` holds the loaded campaign, catalog, view and mode; **everything reads the campaign from there rather than being handed it**, which is why no context object is threaded through the tree.
-- `loadCampaign.ts` -the one seam that fetches a campaign and re-seeds every store, so nothing survives a campaign change.
-- `map/` -everything that touches `ol/*`: `MapView.tsx`, `layers.ts` (spec → OL layer, plus the plan that keeps a map's layers in step and retains rasters for their tiles), `camera.ts` (the page's cameras + leader/follower), `interactions.ts`, `compose.ts` (what each map draws), `preloader.ts`/`tileLoading.ts` (tile QoS).
-- `canvas/` -everything that owns the workspace layout: the react-grid-layout host, its pure geometry (`grid.ts`, `screens.ts`, `dropCell.ts`), the layout editor and view admin (`LayoutEdit/`), and the popout windows that host further canvases (`Screens/`).
-- `panels/<Name>/` -one folder per grid card (`MainMap`, `Minimap`, `ImageryWindow`, `TaskControls`, `ExploreControls`, `Timeseries`), each holding only what that panel needs. `panels/panels.tsx` builds the whole panel list in one place.
-- `chrome/` -page-level UI about the *work* rather than the workspace: `Toolbar/`, `Tour/`, the full-page `Gates`, and the floating overlays the page mounts beside the canvas (`EditOverlayControls` on desktop, `MobileSliceNav` on mobile).
-- `components/` -leaf UI with no feature knowledge, shared by panels *and* chrome (`FormFields`, `LabelChips`, `HeaderSelect`). Anything used by only one panel lives in that panel's folder.
-- `keymap.ts` + `hotkeys.ts` -`keymap.ts` is the content (every shortcut and what it runs, assembled by `pageKeymap()`); `hotkeys.ts` is the mechanism (one keydown listener over a stack of tables, plus help text and tooltips). Within a table the first binding whose key matches and whose `when` passes wins, which is how Escape means "cancel the edit" while editing and "close the draft" otherwise, with no scope machinery. Locally-mounted tables shadow the page's.
-- `AnnotationPage.tsx` -the route entry, and the only module the rest of the app may import (`no-restricted-imports` in `eslint.config.js`).
+- `campaign/` - what a campaign is made of, as plain data and functions, one subject per file: `imagery.ts` (the `ImageryCatalog`: sources, collections, slices indexed by id), `imageryNav.ts` (the browsing address plus slice/collection stepping and source cycling), `tileUrls.ts` (a slice's raster, over the URL mechanics in `shared/imagery/`), `timeseries.ts` (window grouping), `annotation.ts` (labels, geometry, form values, validation), `labelStyle.ts`, `tasks.ts` (claims, filtering, review rows, export). No React, no OpenLayers, no stores - enforced by `no-restricted-imports`, and what makes it unit-testable without any of them.
+- `stores/` - the Zustand stores. `campaign.ts` holds the loaded campaign, catalog, view and mode; **everything reads the campaign from there rather than being handed it**, which is why no context object is threaded through the tree.
+- `loadCampaign.ts` - the one seam that fetches a campaign and re-seeds every store, so nothing survives a campaign change.
+- `map/` - what this feature draws and where it looks from: `compose.ts` (the layer list for a given catalog and navigation state), `camera.ts` (the page's cameras + leader/follower, over `shared/map/Camera`), `preloader.ts` (tile QoS). The engine itself lives in `shared/map/`.
+- `canvas/` - everything that owns the workspace layout: the react-grid-layout host, its pure geometry (`grid.ts`, `screens.ts`, `dropCell.ts`), the layout editor and view admin (`LayoutEdit/`), and the popout windows that host further canvases (`Screens/`).
+- `panels/<Name>/` - one folder per grid card (`MainMap`, `Minimap`, `ImageryWindow`, `TaskControls`, `ExploreControls`, `Timeseries`), each holding only what that panel needs. `panels/panels.tsx` builds the whole panel list in one place.
+- `chrome/` - page-level UI about the *work* rather than the workspace: `Toolbar/`, `Tour/`, the full-page `Gates`, and the floating overlays the page mounts beside the canvas (`EditOverlayControls` on desktop, `MobileSliceNav` on mobile).
+- `components/` - leaf UI with no feature knowledge, shared by panels *and* chrome (`FormFields`, `LabelChips`, `HeaderSelect`). Anything used by only one panel lives in that panel's folder.
+- `keymap.ts` + `hotkeys.ts` - `keymap.ts` is the content (every shortcut and what it runs, assembled by `pageKeymap()`); `hotkeys.ts` is the mechanism (one keydown listener over a stack of tables, plus help text and tooltips). Within a table the first binding whose key matches and whose `when` passes wins, which is how Escape means "cancel the edit" while editing and "close the draft" otherwise, with no scope machinery. Locally-mounted tables shadow the page's.
+- `AnnotationPage.tsx` - the route entry, and the only module the rest of the app may import (`no-restricted-imports` in `eslint.config.js`).
 
 Both campaign modes (**Task Mode**, predefined locations; **Open Mode**, free-form) share one map composition path, so there is no forked map or controls implementation. Every binding declares its own help text, which is what drives the shortcut list and the tooltips.
 

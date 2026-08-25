@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { duplicateCampaign, type CampaignListItemOut, type CampaignOut } from '~/api/client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { type CampaignListItemOut, type CampaignOut } from '~/api/client';
+import { duplicateCampaignMutation, listProjectCampaignsQueryKey } from '~/api/queries';
 import { Modal } from '~/shared/ui/Modal';
 import { Button } from '~/shared/ui/forms';
 import { IconInfo } from '~/shared/ui/Icons';
-import { handleError } from '~/shared/utils/errorHandler';
 
 /** Tri-state on purpose: both switches must be an explicit decision before
  *  the duplicate can run - they are the two things people forget to think
@@ -54,30 +55,32 @@ export const DuplicateCampaignModal = ({
   const [includeTasks, setIncludeTasks] = useState<Choice>(null);
   const [includeAnnotations, setIncludeAnnotations] = useState<Choice>(null);
   const [includeUserLayouts, setIncludeUserLayouts] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const queryClient = useQueryClient();
+
+  const duplicate = useMutation({
+    ...duplicateCampaignMutation(),
+    meta: { errorMessage: 'Failed to duplicate campaign' },
+    onSuccess: (created) => {
+      void queryClient.invalidateQueries({
+        queryKey: listProjectCampaignsQueryKey({ path: { project_id: created.project_id } }),
+      });
+      onDuplicated(created);
+    },
+  });
+  const submitting = duplicate.isPending;
 
   const ready = includeTasks !== null && includeAnnotations !== null;
 
-  const handleDuplicate = async () => {
+  const handleDuplicate = () => {
     if (!ready || submitting) return;
-    setSubmitting(true);
-    try {
-      const { data, error } = await duplicateCampaign({
-        path: { campaign_id: campaign.id },
-        body: {
-          include_tasks: includeTasks,
-          include_annotations: includeAnnotations,
-          include_user_layouts: includeUserLayouts,
-        },
-      });
-      if (error || !data) {
-        handleError(error, 'Failed to duplicate campaign');
-        return;
-      }
-      onDuplicated(data);
-    } finally {
-      setSubmitting(false);
-    }
+    duplicate.mutate({
+      path: { campaign_id: campaign.id },
+      body: {
+        include_tasks: includeTasks,
+        include_annotations: includeAnnotations,
+        include_user_layouts: includeUserLayouts,
+      },
+    });
   };
 
   return (

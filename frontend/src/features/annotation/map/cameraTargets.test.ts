@@ -1,7 +1,7 @@
+import { DEFAULT_MAP_ZOOM } from '~/shared/map/Camera';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   cameraFor,
-  DEFAULT_MAP_ZOOM,
   focusFirstViewSetup,
   focusCameraTarget,
   loadCameraTarget,

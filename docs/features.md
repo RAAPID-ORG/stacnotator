@@ -74,6 +74,24 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - **Custom maps (COG overlays)** - e.g. model predictions, rendered by the hosted tiler; continuous or categorical render config, colormaps, editable legend, optional MLOps link, internal-storage support
 - **Vector layers (PMTiles)** - toggleable overlay layers fetched straight from storage; hover highlight, and a label-vector tool (`B`) that creates annotations from clicked vector features (single or batch)
 
+## Visualizers
+
+A visualizer is a published map: a full-screen viewer at `/v/<slug>` with a header bar, a date slider and a collapsible layer panel. Set up under Project > Visualizers.
+
+- **An area of interest** - what the map opens on, and the extent this visualizer's own imagery is searched over. Searched for by place, adjusted by dragging the box, or taken from a campaign in the project. Zoom out past it and the viewer says so and offers the way back
+- **Opening at a scale worth looking at** - an area can be a whole country, and framing one in full puts a Sentinel-2 mosaic a few pixels across. So the opening view never zooms out past the source's own working zoom (`default_zoom`, about 5 km across the map at the usual value): a large area opens centred on itself rather than in full
+- **Finding a place** - the viewer's panel carries the same location search the annotator's minimap has, and jumping to a result obeys the same floor
+- **Imagery, two ways** - set up here from a STAC catalog or Planet with the same wizard a campaign's imagery uses, registered for this visualizer alone; or picked from what the project's campaigns already registered and reused as it stands. Both are explained in the editor, because they are not the same thing
+- **One place in time** - the date slider anchors to the date the viewer chose, not to the step it landed on, so switching between a source's cadences and back returns to where it was instead of drifting a period earlier each time
+- **Flat timelines, at the cadences the source actually holds** - a source is offered as one dated list, or as two when its covers are demonstrably a coarser record than its slices: monthly composites over weekly acquisitions become "Sentinel-2 monthly" and "Sentinel-2 weekly" rather than one list with the monthlies thrown away. Covers at the same cadence as their slices are a rendering choice rather than a second record, so those stay one list
+- **Layer panel** - pick the imagery source and its visualization, toggle overlays, set their opacity, and edit a prediction overlay's colormap and range in place (the same legend the annotator uses). Viewer-side colour edits are never saved back
+- **Overlays, two ways too** - prediction rasters (COG) and vector layers (PMTiles) are either set up here, in the same two editors a campaign uses, or picked from what its campaigns already registered. One set up here joins the map the moment it is created, and leaves when it is deleted; the pick list only governs the ones borrowed from a campaign
+- **Base maps** - configured the way a campaign's are, in the same editor, and offered in the viewer's panel. A visualizer that configures none falls back to a keyless CARTO light backdrop, so the map is never bare
+- **Publishing** - `Anyone with the link` makes the slug openable with no account, independent of the project's own visibility; otherwise it stays a working preview for people who can already open the project
+- **Publishing what is not open data** - a source behind a provider key, or a layer reading internal storage, is served with the organization's own credentials. The editor names those layers as soon as the publish toggle goes on and asks for an explicit confirm before saving, because anonymous traffic then spends that quota and reaches imagery the licence may not allow redistributing
+- **Feedback** - anyone signed in can mark a box on a published map and say what it should be. Where the layer they are commenting on is drawn from a fixed set of classes, the form offers those classes, so the remark is a correction rather than prose; otherwise a note does the work. The layer name and class are snapshotted beside their ids, because a legend can be recoloured and a layer removed while the remark still has to read. Project admins read and delete feedback from the visualizer list
+- **Tile access** - a published visualizer mints its own tiler cookie scoped to exactly what it draws from: the campaigns behind its linked layers, plus its own scope for imagery it registered itself. A visitor with no account can fetch those tiles and nothing else
+
 ## Tile Serving
 
 Tile providers, selected automatically per visualization:

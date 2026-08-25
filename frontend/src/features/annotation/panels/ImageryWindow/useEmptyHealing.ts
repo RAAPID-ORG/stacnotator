@@ -7,7 +7,7 @@ import { emptyKey, type Empties, type SliceAddress } from '../../campaign/imager
 import { sliceRaster } from '../../campaign/tileUrls';
 import { addressAtSlice, sliceNavIndices } from '../../campaign/imageryNav';
 import { ensureTilerSession } from '~/api/tilerToken';
-import type { LonLat } from '../../map/types';
+import type { LonLat } from '~/shared/map/types';
 
 export interface ProbeCandidate {
   index: number;

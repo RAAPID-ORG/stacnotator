@@ -1,31 +1,64 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { AnimatedDialog } from '~/shared/ui/motion';
 import { Spinner } from '~/shared/ui/Spinner';
 import { IconWarning } from '~/shared/ui/Icons';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { handleError } from '~/shared/utils/errorHandler';
 import { projectsPath } from '~/app/routes';
-import { deleteProject, updateProject, type ProjectOut } from '~/api/client';
+import { type ProjectOut } from '~/api/client';
+import {
+  deleteProjectMutation,
+  getProjectQueryKey,
+  listProjectsQueryKey,
+  updateProjectMutation,
+} from '~/api/queries';
 import { ProjectVisibilityPicker } from './ProjectVisibilityPicker';
 import { visibilityConfirm, type ProjectVisibility } from './projectVisibility';
 
 interface ProjectSettingsSectionProps {
   project: ProjectOut;
-  onUpdated: (project: ProjectOut) => void;
 }
 
-export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSectionProps) => {
+export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? '');
-  const [saving, setSaving] = useState(false);
   const [pendingVisibility, setPendingVisibility] = useState<ProjectVisibility | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const path = { project_id: project.id };
+
+  // The project itself feeds this form, the page header and the sidebar nav;
+  // the list carries the visibility badge. Both go stale on any edit here.
+  const invalidateProject = () => {
+    void queryClient.invalidateQueries({ queryKey: getProjectQueryKey({ path }) });
+    void queryClient.invalidateQueries({ queryKey: listProjectsQueryKey() });
+  };
+
+  const update = useMutation({
+    ...updateProjectMutation(),
+    meta: { errorMessage: 'Failed to update project' },
+    onSuccess: invalidateProject,
+  });
+
+  const remove = useMutation({
+    ...deleteProjectMutation(),
+    meta: { errorMessage: 'Failed to delete project' },
+    onSuccess: () => {
+      setConfirmDelete(false);
+      void queryClient.invalidateQueries({ queryKey: listProjectsQueryKey() });
+      showAlert('Project deleted', 'success');
+      navigate(projectsPath());
+    },
+  });
+
+  const saving = update.isPending || remove.isPending;
 
   useEffect(() => {
     setName(project.name);
@@ -35,32 +68,18 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
   const detailsDirty =
     name.trim() !== project.name || description.trim() !== (project.description ?? '');
 
-  const applyUpdate = async (
+  const applyUpdate = (
     body: { name?: string; description?: string; visibility?: ProjectVisibility },
     successMessage: string
-  ) => {
-    try {
-      setSaving(true);
-      const { data } = await updateProject({ path: { project_id: project.id }, body });
-      if (data) onUpdated(data);
-      showAlert(successMessage, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to update project');
-    } finally {
-      setSaving(false);
-    }
-  };
+  ) => update.mutate({ path, body }, { onSuccess: () => showAlert(successMessage, 'success') });
 
-  const handleSaveDetails = async () => {
+  const handleSaveDetails = () => {
     const trimmed = name.trim();
     if (!trimmed) {
       showAlert('Project name cannot be empty', 'error');
       return;
     }
-    await applyUpdate(
-      { name: trimmed, description: description.trim() },
-      'Project details updated'
-    );
+    applyUpdate({ name: trimmed, description: description.trim() }, 'Project details updated');
   };
 
   const visibilityMessage = (visibility: ProjectVisibility) =>
@@ -70,38 +89,26 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
         ? 'Project is now visible to its organization'
         : 'Project is now private';
 
-  const handleVisibilityChange = async (visibility: ProjectVisibility) => {
+  const handleVisibilityChange = (visibility: ProjectVisibility) => {
     if (visibility === project.visibility) return;
     if (visibilityConfirm(project.visibility, visibility)) {
       setPendingVisibility(visibility);
       return;
     }
-    await applyUpdate({ visibility }, visibilityMessage(visibility));
+    applyUpdate({ visibility }, visibilityMessage(visibility));
   };
 
-  const handleConfirmVisibility = async () => {
+  const handleConfirmVisibility = () => {
     if (pendingVisibility === null) return;
     const visibility = pendingVisibility;
     setPendingVisibility(null);
-    await applyUpdate({ visibility }, visibilityMessage(visibility));
+    applyUpdate({ visibility }, visibilityMessage(visibility));
   };
 
   const pendingConfirm =
     pendingVisibility !== null ? visibilityConfirm(project.visibility, pendingVisibility) : null;
 
-  const handleDelete = async () => {
-    try {
-      setSaving(true);
-      await deleteProject({ path: { project_id: project.id } });
-      setConfirmDelete(false);
-      showAlert('Project deleted', 'success');
-      navigate(projectsPath());
-    } catch (err) {
-      handleError(err, 'Failed to delete project');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const handleDelete = () => remove.mutate({ path });
 
   const sectionCls =
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
@@ -144,14 +151,12 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
             Who can open this project and work on its campaigns. Changes apply immediately.
           </p>
         </div>
-        <div className="max-w-xl">
-          <ProjectVisibilityPicker
-            value={project.visibility}
-            onChange={handleVisibilityChange}
-            disabled={saving}
-            name="project-visibility-settings"
-          />
-        </div>
+        <ProjectVisibilityPicker
+          value={project.visibility}
+          onChange={handleVisibilityChange}
+          disabled={saving}
+          name="project-visibility-settings"
+        />
       </section>
 
       <section className={sectionCls}>

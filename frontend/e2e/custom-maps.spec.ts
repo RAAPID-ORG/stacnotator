@@ -32,7 +32,25 @@ const READY_MAP_2 = {
   mlops_url: null,
 };
 
-const CAMPAIGN_WITH_MAP = { ...MOCK_CAMPAIGN, custom_maps: [READY_MAP, READY_MAP_2] };
+const CLASSED_MAP = {
+  ...READY_MAP,
+  id: 3,
+  name: 'Classed Map',
+  render_config: {
+    mode: 'categorical',
+    band: 1,
+    entries: [
+      { value: 1, color: '#f096ff', label: 'Cropland' },
+      { value: 2, color: '#006400', label: 'Tree cover' },
+    ],
+  },
+  mlops_url: null,
+};
+
+const CAMPAIGN_WITH_MAP = {
+  ...MOCK_CAMPAIGN,
+  custom_maps: [READY_MAP, READY_MAP_2, CLASSED_MAP],
+};
 
 async function reloadWithCustomMap(page: Page): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
@@ -44,14 +62,12 @@ async function reloadWithCustomMap(page: Page): Promise<void> {
   await page.waitForSelector('[data-tour="controls"]', { timeout: 10_000 });
 }
 
-async function selectFirstMap(page: Page): Promise<void> {
+async function selectMap(page: Page, name: string): Promise<void> {
   await page.locator('button[title="Select overlay map"]').click();
-  await page
-    .locator('div.rounded-lg.shadow-lg button')
-    .filter({ hasText: 'Test Map' })
-    .first()
-    .click();
+  await page.locator('div.rounded-lg.shadow-lg button').filter({ hasText: name }).first().click();
 }
+
+const selectFirstMap = (page: Page) => selectMap(page, 'Test Map');
 
 test.describe('custom map overlay', () => {
   test('select map, then toggle overlay visibility and adjust opacity', async ({
@@ -116,6 +132,33 @@ test.describe('custom map overlay', () => {
     await expect(annotationPage.getByTestId('custom-map-legend-colormap')).toHaveValue(
       READY_MAP.render_config.colormap_name
     );
+  });
+
+  test('a class can be hidden from the legend, and the hiding sticks', async ({
+    annotationPage,
+  }) => {
+    await reloadWithCustomMap(annotationPage);
+    await selectMap(annotationPage, 'Classed Map');
+
+    const legend = annotationPage.getByTestId('custom-map-legend');
+    const grass = legend.getByTestId('custom-map-legend-class').filter({ hasText: 'Tree cover' });
+    await expect(grass).toHaveAttribute('data-hidden', 'false');
+
+    await grass.click();
+    await expect(grass).toHaveAttribute('data-hidden', 'true');
+    await expect(legend).toHaveAttribute('data-customized', 'true');
+
+    // Like a recolour, it is a per-device preference rather than view state.
+    await reloadWithCustomMap(annotationPage);
+    await selectMap(annotationPage, 'Classed Map');
+    await expect(
+      legend.getByTestId('custom-map-legend-class').filter({ hasText: 'Tree cover' })
+    ).toHaveAttribute('data-hidden', 'true');
+
+    await annotationPage.getByTestId('custom-map-legend-reset').click();
+    await expect(
+      legend.getByTestId('custom-map-legend-class').filter({ hasText: 'Tree cover' })
+    ).toHaveAttribute('data-hidden', 'false');
   });
 
   test('shift+o cycles to the next map; o hides then re-enters the same map', async ({

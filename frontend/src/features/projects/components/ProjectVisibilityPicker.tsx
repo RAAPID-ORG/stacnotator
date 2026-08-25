@@ -1,22 +1,32 @@
+import type { ComponentType } from 'react';
+import { IconBuilding, IconCheck, IconGlobe, IconLock } from '~/shared/ui/Icons';
 import type { ProjectVisibility } from './projectVisibility';
 
-const OPTIONS: { value: ProjectVisibility; label: string; description: string }[] = [
+interface Option {
+  value: ProjectVisibility;
+  label: string;
+  description: string;
+  Icon: ComponentType<{ className?: string }>;
+}
+
+const OPTIONS: Option[] = [
   {
     value: 'private',
     label: 'Private',
     description: 'Only invited members can see and open this project.',
+    Icon: IconLock,
   },
   {
     value: 'organization',
     label: 'Organization',
-    description:
-      'Everyone in the owning organization can open this project and work on its campaigns.',
+    description: 'Everyone in the owning organization can open it and work on its campaigns.',
+    Icon: IconBuilding,
   },
   {
     value: 'public',
     label: 'Public',
-    description:
-      'Anyone signed in to the platform can open this project and work on its campaigns.',
+    description: 'Anyone signed in to the platform can open it and work on its campaigns.',
+    Icon: IconGlobe,
   },
 ];
 
@@ -28,40 +38,53 @@ interface ProjectVisibilityPickerProps {
   name?: string;
 }
 
+/**
+ * Three cards side by side rather than a stack of rows: the choice is between
+ * three peers, and reading them next to each other is how you pick one.
+ */
 export const ProjectVisibilityPicker = ({
   value,
   onChange,
   disabled,
   name = 'project-visibility',
 }: ProjectVisibilityPickerProps) => (
-  <div role="radiogroup" aria-label="Project visibility" className="space-y-2">
-    {OPTIONS.map((option) => {
-      const selected = value === option.value;
+  <div
+    role="radiogroup"
+    aria-label="Project visibility"
+    className="grid grid-cols-1 gap-3 desktop:grid-cols-3"
+  >
+    {OPTIONS.map(({ value: option, label, description, Icon }) => {
+      const selected = value === option;
       return (
         <label
-          key={option.value}
-          data-testid={`visibility-option-${option.value}`}
-          className={`flex items-start gap-3 px-3 py-2.5 rounded-lg border transition-colors ${
+          key={option}
+          data-testid={`visibility-option-${option}`}
+          data-selected={selected}
+          className={`relative flex flex-col gap-1.5 rounded-lg border p-3 transition-colors ${
             selected
-              ? 'border-brand-300 bg-brand-50/50'
+              ? 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500'
               : 'border-neutral-200 bg-white hover:border-neutral-300'
-          } ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+          } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
         >
           <input
             type="radio"
             name={name}
-            value={option.value}
+            value={option}
             checked={selected}
-            onChange={() => onChange(option.value)}
+            onChange={() => onChange(option)}
             disabled={disabled}
-            className="mt-0.5 text-brand-600 focus:ring-brand-600"
+            className="sr-only"
           />
-          <span className="flex-1 min-w-0">
-            <span className="block text-sm font-medium text-neutral-900">{option.label}</span>
-            <span className="block text-xs text-neutral-500 leading-snug">
-              {option.description}
+          <span className="flex items-center gap-2">
+            <Icon className={`h-4 w-4 ${selected ? 'text-brand-700' : 'text-neutral-400'}`} />
+            <span
+              className={`text-sm font-medium ${selected ? 'text-brand-800' : 'text-neutral-900'}`}
+            >
+              {label}
             </span>
+            {selected && <IconCheck className="ml-auto h-4 w-4 text-brand-600" />}
           </span>
+          <span className="text-xs leading-snug text-neutral-500">{description}</span>
         </label>
       );
     })}

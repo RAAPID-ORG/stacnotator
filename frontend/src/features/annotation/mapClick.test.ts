@@ -8,7 +8,7 @@ vi.mock('~/api/client', async (importActual) => {
 import { getAnnotation } from '~/api/client';
 import { handleMapClick } from './drawing';
 import { ANNOTATION_LAYER_ID } from './map/compose';
-import type { MapClickEvent } from './map/types';
+import type { MapClickEvent } from '~/shared/map/types';
 import { useWorkStore } from './stores/work';
 import { apiSuccess, makeAnnotation, makeCampaign } from './testing/fixtures';
 import { seedCampaign } from './testing/seed';

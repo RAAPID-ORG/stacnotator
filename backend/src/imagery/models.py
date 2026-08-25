@@ -15,11 +15,13 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.layers import LayerOwner
 
 if TYPE_CHECKING:
     from src.campaigns.models import Campaign
     from src.canvas.models import CanvasLayout
     from src.organizations.models import OrganizationApiKey
+    from src.visualizers.models import Visualizer
 
 
 class ImagerySource(Base):
@@ -31,14 +33,24 @@ class ImagerySource(Base):
     __tablename__ = "imagery_sources"
     __table_args__ = (
         CheckConstraint("default_zoom BETWEEN 0 AND 22", name="source_zoom_check"),
+        CheckConstraint(
+            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
+            name="imagery_sources_one_owner_check",
+        ),
         Index("idx_imagery_sources_campaign_id", "campaign_id"),
+        Index("idx_imagery_sources_visualizer_id", "visualizer_id"),
         {"schema": "data"},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[int] = mapped_column(
+    # Exactly one owner. See LayerOwner for what that means for tile access.
+    campaign_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+    )
+    visualizer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.visualizers.id", ondelete="CASCADE"),
+        nullable=True,
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
@@ -57,7 +69,8 @@ class ImagerySource(Base):
         ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
     )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="imagery_sources")
+    campaign: Mapped["Campaign | None"] = relationship(back_populates="imagery_sources")
+    visualizer: Mapped["Visualizer | None"] = relationship(back_populates="imagery_sources")
     organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
     visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
         back_populates="source",
@@ -74,6 +87,10 @@ class ImagerySource(Base):
         cascade="all, delete-orphan",
         order_by="ImageryGenerationSeries.id",
     )
+
+    @property
+    def owner(self) -> LayerOwner:
+        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
 
     @property
     def has_api_key(self) -> bool:
@@ -315,14 +332,24 @@ class Basemap(Base):
 
     __tablename__ = "basemaps"
     __table_args__ = (
+        CheckConstraint(
+            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
+            name="basemaps_one_owner_check",
+        ),
         Index("idx_basemaps_campaign_id", "campaign_id"),
+        Index("idx_basemaps_visualizer_id", "visualizer_id"),
         {"schema": "data"},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[int] = mapped_column(
+    # Exactly one owner, as on ImagerySource.
+    campaign_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+    )
+    visualizer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.visualizers.id", ondelete="CASCADE"),
+        nullable=True,
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
@@ -338,8 +365,13 @@ class Basemap(Base):
         ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
     )
 
-    campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")
+    campaign: Mapped["Campaign | None"] = relationship(back_populates="basemaps")
+    visualizer: Mapped["Visualizer | None"] = relationship(back_populates="basemaps")
     organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
+
+    @property
+    def owner(self) -> LayerOwner:
+        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
 
     @property
     def has_api_key(self) -> bool:

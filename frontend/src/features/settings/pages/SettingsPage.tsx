@@ -1,30 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
+import { getOrganizationTilers, type UserOut, type UserOutDetailed } from '~/api/client';
 import {
-  listUsers,
-  grantAdmin,
-  revokeAdmin,
-  editUserInfo,
-  listGrantableTilers,
-  listOrganizations,
-  approveOrganization,
-  rejectOrganization,
-  updateInternalStorage,
-  getOrganizationTilers,
-  setOrganizationTilers,
-  type OrganizationOut,
-  type UserOut,
-  type UserOutDetailed,
-} from '~/api/client';
+  approveOrganizationMutation,
+  editUserInfoMutation,
+  grantAdminMutation,
+  listGrantableTilersOptions,
+  listGrantableTilersQueryKey,
+  listUsersOptions,
+  listUsersQueryKey,
+  rejectOrganizationMutation,
+  revokeAdminMutation,
+  setOrganizationTilersMutation,
+  updateInternalStorageMutation,
+} from '~/api/queries';
+import { reportedByCaller } from '~/api/queryClient';
 import { useAccountStore } from '~/shared/stores/account.store';
-import { useOrganizationsStore } from '~/features/organizations/stores/organizations.store';
-import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
+import {
+  useOrganizations,
+  useRefreshOrganizations,
+} from '~/features/organizations/hooks/useOrganizations';
 import { pendingAdminActions } from '~/features/organizations/utils/organizations';
 import { CountBadge } from '~/shared/ui/Badge';
 import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
@@ -39,6 +41,8 @@ import {
 } from 'src/features/auth/ui/PasswordRequirements';
 import { FadeIn } from '~/shared/ui/motion';
 import { handleError } from '~/shared/utils/errorHandler';
+
+const NO_TILERS: string[] = [];
 
 /** /auth/users returns the detailed shape only to platform admins. */
 const isDetailedUser = (user: UserOut | UserOutDetailed): user is UserOutDetailed =>
@@ -76,12 +80,8 @@ const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }
 export const SettingsPage = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'organizations'>('profile');
-  const [users, setUsers] = useState<UserOutDetailed[]>([]);
-  const [organizations, setOrganizations] = useState<OrganizationOut[]>([]);
-  const [allTilers, setAllTilers] = useState<string[]>([]);
-  const [isPageLoading, setIsPageLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   // Username editing state
   const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
@@ -93,6 +93,7 @@ export const SettingsPage = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [_passwordSuccess, setPasswordSuccess] = useState(false);
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
@@ -101,133 +102,119 @@ export const SettingsPage = () => {
   // Use individual selectors to avoid creating new objects on every render
   const account = useAccountStore((s) => s.account);
   const fetchAccount = useAccountStore((s) => s.fetchAccount);
-  // Read from the shared list, not this page's: the tab badge has to be right
-  // before anyone opens the tab that fetches its own copy.
-  const { orgs: knownOrgs } = useOrganizations();
+  const isPlatformAdmin = account?.is_admin ?? false;
 
-  // Set breadcrumbs
+  // The same list the sidebar switcher reads: for a platform admin it is every
+  // organization on the platform, which is what this tab administers. One cache
+  // entry means the tab badge is right before the tab is ever opened, and an
+  // approval here reads as approved everywhere else immediately.
+  const { orgs: knownOrgs, loading: orgsLoading } = useOrganizations();
+  const refreshOrganizations = useRefreshOrganizations();
+
+  const usersQuery = useQuery({
+    ...listUsersOptions({}),
+    enabled: isPlatformAdmin && activeTab === 'users',
+    meta: { errorMessage: 'Failed to load users' },
+  });
+  const users = useMemo(() => (usersQuery.data ?? []).filter(isDetailedUser), [usersQuery.data]);
+
+  const tilersQuery = useQuery({
+    ...listGrantableTilersOptions(),
+    enabled: isPlatformAdmin && activeTab === 'organizations',
+    meta: { errorMessage: 'Failed to load tilers' },
+  });
+
+  const refreshOrganizationsTab = () => {
+    void refreshOrganizations();
+    void queryClient.invalidateQueries({ queryKey: listGrantableTilersQueryKey() });
+  };
+
   useEffect(() => {
     setBreadcrumbs([{ label: 'Settings' }]);
   }, [setBreadcrumbs]);
 
-  // Load admin-tab data on first visit to each tab
-  useEffect(() => {
-    if (!account?.is_admin) return;
-    if (activeTab === 'users' && users.length === 0) loadUsers();
-    if (activeTab === 'organizations' && organizations.length === 0) loadOrganizations();
-  }, [activeTab, account, users.length, organizations.length]);
+  const refetchUsers = () => queryClient.invalidateQueries({ queryKey: listUsersQueryKey({}) });
 
-  const loadUsers = async () => {
-    try {
-      setIsPageLoading(true);
-      const { data } = await listUsers({ throwOnError: true });
-      const listed: Array<UserOut | UserOutDetailed> = data;
-      setUsers(listed.filter(isDetailedUser));
-    } catch (err) {
-      handleError(err, 'Failed to load users');
-    } finally {
-      setIsPageLoading(false);
-    }
-  };
+  const grant = useMutation({
+    ...grantAdminMutation(),
+    meta: reportedByCaller('Failed to grant admin'),
+    onSuccess: (result) => {
+      void refetchUsers();
+      showAlert(`${result.success.length} user(s) granted admin successfully`, 'success');
+    },
+  });
+  const revoke = useMutation({
+    ...revokeAdminMutation(),
+    meta: reportedByCaller('Failed to revoke admin'),
+    onSuccess: (result) => {
+      void refetchUsers();
+      showAlert(`${result.success.length} admin role(s) revoked successfully`, 'success');
+    },
+  });
 
-  const loadOrganizations = async () => {
-    try {
-      setIsPageLoading(true);
-      const [orgsRes, tilersRes] = await Promise.all([
-        listOrganizations({ throwOnError: true }),
-        listGrantableTilers({ throwOnError: true }),
-      ]);
-      setOrganizations(orgsRes.data.items);
-      setAllTilers(tilersRes.data);
-    } catch (err) {
-      handleError(err, 'Failed to load organizations');
-    } finally {
-      setIsPageLoading(false);
-    }
-  };
+  const approve = useMutation({
+    ...approveOrganizationMutation(),
+    meta: reportedByCaller('Failed to approve organization'),
+    onSuccess: refreshOrganizations,
+  });
+  const reject = useMutation({
+    ...rejectOrganizationMutation(),
+    meta: reportedByCaller('Failed to reject organization'),
+    onSuccess: refreshOrganizations,
+  });
+  const internalStorage = useMutation({
+    ...updateInternalStorageMutation(),
+    meta: reportedByCaller('Failed to update internal storage'),
+    onSuccess: refreshOrganizations,
+  });
+  const saveTilers = useMutation({
+    ...setOrganizationTilersMutation(),
+    meta: reportedByCaller('Failed to save organization access'),
+  });
+
+  const editUsername = useMutation({
+    ...editUserInfoMutation(),
+    meta: { errorMessage: 'Failed to update username' },
+    onSuccess: async () => {
+      await fetchAccount();
+      setIsEditingDisplayName(false);
+      showAlert('Username updated', 'success');
+    },
+  });
+
+  const saving = grant.isPending || revoke.isPending || editUsername.isPending || changingPassword;
 
   const handleGrantAdmin = async (userIds: string[]) => {
-    try {
-      setSaving(true);
-      const { data } = await grantAdmin({
-        body: { user_ids: userIds },
-      });
-
-      setUsers((prevUsers) =>
-        prevUsers.map((user) => {
-          const updated = data?.success.find((u) => u.id === user.id);
-          return updated || user;
-        })
-      );
-
-      showAlert(`${data?.success.length || 0} user(s) granted admin successfully`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to grant admin');
-    } finally {
-      setSaving(false);
-    }
+    await grant.mutateAsync({ body: { user_ids: userIds } });
   };
-
   const handleRevokeAdmin = async (userIds: string[]) => {
-    try {
-      setSaving(true);
-      const { data } = await revokeAdmin({
-        body: { user_ids: userIds },
-      });
-
-      setUsers((prevUsers) =>
-        prevUsers.map((user) => {
-          const updated = data?.success.find((u) => u.id === user.id);
-          return updated || user;
-        })
-      );
-
-      showAlert(`${data?.success.length || 0} admin role(s) revoked successfully`, 'success');
-    } catch (err) {
-      handleError(err, 'Failed to revoke admin');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Org handlers let failures propagate: PlatformOrganizationsTable reports them
-  // and keeps the row's busy/editor state consistent.
-  // The shared store is refreshed alongside this page's own copy: approving an
-  // organization changes how it reads everywhere else - the sidebar switcher
-  // would otherwise keep calling it pending until the next reload.
-  const applyOrganization = (updated: OrganizationOut) => {
-    setOrganizations((prev) => prev.map((org) => (org.id === updated.id ? updated : org)));
-    void useOrganizationsStore.getState().refresh();
+    await revoke.mutateAsync({ body: { user_ids: userIds } });
   };
 
   const handleApproveOrganization = async (organizationId: number) => {
-    const { data } = await approveOrganization({
+    const organization = await approve.mutateAsync({
       path: { organization_id: organizationId },
-      throwOnError: true,
     });
-    applyOrganization(data);
-    showAlert(`Organization '${data.name}' approved`, 'success');
+    showAlert(`Organization '${organization.name}' approved`, 'success');
   };
 
   const handleRejectOrganization = async (organizationId: number) => {
-    const { data } = await rejectOrganization({
+    const organization = await reject.mutateAsync({
       path: { organization_id: organizationId },
-      throwOnError: true,
     });
-    applyOrganization(data);
-    showAlert(`Organization '${data.name}' rejected`, 'success');
+    showAlert(`Organization '${organization.name}' rejected`, 'success');
   };
 
   const handleSetInternalStorage = async (organizationId: number, allowed: boolean) => {
-    const { data } = await updateInternalStorage({
+    await internalStorage.mutateAsync({
       path: { organization_id: organizationId },
       body: { allows_internal_storage: allowed },
-      throwOnError: true,
     });
-    applyOrganization(data);
     showAlert('Internal storage updated', 'success');
   };
 
+  // An imperative read for one expanded row, not page state, so it stays a
+  // plain call rather than a query nobody else shares.
   const handleLoadOrganizationTilers = async (organizationId: number) => {
     const { data } = await getOrganizationTilers({
       path: { organization_id: organizationId },
@@ -237,34 +224,19 @@ export const SettingsPage = () => {
   };
 
   const handleSaveOrganizationTilers = async (organizationId: number, tilerNames: string[]) => {
-    await setOrganizationTilers({
+    await saveTilers.mutateAsync({
       path: { organization_id: organizationId },
       body: { tiler_names: tilerNames },
-      throwOnError: true,
     });
     showAlert('Tile access updated', 'success');
   };
 
-  const handleSaveDisplayName = async () => {
+  const handleSaveDisplayName = () => {
     if (!account || !displayNameInput.trim()) return;
-
-    try {
-      setSaving(true);
-      const { data } = await editUserInfo({
-        path: { user_id: account.id },
-        query: { new_display_name: displayNameInput.trim() },
-      });
-
-      if (data) {
-        await fetchAccount();
-        setIsEditingDisplayName(false);
-        showAlert('Username updated', 'success');
-      }
-    } catch (err) {
-      handleError(err, 'Failed to update username');
-    } finally {
-      setSaving(false);
-    }
+    editUsername.mutate({
+      path: { user_id: account.id },
+      query: { new_display_name: displayNameInput.trim() },
+    });
   };
 
   const emailProvider = authManager.getProvider(AUTH_PROVIDERS.EMAIL);
@@ -294,7 +266,7 @@ export const SettingsPage = () => {
     }
 
     try {
-      setSaving(true);
+      setChangingPassword(true);
       await emailProvider!.changePassword!(currentPassword, newPassword);
       setPasswordSuccess(true);
       setCurrentPassword('');
@@ -311,7 +283,7 @@ export const SettingsPage = () => {
         )
       );
     } finally {
-      setSaving(false);
+      setChangingPassword(false);
     }
   };
 
@@ -596,13 +568,13 @@ export const SettingsPage = () => {
                       Platform users{' '}
                       <span className="text-neutral-400 font-normal">({users.length})</span>
                     </h2>
-                    <RefreshButton onClick={loadUsers} busy={isPageLoading} />
+                    <RefreshButton onClick={refetchUsers} busy={usersQuery.isFetching} />
                   </div>
                   <PlatformUsersTable
                     users={users}
                     onGrantAdmin={handleGrantAdmin}
                     onRevokeAdmin={handleRevokeAdmin}
-                    loading={isPageLoading}
+                    loading={usersQuery.isPending}
                   />
                 </section>
               )}
@@ -612,19 +584,22 @@ export const SettingsPage = () => {
                   <div className="flex items-center justify-between">
                     <h2 className="section-heading">
                       Organizations{' '}
-                      <span className="text-neutral-400 font-normal">({organizations.length})</span>
+                      <span className="text-neutral-400 font-normal">({knownOrgs.length})</span>
                     </h2>
-                    <RefreshButton onClick={loadOrganizations} busy={isPageLoading} />
+                    <RefreshButton
+                      onClick={refreshOrganizationsTab}
+                      busy={tilersQuery.isFetching}
+                    />
                   </div>
                   <PlatformOrganizationsTable
-                    organizations={organizations}
-                    allTilers={allTilers}
+                    organizations={knownOrgs}
+                    allTilers={tilersQuery.data ?? NO_TILERS}
                     onApprove={handleApproveOrganization}
                     onReject={handleRejectOrganization}
                     onSetInternalStorage={handleSetInternalStorage}
                     onLoadTilers={handleLoadOrganizationTilers}
                     onSaveTilers={handleSaveOrganizationTilers}
-                    loading={isPageLoading}
+                    loading={orgsLoading || tilersQuery.isPending}
                   />
                 </section>
               )}

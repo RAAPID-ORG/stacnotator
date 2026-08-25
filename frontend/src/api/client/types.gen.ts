@@ -1298,6 +1298,33 @@ export type CampaignListItemOut = {
 };
 
 /**
+ * CampaignOptionsOut
+ */
+export type CampaignOptionsOut = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Campaign Name
+     */
+    campaign_name: string;
+    area: VisualizerArea | null;
+    /**
+     * Sources
+     */
+    sources: Array<SourceOptionOut>;
+    /**
+     * Raster Overlays
+     */
+    raster_overlays: Array<OverlayOptionOut>;
+    /**
+     * Vector Overlays
+     */
+    vector_overlays: Array<OverlayOptionOut>;
+};
+
+/**
  * CampaignOut
  */
 export type CampaignOut = {
@@ -3142,6 +3169,28 @@ export type OrganizationsListResponse = {
 };
 
 /**
+ * OverlayOptionOut
+ */
+export type OverlayOptionOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Restriction
+     */
+    restriction: 'api_key' | 'internal_storage' | null;
+};
+
+/**
  * PairwiseAgreement
  *
  * Agreement percentage between two annotators.
@@ -3426,6 +3475,53 @@ export type ProjectsListResponse = {
 };
 
 /**
+ * RasterOverlayOut
+ */
+export type RasterOverlayOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Visible
+     */
+    visible: boolean;
+    /**
+     * Opacity
+     */
+    opacity: number;
+    /**
+     * Kind
+     */
+    kind?: 'raster';
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Tile Url
+     */
+    tile_url: string | null;
+    render_config: RenderConfig;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom: number | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Mlops Url
+     */
+    mlops_url: string | null;
+};
+
+/**
  * RenderConfig
  */
 export type RenderConfig = {
@@ -3585,6 +3681,44 @@ export type SliceTileUrlOut = {
      * Mosaic Id
      */
     mosaic_id?: string | null;
+};
+
+/**
+ * SourceOptionOut
+ */
+export type SourceOptionOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Step Count
+     */
+    step_count: number;
+    /**
+     * Cadences
+     */
+    cadences: Array<string>;
+    /**
+     * Visualizations
+     */
+    visualizations: Array<string>;
+    /**
+     * Start Date
+     */
+    start_date: string | null;
+    /**
+     * End Date
+     */
+    end_date: string | null;
+    /**
+     * Restriction
+     */
+    restriction: 'api_key' | 'internal_storage' | null;
 };
 
 /**
@@ -3891,6 +4025,16 @@ export type TilerOption = {
      * Allows Ingest
      */
     allows_ingest?: boolean;
+};
+
+/**
+ * TilerSessionOut
+ */
+export type TilerSessionOut = {
+    /**
+     * Expires In
+     */
+    expires_in: number;
 };
 
 /**
@@ -4414,6 +4558,44 @@ export type VectorLayerUpdate = {
 };
 
 /**
+ * VectorOverlayOut
+ */
+export type VectorOverlayOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Visible
+     */
+    visible: boolean;
+    /**
+     * Opacity
+     */
+    opacity: number;
+    /**
+     * Kind
+     */
+    kind?: 'vector';
+    /**
+     * Pmtiles Url
+     */
+    pmtiles_url: string;
+    /**
+     * Source Layer
+     */
+    source_layer: string | null;
+    /**
+     * Color
+     */
+    color: string;
+};
+
+/**
  * VisualizationTemplateCreate
  */
 export type VisualizationTemplateCreate = {
@@ -4439,6 +4621,491 @@ export type VisualizationTemplateOut = {
      * Display Order
      */
     display_order: number;
+};
+
+/**
+ * VisualizerArea
+ *
+ * The area a visualizer is about: what it opens framed on, and the extent
+ * its own imagery is searched and registered over.
+ */
+export type VisualizerArea = {
+    /**
+     * West
+     */
+    west: number;
+    /**
+     * South
+     */
+    south: number;
+    /**
+     * East
+     */
+    east: number;
+    /**
+     * North
+     */
+    north: number;
+};
+
+/**
+ * VisualizerBasemapOut
+ *
+ * A backdrop the visualizer offers, the same kind a campaign configures.
+ */
+export type VisualizerBasemapOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom: number | null;
+    /**
+     * Has Api Key
+     */
+    has_api_key: boolean;
+    /**
+     * Tile Proxy Base
+     */
+    tile_proxy_base: string;
+};
+
+/**
+ * VisualizerConfigOut
+ *
+ * The stored configuration, as the editor needs it back.
+ */
+export type VisualizerConfigOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Is Public
+     */
+    is_public: boolean;
+    area: VisualizerArea | null;
+    /**
+     * Imagery
+     */
+    imagery: Array<VisualizerImageryCreate>;
+    /**
+     * Overlays
+     */
+    overlays: Array<VisualizerOverlayCreate>;
+    /**
+     * Own Imagery
+     */
+    own_imagery: Array<ImagerySourceOut>;
+    /**
+     * Basemaps
+     */
+    basemaps: Array<BasemapOut>;
+    /**
+     * Registration Status
+     */
+    registration_status: string;
+    /**
+     * Registration Errors
+     */
+    registration_errors: Array<unknown> | null;
+};
+
+/**
+ * VisualizerCreate
+ */
+export type VisualizerCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Is Public
+     */
+    is_public?: boolean;
+    area?: VisualizerArea | null;
+    /**
+     * Imagery
+     */
+    imagery?: Array<VisualizerImageryCreate>;
+    /**
+     * Overlays
+     */
+    overlays?: Array<VisualizerOverlayCreate>;
+    /**
+     * Own Imagery
+     */
+    own_imagery?: Array<ImagerySourceCreate>;
+    /**
+     * Basemaps
+     */
+    basemaps?: Array<BasemapCreate>;
+};
+
+/**
+ * VisualizerFeedbackCreate
+ *
+ * What a viewer says about one place on a published map.
+ */
+export type VisualizerFeedbackCreate = {
+    area: VisualizerArea;
+    /**
+     * Overlay Id
+     */
+    overlay_id?: number | null;
+    /**
+     * Verdict
+     */
+    verdict?: 'good' | 'wrong' | null;
+    /**
+     * Suggested Value
+     */
+    suggested_value?: number | null;
+    /**
+     * Suggested Label
+     */
+    suggested_label?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Viewing
+     */
+    viewing?: string | null;
+};
+
+/**
+ * VisualizerFeedbackOut
+ */
+export type VisualizerFeedbackOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Author
+     */
+    author: string;
+    area: VisualizerArea;
+    /**
+     * Layer Name
+     */
+    layer_name: string | null;
+    /**
+     * Verdict
+     */
+    verdict: 'good' | 'wrong' | null;
+    /**
+     * Suggested Label
+     */
+    suggested_label: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Viewing
+     */
+    viewing: string | null;
+};
+
+/**
+ * VisualizerImageryCreate
+ */
+export type VisualizerImageryCreate = {
+    /**
+     * Source Id
+     */
+    source_id: number;
+};
+
+/**
+ * VisualizerImageryOut
+ */
+export type VisualizerImageryOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Tile Proxy Base
+     */
+    tile_proxy_base: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Visualizations
+     */
+    visualizations: Array<string>;
+    /**
+     * Default Zoom
+     */
+    default_zoom: number;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom: number | null;
+    /**
+     * Has Api Key
+     */
+    has_api_key: boolean;
+    /**
+     * Steps
+     */
+    steps: Array<VisualizerStepOut>;
+};
+
+/**
+ * VisualizerListItemOut
+ */
+export type VisualizerListItemOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Is Public
+     */
+    is_public: boolean;
+    /**
+     * Imagery Count
+     */
+    imagery_count: number;
+    /**
+     * Overlay Count
+     */
+    overlay_count: number;
+    /**
+     * Feedback Count
+     */
+    feedback_count: number;
+};
+
+/**
+ * VisualizerOptionsOut
+ *
+ * What this project has available to put on a visualizer.
+ */
+export type VisualizerOptionsOut = {
+    /**
+     * Campaigns
+     */
+    campaigns: Array<CampaignOptionsOut>;
+};
+
+/**
+ * VisualizerOverlayCreate
+ */
+export type VisualizerOverlayCreate = {
+    /**
+     * Custom Map Id
+     */
+    custom_map_id?: number | null;
+    /**
+     * Vector Layer Id
+     */
+    vector_layer_id?: number | null;
+    /**
+     * Visible
+     */
+    visible?: boolean;
+    /**
+     * Opacity
+     */
+    opacity?: number;
+};
+
+/**
+ * VisualizerStepOut
+ */
+export type VisualizerStepOut = {
+    /**
+     * Slice Id
+     */
+    slice_id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Tiles
+     */
+    tiles: {
+        [key: string]: VisualizerTileOut;
+    };
+};
+
+/**
+ * VisualizerTileOut
+ */
+export type VisualizerTileOut = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Provider
+     */
+    provider: string | null;
+};
+
+/**
+ * VisualizerUpdate
+ *
+ * Absent fields stay as they are; a present list replaces the stored one.
+ */
+export type VisualizerUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Is Public
+     */
+    is_public?: boolean | null;
+    area?: VisualizerArea | null;
+    /**
+     * Imagery
+     */
+    imagery?: Array<VisualizerImageryCreate> | null;
+    /**
+     * Overlays
+     */
+    overlays?: Array<VisualizerOverlayCreate> | null;
+    /**
+     * Own Imagery
+     */
+    own_imagery?: Array<ImagerySourceCreate> | null;
+    /**
+     * Basemaps
+     */
+    basemaps?: Array<BasemapCreate> | null;
+};
+
+/**
+ * VisualizerViewOut
+ *
+ * Everything the viewer page draws, and nothing about how it was authored.
+ */
+export type VisualizerViewOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Is Public
+     */
+    is_public: boolean;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Project Name
+     */
+    project_name: string;
+    area: VisualizerArea | null;
+    /**
+     * Imagery
+     */
+    imagery: Array<VisualizerImageryOut>;
+    /**
+     * Basemaps
+     */
+    basemaps: Array<VisualizerBasemapOut>;
+    /**
+     * Overlays
+     */
+    overlays: Array<({
+        kind: 'raster';
+    } & RasterOverlayOut) | ({
+        kind: 'vector';
+    } & VectorOverlayOut)>;
+    /**
+     * Can Edit
+     */
+    can_edit: boolean;
+    /**
+     * Can Give Feedback
+     */
+    can_give_feedback: boolean;
+    /**
+     * Registration Status
+     */
+    registration_status: string;
 };
 
 /**
@@ -8686,6 +9353,98 @@ export type ProxySliceTileResponses = {
     200: unknown;
 };
 
+export type ProxyVisualizerBasemapTileData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Basemap Id
+         */
+        basemap_id: number;
+        /**
+         * Z
+         */
+        z: number;
+        /**
+         * X
+         */
+        x: number;
+        /**
+         * Y
+         */
+        y: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}';
+};
+
+export type ProxyVisualizerBasemapTileErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProxyVisualizerBasemapTileError = ProxyVisualizerBasemapTileErrors[keyof ProxyVisualizerBasemapTileErrors];
+
+export type ProxyVisualizerBasemapTileResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ProxyVisualizerSliceTileData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Slice Id
+         */
+        slice_id: number;
+        /**
+         * Visualization Name
+         */
+        visualization_name: string;
+        /**
+         * Z
+         */
+        z: number;
+        /**
+         * X
+         */
+        x: number;
+        /**
+         * Y
+         */
+        y: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}';
+};
+
+export type ProxyVisualizerSliceTileErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProxyVisualizerSliceTileError = ProxyVisualizerSliceTileErrors[keyof ProxyVisualizerSliceTileErrors];
+
+export type ProxyVisualizerSliceTileResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type ListCatalogsData = {
     body?: never;
     path?: never;
@@ -9108,3 +9867,601 @@ export type UpdateVectorLayerResponses = {
 };
 
 export type UpdateVectorLayerResponse = UpdateVectorLayerResponses[keyof UpdateVectorLayerResponses];
+
+export type ListVisualizerCustomMapsData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/custom-maps';
+};
+
+export type ListVisualizerCustomMapsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizerCustomMapsError = ListVisualizerCustomMapsErrors[keyof ListVisualizerCustomMapsErrors];
+
+export type ListVisualizerCustomMapsResponses = {
+    /**
+     * Response Listvisualizercustommaps
+     *
+     * Successful Response
+     */
+    200: Array<CustomMapOut>;
+};
+
+export type ListVisualizerCustomMapsResponse = ListVisualizerCustomMapsResponses[keyof ListVisualizerCustomMapsResponses];
+
+export type CreateVisualizerCustomMapData = {
+    body: CustomMapCreate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/custom-maps';
+};
+
+export type CreateVisualizerCustomMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateVisualizerCustomMapError = CreateVisualizerCustomMapErrors[keyof CreateVisualizerCustomMapErrors];
+
+export type CreateVisualizerCustomMapResponses = {
+    /**
+     * Successful Response
+     */
+    201: CustomMapOut;
+};
+
+export type CreateVisualizerCustomMapResponse = CreateVisualizerCustomMapResponses[keyof CreateVisualizerCustomMapResponses];
+
+export type DeleteVisualizerCustomMapData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Map Id
+         */
+        map_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/custom-maps/{map_id}';
+};
+
+export type DeleteVisualizerCustomMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVisualizerCustomMapError = DeleteVisualizerCustomMapErrors[keyof DeleteVisualizerCustomMapErrors];
+
+export type DeleteVisualizerCustomMapResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVisualizerCustomMapResponse = DeleteVisualizerCustomMapResponses[keyof DeleteVisualizerCustomMapResponses];
+
+export type UpdateVisualizerCustomMapData = {
+    body: CustomMapUpdate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Map Id
+         */
+        map_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/custom-maps/{map_id}';
+};
+
+export type UpdateVisualizerCustomMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateVisualizerCustomMapError = UpdateVisualizerCustomMapErrors[keyof UpdateVisualizerCustomMapErrors];
+
+export type UpdateVisualizerCustomMapResponses = {
+    /**
+     * Successful Response
+     */
+    200: CustomMapOut;
+};
+
+export type UpdateVisualizerCustomMapResponse = UpdateVisualizerCustomMapResponses[keyof UpdateVisualizerCustomMapResponses];
+
+export type ListVisualizerVectorLayersData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/vector-layers';
+};
+
+export type ListVisualizerVectorLayersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizerVectorLayersError = ListVisualizerVectorLayersErrors[keyof ListVisualizerVectorLayersErrors];
+
+export type ListVisualizerVectorLayersResponses = {
+    /**
+     * Response Listvisualizervectorlayers
+     *
+     * Successful Response
+     */
+    200: Array<VectorLayerOut>;
+};
+
+export type ListVisualizerVectorLayersResponse = ListVisualizerVectorLayersResponses[keyof ListVisualizerVectorLayersResponses];
+
+export type CreateVisualizerVectorLayerData = {
+    body: VectorLayerCreate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/vector-layers';
+};
+
+export type CreateVisualizerVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateVisualizerVectorLayerError = CreateVisualizerVectorLayerErrors[keyof CreateVisualizerVectorLayerErrors];
+
+export type CreateVisualizerVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    201: VectorLayerOut;
+};
+
+export type CreateVisualizerVectorLayerResponse = CreateVisualizerVectorLayerResponses[keyof CreateVisualizerVectorLayerResponses];
+
+export type DeleteVisualizerVectorLayerData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Layer Id
+         */
+        layer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/vector-layers/{layer_id}';
+};
+
+export type DeleteVisualizerVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVisualizerVectorLayerError = DeleteVisualizerVectorLayerErrors[keyof DeleteVisualizerVectorLayerErrors];
+
+export type DeleteVisualizerVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVisualizerVectorLayerResponse = DeleteVisualizerVectorLayerResponses[keyof DeleteVisualizerVectorLayerResponses];
+
+export type UpdateVisualizerVectorLayerData = {
+    body: VectorLayerUpdate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+        /**
+         * Layer Id
+         */
+        layer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/vector-layers/{layer_id}';
+};
+
+export type UpdateVisualizerVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateVisualizerVectorLayerError = UpdateVisualizerVectorLayerErrors[keyof UpdateVisualizerVectorLayerErrors];
+
+export type UpdateVisualizerVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VectorLayerOut;
+};
+
+export type UpdateVisualizerVectorLayerResponse = UpdateVisualizerVectorLayerResponses[keyof UpdateVisualizerVectorLayerResponses];
+
+export type ListVisualizersData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/visualizers';
+};
+
+export type ListVisualizersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizersError = ListVisualizersErrors[keyof ListVisualizersErrors];
+
+export type ListVisualizersResponses = {
+    /**
+     * Response Listvisualizers
+     *
+     * Successful Response
+     */
+    200: Array<VisualizerListItemOut>;
+};
+
+export type ListVisualizersResponse = ListVisualizersResponses[keyof ListVisualizersResponses];
+
+export type CreateVisualizerData = {
+    body: VisualizerCreate;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/visualizers';
+};
+
+export type CreateVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateVisualizerError = CreateVisualizerErrors[keyof CreateVisualizerErrors];
+
+export type CreateVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    201: VisualizerConfigOut;
+};
+
+export type CreateVisualizerResponse = CreateVisualizerResponses[keyof CreateVisualizerResponses];
+
+export type ListVisualizerOptionsData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/visualizers/options';
+};
+
+export type ListVisualizerOptionsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizerOptionsError = ListVisualizerOptionsErrors[keyof ListVisualizerOptionsErrors];
+
+export type ListVisualizerOptionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualizerOptionsOut;
+};
+
+export type ListVisualizerOptionsResponse = ListVisualizerOptionsResponses[keyof ListVisualizerOptionsResponses];
+
+export type DeleteVisualizerData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}';
+};
+
+export type DeleteVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVisualizerError = DeleteVisualizerErrors[keyof DeleteVisualizerErrors];
+
+export type DeleteVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVisualizerResponse = DeleteVisualizerResponses[keyof DeleteVisualizerResponses];
+
+export type GetVisualizerData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}';
+};
+
+export type GetVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetVisualizerError = GetVisualizerErrors[keyof GetVisualizerErrors];
+
+export type GetVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualizerConfigOut;
+};
+
+export type GetVisualizerResponse = GetVisualizerResponses[keyof GetVisualizerResponses];
+
+export type UpdateVisualizerData = {
+    body: VisualizerUpdate;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}';
+};
+
+export type UpdateVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateVisualizerError = UpdateVisualizerErrors[keyof UpdateVisualizerErrors];
+
+export type UpdateVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualizerConfigOut;
+};
+
+export type UpdateVisualizerResponse = UpdateVisualizerResponses[keyof UpdateVisualizerResponses];
+
+export type ListVisualizerFeedbackData = {
+    body?: never;
+    path: {
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/feedback';
+};
+
+export type ListVisualizerFeedbackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVisualizerFeedbackError = ListVisualizerFeedbackErrors[keyof ListVisualizerFeedbackErrors];
+
+export type ListVisualizerFeedbackResponses = {
+    /**
+     * Response Listvisualizerfeedback
+     *
+     * Successful Response
+     */
+    200: Array<VisualizerFeedbackOut>;
+};
+
+export type ListVisualizerFeedbackResponse = ListVisualizerFeedbackResponses[keyof ListVisualizerFeedbackResponses];
+
+export type DeleteVisualizerFeedbackData = {
+    body?: never;
+    path: {
+        /**
+         * Feedback Id
+         */
+        feedback_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
+    };
+    query?: never;
+    url: '/api/visualizers/{visualizer_id}/feedback/{feedback_id}';
+};
+
+export type DeleteVisualizerFeedbackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVisualizerFeedbackError = DeleteVisualizerFeedbackErrors[keyof DeleteVisualizerFeedbackErrors];
+
+export type DeleteVisualizerFeedbackResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVisualizerFeedbackResponse = DeleteVisualizerFeedbackResponses[keyof DeleteVisualizerFeedbackResponses];
+
+export type GetSharedVisualizerData = {
+    body?: never;
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/shared-visualizers/{slug}';
+};
+
+export type GetSharedVisualizerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSharedVisualizerError = GetSharedVisualizerErrors[keyof GetSharedVisualizerErrors];
+
+export type GetSharedVisualizerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualizerViewOut;
+};
+
+export type GetSharedVisualizerResponse = GetSharedVisualizerResponses[keyof GetSharedVisualizerResponses];
+
+export type AddVisualizerFeedbackData = {
+    body: VisualizerFeedbackCreate;
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/shared-visualizers/{slug}/feedback';
+};
+
+export type AddVisualizerFeedbackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddVisualizerFeedbackError = AddVisualizerFeedbackErrors[keyof AddVisualizerFeedbackErrors];
+
+export type AddVisualizerFeedbackResponses = {
+    /**
+     * Successful Response
+     */
+    201: VisualizerFeedbackOut;
+};
+
+export type AddVisualizerFeedbackResponse = AddVisualizerFeedbackResponses[keyof AddVisualizerFeedbackResponses];
+
+export type GetVisualizerTilerTokenData = {
+    body?: never;
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/shared-visualizers/{slug}/tiler-token';
+};
+
+export type GetVisualizerTilerTokenErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetVisualizerTilerTokenError = GetVisualizerTilerTokenErrors[keyof GetVisualizerTilerTokenErrors];
+
+export type GetVisualizerTilerTokenResponses = {
+    /**
+     * Successful Response
+     */
+    200: TilerSessionOut;
+};
+
+export type GetVisualizerTilerTokenResponse = GetVisualizerTilerTokenResponses[keyof GetVisualizerTilerTokenResponses];

@@ -13,7 +13,7 @@ interface Props {
   newTimeseries: TimeSeriesCreate[];
   setNewTimeseries: (items: TimeSeriesCreate[]) => void;
   timeseries: TimeSeriesOut[];
-  handleAddTimeseries: () => Promise<void>;
+  handleAddTimeseries: () => void;
   setDeleteConfirm: (v: { timeseriesId?: number } | null) => void;
   saving: boolean;
   campaignName: string;

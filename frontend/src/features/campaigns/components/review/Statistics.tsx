@@ -1,11 +1,6 @@
-import { useEffect, useState } from 'react';
-import {
-  getCampaignStatisticsEndpoint,
-  type AnnotatorInfo,
-  type CampaignStatistics,
-  type PairwiseAgreement,
-} from '~/api/client';
-import { handleError } from '~/shared/utils/errorHandler';
+import { useState } from 'react';
+import { type AnnotatorInfo, type PairwiseAgreement } from '~/api/client';
+import { useCampaignStatistics } from '~/features/campaigns/hooks/campaignQueries';
 import { formatDuration } from '~/shared/utils/utility';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
@@ -40,33 +35,9 @@ const displayName = (annotator: AnnotatorInfo) =>
   annotator.user_display_name || annotator.user_email.split('@')[0];
 
 const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
-  const [statistics, setStatistics] = useState<CampaignStatistics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        const response = await getCampaignStatisticsEndpoint({
-          path: { campaign_id: campaignId },
-          query: { task_set_id: taskSetId },
-        });
-        if (response.data) {
-          setStatistics(response.data);
-        }
-        setError(null);
-      } catch (err) {
-        handleError(err, 'Failed to load statistics', { showUser: false });
-        setError('Failed to load statistics');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, [campaignId, taskSetId]);
+  const { statistics, loading, error } = useCampaignStatistics(campaignId, taskSetId);
 
   const heading = <h2 className="section-heading">Statistics</h2>;
 
@@ -83,7 +54,9 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
     return (
       <div>
         {heading}
-        <p className="section-description text-red-600">{error || 'No statistics available'}</p>
+        <p className="section-description text-red-600">
+          {error ? 'Failed to load statistics' : 'No statistics available'}
+        </p>
       </div>
     );
   }

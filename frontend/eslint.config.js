@@ -65,6 +65,7 @@ export default tseslint.config(
       'src/features/areaEstimation/components/Explain.tsx',
       'src/features/annotation/panels/ImageryWindow/ImageryWindow.tsx',
       'src/features/annotation/panels/MainMap/MainMap.tsx',
+      'src/features/visualizers/editor/OwnImagery.tsx',
     ],
     rules: {
       'react-refresh/only-export-components': 'off',
@@ -107,6 +108,7 @@ export default tseslint.config(
                 '**/panels/*',
                 '**/chrome/*',
                 '**/map/*',
+                '!~/shared/map/types',
                 '**/canvas/*',
                 'react',
                 'ol',

@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pytest
 import rasterio
+from pyogrio import raw
 from rasterio.transform import from_bounds
 from rio_cogeo.cogeo import cog_validate
 
@@ -171,3 +172,96 @@ def test_to_pmtiles_explicit_destination_and_layer(tmp_path):
 
     assert dst == tmp_path / "out.pmtiles"
     assert dst.read_bytes()[:7] == b"PMTiles"
+
+
+FEATURE = {
+    "type": "Feature",
+    "properties": {"crop": "maize"},
+    "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[30.0, 50.0], [30.1, 50.0], [30.1, 50.1], [30.0, 50.1], [30.0, 50.0]]],
+    },
+}
+
+
+def test_to_pmtiles_from_a_feature_collection(tmp_path):
+    dst = to_pmtiles(
+        {"type": "FeatureCollection", "features": [FEATURE]}, tmp_path / "fields.pmtiles"
+    )
+
+    assert dst.read_bytes()[:7] == b"PMTiles"
+
+
+def test_to_pmtiles_from_a_list_of_features(tmp_path):
+    dst = to_pmtiles([FEATURE, FEATURE], tmp_path / "fields.pmtiles")
+
+    assert dst.read_bytes()[:7] == b"PMTiles"
+
+
+def test_to_pmtiles_from_geo_interface(tmp_path):
+    """What a GeoDataFrame or a shapely geometry offers, without the dependency."""
+
+    class Frame:
+        __geo_interface__ = {"type": "FeatureCollection", "features": [FEATURE]}
+
+    dst = to_pmtiles(Frame(), tmp_path / "fields.pmtiles")
+
+    assert dst.read_bytes()[:7] == b"PMTiles"
+
+
+def test_to_pmtiles_from_features_needs_a_destination():
+    with pytest.raises(ValueError, match="dst is required"):
+        to_pmtiles({"type": "FeatureCollection", "features": [FEATURE]})
+
+
+def test_to_pmtiles_reprojects_a_source_in_another_crs(tmp_path):
+    """Tiles are Web Mercator by definition, so a UTM source has to be moved -
+    silently writing its metres as mercator metres lands it in another country."""
+    src = tmp_path / "utm.geojson"
+    src.write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::32636"}},
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"n": 1},
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [
+                                [
+                                    [500000, 5540000],
+                                    [510000, 5540000],
+                                    [510000, 5550000],
+                                    [500000, 5550000],
+                                    [500000, 5540000],
+                                ]
+                            ],
+                        },
+                    }
+                ],
+            }
+        )
+    )
+
+    meta, _index, _geometry, _fields = raw.read(to_pmtiles(src))
+
+    assert meta["crs"] == "EPSG:3857"
+
+
+def test_to_pmtiles_refuses_a_source_without_a_crs(tmp_path):
+    src = tmp_path / "nocrs.fgb"
+    meta, _index, geometry, fields = raw.read(geojson_polygons(tmp_path / "in.geojson"))
+    raw.write(
+        src,
+        geometry,
+        fields,
+        fields=meta["fields"],
+        driver="FlatGeobuf",
+        geometry_type=meta["geometry_type"],
+        crs=None,
+    )
+
+    with pytest.raises(ValueError, match="declares no CRS"):
+        to_pmtiles(src)

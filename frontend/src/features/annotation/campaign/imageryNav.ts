@@ -99,6 +99,20 @@ export function addressAtSlice(cat: ImageryCatalog, current: SliceAddress, slice
   return landOn(cat, current.sourceId, current.collectionId, sliceIndex, current.vizId);
 }
 
+/** The caller's visualization as this source spells it: the same id within one
+ *  source, and across sources the one publishing the same name - "False Color"
+ *  is a way of looking rather than a property of one sensor, so choosing it
+ *  once holds everywhere it exists. Empty when the target has no such name. */
+function carriedVizId(cat: ImageryCatalog, sourceId: number, current: SliceAddress | null): string {
+  if (!current) return '';
+  if (current.sourceId === sourceId) return current.vizId;
+  const name = cat.sources
+    .get(current.sourceId)
+    ?.visualizations.find((viz) => String(viz.id) === current.vizId)?.name;
+  const match = cat.sources.get(sourceId)?.visualizations.find((viz) => viz.name === name);
+  return match ? String(match.id) : '';
+}
+
 /** Resolve an address in another collection. The caller owns the landing
  *  policy: a remembered slice resumes that collection's window, omitting it
  *  selects the cover. */
@@ -111,13 +125,12 @@ export function collectionAddress(
   const collection = cat.collections.get(collectionId);
   const sourceId = cat.sourceOf.get(collectionId);
   if (!collection || sourceId === undefined) return null;
-  const preferred = current && current.sourceId === sourceId ? current.vizId : '';
   return landOn(
     cat,
     sourceId,
     collectionId,
     rememberedSliceIndex ?? coverIndex(collection),
-    preferred
+    carriedVizId(cat, sourceId, current)
   );
 }
 

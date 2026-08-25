@@ -224,9 +224,13 @@ def ingest_on_tiler(
 
 
 def register_cog_on_tiler(
-    tiler: TilerCfg, cog_url: str, campaign_id, internal_storage: bool = False
+    tiler: TilerCfg, cog_url: str, tile_scope: str, internal_storage: bool = False
 ) -> str:
-    """Register a single COG as a campaign-scoped pgstac search on the hosted tiler.
+    """Register a single COG as an owner-scoped pgstac search on the hosted tiler.
+
+    The scope is stamped under the tiler's ``campaign_id`` key because that is the
+    name the tiler matches against the browser token; it never parses the value,
+    which is how a visualizer gets a scope of its own (see ``layers.LayerOwner``).
 
     ``internal_storage`` marks the search so the tiler reads its assets with the managed
     identity. Returns the tiler search id, used to build the tile-URL template.
@@ -237,7 +241,7 @@ def register_cog_on_tiler(
         f"{_register_base(tiler)}/searches/register-cog",
         json={
             "cog_url": cog_url,
-            "campaign_id": str(campaign_id),
+            "campaign_id": tile_scope,
             "internal_storage": internal_storage,
         },
         headers={"Authorization": f"Bearer {token}"},
@@ -254,7 +258,7 @@ ASSET_SIGNER_MANAGED_IDENTITY = "azure_managed_identity"
 
 
 def register_on_tiler(
-    tiler: TilerCfg, search_body: dict, campaign_id, internal_storage: bool = False
+    tiler: TilerCfg, search_body: dict, tile_scope: str, internal_storage: bool = False
 ) -> str:
     """Register a search (CQL2 body) on a hosted titiler-pgstac tiler.
 
@@ -263,7 +267,10 @@ def register_on_tiler(
     marker when the collection is internal storage, and authenticate with a short-lived
     ``searches:write`` token. Returns the search id.
     """
-    metadata = {"campaign_id": str(campaign_id)}
+    # The tiler matches this string against the browser token's `campaigns`
+    # claim; it never parses it, which is what lets a visualizer own a scope of
+    # its own without the tiler knowing visualizers exist.
+    metadata = {"campaign_id": tile_scope}
     if internal_storage:
         metadata["asset_signer"] = ASSET_SIGNER_MANAGED_IDENTITY
     body = {**search_body, "metadata": metadata}

@@ -111,7 +111,7 @@ def _recover_stale_registration(db: Session, campaign: Campaign) -> None:
         campaign.registration_status,
         campaign.embedding_status,
     ) and background.fail_stale_status_runs(
-        db, (REGISTRATION_RUN, EMBEDDING_RUN), campaign_id=campaign.id
+        db, (REGISTRATION_RUN, EMBEDDING_RUN), row_id=campaign.id
     ):
         db.commit()
         db.expire_all()

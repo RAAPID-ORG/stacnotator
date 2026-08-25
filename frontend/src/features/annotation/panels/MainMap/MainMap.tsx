@@ -2,23 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { pageKeymap } from '../../keymap';
 import { SliceCommentButton } from '../../chrome/SliceComments';
-import { useContainerSize } from '../../canvas/useContainerSize';
+import { useContainerSize } from '~/shared/hooks/useContainerSize';
 import { hotkeyTip } from '../../hotkeys';
 import { collectionsInView } from '../../campaign/imagery';
 import { computeTaskProgress } from '../../campaign/tasks';
 import { handleProbeClick, useDrawingInteractions, useEditDrawnId } from '../../drawing';
-import {
-  applyCameraTarget,
-  fitAnnotations,
-  focusCameraTarget,
-  mainCamera,
-  useCameraZoom,
-} from '../../map/camera';
+import { useCameraZoom } from '~/shared/map/Camera';
+import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
 import { annotationsVisibleAt, composeLayers, type ComposeState } from '../../map/compose';
-import { MapView, type MapAnchor } from '../../map/MapView';
+import { MapView, type MapAnchor } from '~/shared/map/MapView';
 import { StatusPill } from '../../components/StatusPill';
-import { setForegroundMapLoading, useForegroundLoading } from '../../map/tileLoading';
-import type { LonLat, MapClickEvent } from '../../map/types';
+import { setForegroundMapLoading, useForegroundLoading } from '~/shared/map/tileLoading';
+import type { LonLat, MapClickEvent } from '~/shared/map/types';
 import { useCampaign, useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
 import { useLayoutStore } from '../../stores/layout';

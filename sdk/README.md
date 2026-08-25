@@ -172,6 +172,7 @@ utils.array_to_cog(preds, campaign.extent, "preds.cog.tif")  # numpy array + bou
 utils.to_cog("predictions.tif")                      # plain GeoTIFF -> predictions.cog.tif
 utils.merge_to_cog("chips/", "predictions.tif")      # folder of inference tiles -> ONE COG
 utils.to_pmtiles("fields.gpkg")                      # GeoJSON/GPKG/Shapefile/... -> fields.pmtiles
+utils.to_pmtiles(gdf, "fields.pmtiles")              # features in memory -> fields.pmtiles
 ```
 
 `array_to_cog` covers the common case where predictions are a numpy array in memory: pass
@@ -181,8 +182,12 @@ from `campaign.extent` - and it writes a finished COG, no rasterio boilerplate.
 `merge_to_cog` writes each chip into its window of the output, so memory stays flat even for
 tens of thousands of chips, and the result has real overviews (fast at every zoom). Overview
 resampling defaults to `nearest` (right for class rasters); pass `resampling="average"` for
-continuous data. `to_pmtiles` accepts anything GDAL reads and takes `layer`, `min_zoom`,
-`max_zoom`. Upload the produced file and register it:
+continuous data. `to_pmtiles` takes anything GDAL reads, or features already in memory (a
+GeoJSON FeatureCollection, an iterable of Features, or anything with `__geo_interface__` -
+a GeoDataFrame, a shapely geometry), plus `layer`, `min_zoom`, `max_zoom`. Tiles are Web
+Mercator by definition, so a source in another CRS is reprojected on the way in; one with no
+CRS is refused rather than written to the wrong place. Upload the produced file and register
+it:
 
 ```python
 campaign.register_overlay(upload(utils.merge_to_cog("chips/", "run42.tif")), classes=campaign.labels)
@@ -239,7 +244,7 @@ utils.array_to_cog(data, bounds, dst, crs="EPSG:4326",
                    nodata=None, resampling="nearest")        # -> Path
 utils.to_cog(src, dst=None, resampling="nearest")            # -> Path
 utils.merge_to_cog(sources, dst, resampling="nearest")       # folder/list of chips -> Path
-utils.to_pmtiles(src, dst=None, layer=None, min_zoom=0, max_zoom=14)  # -> Path
+utils.to_pmtiles(src, dst=None, layer=None, min_zoom=0, max_zoom=14)  # file or features -> Path
 Campaign.labels                                     # {label_id: name}
 Campaign.extent                                     # (west, south, east, north)
 ```

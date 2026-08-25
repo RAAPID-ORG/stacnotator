@@ -20,6 +20,7 @@ from src.imagery.schemas import (
     ImageryViewOut,
     ImageryViewUpdate,
 )
+from src.layers import LayerOwner
 from src.organizations.schemas import OrganizationApiKeyOut, OrganizationApiKeysResponse
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -72,7 +73,9 @@ def save_imagery(
         campaign.registration_errors = None
     db.commit()
     if pending:
-        registration.spawn_background_mosaic_registration(campaign.id, pending, result["bbox"])
+        registration.spawn_background_mosaic_registration(
+            LayerOwner(campaign_id=campaign.id), pending, result["bbox"]
+        )
     return {
         "sources": len(result["sources"]),
         "views": len(result["views"]),

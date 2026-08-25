@@ -4,7 +4,7 @@ vi.mock('~/api/tilerToken', () => ({ ensureTilerSession: vi.fn() }));
 
 import { ensureTilerSession } from '~/api/tilerToken';
 import { TilePreloader, tileUrlsForExtent, type PreloadImage } from './preloader';
-import type { Bbox } from './types';
+import type { Bbox } from '~/shared/map/types';
 
 const WORLD: Bbox = [-179, -85, 179, 85];
 

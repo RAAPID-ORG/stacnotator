@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
+import { customMapApi, type OverlayOwnerKind } from './overlayOwner';
 import { Spinner } from '~/shared/ui/Spinner';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash, IconPlus, IconPencil, IconExternalLink } from '~/shared/ui/Icons';
-import { handleError } from '~/shared/utils/errorHandler';
 import { ColormapSelect } from '~/shared/colormaps/ColormapSelect';
 import {
   isColormapName,
@@ -11,14 +12,13 @@ import {
   CATEGORICAL_PALETTE,
   type ColormapName,
 } from '~/shared/colormaps/colormaps';
-import {
-  listCustomMaps,
-  createCustomMap,
-  updateCustomMap,
-  deleteCustomMap,
-  type CustomMapOut,
-  type CategoricalEntry,
-} from '~/api/client';
+import { type CategoricalEntry, type CustomMapCreate, type CustomMapOut } from '~/api/client';
+
+const NO_MAPS: CustomMapOut[] = [];
+
+/** A tiler registration takes a couple of seconds, so the list checks back
+ *  often enough that "registering" does not look stuck. */
+const REGISTRATION_POLL_MS = 2000;
 
 interface FormState {
   name: string;
@@ -109,18 +109,20 @@ const StatusBadge = ({ status, statusError }: StatusBadgeProps) => {
 };
 
 interface CustomMapsEditorProps {
-  campaignId: number;
+  ownerKind: OverlayOwnerKind;
+  ownerId: number;
   projectId: number;
 }
 
-export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProps) => {
+export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEditorProps) => {
+  // Memoised so the effects below can depend on it rather than on the owner's
+  // parts, and so a re-render never re-runs the fetch.
+  const api = useMemo(() => customMapApi(ownerKind, ownerId), [ownerKind, ownerId]);
   const { allowsInternalStorage } = useProjectTilers(projectId);
-  const [maps, setMaps] = useState<CustomMapOut[]>([]);
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(defaultForm());
-  const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Focus the value field of a freshly added class entry so Enter/Add keeps the keyboard flow going.
   const entryValueRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const pendingFocus = useRef<number | null>(null);
@@ -131,13 +133,6 @@ export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProp
       pendingFocus.current = null;
     }
   }, [form.entries.length]);
-
-  const stopPoll = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  };
 
   const closeForm = () => {
     setShowForm(false);
@@ -157,100 +152,74 @@ export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProp
     setShowForm(true);
   };
 
-  const fetchMaps = useCallback(async () => {
-    const { data, error } = await listCustomMaps({ path: { campaign_id: campaignId } });
-    if (error) {
-      handleError(error, 'Failed to load custom maps', { showUser: false });
-      return;
-    }
-    if (data) setMaps(data);
-  }, [campaignId]);
+  // A freshly added map registers with the tiler in the background, so the list
+  // keeps re-reading until nothing is mid-registration.
+  const { data: maps = NO_MAPS } = useQuery({
+    queryKey: api.queryKey,
+    queryFn: async () => (await api.list()).data ?? NO_MAPS,
+    refetchInterval: (query) =>
+      query.state.data?.some((m) => m.status === 'registering') ? REGISTRATION_POLL_MS : false,
+    // A failure leaves the list empty rather than blocking the editor, so it
+    // is logged without a toast.
+    meta: { errorMessage: 'Failed to load custom maps', showUser: false },
+  });
 
-  useEffect(() => {
-    fetchMaps();
-    return stopPoll;
-  }, [fetchMaps]);
+  const reloadMaps = () => queryClient.invalidateQueries({ queryKey: api.queryKey });
 
-  useEffect(() => {
-    const anyRegistering = maps.some((m) => m.status === 'registering');
-    if (anyRegistering && !pollRef.current) {
-      pollRef.current = setInterval(async () => {
-        const { data } = await listCustomMaps({ path: { campaign_id: campaignId } });
-        if (data) {
-          setMaps(data);
-          if (!data.some((m) => m.status === 'registering')) stopPoll();
-        }
-      }, 2000);
-    } else if (!anyRegistering) {
-      stopPoll();
-    }
-  }, [maps, campaignId]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      const renderConfig =
-        form.mode === 'continuous'
-          ? {
-              mode: 'continuous' as const,
-              colormap_name: form.colormap_name || null,
-              rescale:
-                form.rescale_min !== '' && form.rescale_max !== ''
-                  ? ([Number(form.rescale_min), Number(form.rescale_max)] as [number, number])
-                  : null,
-            }
-          : {
-              mode: 'categorical' as const,
-              entries: form.entries.map(
-                (e): CategoricalEntry => ({
-                  value: Number(e.value),
-                  color: e.color,
-                  label: e.label || undefined,
-                })
-              ),
-            };
-
-      const body = {
-        name: form.name,
-        cog_url: form.cog_url,
-        render_config: renderConfig,
-        max_native_zoom: form.max_native_zoom !== '' ? Number(form.max_native_zoom) : null,
-        mlops_url: form.mlops_url.trim() !== '' ? form.mlops_url.trim() : null,
-        // Omitted when the project cannot use internal storage, so editing a map never
-        // downgrades a flag the user cannot see; the backend defaults it to false on
-        // create and leaves it on update.
-        ...(allowsInternalStorage ? { internal_storage: form.internal_storage } : {}),
-      };
-
-      const { error } =
-        editingId === null
-          ? await createCustomMap({ path: { campaign_id: campaignId }, body })
-          : await updateCustomMap({
-              path: { campaign_id: campaignId, map_id: editingId },
-              body,
-            });
-      if (error) {
-        handleError(error, editingId === null ? 'Failed to add custom map' : 'Failed to save map');
-        return;
-      }
+  const save = useMutation({
+    mutationFn: (body: CustomMapCreate) =>
+      editingId === null ? api.create(body) : api.update(editingId, body),
+    meta: { errorMessage: editingId === null ? 'Failed to add custom map' : 'Failed to save map' },
+    onSuccess: () => {
       closeForm();
-      await fetchMaps();
-    } finally {
-      setSubmitting(false);
-    }
+      void reloadMaps();
+    },
+  });
+  const submitting = save.isPending;
+
+  const remove = useMutation({
+    mutationFn: (mapId: number) => api.remove(mapId),
+    meta: { errorMessage: 'Failed to delete custom map' },
+    onSuccess: reloadMaps,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const renderConfig =
+      form.mode === 'continuous'
+        ? {
+            mode: 'continuous' as const,
+            colormap_name: form.colormap_name || null,
+            rescale:
+              form.rescale_min !== '' && form.rescale_max !== ''
+                ? ([Number(form.rescale_min), Number(form.rescale_max)] as [number, number])
+                : null,
+          }
+        : {
+            mode: 'categorical' as const,
+            entries: form.entries.map(
+              (e): CategoricalEntry => ({
+                value: Number(e.value),
+                color: e.color,
+                label: e.label || undefined,
+              })
+            ),
+          };
+
+    save.mutate({
+      name: form.name,
+      cog_url: form.cog_url,
+      render_config: renderConfig,
+      max_native_zoom: form.max_native_zoom !== '' ? Number(form.max_native_zoom) : null,
+      mlops_url: form.mlops_url.trim() !== '' ? form.mlops_url.trim() : null,
+      // Omitted when the project cannot use internal storage, so editing a map never
+      // downgrades a flag the user cannot see; the backend defaults it to false on
+      // create and leaves it on update.
+      ...(allowsInternalStorage ? { internal_storage: form.internal_storage } : {}),
+    });
   };
 
-  const handleDelete = async (mapId: number) => {
-    const { error } = await deleteCustomMap({
-      path: { campaign_id: campaignId, map_id: mapId },
-    });
-    if (error) {
-      handleError(error, 'Failed to delete custom map');
-      return;
-    }
-    setMaps((prev) => prev.filter((m) => m.id !== mapId));
-  };
+  const handleDelete = (mapId: number) => remove.mutate(mapId);
 
   const updateEntry = (idx: number, patch: Partial<(typeof form.entries)[0]>) =>
     setForm((f) => ({

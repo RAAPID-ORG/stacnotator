@@ -9,3 +9,4 @@ import src.organizations.models  # noqa: F401
 import src.projects.models  # noqa: F401
 from src.timeseries.models import *  # noqa
 from src.custom_layers.models import *  # noqa
+from src.visualizers.models import *  # noqa

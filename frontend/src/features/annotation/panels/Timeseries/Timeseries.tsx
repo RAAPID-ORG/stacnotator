@@ -2,7 +2,7 @@ import { useCampaignStore } from '../../stores/campaign';
 import { useEffect, useMemo, useState } from 'react';
 import type { TimeseriesWindow } from '../../campaign/timeseries';
 import { Spinner } from '~/shared/ui/Spinner';
-import type { LonLat } from '../../map/types';
+import type { LonLat } from '~/shared/map/types';
 import { useWorkStore } from '../../stores/work';
 import { useMapFocus } from '../../stores/tasks';
 import { Chart, type ChartPoint } from './TimeseriesChart';
@@ -48,13 +48,13 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const series = useMemo(() => tsWindow.series, [seriesKey]);
   const ids = useMemo(() => series.map((ts) => ts.id), [series]);
-  const isOpenMode = mode === 'explore';
+  const isExplore = mode === 'explore';
 
   const focus = useMapFocus();
   const probePoints = useWorkStore((s) => s.probePoints);
   const points = useMemo(
-    () => chartPoints(isOpenMode ? null : toLatLon(focus?.center), probePoints),
-    [isOpenMode, focus?.center, probePoints]
+    () => chartPoints(isExplore ? null : toLatLon(focus?.center), probePoints),
+    [isExplore, focus?.center, probePoints]
   );
   const pointsKey = points.map((p) => p.key).join('|');
 
