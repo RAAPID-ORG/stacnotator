@@ -55,6 +55,12 @@ class TilerCfg(BaseModel):
     allows_ingest: bool = False
 
 
+# Share of the pool kept out of tiles' reach. Tiles are the burstiest traffic by an
+# order of magnitude; without a reservation they take the pool and the pages a person
+# is actually waiting on stop answering.
+NON_TILE_POOL_RESERVE = 0.25
+
+
 class Settings(BaseSettings):
     DBNAME: str
     DBUSER: str
@@ -68,8 +74,13 @@ class Settings(BaseSettings):
     # SQLAlchemy pool sizing. Total backend connections = (DB_POOL_SIZE +
     # DB_MAX_OVERFLOW) x gunicorn workers; keep that (plus the tiler's pool) under
     # the Postgres server's max_connections. Lower these on small DB SKUs.
-    DB_POOL_SIZE: int = 15
-    DB_MAX_OVERFLOW: int = 20
+    #
+    # Favour the steady pool over the overflow: connections up to DB_POOL_SIZE are
+    # reused, everything above is rebuilt per checkout, and over a network hop that
+    # rebuild can cost more than the query. Size it for throughput x how long a request
+    # holds a connection, which with `get_db` is the whole request.
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 10
     # Fail a request fast if no pooled connection frees up in this many seconds,
     # instead of hanging (and piling up) when the DB is saturated.
     DB_POOL_TIMEOUT: int = 10
@@ -77,21 +88,30 @@ class Settings(BaseSettings):
     # leaked session self-heals back into the pool instead of wedging it forever.
     DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: int = 15000
 
-    # Bulkhead: the most DB sessions tile requests may hold at once, per worker.
-    # Tiles are the burstiest traffic (one map per collection card, each fetching a
-    # viewport of tiles), so without a cap they drain the pool and 500 unrelated
-    # endpoints. Non-tile requests are therefore always left
-    # (DB_POOL_SIZE + DB_MAX_OVERFLOW) - this many connections. Unset = half the pool.
+    # Bulkhead: the most tile requests in flight at once, per worker. A tile holds its
+    # slot for the whole request, so this also bounds how much of the pool tiles can
+    # ever hold. Unset = all but NON_TILE_POOL_RESERVE.
     DB_TILE_MAX_CONCURRENCY: int | None = None
-    # How long a tile waits for a slot before degrading to an empty tile. Slow tiles
-    # are fine; queued-forever tiles are not (they hold sockets and pile up).
-    DB_TILE_QUEUE_TIMEOUT: float = 10.0
+    # How long a tile waits for a slot before degrading to an empty tile. A waiting
+    # tile also occupies an in-flight slot, and a blank tile refills on the next pan,
+    # so patience here is expensive and worth little.
+    DB_TILE_QUEUE_TIMEOUT: float = 5.0
 
     # AnyIO threadpool size for sync routes. Must exceed (DB_POOL_SIZE +
     # DB_MAX_OVERFLOW) so a sync `get_db` dependency's cleanup is never starved of a
     # thread under load (which leaks the connection). The DB pool -not this -stays
     # the hard cap on concurrent DB work, keeping small/burstable DBs safe.
-    THREAD_POOL_MAX: int = 96
+    #
+    # Sized just above the pool, not far above it: a thread waiting for a connection
+    # still competes with the event loop for the GIL, and that loop answers gunicorn's
+    # heartbeat. Too many threads starve it into killing the worker as unresponsive.
+    THREAD_POOL_MAX: int = 40
+
+    # Most requests one worker will accept at once before shedding with 503. Set a
+    # little above the connection pool: past that point a request cannot get a
+    # connection anyway, so admitting it only converts a fast failure into a slow one
+    # that also occupies a thread. 0 disables shedding.
+    MAX_INFLIGHT_REQUESTS: int = 45
 
     # Requests at or above this get one WARNING line with their duration and the
     # number of requests in flight at the time. Per-request INFO logging would
@@ -190,10 +210,13 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def TILE_DB_SLOTS(self) -> int:
-        """Resolved tile bulkhead size: the explicit override, else half the pool."""
+        """Resolved tile bulkhead size: the explicit override, else the pool minus the
+        share reserved for everything that is not a tile."""
         if self.DB_TILE_MAX_CONCURRENCY is not None:
             return max(1, self.DB_TILE_MAX_CONCURRENCY)
-        return max(1, (self.DB_POOL_SIZE + self.DB_MAX_OVERFLOW) // 2)
+        pool = self.DB_POOL_SIZE + self.DB_MAX_OVERFLOW
+        reserved = max(1, round(pool * NON_TILE_POOL_RESERVE))
+        return max(1, pool - reserved)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

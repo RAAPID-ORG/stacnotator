@@ -35,7 +35,7 @@ def created_layer(**overrides):
 
 
 def make_campaign():
-    save(Credentials(url=BASE, auth={"mode": "none"}))
+    save(Credentials(url=BASE, auth={"mode": "none"}, api_url=BASE))
     responses.get(f"{BASE}/api/campaigns/42", json=CAMPAIGN_PAYLOAD)
     return Client().campaign(42)
 

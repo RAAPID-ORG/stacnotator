@@ -174,6 +174,9 @@ _CAMPAIGN_FULL_LOAD_OPTIONS = (
     selectinload(Campaign.time_series),
     selectinload(Campaign.basemaps),
     selectinload(Campaign.custom_maps),
+    # Serialized by CampaignOut, so omitting it lazy-loads at serialization time
+    # rather than saving a query.
+    selectinload(Campaign.vector_layers),
     selectinload(Campaign.imagery_sources).options(
         selectinload(ImagerySource.visualizations),
         selectinload(ImagerySource.collections).options(

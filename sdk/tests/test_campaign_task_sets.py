@@ -30,7 +30,7 @@ SETS = [
 
 
 def make_campaign():
-    save(Credentials(url=BASE, auth={"mode": "none"}))
+    save(Credentials(url=BASE, auth={"mode": "none"}, api_url=BASE))
     responses.get(f"{BASE}/api/campaigns/42", json=CAMPAIGN_PAYLOAD)
     return Client().campaign(42)
 
@@ -113,7 +113,7 @@ def test_upload_tasks_creates_missing_set_when_opted_in():
 
 
 def test_upload_tasks_rejects_frame_without_coordinates():
-    save(Credentials(url=BASE, auth={"mode": "none"}))
+    save(Credentials(url=BASE, auth={"mode": "none"}, api_url=BASE))
     with responses.RequestsMock() as rsps:
         rsps.get(f"{BASE}/api/campaigns/42", json=CAMPAIGN_PAYLOAD)
         campaign = Client().campaign(42)
@@ -122,7 +122,7 @@ def test_upload_tasks_rejects_frame_without_coordinates():
 
 
 def test_upload_tasks_rejects_nan_coordinates():
-    save(Credentials(url=BASE, auth={"mode": "none"}))
+    save(Credentials(url=BASE, auth={"mode": "none"}, api_url=BASE))
     with responses.RequestsMock() as rsps:
         rsps.get(f"{BASE}/api/campaigns/42", json=CAMPAIGN_PAYLOAD)
         campaign = Client().campaign(42)

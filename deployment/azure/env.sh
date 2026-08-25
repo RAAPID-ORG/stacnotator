@@ -110,23 +110,23 @@ _resolve_sizing() {
     #   backend = (BACKEND_POOL_SIZE + BACKEND_MAX_OVERFLOW) x BACKEND_WORKERS
     #   tiler   = TILER_DB_MAX_CONN x TILER_WORKERS
     #
-    # Both environments run GP_Standard_D2ds_v5 (2 vCore / 8 GiB). max_connections is
-    # no longer the binding constraint it was on Burstable - the 2 vCores are. Postgres
-    # serves a few dozen busy connections on two cores well and hundreds of them badly,
-    # so these budgets are deliberately far below what the server would accept.
+    # Both environments run GP_Standard_D2ds_v5 (2 vCore / 8 GiB, max_connections 859).
+    #
+    # Sized by how long a request *holds* a connection, not by how much work Postgres is
+    # doing. Postgres is a network hop away and `get_db` holds its connection for the
+    # whole request, so connections sit idle most of their life and you need many more
+    # of them than the query load suggests. Undersizing does not throttle gracefully: it
+    # churns, because everything above pool_size is rebuilt per checkout.
     if [ "$ENV" = "dev" ]; then
-        # Dev is an actively-used deployment, not a scratch environment. BACKEND_MAX
-        # stays 1, so vertical sizing is the only lever.
-        # Peak 10x4 + 2x4 = 48.
+        # Steady 20x4 = 80, peak 30x4 + 2x4 = 128 of 859.
         BACKEND_CPU=2 BACKEND_MEM=4Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=4
-        BACKEND_POOL_SIZE=5 BACKEND_MAX_OVERFLOW=5
+        BACKEND_POOL_SIZE=20 BACKEND_MAX_OVERFLOW=10
         TILER_CPU=4 TILER_MEM=8Gi TILER_MIN=1 TILER_MAX=1 TILER_WORKERS=4
         TILER_DB_MAX_CONN=2
     else
-        # Peak 20x4 + 4x4 = 96, steady 10x4 = 40. Down from the old 156, which was
-        # sized from worker count rather than from what the DB can usefully serve.
+        # Steady 20x4 = 80, peak 30x4 + 4x4 = 136 of 859.
         BACKEND_CPU=2 BACKEND_MEM=4Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=4
-        BACKEND_POOL_SIZE=10 BACKEND_MAX_OVERFLOW=10
+        BACKEND_POOL_SIZE=20 BACKEND_MAX_OVERFLOW=10
         TILER_CPU=4 TILER_MEM=8Gi TILER_MIN=1 TILER_MAX=1 TILER_WORKERS=4
         TILER_DB_MAX_CONN=4
     fi

@@ -11,7 +11,7 @@ class Credentials:
     auth: dict[str, Any]
     # Where /api lives. In split deployments (static frontend + separate API host)
     # this differs from the app url the user logged in with.
-    api_url: str | None = None
+    api_url: str
 
 
 def credentials_path() -> Path:
@@ -32,7 +32,7 @@ def load() -> Credentials | None:
     if not path.exists():
         return None
     data = json.loads(path.read_text())
-    return Credentials(url=data["url"], auth=data["auth"], api_url=data.get("api_url"))
+    return Credentials(url=data["url"], auth=data["auth"], api_url=data["api_url"])
 
 
 def clear() -> None:

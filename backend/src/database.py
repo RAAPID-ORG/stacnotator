@@ -19,13 +19,22 @@ class Base(DeclarativeBase):
 # Create synchronous engine.
 # pool_recycle is set below Azure's ~4 min idle-connection drop so the pool
 # proactively rotates stale connections. TCP keepalives are a backstop for
-# connections that die mid-pool. pool_pre_ping stays on for reliability.
+# connections that die mid-pool.
+#
+# pool_pre_ping is off: its SELECT 1 per checkout is a full round trip to a database
+# that is a network hop away, and keepalives plus pool_recycle already cover the idle
+# drop it guards against. The residual risk is a connection dying some other way, whose
+# request then fails instead of reconnecting - turn it back on if that shows up.
+#
+# LIFO keeps a small hot set of connections alive and lets the rest age out, instead of
+# cycling the whole pool and keeping every connection marginally warm.
 engine = create_engine(
     settings.DATABASE_URL,
     pool_size=settings.DB_POOL_SIZE,
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_recycle=240,
-    pool_pre_ping=True,
+    pool_pre_ping=False,
+    pool_use_lifo=True,
     pool_timeout=settings.DB_POOL_TIMEOUT,
     connect_args={
         "application_name": "stacnotator-backend",

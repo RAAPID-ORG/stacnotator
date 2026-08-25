@@ -36,7 +36,7 @@ def point_feature(annotation_id, lon=13.4, lat=52.5, label_id=1):
 
 
 def make_campaign():
-    save(Credentials(url=BASE, auth={"mode": "none"}))
+    save(Credentials(url=BASE, auth={"mode": "none"}, api_url=BASE))
     responses.get(f"{BASE}/api/campaigns/42", json=CAMPAIGN_PAYLOAD)
     return Client().campaign(42)
 

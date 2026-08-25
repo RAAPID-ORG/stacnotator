@@ -29,7 +29,7 @@ CAMPAIGN_PAYLOAD = {
 
 
 def save_local_creds():
-    save(Credentials(url=BASE, auth={"mode": "none"}))
+    save(Credentials(url=BASE, auth={"mode": "none"}, api_url=BASE))
 
 
 def test_client_without_credentials_raises():
@@ -102,6 +102,7 @@ def test_firebase_client_persists_rotated_refresh_token():
         Credentials(
             url=BASE,
             auth={"mode": "firebase", "api_key": "AIzaKey", "refresh_token": "r-old"},
+            api_url=BASE,
         )
     )
     responses.post(

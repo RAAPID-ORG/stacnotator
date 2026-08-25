@@ -131,10 +131,38 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
     _inflight = 0
 
+    # Admission control. A worker that accepts more work than it can run collapses
+    # rather than degrading: everything queues, breaches gunicorn's timeout together,
+    # and the worker is killed with its in-flight requests. Refusing the excess costs
+    # those requests and saves the rest. Probes are exempt - a 503 to the orchestrator
+    # reads as "restart me".
+    _ALWAYS_ADMIT = frozenset({"/healthz", "/readyz"})
+
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or str(uuid4())
         request.state.request_id = request_id
         started = perf_counter()
+
+        limit = settings.MAX_INFLIGHT_REQUESTS
+        if (
+            limit
+            and RequestContextMiddleware._inflight >= limit
+            and request.url.path not in RequestContextMiddleware._ALWAYS_ADMIT
+        ):
+            logger.warning(
+                "Shedding request | %s %s inflight=%d limit=%d request_id=%s",
+                request.method,
+                request.url.path,
+                RequestContextMiddleware._inflight,
+                limit,
+                request_id,
+            )
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Server busy, retry shortly", "request_id": request_id},
+                headers={"Retry-After": "2", "X-Request-ID": request_id},
+            )
+
         RequestContextMiddleware._inflight += 1
         try:
             response = await call_next(request)

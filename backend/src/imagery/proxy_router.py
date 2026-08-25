@@ -6,6 +6,10 @@ usual Firebase bearer. The provider key is decrypted here and never reaches the 
 
 This is a separate router (not ``imagery.router``) precisely so it is *not* under that
 router's ``require_authenticated_user`` bearer dependency.
+
+Every route holds a tile bulkhead slot for its whole life, not just for the database
+lookup: the slow part is the uncached upstream provider fetch, and an uncapped burst of
+those piles up while the campaign pages sharing this process wait behind them.
 """
 
 from collections.abc import Callable
@@ -23,7 +27,7 @@ from src.database import SessionLocal
 from src.imagery.models import Basemap, ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
 from src.imagery.proxy import build_upstream_tile_url
 from src.organizations.models import OrganizationApiKey
-from src.tile_bulkhead import tile_db_slot
+from src.tile_bulkhead import tile_slot
 from src.tilers import tokens
 
 router = APIRouter(tags=["Imagery Tiles"])
@@ -34,9 +38,12 @@ _client = net_guard.guarded_async_client(timeout=15.0)
 
 
 async def _read[T](lookup: Callable[[Session], T]) -> T:
-    """Resolve a tile's upstream target, holding the DB only for the lookup itself."""
-    async with tile_db_slot():
-        return await run_in_threadpool(_with_session, lookup)
+    """Resolve a tile's upstream target.
+
+    No bulkhead here: the route already holds a tile slot, and the semaphore is not
+    reentrant - a second acquire per request would deadlock at saturation.
+    """
+    return await run_in_threadpool(_with_session, lookup)
 
 
 def _with_session[T](lookup: Callable[[Session], T]) -> T:
@@ -103,7 +110,7 @@ def _image_media_type(upstream: str | None) -> str:
 
 @router.get(
     "/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}",
-    dependencies=[Depends(require_tile_access)],
+    dependencies=[Depends(tile_slot), Depends(require_tile_access)],
 )
 async def proxy_basemap_tile(
     campaign_id: int,
@@ -124,7 +131,7 @@ async def proxy_basemap_tile(
 
 @router.get(
     "/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}",
-    dependencies=[Depends(require_tile_access)],
+    dependencies=[Depends(tile_slot), Depends(require_tile_access)],
 )
 async def proxy_slice_tile(
     campaign_id: int,

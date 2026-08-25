@@ -80,13 +80,12 @@ def test_firebase_flow_returns_credentials_validated_against_api_url():
 
 
 @responses.activate
-def test_handoff_without_api_url_falls_back_to_app_url():
+def test_handoff_without_api_url_is_rejected():
     responses.get(f"{BASE}/api/auth/me", json={"detail": "nope"}, status=401)
     open_browser = browser_that_submits({"mode": "local"})
 
-    creds = login_via_browser(BASE, open_browser=open_browser, timeout=10)
-
-    assert creds.api_url == BASE
+    with pytest.raises(AuthenticationError, match="where the API lives"):
+        login_via_browser(BASE, open_browser=open_browser, timeout=10)
 
 
 @responses.activate
@@ -96,7 +95,7 @@ def test_sdk_auth_url_carries_loopback_callback():
 
     def open_browser(sdk_auth_url):
         seen.append(sdk_auth_url)
-        browser_that_submits({"mode": "local"})(sdk_auth_url)
+        browser_that_submits({"mode": "local", "api_url": API})(sdk_auth_url)
 
     login_via_browser(BASE, open_browser=open_browser, timeout=10)
 
@@ -116,7 +115,7 @@ def test_timeout_without_browser_response_raises():
 @responses.activate
 def test_firebase_response_missing_fields_raises():
     responses.get(f"{BASE}/api/auth/me", json={"detail": "nope"}, status=401)
-    open_browser = browser_that_submits({"mode": "firebase"})
+    open_browser = browser_that_submits({"mode": "firebase", "api_url": API})
 
     with pytest.raises(AuthenticationError, match="incomplete"):
         login_via_browser(BASE, open_browser=open_browser, timeout=10)

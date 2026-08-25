@@ -129,7 +129,12 @@ def _wait_for_browser_handoff(server: _CallbackServer, timeout: float) -> dict[s
 
 
 def _credentials_from_handoff(url: str, fields: dict[str, str]) -> Credentials:
-    api_url = (fields.get("api_url") or url).rstrip("/")
+    # Never defaulted to the app url: in a split deployment that silently points
+    # the client at the static site, which answers every path with index.html.
+    handed_api_url = fields.get("api_url")
+    if not handed_api_url:
+        raise AuthenticationError("Browser login did not say where the API lives.")
+    api_url = handed_api_url.rstrip("/")
     if fields.get("mode") == "firebase":
         api_key, refresh_token = fields.get("api_key"), fields.get("refresh_token")
         if not api_key or not refresh_token:
@@ -148,7 +153,7 @@ def _validate(creds: Credentials) -> None:
     provider = FirebaseTokenProvider(creds.auth["api_key"], creds.auth["refresh_token"])
     token = provider.id_token()
     response = requests.get(
-        f"{creds.api_url or creds.url}/api/auth/me",
+        f"{creds.api_url}/api/auth/me",
         headers={"Authorization": f"Bearer {token}"},
         timeout=30,
     )

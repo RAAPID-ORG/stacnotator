@@ -122,3 +122,47 @@ def test_queued_tiles_do_not_block_other_work(monkeypatch):
     ticks, still_waiting = asyncio.run(main())
     assert ticks == 3
     assert still_waiting
+
+
+def _sized(pool_size: int, overflow: int, override: int | None = None):
+    from src.config import Settings
+
+    return Settings(
+        DBNAME="d",
+        DBUSER="u",
+        DBPASS="p",
+        DBHOST="h",
+        DB_POOL_SIZE=pool_size,
+        DB_MAX_OVERFLOW=overflow,
+        DB_TILE_MAX_CONCURRENCY=override,
+    )
+
+
+def test_tiles_can_never_take_the_whole_pool():
+    """The reservation is the guarantee: whatever tiles are doing, a campaign load,
+    a task list or an annotation write can still get a connection."""
+    for pool_size, overflow in [(5, 5), (20, 10), (50, 20), (1, 0)]:
+        settings = _sized(pool_size, overflow)
+        pool = pool_size + overflow
+        assert pool > settings.TILE_DB_SLOTS or pool == 1
+
+
+def test_about_a_quarter_of_the_pool_is_held_back_for_everything_else():
+    settings = _sized(20, 10)
+    pool = 30
+    reserved = pool - settings.TILE_DB_SLOTS
+    assert settings.TILE_DB_SLOTS == 22
+    assert reserved == 8
+    assert 0.2 <= reserved / pool <= 0.3
+
+
+def test_an_explicit_override_wins():
+    """Operators need a lever when a specific deployment misbehaves."""
+    assert _sized(20, 10, override=4).TILE_DB_SLOTS == 4
+
+
+def test_a_tiny_pool_still_leaves_one_slot_each():
+    """Rounding must not produce a zero-sized bulkhead, which would block all tiles."""
+    settings = _sized(1, 1)
+    assert settings.TILE_DB_SLOTS >= 1
+    assert (2 - settings.TILE_DB_SLOTS) >= 1
