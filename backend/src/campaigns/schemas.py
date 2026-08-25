@@ -54,7 +54,7 @@ def label_id_to_name(labels: dict | None) -> dict[int, str]:
 PolicyAudienceKind = Literal["admins", "authoritative", "assignees", "members", "anyone"]
 
 # Labelling policies options per kind of task/explore
-_EXPLORE_ALLOWED_KINDS: frozenset[str] = frozenset({"admins", "members", "anyone"})
+_EXPLORE_ALLOWED_KINDS: frozenset[str] = frozenset({"admins", "authoritative", "members", "anyone"})
 _UNASSIGNED_TASKS_ALLOWED_KINDS: frozenset[str] = frozenset(
     {"admins", "authoritative", "members", "anyone"}
 )
@@ -136,8 +136,9 @@ class LabellingPolicy(BaseModel):
 def default_labelling_policy(is_public: bool = False) -> LabellingPolicy:
     """The labelling policy used when a campaign is created without an
     explicit one, and backfilled by migration z1labelpolicy for existing
-    campaigns. Matches current unified behavior (any member can label
-    anything); completion stays with assignees/admins/authoritative.
+    campaigns. Any member can label anything, and admins and authoritative
+    reviewers are in every audience so running a campaign never means locking
+    yourself out of it; completion stays with assignees/admins/authoritative.
 
     Public campaigns additionally open the explore/unassigned_tasks/
     assigned_tasks axes to 'anyone' (unauthenticated/any visitor), since a
@@ -146,10 +147,11 @@ def default_labelling_policy(is_public: bool = False) -> LabellingPolicy:
     "no" for anonymous visitors, so complete_assigned is unchanged.
     """
     anyone = ["anyone"] if is_public else []
+    staff = ["admins", "authoritative"]
     return LabellingPolicy(
-        explore=PolicyAudience(kinds=["members", *anyone]),
-        unassigned_tasks=PolicyAudience(kinds=["members", *anyone]),
-        assigned_tasks=PolicyAudience(kinds=["members", *anyone]),
+        explore=PolicyAudience(kinds=[*staff, "members", *anyone]),
+        unassigned_tasks=PolicyAudience(kinds=[*staff, "members", *anyone]),
+        assigned_tasks=PolicyAudience(kinds=[*staff, "members", *anyone]),
         complete_assigned=PolicyAudience(kinds=["assignees", "admins", "authoritative"]),
         modify_others=PolicyAudience(kinds=["admins"]),
     )

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
 import { useProject } from '~/app/projectRoute';
 import { listProjectCampaignsOptions } from '~/api/queries';
+import { isRegistering } from '~/features/campaigns/hooks/campaignQueries';
 import { type CampaignListItemOut, type CampaignOut, type ProjectOut } from '~/api/client';
 import { DuplicateCampaignModal } from '~/features/campaigns/components/DuplicateCampaignModal';
 import { ProjectSettingsSection } from '~/features/projects/components/ProjectSettingsSection';
@@ -12,7 +13,7 @@ import { ProjectUsersSection } from '~/features/projects/components/ProjectUsers
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button } from '~/shared/ui/forms';
-import { IconCopy, IconDocument, IconGlobe, IconPlus } from '~/shared/ui/Icons';
+import { IconCopy, IconDocument, IconGlobe, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
@@ -26,6 +27,8 @@ type ProjectTab = (typeof PROJECT_TABS)[number];
 const isProjectTab = (t: string | null): t is ProjectTab => PROJECT_TABS.some((tab) => tab === t);
 
 const NO_CAMPAIGNS: CampaignListItemOut[] = [];
+
+const REGISTRATION_POLL_MS = 5000;
 
 export const ProjectPage = () => {
   const projectId = useProjectIdParam();
@@ -44,6 +47,10 @@ export const ProjectPage = () => {
   const { data: campaignsData } = useQuery({
     ...listProjectCampaignsOptions({ path: { project_id: projectId } }),
     meta: { errorMessage: 'Failed to load campaigns' },
+    // Background setup finishes without a user action, so the badge has to
+    // clear itself. Stops as soon as nothing is registering.
+    refetchInterval: (query) =>
+      query.state.data?.items.some(isRegistering) ? REGISTRATION_POLL_MS : false,
   });
   const campaigns = campaignsData?.items ?? NO_CAMPAIGNS;
 
@@ -101,6 +108,9 @@ export const ProjectPage = () => {
             requestedTab={requestedTab}
             onSelectTab={selectTab}
             onOpenCampaign={(campaign) => navigate(campaignPath(project.id, campaign.id))}
+            onOpenCampaignSettings={(campaign) =>
+              navigate(campaignPath(project.id, campaign.id, 'settings'))
+            }
             onCreateCampaign={() => navigate(newCampaignPath(project.id))}
             onDuplicateCampaign={setDuplicating}
           />
@@ -128,6 +138,7 @@ interface ProjectTabsProps {
   requestedTab: ProjectTab;
   onSelectTab: (tab: ProjectTab) => void;
   onOpenCampaign: (campaign: CampaignListItemOut) => void;
+  onOpenCampaignSettings: (campaign: CampaignListItemOut) => void;
   onCreateCampaign: () => void;
   onDuplicateCampaign: (campaign: CampaignListItemOut) => void;
 }
@@ -138,6 +149,7 @@ const ProjectTabs = ({
   requestedTab,
   onSelectTab,
   onOpenCampaign,
+  onOpenCampaignSettings,
   onCreateCampaign,
   onDuplicateCampaign,
 }: ProjectTabsProps) => {
@@ -166,6 +178,7 @@ const ProjectTabs = ({
             campaigns={campaigns}
             canCreate={isAdmin}
             onOpen={onOpenCampaign}
+            onOpenSettings={onOpenCampaignSettings}
             onCreate={onCreateCampaign}
             onDuplicate={onDuplicateCampaign}
           />
@@ -189,6 +202,7 @@ interface CampaignsListProps {
   campaigns: CampaignListItemOut[];
   canCreate: boolean;
   onOpen: (campaign: CampaignListItemOut) => void;
+  onOpenSettings: (campaign: CampaignListItemOut) => void;
   onCreate: () => void;
   onDuplicate: (campaign: CampaignListItemOut) => void;
 }
@@ -197,6 +211,7 @@ const CampaignsList = ({
   campaigns,
   canCreate,
   onOpen,
+  onOpenSettings,
   onCreate,
   onDuplicate,
 }: CampaignsListProps) => (
@@ -233,6 +248,7 @@ const CampaignsList = ({
             <CampaignRow
               campaign={campaign}
               onOpen={() => onOpen(campaign)}
+              onOpenSettings={() => onOpenSettings(campaign)}
               onDuplicate={() => onDuplicate(campaign)}
             />
           </MotionListItem>
@@ -245,18 +261,22 @@ const CampaignsList = ({
 const CampaignRow = ({
   campaign,
   onOpen,
+  onOpenSettings,
   onDuplicate,
 }: {
   campaign: CampaignListItemOut;
   onOpen: () => void;
+  onOpenSettings: () => void;
   onDuplicate: () => void;
 }) => {
   const isMember = campaign.is_member ?? false;
   const isAdmin = campaign.is_admin ?? false;
   const isPublic = campaign.is_public ?? false;
-  const isInitializing =
-    campaign.registration_status === 'registering' || campaign.embedding_status === 'registering';
-  const canOpen = (isMember || isPublic) && !isInitializing;
+  const initializing = isRegistering(campaign);
+  // Setup runs in the background for minutes; the campaign's own pages explain
+  // that and let an admin keep editing settings meanwhile. Only annotating is
+  // actually blocked, and the annotation page gates itself.
+  const canOpen = isMember || isPublic;
 
   const role = isAdmin ? 'Admin' : isMember ? 'Member' : isPublic ? 'Public' : 'No access';
 
@@ -288,7 +308,7 @@ const CampaignRow = ({
               <IconGlobe className="w-3.5 h-3.5 text-brand-500 shrink-0" />
             </span>
           )}
-          {isInitializing && (
+          {initializing && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-50 text-amber-800 border border-amber-200">
               <span className="w-1 h-1 rounded-full bg-amber-600 animate-pulse" />
               Initializing
@@ -297,6 +317,21 @@ const CampaignRow = ({
         </div>
         <p className="text-[11px] text-neutral-500 mt-0.5">{role}</p>
       </div>
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenSettings();
+          }}
+          className="shrink-0 grid h-8 w-8 place-items-center rounded-md text-neutral-400 opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100 hover:bg-neutral-200/60 hover:text-neutral-700 cursor-pointer"
+          title="Campaign settings"
+          aria-label={`Settings for ${campaign.name}`}
+          data-testid="campaign-settings"
+        >
+          <IconSettings className="h-4 w-4" />
+        </button>
+      )}
       {isAdmin && (
         <button
           type="button"

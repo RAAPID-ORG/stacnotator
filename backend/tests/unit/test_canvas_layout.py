@@ -215,3 +215,58 @@ class TestPackedLayout:
 
     def test_empty_keys(self):
         assert packed_layout([], item_width=10, item_height=9) == []
+
+    def test_windows_never_land_on_the_main_layout(self):
+        """The regression: a first view packed blind put its windows straight
+        on top of the timeseries windows stacked down the right."""
+        main = [
+            {"i": "main", "x": 0, "y": 0, "w": 43, "h": 25},
+            {"i": "controls", "x": 43, "y": 0, "w": 7, "h": 25},
+            {"i": "minimap", "x": 50, "y": 0, "w": 10, "h": 10},
+            {"i": "timeseries:a", "x": 50, "y": 10, "w": 10, "h": 11},
+            {"i": "timeseries:b", "x": 50, "y": 21, "w": 10, "h": 11},
+        ]
+        layout = packed_layout(
+            [str(i) for i in range(12)],
+            item_width=VIEW_WINDOW_W,
+            item_height=VIEW_WINDOW_H,
+            min_y=VIEW_LAYOUT_START_Y,
+            obstacles=main,
+        )
+
+        def overlaps(a: dict, b: dict) -> bool:
+            return not (
+                a["x"] + a["w"] <= b["x"]
+                or b["x"] + b["w"] <= a["x"]
+                or a["y"] + a["h"] <= b["y"]
+                or b["y"] + b["h"] <= a["y"]
+            )
+
+        assert len(layout) == 12
+        assert not any(overlaps(window, chrome) for window in layout for chrome in main)
+
+    def test_windows_fill_the_row_beside_the_timeseries_column(self):
+        """With timeseries down the right, the free width beside them is the
+        first thing filled - not the row underneath everything."""
+        main = [
+            {"i": "main", "x": 0, "y": 0, "w": 43, "h": 25},
+            {"i": "controls", "x": 43, "y": 0, "w": 7, "h": 25},
+            {"i": "minimap", "x": 50, "y": 0, "w": 10, "h": 10},
+            {"i": "timeseries:a", "x": 50, "y": 10, "w": 10, "h": 11},
+            {"i": "timeseries:b", "x": 50, "y": 21, "w": 10, "h": 11},
+        ]
+        layout = packed_layout(
+            [str(i) for i in range(5)],
+            item_width=VIEW_WINDOW_W,
+            item_height=VIEW_WINDOW_H,
+            min_y=VIEW_LAYOUT_START_Y,
+            obstacles=main,
+        )
+        assert [(it["x"], it["y"]) for it in layout] == [
+            (i * VIEW_WINDOW_W, VIEW_LAYOUT_START_Y) for i in range(5)
+        ]
+
+    def test_obstacles_are_not_part_of_the_packed_layout(self):
+        main = [{"i": "main", "x": 0, "y": 0, "w": 43, "h": 25}]
+        layout = packed_layout(["7"], item_width=10, item_height=9, min_y=25, obstacles=main)
+        assert [it["i"] for it in layout] == ["7"]

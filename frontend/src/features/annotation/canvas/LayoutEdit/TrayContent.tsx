@@ -4,6 +4,7 @@ import { collectionsInView } from '../../campaign/imagery';
 import { useLayoutStore } from '../../stores/layout';
 import { defaultWindowItem, fromGridLayout, toGridLayout, type LayoutItem } from '../grid';
 import { HiddenTray, type HiddenTrayItem } from './HiddenTray';
+import { ViewAdmin } from './ViewAdmin';
 
 const MIN_PER_ROW = 2;
 const MAX_PER_ROW = 10;
@@ -14,17 +15,33 @@ export interface TrayContentProps {
   catalog: ImageryCatalog;
   view: ImageryViewOut | null;
   canvasRef: React.RefObject<HTMLElement | null>;
+  /** Views are a campaign-wide definition, so only an admin gets that section. */
+  isCampaignAdmin: boolean;
 }
 
-function NewWindowSizeControls() {
+const sectionHeading = 'block text-[11px] font-medium uppercase tracking-wider text-neutral-500';
+
+function HiddenPanelsSection() {
   const newWindowSize = useLayoutStore((s) => s.newWindowSize);
   const setNewWindowSize = useLayoutStore((s) => s.setNewWindowSize);
+  const hideAllWindows = useLayoutStore((s) => s.hideAllWindows);
+  const hasVisibleWindows = useLayoutStore((s) => Object.keys(s.currentLayout.windows).length > 0);
 
   return (
     <div className="space-y-2" data-testid="new-window-size">
-      <span className="block text-[11px] font-medium uppercase tracking-wider text-neutral-500">
-        New panel size
-      </span>
+      <div className="flex items-center justify-between gap-2">
+        <span className={sectionHeading}>Hidden panels</span>
+        <button
+          type="button"
+          onClick={hideAllWindows}
+          disabled={!hasVisibleWindows}
+          className="text-[11px] font-medium text-neutral-600 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-40"
+          data-testid="hide-all-windows"
+        >
+          Hide all
+        </button>
+      </div>
+      <span className={sectionHeading}>New panel size</span>
       <p className="text-[11px] leading-snug text-neutral-400">
         Sets the width and height a hidden panel gets when it's added back to the canvas.
       </p>
@@ -70,7 +87,7 @@ function NewWindowSizeControls() {
   );
 }
 
-export function TrayContent({ catalog, view, canvasRef }: TrayContentProps) {
+export function TrayContent({ catalog, view, canvasRef, isCampaignAdmin }: TrayContentProps) {
   const currentLayout = useLayoutStore((s) => s.currentLayout);
   const setLayout = useLayoutStore((s) => s.setLayout);
   const newWindowSize = useLayoutStore((s) => s.newWindowSize);
@@ -107,9 +124,17 @@ export function TrayContent({ catalog, view, canvasRef }: TrayContentProps) {
   return (
     <HiddenTray
       items={items}
-      title="Hidden panels"
-      headerExtra={<NewWindowSizeControls />}
-      storageKey="annotation:hiddenTray"
+      title="Layout"
+      sections={
+        isCampaignAdmin ? (
+          <div className="space-y-2">
+            <span className={sectionHeading}>Views</span>
+            <ViewAdmin />
+          </div>
+        ) : null
+      }
+      headerExtra={<HiddenPanelsSection />}
+      storageKey="annotation:layoutPanel"
       canvasRef={canvasRef}
       layout={layout}
       onDrop={onDrop}

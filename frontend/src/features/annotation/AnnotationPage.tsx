@@ -23,7 +23,6 @@ import {
 } from './chrome/Gates';
 import { LayoutEditControls } from './canvas/LayoutEdit/LayoutEditControls';
 import { TrayContent } from './canvas/LayoutEdit/TrayContent';
-import { ViewAdmin } from './canvas/LayoutEdit/ViewAdmin';
 import { MobileSliceNav } from './chrome/MobileSliceNav';
 import { SliceCommentDialog } from './chrome/SliceComments';
 import { RestoreScreensToast, SendToScreenButton } from './canvas/Screens/ScreenControls';
@@ -274,10 +273,12 @@ export function AnnotationPage() {
 
   useEffect(() => {
     if (!scope || autoTourChecked) return;
-    // A campaign with no views is still in its layout-authoring flow. Count the
-    // tour as checked for this visit so creating the first view does not put a
-    // tour on top of the admin's edit canvas; it is offered on a later visit.
-    if (campaign?.imagery_views.length === 0) {
+    // A campaign with no views, or one whose first view is being laid out right
+    // now, is still in its layout-authoring flow. Count the tour as checked for
+    // this visit so setup does not get a tour on top of it - and note the tour
+    // drives edit mode itself, so it would cancel the layout in progress. It is
+    // offered on a later visit.
+    if (campaign?.imagery_views.length === 0 || settingUpFirstView) {
       setAutoTourChecked(true);
       return;
     }
@@ -286,7 +287,14 @@ export function AnnotationPage() {
     if (workMode === 'tasks' && visibleTasks.length === 0) return;
     setAutoTourChecked(true);
     if (!usePrefsStore.getState().toursSeen.includes(scope)) setTourOpen(true);
-  }, [scope, autoTourChecked, campaign?.imagery_views.length, workMode, visibleTasks.length]);
+  }, [
+    scope,
+    autoTourChecked,
+    campaign?.imagery_views.length,
+    settingUpFirstView,
+    workMode,
+    visibleTasks.length,
+  ]);
 
   const applyFilter = (next: TaskFilter) => {
     if (catalog) useTasksStore.getState().setFilter(next, Date.now(), catalog);
@@ -551,14 +559,12 @@ export function AnnotationPage() {
       <SliceCommentDialog />
 
       {!isMobile && editing && (
-        <>
-          <TrayContent catalog={catalog} view={view} canvasRef={canvasRef} />
-          {policy.isAdmin && (
-            <div className="fixed bottom-3 left-3 z-[1002] max-h-[60vh] w-72 overflow-y-auto rounded-xl border border-neutral-200 bg-white/95 p-3 shadow-xl">
-              <ViewAdmin />
-            </div>
-          )}
-        </>
+        <TrayContent
+          catalog={catalog}
+          view={view}
+          canvasRef={canvasRef}
+          isCampaignAdmin={policy.isAdmin}
+        />
       )}
 
       {!isMobile &&
@@ -593,7 +599,7 @@ export function AnnotationPage() {
       )}
 
       <TourOverlay
-        open={tourOpen}
+        open={tourOpen && !settingUpFirstView}
         variant={workMode}
         hasTimeseries={campaign.time_series.length > 0}
         needsBroaderFilter={workMode === 'tasks' && visibleTasks.length === 0}

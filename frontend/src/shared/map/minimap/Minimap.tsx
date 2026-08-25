@@ -8,6 +8,7 @@ import {
   containsPoint,
   roiOutlineLayer,
   translateBounds,
+  rectIsLegible,
   viewportRectLayer,
 } from './viewportRect';
 
@@ -58,14 +59,27 @@ export function Minimap({
       ? camera.containerPixelFromLonLat(centerOfBounds(displayedBounds), width, height)
       : null;
 
+  // How big the viewport actually lands on this minimap, which is the only
+  // thing that decides whether its box can be seen.
+  const rectLegible = useMemo(() => {
+    if (width <= 0 || height <= 0) return true;
+    const [west, south, east, north] = displayedBounds;
+    const [x0, y0] = camera.containerPixelFromLonLat([west, south], width, height);
+    const [x1, y1] = camera.containerPixelFromLonLat([east, north], width, height);
+    return rectIsLegible([Math.abs(x1 - x0), Math.abs(y1 - y0)]);
+    // The camera projects through live OL state, so minimapZoom is what says
+    // the projection moved under an unchanged bbox.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camera, minimapZoom, displayedBounds, width, height]);
+
   const allLayers = useMemo<LayerSpec[]>(
     () => [
       MINIMAP_BASEMAP,
       ...(roi ? [roiOutlineLayer(roi)] : []),
-      viewportRectLayer(displayedBounds),
+      viewportRectLayer(displayedBounds, { asMarker: !rectLegible }),
       ...layers,
     ],
-    [roi, displayedBounds, layers]
+    [roi, displayedBounds, rectLegible, layers]
   );
 
   const pointAt = (clientX: number, clientY: number): LonLat | null => {

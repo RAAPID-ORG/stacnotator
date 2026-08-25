@@ -131,17 +131,25 @@ def packed_layout(
     item_height: int,
     grid_width: int = GRID_WIDTH,
     min_y: int = 0,
+    obstacles: Sequence[dict] | None = None,
 ) -> list[dict]:
-    """A fresh layout with one packed item per key, filling rows from ``min_y``."""
-    items: list[dict] = []
+    """A fresh layout with one packed item per key, filling rows from ``min_y``.
+
+    ``obstacles`` are items this layout does not own but shares the client's
+    grid with - the page chrome and the timeseries windows, which live in the
+    main layout. Packing around them is what keeps a view's windows beside the
+    timeseries column rather than on top of it. They are not returned.
+    """
+    items: list[dict] = list(obstacles or [])
+    fixed = len(items)
     reconcile_layout(
         items,
         managed=lambda _: True,
-        keep=(),
+        keep={str(item.get("i")) for item in items},
         add=keys,
         item_width=item_width,
         item_height=item_height,
         grid_width=grid_width,
         min_y=min_y,
     )
-    return items
+    return items[fixed:]

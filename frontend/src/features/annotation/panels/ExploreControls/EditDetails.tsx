@@ -108,18 +108,6 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         </div>
       )}
 
-      {!readOnly && (fields.length > 0 || selectable.length > 1) && (
-        <button
-          type="button"
-          data-testid="edit-details-save"
-          onClick={() => void save()}
-          disabled={saving || !dirty || labelId === null}
-          className="self-start px-3 py-1.5 rounded text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-        >
-          Save changes
-        </button>
-      )}
-
       <label
         hidden={readOnly}
         className="flex items-center gap-1.5 cursor-pointer select-none"
@@ -156,6 +144,18 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
           maxLength={5000}
           className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500"
         />
+      )}
+
+      {!readOnly && (fields.length > 0 || selectable.length > 1) && (
+        <button
+          type="button"
+          data-testid="edit-details-save"
+          onClick={() => void save()}
+          disabled={saving || !dirty || labelId === null}
+          className="self-start px-3 py-1.5 rounded text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+        >
+          Save changes
+        </button>
       )}
     </div>
   );

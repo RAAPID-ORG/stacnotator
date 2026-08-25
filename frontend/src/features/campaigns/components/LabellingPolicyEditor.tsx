@@ -28,7 +28,7 @@ const AXES: {
     example:
       'With Members, any project member can draw their own polygon anywhere on the map and ' +
       'label it. Everyone else can still browse the imagery, but their drawing tools stay off.',
-    allowedKinds: ['admins', 'members', 'anyone'],
+    allowedKinds: ['admins', 'authoritative', 'members', 'anyone'],
   },
   {
     key: 'unassigned_tasks',

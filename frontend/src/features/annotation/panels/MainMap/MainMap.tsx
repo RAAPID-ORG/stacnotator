@@ -7,10 +7,12 @@ import { hotkeyTip } from '../../hotkeys';
 import { collectionsInView } from '../../campaign/imagery';
 import { computeTaskProgress } from '../../campaign/tasks';
 import { handleProbeClick, useDrawingInteractions, useEditDrawnId } from '../../drawing';
+import { geometryTopRight, missingRequiredFields } from '../../campaign/annotation';
 import { useCameraZoom } from '~/shared/map/Camera';
 import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
 import { annotationsVisibleAt, composeLayers, type ComposeState } from '../../map/compose';
 import { MapView, type MapAnchor } from '~/shared/map/MapView';
+import { CenterCrosshair } from '../../components/CenterCrosshair';
 import { StatusPill } from '../../components/StatusPill';
 import { setForegroundMapLoading, useForegroundLoading } from '~/shared/map/tileLoading';
 import type { LonLat, MapClickEvent } from '~/shared/map/types';
@@ -217,16 +219,16 @@ export function MainMapHeader() {
           showViewSync={windowCount > 1}
           viewSyncTitle={hotkeyTip(bindings, 'l')}
         />
-        {/* Both modes: Explore arms the tool from its palette too, but the
-            probes themselves live on this map, so this is where adding and
-            clearing them belongs. */}
-        {campaign.time_series.length > 0 && (
+        {/* Tasks only: there the probe is a detour from the task, so it is
+            reached from the map. Explore keeps every probe control in its
+            tools panel, beside the tool that drops them. */}
+        {isTaskMode && campaign.time_series.length > 0 && (
           <ProbeToggle
             title={hotkeyTip(bindings, 't')}
             addTitle={hotkeyTip(bindings, 'shift+t', 'Add another probe')}
           />
         )}
-        <ClearProbes />
+        {isTaskMode && <ClearProbes />}
         {isTaskMode && <PreloadMenu />}
       </div>
       {isTaskMode && (
@@ -263,12 +265,48 @@ function AnnotationZoomNotice() {
   return <StatusPill>Zoom in to see annotations</StatusPill>;
 }
 
+/** Why a just-drawn shape is not saved yet, and how to finish it. */
+function DraftQuestionsHint({ missing }: { missing: string[] }) {
+  return (
+    <div
+      data-testid="draft-questions-hint"
+      className="max-w-56 rounded-md border border-amber-300 bg-amber-50/95 px-2 py-1.5 text-[11px] leading-snug text-amber-900 shadow-sm"
+    >
+      <p className="font-medium">Answer to save: {missing.join(', ')}</p>
+      <p className="mt-0.5 text-amber-700">Tab moves between questions, Enter saves.</p>
+    </div>
+  );
+}
+
+/**
+ * The annotate tool draws nothing until a label is chosen, which from the map
+ * looks like a broken tool. One pill in the same slot as the zoom notice, so
+ * the two can never stack.
+ */
+function MapNotice() {
+  const mode = useCampaignStore((s) => s.workMode);
+  const needsLabel = useWorkStore((s) => s.tool === 'annotate' && s.selectedLabelId === null);
+
+  if (mode === 'explore' && needsLabel) {
+    return (
+      <StatusPill>
+        <span data-testid="pick-label-notice">
+          Pick a label in the controls panel (or press its number) to start drawing
+        </span>
+      </StatusPill>
+    );
+  }
+  return <AnnotationZoomNotice />;
+}
+
 export function MainMapBody() {
+  const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
   const imagery = useImageryStore();
   const legendOverrides = usePrefsStore((s) => s.legendOverrides);
   const draft = useWorkStore((s) => s.draft);
+  const formValues = useWorkStore((s) => s.formValues);
   const selection = useWorkStore((s) => s.selection);
   const selectionAnchor = useWorkStore((s) => s.selectionAnchor);
   // Draw/edit/box-select belong to the map they act on, so this is where the
@@ -369,12 +407,28 @@ export function MainMapBody() {
     visibleCollectionIds,
   });
 
+  // A held-back shape is not stored yet, and nothing on the map says why. The
+  // reason rides on the shape itself, listing what is outstanding.
+  const missing =
+    draft.phase === 'draft'
+      ? missingRequiredFields(campaign.settings.form_fields ?? [], formValues)
+      : [];
+
   // Confirm/delete ride on the geometry they act on rather than in a corner of
-  // the page, which is what makes them findable on a big map.
+  // the page, which is what makes them findable on a big map. A draft outranks
+  // a selection: it is the thing the user just did.
   const anchor: MapAnchor | null =
-    mode === 'explore' && selection.length > 0 && selectionAnchor
-      ? { at: selectionAnchor, content: <SelectionControls />, offset: [10, -5] }
-      : null;
+    mode !== 'explore'
+      ? null
+      : draft.phase === 'draft' && missing.length > 0
+        ? {
+            at: geometryTopRight(draft.geometry),
+            content: <DraftQuestionsHint missing={missing.map((f) => f.title)} />,
+            offset: [10, -5],
+          }
+        : selection.length > 0 && selectionAnchor
+          ? { at: selectionAnchor, content: <SelectionControls />, offset: [10, -5] }
+          : null;
 
   return (
     <div className="flex h-full w-full">
@@ -405,7 +459,8 @@ export function MainMapBody() {
           }}
         />
         <CustomMapLegend catalog={catalog} />
-        <AnnotationZoomNotice />
+        <CenterCrosshair />
+        <MapNotice />
       </div>
     </div>
   );

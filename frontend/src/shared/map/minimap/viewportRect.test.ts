@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { centerOfBounds, containsPoint, translateBounds } from './viewportRect';
+import {
+  MIN_LEGIBLE_RECT_PX,
+  centerOfBounds,
+  containsPoint,
+  rectIsLegible,
+  translateBounds,
+  viewportRectLayer,
+} from './viewportRect';
 
 describe('minimap viewport dragging', () => {
   it('starts only from inside the viewport rectangle', () => {
@@ -23,5 +30,27 @@ describe('minimap viewport dragging', () => {
 
   it('is the plain midpoint when the rectangle straddles the equator', () => {
     expect(centerOfBounds([-10, -20, 10, 20])[1]).toBeCloseTo(0, 6);
+  });
+
+  it('draws the viewport as its own box while that box is legible', () => {
+    const layer = viewportRectLayer([10, 20, 30, 40]);
+    expect(layer.features[0].geometry.type).toBe('Polygon');
+  });
+
+  // Zoomed far out, the true box is a speck nobody spots - which is when
+  // knowing where you are looking matters most.
+  it('falls back to a dot on the centre when the box is too small to see', () => {
+    const layer = viewportRectLayer([10, 20, 30, 40], { asMarker: true });
+    expect(layer.features[0].geometry).toEqual({
+      type: 'Point',
+      coordinates: centerOfBounds([10, 20, 30, 40]),
+    });
+    expect(typeof layer.style === 'function' ? null : layer.style.circle).toBeDefined();
+  });
+
+  it('calls a box legible only when both sides clear the pixel floor', () => {
+    expect(rectIsLegible([MIN_LEGIBLE_RECT_PX, MIN_LEGIBLE_RECT_PX])).toBe(true);
+    expect(rectIsLegible([MIN_LEGIBLE_RECT_PX - 1, 100])).toBe(false);
+    expect(rectIsLegible([100, MIN_LEGIBLE_RECT_PX - 1])).toBe(false);
   });
 });

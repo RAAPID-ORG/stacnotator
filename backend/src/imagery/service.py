@@ -4,7 +4,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from src.campaigns.models import Campaign
-from src.canvas.service import new_default_view_layout, sync_view_layouts
+from src.canvas.service import (
+    default_main_layout_data,
+    new_default_view_layout,
+    sync_view_layouts,
+)
 from src.crypto import encrypt
 from src.imagery.models import (
     Basemap,
@@ -439,7 +443,14 @@ def create_view(db: Session, campaign: Campaign, payload: ImageryViewCreate) -> 
     db.add(view)
     db.flush()
     eligible = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
-    db.add(new_default_view_layout(campaign.id, view.id, sorted(eligible)))
+    db.add(
+        new_default_view_layout(
+            campaign.id,
+            view.id,
+            sorted(eligible),
+            main_layout_data=default_main_layout_data(db, campaign.id),
+        )
+    )
     db.commit()
     db.refresh(view)
     return view

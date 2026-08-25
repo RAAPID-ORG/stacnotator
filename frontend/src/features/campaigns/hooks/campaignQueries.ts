@@ -41,6 +41,11 @@ import { SHARED_WORK } from '~/api/queryClient';
  *  page stops saying "initializing" soon after it finishes. */
 const REGISTRATION_POLL_MS = 5000;
 
+type MaybeRegistering = { registration_status?: string; embedding_status?: string } | undefined;
+
+export const isRegistering = (campaign: MaybeRegistering) =>
+  campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
+
 const NO_TASKS: AnnotationTaskOut[] = [];
 const NO_TASK_SETS: TaskSetOut[] = [];
 const NO_ANNOTATIONS: AnnotationListItemOut[] = [];
@@ -57,6 +62,9 @@ export const useCampaignSummary = (campaignId: number) => {
   const { data, isPending } = useQuery({
     ...getCampaignSummaryOptions({ path: { campaign_id: campaignId } }),
     meta: { errorMessage: 'Failed to load campaign' },
+    // These pages are reachable during setup, so what they say about it has to
+    // stop being true on its own. Stops as soon as setup finishes.
+    refetchInterval: (query) => (isRegistering(query.state.data) ? REGISTRATION_POLL_MS : false),
   });
   return { campaign: data, loading: isPending };
 };
@@ -70,14 +78,10 @@ export const useCampaign = (campaignId: number, options?: { pollWhileRegistering
   const { data, isPending } = useQuery({
     ...getCampaignOptions({ path: { campaign_id: campaignId } }),
     meta: { errorMessage: 'Failed to load campaign' },
-    refetchInterval: (query) => {
-      if (!options?.pollWhileRegistering) return false;
-      const campaign = query.state.data;
-      const registering =
-        campaign?.registration_status === 'registering' ||
-        campaign?.embedding_status === 'registering';
-      return registering ? REGISTRATION_POLL_MS : false;
-    },
+    refetchInterval: (query) =>
+      options?.pollWhileRegistering && isRegistering(query.state.data)
+        ? REGISTRATION_POLL_MS
+        : false,
   });
   return { campaign: data, loading: isPending };
 };

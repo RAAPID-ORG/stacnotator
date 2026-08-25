@@ -96,9 +96,11 @@ def test_anyone_accepted_on_explore_unassigned_and_assigned():
     assert policy.assigned_tasks.kinds == ["anyone"]
 
 
-def test_authoritative_rejected_on_explore():
-    with pytest.raises(ValidationError):
-        LabellingPolicy(explore=PolicyAudience(kinds=["authoritative"]))
+def test_authoritative_accepted_on_explore():
+    """Running a campaign should not mean being locked out of its free-form
+    labelling, so the explore axis takes reviewers like every other axis."""
+    policy = LabellingPolicy(explore=PolicyAudience(kinds=["authoritative"]))
+    assert policy.explore.kinds == ["authoritative"]
 
 
 def test_admins_accepted_on_every_axis():
@@ -118,10 +120,11 @@ def test_admins_accepted_on_every_axis():
 
 def test_default_policy_shape():
     policy = default_labelling_policy()
-    assert policy.explore.kinds == ["members"]
+    staff_and_members = {"admins", "authoritative", "members"}
+    assert set(policy.explore.kinds) == staff_and_members
     assert policy.explore.user_ids == []
-    assert policy.unassigned_tasks.kinds == ["members"]
-    assert policy.assigned_tasks.kinds == ["members"]
+    assert set(policy.unassigned_tasks.kinds) == staff_and_members
+    assert set(policy.assigned_tasks.kinds) == staff_and_members
     assert set(policy.complete_assigned.kinds) == {"assignees", "admins", "authoritative"}
 
 
@@ -160,9 +163,10 @@ def test_default_policy_is_private_by_default():
 
 def test_public_default_policy_adds_anyone_to_three_axes():
     policy = default_labelling_policy(is_public=True)
-    assert set(policy.explore.kinds) == {"members", "anyone"}
-    assert set(policy.unassigned_tasks.kinds) == {"members", "anyone"}
-    assert set(policy.assigned_tasks.kinds) == {"members", "anyone"}
+    expected = {"admins", "authoritative", "members", "anyone"}
+    assert set(policy.explore.kinds) == expected
+    assert set(policy.unassigned_tasks.kinds) == expected
+    assert set(policy.assigned_tasks.kinds) == expected
 
 
 def test_public_default_policy_leaves_complete_assigned_unchanged():

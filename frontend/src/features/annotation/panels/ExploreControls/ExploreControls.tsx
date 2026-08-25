@@ -10,7 +10,7 @@ import { resolveLabelStyle } from '../../campaign/labelStyle';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';
 import { useCampaign } from '../../stores/campaign';
-import { useWorkStore, type Tool } from '../../stores/work';
+import { MAX_PROBES, useWorkStore, type Tool } from '../../stores/work';
 import { helpRows } from '../../hotkeys';
 import { fitAnnotations } from '../../map/camera';
 import { activeGroupClass, FormFields } from '../../components/FormFields';
@@ -115,6 +115,52 @@ function ShortcutLegend() {
   );
 }
 
+/**
+ * Adding and clearing probes, beside the tool that drops them. Tasks keeps
+ * these in the map header - the probe is a detour from the task there - but in
+ * Explore the probe *is* the work, so it belongs with the rest of the tools.
+ */
+function ProbeControls() {
+  const probeCount = useWorkStore((s) => s.probePoints.length);
+  const armed = useWorkStore((s) => s.probeAddArmed);
+  const atCap = probeCount >= MAX_PROBES;
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full">
+      <span className="font-semibold text-neutral-700 text-xs tracking-wide">
+        Probe time series
+      </span>
+      <p className="text-[11px] text-neutral-500 leading-relaxed">
+        Click the map to move the active probe. Click another to pick it up, or click it again to
+        take it off the chart.
+      </p>
+      <div className="flex flex-row flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => useWorkStore.getState().armAddProbe(!armed)}
+          aria-pressed={armed}
+          disabled={atCap}
+          title={atCap ? `At most ${MAX_PROBES} probes at once` : 'Add another probe (Shift+T)'}
+          data-testid="probe-add"
+          className={`${chipClass(armed)} disabled:opacity-40 disabled:cursor-not-allowed`}
+        >
+          {armed ? 'Click the map...' : 'Add probe'}
+        </button>
+        <button
+          type="button"
+          onClick={() => useWorkStore.getState().clearProbePoints()}
+          disabled={probeCount === 0}
+          title="Remove every probe"
+          data-testid="clear-probes"
+          className={`${chipClass(false)} disabled:opacity-40 disabled:cursor-not-allowed`}
+        >
+          Clear{probeCount > 0 ? ` (${probeCount})` : ''}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ExploreControls() {
   const campaign = useCampaign();
   const tool = useWorkStore((s) => s.tool);
@@ -133,6 +179,7 @@ export function ExploreControls() {
   const toggleTaskAnnotations = useImageryStore((s) => s.toggleTaskAnnotations);
   const labelStyles = usePrefsStore((s) => s.labelStyles);
   const vectorShown = useImageryStore((s) => s.vector.id !== null && s.vector.visible);
+  const editing = useWorkStore((s) => s.edit !== null);
 
   const labels = extendedLabels(campaign);
   const fields = campaign.settings.form_fields ?? [];
@@ -218,16 +265,7 @@ export function ExploreControls() {
           </div>
         </div>
 
-        {tool === 'timeseries' && (
-          <div className="p-2.5 bg-sky-50 rounded border border-sky-200 w-full">
-            <p className="text-[11px] text-sky-800 font-medium mb-1">Probe time series</p>
-            <p className="text-[11px] text-sky-700">
-              Click the map to move the highlighted probe. Use + in the map header (or Shift+T) to
-              drop another one alongside it; click a probe to pick it up, and click it again to take
-              it off the chart.
-            </p>
-          </div>
-        )}
+        {tool === 'timeseries' && <ProbeControls />}
 
         {tool === 'labelVector' && (
           <div className="p-2.5 bg-emerald-50 rounded border border-emerald-200 w-full">
@@ -344,23 +382,19 @@ export function ExploreControls() {
               )}
 
               {selectedLabel && (
-                <div className="p-2.5 bg-blue-50 rounded border border-blue-200 w-full">
-                  <p className="text-[11px] text-blue-700 font-medium mb-1">
-                    Selected: {capitalizeFirst(selectedLabel.name)}
-                  </p>
-                  <p className="text-[11px] text-blue-600">
-                    Type: {capitalizeFirst(selectedLabel.geometry_type)}
-                  </p>
-                  <p className="text-[11px] text-neutral-500 mt-1">
-                    {tool === 'labelVector'
-                      ? 'Click a vector feature to apply this label, or Shift+drag a box for many.'
-                      : `Click on the map to draw a ${selectedLabel.geometry_type}.${
-                          selectedLabel.geometry_type === 'polygon'
-                            ? ' Double-click to finish.'
-                            : ''
-                        }`}
-                  </p>
-                </div>
+                <p
+                  className="text-[11px] text-neutral-500 leading-relaxed"
+                  data-testid="label-hint"
+                >
+                  <span className="font-medium text-neutral-700">
+                    {capitalizeFirst(selectedLabel.name)}
+                  </span>{' '}
+                  {tool === 'labelVector'
+                    ? '- click a vector feature to apply it, or Shift+drag a box for many.'
+                    : `- click the map to draw a ${selectedLabel.geometry_type}.${
+                        selectedLabel.geometry_type === 'polygon' ? ' Double-click to finish.' : ''
+                      }`}
+                </p>
               )}
             </>
           )
@@ -369,18 +403,16 @@ export function ExploreControls() {
         {tool === 'edit' && (
           <div className="flex flex-col gap-2 w-full">
             <span className="font-semibold text-neutral-700 text-xs tracking-wide">Edit tool</span>
-            <p className="text-[11px] text-neutral-500 leading-relaxed">
-              Click a geometry to edit its vertices, alt-drag to move it whole, Shift+drag to select
-              many. See <strong>Shortcuts</strong> below.
-            </p>
+            {/* Once a geometry is open the panel is about that geometry; the
+                how-to would push its fields out of view for no one's benefit. */}
+            {!editing && (
+              <p className="text-[11px] text-neutral-500 leading-relaxed">
+                Click a geometry to edit its vertices, alt-drag to move it whole, Shift+drag to
+                select many. See <strong>Shortcuts</strong> below.
+              </p>
+            )}
             <EditDetails />
           </div>
-        )}
-
-        {tool === 'timeseries' && (
-          <p className="text-[11px] text-neutral-600 leading-relaxed">
-            Click one point on the map to load its time series. The probe then returns to Pan.
-          </p>
         )}
 
         {tool === 'pan' && (

@@ -12,6 +12,7 @@ import { useMapFocus } from '../../stores/tasks';
 import { setForegroundMapLoading } from '~/shared/map/tileLoading';
 import { composeLayers, type ComposeState } from '../../map/compose';
 import { MapView } from '~/shared/map/MapView';
+import { CenterCrosshair } from '../../components/CenterCrosshair';
 import { PillSpinner, StatusPill } from '../../components/StatusPill';
 import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
 
@@ -210,6 +211,7 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
           }}
         />
       )}
+      <CenterCrosshair />
       {showHint && <StatusPill>Hold Ctrl/Cmd to zoom</StatusPill>}
       {healing.searchingLabel && (
         <StatusPill>

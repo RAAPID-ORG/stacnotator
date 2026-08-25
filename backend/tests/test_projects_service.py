@@ -278,7 +278,7 @@ class TestUpdateProjectVisibility:
         assert "anyone" not in policy["explore"]["kinds"]
         assert "anyone" not in policy["unassigned_tasks"]["kinds"]
         assert "anyone" not in policy["assigned_tasks"]["kinds"]
-        assert policy["explore"]["kinds"] == ["members"]
+        assert policy["explore"]["kinds"] == ["admins", "authoritative", "members"]
         # complete_assigned never had 'anyone' to begin with; unaffected.
         assert set(policy["complete_assigned"]["kinds"]) == {
             "assignees",

@@ -1,12 +1,13 @@
 import type { LabellingPolicy, PolicyAudience } from '~/api/client';
 
 // Matches backend/src/campaigns/schemas.py default_labelling_policy(): any
-// member can label anything; completion stays with assignees/admins/
-// authoritative. Used to seed a new campaign in the wizard.
+// member can label anything, and admins and authoritative reviewers are in
+// every audience so running a campaign never means locking yourself out of it.
+// Used to seed a new campaign in the wizard.
 export const DEFAULT_LABELLING_POLICY: LabellingPolicy = {
-  explore: { kinds: ['members'], user_ids: [] },
-  unassigned_tasks: { kinds: ['members'], user_ids: [] },
-  assigned_tasks: { kinds: ['members'], user_ids: [] },
+  explore: { kinds: ['admins', 'authoritative', 'members'], user_ids: [] },
+  unassigned_tasks: { kinds: ['admins', 'authoritative', 'members'], user_ids: [] },
+  assigned_tasks: { kinds: ['admins', 'authoritative', 'members'], user_ids: [] },
   complete_assigned: { kinds: ['assignees', 'admins', 'authoritative'], user_ids: [] },
   modify_others: { kinds: ['admins'], user_ids: [] },
 };

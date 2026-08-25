@@ -38,7 +38,6 @@ export function LayoutEditControls({
   const saveLayout = useLayoutStore((s) => s.saveLayout);
   const cancelEditing = useLayoutStore((s) => s.cancelEditing);
   const setLayout = useLayoutStore((s) => s.setLayout);
-  const hideAllWindows = useLayoutStore((s) => s.hideAllWindows);
 
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
@@ -102,8 +101,6 @@ export function LayoutEditControls({
     );
   }
 
-  const hasVisibleWindows = Object.keys(currentLayout.windows).length > 0;
-
   return (
     <div className="flex items-center gap-1 bg-neutral-50 rounded px-1">
       <SaveDialogs
@@ -127,18 +124,6 @@ export function LayoutEditControls({
         className="px-3 py-1 text-xs font-medium text-brand-800 hover:text-red-600"
       >
         Cancel
-      </button>
-
-      <div className="w-px h-5 bg-neutral-200" />
-
-      <button
-        type="button"
-        onClick={hideAllWindows}
-        disabled={!hasVisibleWindows}
-        className="px-2 py-1 text-xs font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-40 disabled:cursor-not-allowed"
-        data-testid="hide-all-windows"
-      >
-        Hide all
       </button>
 
       <ConfirmDialog

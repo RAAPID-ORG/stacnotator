@@ -21,7 +21,20 @@ const MAX_SCROLL_SPEED = 20;
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-function loadPanelSize(storageKey: string): { width: number; height: number } {
+/** Where the panel sits, as an offset from its bottom-right home. Negative
+ *  moves it left/up, which is the only direction that keeps it on screen. */
+interface PanelOffset {
+  dx: number;
+  dy: number;
+}
+
+interface PanelGeometry {
+  width: number;
+  height: number;
+  offset: PanelOffset;
+}
+
+function loadPanelGeometry(storageKey: string): PanelGeometry {
   try {
     const raw = localStorage.getItem(storageKey);
     if (raw) {
@@ -29,12 +42,25 @@ function loadPanelSize(storageKey: string): { width: number; height: number } {
       return {
         width: clamp(parsed.width, MIN_PANEL_W, MAX_PANEL_W),
         height: clamp(parsed.height, MIN_PANEL_H, MAX_PANEL_H),
+        offset: {
+          dx: Number(parsed.offset?.dx) || 0,
+          dy: Number(parsed.offset?.dy) || 0,
+        },
       };
     }
   } catch {
     // ignore malformed/absent value
   }
-  return DEFAULT_PANEL_SIZE;
+  return { ...DEFAULT_PANEL_SIZE, offset: { dx: 0, dy: 0 } };
+}
+
+/** Keeps the panel reachable: it may leave its corner, but not the viewport. */
+function clampOffset({ dx, dy }: PanelOffset, width: number, height: number): PanelOffset {
+  const margin = 12;
+  return {
+    dx: clamp(dx, -Math.max(0, window.innerWidth - width - margin), 0),
+    dy: clamp(dy, -Math.max(0, window.innerHeight - height - margin), 0),
+  };
 }
 
 export interface HiddenTrayItem {
@@ -51,6 +77,8 @@ export interface HiddenTrayProps {
   /** Rendered above the item list, inside the same scrolling body - e.g. the
    *  size controls for windows placed back onto the canvas. */
   headerExtra?: ReactNode;
+  /** Sections shown above the hidden-panel section, in the same panel. */
+  sections?: ReactNode;
   /** localStorage key the panel's resized width/height persists under. */
   storageKey: string;
   /** The canvas element items are dropped onto - read live (rect + scroll)
@@ -75,6 +103,7 @@ export function HiddenTray({
   items,
   title = 'Hidden',
   headerExtra,
+  sections,
   storageKey,
   canvasRef,
   layout,
@@ -83,10 +112,12 @@ export function HiddenTray({
   className = '',
 }: HiddenTrayProps) {
   const [expanded, setExpanded] = useState(true);
-  const [panelSize, setPanelSize] = useState(() => loadPanelSize(storageKey));
+  const [panelGeometry, setPanelGeometry] = useState(() => loadPanelGeometry(storageKey));
+  const panelSize = panelGeometry;
   const panelResizeStart = useRef<{ x: number; y: number; width: number; height: number } | null>(
     null
   );
+  const panelMoveStart = useRef<{ x: number; y: number; offset: PanelOffset } | null>(null);
 
   const [dragState, setDragState] = useState<DragOutState>({ phase: 'idle' });
   const dragStateRef = useRef(dragState);
@@ -208,21 +239,57 @@ export function HiddenTray({
     const start = panelResizeStart.current;
     if (!start) return;
     // Anchored bottom-right: dragging left/up enlarges the panel.
-    setPanelSize({
+    setPanelGeometry((prev) => ({
+      ...prev,
       width: clamp(start.width + (start.x - e.clientX), MIN_PANEL_W, MAX_PANEL_W),
       height: clamp(start.height + (start.y - e.clientY), MIN_PANEL_H, MAX_PANEL_H),
-    });
+    }));
+  };
+
+  const persistGeometry = () => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(panelGeometry));
+    } catch {
+      // ignore storage failures (private mode / quota)
+    }
   };
 
   const onPanelResizePointerUp = (e: React.PointerEvent) => {
     if (!panelResizeStart.current) return;
     panelResizeStart.current = null;
     e.currentTarget.releasePointerCapture(e.pointerId);
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(panelSize));
-    } catch {
-      // ignore storage failures (private mode / quota)
-    }
+    persistGeometry();
+  };
+
+  // The panel is tall enough to bury the canvas it edits, so it moves.
+  const onPanelMovePointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    panelMoveStart.current = { x: e.clientX, y: e.clientY, offset: panelGeometry.offset };
+  };
+
+  const onPanelMovePointerMove = (e: React.PointerEvent) => {
+    const start = panelMoveStart.current;
+    if (!start) return;
+    setPanelGeometry((prev) => ({
+      ...prev,
+      offset: clampOffset(
+        {
+          dx: start.offset.dx + (e.clientX - start.x),
+          dy: start.offset.dy + (e.clientY - start.y),
+        },
+        prev.width,
+        prev.height
+      ),
+    }));
+  };
+
+  const onPanelMovePointerUp = (e: React.PointerEvent) => {
+    if (!panelMoveStart.current) return;
+    panelMoveStart.current = null;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    persistGeometry();
   };
 
   const dragging = dragState.phase === 'dragging' ? dragState : null;
@@ -246,7 +313,11 @@ export function HiddenTray({
       ) : (
         <div
           className={`fixed bottom-3 right-3 z-[1002] flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white/95 shadow-xl ${className}`}
-          style={{ width: panelSize.width, maxHeight: panelSize.height }}
+          style={{
+            width: panelSize.width,
+            maxHeight: panelSize.height,
+            transform: `translate(${panelGeometry.offset.dx}px, ${panelGeometry.offset.dy}px)`,
+          }}
           data-testid="hidden-tray"
           data-hidden-tray-root=""
         >
@@ -260,7 +331,15 @@ export function HiddenTray({
             data-testid="resize-hidden-tray"
           />
 
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-100 bg-neutral-50/70 px-3.5 py-2.5">
+          <div
+            onPointerDown={onPanelMovePointerDown}
+            onPointerMove={onPanelMovePointerMove}
+            onPointerUp={onPanelMovePointerUp}
+            onPointerCancel={onPanelMovePointerUp}
+            className="flex shrink-0 cursor-grab items-center justify-between gap-2 border-b border-neutral-100 bg-neutral-50/70 px-3.5 py-2.5 select-none active:cursor-grabbing"
+            title="Drag to move"
+            data-testid="move-hidden-tray"
+          >
             <span className="truncate pl-3 text-xs font-semibold text-neutral-800">{title}</span>
             <button
               type="button"
@@ -273,6 +352,7 @@ export function HiddenTray({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
+            {sections && <div className="border-b border-neutral-100 px-3.5 py-3">{sections}</div>}
             {headerExtra && (
               <div className="border-b border-neutral-100 px-3.5 py-3">{headerExtra}</div>
             )}

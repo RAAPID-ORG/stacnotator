@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { createTaskSet, type TaskSetOut } from '~/api/client';
 import { getAnnotationFacetsOptions } from '~/api/queries';
 import { useQuery } from '@tanstack/react-query';
-import { useCampaignSummary, useCampaignTaskSets } from '../hooks/campaignQueries';
+import { isRegistering, useCampaignSummary, useCampaignTaskSets } from '../hooks/campaignQueries';
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Button, Field, Input } from '~/shared/ui/forms';
@@ -140,6 +140,25 @@ export const CampaignOverviewPage = () => {
             )}
           </div>
         </header>
+
+        {isRegistering(campaign) && (
+          <div
+            className="surface-section mb-6 flex items-start gap-3 border border-amber-200 bg-amber-50"
+            data-testid="campaign-initializing-notice"
+          >
+            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-600 animate-pulse" />
+            <div>
+              <h2 className="text-sm font-semibold text-amber-900">Setting up this campaign</h2>
+              <p className="mt-0.5 text-[13px] text-amber-800">
+                {campaign?.registration_status === 'registering'
+                  ? 'Registering imagery mosaics.'
+                  : 'Computing embeddings.'}{' '}
+                Annotating opens when this finishes; settings can be edited now. This page updates
+                itself.
+              </p>
+            </div>
+          </div>
+        )}
 
         {mayExplore && (
           <div

@@ -40,10 +40,28 @@ def new_default_main_layout(campaign_id: int) -> CanvasLayout:
     )
 
 
+def default_main_layout_data(db: Session, campaign_id: int) -> list[dict]:
+    """The campaign's shared main layout: page chrome plus timeseries windows.
+
+    These share the client's grid with a view's windows, so anything packing
+    view windows has to see them.
+    """
+    layout = _find_layout(db, campaign_id, view_id=None, user_id=None)
+    return layout.layout_data if layout else list(DEFAULT_MAIN_CANVAS_LAYOUT)
+
+
 def new_default_view_layout(
-    campaign_id: int, view_id: int, window_collection_ids: list[int]
+    campaign_id: int,
+    view_id: int,
+    window_collection_ids: list[int],
+    main_layout_data: list[dict] | None = None,
 ) -> CanvasLayout:
-    """A view's shared layout: its windows packed in rows below the main canvas.
+    """A view's shared layout: its windows packed into the space the main
+    canvas leaves free.
+
+    The main layout holds the page chrome and the timeseries windows on the
+    same grid, so they are packed around rather than under: with timeseries
+    stacked down the right, the windows fill the rows beside them first.
 
     Gaps are kept on later edits so user customizations survive collection
     changes (see sync_view_layouts).
@@ -54,6 +72,7 @@ def new_default_view_layout(
             item_width=VIEW_WINDOW_W,
             item_height=VIEW_WINDOW_H,
             min_y=VIEW_LAYOUT_START_Y,
+            obstacles=main_layout_data,
         ),
         user_id=None,
         campaign_id=campaign_id,
