@@ -3,6 +3,7 @@ import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
+from src import perf
 from src.config import get_settings
 
 # Set up logging
@@ -48,6 +49,11 @@ engine = create_engine(
         "keepalives_count": 3,
     },
 )
+
+
+# Per-request query counts and timings. Registered here so every session,
+# including the ones opened outside a request, uses the same instrumented engine.
+perf.install(engine)
 
 
 # Session factory

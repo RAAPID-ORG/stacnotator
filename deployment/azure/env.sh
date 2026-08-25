@@ -121,12 +121,16 @@ _resolve_sizing() {
         # Steady 20x4 = 80, peak 30x4 + 2x4 = 128 of 859.
         BACKEND_CPU=2 BACKEND_MEM=4Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=4
         BACKEND_POOL_SIZE=20 BACKEND_MAX_OVERFLOW=10
+        # Dev is where the load tests run, and attributing them afterwards needs the
+        # whole mix, not just the tail. Prod keeps to slow requests only.
+        BACKEND_TIMING_LOG=true
         TILER_CPU=4 TILER_MEM=8Gi TILER_MIN=1 TILER_MAX=1 TILER_WORKERS=4
         TILER_DB_MAX_CONN=2
     else
         # Steady 20x4 = 80, peak 30x4 + 4x4 = 136 of 859.
         BACKEND_CPU=2 BACKEND_MEM=4Gi BACKEND_MIN=1 BACKEND_MAX=1 BACKEND_WORKERS=4
         BACKEND_POOL_SIZE=20 BACKEND_MAX_OVERFLOW=10
+        BACKEND_TIMING_LOG=false
         TILER_CPU=4 TILER_MEM=8Gi TILER_MIN=1 TILER_MAX=1 TILER_WORKERS=4
         TILER_DB_MAX_CONN=4
     fi

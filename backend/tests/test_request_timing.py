@@ -14,12 +14,16 @@ def test_response_carries_server_timing_header():
     assert response.headers["X-Request-ID"]
 
 
-def test_slow_request_is_logged_with_inflight_count(monkeypatch, caplog):
+def test_slow_request_is_logged_with_its_breakdown_and_inflight_count(monkeypatch, caplog):
+    """A slow request always carries the full breakdown, whether or not per-request
+    timing logging is on - the tail is exactly where the attribution is needed."""
     monkeypatch.setattr(main.settings, "SLOW_REQUEST_MS", 0.0)
+    monkeypatch.setattr(main.settings, "LOG_REQUEST_TIMING", False)
 
     with caplog.at_level(logging.WARNING, logger="src.main"):
         TestClient(app).get("/healthz")
 
-    record = next(r for r in caplog.records if r.message.startswith("Slow request"))
-    assert "/healthz" in record.getMessage()
-    assert "inflight=0" in record.getMessage()
+    message = next(r.getMessage() for r in caplog.records if r.getMessage().startswith("perf |"))
+    assert "/healthz" in message
+    assert "inflight=0" in message
+    assert "q=0" in message

@@ -15,6 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 import src.models  # noqa: F401 -- side-effect import: ensures all ORM models are registered before any mapper configures  # isort: skip
 
+from src import perf
 from src.annotation.embeddings_service import EMBEDDING_RUN
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
@@ -125,8 +126,9 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
     Also times the request: every response carries X-Response-Time-ms (so a
     client can split its round-trip into server time and network), and anything
-    slower than SLOW_REQUEST_MS is logged once with the in-flight request count,
-    which is what separates "this endpoint is slow" from "the worker was busy".
+    slower than SLOW_REQUEST_MS is logged once with a full breakdown of where that
+    time went (see src/perf.py) plus the process-wide contention at the time, which
+    is what separates "this endpoint is slow" from "the worker was busy".
     """
 
     _inflight = 0
@@ -141,7 +143,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or str(uuid4())
         request.state.request_id = request_id
-        started = perf_counter()
+        timing = perf.start()
 
         limit = settings.MAX_INFLIGHT_REQUESTS
         if (
@@ -168,20 +170,31 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
         finally:
             RequestContextMiddleware._inflight -= 1
-        elapsed_ms = (perf_counter() - started) * 1000
+        elapsed_ms = (perf_counter() - timing.started) * 1000
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Response-Time-ms"] = f"{elapsed_ms:.0f}"
-        if elapsed_ms >= settings.SLOW_REQUEST_MS:
-            logger.warning(
-                "Slow request | %s %s %s %.0fms inflight=%d request_id=%s",
+
+        slow = elapsed_ms >= settings.SLOW_REQUEST_MS
+        if slow or settings.LOG_REQUEST_TIMING:
+            logger.log(
+                logging.WARNING if slow else logging.INFO,
+                "perf | %s %s %s %.0fms %s inflight=%d request_id=%s",
                 request.method,
-                request.url.path,
+                _route_template(request),
                 response.status_code,
                 elapsed_ms,
+                perf.breakdown(timing),
                 RequestContextMiddleware._inflight,
                 request_id,
             )
         return response
+
+
+def _route_template(request: Request) -> str:
+    """The matched route's pattern, not the concrete path. Tile URLs carry z/x/y, so
+    logging the raw path would make every tile its own log series."""
+    route = request.scope.get("route")
+    return getattr(route, "path", None) or request.url.path
 
 
 SECURITY_HEADERS = {

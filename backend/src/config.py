@@ -122,6 +122,12 @@ class Settings(BaseSettings):
     # requests got slow and how contended the process was when they did.
     SLOW_REQUEST_MS: float = 1000.0
 
+    # Log the full timing breakdown for every request rather than only for slow ones.
+    # Off by default: one line per request is real ingestion cost and tile traffic
+    # dominates it. Turn it on for a load test, where the question is where time goes
+    # across the whole mix and not just at the tail.
+    LOG_REQUEST_TIMING: bool = False
+
     # Every hardening decision keys off this - docs are hidden, dev-default secrets are
     # rejected, AUTH_PROVIDER=local is refused - and each of those tests for "production"
     # exactly. A typo like "prod" would silently turn all of them off, so the set is closed

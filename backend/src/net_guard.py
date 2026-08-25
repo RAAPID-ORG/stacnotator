@@ -29,6 +29,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from src import perf
+
 BAD_SCHEME = "URL must be http or https"
 NO_HOST = "URL has no host"
 UNRESOLVABLE = "URL host could not be resolved"
@@ -151,16 +153,24 @@ def assert_public_url(url: str) -> None:
 
 class GuardedTransport(httpx.HTTPTransport):
     def handle_request(self, request: httpx.Request) -> httpx.Response:
-        target = _target(request.url.scheme, request.url.host, request.url.port)
-        _pin(request, _checked_ip(*target))
-        return super().handle_request(request)
+        started = time.perf_counter()
+        try:
+            target = _target(request.url.scheme, request.url.host, request.url.port)
+            _pin(request, _checked_ip(*target))
+            return super().handle_request(request)
+        finally:
+            perf.record_upstream((time.perf_counter() - started) * 1000)
 
 
 class GuardedAsyncTransport(httpx.AsyncHTTPTransport):
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        target = _target(request.url.scheme, request.url.host, request.url.port)
-        _pin(request, await _checked_ip_async(*target))
-        return await super().handle_async_request(request)
+        started = time.perf_counter()
+        try:
+            target = _target(request.url.scheme, request.url.host, request.url.port)
+            _pin(request, await _checked_ip_async(*target))
+            return await super().handle_async_request(request)
+        finally:
+            perf.record_upstream((time.perf_counter() - started) * 1000)
 
 
 def guarded_client(*, limits: httpx.Limits | None = None, **kwargs: Any) -> httpx.Client:

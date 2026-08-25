@@ -15,6 +15,7 @@ class _Request:
         self.method = "GET"
         self.url = SimpleNamespace(path=path)
         self.state = SimpleNamespace()
+        self.scope: dict = {}
 
 
 @pytest.fixture(autouse=True)
@@ -34,7 +35,9 @@ def _isolate_module_state():
 def _middleware(limit: int) -> RequestContextMiddleware:
     import src.main as main
 
-    main.settings = SimpleNamespace(MAX_INFLIGHT_REQUESTS=limit, SLOW_REQUEST_MS=1_000_000)
+    main.settings = SimpleNamespace(
+        MAX_INFLIGHT_REQUESTS=limit, SLOW_REQUEST_MS=1_000_000, LOG_REQUEST_TIMING=False
+    )
     return RequestContextMiddleware(app=None)
 
 
