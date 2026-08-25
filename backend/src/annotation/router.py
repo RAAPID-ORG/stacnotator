@@ -2,8 +2,19 @@ import io
 import json
 import logging
 from datetime import datetime
+from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+)
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -15,9 +26,13 @@ from src.annotation.schemas import (
     AnnotationChangesOut,
     AnnotationCreate,
     AnnotationDensityCell,
+    AnnotationFacetsOut,
     AnnotationFromTaskCreate,
+    AnnotationLabelDensityCell,
     AnnotationOut,
     AnnotationsExtentOut,
+    AnnotationSort,
+    AnnotationsPageOut,
     AnnotationTaskListOut,
     AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
@@ -439,17 +454,40 @@ def export_annotations_geojson(
     )
 
 
-@router.get("/campaigns/{campaign_id}/annotations", response_model=list[AnnotationOut])
-def get_all_annotations_for_campaign(
+@router.get("/campaigns/{campaign_id}/annotations", response_model=AnnotationsPageOut)
+def list_annotations_for_campaign(
     campaign_id: int,
+    limit: int = Query(50, ge=1, le=service.MAX_ANNOTATION_PAGE),
+    offset: int = Query(0, ge=0),
+    user_ids: Annotated[list[UUID] | None, Query()] = None,
+    label_ids: Annotated[list[int] | None, Query()] = None,
+    confidences: Annotated[list[int] | None, Query()] = None,
+    flagged_only: bool = False,
+    search: str | None = None,
+    sort: AnnotationSort = "default",
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
-):
-    annotations = service.get_annotations_for_campaign(
-        db=db,
-        campaign=campaign,
+) -> AnnotationsPageOut:
+    """One page of a campaign's annotations, filtered and sorted server-side.
+
+    Paged and geometry-free by necessity rather than taste: returning every annotation
+    with its geometry measured 10.2s and 70.5 MB on a campaign holding 100k of them,
+    which is one worker and one pooled connection occupied for ten seconds by a single
+    page load. The map beside the table reads the density grid instead, which is already
+    aggregated.
+    """
+    return service.list_annotations_page(
+        db,
+        campaign,
+        limit=limit,
+        offset=offset,
+        user_ids=user_ids,
+        label_ids=label_ids,
+        confidences=confidences,
+        flagged_only=flagged_only,
+        search=search,
+        sort=sort,
     )
-    return annotations
 
 
 # ============================================================================
@@ -457,6 +495,58 @@ def get_all_annotations_for_campaign(
 #
 # Serve open-mode annotations as vector tiles for the viewport .
 # ============================================================================
+
+
+@router.get(
+    "/campaigns/{campaign_id}/annotations/density-by-label",
+    response_model=list[AnnotationLabelDensityCell],
+)
+def get_annotation_density_by_label(
+    campaign_id: int,
+    include_tasks: bool = True,
+    bbox: str | None = None,
+    target_cells: int = Query(48, ge=4, le=256),
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> list[AnnotationLabelDensityCell]:
+    """The campaign's class distribution as a grid.
+
+    Separate from ``/density``, which the minimap uses and which knows only where
+    annotations are. This one answers where each class is, independent of whatever the
+    annotations table happens to be showing.
+
+    Pass ``bbox`` as ``minx,miny,maxx,maxy`` to follow a viewport: the grid is then
+    sized from that window, so zooming in shrinks the cells until each holds a single
+    annotation and the map resolves to individual points. Omit it for the whole
+    campaign at a fixed resolution.
+    """
+    try:
+        window = parse_bbox(bbox) if bbox else None
+    except InvalidBBoxError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cells = spatial.get_annotation_density_by_label(
+        db,
+        campaign.id,
+        target_cells=target_cells,
+        include_tasks=include_tasks,
+        bbox=window,
+    )
+    return [AnnotationLabelDensityCell(**cell) for cell in cells]
+
+
+@router.get("/campaigns/{campaign_id}/annotations/facets", response_model=AnnotationFacetsOut)
+def get_annotation_facets(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> AnnotationFacetsOut:
+    """Campaign-wide counts for the annotations page's filters, legend and totals.
+
+    Separate from the page itself because it does not change as the reader pages, and
+    because deriving it in the browser is only possible if the browser has every
+    annotation - which is exactly what the paged endpoint stopped shipping.
+    """
+    return service.get_annotation_facets(db, campaign)
 
 
 @router.get(

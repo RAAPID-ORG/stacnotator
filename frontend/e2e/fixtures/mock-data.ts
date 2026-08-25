@@ -921,6 +921,22 @@ function makeOpenAnnotation(
     flagged_for_review: opts.flagged ?? false,
     flag_comment: opts.flagged ? (opts.flagComment ?? null) : null,
     geometry: { id: id * 10, geometry: wkt },
+    // The annotations list returns a centroid instead of the geometry, so mocks carry
+    // both: one shape for the annotation page, the other for the review table.
+    ...wktCentroid(wkt),
+  };
+}
+
+/** Rough centroid of a mock WKT, enough for fixtures. Points exactly, rings averaged. */
+function wktCentroid(wkt: string): { centroid_lat: number | null; centroid_lon: number | null } {
+  const coords = [...wkt.matchAll(/(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g)].map((m) => ({
+    lon: Number(m[1]),
+    lat: Number(m[2]),
+  }));
+  if (coords.length === 0) return { centroid_lat: null, centroid_lon: null };
+  return {
+    centroid_lon: coords.reduce((t, c) => t + c.lon, 0) / coords.length,
+    centroid_lat: coords.reduce((t, c) => t + c.lat, 0) / coords.length,
   };
 }
 

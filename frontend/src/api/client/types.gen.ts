@@ -232,6 +232,40 @@ export type AnnotationDensityCell = {
 };
 
 /**
+ * AnnotationFacetsOut
+ *
+ * Everything the annotations page needs that is *about* the whole campaign rather
+ * than about one page of it: which annotators exist, how the labels are distributed,
+ * how many there are in total.
+ *
+ * It exists because the page used to derive all of this by scanning every annotation
+ * it had loaded, which is only possible if you load them all. Aggregating in the
+ * database is both correct under paging and far cheaper.
+ */
+export type AnnotationFacetsOut = {
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * With Confidence
+     */
+    with_confidence: number;
+    /**
+     * Annotators
+     */
+    annotators: Array<AnnotatorFacet>;
+    /**
+     * Labels
+     */
+    labels: Array<LabelFacet>;
+    /**
+     * Confidences
+     */
+    confidences: Array<ConfidenceFacet>;
+};
+
+/**
  * AnnotationFromTaskCreate
  */
 export type AnnotationFromTaskCreate = {
@@ -361,6 +395,97 @@ export type AnnotationFromTaskOut = {
      * Counts Toward Completion
      */
     counts_toward_completion?: boolean | null;
+};
+
+/**
+ * AnnotationLabelDensityCell
+ *
+ * One grid cell's worth of a single label: where that class sits and how much of it
+ * is there. The review map draws the campaign's class distribution from these, which is
+ * a different question from the plain density grid's "where are annotations at all".
+ */
+export type AnnotationLabelDensityCell = {
+    /**
+     * Lon
+     */
+    lon: number;
+    /**
+     * Lat
+     */
+    lat: number;
+    /**
+     * Label Id
+     */
+    label_id: number | null;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
+ * AnnotationListItemOut
+ *
+ * One row of the annotations page.
+ *
+ * Deliberately not ``AnnotationOut``. The list renders metadata and needs a point to
+ * fly to, never the geometry itself - and shipping every geometry is what made this
+ * page a 70 MB, ten-second request on a campaign holding 100k annotations. The
+ * centroid is computed in the database so the shape never crosses the wire at all.
+ */
+export type AnnotationListItemOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label Id
+     */
+    label_id: number | null;
+    /**
+     * Confidence
+     */
+    confidence: number | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review: boolean;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
+    /**
+     * Comment
+     */
+    comment?: string | null;
+    /**
+     * Annotation Task Id
+     */
+    annotation_task_id?: number | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Created By User Id
+     */
+    created_by_user_id: string;
+    /**
+     * Created By User Email
+     */
+    created_by_user_email?: string | null;
+    /**
+     * Created By User Display Name
+     */
+    created_by_user_display_name?: string | null;
+    /**
+     * Centroid Lat
+     */
+    centroid_lat?: number | null;
+    /**
+     * Centroid Lon
+     */
+    centroid_lon?: number | null;
 };
 
 /**
@@ -639,6 +764,53 @@ export type AnnotationsExtentOut = {
         number,
         number
     ] | null;
+};
+
+/**
+ * AnnotationsPageOut
+ *
+ * A page of annotations plus how many matched the filter, so the client can show
+ * "showing n of m" and page without asking twice.
+ */
+export type AnnotationsPageOut = {
+    /**
+     * Items
+     */
+    items: Array<AnnotationListItemOut>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+};
+
+/**
+ * AnnotatorFacet
+ */
+export type AnnotatorFacet = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Email
+     */
+    email?: string | null;
+    /**
+     * Display Name
+     */
+    display_name?: string | null;
+    /**
+     * Count
+     */
+    count: number;
 };
 
 /**
@@ -1800,6 +1972,20 @@ export type CollectionVizConfigOut = {
 };
 
 /**
+ * ConfidenceFacet
+ */
+export type ConfidenceFacet = {
+    /**
+     * Confidence
+     */
+    confidence: number | null;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
  * CustomMapCreate
  */
 export type CustomMapCreate = {
@@ -2600,6 +2786,22 @@ export type LabelBase = {
      * Geometry Type
      */
     geometry_type?: 'point' | 'polygon' | 'line' | null;
+};
+
+/**
+ * LabelFacet
+ *
+ * ``label_id`` is None for annotations that carry no label.
+ */
+export type LabelFacet = {
+    /**
+     * Label Id
+     */
+    label_id: number | null;
+    /**
+     * Count
+     */
+    count: number;
 };
 
 /**
@@ -6921,7 +7123,12 @@ export type ExportTaskAssignmentsData = {
          */
         campaign_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Task Set Id
+         */
+        task_set_id?: number | null;
+    };
     url: '/api/campaigns/{campaign_id}/export-task-assignments';
 };
 
@@ -7528,7 +7735,115 @@ export type ExportAnnotationsGeojsonResponses = {
     200: unknown;
 };
 
-export type GetAllAnnotationsForCampaignData = {
+export type ListAnnotationsForCampaignData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+        /**
+         * User Ids
+         */
+        user_ids?: Array<string> | null;
+        /**
+         * Label Ids
+         */
+        label_ids?: Array<number> | null;
+        /**
+         * Confidences
+         */
+        confidences?: Array<number> | null;
+        /**
+         * Flagged Only
+         */
+        flagged_only?: boolean;
+        /**
+         * Search
+         */
+        search?: string | null;
+        /**
+         * Sort
+         */
+        sort?: 'default' | 'id-asc' | 'id-desc' | 'confidence-asc' | 'confidence-desc' | 'time-asc' | 'time-desc';
+    };
+    url: '/api/campaigns/{campaign_id}/annotations';
+};
+
+export type ListAnnotationsForCampaignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAnnotationsForCampaignError = ListAnnotationsForCampaignErrors[keyof ListAnnotationsForCampaignErrors];
+
+export type ListAnnotationsForCampaignResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationsPageOut;
+};
+
+export type ListAnnotationsForCampaignResponse = ListAnnotationsForCampaignResponses[keyof ListAnnotationsForCampaignResponses];
+
+export type GetAnnotationDensityByLabelData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Include Tasks
+         */
+        include_tasks?: boolean;
+        /**
+         * Bbox
+         */
+        bbox?: string | null;
+        /**
+         * Target Cells
+         */
+        target_cells?: number;
+    };
+    url: '/api/campaigns/{campaign_id}/annotations/density-by-label';
+};
+
+export type GetAnnotationDensityByLabelErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationDensityByLabelError = GetAnnotationDensityByLabelErrors[keyof GetAnnotationDensityByLabelErrors];
+
+export type GetAnnotationDensityByLabelResponses = {
+    /**
+     * Response Getannotationdensitybylabel
+     *
+     * Successful Response
+     */
+    200: Array<AnnotationLabelDensityCell>;
+};
+
+export type GetAnnotationDensityByLabelResponse = GetAnnotationDensityByLabelResponses[keyof GetAnnotationDensityByLabelResponses];
+
+export type GetAnnotationFacetsData = {
     body?: never;
     path: {
         /**
@@ -7537,28 +7852,26 @@ export type GetAllAnnotationsForCampaignData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/annotations';
+    url: '/api/campaigns/{campaign_id}/annotations/facets';
 };
 
-export type GetAllAnnotationsForCampaignErrors = {
+export type GetAnnotationFacetsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetAllAnnotationsForCampaignError = GetAllAnnotationsForCampaignErrors[keyof GetAllAnnotationsForCampaignErrors];
+export type GetAnnotationFacetsError = GetAnnotationFacetsErrors[keyof GetAnnotationFacetsErrors];
 
-export type GetAllAnnotationsForCampaignResponses = {
+export type GetAnnotationFacetsResponses = {
     /**
-     * Response Getallannotationsforcampaign
-     *
      * Successful Response
      */
-    200: Array<AnnotationOut>;
+    200: AnnotationFacetsOut;
 };
 
-export type GetAllAnnotationsForCampaignResponse = GetAllAnnotationsForCampaignResponses[keyof GetAllAnnotationsForCampaignResponses];
+export type GetAnnotationFacetsResponse = GetAnnotationFacetsResponses[keyof GetAnnotationFacetsResponses];
 
 export type GetAnnotationTileData = {
     body?: never;

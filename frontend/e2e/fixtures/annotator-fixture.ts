@@ -28,6 +28,7 @@ import {
   makeCreateAnnotationResponse,
   makeUpdateAnnotationResponse,
   MOCK_TIMESERIES_DATA,
+  TEST_USER_ID,
 } from './mock-data';
 
 /** Endpoints the app shell and every project-scoped page hit. Regexes rather
@@ -540,18 +541,65 @@ export const test = base.extend<AnnotatorFixtures>({
       await route.fulfill({ json: resp });
     });
 
-    // GET /api/campaigns/:id/annotations  (open mode: load all annotations)
-    await page.route('**/api/campaigns/*/annotations', async (route) => {
+    // GET /api/campaigns/:id/annotations  (the review table: one page, no geometry)
+    await page.route(/\/api\/campaigns\/\d+\/annotations(\?|$)/, async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
-      const pathname = new URL(route.request().url()).pathname;
+      const url = new URL(route.request().url());
       api.requests.push({
         method: 'GET',
         url: route.request().url(),
-        pathname,
+        pathname: url.pathname,
         body: null,
-        pathParams: extractPathParams(pathname),
+        pathParams: extractPathParams(url.pathname),
       });
-      await route.fulfill({ json: openAnnotations });
+      const limit = Number(url.searchParams.get('limit') ?? 50);
+      const offset = Number(url.searchParams.get('offset') ?? 0);
+      await route.fulfill({
+        json: {
+          items: openAnnotations.slice(offset, offset + limit),
+          total: openAnnotations.length,
+          limit,
+          offset,
+        },
+      });
+    });
+
+    // GET /api/campaigns/:id/annotations/facets  (campaign-wide counts for the filters)
+    await page.route('**/api/campaigns/*/annotations/facets', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      const byLabel = new Map<number | null, number>();
+      openAnnotations.forEach((a) => byLabel.set(a.label_id, (byLabel.get(a.label_id) ?? 0) + 1));
+      await route.fulfill({
+        json: {
+          total: openAnnotations.length,
+          with_confidence: openAnnotations.filter((a) => a.confidence != null).length,
+          annotators: [
+            {
+              user_id: TEST_USER_ID,
+              email: 'test@example.com',
+              display_name: 'Test User',
+              count: openAnnotations.length,
+            },
+          ],
+          labels: [...byLabel].map(([label_id, count]) => ({ label_id, count })),
+          confidences: [],
+        },
+      });
+    });
+
+    // GET /api/campaigns/:id/annotations/density-by-label  (the distribution map)
+    await page.route('**/api/campaigns/*/annotations/density-by-label', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      await route.fulfill({
+        json: openAnnotations
+          .filter((a) => a.centroid_lat != null)
+          .map((a) => ({
+            lon: a.centroid_lon,
+            lat: a.centroid_lat,
+            label_id: a.label_id,
+            count: 1,
+          })),
+      });
     });
 
     // POST /api/campaigns/:id/create-annotation  (open mode: draw)

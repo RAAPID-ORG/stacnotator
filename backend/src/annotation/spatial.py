@@ -7,11 +7,12 @@ queries, kept out of `service.py`'s ORM-centric read/write flows.
 
 from datetime import UTC, datetime
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from src.annotation.constants import CHANGES_LIMIT, CHANGES_OVERLAP
 from src.annotation.tiles import MIN_TILE_ZOOM, build_mvt_query, task_filter_sql
+from src.campaigns.models import CampaignSettings
 
 
 def render_annotation_tile(
@@ -103,6 +104,37 @@ def get_campaign_annotations_extent(
     return (float(row[0]), float(row[1]), float(row[2]), float(row[3]))
 
 
+def _density_cell_size(
+    db: Session, campaign_id: int, target_cells: int, include_tasks: bool
+) -> float | None:
+    """Grid cell size in degrees, or None if the campaign has no annotations.
+
+    Sized from the campaign's own area of interest rather than from where its
+    annotations happen to be. A single stray annotation on another continent stretches
+    the annotation extent enormously, and a grid derived from that collapses the whole
+    campaign into one cell - which is precisely when a distribution map stops being
+    able to show anything. Outliers still appear; they simply land in cells beyond the
+    area of interest instead of deciding how big every cell is.
+
+    Shared so the plain and per-label grids land on identical cells; two cell sizes
+    would put the same annotations in different places on two maps.
+    """
+    if get_campaign_annotations_extent(db, campaign_id, include_tasks=include_tasks) is None:
+        return None
+    settings = db.execute(
+        select(
+            CampaignSettings.bbox_west,
+            CampaignSettings.bbox_south,
+            CampaignSettings.bbox_east,
+            CampaignSettings.bbox_north,
+        ).where(CampaignSettings.campaign_id == campaign_id)
+    ).first()
+    if settings is None:
+        return 0.01
+    span = max(settings[2] - settings[0], settings[3] - settings[1])
+    return span / target_cells if span > 0 else 0.01
+
+
 def get_annotation_density(
     db: Session,
     campaign_id: int,
@@ -120,12 +152,9 @@ def get_annotation_density(
     away. One indexed pass, tiny payload - independent of how many annotations
     exist, so it scales where per-feature dots would not.
     """
-    extent = get_campaign_annotations_extent(db, campaign_id, include_tasks=include_tasks)
-    if extent is None:
+    grid = _density_cell_size(db, campaign_id, target_cells, include_tasks)
+    if grid is None:
         return []
-    minx, miny, maxx, maxy = extent
-    span = max(maxx - minx, maxy - miny)
-    grid = span / target_cells if span > 0 else 0.01
 
     sql = text(
         f"""
@@ -199,3 +228,67 @@ def get_annotation_changes(
         for row in rows
     ]
     return changes[:limit], len(changes) > limit
+
+
+def get_annotation_density_by_label(
+    db: Session,
+    campaign_id: int,
+    target_cells: int = 48,
+    include_tasks: bool = True,
+    bbox: tuple[float, float, float, float] | None = None,
+) -> list[dict]:
+    """As :func:`get_annotation_density`, split by label.
+
+    The review page's distribution map answers "where is each class", which the plain
+    grid cannot: it only knows where annotations are. Splitting in the database keeps the
+    property that makes the plain grid usable at all - one indexed pass, and a payload
+    that grows with cells times labels rather than with the number of annotations.
+
+    Each row carries that label's own mean centroid within the cell, so a class sits
+    where its annotations actually are rather than at a shared cell centre.
+
+    ``bbox`` restricts the result to a viewport *and* sizes the grid from it, which is
+    what lets the same endpoint resolve to detail: zooming in shrinks the cells, counts
+    fall, and at one annotation per cell the reported mean centroid is that annotation's
+    own position. Without it the grid is fixed to the campaign's area of interest and no
+    amount of zooming ever breaks a cell apart.
+    """
+    params: dict = {"campaign_id": campaign_id}
+    if bbox is None:
+        grid = _density_cell_size(db, campaign_id, target_cells, include_tasks)
+        window = ""
+    else:
+        minx, miny, maxx, maxy = bbox
+        span = max(maxx - minx, maxy - miny)
+        grid = span / target_cells if span > 0 else 0.01
+        window = "AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
+        params |= {"minx": minx, "miny": miny, "maxx": maxx, "maxy": maxy}
+    if grid is None:
+        return []
+    params["grid"] = grid
+
+    sql = text(
+        f"""
+        SELECT avg(ST_X(c)) AS lon, avg(ST_Y(c)) AS lat, label_id, count(*) AS n
+        FROM (
+            SELECT ST_Centroid(g.geometry) AS c, a.label_id AS label_id
+            FROM data.annotations a
+            JOIN data.annotation_geometries g ON g.id = a.geometry_id
+            WHERE a.campaign_id = :campaign_id
+              {task_filter_sql(include_tasks)}
+              {window}
+        ) AS pts
+        GROUP BY floor(ST_X(c) / :grid), floor(ST_Y(c) / :grid), label_id
+        ORDER BY n DESC
+        """  # noqa: S608
+    )
+    rows = db.execute(sql, params).all()
+    return [
+        {
+            "lon": float(r[0]),
+            "lat": float(r[1]),
+            "label_id": int(r[2]) if r[2] is not None else None,
+            "count": int(r[3]),
+        }
+        for r in rows
+    ]

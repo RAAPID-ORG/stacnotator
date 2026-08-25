@@ -1,17 +1,19 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import {
   batchDeleteAnnotations,
-  getAllAnnotationsForCampaign,
-  type AnnotationOut,
+  getAnnotationFacets,
+  listAnnotationsForCampaign,
+  type AnnotationFacetsOut,
+  type AnnotationListItemOut,
   type CampaignSummaryOut,
 } from '~/api/client';
 import { campaignPath } from '~/app/routes';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { capitalizeFirst, extractCentroidFromWKT } from '~/shared/utils/utility';
+import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { OpenModeDistributionMap } from './OpenModeDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
@@ -24,6 +26,10 @@ import { isSortOption, type SortOption, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 import type { ReactNode } from 'react';
+
+// Matches the server's own cap on a page; large enough that most campaigns are one or
+// two pages, small enough that a page renders instantly.
+const PAGE_SIZE = 50;
 
 interface OpenModeReviewProps {
   campaign: CampaignSummaryOut;
@@ -45,15 +51,26 @@ export const OpenModeReview = ({
   const currentUser = useAccountStore((state) => state.account);
   const showAlert = useLayoutStore((state) => state.showAlert);
 
-  const [annotations, setAnnotations] = useState<AnnotationOut[]>([]);
+  // One page of rows, plus the campaign-wide counts the filters and legend need. The
+  // page used to hold every annotation in state and filter in the browser, which meant
+  // a 70 MB request before anything rendered.
+  const [items, setItems] = useState<AnnotationListItemOut[]>([]);
+  const [total, setTotal] = useState(0);
+  const [facets, setFacets] = useState<AnnotationFacetsOut | null>(null);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [highlightedAnnotationId, setHighlightedAnnotationId] = useState<number | null>(null);
+  // Distinct from `loading`: true only until the first page has ever arrived. After
+  // that a refetch keeps the previous rows mounted rather than collapsing the page.
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [selectedConfidences, setSelectedConfidences] = useState<number[]>([]);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // What actually goes to the server. Typing re-queries on every keystroke otherwise,
+  // and each answer rewrites the table under the reader's cursor.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<number>>(new Set());
@@ -61,110 +78,116 @@ export const OpenModeReview = ({
   const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        const annotationsRes = await getAllAnnotationsForCampaign({
-          path: { campaign_id: campaignId },
-        });
-        setAnnotations(annotationsRes.data || []);
-      } catch (err) {
-        handleError(err, 'Failed to load annotations');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    getAnnotationFacets({ path: { campaign_id: campaignId } })
+      .then((res) => setFacets(res.data ?? null))
+      .catch((err) => handleError(err, 'Failed to load annotation summary'));
   }, [campaignId]);
 
-  const uniqueUsers = useMemo((): UserInfo[] => {
-    const m = new Map<string, UserInfo>();
-    annotations.forEach((ann) => {
-      if (!m.has(ann.created_by_user_id)) {
-        m.set(ann.created_by_user_id, {
-          id: ann.created_by_user_id,
-          email: ann.created_by_user_email ?? null,
-          displayName: ann.created_by_user_display_name ?? null,
-        });
-      }
-    });
-    return Array.from(m.values()).sort((a, b) =>
-      (a.displayName || a.email || a.id).localeCompare(b.displayName || b.email || b.id)
-    );
-  }, [annotations]);
-
-  const labels = campaign.settings.labels;
-
-  const filteredAnnotations = useMemo(() => {
-    const filtered = annotations.filter((ann) => {
-      if (selectedUserIds.length > 0 && !selectedUserIds.includes(ann.created_by_user_id))
-        return false;
-      if (
-        selectedLabelIds.length > 0 &&
-        (ann.label_id === null || !selectedLabelIds.includes(ann.label_id))
-      )
-        return false;
-      if (selectedConfidences.length > 0) {
-        const c = ann.confidence ?? 0;
-        if (!selectedConfidences.includes(c)) return false;
-      }
-      if (flaggedOnly && !ann.flagged_for_review) return false;
-      if (searchQuery && !ann.id.toString().includes(searchQuery.toLowerCase())) return false;
-      return true;
-    });
-
-    if (sortOption === 'default') return filtered;
-    return [...filtered].sort((a, b) => {
-      if (sortOption === 'confidence-asc' || sortOption === 'confidence-desc') {
-        const ca = a.confidence ?? Infinity,
-          cb = b.confidence ?? Infinity;
-        if (ca === Infinity && cb === Infinity) return 0;
-        if (ca === Infinity) return 1;
-        if (cb === Infinity) return -1;
-        return sortOption === 'confidence-asc' ? ca - cb : cb - ca;
-      }
-      if (sortOption === 'id-asc') return a.id - b.id;
-      if (sortOption === 'id-desc') return b.id - a.id;
-      return 0;
-    });
-  }, [
-    annotations,
+  // One string standing for "what is being asked for". Changing any of it sends the
+  // reader back to the first page: a narrowed filter would otherwise land them on an
+  // offset past the end of its own results.
+  const filterKey = JSON.stringify([
     selectedUserIds,
     selectedLabelIds,
     selectedConfidences,
     flaggedOnly,
-    searchQuery,
+    debouncedSearch,
     sortOption,
   ]);
+  const appliedFilterKey = useRef(filterKey);
 
-  const stats = useMemo(() => {
-    let withConfidence = 0;
-    annotations.forEach((ann) => {
-      if (ann.confidence != null) withConfidence++;
-    });
-    return { total: annotations.length, withConfidence };
-  }, [annotations]);
+  useEffect(() => {
+    setOffset((current) => (current === 0 ? current : 0));
+  }, [campaignId, filterKey]);
+
+  useEffect(() => {
+    // Filters just changed but the offset reset has not landed yet. Fetching now would
+    // briefly show page three of the new filter before page one replaces it.
+    if (appliedFilterKey.current !== filterKey && offset !== 0) return;
+    appliedFilterKey.current = filterKey;
+
+    let cancelled = false;
+    const loadPage = async () => {
+      try {
+        setLoading(true);
+        const res = await listAnnotationsForCampaign({
+          path: { campaign_id: campaignId },
+          query: {
+            limit: PAGE_SIZE,
+            offset,
+            sort: sortOption,
+            flagged_only: flaggedOnly,
+            ...(selectedUserIds.length ? { user_ids: selectedUserIds } : {}),
+            ...(selectedLabelIds.length ? { label_ids: selectedLabelIds } : {}),
+            ...(selectedConfidences.length ? { confidences: selectedConfidences } : {}),
+            ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          },
+        });
+        // Responses can land out of order while someone types in the search box.
+        if (cancelled) return;
+        setItems(res.data?.items ?? []);
+        setTotal(res.data?.total ?? 0);
+        setHasLoaded(true);
+      } catch (err) {
+        if (!cancelled) handleError(err, 'Failed to load annotations');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadPage();
+    return () => {
+      cancelled = true;
+    };
+    // filterKey stands for every filter input; listing them individually would re-run
+    // this on each render, since two of them are arrays.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, offset, filterKey]);
+
+  const uniqueUsers = useMemo(
+    (): UserInfo[] =>
+      (facets?.annotators ?? []).map((a) => ({
+        id: a.user_id,
+        email: a.email ?? null,
+        displayName: a.display_name ?? null,
+      })),
+    [facets]
+  );
+
+  const labels = campaign.settings.labels;
+
+  const stats = {
+    total: facets?.total ?? 0,
+    withConfidence: facets?.with_confidence ?? 0,
+  };
 
   const isCampaignAdmin = campaign.viewer_is_admin ?? false;
 
   // Mirror backend rule (annotation/service.py:delete_annotations_bulk):
   // public campaigns require ownership unless admin; private campaigns let any
   // member with access delete anything.
-  const canDeleteAnnotation = (ann: AnnotationOut): boolean => {
+  const canDeleteAnnotation = (ann: AnnotationListItemOut): boolean => {
     if (!campaign.is_public) return true;
     return isCampaignAdmin || ann.created_by_user_id === currentUser?.id;
   };
 
-  const deletableFilteredIds = useMemo(
-    () => filteredAnnotations.filter(canDeleteAnnotation).map((a) => a.id),
+  // Selection is scoped to the page on screen. Select-all across a filter that can
+  // match 100k rows is not something the reader can meaningfully review before
+  // confirming a delete, so it deliberately does not exist.
+  const deletablePageIds = useMemo(
+    () => items.filter(canDeleteAnnotation).map((a) => a.id),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredAnnotations, isCampaignAdmin, currentUser?.id, campaign.is_public]
+    [items, isCampaignAdmin, currentUser?.id, campaign.is_public]
   );
 
-  // Drop selections that are no longer visible after filter/search changes.
+  // Drop selections that are no longer on screen after a filter, sort or page change.
   useEffect(() => {
     setSelectedAnnotationIds((prev) => {
-      const visible = new Set(filteredAnnotations.map((a) => a.id));
+      const visible = new Set(items.map((a) => a.id));
       let changed = false;
       const next = new Set<number>();
       prev.forEach((id) => {
@@ -173,7 +196,7 @@ export const OpenModeReview = ({
       });
       return changed ? next : prev;
     });
-  }, [filteredAnnotations]);
+  }, [items]);
 
   const toggleAnnotationSelected = (id: number) => {
     setSelectedAnnotationIds((prev) => {
@@ -185,18 +208,17 @@ export const OpenModeReview = ({
   };
 
   const allDeletableSelected =
-    deletableFilteredIds.length > 0 &&
-    deletableFilteredIds.every((id) => selectedAnnotationIds.has(id));
+    deletablePageIds.length > 0 && deletablePageIds.every((id) => selectedAnnotationIds.has(id));
 
   const toggleSelectAllDeletable = () => {
     setSelectedAnnotationIds((prev) => {
       if (allDeletableSelected) {
         const next = new Set(prev);
-        deletableFilteredIds.forEach((id) => next.delete(id));
+        deletablePageIds.forEach((id) => next.delete(id));
         return next;
       }
       const next = new Set(prev);
-      deletableFilteredIds.forEach((id) => next.add(id));
+      deletablePageIds.forEach((id) => next.add(id));
       return next;
     });
   };
@@ -216,7 +238,8 @@ export const OpenModeReview = ({
         );
       }
       const idSet = new Set(ids);
-      setAnnotations((prev) => prev.filter((a) => !idSet.has(a.id)));
+      setItems((prev) => prev.filter((a) => !idSet.has(a.id)));
+      setTotal((prev) => Math.max(0, prev - data.deleted_count));
       setSelectedAnnotationIds(new Set());
       setConfirmBatchDelete(false);
       showAlert(`Deleted ${data.deleted_count} annotation(s)`, 'success');
@@ -231,23 +254,23 @@ export const OpenModeReview = ({
   // to their task in Tasks mode, standalone ones open Explore centred on the
   // annotation. Without an explicit mode the annotator would seed from
   // campaign.mode and open the first task regardless of origin.
-  const handleNavigateToAnnotation = (ann: AnnotationOut) => {
+  const handleNavigateToAnnotation = (ann: AnnotationListItemOut) => {
     if (ann.annotation_task_id != null) {
       navigate(`${annotatePath}?task=${ann.annotation_task_id}&review=true`);
       return;
     }
-    const centroid = extractCentroidFromWKT(ann.geometry.geometry);
-    if (centroid) {
+    // The centroid comes from the database now; the row never carries a geometry.
+    if (ann.centroid_lat != null && ann.centroid_lon != null) {
       navigate(
-        `${annotatePath}?mode=explore&lat=${centroid.lat}&lon=${centroid.lon}&annotation=${ann.id}`
+        `${annotatePath}?mode=explore&lat=${ann.centroid_lat}&lon=${ann.centroid_lon}&annotation=${ann.id}`
       );
     } else {
       navigate(`${annotatePath}?mode=explore`);
     }
   };
 
-  const getUserDisplayName = (ann: AnnotationOut): string => {
-    if (ann.created_by_user_id === currentUser?.id)
+  const getUserDisplayName = (ann: AnnotationListItemOut): string => {
+    if (currentUser && ann.created_by_user_id === currentUser.id)
       return currentUser.display_name || currentUser.email || 'You';
     return (
       ann.created_by_user_display_name ||
@@ -272,17 +295,15 @@ export const OpenModeReview = ({
               <Skeleton className="h-4 w-56 mt-2" />
             ) : (
               <p className="page-subtitle">
-                {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in this
-                campaign.
+                {stats.total} annotation{stats.total !== 1 ? 's' : ''} in this campaign.
               </p>
             )}
           </div>
           <div className="flex items-center gap-3">
-            {headerActions}
             <ExportDropdown
               campaignId={campaignId}
               campaign={campaign}
-              disabled={annotations.length === 0}
+              disabled={stats.total === 0}
               showMergeToggle={false}
             />
             <Button onClick={() => navigate(annotatePath)}>Start annotating</Button>
@@ -292,17 +313,18 @@ export const OpenModeReview = ({
         {subHeader}
 
         {/* Map */}
-        {annotations.length > 0 && (
+        {stats.total > 0 && (
           <div className="surface mb-6">
             <div className="px-5 py-4 border-b border-neutral-100">
               <h2 className="section-heading">
                 Annotation locations{' '}
-                <span className="text-neutral-400 font-normal">({filteredAnnotations.length})</span>
+                <span className="text-neutral-400 font-normal">({stats.total})</span>
               </h2>
             </div>
             <div className="p-4">
               <OpenModeDistributionMap
-                annotations={filteredAnnotations}
+                campaignId={campaignId}
+                labelCounts={facets?.labels ?? []}
                 labels={labels}
                 bbox={{
                   west: campaign.settings.bbox_west,
@@ -310,8 +332,6 @@ export const OpenModeReview = ({
                   east: campaign.settings.bbox_east,
                   north: campaign.settings.bbox_north,
                 }}
-                highlightedAnnotationId={highlightedAnnotationId}
-                onAnnotationClick={handleNavigateToAnnotation}
               />
             </div>
           </div>
@@ -320,7 +340,10 @@ export const OpenModeReview = ({
         {/* Filters */}
         <div className="surface surface-unclipped mb-6">
           <div className="px-5 py-4 space-y-3">
-            <h3 className="section-heading">Filters & search</h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="section-heading mb-0">Filters &amp; search</h3>
+              {headerActions}
+            </div>
             <div className="flex flex-wrap items-center gap-4">
               {/* Label Filter */}
               {labels.length > 0 && (
@@ -481,11 +504,12 @@ export const OpenModeReview = ({
             </div>
 
             <div className="pt-3 border-t border-neutral-100 text-xs text-neutral-500">
-              {loading ? (
+              {!hasLoaded ? (
                 <Skeleton className="h-3.5 w-44" />
               ) : (
                 <>
-                  Showing {filteredAnnotations.length} of {annotations.length} annotations
+                  Showing {items.length === 0 ? 0 : offset + 1}&ndash;{offset + items.length} of{' '}
+                  {total} annotations
                 </>
               )}
             </div>
@@ -493,11 +517,11 @@ export const OpenModeReview = ({
         </div>
 
         {/* Annotations Table */}
-        {loading ? (
+        {!hasLoaded ? (
           <Delayed>
             <SkeletonRows count={8} />
           </Delayed>
-        ) : filteredAnnotations.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm">
             <svg
               className="w-12 h-12 text-neutral-400 mx-auto mb-4"
@@ -513,25 +537,30 @@ export const OpenModeReview = ({
               />
             </svg>
             <p className="text-neutral-700 mb-2">
-              {annotations.length === 0
-                ? 'No annotations yet'
-                : 'No annotations match your filters'}
+              {stats.total === 0 ? 'No annotations yet' : 'No annotations match your filters'}
             </p>
             <p className="text-neutral-500 text-sm">
-              {annotations.length === 0
+              {stats.total === 0
                 ? 'Start annotating to see entries here'
                 : 'Try adjusting your filter criteria'}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white">
+          // Dimmed rather than replaced while the next page loads: the rows keep their
+          // height, so nothing under the reader's cursor moves.
+          <div
+            aria-busy={loading}
+            className={`overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white transition-opacity duration-150 ${
+              loading ? 'opacity-60' : 'opacity-100'
+            }`}
+          >
             {/* Batch actions toolbar - shown only when there are selectable rows */}
-            {deletableFilteredIds.length > 0 && (
+            {deletablePageIds.length > 0 && (
               <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-neutral-200 bg-neutral-50">
                 <span className="text-xs text-neutral-600">
                   {selectedAnnotationIds.size > 0
                     ? `${selectedAnnotationIds.size} selected`
-                    : `Select annotations to delete (${deletableFilteredIds.length} available)`}
+                    : `Select annotations to delete (${deletablePageIds.length} available)`}
                 </span>
                 <Button
                   variant="danger"
@@ -551,7 +580,7 @@ export const OpenModeReview = ({
                       aria-label="Select all deletable annotations"
                       checked={allDeletableSelected}
                       onChange={toggleSelectAllDeletable}
-                      disabled={deletableFilteredIds.length === 0}
+                      disabled={deletablePageIds.length === 0}
                       className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer disabled:cursor-not-allowed"
                     />
                   </th>
@@ -585,8 +614,11 @@ export const OpenModeReview = ({
                 </tr>
               </thead>
               <tbody>
-                {filteredAnnotations.map((ann, index) => {
-                  const centroid = extractCentroidFromWKT(ann.geometry.geometry);
+                {items.map((ann, index) => {
+                  const centroid =
+                    ann.centroid_lat != null && ann.centroid_lon != null
+                      ? { lat: ann.centroid_lat, lon: ann.centroid_lon }
+                      : null;
                   const isMine = ann.created_by_user_id === currentUser?.id;
                   const createdAt = new Date(ann.created_at);
                   const canDelete = canDeleteAnnotation(ann);
@@ -598,8 +630,6 @@ export const OpenModeReview = ({
                       className={listRowCls(index, {
                         tinted: isMine,
                       })}
-                      onMouseEnter={() => setHighlightedAnnotationId(ann.id)}
-                      onMouseLeave={() => setHighlightedAnnotationId(null)}
                     >
                       <td className="px-3 py-3">
                         <input
@@ -699,14 +729,42 @@ export const OpenModeReview = ({
           </div>
         )}
 
+        {/* Pager */}
+        {total > PAGE_SIZE && (
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <Button
+              variant="secondary"
+              onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+              disabled={offset === 0 || loading}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-neutral-600">
+              Page{' '}
+              <strong className="text-neutral-900">{Math.floor(offset / PAGE_SIZE) + 1}</strong> of{' '}
+              {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            </span>
+            <Button
+              variant="secondary"
+              onClick={() => setOffset((o) => o + PAGE_SIZE)}
+              disabled={offset + PAGE_SIZE >= total || loading}
+            >
+              Next
+            </Button>
+          </div>
+        )}
+
         {/* Footer */}
-        {filteredAnnotations.length > 0 && (
-          <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
+        {items.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-6 text-sm text-neutral-600">
             <span>
-              Showing: <strong className="text-neutral-900">{filteredAnnotations.length}</strong>
+              Showing:{' '}
+              <strong className="text-neutral-900">
+                {offset + 1}&ndash;{offset + items.length}
+              </strong>
             </span>
             <span>
-              Total: <strong className="text-neutral-900">{annotations.length}</strong>
+              Matching: <strong className="text-neutral-900">{total}</strong>
             </span>
             {stats.withConfidence > 0 && (
               <span>

@@ -111,6 +111,98 @@ class AnnotationOut(AnnotationFromTaskOut):
     model_config = ConfigDict(from_attributes=True)
 
 
+AnnotationSort = Literal[
+    "default",
+    "id-asc",
+    "id-desc",
+    "confidence-asc",
+    "confidence-desc",
+    "time-asc",
+    "time-desc",
+]
+
+
+class AnnotationListItemOut(BaseModel):
+    """One row of the annotations page.
+
+    Deliberately not ``AnnotationOut``. The list renders metadata and needs a point to
+    fly to, never the geometry itself - and shipping every geometry is what made this
+    page a 70 MB, ten-second request on a campaign holding 100k annotations. The
+    centroid is computed in the database so the shape never crosses the wire at all.
+    """
+
+    id: int
+    label_id: int | None
+    confidence: int | None
+    flagged_for_review: bool
+    flag_comment: str | None = None
+    comment: str | None = None
+    annotation_task_id: int | None = None
+    created_at: datetime
+    created_by_user_id: UUID
+    created_by_user_email: str | None = None
+    created_by_user_display_name: str | None = None
+    centroid_lat: float | None = None
+    centroid_lon: float | None = None
+
+
+class AnnotationsPageOut(BaseModel):
+    """A page of annotations plus how many matched the filter, so the client can show
+    "showing n of m" and page without asking twice."""
+
+    items: list[AnnotationListItemOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class AnnotationLabelDensityCell(BaseModel):
+    """One grid cell's worth of a single label: where that class sits and how much of it
+    is there. The review map draws the campaign's class distribution from these, which is
+    a different question from the plain density grid's "where are annotations at all"."""
+
+    lon: float
+    lat: float
+    label_id: int | None
+    count: int
+
+
+class AnnotatorFacet(BaseModel):
+    user_id: UUID
+    email: str | None = None
+    display_name: str | None = None
+    count: int
+
+
+class LabelFacet(BaseModel):
+    """``label_id`` is None for annotations that carry no label."""
+
+    label_id: int | None
+    count: int
+
+
+class ConfidenceFacet(BaseModel):
+    confidence: int | None
+    count: int
+
+
+class AnnotationFacetsOut(BaseModel):
+    """Everything the annotations page needs that is *about* the whole campaign rather
+    than about one page of it: which annotators exist, how the labels are distributed,
+    how many there are in total.
+
+    It exists because the page used to derive all of this by scanning every annotation
+    it had loaded, which is only possible if you load them all. Aggregating in the
+    database is both correct under paging and far cheaper.
+    """
+
+    total: int
+    with_confidence: int
+    annotators: list[AnnotatorFacet]
+    labels: list[LabelFacet]
+    confidences: list[ConfidenceFacet]
+
+
 class AnnotationTaskAssignmentOut(BaseModel):
     user_id: UUID
     # Derived, not stored: attached to the ORM row by AnnotationTaskOut's

@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy import String, delete, func, insert, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from src.annotation import claims
@@ -32,16 +32,24 @@ from src.annotation.models import (
 )
 from src.annotation.schemas import (
     AnnotationCreate,
+    AnnotationFacetsOut,
     AnnotationFromTaskCreate,
+    AnnotationListItemOut,
+    AnnotationSort,
+    AnnotationsPageOut,
     AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
+    AnnotatorFacet,
+    ConfidenceFacet,
+    LabelFacet,
     SliceComment,
     TaskStatusOut,
     derive_assignment_status,
     normalize_slice_comments,
     task_status_inputs,
 )
+from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
     build_policy_context,
@@ -810,35 +818,162 @@ def update_annotation(
 # ============================================================================
 
 
-def get_annotations_for_campaign(
+# One page of the annotations table. Bounded because the unbounded version of this
+# endpoint measured 10.2s and 70.5 MB on a campaign with 100k annotations, which is one
+# worker and one connection held for ten seconds by a single page load.
+MAX_ANNOTATION_PAGE = 200
+
+_SORTS = {
+    "id-asc": (Annotation.id.asc(),),
+    "id-desc": (Annotation.id.desc(),),
+    # NULL confidence sorts last either way: "unrated" is not "least confident".
+    "confidence-asc": (Annotation.confidence.asc().nulls_last(), Annotation.id.asc()),
+    "confidence-desc": (Annotation.confidence.desc().nulls_last(), Annotation.id.asc()),
+    "time-asc": (Annotation.created_at.asc(), Annotation.id.asc()),
+    "time-desc": (Annotation.created_at.desc(), Annotation.id.asc()),
+    "default": (Annotation.id.asc(),),
+}
+
+
+def get_annotation_facets(db: Session, campaign: Campaign) -> AnnotationFacetsOut:
+    """Campaign-wide counts for the annotations page's filters, legend and totals.
+
+    Four grouped queries instead of shipping every annotation and counting in the
+    browser. Each one is covered by the campaign_id index and returns at most a handful
+    of rows, so the cost does not grow with the number of annotations.
+    """
+    where = Annotation.campaign_id == campaign.id
+
+    total, with_confidence = db.execute(
+        select(
+            func.count(),
+            func.count().filter(Annotation.confidence.isnot(None)),
+        ).where(where)
+    ).one()
+
+    annotators = db.execute(
+        select(
+            Annotation.created_by_user_id,
+            User.email,
+            User.display_name,
+            func.count().label("count"),
+        )
+        .select_from(Annotation)
+        .outerjoin(User, User.id == Annotation.created_by_user_id)
+        .where(where)
+        .group_by(Annotation.created_by_user_id, User.email, User.display_name)
+        .order_by(func.count().desc())
+    ).all()
+
+    labels = db.execute(
+        select(Annotation.label_id, func.count()).where(where).group_by(Annotation.label_id)
+    ).all()
+
+    confidences = db.execute(
+        select(Annotation.confidence, func.count())
+        .where(where)
+        .group_by(Annotation.confidence)
+        .order_by(Annotation.confidence.asc().nulls_last())
+    ).all()
+
+    return AnnotationFacetsOut(
+        total=total,
+        with_confidence=with_confidence,
+        annotators=[
+            AnnotatorFacet(user_id=r[0], email=r[1], display_name=r[2], count=r[3])
+            for r in annotators
+        ],
+        labels=[LabelFacet(label_id=r[0], count=r[1]) for r in labels],
+        confidences=[ConfidenceFacet(confidence=r[0], count=r[1]) for r in confidences],
+    )
+
+
+def list_annotations_page(
     db: Session,
     campaign: Campaign,
-) -> list[Annotation]:
+    *,
+    limit: int,
+    offset: int,
+    user_ids: list[UUID] | None = None,
+    label_ids: list[int] | None = None,
+    confidences: list[int] | None = None,
+    flagged_only: bool = False,
+    search: str | None = None,
+    sort: AnnotationSort = "default",
+) -> AnnotationsPageOut:
+    """One filtered, ordered page of a campaign's annotations, without geometry.
+
+    Every filter the annotations page offers is applied here rather than in the browser,
+    because filtering client-side requires shipping everything first - which is the cost
+    this endpoint exists to avoid.
     """
-    Retrieve all annotations for a specific campaign with eager loading.
+    limit = max(1, min(limit, MAX_ANNOTATION_PAGE))
+    offset = max(0, offset)
 
-    Returns both task-based and standalone annotations for the given campaign.
+    conditions = [Annotation.campaign_id == campaign.id]
+    if user_ids:
+        conditions.append(Annotation.created_by_user_id.in_(user_ids))
+    if label_ids:
+        conditions.append(Annotation.label_id.in_(label_ids))
+    if confidences:
+        conditions.append(Annotation.confidence.in_(confidences))
+    if flagged_only:
+        conditions.append(Annotation.flagged_for_review.is_(True))
+    if search:
+        # The table's search box matches on annotation id, as a substring.
+        conditions.append(func.cast(Annotation.id, String).like(f"%{search}%"))
 
-    Args:
-        db: Database session
-        campaign: The campaign to retrieve annotations for - also used to
-            compute `counts_toward_completion` on task-linked annotations.
+    total = db.execute(select(func.count()).select_from(Annotation).where(*conditions)).scalar_one()
 
-    Returns:
-        List of all annotation records for the campaign
-    """
-    stmt = (
-        select(Annotation)
-        .where(Annotation.campaign_id == campaign.id)
-        .options(
-            joinedload(Annotation.geometry),
-            joinedload(Annotation.creator),
-            joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
+    centroid = func.ST_Centroid(AnnotationGeometry.geometry)
+    rows = db.execute(
+        select(
+            Annotation.id,
+            Annotation.label_id,
+            Annotation.confidence,
+            Annotation.flagged_for_review,
+            Annotation.flag_comment,
+            Annotation.comment,
+            Annotation.annotation_task_id,
+            Annotation.created_at,
+            Annotation.created_by_user_id,
+            User.email,
+            User.display_name,
+            func.ST_Y(centroid),
+            func.ST_X(centroid),
         )
+        .select_from(Annotation)
+        .join(AnnotationGeometry, AnnotationGeometry.id == Annotation.geometry_id)
+        .outerjoin(User, User.id == Annotation.created_by_user_id)
+        .where(*conditions)
+        .order_by(*_SORTS[sort])
+        .limit(limit)
+        .offset(offset)
+    ).all()
+
+    return AnnotationsPageOut(
+        items=[
+            AnnotationListItemOut(
+                id=r[0],
+                label_id=r[1],
+                confidence=r[2],
+                flagged_for_review=r[3],
+                flag_comment=r[4],
+                comment=r[5],
+                annotation_task_id=r[6],
+                created_at=r[7],
+                created_by_user_id=r[8],
+                created_by_user_email=r[9],
+                created_by_user_display_name=r[10],
+                centroid_lat=r[11],
+                centroid_lon=r[12],
+            )
+            for r in rows
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
     )
-    annotations = list(db.scalars(stmt).unique().all())
-    attach_counts_toward_completion_flat(db, campaign, annotations)
-    return annotations
 
 
 def get_annotation_by_id(
