@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import {
   createTaskSet,
+  getAnnotationFacets,
   getCampaignSummary,
   listTaskSets,
   type CampaignSummaryOut,
@@ -21,6 +22,7 @@ import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { campaignPath } from '~/app/routes';
+import { InlineAddAction } from '~/shared/ui/InlineAddAction';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import {
   AreaEstimationPanel,
@@ -34,6 +36,7 @@ export const CampaignOverviewPage = () => {
   const navigate = useNavigate();
 
   const [campaign, setCampaign] = useState<CampaignSummaryOut | null>(null);
+  const [annotationCount, setAnnotationCount] = useState<number | null>(null);
   const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -78,12 +81,16 @@ export const CampaignOverviewPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [campaignRes, taskSetsRes] = await Promise.all([
+        // Facets rides along with the two the page already makes: it is one grouped
+        // query and it is what puts a number on the Annotations button.
+        const [campaignRes, taskSetsRes, facetsRes] = await Promise.all([
           getCampaignSummary({ path: { campaign_id: campaignId } }),
           listTaskSets({ path: { campaign_id: campaignId } }),
+          getAnnotationFacets({ path: { campaign_id: campaignId } }).catch(() => null),
         ]);
         setCampaign(campaignRes.data ?? null);
         setTaskSets(taskSetsRes.data ?? []);
+        setAnnotationCount(facetsRes?.data?.total ?? null);
         setIsAdmin(campaignRes.data?.viewer_is_admin ?? false);
       } catch (err) {
         handleError(err, 'Failed to load campaign');
@@ -137,6 +144,11 @@ export const CampaignOverviewPage = () => {
               onClick={() => navigate(campaignPath(projectId, campaignId, 'annotations'))}
             >
               Annotations
+              {annotationCount != null && (
+                <span className="ml-1.5 text-neutral-400 tabular-nums font-normal">
+                  {annotationCount.toLocaleString()}
+                </span>
+              )}
             </Button>
             {isAdmin && (
               <Button
@@ -185,72 +197,15 @@ export const CampaignOverviewPage = () => {
           </div>
         )}
 
-        {(estimateSets.length > 0 || isAdmin) && (
-          <section className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="section-heading">Area estimates</h2>
-              {isAdmin && (
-                <Button variant="secondary" onClick={() => setNamingEstimate('')}>
-                  New area estimate
-                </Button>
-              )}
-            </div>
-            {estimateSets.length === 0 ? (
-              <div className="surface">
-                <div className="surface-section text-center py-12">
-                  <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
-                    <IconChart className="w-5 h-5 text-neutral-400" />
-                  </div>
-                  <p className="text-sm text-neutral-800 font-medium mb-1">No area estimates yet</p>
-                  <p className="text-sm text-neutral-500 mb-4">
-                    Turn a map and a sample of checked points into a published area with a
-                    confidence interval.
-                  </p>
-                  <Button variant="secondary" onClick={() => setNamingEstimate('')}>
-                    New area estimate
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {estimateSets.map((set, index) => (
-                  <MotionListItem key={set.id} index={index}>
-                    <AreaEstimationPanel
-                      campaignId={campaignId}
-                      taskSetId={set.id}
-                      taskSetName={set.name}
-                      showEstimates={isAdmin}
-                      onAnnotate={() =>
-                        navigate(
-                          `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks&taskSet=${set.id}`
-                        )
-                      }
-                      onOpenDesign={
-                        isAdmin
-                          ? () =>
-                              navigate(
-                                `${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`
-                              )
-                          : undefined
-                      }
-                    />
-                  </MotionListItem>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="section-heading">Task sets</h2>
             {isAdmin && (
-              <Button
-                variant="secondary"
+              <InlineAddAction
                 onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
               >
                 Add tasks
-              </Button>
+              </InlineAddAction>
             )}
           </div>
           {loading ? (
@@ -309,6 +264,64 @@ export const CampaignOverviewPage = () => {
             </div>
           )}
         </section>
+
+        {/* mt-8, not mb-6: this section used to sit above task sets, where its bottom
+            margin did the separating. Below them it needs the space on top. */}
+        {(estimateSets.length > 0 || isAdmin) && (
+          <section className="mt-8 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="section-heading">Area estimates</h2>
+              {isAdmin && (
+                <InlineAddAction onClick={() => setNamingEstimate('')}>
+                  New estimate
+                </InlineAddAction>
+              )}
+            </div>
+            {estimateSets.length === 0 ? (
+              <div className="surface">
+                <div className="surface-section text-center py-12">
+                  <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
+                    <IconChart className="w-5 h-5 text-neutral-400" />
+                  </div>
+                  <p className="text-sm text-neutral-800 font-medium mb-1">No area estimates yet</p>
+                  <p className="text-sm text-neutral-500 mb-4">
+                    Turn a map and a sample of checked points into a published area with a
+                    confidence interval.
+                  </p>
+                  <Button variant="secondary" onClick={() => setNamingEstimate('')}>
+                    New estimate
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {estimateSets.map((set, index) => (
+                  <MotionListItem key={set.id} index={index}>
+                    <AreaEstimationPanel
+                      campaignId={campaignId}
+                      taskSetId={set.id}
+                      taskSetName={set.name}
+                      showEstimates={isAdmin}
+                      onAnnotate={() =>
+                        navigate(
+                          `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks&taskSet=${set.id}`
+                        )
+                      }
+                      onOpenDesign={
+                        isAdmin
+                          ? () =>
+                              navigate(
+                                `${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`
+                              )
+                          : undefined
+                      }
+                    />
+                  </MotionListItem>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </FadeIn>
 
       {namingEstimate !== null && (

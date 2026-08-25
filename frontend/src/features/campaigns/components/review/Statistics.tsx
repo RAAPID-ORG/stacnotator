@@ -68,7 +68,7 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
     fetchStats();
   }, [campaignId, taskSetId]);
 
-  const heading = <h2 className="section-heading">Inter-annotator agreement</h2>;
+  const heading = <h2 className="section-heading">Statistics</h2>;
 
   if (loading) {
     return (
@@ -101,41 +101,61 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
     new Set(annotators.flatMap((ann) => Object.keys(ann.label_distribution || {})))
   ).sort();
 
+  // The figures worth seeing without asking. Agreement only means something once more
+  // than one person has annotated the same task, so it is shown only when it does.
+  const headline: { label: string; value: string; tone?: string }[] = [
+    { label: 'Annotations', value: statistics.total_annotations.toLocaleString() },
+    {
+      label: annotators.length === 1 ? 'Annotator' : 'Annotators',
+      value: String(annotators.length),
+    },
+    {
+      label: 'Multi-annotated tasks',
+      value: statistics.tasks_with_multiple_annotations.toLocaleString(),
+    },
+  ];
+  if (alpha !== null && alpha !== undefined) {
+    headline.push({ label: 'Agreement (α)', value: alpha.toFixed(3), tone: alphaColor(alpha) });
+  }
+
   return (
     <div>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          {heading}
-          <p className="section-description">
-            {statistics.total_annotations} annotations from {annotators.length}{' '}
-            {annotators.length === 1 ? 'annotator' : 'annotators'}
-            {alpha !== null && alpha !== undefined && (
-              <>
-                {' · '}
-                <span className={`font-medium ${alphaColor(alpha)}`}>α = {alpha.toFixed(3)}</span> (
-                {alphaQualifier(alpha)}, based on {statistics.tasks_with_multiple_annotations}{' '}
-                multi-annotated tasks)
-              </>
-            )}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setIsExpanded((v) => !v)}
-          className="flex items-center gap-1.5 px-3 h-8 rounded-full text-sm border border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400 transition-colors shrink-0"
-          aria-expanded={isExpanded}
-        >
+      {heading}
+      <p className="section-description">
+        {alpha !== null && alpha !== undefined
+          ? `Krippendorff's α indicates ${alphaQualifier(alpha)} between annotators.`
+          : 'Agreement needs at least two annotators on the same task.'}
+      </p>
+
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-neutral-200 border border-neutral-200 rounded-lg overflow-hidden mb-4">
+        {headline.map(({ label, value, tone }) => (
+          <div key={label} className="bg-white px-4 py-3">
+            <dt className="text-xs text-neutral-500">{label}</dt>
+            <dd className={`text-lg font-semibold tabular-nums ${tone ?? 'text-neutral-900'}`}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <button
+        type="button"
+        onClick={() => setIsExpanded((v) => !v)}
+        aria-expanded={isExpanded}
+        className="group flex items-center gap-1.5 -mx-2 px-2 py-1 rounded-lg text-sm text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 transition-colors"
+      >
+        <span className="text-neutral-400 group-hover:text-neutral-600 transition-colors">
           {isExpanded ? (
             <IconChevronDown className="w-4 h-4" />
           ) : (
             <IconChevronRight className="w-4 h-4" />
           )}
-          Details
-        </button>
-      </div>
+        </span>
+        {isExpanded ? 'Hide details' : 'Show details'}
+      </button>
 
       {isExpanded && (
-        <div className="space-y-6">
+        <div className="space-y-6 mt-4">
           {annotators.length > 1 ? (
             <div>
               <h3 className="section-heading">Pairwise agreement</h3>

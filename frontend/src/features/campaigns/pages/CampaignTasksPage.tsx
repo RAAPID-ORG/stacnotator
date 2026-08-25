@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
-import { ImportFeaturesSection } from '~/features/campaigns/components/settings/ImportFeaturesSection';
 import { Button } from '~/shared/ui/forms';
-import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import type { TaskScope } from '~/features/campaigns/components/settings/TaskScopeBar';
 import {
   TaskAssignmentModal,
@@ -55,7 +53,6 @@ export const CampaignTasksPage = () => {
   const { taskSetIds: areaEstimationSets } = useAreaEstimationTaskSets(campaignId);
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
-  const [showImport, setShowImport] = useState(false);
 
   const [campaign, setCampaign] = useState<CampaignSummaryOut | null>(null);
   const [loading, setLoading] = useState(true);
@@ -471,16 +468,6 @@ export const CampaignTasksPage = () => {
             </div>
             {campaign && (
               <div className="flex items-center gap-3">
-                {isAdmin && (
-                  <Button variant="secondary" onClick={() => setShowImport((v) => !v)}>
-                    {showImport ? (
-                      <IconChevronDown className="w-4 h-4" />
-                    ) : (
-                      <IconChevronRight className="w-4 h-4" />
-                    )}
-                    Import annotations
-                  </Button>
-                )}
                 <ExportDropdown
                   campaignId={campaignId}
                   campaign={campaign}
@@ -496,19 +483,6 @@ export const CampaignTasksPage = () => {
 
           {campaign ? (
             <>
-              {isAdmin && showImport && (
-                <div className="surface mb-6">
-                  <div className="surface-section">
-                    <ImportFeaturesSection
-                      campaignId={campaignId}
-                      labels={campaign.settings.labels}
-                      onSuccess={(msg) => showAlert(msg, 'success')}
-                      onError={(msg) => showAlert(msg, 'error')}
-                    />
-                  </div>
-                </div>
-              )}
-
               <div className="surface surface-unclipped">
                 <div className="p-6">
                   <TasksTab

@@ -8,6 +8,8 @@ import { handleError } from '~/shared/utils/errorHandler';
 interface Props {
   campaignId: number;
   campaignName: string;
+  /** Narrows the export to one task set; omitted exports the whole campaign. */
+  taskSetId?: number;
   /** Called after a successful import so the caller can refetch tasks. */
   onImported: () => Promise<void> | void;
 }
@@ -15,6 +17,7 @@ interface Props {
 export const TaskAssignmentsExportImport: React.FC<Props> = ({
   campaignId,
   campaignName,
+  taskSetId,
   onImported,
 }) => {
   const showAlert = useLayoutStore((state) => state.showAlert);
@@ -27,6 +30,7 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
     try {
       const response = await exportTaskAssignments({
         path: { campaign_id: campaignId },
+        query: { task_set_id: taskSetId },
         parseAs: 'blob',
       });
       if (!response.response.ok || !response.data) {
@@ -77,15 +81,10 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
     }
   };
 
+  // Heading and description belong to whichever section hosts this - it is the controls
+  // only, so a caller can put it behind a disclosure without two titles stacking up.
   return (
-    <section className="space-y-4 pt-6 mt-6 border-t border-neutral-100">
-      <div>
-        <h2 className="section-heading">Export / import assignments</h2>
-        <p className="section-description">
-          Export assignees and reviewers as CSV, edit, and re-upload to apply changes.
-        </p>
-      </div>
-
+    <div className="space-y-3">
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
         <Button onClick={handleExport} disabled={exporting} variant="secondary">
           {exporting ? 'Exporting…' : 'Export'}
@@ -105,7 +104,12 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
           </Button>
         </div>
       </div>
-    </section>
+      {taskSetId != null && (
+        <p className="text-xs text-neutral-500">
+          Exports this task set only. Imports apply campaign-wide, matched on annotation number.
+        </p>
+      )}
+    </div>
   );
 };
 

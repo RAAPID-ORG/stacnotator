@@ -244,6 +244,42 @@ h6 {
   margin-bottom: 1rem;
 }
 
+/* Quiet inline actions ("+ Add tasks").
+   text-decoration: dotted renders as tiny hairline ticks that read as a mistake at this
+   size. This draws real round dots instead, sized and spaced deliberately, and wipes
+   them in from the left on hover so the control announces itself as one. */
+/* Leaflet gives SVG paths focus on click, which paints a browser outline around a
+   shape that cannot be interacted with by keyboard anyway. Hover and tooltip stay. */
+.leaflet-interactive:focus {
+  outline: none;
+}
+
+.dotted-underline {
+  position: relative;
+}
+
+.dotted-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.32em;
+  height: 3px;
+  /* The circle is placed and sized in absolute units rather than percentages: a
+     percentage radius resolves against the tile's own width and height, so a 7x3 tile
+     turns every dot into a flat ellipse. */
+  background-image: radial-gradient(circle at 1.5px 1.5px, currentColor 1.5px, transparent 1.6px);
+  background-size: 7px 3px;
+  background-repeat: repeat-x;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.group:hover .dotted-underline::after,
+.group:focus-visible .dotted-underline::after {
+  opacity: 1;
+}
+
 button {
   cursor: pointer;
 }

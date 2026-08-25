@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
+import { CollapsibleSection } from '~/shared/ui/CollapsibleSection';
 import { TaskModeReview } from '~/features/campaigns/components/review/TaskModeReview';
 import Statistics from '~/features/campaigns/components/review/Statistics';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
@@ -282,14 +283,34 @@ export const TasksTab: React.FC<Props> = ({
         )}
 
         {taskScope !== 'all' &&
-          (scopeIsLocked ? areaEstimationSection : canManage && addTasksSection)}
+          (scopeIsLocked
+            ? areaEstimationSection
+            : canManage && (
+                <section className={sectionCls}>
+                  <CollapsibleSection
+                    title="Add annotation tasks"
+                    description="Upload locations as CSV or GeoJSON, or generate them across the campaign area."
+                  >
+                    {addTasksSection}
+                  </CollapsibleSection>
+                </section>
+              ))}
 
-        {canManage && taskScope === 'all' && totalTasks > 0 && (
-          <TaskAssignmentsExportImport
-            campaignId={campaignId}
-            campaignName={campaign.name}
-            onImported={onAssignmentsImported}
-          />
+        {canManage && totalTasks > 0 && (
+          <section className={sectionCls}>
+            <CollapsibleSection
+              title="Task assignments"
+              description="Export assignees and reviewers as CSV, edit, and re-upload to apply changes."
+              meta={taskScope === 'all' ? 'whole campaign' : 'this task set'}
+            >
+              <TaskAssignmentsExportImport
+                campaignId={campaignId}
+                campaignName={campaign.name}
+                taskSetId={taskScope === 'all' ? undefined : taskScope}
+                onImported={onAssignmentsImported}
+              />
+            </CollapsibleSection>
+          </section>
         )}
 
         {!writingDesign && tasksTable}

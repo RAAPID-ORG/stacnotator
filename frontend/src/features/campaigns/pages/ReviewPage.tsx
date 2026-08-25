@@ -4,7 +4,8 @@ import { Delayed } from '~/shared/ui/Delayed';
 import { getCampaignSummary, type CampaignSummaryOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
-import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
+import { IconUploadFilled } from '~/shared/ui/Icons';
+import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { OpenModeReview } from '../components/review/OpenModeReview';
 import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSection';
@@ -60,19 +61,15 @@ export const ReviewPage = () => {
           campaignId={campaignId}
           headerActions={
             isAdmin ? (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setShowImport((v) => !v)}
-                className="flex items-center gap-1.5 px-3 h-8 rounded-full text-sm border border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400 transition-colors"
                 aria-expanded={showImport}
+                leading={<IconUploadFilled className="w-4 h-4" />}
               >
-                {showImport ? (
-                  <IconChevronDown className="w-4 h-4" />
-                ) : (
-                  <IconChevronRight className="w-4 h-4" />
-                )}
                 Import annotations
-              </button>
+              </Button>
             ) : undefined
           }
           subHeader={

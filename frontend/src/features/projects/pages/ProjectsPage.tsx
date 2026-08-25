@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { listProjects, type ProjectOut } from '~/api/client';
-import { newOrganizationPath, newProjectPath, organizationsPath, projectPath } from '~/app/routes';
+import { newOrganizationPath, newProjectPath, projectPath } from '~/app/routes';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, Input } from '~/shared/ui/forms';
-import { IconBuilding, IconFolder, IconPlus } from '~/shared/ui/Icons';
+import { IconFolder, IconPlus } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
@@ -111,13 +111,6 @@ export const ProjectsPage = () => {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => navigate(organizationsPath())}
-              leading={<IconBuilding className="w-4 h-4" />}
-            >
-              Browse organizations
-            </Button>
             {canCreateProject && (
               <Button
                 onClick={() => navigate(newProjectPath())}
