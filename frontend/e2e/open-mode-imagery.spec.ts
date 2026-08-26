@@ -167,6 +167,22 @@ test.describe('Imagery in open mode', () => {
     await tileArrived;
   });
 
+  test('a background click jumps the main map to that spot', async ({ annotationPage }) => {
+    const before = await getMinimapCenter(annotationPage);
+    const body = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    await body.scrollIntoViewIfNeeded();
+    const box = await body.boundingBox();
+    if (!box) throw new Error('minimap has no bounding box');
+
+    // Top-left of the minimap is north-west of where the main map currently is.
+    await annotationPage.mouse.click(box.x + 8, box.y + 8);
+
+    await expect
+      .poll(async () => (await getMinimapCenter(annotationPage)).lat)
+      .toBeGreaterThan(before.lat);
+    expect((await getMinimapCenter(annotationPage)).lon).toBeLessThan(before.lon);
+  });
+
   test('dragging the minimap viewport pans the main map only on release', async ({
     annotationPage,
   }) => {

@@ -169,5 +169,15 @@ export function MinimapBody() {
     return cells ? [cells] : [];
   }, [density]);
 
-  return <Minimap camera={minimapCamera} main={mainCamera} roi={catalog.bbox} layers={layers} />;
+  return (
+    <Minimap
+      camera={minimapCamera}
+      main={mainCamera}
+      roi={catalog.bbox}
+      layers={layers}
+      // In task mode the main map belongs to the task, not to the person
+      // looking at it - a stray click here used to sail off the task location.
+      jumpOnClick={mode === 'explore'}
+    />
+  );
 }

@@ -19,6 +19,7 @@ import {
   updateLayer,
 } from './layers';
 import type { FeatureLayerSpec, RasterLayerSpec, VectorTileLayerSpec } from './types';
+import { SELECTED_EXTRA_WIDTH } from './types';
 
 const mercator = getProjection('EPSG:3857')!;
 
@@ -160,7 +161,9 @@ describe('vector tile layers', () => {
 
   it('thickens the stroke of highlighted features', () => {
     const layer = createLayer(spec({ highlightFeatureIds: new Set([7]) }));
-    expect(styleOf(layer, 7)?.getStroke()?.getWidth()).toBe(5);
+    // Matches the delta layer's selected emphasis exactly - the same annotation
+    // must not look fatter just because it arrived as a tile.
+    expect(styleOf(layer, 7)?.getStroke()?.getWidth()).toBe(2 + SELECTED_EXTRA_WIDTH);
     expect(styleOf(layer, 8)?.getStroke()?.getWidth()).toBe(2);
   });
 

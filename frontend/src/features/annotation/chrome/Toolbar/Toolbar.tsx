@@ -6,11 +6,11 @@ import { Dropdown } from '~/shared/ui/motion';
 import {
   IconChevronDownFilled,
   IconChevronLeft,
+  IconDocument,
   IconFullscreenExitFilled,
   IconFullscreenFilled,
   IconGearFilled,
   IconImageFilled,
-  IconMenuFilled,
   IconQuestion,
   IconTaskListFilled,
 } from '~/shared/ui/Icons';
@@ -133,6 +133,25 @@ export function Toolbar({
           </button>
         )}
 
+        {onNavigateWorkPage && (
+          <button
+            type="button"
+            onClick={onNavigateWorkPage}
+            className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-neutral-700 transition-colors hover:bg-neutral-100"
+            title={
+              workMode === 'tasks'
+                ? 'Open the full task list, with status and assignments'
+                : 'Open the full annotation list, with everything recorded so far'
+            }
+            data-testid="open-work-list"
+          >
+            <IconDocument className="h-4 w-4" />
+            <span>{workMode === 'tasks' ? 'All tasks' : 'All annotations'}</span>
+          </button>
+        )}
+
+        <div className="h-5 w-px bg-neutral-200" />
+
         <ModeSwitch campaign={campaign} hasTasks={tasks.length > 0} policy={policy} />
 
         <ViewPicker campaign={campaign} />
@@ -167,23 +186,7 @@ export function Toolbar({
         )}
 
         <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
-          {workMode === 'tasks' && (
-            <>
-              <ReviewToggle onTaskFilterChange={onTaskFilterChange} />
-              {onNavigateWorkPage && <div className="w-px h-5 bg-neutral-200" />}
-            </>
-          )}
-          {onNavigateWorkPage && (
-            <button
-              type="button"
-              onClick={onNavigateWorkPage}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
-              title={workMode === 'tasks' ? 'Go to Tasks page' : 'Go to Annotations page'}
-            >
-              <IconMenuFilled className="w-4 h-4" />
-              {workMode !== 'tasks' && <span>Annotations</span>}
-            </button>
-          )}
+          {workMode === 'tasks' && <ReviewToggle onTaskFilterChange={onTaskFilterChange} />}
         </div>
 
         {policy.isAdmin && onNavigateSettings && (

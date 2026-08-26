@@ -36,12 +36,16 @@ export function Minimap({
   main,
   roi,
   layers = [],
+  jumpOnClick = true,
 }: {
   camera: Camera;
   /** The camera this reflects, and lands somewhere new on click or drag. */
   main: Camera;
   roi?: Bbox | null;
   layers?: LayerSpec[];
+  /** Whether a click on the background moves the main map there. Off where the
+   *  main map's position is not the user's to choose - a task pins it. */
+  jumpOnClick?: boolean;
 }) {
   const { containerRef, width, height } = useContainerSize();
   const dragFrame = useRef<number | null>(null);
@@ -125,7 +129,7 @@ export function Minimap({
     const startPoint = pointAt(e.clientX, e.clientY);
     if (!startPoint) return;
     if (!containsPoint(bounds, startPoint)) {
-      watchBackgroundClick(e, startPoint);
+      if (jumpOnClick) watchBackgroundClick(e, startPoint);
       return;
     }
 

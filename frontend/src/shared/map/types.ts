@@ -117,6 +117,16 @@ export interface InteractionSpec {
   snap?: boolean;
 }
 
+/** How much a stroke thickens when a feature is selected, or merely hovered.
+ *  Shared so one annotation looks the same whether it reached the map as a
+ *  vector tile or as a live delta feature - they used to differ by 3px against
+ *  1px, which read as "some polygons have fat borders". */
+export const SELECTED_EXTRA_WIDTH = 1;
+export const HOVERED_EXTRA_WIDTH = 0.5;
+
+/** Point radius by emphasis, matching the stroke steps above. */
+export const POINT_RADIUS = { plain: 6, hovered: 7, selected: 8 } as const;
+
 export interface MapClickEvent {
   lonLat: LonLat;
   layerId?: LayerId;

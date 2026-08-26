@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode, type WheelEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type WheelEvent,
+} from 'react';
 import 'ol/ol.css';
 import OLMap from 'ol/Map';
 import View from 'ol/View';
@@ -95,6 +102,28 @@ function hitAt(
   return { hit, feature: found };
 }
 
+const ANCHOR_MARGIN_PX = 6;
+
+/**
+ * Keeps an on-map anchor inside the map it belongs to. A selected annotation
+ * can sit at the very edge of the viewport, or be panned off it entirely, and
+ * its controls would otherwise render outside the panel and over whatever sits
+ * next to it. Falls back to the raw position while the size is still unknown.
+ */
+export function clampAnchorPosition(
+  px: readonly [number, number],
+  offset: readonly [number, number] | undefined,
+  size: readonly [number, number],
+  viewport: readonly [number, number] | null
+): { left: number; top: number } {
+  const left = px[0] + (offset?.[0] ?? 0);
+  const top = px[1] + (offset?.[1] ?? 0);
+  if (!viewport || viewport[0] === 0 || viewport[1] === 0) return { left, top };
+  const fit = (value: number, span: number, extent: number) =>
+    Math.max(ANCHOR_MARGIN_PX, Math.min(value, extent - span - ANCHOR_MARGIN_PX));
+  return { left: fit(left, size[0], viewport[0]), top: fit(top, size[1], viewport[1]) };
+}
+
 export function MapView({
   camera,
   layers,
@@ -118,6 +147,13 @@ export function MapView({
   const mounted = useRef(new Map<LayerId, MountedLayer>()).current;
   const hoverRef = useRef<FeatureHit | null>(null);
   const [anchorPx, setAnchorPx] = useState<[number, number] | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const [anchorSize, setAnchorSize] = useState<[number, number]>([0, 0]);
+  const showAnchor = anchor != null && anchorPx != null;
+  const viewportSize = (): [number, number] | null => {
+    const element = containerRef.current;
+    return element ? [element.clientWidth, element.clientHeight] : null;
+  };
   const [anchorLon, anchorLat] = anchor?.at ?? [];
 
   // The map is built once; handlers change on most renders, so they are read
@@ -270,6 +306,23 @@ export function MapView({
     return () => map.un('postrender', update);
   }, [anchorLon, anchorLat]);
 
+  // Observed rather than measured once: the content is a caller-supplied node
+  // that resizes in place with what it says - one button or three, one selected
+  // annotation or six - and its width is what decides where it may sit.
+  useLayoutEffect(() => {
+    const element = anchorRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() =>
+      setAnchorSize((prev) =>
+        prev[0] === element.offsetWidth && prev[1] === element.offsetHeight
+          ? prev
+          : [element.offsetWidth, element.offsetHeight]
+      )
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [showAnchor]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (map) syncLayers(map, mounted, layers);
@@ -295,13 +348,11 @@ export function MapView({
   return (
     <div className={`relative ${className}`}>
       <div ref={containerRef} className="h-full w-full" onWheel={handleWheel} />
-      {anchor && anchorPx && (
+      {showAnchor && (
         <div
+          ref={anchorRef}
           className="pointer-events-none absolute z-[1000]"
-          style={{
-            left: anchorPx[0] + (anchor.offset?.[0] ?? 0),
-            top: anchorPx[1] + (anchor.offset?.[1] ?? 0),
-          }}
+          style={clampAnchorPosition(anchorPx, anchor.offset, anchorSize, viewportSize())}
         >
           {anchor.content}
         </div>

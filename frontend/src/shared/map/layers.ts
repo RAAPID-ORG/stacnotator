@@ -21,6 +21,7 @@ import type {
   StyleSpec,
   VectorTileLayerSpec,
 } from './types';
+import { POINT_RADIUS, SELECTED_EXTRA_WIDTH } from './types';
 import {
   acquireRasterSource,
   acquireVectorTileSource,
@@ -42,7 +43,6 @@ const SOURCE_KEY_PROP = 'stacn:sourceKey';
 
 const PMTILES_SCHEME = 'pmtiles://';
 const MAX_TILE_ZOOM = 22;
-const HIGHLIGHT_EXTRA_WIDTH = 3;
 
 const geoJson = new GeoJSONFormat({ dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
 
@@ -90,7 +90,11 @@ export function toOlStyle(spec: StyleSpec): Style {
 /** A selected feature keeps its label colour and gains a thicker stroke. */
 function emphasize(spec: StyleSpec): StyleSpec {
   const stroke = spec.stroke ?? { color: 'rgba(255,255,255,0.9)', width: 0 };
-  return { ...spec, stroke: { ...stroke, width: stroke.width + HIGHLIGHT_EXTRA_WIDTH } };
+  return {
+    ...spec,
+    stroke: { ...stroke, width: stroke.width + SELECTED_EXTRA_WIDTH },
+    circle: spec.circle ? { ...spec.circle, radius: POINT_RADIUS.selected } : undefined,
+  };
 }
 
 /**

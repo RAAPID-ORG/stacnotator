@@ -1,4 +1,5 @@
 import type { StyleSpec } from '~/shared/map/types';
+import { HOVERED_EXTRA_WIDTH, POINT_RADIUS, SELECTED_EXTRA_WIDTH } from '~/shared/map/types';
 import type { GeometryType } from './annotation';
 
 export interface LabelStyle {
@@ -40,7 +41,7 @@ export function emphasizedFillOpacity(base: number, { selected, hovered }: Empha
 }
 
 export function emphasizedStrokeWidth(base: number, { selected, hovered }: Emphasis): number {
-  return base + (selected ? 1 : hovered ? 0.5 : 0);
+  return base + (selected ? SELECTED_EXTRA_WIDTH : hovered ? HOVERED_EXTRA_WIDTH : 0);
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -57,7 +58,11 @@ export function toStyleSpec(style: LabelStyle, emphasis: Emphasis = {}): StyleSp
     color: hexToRgba(style.strokeColor, style.strokeOpacity),
     width: emphasizedStrokeWidth(style.strokeWidth, emphasis),
   };
-  const radius = emphasis.selected ? 8 : emphasis.hovered ? 7 : 6;
+  const radius = emphasis.selected
+    ? POINT_RADIUS.selected
+    : emphasis.hovered
+      ? POINT_RADIUS.hovered
+      : POINT_RADIUS.plain;
   return { fill, stroke, circle: { radius, fill, stroke } };
 }
 
