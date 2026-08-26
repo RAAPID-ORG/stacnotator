@@ -20,7 +20,24 @@ export interface TourBullet {
 /** What a step does to the workspace when it is entered. `edit-layout` is the
  *  one the user has to finish (it fulfils the step); the rest only prime the
  *  workspace so the step's copy is true when it is shown. */
-export type TourEffect = 'edit-layout' | 'annotate-tool' | 'slice-headroom' | 'collection-headroom';
+export type TourEffect =
+  | 'edit-layout'
+  | 'annotate-tool'
+  | 'slice-headroom'
+  | 'collection-headroom'
+  /** Hold a header picker's menu open, so a step can talk about what is in it. */
+  | 'show-collection-menu'
+  | 'show-slice-menu'
+  | 'show-layer-menu'
+  /** Practise switching imagery without keeping whatever it was left on: the
+   *  ring includes basemaps, so a step that ends on one leaves the next step
+   *  talking about imagery over a plain street map. */
+  | 'imagery-sandbox'
+  /** As above, and start on a source whose current date actually publishes
+   *  more than one visualization - otherwise there is nothing to cycle. */
+  | 'visualization-sandbox'
+  /** Probe the middle of the view so the chart has a line to look at. */
+  | 'seed-probe';
 
 export interface TourStep {
   id: string;
@@ -33,7 +50,12 @@ export interface TourStep {
   bullets?: TourBullet[];
   /** The italic "try it now" nudge under the body. */
   hint?: string;
+  /** Preferred side of the first target. The tooltip moves off it rather than
+   *  cover anything it lights up or has been told to keep clear. */
   placement?: TourPlacement;
+  /** Elements the tooltip must not sit on even though the step does not light
+   *  them - a control the reader still has to reach to finish the step. */
+  avoid?: TourTarget | TourTarget[];
   /** Binding key specs the user must each press once to fulfil the step. */
   requiredKeys?: string[];
   /** Fulfilled by clicking the target instead of pressing a key. */
@@ -79,6 +101,12 @@ export type TourCommand =
    *  something - a task usually opens on the first slice/collection, where
    *  "go back" would silently be a no-op. */
   | { type: 'ensure-headroom'; scale: 'slice' | 'collection' }
+  | { type: 'open-control'; name: string | null }
+  | { type: 'save-imagery' }
+  | { type: 'restore-imagery' }
+  | { type: 'focus-multi-viz-source' }
+  | { type: 'seed-probe' }
+  | { type: 'clear-seeded-probe' }
   | { type: 'close' };
 
 export interface TourTransition {
@@ -108,24 +136,55 @@ export function progressPct(steps: TourStep[], state: TourState): number {
   return Math.round(((state.index + 1) / steps.length) * 100);
 }
 
-const EFFECT_COMMANDS: Record<TourEffect, TourCommand> = {
-  'edit-layout': { type: 'start-layout-edit' },
-  'annotate-tool': { type: 'select-annotate-tool' },
-  'slice-headroom': { type: 'ensure-headroom', scale: 'slice' },
-  'collection-headroom': { type: 'ensure-headroom', scale: 'collection' },
+/** What a step's effect does on the way in, and what it owes on the way out.
+ *  A step that changes the workspace to make its own copy true has to put it
+ *  back, or every later step inherits the demonstration. */
+const EFFECT_COMMANDS: Record<TourEffect, { enter: TourCommand[]; leave: TourCommand[] }> = {
+  'edit-layout': { enter: [{ type: 'start-layout-edit' }], leave: [] },
+  'annotate-tool': { enter: [{ type: 'select-annotate-tool' }], leave: [] },
+  'slice-headroom': { enter: [{ type: 'ensure-headroom', scale: 'slice' }], leave: [] },
+  'collection-headroom': { enter: [{ type: 'ensure-headroom', scale: 'collection' }], leave: [] },
+  'show-collection-menu': {
+    enter: [{ type: 'open-control', name: 'collection-picker' }],
+    leave: [{ type: 'open-control', name: null }],
+  },
+  'show-slice-menu': {
+    enter: [{ type: 'open-control', name: 'slice-picker' }],
+    leave: [{ type: 'open-control', name: null }],
+  },
+  'show-layer-menu': {
+    enter: [{ type: 'open-control', name: 'layer-selector' }],
+    leave: [{ type: 'open-control', name: null }],
+  },
+  'imagery-sandbox': {
+    enter: [{ type: 'save-imagery' }],
+    leave: [{ type: 'restore-imagery' }],
+  },
+  'visualization-sandbox': {
+    enter: [{ type: 'save-imagery' }, { type: 'focus-multi-viz-source' }],
+    leave: [{ type: 'restore-imagery' }],
+  },
+  'seed-probe': {
+    enter: [{ type: 'seed-probe' }],
+    leave: [{ type: 'clear-seeded-probe' }],
+  },
 };
 
 function enterCommands(step: TourStep | undefined): TourCommand[] {
-  return step?.effect ? [EFFECT_COMMANDS[step.effect]] : [];
+  return step?.effect ? EFFECT_COMMANDS[step.effect].enter : [];
 }
 
-function leaveCommands(state: TourState): TourCommand[] {
-  return state.layoutEditActive ? [{ type: 'stop-layout-edit' }] : [];
-}
-
-function finishCommands(state: TourState): TourCommand[] {
+function leaveCommands(steps: TourStep[], state: TourState): TourCommand[] {
+  const step = steps[state.index];
   return [
-    ...leaveCommands(state),
+    ...(state.layoutEditActive ? ([{ type: 'stop-layout-edit' }] as TourCommand[]) : []),
+    ...(step?.effect ? EFFECT_COMMANDS[step.effect].leave : []),
+  ];
+}
+
+function finishCommands(steps: TourStep[], state: TourState): TourCommand[] {
+  return [
+    ...leaveCommands(steps, state),
     ...(state.filterBroadened ? ([{ type: 'restore-filter' }] as TourCommand[]) : []),
     { type: 'close' },
   ];
@@ -142,7 +201,7 @@ function moveTo(steps: TourStep[], state: TourState, index: number): TourTransit
       fulfilled: false,
       layoutEditActive: false,
     },
-    commands: [...leaveCommands(state), ...enterCommands(steps[index])],
+    commands: [...leaveCommands(steps, state), ...enterCommands(steps[index])],
   };
 }
 
@@ -192,7 +251,7 @@ export function reduce(steps: TourStep[], state: TourState, event: TourEvent): T
     }
 
     case 'next': {
-      if (state.index >= steps.length - 1) return { state, commands: finishCommands(state) };
+      if (state.index >= steps.length - 1) return { state, commands: finishCommands(steps, state) };
       return moveTo(steps, state, state.index + 1);
     }
 
@@ -202,6 +261,6 @@ export function reduce(steps: TourStep[], state: TourState, event: TourEvent): T
     }
 
     case 'close':
-      return { state, commands: finishCommands(state) };
+      return { state, commands: finishCommands(steps, state) };
   }
 }

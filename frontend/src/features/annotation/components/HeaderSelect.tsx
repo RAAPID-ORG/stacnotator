@@ -33,6 +33,13 @@ export interface HeaderSelectProps {
   /** Imagery windows are small and sit on a dark header. */
   compact?: boolean;
   dark?: boolean;
+  /** Holds the menu open from outside, for the guided tour: it has to show
+   *  what is in the list while it talks about it, and the hover-close would
+   *  otherwise shut it the moment the pointer moved across to the tooltip. */
+  forcedOpen?: boolean;
+  /** `data-tour` name for the open menu. It is portaled to the body rather
+   *  than nested under the trigger, so a spotlight cannot find it otherwise. */
+  menuTourName?: string;
 }
 
 /** Options in listed order, cut into their consecutive groups. */
@@ -78,8 +85,11 @@ export function HeaderSelect({
   markInactiveTitle,
   compact,
   dark,
+  forcedOpen = false,
+  menuTourName,
 }: HeaderSelectProps) {
-  const [open, setOpen] = useState(false);
+  const [selfOpen, setSelfOpen] = useState(false);
+  const open = forcedOpen || selfOpen;
   const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,7 +98,7 @@ export function HeaderSelect({
     if (closeTimer.current) clearTimeout(closeTimer.current);
   }, []);
   const scheduleClose = useCallback(() => {
-    closeTimer.current = setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
+    closeTimer.current = setTimeout(() => setSelfOpen(false), CLOSE_DELAY_MS);
   }, []);
 
   useEffect(() => {
@@ -113,7 +123,7 @@ export function HeaderSelect({
 
   const select = (option: HeaderSelectOption) => {
     onChange(option.value);
-    setOpen(false);
+    setSelfOpen(false);
   };
 
   const selected = options.find((o) => o.value === value);
@@ -130,7 +140,7 @@ export function HeaderSelect({
         onClick={(e) => {
           e.stopPropagation();
           cancelClose();
-          setOpen((o) => !o);
+          setSelfOpen(!open);
         }}
         className={`${compact ? 'h-5' : 'h-6'} px-1.5 flex items-center rounded-md font-medium cursor-pointer ${
           compact ? 'text-[10px] gap-1' : 'text-[11px] gap-1.5'
@@ -155,6 +165,7 @@ export function HeaderSelect({
         createPortal(
           <div
             ref={listRef}
+            data-tour={menuTourName}
             className="fixed z-[9999] min-w-[180px] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
             onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}

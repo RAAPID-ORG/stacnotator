@@ -1,3 +1,4 @@
+import { useLayoutStore } from '../../../stores/layout';
 import { collectionsInView, type ImageryCatalog } from '../../../campaign/imagery';
 import { useCampaignStore } from '../../../stores/campaign';
 import { useImageryStore } from '../../../stores/imagery';
@@ -13,6 +14,7 @@ export interface CollectionPickerProps {
 }
 
 export function CollectionPicker({ catalog, sourceIds, isTaskMode, title }: CollectionPickerProps) {
+  const forcedOpen = useLayoutStore((s) => s.forcedOpenControl);
   const address = useImageryStore((s) => s.address);
   const activateCollection = useImageryStore((s) => s.activateCollection);
   const selectedViewId = useCampaignStore((s) => s.view?.id ?? null);
@@ -39,6 +41,8 @@ export function CollectionPicker({ catalog, sourceIds, isTaskMode, title }: Coll
         options={collections.map((c) => ({ value: c.id, label: c.name }))}
         onChange={(v: string | number) => activateCollection(catalog, Number(v))}
         title={title}
+        forcedOpen={forcedOpen === 'collection-picker'}
+        menuTourName="collection-picker-menu"
         markedValue={pinnable ? effectiveStart : undefined}
         onMarkOption={
           pinnable && selectedViewId != null

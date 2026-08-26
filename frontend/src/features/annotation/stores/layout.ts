@@ -49,6 +49,9 @@ interface LayoutState {
   savedLayout: WorkspaceLayout;
   editing: boolean;
   newWindowSize: { perRow: number; rows: number };
+  /** `data-tour` name of a header menu held open from outside, so the guided
+   *  tour can show what is inside a picker while it explains it. */
+  forcedOpenControl: string | null;
 
   /** `${userId}:${campaignId}` - the screen split is per user per campaign. */
   scope: string | null;
@@ -66,6 +69,7 @@ interface LayoutState {
   hideAllWindows: () => void;
   setNewWindowSize: (size: { perRow: number; rows: number }) => void;
   startEditing: () => void;
+  setForcedOpenControl: (name: string | null) => void;
   saveLayout: () => void;
   cancelEditing: () => void;
 
@@ -125,6 +129,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     currentLayout: EMPTY_LAYOUT,
     savedLayout: EMPTY_LAYOUT,
     editing: false,
+    forcedOpenControl: null,
     newWindowSize: { perRow: 6, rows: 9 },
     scope: null,
     screens: EMPTY_SCREENS,
@@ -157,6 +162,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     hideAllWindows: () => set((s) => ({ currentLayout: hideAllWindows(s.currentLayout) })),
     setNewWindowSize: (newWindowSize) => set({ newWindowSize }),
     startEditing: () => set({ editing: true }),
+    setForcedOpenControl: (forcedOpenControl) => set({ forcedOpenControl }),
     // A layout saved with nothing on a secondary screen is the user saying they
     // no longer work on one, and is the only thing that forgets the split.
     saveLayout: () => {

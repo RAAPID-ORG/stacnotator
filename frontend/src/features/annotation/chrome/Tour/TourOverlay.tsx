@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { stepCollectionId, stepSlice } from '../../campaign/imageryNav';
+import type { LonLat } from '~/shared/map/types';
+import {
+  collectionAddress,
+  snapshotForView,
+  stepCollectionId,
+  stepSlice,
+  type ViewSnapshot,
+} from '../../campaign/imageryNav';
+import { mainCamera } from '../../map/camera';
 import { useCampaignStore } from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
 import { useLayoutStore } from '../../stores/layout';
-import { useWorkStore } from '../../stores/work';
+import { MAX_PROBES, useWorkStore } from '../../stores/work';
 import { helpRows, keyLabel, onAnyBinding } from '../../hotkeys';
 import {
   canAdvance,
@@ -18,6 +26,7 @@ import {
   type TourTarget,
   type TourVariant,
 } from './engine';
+import { placeTooltip, type Box } from './placement';
 import { buildTourSteps } from './steps';
 
 export interface TourOverlayProps {
@@ -33,9 +42,7 @@ export interface TourOverlayProps {
   onClose: () => void;
 }
 
-/** Gap between the target's spotlight and the tooltip, and the padding the
- *  spotlight adds around the target's own bounding box. */
-const GAP = 16;
+/** Padding the spotlight adds around a target's own bounding box. */
 const SPOTLIGHT_PAD = 6;
 const TOOLTIP_FALLBACK = { width: 380, height: 200 };
 /** Re-measure cadence, so the spotlight tracks a dropdown opening or a panel
@@ -64,6 +71,16 @@ function findTargets(target: TourStep['target']): Element[] {
   );
 }
 
+/** The spotlight's own outline, which is what the tooltip has to clear. */
+function padded(box: DOMRect): Box {
+  return {
+    left: box.left - SPOTLIGHT_PAD,
+    top: box.top - SPOTLIGHT_PAD,
+    width: box.width + SPOTLIGHT_PAD * 2,
+    height: box.height + SPOTLIGHT_PAD * 2,
+  };
+}
+
 function sameBox(a: DOMRect, b: DOMRect): boolean {
   return a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
 }
@@ -87,6 +104,60 @@ function ensureHeadroom(scale: 'slice' | 'collection'): void {
   if (canGoBack) return;
   if (scale === 'slice') imagery.stepSliceAction(catalog, 1);
   else imagery.stepCollectionAction(catalog, 1);
+}
+
+/** Where a seeded probe goes: what the user is looking at, pulled back inside
+ *  the campaign area, since outside it the backend has nothing to chart. */
+function probeTarget(): LonLat {
+  const bbox = useCampaignStore.getState().catalog?.bbox;
+  const [lon, lat] = mainCamera.getState().center;
+  if (!bbox) return [lon, lat];
+  const [west, south, east, north] = bbox;
+  return [Math.min(Math.max(lon, west), east), Math.min(Math.max(lat, south), north)];
+}
+
+/**
+ * Land on a source whose visible date publishes more than one visualization.
+ * Cycling visualizations is not worth practising on a source that has one, and
+ * the copy would be describing something the reader cannot make happen.
+ */
+function focusMultiVizSource(): void {
+  const { catalog, view } = useCampaignStore.getState();
+  const imagery = useImageryStore.getState();
+  if (!catalog || !view) return;
+
+  const publishesTwo = (sourceId: number, collectionId: number, sliceIndex: number): boolean => {
+    const source = catalog.sources.get(sourceId);
+    const slice = catalog.collections.get(collectionId)?.slices[sliceIndex];
+    if (!source || !slice) return false;
+    const published = source.visualizations.filter((viz) =>
+      slice.tile_urls.some((tile) => tile.visualization_name === viz.name)
+    );
+    return published.length > 1;
+  };
+
+  const here = imagery.address;
+  if (
+    here &&
+    !imagery.showBasemap &&
+    publishesTwo(here.sourceId, here.collectionId, here.sliceIndex)
+  ) {
+    return;
+  }
+
+  for (const sourceId of view.source_ids) {
+    for (const collection of catalog.sources.get(sourceId)?.collections ?? []) {
+      const sliceIndex = collection.slices.findIndex((_, i) =>
+        publishesTwo(sourceId, collection.id, i)
+      );
+      if (sliceIndex === -1) continue;
+      const address = collectionAddress(catalog, collection.id, null, sliceIndex);
+      if (!address) continue;
+      imagery.setAddress(address);
+      imagery.setShowBasemap(false);
+      return;
+    }
+  }
 }
 
 function KeyChip({ spec }: { spec: string }) {
@@ -235,6 +306,11 @@ export function TourOverlay({
   const handlers = useRef({ onBroadenFilter, onRestoreFilter, onClose });
   handlers.current = { onBroadenFilter, onRestoreFilter, onClose };
 
+  // What the tour changed and owes back. Refs, not state: nothing renders from
+  // them, and a command must see the value the previous command wrote.
+  const savedImagery = useRef<ViewSnapshot | null>(null);
+  const seededProbe = useRef<number | null>(null);
+
   const runCommand = useCallback((command: TourCommand) => {
     const workspace = useLayoutStore.getState();
     switch (command.type) {
@@ -257,6 +333,34 @@ export function TourOverlay({
         break;
       case 'ensure-headroom':
         ensureHeadroom(command.scale);
+        break;
+      case 'open-control':
+        workspace.setForcedOpenControl(command.name);
+        break;
+      case 'save-imagery':
+        savedImagery.current = snapshotForView(useImageryStore.getState());
+        break;
+      case 'restore-imagery':
+        if (savedImagery.current) useImageryStore.getState().reset(savedImagery.current);
+        savedImagery.current = null;
+        break;
+      case 'focus-multi-viz-source':
+        focusMultiVizSource();
+        break;
+      case 'seed-probe': {
+        // Never at the cap: the eviction there would drop a probe the user
+        // placed themselves, which the tour has no business doing.
+        const work = useWorkStore.getState();
+        if (work.probePoints.length >= MAX_PROBES) break;
+        work.probeAt(probeTarget());
+        seededProbe.current = useWorkStore.getState().probePoints.length - 1;
+        break;
+      }
+      case 'clear-seeded-probe':
+        if (seededProbe.current !== null) {
+          useWorkStore.getState().removeProbePoint(seededProbe.current);
+        }
+        seededProbe.current = null;
         break;
       case 'close':
         handlers.current.onClose();
@@ -294,6 +398,10 @@ export function TourOverlay({
     if (!open) return;
     return onAnyBinding((key) => dispatch({ type: 'key', key }));
   }, [open, dispatch]);
+
+  // A tour that goes away without a close event - the page unmounting under it -
+  // still owes the workspace the menu it was holding open.
+  useEffect(() => () => useLayoutStore.getState().setForcedOpenControl(null), []);
 
   useEffect(() => {
     if (!open || step?.requiredClick !== true) return;
@@ -344,31 +452,23 @@ export function TourOverlay({
     const boxes = [box, ...rest.map((el) => el.getBoundingClientRect())];
     setRects((current) => (sameBoxes(current, boxes) ? current : boxes));
 
-    const width = tooltipRef.current?.offsetWidth ?? TOOLTIP_FALLBACK.width;
-    const height = tooltipRef.current?.offsetHeight ?? TOOLTIP_FALLBACK.height;
-    let top = 0;
-    let left = 0;
-    switch (step.placement ?? 'bottom') {
-      case 'bottom':
-        top = box.bottom + GAP;
-        left = box.left + box.width / 2 - width / 2;
-        break;
-      case 'top':
-        top = box.top - height - GAP;
-        left = box.left + box.width / 2 - width / 2;
-        break;
-      case 'left':
-        top = box.top + box.height / 2 - height / 2;
-        left = box.left - width - GAP;
-        break;
-      case 'right':
-        top = box.top + box.height / 2 - height / 2;
-        left = box.right + GAP;
-        break;
-    }
-
-    left = Math.max(12, Math.min(left, window.innerWidth - width - 12));
-    top = Math.max(12, Math.min(top, window.innerHeight - height - 12));
+    const size = {
+      width: tooltipRef.current?.offsetWidth ?? TOOLTIP_FALLBACK.width,
+      height: tooltipRef.current?.offsetHeight ?? TOOLTIP_FALLBACK.height,
+    };
+    const keepClear = [
+      ...boxes.map(padded),
+      ...(step.avoid
+        ? findTargets(step.avoid).map((el) => padded(el.getBoundingClientRect()))
+        : []),
+    ];
+    const { left, top } = placeTooltip(
+      padded(box),
+      size,
+      keepClear,
+      { width: window.innerWidth, height: window.innerHeight },
+      step.placement
+    );
     // Same reason as the rect above: re-measured a few times a second, so only
     // a real move should produce a new style object (and a re-render).
     setTooltipStyle((current) =>

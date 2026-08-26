@@ -190,6 +190,59 @@ describe('tour engine task-filter broadening', () => {
   });
 });
 
+describe('effects that change the workspace put it back', () => {
+  const SANDBOX = [
+    step({ id: 'before' }),
+    step({ id: 'sandbox', effect: 'imagery-sandbox' }),
+    step({ id: 'after' }),
+  ];
+
+  it('saves on the way in and restores on the way out', () => {
+    const entered = run(SANDBOX, [{ type: 'open', broadenFilter: false }, { type: 'next' }]);
+    expect(entered.commands).toEqual([{ type: 'save-imagery' }]);
+
+    const left = reduce(SANDBOX, entered.state, { type: 'next' });
+    expect(left.commands).toEqual([{ type: 'restore-imagery' }]);
+  });
+
+  it('restores when the step is left backwards, not only forwards', () => {
+    const entered = run(SANDBOX, [{ type: 'open', broadenFilter: false }, { type: 'next' }]);
+    const back = reduce(SANDBOX, entered.state, { type: 'back' });
+    expect(back.commands).toEqual([{ type: 'restore-imagery' }]);
+  });
+
+  it('restores when the tour is closed mid-step', () => {
+    const entered = run(SANDBOX, [{ type: 'open', broadenFilter: false }, { type: 'next' }]);
+    const closed = reduce(SANDBOX, entered.state, { type: 'close' });
+    expect(closed.commands).toEqual([{ type: 'restore-imagery' }, { type: 'close' }]);
+  });
+
+  it('closes a menu it held open', () => {
+    const steps = [step({ id: 'menu', effect: 'show-slice-menu' }), step({ id: 'next' })];
+    const opened = reduce(steps, INITIAL_TOUR_STATE, { type: 'open', broadenFilter: false });
+    expect(opened.commands).toEqual([{ type: 'open-control', name: 'slice-picker' }]);
+    expect(reduce(steps, opened.state, { type: 'next' }).commands).toEqual([
+      { type: 'open-control', name: null },
+    ]);
+  });
+
+  it('takes back the probe it dropped', () => {
+    const steps = [step({ id: 'chart', effect: 'seed-probe' }), step({ id: 'next' })];
+    const opened = reduce(steps, INITIAL_TOUR_STATE, { type: 'open', broadenFilter: false });
+    expect(opened.commands).toEqual([{ type: 'seed-probe' }]);
+    expect(reduce(steps, opened.state, { type: 'close' }).commands).toEqual([
+      { type: 'clear-seeded-probe' },
+      { type: 'close' },
+    ]);
+  });
+
+  it('primes a visualization source before talking about cycling them', () => {
+    const steps = [step({ id: 'viz', effect: 'visualization-sandbox' })];
+    const opened = reduce(steps, INITIAL_TOUR_STATE, { type: 'open', broadenFilter: false });
+    expect(opened.commands).toEqual([{ type: 'save-imagery' }, { type: 'focus-multi-viz-source' }]);
+  });
+});
+
 describe('tour steps content', () => {
   it('builds both variants, gated on whether the campaign has time series', () => {
     const withTs = buildTourSteps('tasks', { hasTimeseries: true, hasFormFields: true });
@@ -247,6 +300,87 @@ describe('tour steps content', () => {
     );
     expect(canAdvance(steps[practice], fulfilled)).toBe(true);
     expect(fulfilled.index).toBe(practice);
+  });
+
+  it('teaches collections and slices as one step, with both pickers lit', () => {
+    for (const variant of ['tasks', 'explore'] as const) {
+      const steps = buildTourSteps(variant, { hasTimeseries: false, hasFormFields: false });
+      const merged = steps.find((s) => s.id === 'collections-and-slices');
+      expect(merged).toBeDefined();
+      expect(steps.some((s) => s.id === 'collection-picker' || s.id === 'windows-vs-slices')).toBe(
+        false
+      );
+      const targets = Array.isArray(merged!.target) ? merged!.target : [merged!.target];
+      const names = targets.map((t) => (t.kind === 'panel' ? t.id : t.name));
+      expect(names).toContain('collection-picker');
+      expect(names).toContain('slice-picker');
+      // The open menu is portaled out of the trigger, so it has to be lit itself.
+      expect(names).toContain('slice-picker-menu');
+      expect(merged!.effect).toBe('show-slice-menu');
+    }
+  });
+
+  it('shows the main map alongside every step that describes what it does', () => {
+    const showsMap = (id: string, steps: TourStep[]) => {
+      const found = steps.find((s) => s.id === id);
+      if (!found) return true;
+      const targets = Array.isArray(found.target) ? found.target : [found.target];
+      return targets.some((t) => t.kind === 'panel' && t.id === 'main');
+    };
+    for (const variant of ['tasks', 'explore'] as const) {
+      const steps = buildTourSteps(variant, { hasTimeseries: true, hasFormFields: true });
+      for (const id of [
+        'imagery-windows',
+        'practice-slices',
+        'practice-windows',
+        'imagery-sources',
+        'visualizations',
+        'controls',
+        'drawing',
+        'editing',
+        'annotation-questions',
+        'timeseries',
+      ]) {
+        expect(showsMap(id, steps), `${variant}/${id}`).toBe(true);
+      }
+    }
+  });
+
+  it('makes switching sources and visualizations something you do, not read', () => {
+    for (const variant of ['tasks', 'explore'] as const) {
+      const steps = buildTourSteps(variant, { hasTimeseries: false, hasFormFields: false });
+      const sources = steps.find((s) => s.id === 'imagery-sources')!;
+      const viz = steps.find((s) => s.id === 'visualizations')!;
+      expect(sources.requiredKeys).toEqual(['i']);
+      expect(viz.requiredKeys).toEqual(['shift+i']);
+      // Both leave the imagery where they found it - the source ring includes
+      // basemaps, and a later step must not open on one.
+      expect(sources.effect).toBe('imagery-sandbox');
+      expect(viz.effect).toBe('visualization-sandbox');
+    }
+  });
+
+  it('does not claim view sync shares the slice, which it never did', () => {
+    for (const variant of ['tasks', 'explore'] as const) {
+      const steps = buildTourSteps(variant, { hasTimeseries: false, hasFormFields: false });
+      const body = steps.find((s) => s.id === 'view-sync')!.body.join(' ');
+      expect(body).not.toContain('slice index');
+      expect(body).toContain('pan and zoom');
+    }
+  });
+
+  it('keeps the tooltip off controls a step still needs the reader to click', () => {
+    const named = (target: TourStep['avoid']) =>
+      (Array.isArray(target) ? target : target ? [target] : []).map((t) =>
+        t.kind === 'panel' ? t.id : t.name
+      );
+    for (const variant of ['tasks', 'explore'] as const) {
+      const steps = buildTourSteps(variant, { hasTimeseries: false, hasFormFields: false });
+      expect(named(steps.find((s) => s.id === 'practice-resize')!.avoid)).toContain('toolbar');
+      expect(named(steps.find((s) => s.id === 'practice-google-earth')!.avoid)).toContain(
+        'minimap'
+      );
+    }
   });
 
   it('targets panels by id rather than a CSS selector', () => {

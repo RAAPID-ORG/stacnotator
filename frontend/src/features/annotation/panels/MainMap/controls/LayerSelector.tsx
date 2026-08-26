@@ -1,3 +1,4 @@
+import { useLayoutStore } from '../../../stores/layout';
 import { type ImageryCatalog } from '../../../campaign/imagery';
 import { type SliceAddress } from '../../../campaign/imageryNav';
 import { restoreSnapshot } from '../../../campaign/imageryNav';
@@ -30,6 +31,7 @@ export interface LayerSelectorProps {
 }
 
 export function LayerSelector({ catalog, sourceIds, title }: LayerSelectorProps) {
+  const forcedOpen = useLayoutStore((s) => s.forcedOpenControl);
   const address = useImageryStore((s) => s.address);
   const showBasemap = useImageryStore((s) => s.showBasemap);
   const selectedBasemapId = useImageryStore((s) => s.selectedBasemapId);
@@ -84,6 +86,8 @@ export function LayerSelector({ catalog, sourceIds, title }: LayerSelectorProps)
         options={options}
         onChange={handleChange}
         title={title}
+        forcedOpen={forcedOpen === 'layer-selector'}
+        menuTourName="layer-selector-menu"
         icon={
           <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path d="M10 2L2 6L10 10L18 6L10 2Z" />

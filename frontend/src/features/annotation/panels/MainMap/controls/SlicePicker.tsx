@@ -1,3 +1,4 @@
+import { useLayoutStore } from '../../../stores/layout';
 import { sliceLabel, type ImageryCatalog } from '../../../campaign/imagery';
 import { emptyKey } from '../../../campaign/imageryNav';
 import { addressAtSlice, slicePickerIndices } from '../../../campaign/imageryNav';
@@ -7,6 +8,7 @@ import { HeaderSelect } from '../../../components/HeaderSelect';
 import { NoteBadge } from '../../../chrome/SliceComments';
 
 export function SlicePicker({ catalog, title }: { catalog: ImageryCatalog; title: string }) {
+  const forcedOpen = useLayoutStore((s) => s.forcedOpenControl);
   const address = useImageryStore((s) => s.address);
   const empties = useImageryStore((s) => s.empties);
   const setAddress = useImageryStore((s) => s.setAddress);
@@ -33,6 +35,8 @@ export function SlicePicker({ catalog, title }: { catalog: ImageryCatalog; title
         options={options}
         onChange={(v: string | number) => setAddress(addressAtSlice(catalog, address, Number(v)))}
         title={title}
+        forcedOpen={forcedOpen === 'slice-picker'}
+        menuTourName="slice-picker-menu"
       />
     </span>
   );

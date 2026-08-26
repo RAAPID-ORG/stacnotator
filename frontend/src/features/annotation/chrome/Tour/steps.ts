@@ -13,6 +13,7 @@ const taskFilter = { kind: 'anchor', name: 'task-filter' } as const;
 const mapControls = { kind: 'anchor', name: 'map-controls' } as const;
 const collectionPicker = { kind: 'anchor', name: 'collection-picker' } as const;
 const slicePicker = { kind: 'anchor', name: 'slice-picker' } as const;
+const slicePickerMenu = { kind: 'anchor', name: 'slice-picker-menu' } as const;
 const viewSync = { kind: 'anchor', name: 'view-sync' } as const;
 const canvas = { kind: 'anchor', name: 'canvas' } as const;
 const layerSelector = { kind: 'anchor', name: 'layer-selector' } as const;
@@ -27,9 +28,28 @@ const controls = { kind: 'panel', id: 'controls' } as const;
 const imageryWindows = { kind: 'role', name: 'imagery-window' } as const;
 const timeseries = { kind: 'role', name: 'timeseries' } as const;
 
-const WINDOWS_VS_SLICES = [
-  'A Collection is a broad time range (e.g. a year or season). A Slice is a finer subdivision inside that collection (e.g. individual months).',
-  'The main map always shows one slice at a time. The smaller imagery panels show the same slice but for different collections so you can compare across time.',
+/** Collections and slices are one idea, not two, and their pickers sit next to
+ *  each other - so one step lights both, with the slice list held open so the
+ *  finer grain is something the reader can see rather than take on trust. */
+const COLLECTIONS_AND_SLICES_STEP: TourStep = {
+  id: 'collections-and-slices',
+  target: [collectionPicker, slicePicker, slicePickerMenu],
+  title: 'Collections & Slices',
+  body: [
+    'Imagery comes in two levels. A collection is a broad window of time - most often a month, sometimes a season or a whole year. Inside it, slices cut that window finer: the weeks or single dates that make it up. The open list here is the slices of the collection you are on.',
+    'That split is what lets you work at whatever grain the question needs. Stepping month by month is usually enough to watch a field change across a season. When something happened on a particular date - a flood, a harvest, a fire - you drop into that one month and walk its weeks until you find the image that shows it, while every other month stays a single glance.',
+    'The left picker chooses the collection, the right one the slice inside it. Both jump straight there, which beats stepping with {{shift+a}} / {{shift+d}} or {{a}} / {{d}} when you already know where you are going.',
+  ],
+  placement: 'bottom',
+  effect: 'show-slice-menu',
+};
+
+/** Both modes describe the small panels the same way, including the click that
+ *  is the least discoverable thing on the canvas - nothing on the panel
+ *  advertises it. */
+const IMAGERY_WINDOWS_BODY = [
+  'These smaller panels each show a different collection over the same place, so you can compare dates at a glance.',
+  'Click any one of them - the header or the map itself - and the main map switches to that collection at full size, on the date the small panel is showing. It is the fastest way to go from "something changed here" to looking at it properly.',
 ];
 
 const ZOOM_AND_PAN: Pick<TourStep, 'body' | 'hint' | 'requiredKeys' | 'placement'> = {
@@ -47,6 +67,7 @@ const ZOOM_AND_PAN: Pick<TourStep, 'body' | 'hint' | 'requiredKeys' | 'placement
 const SLICE_PRACTICE_STEP: TourStep = {
   id: 'practice-slices',
   target: [slicePicker, mainMap],
+  avoid: mapControls,
   title: 'Practice: Navigate Slices',
   body: [
     'Press {{a}} to go to the previous slice and {{d}} to go to the next slice. The slice picker follows along, so you can see where you are.',
@@ -56,11 +77,6 @@ const SLICE_PRACTICE_STEP: TourStep = {
   requiredKeys: ['a', 'd'],
   effect: 'slice-headroom',
 };
-
-const SOURCE_SWITCHING_BODY = [
-  'Open this dropdown to switch between imagery sources - the top-level groups here (e.g. Sentinel-2, Landsat, basemaps).',
-  'You can also press {{i}} to cycle through sources without opening the dropdown.',
-];
 
 const GUIDE_STEP: TourStep = {
   id: 'campaign-guide',
@@ -89,13 +105,65 @@ const HELP_STEP: TourStep = {
 const RESIZE_STEP: TourStep = {
   id: 'practice-resize',
   target: [canvas, layoutControls],
+  // The step is finished by clicking Save or Cancel up in the toolbar, so the
+  // tooltip must never be the thing standing in front of them.
+  avoid: toolbar,
   title: 'Practice: Resize Panels',
   body: [
-    "We've enabled Edit Layout mode for you. Try dragging a panel header to move it, or drag a panel's edge or corner to resize it - every panel on the canvas is draggable and resizable right now.",
-    "When you're done, click Save to keep the layout, or Cancel to discard your changes.",
+    "We've turned Edit Layout on for you. Try dragging a panel header to move it, or drag a panel's edge or corner to resize it - every panel on the canvas is draggable and resizable right now.",
+    'When you are done, use Save or Cancel in the highlighted controls at the top right.',
   ],
   placement: 'bottom',
   effect: 'edit-layout',
+};
+
+/** The old copy claimed view sync shares the slice and visualization. It does
+ *  not - it is the panels' camera that follows, and skipping that follow is
+ *  what saves the tile traffic. */
+const VIEW_SYNC_STEP: TourStep = {
+  id: 'view-sync',
+  target: [viewSync, imageryWindows],
+  title: 'Imagery Panel Sync',
+  body: [
+    '{{l}} toggles view sync. With it on, the small imagery panels pan and zoom along with the main map, so whatever you are looking at, you are looking at it on every date at once.',
+    'With it off they hold their own position and load nothing while you move the main map around. On a slow connection, or with a lot of panels open, that is a great deal less imagery to fetch.',
+    'The panel whose collection is currently active follows the main map either way.',
+  ],
+  placement: 'bottom',
+};
+
+/** Both a practice and a sandbox: the source ring includes basemaps, so
+ *  pressing I a few times routinely ends on a street map. The step puts the
+ *  imagery back on the way out so the next step is not talking over one. */
+const SOURCE_PRACTICE_STEP: TourStep = {
+  id: 'imagery-sources',
+  target: [layerSelector, mainMap],
+  avoid: mapControls,
+  title: 'Practice: Switching Imagery Sources',
+  body: [
+    'This dropdown lists every imagery source the campaign has - Sentinel-2, Landsat, and any basemaps alongside them. {{i}} cycles through them without opening it.',
+    'Watch the main map as you go. Each source is a different sensor over the same ground, and the basemaps sit in the same ring, so one of the presses will land you on a plain street map.',
+  ],
+  hint: 'Press I a few times. Wherever you end up, the tour puts the imagery back as it was.',
+  placement: 'left',
+  requiredKeys: ['i'],
+  effect: 'imagery-sandbox',
+};
+
+const VISUALIZATION_PRACTICE_STEP: TourStep = {
+  id: 'visualizations',
+  target: [layerSelector, mainMap],
+  avoid: mapControls,
+  title: 'Practice: Switching Visualization Layers',
+  body: [
+    "The same dropdown lists each source as a heading with its visualization layers underneath - True Color, False Color, NDVI and so on. They are the same pixels rendered differently, and {{shift+i}} cycles the current source's.",
+    'We have moved you onto a source and date that publishes more than one, so there is something to cycle through. Not every source has them: a basemap is one rendering and nothing else.',
+    'Not to be confused with the view dropdown in the toolbar - that picks which set of imagery the whole workspace is built from, while these two switch the source and its rendering inside it.',
+  ],
+  hint: 'Press Shift+I to see the same scene rendered another way.',
+  placement: 'left',
+  requiredKeys: ['shift+i'],
+  effect: 'visualization-sandbox',
 };
 
 const LAYOUT_STEP: TourStep = {
@@ -134,30 +202,17 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
       target: mainMap,
       title: 'Main Map',
       body: [
-        "This is the primary map view. It shows the selected imagery at the current collection & slice. Use your mouse to pan and scroll to zoom, or try the keyboard shortcuts you'll learn next.",
+        "This is the primary map view. It shows the selected imagery at the current collection and slice. Use your mouse to pan and scroll to zoom, or try the keyboard shortcuts you'll learn next.",
       ],
       placement: 'right',
+      avoid: mapControls,
     },
-    {
-      id: 'collection-picker',
-      target: collectionPicker,
-      title: 'Collection Picker',
-      body: [
-        'This picker lists all collections in chronological order, and highlights the active one. A collection is a broad time range of imagery. Pick one to jump straight to it.',
-      ],
-      placement: 'bottom',
-    },
-    {
-      id: 'windows-vs-slices',
-      target: slicePicker,
-      title: 'Collections vs Slices',
-      body: WINDOWS_VS_SLICES,
-      placement: 'bottom',
-    },
+    COLLECTIONS_AND_SLICES_STEP,
     SLICE_PRACTICE_STEP,
     {
       id: 'practice-windows',
-      target: collectionPicker,
+      target: [collectionPicker, mainMap],
+      avoid: mapControls,
       title: 'Practice: Navigate Collections',
       body: [
         'Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection. Often you will want to browse imagery in these bigger steps rather than individually by slice, as the first slice (cover slice) is often representative of the whole collection. These are also preloaded at your default zoom-level to make your workflow faster. Set the default zoom in campaign settings for the best experience.',
@@ -169,7 +224,8 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     },
     {
       id: 'hold-to-cycle',
-      target: collectionPicker,
+      target: [collectionPicker, mainMap],
+      avoid: mapControls,
       title: 'Tip: Hold to Cycle',
       body: [
         'You can hold {{a}} / {{d}} or {{shift+a}} / {{shift+d}} to smoothly cycle through slices or collections without releasing the key. This is great for spotting changes across time in a flickering animation style.',
@@ -212,29 +268,17 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     },
     {
       id: 'imagery-windows',
-      target: imageryWindows,
+      target: [imageryWindows, mainMap],
       title: 'Imagery Panels',
-      body: [
-        'These smaller panels each show a different collection at the same geographic location. Click a panel to make it the active collection in the main map.',
-        'This lets you quickly compare how a location looks across different time periods.',
-      ],
+      body: IMAGERY_WINDOWS_BODY,
       placement: 'top',
     },
-    {
-      id: 'view-sync',
-      target: viewSync,
-      title: 'Imagery Panel Sync (View Link)',
-      body: [
-        'Press {{l}} to toggle view sync. When enabled, all imagery panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
-        'Tip: turning view sync off can noticeably speed up imagery loading, because only the main map needs to fetch new tiles when you navigate. The smaller panels will stay on their current slice until you click them.',
-      ],
-      placement: 'bottom',
-    },
+    VIEW_SYNC_STEP,
     ...(hasTimeseries
       ? [
           {
             id: 'timeseries',
-            target: timeseries,
+            target: [timeseries, mainMap],
             title: 'Time Series Chart',
             body: [
               'The time series chart shows spectral indices (e.g. NDVI) for the task location over time. Vertical bars indicate the currently selected collection/slice.',
@@ -257,6 +301,9 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     {
       id: 'practice-google-earth',
       target: googleEarth,
+      // The link lives in the minimap header, so "beside the link" is on top of
+      // the minimap unless it is kept clear.
+      avoid: minimap,
       title: 'Practice: Open in Google Earth',
       body: [
         "Click the highlighted Open in Google Earth link to inspect the current task location in Google Earth. A new tab will open with the coordinates pre-filled - handy for high-resolution context when imagery alone isn't enough.",
@@ -268,7 +315,7 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     },
     {
       id: 'controls',
-      target: controls,
+      target: [controls, mainMap],
       title: 'Annotation Controls',
       body: ['This panel is where you actually annotate:'],
       bullets: [
@@ -288,7 +335,7 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     },
     {
       id: 'practice-tasks',
-      target: controls,
+      target: [controls, mainMap],
       title: 'Practice: Navigate Tasks',
       body: ['Press {{w}} for the previous task and {{s}} for the next task.'],
       hint: 'Try pressing S and then W to move in both directions.',
@@ -296,23 +343,8 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
       requiredKeys: ['s', 'w'],
     },
     { id: 'practice-zoom', target: mainMap, title: 'Practice: Zoom & Pan', ...ZOOM_AND_PAN },
-    {
-      id: 'imagery-sources',
-      target: layerSelector,
-      title: 'Switching Imagery Sources',
-      body: SOURCE_SWITCHING_BODY,
-      placement: 'left',
-    },
-    {
-      id: 'visualizations',
-      target: layerSelector,
-      title: 'Switching Visualization Layers',
-      body: [
-        "The same dropdown lists every source as a heading with its own visualization layers underneath (e.g. True Color, False Color, NDVI). Pick one to change how that source is rendered. {{shift+i}} cycles through the current source's visualizations.",
-        'Note: visualization options are only available for sources that have them configured. Basemaps typically do not have multiple visualizations - only sources like Sentinel-2 with pre-configured band combinations will show visualization options.',
-      ],
-      placement: 'left',
-    },
+    SOURCE_PRACTICE_STEP,
+    VISUALIZATION_PRACTICE_STEP,
     {
       id: 'review-mode',
       target: reviewToggle,
@@ -388,72 +420,6 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
       placement: 'bottom',
     },
     {
-      id: 'collection-picker',
-      target: collectionPicker,
-      title: 'Collection Picker',
-      body: [
-        'This picker lists all collections in chronological order, and highlights the active one. Picking one jumps straight to it - often faster than stepping with {{shift+a}} / {{shift+d}}.',
-      ],
-      placement: 'bottom',
-    },
-    {
-      id: 'windows-vs-slices',
-      target: slicePicker,
-      title: 'Collections & Slices',
-      body: WINDOWS_VS_SLICES,
-      placement: 'bottom',
-    },
-    {
-      id: 'imagery-windows',
-      target: imageryWindows,
-      title: 'Imagery Panels',
-      body: [
-        'These smaller panels each show a different collection at the same geographic location. Click a panel to make it the active collection in the main map.',
-        "This lets you quickly compare how a location looks across different time periods. The main map will update to show that collection's imagery at full size.",
-      ],
-      placement: 'top',
-    },
-    SLICE_PRACTICE_STEP,
-    {
-      id: 'practice-windows',
-      target: collectionPicker,
-      title: 'Practice: Navigate Collections',
-      body: [
-        'Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection.',
-      ],
-      hint: 'Try pressing Shift+A and then Shift+D, so you have navigated in both directions.',
-      placement: 'bottom',
-      requiredKeys: ['shift+a', 'shift+d'],
-      effect: 'collection-headroom',
-    },
-    {
-      id: 'imagery-sources',
-      target: layerSelector,
-      title: 'Switching Imagery Sources',
-      body: SOURCE_SWITCHING_BODY,
-      placement: 'left',
-    },
-    {
-      id: 'visualizations',
-      target: layerSelector,
-      title: 'Switching Visualization Layers',
-      body: [
-        "The same dropdown lists every source as a heading with its own visualization layers underneath (e.g. True Color, False Color, NDVI). Pick one to change how that source is rendered. {{shift+i}} cycles through the current source's visualizations.",
-        'Note: the canvas view dropdown in the toolbar selects which view is active, while these controls switch the imagery source and visualization within that view.',
-      ],
-      placement: 'left',
-    },
-    {
-      id: 'view-sync',
-      target: viewSync,
-      title: 'Imagery Panel Sync (View Link)',
-      body: [
-        'Press {{l}} to toggle view sync. When enabled, all imagery panels share the same slice index and visualization layer as the main map - so navigating slices updates every panel at once.',
-        'Tip: turning view sync off can noticeably speed up imagery loading, because only the main map needs to fetch new tiles when you navigate.',
-      ],
-      placement: 'left',
-    },
-    {
       id: 'main-map',
       target: mainMap,
       title: 'Main Map',
@@ -461,13 +427,39 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
         hasTimeseries
           ? 'This is your drawing canvas. Use the tools ({{p}}, {{r}}, {{e}}, {{b}}, {{t}}) to pan, annotate, edit features, label vector features, or probe time series. Use the mouse wheel to zoom and click-drag to pan.'
           : 'This is your drawing canvas. Use the tools ({{p}}, {{r}}, {{e}}, {{b}}) to pan, annotate, edit features, or label vector features. Use the mouse wheel to zoom and click-drag to pan.',
-        'Press {{ }} to fit the view to everything you have drawn.',
+        'Press {{ }} to fit the view to everything you have drawn. Everything the rest of the tour talks about ends up here.',
       ],
       placement: 'right',
+      avoid: mapControls,
     },
+    COLLECTIONS_AND_SLICES_STEP,
+    {
+      id: 'imagery-windows',
+      target: [imageryWindows, mainMap],
+      title: 'Imagery Panels',
+      body: IMAGERY_WINDOWS_BODY,
+      placement: 'top',
+    },
+    SLICE_PRACTICE_STEP,
+    {
+      id: 'practice-windows',
+      target: [collectionPicker, mainMap],
+      avoid: mapControls,
+      title: 'Practice: Navigate Collections',
+      body: [
+        'Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection. Watch the main map: each press is a whole month (or whatever this campaign groups by) rather than a single date.',
+      ],
+      hint: 'Try pressing Shift+A and then Shift+D, so you have navigated in both directions.',
+      placement: 'bottom',
+      requiredKeys: ['shift+a', 'shift+d'],
+      effect: 'collection-headroom',
+    },
+    SOURCE_PRACTICE_STEP,
+    VISUALIZATION_PRACTICE_STEP,
+    VIEW_SYNC_STEP,
     {
       id: 'controls',
-      target: controls,
+      target: [controls, mainMap],
       title: 'Annotation Controls',
       body: [
         "We've switched the Annotate tool on for you, so the labels are on screen: the labels section lists the campaign's annotation classes and their geometry types (point, polygon, line).",
@@ -494,7 +486,7 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
       ? [
           {
             id: 'annotation-questions',
-            target: controls,
+            target: [controls, mainMap],
             title: 'Answering the Questions',
             body: [
               'This campaign asks a few questions about every annotation. The moment a shape is finished, the label list here is replaced by those questions.',
@@ -549,6 +541,9 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
     {
       id: 'practice-google-earth',
       target: googleEarth,
+      // The link lives in the minimap header, so "beside the link" is on top of
+      // the minimap unless it is kept clear.
+      avoid: minimap,
       title: 'Practice: Open in Google Earth',
       body: [
         "Click the highlighted Open in Google Earth link to inspect the current viewport center in Google Earth. A new tab will open with the coordinates pre-filled - handy for high-resolution context when imagery alone isn't enough.",
@@ -562,10 +557,12 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
       ? [
           {
             id: 'timeseries',
-            target: timeseries,
+            target: [timeseries, mainMap],
             title: 'Time Series Chart',
+            effect: 'seed-probe' as const,
             body: [
-              'The time series chart shows spectral indices (e.g. NDVI) over time. Switch to the Timeseries tool ({{t}}) and click the map to move the probe there; + in the map header (or {{shift+t}}) drops another one so two places can be compared.',
+              'The chart plots spectral indices (e.g. NDVI) over time. We have dropped a probe in the middle of your view so there is a curve here to look at - it comes off again when you move on.',
+              'Switch to the Timeseries tool ({{t}}) and click the map to move the probe; + in the map header (or {{shift+t}}) drops another one so two places can be compared, and clicking a probe again takes it off the chart.',
               'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides cloud-flagged observations, and Smooth applies a Savitzky-Golay filter so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
             ],
             placement: 'left' as const,
