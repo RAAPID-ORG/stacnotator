@@ -1357,39 +1357,50 @@ export const CatalogBrowser = ({
                 <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
                   <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
                     <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                      Search Parameters
-                      <Tooltip text="Controls which STAC items are considered. Choose whether you want a single scene or a date-windowed mosaic, then narrow the match by date range, cloud cover, sort order, or a custom CQL query." />
+                      Which imagery to use
+                      <Tooltip text="Narrows which images from this catalog the campaign draws on. Advanced options add sort order, a custom CQL query, and the choice of pulling one single scene instead of a mosaic." />
                     </h4>
                     <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
-                      Filter the STAC catalog by date, cloud cover, and an optional CQL query. Each
-                      slice in the Temporal Structure below searches within these filters.
+                      Pick the period to cover and how cloudy an image may be. Every image the
+                      campaign shows is searched for within these limits.
                     </p>
                   </div>
                   <div className="p-3 space-y-3">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setMode('mosaic')}
-                        className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
-                          mode === 'mosaic'
-                            ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
-                            : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                        }`}
-                      >
-                        Collection Mosaic
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMode('single-item')}
-                        className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
-                          mode === 'single-item'
-                            ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
-                            : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                        }`}
-                      >
-                        Single Item
-                      </button>
-                    </div>
+                    {/* Mosaic vs single scene is a rare, jargon-heavy choice, so it lives
+                        under advanced - but stays on screen once picked, or there would be
+                        no way back out of single-item. */}
+                    {(showAdvanced || mode === 'single-item') && (
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+                          What to pull from the catalog
+                          <Tooltip text="A collection mosaic stitches every matching image in a time window into one seamless layer, and is what you want in almost every case. A single item pins the campaign to one specific scene." />
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setMode('mosaic')}
+                            className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                              mode === 'mosaic'
+                                ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
+                                : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                            }`}
+                          >
+                            Collection Mosaic
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMode('single-item')}
+                            className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                              mode === 'single-item'
+                                ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
+                                : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                            }`}
+                          >
+                            Single Item
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Date range */}
                     <div className="grid grid-cols-2 gap-3">
@@ -1476,13 +1487,13 @@ export const CatalogBrowser = ({
                     <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
                       <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
                         <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                          Temporal Structure
-                          <Tooltip text="Controls how the date range is divided into collections and slices. Collections are top-level time windows (e.g. months). Each collection is split into slices (e.g. weeks) that annotators can browse to find the best imagery." />
+                          How often you get a new image
+                          <Tooltip text="Chops the date range into the time windows annotators step through. Collections are the top-level windows (e.g. one per month). Each is divided into slices (e.g. weeks), which is what an annotator flips between to find a cloud-free view." />
                         </h4>
                         <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
                           {singleCollection
-                            ? 'The full date range becomes one collection, divided into slices that annotators can switch between.'
-                            : 'The date range is split into collections (e.g. one per month). Each collection is further divided into slices (e.g. weeks) for annotators to browse.'}
+                            ? 'The whole date range becomes one collection, split into slices that annotators can flip between.'
+                            : 'How finely the date range is sliced up in time. The date range becomes a series of collections (e.g. one per month), and each of those is split into slices (e.g. weeks) that annotators flip between.'}
                         </p>
                       </div>
                       <div className="p-3 space-y-3">
