@@ -31,6 +31,26 @@ const DEFAULT_HEADING = {
     'region, or set coordinates manually.',
 };
 
+/**
+ * A dragged rectangle as the campaign's area.
+ *
+ * Leaflet reports longitudes unwrapped, so dragging the box west past the
+ * antimeridian returns -196 rather than 164. Both edges shift by the same
+ * multiple of 360 - the box keeps its shape and its place - which lands west
+ * back in range. A box that genuinely straddles 180 comes out with east past
+ * it, and validation reports that rather than this quietly moving it.
+ */
+function boundsToBbox(bounds: L.LatLngBounds) {
+  const west = bounds.getWest();
+  const shift = -360 * Math.floor((west + 180) / 360);
+  return {
+    bbox_west: west + shift,
+    bbox_south: bounds.getSouth(),
+    bbox_east: bounds.getEast() + shift,
+    bbox_north: bounds.getNorth(),
+  };
+}
+
 export const BoundingBoxEditor = ({
   value,
   onChange,
@@ -209,12 +229,7 @@ export const BoundingBoxEditor = ({
         if (isDragging) {
           const newBounds = rectangle.getBounds();
           isUpdatingFromDragRef.current = true;
-          onChange({
-            bbox_west: newBounds.getWest(),
-            bbox_south: newBounds.getSouth(),
-            bbox_east: newBounds.getEast(),
-            bbox_north: newBounds.getNorth(),
-          });
+          onChange(boundsToBbox(newBounds));
           isDragging = false;
           dragStart = null;
           mapRef.current!.dragging.enable();
@@ -273,12 +288,7 @@ export const BoundingBoxEditor = ({
         marker.on('dragend', () => {
           const newBounds = rectangle.getBounds();
           isUpdatingFromDragRef.current = true;
-          onChange({
-            bbox_west: newBounds.getWest(),
-            bbox_south: newBounds.getSouth(),
-            bbox_east: newBounds.getEast(),
-            bbox_north: newBounds.getNorth(),
-          });
+          onChange(boundsToBbox(newBounds));
         });
 
         return marker;

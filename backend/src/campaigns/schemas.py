@@ -8,6 +8,7 @@ from pydantic import (
     ConfigDict,
     Field,
     field_validator,
+    model_validator,
 )
 
 from src.campaigns.form_fields import FormField, validate_form_fields
@@ -31,6 +32,25 @@ def _check_form_fields(value: list[FormField]) -> list[FormField]:
 
 
 ValidatedFormFields = Annotated[list[FormField], AfterValidator(_check_form_fields)]
+
+
+# Mirrors the settings table's own CHECKs. Without them a map panned past the
+# antimeridian sends a longitude like -196 and the insert raises CheckViolation,
+# which reaches the user as a 500 instead of a message about the area they drew.
+Longitude = Annotated[float, Field(ge=-180, le=180)]
+Latitude = Annotated[float, Field(ge=-90, le=90)]
+
+
+def _check_bbox_order(west: float, east: float, south: float, north: float) -> None:
+    """The table requires west < east, so an area spanning the antimeridian
+    cannot be stored: it would have to wrap past 180 and come back."""
+    if west >= east:
+        raise ValueError(
+            "West longitude must be less than east. An area cannot cross the "
+            "antimeridian (180°); draw it on one side."
+        )
+    if south >= north:
+        raise ValueError("South latitude must be less than north")
 
 
 class LabelBase(BaseModel):
@@ -212,13 +232,18 @@ class CampaignSettingsOut(BaseModel):
 
 class CampaignSettingsCreate(BaseModel):
     labels: list[LabelBase]
-    bbox_west: float
-    bbox_south: float
-    bbox_east: float
-    bbox_north: float
+    bbox_west: Longitude
+    bbox_south: Latitude
+    bbox_east: Longitude
+    bbox_north: Latitude
     embedding_year: int | None = None
     sample_extent_meters: float | None = None
     form_fields: ValidatedFormFields = []
+
+    @model_validator(mode="after")
+    def _check_bbox(self) -> "CampaignSettingsCreate":
+        _check_bbox_order(self.bbox_west, self.bbox_east, self.bbox_south, self.bbox_north)
+        return self
 
     # Helper to convert labels to dict in DB
     def to_orm(self) -> dict:
@@ -385,10 +410,15 @@ class UpdateResearchSharingRequest(BaseModel):
 
 
 class UpdateCampaignBBoxRequest(BaseModel):
-    bbox_west: float
-    bbox_south: float
-    bbox_east: float
-    bbox_north: float
+    bbox_west: Longitude
+    bbox_south: Latitude
+    bbox_east: Longitude
+    bbox_north: Latitude
+
+    @model_validator(mode="after")
+    def _check_bbox(self) -> "UpdateCampaignBBoxRequest":
+        _check_bbox_order(self.bbox_west, self.bbox_east, self.bbox_south, self.bbox_north)
+        return self
 
 
 class UpdateEmbeddingYearRequest(BaseModel):

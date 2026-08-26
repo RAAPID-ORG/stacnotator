@@ -32,8 +32,22 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
 
   if (bbox_west == null || bbox_south == null || bbox_east == null || bbox_north == null) {
     errors.bbox = 'All four bounding box coordinates are required.';
+  } else if (
+    bbox_west < -180 ||
+    bbox_west > 180 ||
+    bbox_east < -180 ||
+    bbox_east > 180 ||
+    bbox_south < -90 ||
+    bbox_south > 90 ||
+    bbox_north < -90 ||
+    bbox_north > 90
+  ) {
+    // A map panned past the antimeridian reports longitudes outside the range
+    // the campaign area is stored in, and west < east alone does not catch it.
+    errors.bbox = 'Longitude must be between -180 and 180, latitude between -90 and 90.';
   } else if (bbox_west >= bbox_east) {
-    errors.bbox = 'West longitude must be less than East longitude.';
+    errors.bbox =
+      'West longitude must be less than East longitude. An area cannot cross the antimeridian (180°) - draw it on one side.';
   } else if (bbox_south >= bbox_north) {
     errors.bbox = 'South latitude must be less than North latitude.';
   }
