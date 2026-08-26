@@ -16,7 +16,6 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath, projectPath, projectsPath } from '~/app/routes';
 import { SkeletonForm } from '~/shared/ui/Skeleton';
-import { Delayed } from '~/shared/ui/Delayed';
 import {
   validateFullForm,
   type FullValidationResult,
@@ -205,9 +204,7 @@ export const CreateCampaignPage = () => {
         </div>
 
         {loadingProject ? (
-          <Delayed>
-            <SkeletonForm sections={3} />
-          </Delayed>
+          <SkeletonForm sections={3} />
         ) : (
           <>
             <div className="surface">

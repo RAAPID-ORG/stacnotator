@@ -1,6 +1,5 @@
 import { Fragment, useState } from 'react';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
-import { Delayed } from '~/shared/ui/Delayed';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { IconUploadFilled } from '~/shared/ui/Icons';
 import { Button } from '~/shared/ui/forms';
@@ -78,9 +77,7 @@ export const ReviewPage = () => {
                 <Skeleton className="h-7 w-52" />
               </div>
             </header>
-            <Delayed>
-              <SkeletonRows count={8} />
-            </Delayed>
+            <SkeletonRows count={8} />
           </FadeIn>
         </div>
       )}

@@ -1,8 +1,12 @@
-/** Pulsing placeholder block. Size/shape it with utility classes (h-, w-, rounded-) **/
+/**
+ * Placeholder block. Size/shape it with utility classes (h-, w-, rounded-).
+ *
+ * It reserves its space on mount but only fades in if the wait lasts long
+ * enough to notice (see `.motion-skeleton`), so a fast load swaps straight to
+ * content with neither a flash nor a jump. Callers do not need to delay it.
+ */
 export const Skeleton = ({ className = '' }: { className?: string }) => (
-  <div
-    className={`animate-pulse rounded-md bg-neutral-200/80 motion-reduce:animate-none ${className}`}
-  />
+  <div className={`motion-skeleton rounded-md bg-neutral-200/80 ${className}`} />
 );
 
 /** A `surface` of divided list rows (icon + two text lines + trailing pill),

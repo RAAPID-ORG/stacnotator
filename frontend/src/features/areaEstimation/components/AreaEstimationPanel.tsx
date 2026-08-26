@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Badge } from '~/shared/ui/Badge';
 import { Button } from '~/shared/ui/forms';
-import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
 import { loadPlan, loadProgress, type Progress } from '../api';
 import type { AreaEstimates } from '../core/estimate';
@@ -66,11 +65,7 @@ export const AreaEstimationPanel = ({
   }, [taskSetId, plan]);
 
   if (loading) {
-    return (
-      <Delayed>
-        <SkeletonRows count={3} />
-      </Delayed>
-    );
+    return <SkeletonRows count={3} />;
   }
   if (!plan) return null;
 

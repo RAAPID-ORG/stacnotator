@@ -7,7 +7,6 @@ import {
   listVisualizersQueryKey,
 } from '~/api/queries';
 import { Button } from '~/shared/ui/forms';
-import { Delayed } from '~/shared/ui/Delayed';
 import {
   IconCheck,
   IconComment,
@@ -103,9 +102,7 @@ export function ProjectVisualizersSection({
       </div>
 
       {items === null ? (
-        <Delayed>
-          <SkeletonRows count={3} />
-        </Delayed>
+        <SkeletonRows count={3} />
       ) : items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-neutral-200 px-6 py-10 text-center">
           <IconMap className="mx-auto h-6 w-6 text-neutral-300" />

@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { type AnnotationListItemOut, type CampaignSummaryOut } from '~/api/client';
 import {
@@ -482,9 +481,7 @@ export const AnnotationsReview = ({
 
         {/* Annotations Table */}
         {loading ? (
-          <Delayed>
-            <SkeletonRows count={8} />
-          </Delayed>
+          <SkeletonRows count={8} />
         ) : items.length === 0 ? (
           <div className="text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm">
             <svg

@@ -10,7 +10,6 @@ import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, Input } from '~/shared/ui/forms';
 import { IconFolder, IconPlus } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
-import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { ProjectRow } from '../components/ProjectRow';
 import {
@@ -150,9 +149,7 @@ export const ProjectsPage = () => {
         </div>
 
         {loading ? (
-          <Delayed>
-            <SkeletonRows count={6} />
-          </Delayed>
+          <SkeletonRows count={6} />
         ) : (
           <div className="surface">
             {needsOrgSelection ? (

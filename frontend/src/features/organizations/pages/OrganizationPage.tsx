@@ -6,7 +6,6 @@ import { updateOrganizationMutation } from '~/api/queries';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge, type BadgeTone } from '~/shared/ui/Badge';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
-import { Delayed } from '~/shared/ui/Delayed';
 import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
@@ -185,9 +184,7 @@ export const OrganizationPage = () => {
             <OrganizationMembers organizationId={org.id} />
           </>
         ) : (
-          <Delayed>
-            <SkeletonForm sections={2} />
-          </Delayed>
+          <SkeletonForm sections={2} />
         )}
       </FadeIn>
     </div>

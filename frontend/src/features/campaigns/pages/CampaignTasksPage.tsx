@@ -14,7 +14,6 @@ import {
   type AssignmentPattern,
 } from '~/features/campaigns/components/settings/ReviewerAssignmentModal';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
-import { Delayed } from '~/shared/ui/Delayed';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
@@ -385,9 +384,7 @@ export const CampaignTasksPage = () => {
               </div>
             </>
           ) : (
-            <Delayed>
-              <SkeletonForm sections={3} />
-            </Delayed>
+            <SkeletonForm sections={3} />
           )}
         </FadeIn>
       </div>

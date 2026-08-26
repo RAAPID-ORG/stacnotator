@@ -9,7 +9,6 @@ import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
 import { IconPlus } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
-import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonForm } from '~/shared/ui/Skeleton';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import {
@@ -82,9 +81,7 @@ export const NewProjectPage = () => {
         </header>
 
         {loading ? (
-          <Delayed>
-            <SkeletonForm sections={2} />
-          </Delayed>
+          <SkeletonForm sections={2} />
         ) : organizations.length === 0 && error ? (
           <div className="surface">
             <div className="surface-section text-center py-16">

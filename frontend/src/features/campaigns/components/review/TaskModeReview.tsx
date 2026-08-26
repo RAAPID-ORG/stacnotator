@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
 import { type AnnotationTaskOut, type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
 import { answeredFields } from '~/shared/utils/formValues';
@@ -382,9 +381,7 @@ export const TaskModeReview = ({
 
         {/* Filters - embedded (tasks page) sits flat on the page; standalone keeps its own surface */}
         {loading ? (
-          <Delayed>
-            <SkeletonRows count={8} />
-          </Delayed>
+          <SkeletonRows count={8} />
         ) : (
           <>
             <div className={embedded ? undefined : 'surface surface-unclipped'}>

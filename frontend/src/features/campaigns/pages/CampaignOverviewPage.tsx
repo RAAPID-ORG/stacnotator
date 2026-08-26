@@ -6,7 +6,6 @@ import { getAnnotationFacetsOptions } from '~/api/queries';
 import { useQuery } from '@tanstack/react-query';
 import { isRegistering, useCampaignSummary, useCampaignTaskSets } from '../hooks/campaignQueries';
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
-import { Delayed } from '~/shared/ui/Delayed';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { Modal } from '~/shared/ui/Modal';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
@@ -207,9 +206,7 @@ export const CampaignOverviewPage = () => {
             )}
           </div>
           {loading ? (
-            <Delayed>
-              <SkeletonCards count={3} />
-            </Delayed>
+            <SkeletonCards count={3} />
           ) : !hasTasks ? (
             <div className="surface">
               <div className="surface-section text-center py-12">

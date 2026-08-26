@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '~/shared/ui/Badge';
 import { Button } from '~/shared/ui/forms';
-import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonForm } from '~/shared/ui/Skeleton';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -83,11 +82,7 @@ export const AreaEstimationSetup = ({
   };
 
   if (loading || !plan) {
-    return (
-      <Delayed>
-        <SkeletonForm sections={2} />
-      </Delayed>
-    );
+    return <SkeletonForm sections={2} />;
   }
 
   return editing ? (

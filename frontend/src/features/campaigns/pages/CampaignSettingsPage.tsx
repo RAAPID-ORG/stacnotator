@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '~/shared/ui/forms';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
-import { Delayed } from '~/shared/ui/Delayed';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import TabNavigator from '~/shared/ui/TabNavigator';
@@ -408,9 +407,7 @@ export const CampaignSettingsPage = () => {
 
             <div className="p-6">
               {!campaign ? (
-                <Delayed>
-                  <SkeletonForm sections={3} />
-                </Delayed>
+                <SkeletonForm sections={3} />
               ) : (
                 <>
                   {activeTab === 'general' && (

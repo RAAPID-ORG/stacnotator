@@ -15,7 +15,6 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button } from '~/shared/ui/forms';
 import { IconCopy, IconDocument, IconGlobe, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
-import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import TabNavigator from '~/shared/ui/TabNavigator';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -115,9 +114,7 @@ export const ProjectPage = () => {
             onDuplicateCampaign={setDuplicating}
           />
         ) : (
-          <Delayed>
-            <SkeletonRows count={4} />
-          </Delayed>
+          <SkeletonRows count={4} />
         )}
 
         {duplicating && (
