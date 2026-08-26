@@ -54,7 +54,7 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
-from src.filenames import clean_filename
+from src.routing import attachment_headers
 from src.tile_bulkhead import tile_slot
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -411,18 +411,13 @@ def export_annotations(
     annotations_df = export.build_annotations_export(
         db, campaign, merge_on_agreement=merge_on_agreement
     )
-    campaign_name_cleaned = clean_filename(campaign.name)
     buffer = io.StringIO()
     annotations_df.to_csv(buffer, index=False)
     buffer.seek(0)
     return StreamingResponse(
         buffer,
         media_type="text/csv",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="campaign_{campaign_name_cleaned}_annotations.csv"'
-            )
-        },
+        headers=attachment_headers(f"campaign_{campaign.name}_annotations", "csv"),
     )
 
 
@@ -439,18 +434,11 @@ def export_annotations_geojson(
     geojson = export.build_annotations_geojson_export(
         db, campaign, merge_on_agreement=merge_on_agreement
     )
-    campaign_name_cleaned = clean_filename(campaign.name)
-    content = json.dumps(geojson)
-    buffer = io.StringIO(content)
-
+    buffer = io.StringIO(json.dumps(geojson))
     return StreamingResponse(
         buffer,
         media_type="application/geo+json",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="campaign_{campaign_name_cleaned}_annotations.geojson"'
-            )
-        },
+        headers=attachment_headers(f"campaign_{campaign.name}_annotations", "geojson"),
     )
 
 

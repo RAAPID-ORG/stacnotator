@@ -46,12 +46,12 @@ from src.campaigns.schemas import (
     UpdateSampleExtentRequest,
 )
 from src.database import get_db, release
-from src.filenames import clean_filename
 from src.imagery.registration import REGISTRATION_RUN
 from src.organizations.service import is_active_org_member
 from src.projects.access import is_policy_member
 from src.projects.dependencies import assert_project_admin
 from src.projects.models import Project, ProjectUser
+from src.routing import attachment_headers
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -561,15 +561,10 @@ def export_task_assignments(
         archive.writestr("users.csv", users_df.to_csv(index=False))
     buffer.seek(0)
 
-    cleaned = clean_filename(campaign.name)
     return StreamingResponse(
         buffer,
         media_type="application/zip",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="campaign_{cleaned}_task_assignments.zip"'
-            )
-        },
+        headers=attachment_headers(f"campaign_{campaign.name}_task_assignments", "zip"),
     )
 
 
