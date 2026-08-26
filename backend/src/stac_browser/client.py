@@ -109,6 +109,16 @@ def _asset_defs_from_item(item: pystac.Item) -> dict:
     return result
 
 
+# Sampling costs one live item search per collection. On a big STAC API the
+# collections that declare no item_assets are the datacubes - daymet, gridmet,
+# conus404 - and those searches run 4-10s each, so doing them one after another
+# is what made listing a catalog look like it had hung. The whole sampling phase
+# gets these many workers and this long in total; whatever has not answered by
+# then is listed without assets rather than holding up the catalog.
+MAX_SAMPLE_WORKERS = 16
+SAMPLE_PHASE_BUDGET = 10.0
+
+
 def _sample_item_assets(col) -> dict:
     """Fetch a single item from a collection and derive its assets. Empty on failure.
     One extra request, only taken when the collection declares no `item_assets`."""
@@ -206,11 +216,6 @@ def _collection_out(col: pystac.Collection) -> dict:
             ],
         }
 
-    # Static catalogs often omit collection-level item_assets; sample one item so
-    # the mosaic wizard still has assets to configure a visualization from.
-    if not item_assets:
-        item_assets = _sample_item_assets(col)
-
     summaries = (col.extra_fields or {}).get("summaries", {})
     extensions = (col.extra_fields or {}).get("stac_extensions", [])
     has_cloud_cover = (
@@ -259,6 +264,36 @@ def _unavailable_collection(raw: dict, err: Exception | None, reason: str | None
     }
 
 
+def _fill_sampled_assets(pending: list[tuple[dict, "CollectionClient"]]) -> None:
+    """Sample assets for the collections that declare none, all at once.
+
+    Deliberately not a ``with`` block: leaving the pool joins its threads, which
+    would wait out exactly the samples this budget exists to walk away from. A
+    straggler is left to finish into nothing - its own read timeout ends it, so
+    the leak is bounded and short-lived.
+    """
+    if not pending:
+        return
+    workers = min(MAX_SAMPLE_WORKERS, len(pending))
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
+    try:
+        futures = {pool.submit(_sample_item_assets, col): out for out, col in pending}
+        done, unfinished = concurrent.futures.wait(futures, timeout=SAMPLE_PHASE_BUDGET)
+        for future in done:
+            try:
+                futures[future]["item_assets"] = future.result()
+            except Exception:
+                logger.debug("sampling a collection's assets failed")
+        if unfinished:
+            logger.info(
+                "%d collection(s) listed without sampled assets: slower than %.0fs",
+                len(unfinished),
+                SAMPLE_PHASE_BUDGET,
+            )
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
 def list_collections(catalog_url: str) -> list[dict]:
     """List collections from a STAC API catalog.
 
@@ -271,6 +306,9 @@ def list_collections(catalog_url: str) -> list[dict]:
     raw_cols = _raw_collections(client)
 
     results = []
+    # Static catalogs often omit collection-level item_assets; sampling one item
+    # gives the mosaic wizard something to configure a visualization from.
+    needs_sample: list[tuple[dict, CollectionClient]] = []
     for raw in raw_cols:
         if raw.get("type") == "Catalog":
             results.append(_unavailable_collection(raw, None, NESTED_CATALOG_REASON))
@@ -280,7 +318,12 @@ def list_collections(catalog_url: str) -> list[dict]:
         except Exception as e:
             results.append(_unavailable_collection(raw, e))
             continue
-        results.append(_collection_out(col))
+        out = _collection_out(col)
+        results.append(out)
+        if not out["item_assets"]:
+            needs_sample.append((out, col))
+
+    _fill_sampled_assets(needs_sample)
 
     unusable = sum(1 for r in results if not r["selectable"])
     logger.info(
