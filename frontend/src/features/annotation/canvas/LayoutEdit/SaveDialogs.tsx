@@ -43,12 +43,17 @@ export function SaveDialogs({
 
   const requestSave = (shouldBeDefault: boolean) => {
     setMenuOpen(false);
-    if (shouldBeDefault) {
+    // Nothing to confirm while setting up the first view: a shared layout is
+    // the only thing that can be saved, and there is no existing one to lose.
+    if (shouldBeDefault && !mustSaveDefault) {
       setPending({ shouldBeDefault, step: 'confirmDefault' });
       return;
     }
     proceedPastDefaultConfirm(shouldBeDefault);
   };
+
+  const saveButtonClass =
+    'flex items-center gap-1 rounded px-3 py-1 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 transition-colors';
 
   return (
     <div ref={containerRef} className="relative" data-testid="save-dialogs">
@@ -56,16 +61,16 @@ export function SaveDialogs({
         <button
           type="button"
           onClick={() => requestSave(true)}
-          className="px-3 py-1 text-xs font-medium text-brand-800 hover:text-brand-600"
+          className={saveButtonClass}
           data-testid="save-required-default"
         >
-          Save as default
+          Save layout
         </button>
       ) : (
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
-          className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-brand-800 hover:text-brand-600"
+          className={saveButtonClass}
           data-testid="save-menu-trigger"
         >
           Save
@@ -102,13 +107,9 @@ export function SaveDialogs({
 
       <ConfirmDialog
         isOpen={pending?.step === 'confirmDefault'}
-        title={mustSaveDefault ? 'Save First View for Everyone?' : 'Save as Default Layout?'}
-        description={
-          mustSaveDefault
-            ? 'The first view needs a default layout so everyone in this campaign can use it. This layout will be shared with all users who do not have a personal layout.'
-            : 'This will overwrite the default layout for ALL users in this campaign who do not have a personal layout. If you already have a personal layout, it will not be affected. To use the new default layout as your personal layout, apply it now and then hit reset layout and save as personal.'
-        }
-        confirmText={mustSaveDefault ? 'Save for Everyone' : 'Save Default'}
+        title="Save as Default Layout?"
+        description="This overwrites the default layout for every member of this campaign who has no personal layout of their own. Your own personal layout, if you have one, is left alone - to adopt this as yours too, save it here, then hit Reset and save as personal."
+        confirmText="Save Default"
         cancelText="Cancel"
         isDangerous
         onCancel={() => setPending(null)}
@@ -122,7 +123,7 @@ export function SaveDialogs({
       <ConfirmDialog
         isOpen={pending?.step === 'confirmMainLayout'}
         title="Main Layout Modified"
-        description="You have modified the main layout (main map, timeseries, or minimap). This change will be applied to ALL imagery sources and may cause layouts to shift. Do you want to save this layout?"
+        description="You have modified the main layout (main map, timeseries, or minimap). This change applies to every imagery view in this campaign and may cause layouts to shift. Do you want to save this layout?"
         confirmText="Save Layout"
         cancelText="Cancel"
         onCancel={() => setPending(null)}

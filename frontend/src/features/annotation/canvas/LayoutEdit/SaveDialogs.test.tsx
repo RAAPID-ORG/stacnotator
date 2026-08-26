@@ -100,7 +100,7 @@ describe('SaveDialogs', () => {
     expect(onSave).toHaveBeenCalledWith(true);
   });
 
-  it('only allows a shared default save while setting up the first view', () => {
+  it('saves the first view straight to the shared default, with nothing to confirm', () => {
     const onSave = vi.fn();
     render(
       <SaveDialogs
@@ -117,9 +117,7 @@ describe('SaveDialogs', () => {
     expect(screen.queryByTestId('save-personal')).toBeNull();
 
     fireEvent.click(screen.getByTestId('save-required-default'));
-    expect(screen.getByText('Save First View for Everyone?')).toBeTruthy();
 
-    fireEvent.click(screen.getByText('Save for Everyone'));
     expect(onSave).toHaveBeenCalledWith(true);
   });
 });

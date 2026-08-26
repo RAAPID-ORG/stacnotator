@@ -45,7 +45,7 @@ describe('LayoutEditControls', () => {
   it('persists first-view setup as the shared default', async () => {
     vi.mocked(useIsMobile).mockReturnValue(false);
     createNewCanvasLayoutMock.mockResolvedValue({ data: {}, status: 201 });
-    const onDefaultSaved = vi.fn();
+    const onSetupFinished = vi.fn();
     useLayoutStore.setState({ editing: true });
 
     render(
@@ -54,15 +54,14 @@ describe('LayoutEditControls', () => {
         view={CAMPAIGN.imagery_views[0]}
         isCampaignAdmin
         mustSaveDefault
-        onDefaultSaved={onDefaultSaved}
+        onSetupFinished={onSetupFinished}
       />
     );
 
     fireEvent.click(screen.getByTestId('save-required-default'));
-    fireEvent.click(screen.getByText('Save for Everyone'));
 
     await waitFor(() => expect(createNewCanvasLayoutMock).toHaveBeenCalledTimes(1));
     expect(createNewCanvasLayoutMock.mock.calls[0][0].body.should_be_default).toBe(true);
-    expect(onDefaultSaved).toHaveBeenCalledTimes(1);
+    expect(onSetupFinished).toHaveBeenCalledTimes(1);
   });
 });

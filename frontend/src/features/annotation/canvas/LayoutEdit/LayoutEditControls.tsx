@@ -19,7 +19,9 @@ export interface LayoutEditControlsProps {
   isCampaignAdmin: boolean;
   /** The first view's initial edit must establish the layout seen by everyone. */
   mustSaveDefault?: boolean;
-  onDefaultSaved?: () => void;
+  /** First-view setup is over - either the shared layout was saved, or the
+   *  admin backed out and the server-seeded default stands. */
+  onSetupFinished?: () => void;
 }
 
 export function LayoutEditControls({
@@ -27,7 +29,7 @@ export function LayoutEditControls({
   view,
   isCampaignAdmin,
   mustSaveDefault = false,
-  onDefaultSaved,
+  onSetupFinished,
 }: LayoutEditControlsProps) {
   const isMobile = useIsMobile();
   const showAlert = useAppLayoutStore((s) => s.showAlert);
@@ -66,7 +68,7 @@ export function LayoutEditControls({
         },
       });
       saveLayout();
-      if (saveAsDefault) onDefaultSaved?.();
+      if (saveAsDefault) onSetupFinished?.();
       showAlert('Layout saved', 'success');
     } catch {
       showAlert('Failed to save layout', 'error');
@@ -102,7 +104,7 @@ export function LayoutEditControls({
   }
 
   return (
-    <div className="flex items-center gap-1 bg-neutral-50 rounded px-1">
+    <div className="flex items-center gap-1 rounded border border-brand-200 bg-brand-50/70 py-0.5 pl-1 pr-0.5">
       <SaveDialogs
         currentLayout={currentLayout}
         savedLayout={savedLayout}
@@ -114,14 +116,17 @@ export function LayoutEditControls({
       <button
         type="button"
         onClick={() => setResetConfirmOpen(true)}
-        className="px-3 py-1 text-xs font-medium text-brand-800 hover:text-amber-600"
+        className="px-3 py-1 text-xs font-medium text-neutral-600 hover:text-amber-600"
       >
         Reset
       </button>
       <button
         type="button"
-        onClick={cancelEditing}
-        className="px-3 py-1 text-xs font-medium text-brand-800 hover:text-red-600"
+        onClick={() => {
+          cancelEditing();
+          if (mustSaveDefault) onSetupFinished?.();
+        }}
+        className="px-3 py-1 text-xs font-medium text-neutral-600 hover:text-red-600"
       >
         Cancel
       </button>

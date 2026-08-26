@@ -97,11 +97,11 @@ export function NoViewsGate({
       <div className="max-w-md space-y-4 text-center">
         {isCampaignAdmin ? (
           <>
-            <h2 className={heading}>Design the annotation layout</h2>
+            <h2 className={heading}>Set up the workspace</h2>
             <p className={body}>
               {hasSources
-                ? 'Annotators cannot start until this campaign has at least one view. Create the first view - it starts with all imagery sources - then arrange its panels and save the layout as default.'
-                : 'This campaign has no imagery sources yet. Add sources in the campaign settings, then come back to design the annotation layout.'}
+                ? 'One-time setup: nobody can start annotating until this campaign has a workspace layout. Create the first view - it starts with all imagery sources - then arrange the panels and save. What you save becomes the starting layout for every member of this campaign, and anyone can rearrange their own copy afterwards.'
+                : 'This campaign has no imagery sources yet. Add sources in the campaign settings, then come back to set up the workspace.'}
             </p>
             {hasSources ? (
               <button
@@ -122,10 +122,10 @@ export function NoViewsGate({
           </>
         ) : (
           <>
-            <h2 className={heading}>Layout not set up yet</h2>
+            <h2 className={heading}>Workspace not set up yet</h2>
             <p className={body}>
-              A campaign admin still needs to define the annotation views for this campaign. Please
-              check back later.
+              A campaign admin still needs to lay out the workspace for this campaign. Please check
+              back later.
             </p>
           </>
         )}
