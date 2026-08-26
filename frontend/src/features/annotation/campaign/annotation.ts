@@ -1,9 +1,9 @@
+import { isDateRangeValue } from '~/shared/utils/formValues';
 import type {
   AnnotationOut,
   AnnotationTaskOut,
   CampaignOutFull,
   CampaignSettingsOut,
-  DateRangeValue,
   LabelBase,
   PolicyAudience,
 } from '~/api/client';
@@ -118,15 +118,7 @@ export function formatMissingFieldsTitle(missing: FormField[]): string {
   return `Missing required: ${missing.map((f) => f.title).join(', ')}`;
 }
 
-export function isDateRangeValue(value: unknown): value is DateRangeValue {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    typeof (value as DateRangeValue).start === 'string' &&
-    typeof (value as DateRangeValue).end === 'string'
-  );
-}
+export { isDateRangeValue };
 
 function valueEqual(a: FormValue, b: FormValue): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {

@@ -144,6 +144,8 @@ class AnnotationListItemOut(BaseModel):
     created_by_user_display_name: str | None = None
     centroid_lat: float | None = None
     centroid_lon: float | None = None
+    # The answers, so the review tables can show them without a read per row.
+    form_values: dict[str, FormValue] | None = None
 
 
 class AnnotationsPageOut(BaseModel):

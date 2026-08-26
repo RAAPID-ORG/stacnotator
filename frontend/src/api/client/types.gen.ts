@@ -486,6 +486,12 @@ export type AnnotationListItemOut = {
      * Centroid Lon
      */
     centroid_lon?: number | null;
+    /**
+     * Form Values
+     */
+    form_values?: {
+        [key: string]: number | number | string | Array<number> | DateRangeValue;
+    } | null;
 };
 
 /**

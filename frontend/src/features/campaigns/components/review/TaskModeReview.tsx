@@ -1,8 +1,10 @@
-import { useEffect, useState, useMemo, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
 import { type AnnotationTaskOut, type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
+import { answeredFields } from '~/shared/utils/formValues';
+import { FormAnswers } from './FormAnswers';
 import { useCampaignTasks, useCampaignTaskSets } from '~/features/campaigns/hooks/campaignQueries';
 import { campaignPath } from '~/app/routes';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
@@ -19,7 +21,7 @@ import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { MoveTasksDialog } from '~/features/campaigns/components/settings/MoveTasksDialog';
 import { UserFilterDropdown } from './UserFilterDropdown';
-import { IconFlag } from '~/shared/ui/Icons';
+import { IconChevronDown, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type StatusFilter, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
@@ -117,6 +119,9 @@ export const TaskModeReview = ({
   const [showFilters, setShowFilters] = useState(false);
 
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
+  // Answers are long enough to swamp the table, so one row opens at a time.
+  const [expandedTaskId, setExpandedTaskId] = useState<number | null>(null);
+  const formFields = campaign?.settings.form_fields ?? [];
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isBatchUnassigning, setIsBatchUnassigning] = useState(false);
@@ -822,6 +827,7 @@ export const TaskModeReview = ({
                         <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
                           Actions
                         </th>
+                        {formFields.length > 0 && <th className="w-10 px-2 py-3" />}
                       </tr>
                     </thead>
                     <tbody>
@@ -833,179 +839,232 @@ export const TaskModeReview = ({
                         const isAssignedToMe =
                           currentUser && assignments.some((a) => a.user_id === currentUser.id);
                         const isSelected = selectable && selectedTasks.has(task.id);
+                        const answered = annotations.filter(
+                          (ann) => answeredFields(formFields, ann.form_values).length > 0
+                        );
+                        const expanded = expandedTaskId === task.id;
 
                         return (
-                          <tr
-                            key={task.id}
-                            className={listRowCls(index, {
-                              tinted: Boolean(isAssignedToMe),
-                              selected: isSelected,
-                            })}
-                          >
-                            {selectable && (
-                              <td className="px-4 py-3">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedTasks.has(task.id)}
-                                  onChange={() => handleToggleTask(task.id)}
-                                  className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
-                                />
+                          <Fragment key={task.id}>
+                            <tr
+                              className={listRowCls(index, {
+                                tinted: Boolean(isAssignedToMe),
+                                selected: isSelected,
+                              })}
+                            >
+                              {selectable && (
+                                <td className="px-4 py-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTasks.has(task.id)}
+                                    onChange={() => handleToggleTask(task.id)}
+                                    className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
+                                  />
+                                </td>
+                              )}
+                              <td className="px-4 py-3 text-neutral-900 font-medium">
+                                {task.annotation_number}
                               </td>
-                            )}
-                            <td className="px-4 py-3 text-neutral-900 font-medium">
-                              {task.annotation_number}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span
-                                className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getTaskStatusColor(taskStatus)}`}
-                              >
-                                {formatTaskStatus(taskStatus)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
-                              {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '-'}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-1">
-                                {annotations.length > 0 ? (
-                                  annotations.map((ann) => {
-                                    const annotator = assignments.find(
-                                      (a) => a.user_id === ann.created_by_user_id
-                                    );
-                                    const isCurrentUser =
-                                      ann.created_by_user_id === currentUser?.id;
-                                    const displayName = isCurrentUser
-                                      ? currentUser.display_name || currentUser.email || 'You'
-                                      : ann.created_by_user_display_name ||
-                                        ann.created_by_user_email ||
-                                        annotator?.user_display_name ||
-                                        annotator?.user_email ||
-                                        ann.created_by_user_id?.substring(0, 8) ||
-                                        'Unknown';
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getTaskStatusColor(taskStatus)}`}
+                                >
+                                  {formatTaskStatus(taskStatus)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
+                                {latLon
+                                  ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}`
+                                  : '-'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {annotations.length > 0 ? (
+                                    annotations.map((ann) => {
+                                      const annotator = assignments.find(
+                                        (a) => a.user_id === ann.created_by_user_id
+                                      );
+                                      const isCurrentUser =
+                                        ann.created_by_user_id === currentUser?.id;
+                                      const displayName = isCurrentUser
+                                        ? currentUser.display_name || currentUser.email || 'You'
+                                        : ann.created_by_user_display_name ||
+                                          ann.created_by_user_email ||
+                                          annotator?.user_display_name ||
+                                          annotator?.user_email ||
+                                          ann.created_by_user_id?.substring(0, 8) ||
+                                          'Unknown';
 
-                                    const isSkippedAnn =
-                                      annotator?.status === 'skipped' || ann.label_id == null;
-                                    const label = ann.label_id
-                                      ? `#${ann.label_id}`
-                                      : isSkippedAnn
-                                        ? 'Skipped'
-                                        : '-';
-                                    const confidence =
-                                      ann.confidence != null ? `${ann.confidence}/5` : '-';
-                                    const hasComment = ann.comment && ann.comment.trim() !== '';
-                                    const isExtra = ann.counts_toward_completion === false;
+                                      const isSkippedAnn =
+                                        annotator?.status === 'skipped' || ann.label_id == null;
+                                      const label = ann.label_id
+                                        ? `#${ann.label_id}`
+                                        : isSkippedAnn
+                                          ? 'Skipped'
+                                          : '-';
+                                      const confidence =
+                                        ann.confidence != null ? `${ann.confidence}/5` : '-';
+                                      const hasComment = ann.comment && ann.comment.trim() !== '';
+                                      const isExtra = ann.counts_toward_completion === false;
 
-                                    return (
-                                      <div
-                                        key={ann.id}
-                                        className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'} ${isExtra ? 'opacity-60' : ''}`}
-                                      >
-                                        {ann.flagged_for_review && (
-                                          <span
-                                            className="text-rose-600"
-                                            title={ann.flag_comment || 'Flagged for review'}
-                                          >
-                                            <IconFlag className="w-3.5 h-3.5" />
-                                          </span>
-                                        )}
-                                        <span className="font-medium" title="Annotator">
-                                          {displayName}
-                                        </span>
-                                        {isExtra && (
-                                          <>
-                                            <span className="text-neutral-400">|</span>
-                                            <span
-                                              className="px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide"
-                                              title="Does not count toward completion"
-                                            >
-                                              extra
-                                            </span>
-                                          </>
-                                        )}
-                                        <span className="text-neutral-400">|</span>
-                                        <span title="Label ID">{label}</span>
-                                        <span className="text-neutral-400">|</span>
-                                        <span
-                                          className={ann.confidence != null ? 'font-bold' : ''}
-                                          title="Confidence rating"
+                                      return (
+                                        <div
+                                          key={ann.id}
+                                          className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'} ${isExtra ? 'opacity-60' : ''}`}
                                         >
-                                          {confidence}
-                                        </span>
-                                        {ann.active_seconds != null && (
-                                          <>
-                                            <span className="text-neutral-400">|</span>
-                                            <span title="Active time spent on this task">
-                                              {formatDuration(ann.active_seconds)}
+                                          {ann.flagged_for_review && (
+                                            <span
+                                              className="text-rose-600"
+                                              title={ann.flag_comment || 'Flagged for review'}
+                                            >
+                                              <IconFlag className="w-3.5 h-3.5" />
                                             </span>
-                                          </>
-                                        )}
-                                        {hasComment && (
-                                          <>
-                                            <span className="text-neutral-400">|</span>
-                                            <Tooltip text={ann.comment ?? ''}>
-                                              <svg
-                                                className="w-3.5 h-3.5"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
+                                          )}
+                                          <span className="font-medium" title="Annotator">
+                                            {displayName}
+                                          </span>
+                                          {isExtra && (
+                                            <>
+                                              <span className="text-neutral-400">|</span>
+                                              <span
+                                                className="px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide"
+                                                title="Does not count toward completion"
                                               >
-                                                <path
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                  strokeWidth={2}
-                                                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                                                />
-                                              </svg>
-                                            </Tooltip>
-                                          </>
-                                        )}
+                                                extra
+                                              </span>
+                                            </>
+                                          )}
+                                          <span className="text-neutral-400">|</span>
+                                          <span title="Label ID">{label}</span>
+                                          <span className="text-neutral-400">|</span>
+                                          <span
+                                            className={ann.confidence != null ? 'font-bold' : ''}
+                                            title="Confidence rating"
+                                          >
+                                            {confidence}
+                                          </span>
+                                          {ann.active_seconds != null && (
+                                            <>
+                                              <span className="text-neutral-400">|</span>
+                                              <span title="Active time spent on this task">
+                                                {formatDuration(ann.active_seconds)}
+                                              </span>
+                                            </>
+                                          )}
+                                          {hasComment && (
+                                            <>
+                                              <span className="text-neutral-400">|</span>
+                                              <Tooltip text={ann.comment ?? ''}>
+                                                <svg
+                                                  className="w-3.5 h-3.5"
+                                                  fill="none"
+                                                  viewBox="0 0 24 24"
+                                                  stroke="currentColor"
+                                                >
+                                                  <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                                                  />
+                                                </svg>
+                                              </Tooltip>
+                                            </>
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <span className="text-xs text-neutral-400">-</span>
+                                  )}
+                                  {/* Placeholder labels for assigned users who haven't annotated yet */}
+                                  {assignments
+                                    .filter(
+                                      (a) =>
+                                        a.status === 'pending' &&
+                                        !annotations.some(
+                                          (ann) => ann.created_by_user_id === a.user_id
+                                        )
+                                    )
+                                    .map((a) => {
+                                      const isCurrentUser = a.user_id === currentUser?.id;
+                                      const displayName = isCurrentUser
+                                        ? currentUser.display_name || currentUser.email || 'You'
+                                        : a.user_display_name ||
+                                          a.user_email ||
+                                          a.user_id.substring(0, 8);
+                                      return (
+                                        <div
+                                          key={`pending-${a.user_id}`}
+                                          className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 border border-dashed border-neutral-300 text-neutral-400 bg-neutral-50"
+                                          title="Assigned but not yet annotated"
+                                        >
+                                          <span className="font-medium">{displayName}</span>
+                                          <span className="text-neutral-300">|</span>
+                                          <span className="italic">Awaiting</span>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <button
+                                  onClick={() => handleNavigateToTask(task.id)}
+                                  className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
+                                >
+                                  {taskStatus === 'pending' || taskStatus === 'skipped'
+                                    ? 'Annotate'
+                                    : 'View'}
+                                </button>
+                              </td>
+                              {formFields.length > 0 && (
+                                <td className="px-2 py-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedTaskId(expanded ? null : task.id)}
+                                    aria-expanded={expanded}
+                                    disabled={answered.length === 0}
+                                    title={
+                                      answered.length === 0
+                                        ? 'No answers recorded'
+                                        : expanded
+                                          ? 'Hide answers'
+                                          : 'Show answers'
+                                    }
+                                    aria-label={`${expanded ? 'Hide' : 'Show'} answers for task ${task.annotation_number}`}
+                                    data-testid={`toggle-answers-${task.id}`}
+                                    className="grid h-6 w-6 place-items-center rounded text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-700 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
+                                  >
+                                    {expanded ? (
+                                      <IconChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <IconChevronRight className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                            {expanded && (
+                              <tr className="border-b border-neutral-100 bg-neutral-50/60">
+                                <td colSpan={selectable ? 7 : 6} className="px-4 py-3">
+                                  {/* A task can hold several people's answers, so
+                                    each set says whose it is. */}
+                                  <div className="flex flex-col gap-3">
+                                    {answered.map((ann) => (
+                                      <div key={ann.id} className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-semibold text-neutral-600">
+                                          {ann.created_by_user_display_name ||
+                                            ann.created_by_user_email ||
+                                            'Unknown'}
+                                        </span>
+                                        <FormAnswers fields={formFields} values={ann.form_values} />
                                       </div>
-                                    );
-                                  })
-                                ) : (
-                                  <span className="text-xs text-neutral-400">-</span>
-                                )}
-                                {/* Placeholder labels for assigned users who haven't annotated yet */}
-                                {assignments
-                                  .filter(
-                                    (a) =>
-                                      a.status === 'pending' &&
-                                      !annotations.some(
-                                        (ann) => ann.created_by_user_id === a.user_id
-                                      )
-                                  )
-                                  .map((a) => {
-                                    const isCurrentUser = a.user_id === currentUser?.id;
-                                    const displayName = isCurrentUser
-                                      ? currentUser.display_name || currentUser.email || 'You'
-                                      : a.user_display_name ||
-                                        a.user_email ||
-                                        a.user_id.substring(0, 8);
-                                    return (
-                                      <div
-                                        key={`pending-${a.user_id}`}
-                                        className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 border border-dashed border-neutral-300 text-neutral-400 bg-neutral-50"
-                                        title="Assigned but not yet annotated"
-                                      >
-                                        <span className="font-medium">{displayName}</span>
-                                        <span className="text-neutral-300">|</span>
-                                        <span className="italic">Awaiting</span>
-                                      </div>
-                                    );
-                                  })}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <button
-                                onClick={() => handleNavigateToTask(task.id)}
-                                className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
-                              >
-                                {taskStatus === 'pending' || taskStatus === 'skipped'
-                                  ? 'Annotate'
-                                  : 'View'}
-                              </button>
-                            </td>
-                          </tr>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>

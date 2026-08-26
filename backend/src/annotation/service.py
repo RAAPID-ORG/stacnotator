@@ -941,6 +941,7 @@ def list_annotations_page(
             User.display_name,
             func.ST_Y(centroid),
             func.ST_X(centroid),
+            Annotation.form_values,
         )
         .select_from(Annotation)
         .join(AnnotationGeometry, AnnotationGeometry.id == Annotation.geometry_id)
@@ -967,6 +968,7 @@ def list_annotations_page(
                 created_by_user_display_name=r[10],
                 centroid_lat=r[11],
                 centroid_lon=r[12],
+                form_values=r[13],
             )
             for r in rows
         ],

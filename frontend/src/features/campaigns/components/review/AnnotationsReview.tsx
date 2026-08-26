@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Delayed } from '~/shared/ui/Delayed';
@@ -14,12 +14,14 @@ import { campaignPath } from '~/app/routes';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { answeredFields } from '~/shared/utils/formValues';
+import { FormAnswers } from './FormAnswers';
 import { ClassDistributionMap } from './ClassDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { UserFilterDropdown } from './UserFilterDropdown';
-import { IconFlag } from '~/shared/ui/Icons';
+import { IconChevronDown, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
@@ -29,6 +31,9 @@ import type { ReactNode } from 'react';
 // Matches the server's own cap on a page; large enough that most campaigns are one or
 // two pages, small enough that a page renders instantly.
 const PAGE_SIZE = 50;
+
+// Every column of the table plus the disclosure toggle, so the answers span it.
+const ANSWER_ROW_COLSPAN = 11;
 
 interface AnnotationsReviewProps {
   campaign: CampaignSummaryOut;
@@ -64,6 +69,9 @@ export const AnnotationsReview = ({
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<number>>(new Set());
+  // Answers are long enough to swamp the table, so one row opens at a time.
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const formFields = campaign.settings.form_fields ?? [];
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
 
   useEffect(() => {
@@ -567,6 +575,7 @@ export const AnnotationsReview = ({
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
                     Actions
                   </th>
+                  {formFields.length > 0 && <th className="w-10 px-2 py-3" />}
                 </tr>
               </thead>
               <tbody>
@@ -580,104 +589,143 @@ export const AnnotationsReview = ({
                   const canDelete = canDeleteAnnotation(ann);
                   const isSelected = selectedAnnotationIds.has(ann.id);
 
+                  const answers = answeredFields(formFields, ann.form_values);
+                  const expanded = expandedId === ann.id;
+
                   return (
-                    <tr
-                      key={ann.id}
-                      className={listRowCls(index, {
-                        tinted: isMine,
-                      })}
-                    >
-                      <td className="px-3 py-3">
-                        <input
-                          type="checkbox"
-                          aria-label={`Select annotation ${ann.id}`}
-                          checked={isSelected}
-                          onChange={() => toggleAnnotationSelected(ann.id)}
-                          disabled={!canDelete}
-                          title={
-                            !canDelete
-                              ? 'You can only delete your own annotations in this campaign'
-                              : undefined
-                          }
-                          className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-neutral-900 font-medium font-mono text-xs">
-                        {ann.id}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-neutral-100 text-neutral-700">
-                          {getLabelName(ann.label_id)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-neutral-700 text-sm">
-                        {isMine && <span className="text-brand-600 font-medium">(You) </span>}
-                        {getUserDisplayName(ann)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {ann.confidence != null ? (
-                          <span className="font-bold text-neutral-900">{ann.confidence}/5</span>
-                        ) : (
-                          <span className="text-neutral-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
-                        {centroid ? `${centroid.lat.toFixed(5)}, ${centroid.lon.toFixed(5)}` : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-neutral-600 text-xs">
-                        {createdAt.toLocaleDateString()}{' '}
-                        {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                      <td className="px-4 py-3">
-                        {ann.comment?.trim() ? (
-                          <Tooltip text={ann.comment}>
-                            <svg
-                              className="w-4 h-4 text-neutral-500"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                              />
-                            </svg>
-                          </Tooltip>
-                        ) : (
-                          <span className="text-neutral-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {ann.flagged_for_review ? (
-                          ann.flag_comment?.trim() ? (
-                            <Tooltip text={ann.flag_comment} variant="danger">
-                              <span className="inline-flex items-center text-rose-600">
-                                <IconFlag className="w-4 h-4" />
-                              </span>
+                    <Fragment key={ann.id}>
+                      <tr
+                        className={listRowCls(index, {
+                          tinted: isMine,
+                        })}
+                      >
+                        <td className="px-3 py-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select annotation ${ann.id}`}
+                            checked={isSelected}
+                            onChange={() => toggleAnnotationSelected(ann.id)}
+                            disabled={!canDelete}
+                            title={
+                              !canDelete
+                                ? 'You can only delete your own annotations in this campaign'
+                                : undefined
+                            }
+                            className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-neutral-900 font-medium font-mono text-xs">
+                          {ann.id}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-neutral-100 text-neutral-700">
+                            {getLabelName(ann.label_id)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700 text-sm">
+                          {isMine && <span className="text-brand-600 font-medium">(You) </span>}
+                          {getUserDisplayName(ann)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {ann.confidence != null ? (
+                            <span className="font-bold text-neutral-900">{ann.confidence}/5</span>
+                          ) : (
+                            <span className="text-neutral-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
+                          {centroid
+                            ? `${centroid.lat.toFixed(5)}, ${centroid.lon.toFixed(5)}`
+                            : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-neutral-600 text-xs">
+                          {createdAt.toLocaleDateString()}{' '}
+                          {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-3">
+                          {ann.comment?.trim() ? (
+                            <Tooltip text={ann.comment}>
+                              <svg
+                                className="w-4 h-4 text-neutral-500"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                                />
+                              </svg>
                             </Tooltip>
                           ) : (
-                            <span
-                              className="inline-flex items-center text-rose-600"
-                              title="Flagged for review"
+                            <span className="text-neutral-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {ann.flagged_for_review ? (
+                            ann.flag_comment?.trim() ? (
+                              <Tooltip text={ann.flag_comment} variant="danger">
+                                <span className="inline-flex items-center text-rose-600">
+                                  <IconFlag className="w-4 h-4" />
+                                </span>
+                              </Tooltip>
+                            ) : (
+                              <span
+                                className="inline-flex items-center text-rose-600"
+                                title="Flagged for review"
+                              >
+                                <IconFlag className="w-4 h-4" />
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-neutral-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleNavigateToAnnotation(ann)}
+                            className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
+                          >
+                            View
+                          </button>
+                        </td>
+                        {formFields.length > 0 && (
+                          <td className="px-2 py-3">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedId(expanded ? null : ann.id)}
+                              aria-expanded={expanded}
+                              disabled={answers.length === 0}
+                              title={
+                                answers.length === 0
+                                  ? 'No answers recorded'
+                                  : expanded
+                                    ? 'Hide answers'
+                                    : `Show ${answers.length} answer${answers.length === 1 ? '' : 's'}`
+                              }
+                              aria-label={`${expanded ? 'Hide' : 'Show'} answers for annotation ${ann.id}`}
+                              data-testid={`toggle-answers-${ann.id}`}
+                              className="grid h-6 w-6 place-items-center rounded text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-700 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
                             >
-                              <IconFlag className="w-4 h-4" />
-                            </span>
-                          )
-                        ) : (
-                          <span className="text-neutral-400">-</span>
+                              {expanded ? (
+                                <IconChevronDown className="h-4 w-4" />
+                              ) : (
+                                <IconChevronRight className="h-4 w-4" />
+                              )}
+                            </button>
+                          </td>
                         )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleNavigateToAnnotation(ann)}
-                          className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
+                      </tr>
+                      {expanded && (
+                        <tr className="border-b border-neutral-100 bg-neutral-50/60">
+                          <td colSpan={ANSWER_ROW_COLSPAN} className="px-4 py-3">
+                            <FormAnswers fields={formFields} values={ann.form_values} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
