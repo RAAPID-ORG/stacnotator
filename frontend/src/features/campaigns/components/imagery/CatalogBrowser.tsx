@@ -1814,6 +1814,12 @@ interface CoverExample {
   slices: CoverExampleSlice[];
 }
 
+const StarIcon = () => (
+  <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+    <path d="M6 1l1.6 3.2L11 4.7l-2.5 2.4.6 3.4L6 8.9 2.9 10.5l.6-3.4L1 4.7l3.4-.5L6 1z" />
+  </svg>
+);
+
 interface CoverSliceSectionProps {
   coverMode: 'nth' | 'custom';
   setCoverMode: (m: 'nth' | 'custom') => void;
@@ -1835,6 +1841,7 @@ const CoverSliceSection = ({
   onToggleAdvanced,
   advanced,
 }: CoverSliceSectionProps) => {
+  const dedicated = coverMode === 'custom';
   return (
     <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
       <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
@@ -1855,45 +1862,67 @@ const CoverSliceSection = ({
               {examples.length === 1 ? 'collection' : `${examples.length} collections`}
             </div>
             <div className="space-y-2">
-              {examples.map((col, ci) => (
-                <div key={ci} className="rounded-md border border-neutral-200 bg-white p-2">
-                  <div className="text-[11px] font-medium text-neutral-700">{col.name}</div>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {col.slices.map((sl, si) => (
-                      <span
-                        key={si}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border ${
-                          sl.isPreviewCover
-                            ? 'bg-brand-50 text-brand-700 border-brand-300'
-                            : 'bg-neutral-50 text-neutral-500 border-neutral-200'
-                        }`}
-                        title={`${sl.startDate} → ${sl.endDate}`}
-                      >
-                        {sl.isPreviewCover && (
-                          <svg
-                            className="w-2.5 h-2.5"
-                            viewBox="0 0 12 12"
-                            fill="currentColor"
-                            aria-hidden
-                          >
-                            <path d="M6 1l1.6 3.2L11 4.7l-2.5 2.4.6 3.4L6 8.9 2.9 10.5l.6-3.4L1 4.7l3.4-.5L6 1z" />
-                          </svg>
-                        )}
-                        {sl.startDate.slice(5)}→{sl.endDate.slice(5)}
-                      </span>
-                    ))}
+              {examples.map((col, ci) => {
+                // A generated cover is an extra mosaic over the whole window,
+                // not one of the slices - so it is drawn as a band spanning
+                // them rather than as one more chip in the row, which is what
+                // made the two modes look alike.
+                const cover = col.slices.find((sl) => sl.isPreviewCover);
+                const slices = dedicated
+                  ? col.slices.filter((sl) => !sl.isPreviewCover)
+                  : col.slices;
+                return (
+                  <div key={ci} className="rounded-md border border-neutral-200 bg-white p-2">
+                    <div className="text-[11px] font-medium text-neutral-700">{col.name}</div>
+                    {dedicated && cover && (
+                      <div className="mt-1.5 flex items-center gap-2 rounded border border-brand-300 bg-brand-50 px-2 py-1 text-[10px] text-brand-700">
+                        <StarIcon />
+                        <span className="font-semibold">Cover</span>
+                        <span className="font-mono">{cover.startDate.slice(5)}</span>
+                        <span
+                          className="h-px flex-1 bg-brand-300"
+                          aria-hidden
+                          title="spans the whole window"
+                        />
+                        <span className="font-mono">{cover.endDate.slice(5)}</span>
+                      </div>
+                    )}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {slices.map((sl, si) => (
+                        <span
+                          key={si}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border ${
+                            sl.isPreviewCover
+                              ? 'bg-brand-50 text-brand-700 border-brand-300'
+                              : 'bg-neutral-50 text-neutral-500 border-neutral-200'
+                          }`}
+                          title={`${sl.startDate} → ${sl.endDate}`}
+                        >
+                          {sl.isPreviewCover && <StarIcon />}
+                          {sl.startDate.slice(5)}→{sl.endDate.slice(5)}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <p className="text-[11px] text-neutral-500 leading-snug">
-              The highlighted slice is the cover - what annotators see first.
+              {dedicated
+                ? 'The band is an extra mosaic built from the whole window. It is what annotators see first; the slices below stay exactly as they are.'
+                : 'The highlighted slice is the cover - what annotators see first. No extra mosaic is built.'}
             </p>
           </div>
         )}
 
         <div className="space-y-2">
-          <label className="flex items-start gap-2 text-xs cursor-pointer">
+          <label
+            className={`flex items-start gap-2 rounded-md border p-2 text-xs cursor-pointer transition-colors ${
+              dedicated
+                ? 'border-neutral-200 bg-white hover:bg-neutral-50'
+                : 'border-brand-300 bg-brand-50/60'
+            }`}
+          >
             <input
               type="radio"
               name="coverMode"
@@ -1909,7 +1938,7 @@ const CoverSliceSection = ({
             </span>
           </label>
           {coverMode === 'nth' && (
-            <div className="ml-5 flex items-center gap-2">
+            <div className="ml-7 flex items-center gap-2">
               <label className="text-[11px] text-neutral-700">Slice index (1-based)</label>
               <Input
                 type="number"
@@ -1922,7 +1951,13 @@ const CoverSliceSection = ({
             </div>
           )}
 
-          <label className="flex items-start gap-2 text-xs cursor-pointer">
+          <label
+            className={`flex items-start gap-2 rounded-md border p-2 text-xs cursor-pointer transition-colors ${
+              dedicated
+                ? 'border-brand-300 bg-brand-50/60'
+                : 'border-neutral-200 bg-white hover:bg-neutral-50'
+            }`}
+          >
             <input
               type="radio"
               name="coverMode"
