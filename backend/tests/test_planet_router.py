@@ -2,6 +2,7 @@
 
 import base64
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -35,7 +36,7 @@ def client(crypto_key, monkeypatch):
     key = SimpleNamespace(id=KEY_ID, name="Planet", encrypted_key=crypto.encrypt("PLANET-SECRET"))
     project = SimpleNamespace(organization=SimpleNamespace(api_keys=[key]))
     monkeypatch.setattr(planet_router, "require_project_access", lambda **_: project)
-    app.dependency_overrides[get_db] = lambda: None
+    app.dependency_overrides[get_db] = lambda: MagicMock()
     app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(id="u1")
     app.dependency_overrides[planet_router.bearer] = lambda: None
     yield TestClient(app)
@@ -133,3 +134,21 @@ def test_mosaics_come_back_as_templates_never_carrying_the_live_key(client, monk
     assert body["renderings"] == ["Visual", "False Color", "NDVI"]
     assert body["max_native_zoom"] == 15
     assert body["mosaics"][0]["tile_urls"]["NDVI"].endswith("api_key={api_key}&proc=ndvi")
+
+
+def test_the_connection_is_handed_back_before_planet_is_called(client, monkeypatch):
+    """A connection held across the upstream call sits idle in a transaction
+    until Postgres ends it at DB_IDLE_IN_TRANSACTION_TIMEOUT_MS - which is what
+    made the imagery wizard kill a connection every time it listed a catalog."""
+    released_before_call = []
+    session = MagicMock()
+    app.dependency_overrides[get_db] = lambda: session
+
+    def _series(_key):
+        released_before_call.append(session.close.called)
+        return []
+
+    monkeypatch.setattr(planet_client, "list_series", _series)
+
+    assert client.post("/api/planet/series", json=_org_key()).status_code == 200
+    assert released_before_call == [True]

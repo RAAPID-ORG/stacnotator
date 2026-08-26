@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
-from src.database import get_db
+from src.database import get_db, release
 from src.projects.dependencies import require_project_access
 from src.projects.models import Project
 from src.stac_browser.catalogs import (
@@ -102,6 +102,11 @@ def get_collections(
     """
     _authorize_catalog(catalog_url, require_project_access(project_id=project_id, db=db, user=user))
     assert_catalog_url_safe(catalog_url)
+    # Authorization is the only thing here that needs a database. Holding the
+    # connection across the upstream fetch below leaves it idle in a
+    # transaction for as long as the catalog takes to answer, which Postgres
+    # ends at DB_IDLE_IN_TRANSACTION_TIMEOUT_MS.
+    release(db)
     now = time.time()
     entry = _cache_get(catalog_url)
     if entry and now < entry["expires"]:
@@ -154,6 +159,8 @@ def search(
         request.catalog_url, require_project_access(project_id=project_id, db=db, user=user)
     )
     assert_catalog_url_safe(request.catalog_url)
+    # See get_collections: the search below is a network call, not a query.
+    release(db)
     try:
         items, next_offset = search_items(
             catalog_url=request.catalog_url,

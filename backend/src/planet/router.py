@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.crypto import DecryptionError, decrypt
-from src.database import get_db
+from src.database import get_db, release
 from src.planet import client, tiles
 from src.planet.schemas import PlanetCredentials, PlanetSeriesMosaicsOut, PlanetSeriesOut
 from src.projects.dependencies import require_project_access
@@ -70,6 +70,10 @@ def list_planet_series(
 ):
     """Basemap series this Planet key can see - the temporal cadences on offer."""
     api_key = _api_key(credentials, db, user)
+    # The key is the last thing needing a database; Planet is a network call
+    # away, and a connection held across it sits idle in a transaction until
+    # Postgres ends it at DB_IDLE_IN_TRANSACTION_TIMEOUT_MS.
+    release(db)
     series = _upstream(lambda: client.list_series(api_key), "list basemap series")
     return [
         PlanetSeriesOut(
@@ -93,5 +97,7 @@ def list_planet_series_mosaics(
     period, already ordered, each becoming a slice.
     """
     api_key = _api_key(credentials, db, user)
+    # See list_planet_series.
+    release(db)
     mosaics = _upstream(lambda: client.list_mosaics(series_id, api_key), "list series mosaics")
     return tiles.describe_series(series_id, mosaics)
