@@ -7,7 +7,8 @@ import { useCameraCenter } from '~/shared/map/Camera';
 import { Minimap } from '~/shared/map/minimap/Minimap';
 import { tasksModeTarget, useOverviewFollow } from '~/shared/map/minimap/follow';
 import { type Bbox, type FeatureLayerSpec, type LayerSpec } from '~/shared/map/types';
-import { useCampaign, useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
+import { useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
+import { useWorkStore } from '../../stores/work';
 import { useImageryStore } from '../../stores/imagery';
 import { mainCamera, minimapCamera } from '../../map/camera';
 
@@ -116,8 +117,10 @@ export function MinimapHeader() {
   );
 }
 
+/** Long enough that drawing several shapes in a row is one request. */
+const DENSITY_DEBOUNCE_MS = 600;
+
 export function MinimapBody() {
-  const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
 
@@ -126,6 +129,11 @@ export function MinimapBody() {
   // The dots stand for the same annotations the map draws, so they follow the
   // same filter - otherwise the overview would advertise work the map hides.
   const showTaskAnnotations = useImageryStore((s) => s.showTaskAnnotations);
+  // A drawn shape has to reach the overview too. The campaign's stored
+  // annotations_version is read once at page load and never refreshed, so it
+  // cannot say that; the work store's revision counts every write and delete
+  // this page sees, its own and the poll's.
+  const annotationRevision = useWorkStore((s) => s.annotationRevision);
   const [density, setDensity] = useState<AnnotationDensityCell[]>([]);
   useEffect(() => {
     if (mode !== 'explore') {
@@ -133,20 +141,28 @@ export function MinimapBody() {
       return;
     }
     let cancelled = false;
-    void getAnnotationDensity({
-      path: { campaign_id: catalog.campaignId },
-      query: { include_tasks: showTaskAnnotations },
-    })
-      .then((res) => {
-        if (!cancelled) setDensity(res.data ?? []);
-      })
-      .catch(() => {
-        // best-effort overview; a failed fetch just leaves the map plain
-      });
+    // The endpoint aggregates the whole campaign, so a burst of drawing waits
+    // for the pause rather than asking once per shape.
+    const timer = setTimeout(
+      () => {
+        void getAnnotationDensity({
+          path: { campaign_id: catalog.campaignId },
+          query: { include_tasks: showTaskAnnotations },
+        })
+          .then((res) => {
+            if (!cancelled) setDensity(res.data ?? []);
+          })
+          .catch(() => {
+            // best-effort overview; a failed fetch just leaves the map plain
+          });
+      },
+      annotationRevision === 0 ? 0 : DENSITY_DEBOUNCE_MS
+    );
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [mode, catalog.campaignId, campaign.annotations_version, showTaskAnnotations]);
+  }, [mode, catalog.campaignId, annotationRevision, showTaskAnnotations]);
 
   const layers = useMemo<LayerSpec[]>(() => {
     const cells = densityLayer(density);

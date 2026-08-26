@@ -1,6 +1,5 @@
 import { useCatalog } from '../../stores/campaign';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Chart as ChartJS,
   LineElement,
@@ -21,8 +20,6 @@ import type { TimeSeriesOut } from '~/api/client';
 import { nearestSlice } from '../../campaign/imageryNav';
 import { probeColor } from '../../map/compose';
 import { useImageryStore } from '../../stores/imagery';
-import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
-import { IconInfo, IconSliders } from '~/shared/ui/Icons';
 import { useWorkStore } from '../../stores/work';
 import type { LatLon, TimeSeriesData } from './cache';
 import {
@@ -38,7 +35,6 @@ import {
   sliceMarkerPlugin,
 } from './chartData';
 import { savitzkyGolay } from './smoothing';
-import { OptionsPopover } from './TimeseriesOptions';
 import { usePrefsStore } from '../../stores/prefs';
 
 ChartJS.register(
@@ -92,17 +88,8 @@ export function Chart({ series, points }: ChartProps) {
   const { removeCloudy, showDots, smoothEnabled, smoothing } = usePrefsStore(
     (s) => s.timeseriesChart
   );
-  const setChartOptions = usePrefsStore((s) => s.setTimeseriesChart);
   const [hiddenDatasets, setHiddenDatasets] = useState<Set<number>>(new Set());
   const [isZoomed, setIsZoomed] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
-  const infoBtnRef = useRef<HTMLButtonElement>(null);
-  const [infoPos, setInfoPos] = useState<{ top: number; left: number } | null>(null);
-  const [optionsOpen, setOptionsOpen] = useState(false);
-  const optionsBtnRef = useRef<HTMLButtonElement>(null);
-  const optionsPanelRef = useRef<HTMLDivElement>(null);
-
-  useDismissOnOutside([optionsBtnRef, optionsPanelRef], () => setOptionsOpen(false), optionsOpen);
 
   const toggleDataset = useCallback((index: number) => {
     setHiddenDatasets((prev) => {
@@ -374,26 +361,6 @@ export function Chart({ series, points }: ChartProps) {
     <div className="flex-1 flex flex-col min-h-0 relative">
       <div className="flex justify-between items-start mb-1 flex-shrink-0 gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <button
-            ref={infoBtnRef}
-            type="button"
-            className="flex items-center justify-center w-4 h-4 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors flex-shrink-0"
-            aria-label="Time series legend explanation"
-            onMouseEnter={() => {
-              const r = infoBtnRef.current?.getBoundingClientRect();
-              if (r) setInfoPos({ top: r.bottom + 4, left: r.left });
-              setInfoOpen(true);
-            }}
-            onMouseLeave={() => setInfoOpen(false)}
-            onFocus={() => {
-              const r = infoBtnRef.current?.getBoundingClientRect();
-              if (r) setInfoPos({ top: r.bottom + 4, left: r.left });
-              setInfoOpen(true);
-            }}
-            onBlur={() => setInfoOpen(false)}
-          >
-            <IconInfo className="w-3 h-3" />
-          </button>
           {points.map(({ point }, group) =>
             series.map((ts, index) => {
               const dsIndex = group * series.length + index;
@@ -446,72 +413,11 @@ export function Chart({ series, points }: ChartProps) {
             </button>
           )}
         </div>
-
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            ref={optionsBtnRef}
-            type="button"
-            className={`flex items-center justify-center w-5 h-5 rounded-md transition-colors cursor-pointer ${optionsOpen ? 'bg-neutral-100 text-neutral-700' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100'}`}
-            aria-label="Chart options"
-            aria-expanded={optionsOpen}
-            title="Chart options"
-            onClick={() => setOptionsOpen((o) => !o)}
-          >
-            <IconSliders className="w-3.5 h-3.5" />
-          </button>
-        </div>
       </div>
 
       <div className="flex-1 min-h-0 w-full">
         <canvas ref={canvasRef} />
       </div>
-
-      {optionsOpen && (
-        <OptionsPopover
-          ref={optionsPanelRef}
-          removeCloudy={removeCloudy}
-          onRemoveCloudyChange={(removeCloudy) => setChartOptions({ removeCloudy })}
-          smoothEnabled={smoothEnabled}
-          onSmoothEnabledChange={(smoothEnabled) => setChartOptions({ smoothEnabled })}
-          smoothing={smoothing}
-          onSmoothingChange={(smoothing) => setChartOptions({ smoothing })}
-          showDots={showDots}
-          onShowDotsChange={(showDots) => setChartOptions({ showDots })}
-        />
-      )}
-
-      {infoOpen &&
-        infoPos &&
-        createPortal(
-          <div
-            className="pointer-events-none fixed z-[10000] w-72 px-3 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg space-y-1.5"
-            style={{
-              top: infoPos.top,
-              left: Math.min(
-                infoPos.left,
-                (infoBtnRef.current?.ownerDocument.defaultView ?? window).innerWidth - 296
-              ),
-            }}
-          >
-            <p>
-              Each dot is one observation. <strong>Colored dots</strong> are clear-day observations
-              (one color per series). <strong>Gray dots</strong> are observations flagged as cloudy.
-            </p>
-            <p>
-              <strong>Remove cloudy</strong> drops the gray observations from both the raw series
-              and the smoothed line.
-            </p>
-            <p>
-              <strong>Smooth</strong> fits a Savitzky-Golay filter. If you leave cloudy points in,
-              the filter pulls the smoothed line toward them - usually Remove cloudy + Smooth
-              together is what you want.
-            </p>
-            <p>
-              <strong>Dots</strong> toggles whether the per-observation markers are drawn.
-            </p>
-          </div>,
-          infoBtnRef.current?.ownerDocument.body ?? document.body
-        )}
     </div>
   );
 }

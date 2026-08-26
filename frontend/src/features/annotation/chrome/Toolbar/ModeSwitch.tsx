@@ -1,7 +1,6 @@
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
-import { useCampaignStore, type WorkMode } from '../../stores/campaign';
-import { useWorkStore } from '../../stores/work';
-import { useLayoutStore } from '~/shared/stores/layout.store';
+import { useCampaignStore } from '../../stores/campaign';
+import { switchWorkMode } from '../../keymap';
 import { IconEyeFilled } from '~/shared/ui/Icons';
 import type { CampaignOutFull } from '~/api/client';
 import { reviewFilterPatch, type TaskFilter } from '../../campaign/tasks';
@@ -19,32 +18,12 @@ export interface ReviewToggleProps {
 
 export function ModeSwitch({ campaign, hasTasks, policy }: ModeSwitchProps) {
   const workMode = useCampaignStore((s) => s.workMode);
-  const setWorkMode = useCampaignStore((s) => s.setWorkMode);
-  const showAlert = useLayoutStore((s) => s.showAlert);
 
   const exploreAllowed = isAudienceMember(campaign.settings.labelling_policy.explore, policy);
 
-  /**
-   * Resolve Explore's open draft before the mode actually changes. Both modes
-   * answer the same work-store form, so a draft left open would go on
-   * collecting the task form's label, comment and answers and write them onto
-   * a shape the user drew in the other mode. Closing it is Escape's own
-   * disposition (complete saves, incomplete discards); a failed save keeps the
-   * draft parked for a retry, which only Explore can offer, so the switch is
-   * called off and said out loud.
-   */
-  const switchMode = async (mode: WorkMode) => {
-    if (mode === workMode) return;
-    const outcome = await useWorkStore.getState().closeDraft();
-    if (outcome === 'save-failed') {
-      showAlert(
-        'Could not save the open annotation - it is still here, retry before switching.',
-        'error'
-      );
-      return;
-    }
-    setWorkMode(mode);
-  };
+  // The draft handling and the alert live with the M binding in keymap.ts, so
+  // clicking and pressing the key cannot drift apart.
+  const switchMode = switchWorkMode;
 
   return (
     <div

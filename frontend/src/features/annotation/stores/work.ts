@@ -106,6 +106,12 @@ interface WorkState {
   /** Tile refreshes this session, added to the campaign's stored version to
    *  make the tile URL: changing that URL is what a refresh is. */
   tileRefreshes: number;
+  /** Bumped on every annotation write and delete this page learns about, its
+   *  own and the poll's. What the map draws from the delta directly, aggregate
+   *  views have to re-ask the server for; this is the signal that they should.
+   *  The campaign's own annotations_version cannot serve: it is read once at
+   *  load and never refreshed. */
+  annotationRevision: number;
   /** Writes the tiles do not show yet: this session's, and other annotators'
    *  as the poll picks them up. */
   delta: AnnotationDelta;
@@ -237,9 +243,10 @@ export const useWorkStore = create<WorkState>((set, get) => {
   const applyDelta = (change: (delta: AnnotationDelta) => AnnotationDelta) =>
     set((s) => {
       const delta = change(s.delta);
+      const annotationRevision = s.annotationRevision + 1;
       return pendingCount(delta) >= TILE_REFRESH_AFTER
-        ? { delta: rotate(delta), tileRefreshes: s.tileRefreshes + 1 }
-        : { delta };
+        ? { delta: rotate(delta), tileRefreshes: s.tileRefreshes + 1, annotationRevision }
+        : { delta, annotationRevision };
     });
 
   const recordLocal = (id: number, labelId: number | null, geometry: GeoJSON.Geometry) =>
@@ -350,6 +357,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     selectionAnchor: null,
     edit: null,
     tileRefreshes: 0,
+    annotationRevision: 0,
     delta: emptyDelta(),
     syncCursor: null,
     probePoints: [],

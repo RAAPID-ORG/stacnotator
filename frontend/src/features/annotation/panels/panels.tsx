@@ -10,6 +10,7 @@ import { MinimapBody, MinimapHeader } from './Minimap/Minimap';
 import { TaskClaimBadge } from './TaskControls/ClaimBadge';
 import { TaskControls } from './TaskControls/TaskControls';
 import { TimeseriesPanel } from './Timeseries/Timeseries';
+import { TimeseriesHeader } from './Timeseries/TimeseriesHeader';
 import type { WorkMode } from '../stores/campaign';
 import { useImageryStore } from '../stores/imagery';
 import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
@@ -103,6 +104,7 @@ export function buildPanels({
       id: window.key,
       role: 'timeseries',
       title: window.title,
+      header: <TimeseriesHeader />,
       body: <TimeseriesPanel window={window} />,
     });
   }

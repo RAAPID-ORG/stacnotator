@@ -22,6 +22,9 @@ const pointKey = (p: LatLon) => `${p.lat},${p.lon}`;
  * The locations this chart compares: in Tasks the task's own point first, then
  * every probe; in Explore the probes alone. `isProbe` drives the marker colour
  * the chart matches, so the base location keeps the plain series palette.
+ *
+ * A probe's suffix is its number alone: the legend repeats every series name
+ * once per probe, and spelling out "(probe 2)" each time crowded it out.
  */
 function chartPoints(taskCenter: LatLon | null, probes: LonLat[]): ChartPoint[] {
   const points: ChartPoint[] = taskCenter
@@ -32,7 +35,7 @@ function chartPoints(taskCenter: LatLon | null, probes: LonLat[]): ChartPoint[] 
     points.push({
       key: pointKey(latLon),
       latLon,
-      label: ` (probe ${index + 1})`,
+      label: ` ${index + 1}`,
       probeIndex: index,
     });
   });

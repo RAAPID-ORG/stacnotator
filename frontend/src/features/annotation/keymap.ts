@@ -19,7 +19,14 @@ import {
 import { readyCustomMaps } from './campaign/imagery';
 import { rememberAddress, type SliceAddress } from './campaign/imageryNav';
 import { fitAnnotations, mainCamera, pan, zoom } from './map/camera';
-import { campaignState, formFields, useCampaignStore } from './stores/campaign';
+import {
+  campaignState,
+  formFields,
+  toPolicyContext,
+  useCampaignStore,
+  type WorkMode,
+} from './stores/campaign';
+import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useImageryStore } from './stores/imagery';
 import { useTasksStore } from './stores/tasks';
 import { useWorkStore, type Tool } from './stores/work';
@@ -558,6 +565,13 @@ function mapBindings(): Binding[] {
 
     { key: 'u', help: 'Cycle view', run: cycleView },
     {
+      // Both modes, one key: switching is the same idea from either side.
+      key: 'm',
+      help: workMode === 'tasks' ? 'Switch to Explore' : 'Switch to Tasks',
+      when: () => canEnterMode(workMode === 'tasks' ? 'explore' : 'tasks'),
+      run: () => void switchWorkMode(workMode === 'tasks' ? 'explore' : 'tasks'),
+    },
+    {
       key: 'l',
       help: 'Toggle view link (sync imagery panels)',
       run: () => imagery().toggleViewSync(),
@@ -612,6 +626,43 @@ function mapBindings(): Binding[] {
  */
 const tag = (table: Binding[], group: Binding['group']): Binding[] =>
   table.map((b) => ({ ...b, group }));
+
+/**
+ * Change work style, from the toolbar or the keyboard.
+ *
+ * Both modes answer the same work-store form, so an Explore draft left open
+ * would go on collecting the task form's answers and write them onto a shape
+ * drawn in the other mode. Closing it is Escape's own disposition - complete
+ * saves, incomplete discards - and a save that fails parks the draft for a
+ * retry only Explore can offer, so the switch is called off and said out loud.
+ */
+export async function switchWorkMode(mode: WorkMode): Promise<void> {
+  const { workMode } = campaignState();
+  if (mode === workMode) return;
+
+  const outcome = await useWorkStore.getState().closeDraft();
+  if (outcome === 'save-failed') {
+    useGlobalLayoutStore
+      .getState()
+      .showAlert(
+        'Could not save the open annotation - it is still here, retry before switching.',
+        'error'
+      );
+    return;
+  }
+  useCampaignStore.getState().setWorkMode(mode);
+}
+
+/** Tasks needs tasks to work through; Explore needs the campaign to allow it. */
+export function canEnterMode(mode: WorkMode): boolean {
+  const { campaign } = campaignState();
+  if (mode === 'tasks') return useTasksStore.getState().allTasks.length > 0;
+  const { currentUserId } = useCampaignStore.getState();
+  return isAudienceMember(
+    campaign.settings.labelling_policy.explore,
+    toPolicyContext(campaign, currentUserId)
+  );
+}
 
 export function pageKeymap(): Binding[] {
   const { workMode, isMobile } = campaignState();

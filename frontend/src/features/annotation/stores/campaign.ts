@@ -162,7 +162,10 @@ export function formFields(): FormField[] {
   return useCampaignStore.getState().campaign?.settings.form_fields ?? [];
 }
 
-function toPolicyContext(campaign: CampaignOutFull | null, userId: string | null): PolicyContext {
+export function toPolicyContext(
+  campaign: CampaignOutFull | null,
+  userId: string | null
+): PolicyContext {
   return {
     userId,
     isAdmin: campaign?.viewer_is_admin ?? false,
