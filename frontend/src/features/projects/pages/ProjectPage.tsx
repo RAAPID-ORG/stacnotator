@@ -278,8 +278,6 @@ const CampaignRow = ({
   // actually blocked, and the annotation page gates itself.
   const canOpen = isMember || isPublic;
 
-  const role = isAdmin ? 'Admin' : isMember ? 'Member' : isPublic ? 'Public' : 'No access';
-
   return (
     <li
       data-testid="campaign-row"
@@ -298,24 +296,21 @@ const CampaignRow = ({
         }
       }}
     >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-neutral-900 truncate">
-            {capitalizeFirst(campaign.name)}
-          </h3>
-          {isPublic && (
-            <span title="Public campaign" aria-label="Public campaign">
-              <IconGlobe className="w-3.5 h-3.5 text-brand-500 shrink-0" />
-            </span>
-          )}
-          {initializing && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-50 text-amber-800 border border-amber-200">
-              <span className="w-1 h-1 rounded-full bg-amber-600 animate-pulse" />
-              Initializing
-            </span>
-          )}
-        </div>
-        <p className="text-[11px] text-neutral-500 mt-0.5">{role}</p>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <h3 className="text-sm font-semibold text-neutral-900 truncate">
+          {capitalizeFirst(campaign.name)}
+        </h3>
+        {isPublic && (
+          <span title="Public campaign" aria-label="Public campaign">
+            <IconGlobe className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+          </span>
+        )}
+        {initializing && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-50 text-amber-800 border border-amber-200">
+            <span className="w-1 h-1 rounded-full bg-amber-600 animate-pulse" />
+            Initializing
+          </span>
+        )}
       </div>
       {isAdmin && (
         <button
