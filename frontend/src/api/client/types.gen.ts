@@ -3511,7 +3511,7 @@ export type RasterOverlayOut = {
     /**
      * Campaign Id
      */
-    campaign_id: number;
+    campaign_id: number | null;
     /**
      * Tile Url
      */

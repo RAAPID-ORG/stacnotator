@@ -112,7 +112,7 @@ class OverlayOutBase(BaseModel):
 
 class RasterOverlayOut(OverlayOutBase):
     kind: Literal["raster"] = "raster"
-    campaign_id: int
+    campaign_id: int | None
     tile_url: str | None
     render_config: RenderConfig
     max_native_zoom: int | None
