@@ -6,6 +6,8 @@ import type VectorSource from 'ol/source/Vector';
 import Feature, { type FeatureLike } from 'ol/Feature';
 import RenderFeature, { toGeometry } from 'ol/render/Feature';
 import type Geometry from 'ol/geom/Geometry';
+import LineString from 'ol/geom/LineString';
+import Polygon from 'ol/geom/Polygon';
 import Draw from 'ol/interaction/Draw';
 import Modify from 'ol/interaction/Modify';
 import Translate from 'ol/interaction/Translate';
@@ -15,7 +17,33 @@ import { altKeyOnly, always, shiftKeyOnly } from 'ol/events/condition';
 import { toLonLat } from 'ol/proj';
 import GeoJSONFormat from 'ol/format/GeoJSON';
 import { LAYER_ID_PROP, featurePropsOf, layerFeatureId, toOlStyle } from './layers';
-import type { Bbox, BoxHit, GeoFeature, InteractionSpec, LayerId, StyleSpec } from './types';
+import type {
+  Bbox,
+  BoxHit,
+  DrawShape,
+  GeoFeature,
+  InteractionSpec,
+  LayerId,
+  StyleSpec,
+} from './types';
+
+/**
+ * Whether the sketch has enough corners to close, mirroring the threshold
+ * OpenLayers itself uses to decide a double-click may finish it. `finishDrawing`
+ * makes no such check and would happily emit a two-point polygon. The sketch
+ * geometry always carries one extra coordinate for the pointer, and a polygon
+ * ring repeats its first point - hence 5 for a triangle and 3 for a segment.
+ */
+export function sketchIsFinishable(shape: DrawShape, geometry: Geometry | undefined): boolean {
+  if (shape === 'Polygon' && geometry instanceof Polygon) {
+    return geometry.getCoordinates()[0].length >= 5;
+  }
+  if (shape === 'LineString' && geometry instanceof LineString) {
+    return geometry.getCoordinates().length >= 3;
+  }
+  // A point is finished by the click that places it; there is nothing to close.
+  return false;
+}
 
 export type SketchLayer = VectorLayer<VectorSource<Feature<Geometry>>>;
 
@@ -129,7 +157,7 @@ interface Attached {
   spec: InteractionSpec | undefined;
   interactions: Interaction[];
   source: VectorSource<Feature<Geometry>>;
-  escHandler?: (e: KeyboardEvent) => void;
+  sketchKeyHandler?: (e: KeyboardEvent) => void;
   drawing: boolean;
   /** Mutated in place on a config-equal re-attach; handlers read through this. */
   callbacks: Callbacks;
@@ -203,11 +231,14 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
       type: shape,
       style: toOlStyle(sketchStyle ?? DEFAULT_SKETCH_STYLE),
     });
-    draw.on('drawstart', () => {
+    let sketch: Feature<Geometry> | null = null;
+    draw.on('drawstart', (evt) => {
       attached.drawing = true;
+      sketch = evt.feature;
     });
     draw.on('drawend', (evt) => {
       attached.drawing = false;
+      sketch = null;
       const geometry = evt.feature.getGeometry();
       // Read indirectly so a config-equal re-attach mid-sketch (a fresh,
       // un-memoized callback prop) invokes the latest callback, not a stale
@@ -217,18 +248,26 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
     map.addInteraction(draw);
     interactions.push(draw);
 
-    // Capture phase so this beats any other window ESC handler while
-    // sketching; once the shape is finished ESC belongs to whoever owns the
+    // Capture phase so these beat any other window handler while sketching;
+    // once the shape is finished, Enter and Escape belong to whoever owns the
     // resulting draft, not this interaction.
-    const escHandler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || !attached.drawing) return;
+    const sketchKeyHandler = (e: KeyboardEvent) => {
+      if (!attached.drawing) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        draw.abortDrawing();
+        attached.drawing = false;
+        sketch = null;
+        return;
+      }
+      if (e.key !== 'Enter' || !sketchIsFinishable(shape, sketch?.getGeometry())) return;
       e.preventDefault();
       e.stopPropagation();
-      draw.abortDrawing();
-      attached.drawing = false;
+      draw.finishDrawing();
     };
-    window.addEventListener('keydown', escHandler, true);
-    attached.escHandler = escHandler;
+    window.addEventListener('keydown', sketchKeyHandler, true);
+    attached.sketchKeyHandler = sketchKeyHandler;
   }
 
   if (spec.edit) {
@@ -279,7 +318,9 @@ function setup(map: OLMap, spec: InteractionSpec, sketchLayer: SketchLayer): Att
 
 function teardown(map: OLMap, attached: Attached): void {
   for (const interaction of attached.interactions) map.removeInteraction(interaction);
-  if (attached.escHandler) window.removeEventListener('keydown', attached.escHandler, true);
+  if (attached.sketchKeyHandler) {
+    window.removeEventListener('keydown', attached.sketchKeyHandler, true);
+  }
   attached.source.clear();
 }
 

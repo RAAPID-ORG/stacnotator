@@ -29,6 +29,7 @@ export type TourEffect =
   | 'show-collection-menu'
   | 'show-slice-menu'
   | 'show-layer-menu'
+  | 'show-task-filter'
   /** Practise switching imagery without keeping whatever it was left on: the
    *  ring includes basemaps, so a step that ends on one leaves the next step
    *  talking about imagery over a plain street map. */
@@ -154,6 +155,10 @@ const EFFECT_COMMANDS: Record<TourEffect, { enter: TourCommand[]; leave: TourCom
   },
   'show-layer-menu': {
     enter: [{ type: 'open-control', name: 'layer-selector' }],
+    leave: [{ type: 'open-control', name: null }],
+  },
+  'show-task-filter': {
+    enter: [{ type: 'open-control', name: 'task-filter' }],
     leave: [{ type: 'open-control', name: null }],
   },
   'imagery-sandbox': {

@@ -10,6 +10,7 @@ export interface TourConfig {
 const toolbar = { kind: 'anchor', name: 'toolbar' } as const;
 const imagerySelector = { kind: 'anchor', name: 'imagery-selector' } as const;
 const taskFilter = { kind: 'anchor', name: 'task-filter' } as const;
+const taskFilterMenu = { kind: 'anchor', name: 'task-filter-menu' } as const;
 const mapControls = { kind: 'anchor', name: 'map-controls' } as const;
 const collectionPicker = { kind: 'anchor', name: 'collection-picker' } as const;
 const slicePicker = { kind: 'anchor', name: 'slice-picker' } as const;
@@ -190,12 +191,14 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     },
     {
       id: 'task-filter',
-      target: taskFilter,
+      target: [taskFilter, taskFilterMenu],
       title: 'Task Filter',
       body: [
-        'Filter which tasks are visible - by assignee, status, or a combination. Useful when you want to focus on "pending" tasks or review a specific user\'s work.',
+        'Filter which tasks are visible - by assignee, by status, by task set, or a combination. We have opened it here so you can see what it offers.',
+        "This is how you narrow a campaign of hundreds down to the ones that are yours and still pending, or pull up somebody else's finished work to look over.",
       ],
       placement: 'bottom',
+      effect: 'show-task-filter',
     },
     {
       id: 'main-map',
@@ -205,7 +208,7 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
         "This is the primary map view. It shows the selected imagery at the current collection and slice. Use your mouse to pan and scroll to zoom, or try the keyboard shortcuts you'll learn next.",
       ],
       placement: 'right',
-      avoid: mapControls,
+      avoid: [mapControls, controls],
     },
     COLLECTIONS_AND_SLICES_STEP,
     SLICE_PRACTICE_STEP,
@@ -278,11 +281,12 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
       ? [
           {
             id: 'timeseries',
-            target: [timeseries, mainMap],
+            target: [timeseries, mainMap, mapControls],
             title: 'Time Series Chart',
             body: [
               'The time series chart shows spectral indices (e.g. NDVI) for the task location over time. Vertical bars indicate the currently selected collection/slice.',
-              'Pick up the timeseries probe from the map controls, then click the map to place it there. The + beside it drops a second probe so two places can be compared, and clicking a probe again takes it off the chart.',
+              'You are not stuck with the task point. Pick up the probe tool ({{icon:probe}} in the map header, or {{t}}) and click anywhere on the map to read the curve there instead - a neighbouring field, a patch you believe is a different crop, somewhere you know the answer for.',
+              'The + beside it (or {{shift+t}}) drops a second probe rather than moving the first, so two places are charted side by side and can be compared directly. Clicking a probe again takes it back off the chart.',
               'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides observations that were flagged as cloud-covered, and Smooth applies a Savitzky-Golay filter to the curve so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
             ],
             placement: 'left' as const,
@@ -430,7 +434,10 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
         'Press {{ }} to fit the view to everything you have drawn. Everything the rest of the tour talks about ends up here.',
       ],
       placement: 'right',
-      avoid: mapControls,
+      // Both sets of controls the copy names: the header pickers and the tools
+      // panel. Lighting the whole map leaves the tooltip nowhere obvious to go,
+      // and it used to settle straight on top of them.
+      avoid: [mapControls, controls],
     },
     COLLECTIONS_AND_SLICES_STEP,
     {
@@ -476,7 +483,7 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
       bullets: [
         { text: 'Point labels: one click on the map and it is placed.' },
         {
-          text: 'Polygon and line labels: click each corner in turn, then finish with {{enter}} or a double-click.',
+          text: 'Polygon and line labels: click each corner in turn. Close the shape with {{enter}}, a double-click, or by clicking the first corner again - whichever your hands are already near.',
         },
         { text: '{{escape}} while drawing throws the shape away and starts over.' },
       ],
@@ -562,7 +569,7 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
             effect: 'seed-probe' as const,
             body: [
               'The chart plots spectral indices (e.g. NDVI) over time. We have dropped a probe in the middle of your view so there is a curve here to look at - it comes off again when you move on.',
-              'Switch to the Timeseries tool ({{t}}) and click the map to move the probe; + in the map header (or {{shift+t}}) drops another one so two places can be compared, and clicking a probe again takes it off the chart.',
+              'Switch to the probe tool ({{icon:probe}}, or {{t}}) and click anywhere on the map to read the curve there instead. + beside the tool (or {{shift+t}}) drops another probe rather than moving the first, so two places are charted side by side; clicking a probe again takes it back off.',
               'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides cloud-flagged observations, and Smooth applies a Savitzky-Golay filter so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
             ],
             placement: 'left' as const,

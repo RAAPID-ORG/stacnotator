@@ -1,3 +1,4 @@
+import { IconProbe } from '~/shared/ui/Icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { pageKeymap } from '../../keymap';
@@ -101,19 +102,7 @@ function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
         data-testid="probe-toggle"
         className={`${segment} w-6 ${active ? 'bg-brand-600 text-white hover:bg-brand-700' : off}`}
       >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <path d="M2 15l4-6 4 3 4-7" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="16" cy="16" r="4" />
-          <path d="m19 19 3 3" strokeLinecap="round" />
-        </svg>
+        <IconProbe className="h-[13px] w-[13px]" />
       </button>
       <button
         type="button"

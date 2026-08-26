@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useHotkeys } from '../../hotkeys';
-import { TourOverlay } from './TourOverlay';
+import { INLINE_ICON_NAMES, TourOverlay } from './TourOverlay';
+import { buildTourSteps } from './steps';
 
 let unregister: (() => void) | null = null;
 
@@ -86,4 +87,17 @@ describe('TourOverlay', () => {
     renderTour({ open: false });
     expect(screen.queryByTestId('tour-overlay')).toBeNull();
   });
+});
+
+it('can draw every control its copy points at', () => {
+  // A token with no icon behind it renders nothing at all, leaving a hole
+  // mid-sentence that no other test would notice.
+  const known = new Set<string>(INLINE_ICON_NAMES);
+  for (const variant of ['tasks', 'explore'] as const) {
+    const steps = buildTourSteps(variant, { hasTimeseries: true, hasFormFields: true });
+    const copy = JSON.stringify(steps);
+    for (const [, name] of copy.matchAll(/\{\{icon:(.*?)\}\}/g)) {
+      expect(known, `${variant} uses icon "${name}"`).toContain(name);
+    }
+  }
 });

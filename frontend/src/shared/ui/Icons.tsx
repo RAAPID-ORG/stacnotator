@@ -205,6 +205,16 @@ export const IconChart = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+/** The timeseries probe: a curve under a magnifier. Shared with the tour, so
+ *  the copy can show the control it is talking about rather than describe it. */
+export const IconProbe = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className} viewBox="0 0 24 24" strokeWidth={2}>
+    <path d="M2 15l4-6 4 3 4-7" />
+    <circle cx="16" cy="16" r="4" />
+    <path d="m19 19 3 3" />
+  </svg>
+);
+
 export const IconSliders = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M3 6h2M9 6h8M3 14h8M15 14h2" />

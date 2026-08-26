@@ -383,6 +383,42 @@ describe('tour steps content', () => {
     }
   });
 
+  it('opens the task filter and lights the panel, not just its button', () => {
+    const steps = buildTourSteps('tasks', { hasTimeseries: false, hasFormFields: false });
+    const filter = steps.find((s) => s.id === 'task-filter')!;
+    const targets = Array.isArray(filter.target) ? filter.target : [filter.target];
+    expect(targets.map((t) => (t.kind === 'panel' ? t.id : t.name))).toContain('task-filter-menu');
+    expect(filter.effect).toBe('show-task-filter');
+  });
+
+  it('keeps the main map step off both sets of controls it names', () => {
+    for (const variant of ['tasks', 'explore'] as const) {
+      const steps = buildTourSteps(variant, { hasTimeseries: false, hasFormFields: false });
+      const avoid = steps.find((s) => s.id === 'main-map')!.avoid;
+      const names = (Array.isArray(avoid) ? avoid : avoid ? [avoid] : []).map((t) =>
+        t.kind === 'panel' ? t.id : t.name
+      );
+      expect(names).toContain('map-controls');
+    }
+  });
+
+  it('describes closing a shape the ways it can actually be closed', () => {
+    const steps = buildTourSteps('explore', { hasTimeseries: false, hasFormFields: false });
+    const drawing = steps.find((s) => s.id === 'drawing')!;
+    const shapes = drawing.bullets!.map((b) => b.text).join(' ');
+    expect(shapes).toContain('{{enter}}');
+    expect(shapes).toContain('double-click');
+    expect(shapes).toContain('first corner');
+  });
+
+  it('tells task-mode annotators the chart can probe somewhere other than the task', () => {
+    const steps = buildTourSteps('tasks', { hasTimeseries: true, hasFormFields: false });
+    const chart = steps.find((s) => s.id === 'timeseries')!.body.join(' ');
+    expect(chart).toContain('{{icon:probe}}');
+    expect(chart).toContain('click anywhere on the map');
+    expect(chart).toContain('compared');
+  });
+
   it('targets panels by id rather than a CSS selector', () => {
     const targets = buildTourSteps('tasks', { hasTimeseries: true, hasFormFields: true }).flatMap(
       (s) => (Array.isArray(s.target) ? s.target : [s.target])

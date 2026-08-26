@@ -16,6 +16,7 @@ import {
 } from '~/shared/ui/Icons';
 import type { PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import { useCampaignStore } from '../../stores/campaign';
+import { useLayoutStore as useAnnotationLayoutStore } from '../../stores/layout';
 import type { TaskFilter } from '../../campaign/tasks';
 import { ExportMenu } from './ExportMenu';
 import { GuidePanel } from './GuidePanel';
@@ -106,6 +107,8 @@ export function Toolbar({
   const workMode = useCampaignStore((s) => s.workMode);
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const [taskFilterOpen, setTaskFilterOpen] = useState(false);
+  // The tour holds this open while it explains what is inside it.
+  const forcedOpen = useAnnotationLayoutStore((s) => s.forcedOpenControl) === 'task-filter';
   const taskFilterRef = useRef<HTMLDivElement>(null);
   const isFullscreen = useLayoutStore((s) => s.isFullscreen);
   const toggleFullscreen = useLayoutStore((s) => s.toggleFullscreen);
@@ -170,17 +173,19 @@ export function Toolbar({
               <IconChevronDownFilled className="hidden desktop:block w-4 h-4" />
             </button>
             <Dropdown
-              open={taskFilterOpen}
+              open={taskFilterOpen || forcedOpen}
               className="absolute top-full left-0 mt-1 origin-top-left z-20"
             >
-              <TaskFilterPanel
-                tasks={tasks}
-                taskSets={taskSets}
-                taskFilter={taskFilter}
-                onTaskFilterChange={onTaskFilterChange}
-                currentUserId={policy.userId}
-                isReviewMode={isReviewMode}
-              />
+              <div data-tour="task-filter-menu">
+                <TaskFilterPanel
+                  tasks={tasks}
+                  taskSets={taskSets}
+                  taskFilter={taskFilter}
+                  onTaskFilterChange={onTaskFilterChange}
+                  currentUserId={policy.userId}
+                  isReviewMode={isReviewMode}
+                />
+              </div>
             </Dropdown>
           </div>
         )}

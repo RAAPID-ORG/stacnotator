@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { IconProbe } from '~/shared/ui/Icons';
 import type { LonLat } from '~/shared/map/types';
 import {
   collectionAddress,
@@ -177,10 +179,29 @@ function KeyChip({ spec }: { spec: string }) {
   );
 }
 
-/** Splits copy on `{{<key spec>}}` and renders those parts as key chips. */
+/** Controls a step can point at by drawing them, rather than describing where
+ *  on screen they are and what they look like. */
+export const INLINE_ICON_NAMES = ['probe'] as const;
+
+const INLINE_ICONS: Record<string, ReactNode> = {
+  probe: <IconProbe className="mx-0.5 inline h-3.5 w-3.5 align-text-bottom text-neutral-700" />,
+};
+
+/** Splits copy on `{{...}}`: `icon:<name>` draws a control, anything else is a
+ *  key spec rendered as a chip from the live hotkey registry. */
 function RichText({ text }: { text: string }) {
   const parts = text.split(/\{\{(.*?)\}\}/g);
-  return <>{parts.map((part, i) => (i % 2 === 0 ? part : <KeyChip key={i} spec={part} />))}</>;
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (i % 2 === 0) return part;
+        if (part.startsWith('icon:')) {
+          return <span key={i}>{INLINE_ICONS[part.slice('icon:'.length)]}</span>;
+        }
+        return <KeyChip key={i} spec={part} />;
+      })}
+    </>
+  );
 }
 
 function Bullets({ bullets }: { bullets: TourBullet[] }) {
