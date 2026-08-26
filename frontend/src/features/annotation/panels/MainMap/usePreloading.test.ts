@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedCampaign } from '../../testing/seed';
 import type { CampaignOutFull } from '~/api/client';
@@ -290,33 +290,6 @@ describe('usePreloading upcoming centres', () => {
 
     rerender({ viewportPx: [1100, 600] });
     expect(enqueueMany).toHaveBeenCalledTimes(2);
-    unmount();
-  });
-
-  it('keeps the warm set while the user browses imagery at the same task', () => {
-    vi.spyOn(TilePreloader.prototype, 'enqueueMany').mockImplementation(() => {});
-    const clearCache = vi.spyOn(TilePreloader.prototype, 'clearCache');
-
-    const { rerender, unmount } = renderHook(
-      ({ focus }) =>
-        usePreloading({
-          enabled: true,
-          activeLoading: false,
-          focus,
-          upcoming: [[6, 51]],
-          viewportPx: [800, 600],
-          visibleCollectionIds: [100, 200],
-        }),
-      { initialProps: { focus: [5, 50] as [number, number] } }
-    );
-    expect(clearCache).toHaveBeenCalledTimes(1);
-
-    act(() => useImageryStore.setState({ address: { ...NDVI, vizId: '10' } }));
-
-    expect(clearCache).toHaveBeenCalledTimes(1);
-
-    rerender({ focus: [9, 40] });
-    expect(clearCache).toHaveBeenCalledTimes(2);
     unmount();
   });
 

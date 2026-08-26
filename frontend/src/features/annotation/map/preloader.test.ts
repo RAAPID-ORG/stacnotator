@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('~/api/tilerToken', () => ({ ensureTilerSession: vi.fn() }));
 
 import { ensureTilerSession } from '~/api/tilerToken';
-import { TilePreloader, tileUrlsForExtent, type PreloadImage } from './preloader';
+import { TilePreloader, tileUrlsForExtent, type PreloadImage, type PreloadJob } from './preloader';
 import type { Bbox } from '~/shared/map/types';
 
 const WORLD: Bbox = [-179, -85, 179, 85];
@@ -403,6 +403,56 @@ describe('TilePreloader credentials', () => {
     await flush();
     expect(refreshToken).toHaveBeenCalledTimes(1);
     expect(images[1].crossOrigin).toBe('use-credentials');
+    preloader.dispose();
+  });
+});
+
+describe('warm set across task advances', () => {
+  const jobAt = (groupId: string, urlTemplate: string): PreloadJob => ({
+    priority: 1,
+    groupId,
+    urlTemplate,
+    extent: [0, 0, 1, 1],
+    zoom: 8,
+  });
+
+  // Advancing a task shifts the upcoming window by one: what was second and
+  // third is now first and second, and was already downloaded.
+  it('counts an already-fetched neighbourhood done instead of fetching it twice', async () => {
+    const { images, preloader } = harness(50);
+
+    preloader.enqueueMany([jobAt('preload-t1-c1-s0', 'https://t.test/a/{z}/{x}/{y}.png')]);
+    await flush();
+    const fetched = images.length;
+    expect(fetched).toBeGreaterThan(0);
+    images.forEach((image) => image.succeed());
+
+    // The next task's rebuild re-enqueues the same neighbourhood.
+    preloader.clear();
+    preloader.enqueueMany([jobAt('preload-t0-c1-s0', 'https://t.test/a/{z}/{x}/{y}.png')]);
+    await flush();
+
+    expect(images.length).toBe(fetched);
+    expect(preloader.progress().get('preload-t0-c1-s0')).toEqual({
+      done: fetched,
+      total: fetched,
+    });
+    preloader.dispose();
+  });
+
+  // One slot, so what starts is exactly what the queue put first - even though
+  // the far task was enqueued first.
+  it('drains the nearest task before starting the one behind it', async () => {
+    const { images, preloader } = harness(1);
+
+    preloader.enqueueMany([
+      { ...jobAt('preload-t1-c1-s0', 'https://t.test/far/{z}/{x}/{y}.png'), priority: 3 },
+      { ...jobAt('preload-t0-c1-s0', 'https://t.test/near/{z}/{x}/{y}.png'), priority: 2 },
+    ]);
+    await flush();
+
+    expect(images).toHaveLength(1);
+    expect(images[0].src).toContain('/near/');
     preloader.dispose();
   });
 });

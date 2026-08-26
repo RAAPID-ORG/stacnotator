@@ -345,7 +345,6 @@ export function usePreloading(options: PreloadingOptions): void {
   const visibleCollectionsKey = visibleCollectionIds.join(',');
   const viewportKey = viewportTileKey(viewportPx);
   const focusKey = focus ? `${focus[0]},${focus[1]}` : '';
-  const lastFocusRef = useRef('');
 
   const warmAddresses = useMemo(
     () =>
@@ -419,13 +418,10 @@ export function usePreloading(options: PreloadingOptions): void {
       if (!activeLoadingRef.current) preloader.resume();
     }, SETTLE_MS);
 
-    // Only a new focus makes the warm set stale. Rebuilding the queue keeps
-    // what is already fetched, so a target already warmed reads as warm
-    // instead of re-requesting every tile from zero.
-    if (lastFocusRef.current !== focusKey) {
-      preloader.clearCache();
-      lastFocusRef.current = focusKey;
-    }
+    // The record of what was actually fetched deliberately survives this.
+    // Advancing a task shifts the window by one - the tasks that were second
+    // and third are now first and second, already warm - so re-enqueueing them
+    // counts them done instead of downloading them again.
     preloader.clear();
 
     const jobs: PreloadJob[] = [];
@@ -439,7 +435,10 @@ export function usePreloading(options: PreloadingOptions): void {
           addresses: warmAddresses,
           around: center,
           fallbackZoom: mainCamera.getState().zoom,
-          priority: PRIORITY_UPCOMING,
+          // One task finishes before the next starts: the nearest task is the
+          // one about to be needed, so a half-warmed pair of tasks would help
+          // nobody. Explicit rather than resting on a stable sort.
+          priority: PRIORITY_UPCOMING + taskIndex,
           taskIndex,
           viewportPx,
         })

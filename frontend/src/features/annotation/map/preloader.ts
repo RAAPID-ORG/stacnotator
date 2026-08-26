@@ -162,10 +162,6 @@ export class TilePreloader {
     this.onProgress?.();
   }
 
-  clearCache(): void {
-    this.preloaded.clear();
-  }
-
   /**
    * Cancel speculative work that cannot serve the new foreground viewport.
    * URLs the active OL layers may share are deliberately preserved: Chromium
@@ -201,14 +197,26 @@ export class TilePreloader {
           counts.done++;
           continue;
         }
-        // Evict when the seen-set grows unbounded; the browser HTTP cache still has the tiles.
-        if (this.preloaded.size >= MAX_PRELOADED_CACHE) this.preloaded.clear();
+        // Evict the oldest half when the seen-set grows unbounded. Dropping
+        // all of it would report every warmed task cold at once and re-fetch
+        // the lot; Set keeps insertion order, so the recent - and most
+        // re-usable - tiles are the ones kept.
+        if (this.preloaded.size >= MAX_PRELOADED_CACHE) this.evictOldest();
         this.preloaded.add(url);
         this.tileQueue.push({ url, priority: job.priority, groupId: job.groupId, crossOrigin });
       }
     }
     this.tileQueue.sort((a, b) => a.priority - b.priority);
     this.onProgress?.();
+  }
+
+  private evictOldest(): void {
+    const half = Math.floor(this.preloaded.size / 2);
+    let dropped = 0;
+    for (const url of this.preloaded) {
+      if (dropped++ >= half) break;
+      this.preloaded.delete(url);
+    }
   }
 
   private countsFor(groupId: string): GroupProgress {
