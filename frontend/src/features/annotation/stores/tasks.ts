@@ -9,6 +9,7 @@ import {
   widenFilterForTask,
   type TaskFilter,
 } from '../campaign/tasks';
+import { taskLandingCollectionId } from '../campaign/imageryNav';
 import type { GeoFeature, LonLat } from '~/shared/map/types';
 import { useCampaignStore } from './campaign';
 import { useImageryStore } from './imagery';
@@ -150,11 +151,12 @@ function publishSelection(catalog: ImageryCatalog): void {
 
   if (task && imagery.emptyScope !== scope) {
     const { view, taskStartCollectionId } = useCampaignStore.getState();
-    const pinned = view ? usePrefsStore.getState().pinnedStart[view.id] : undefined;
-    const start =
-      pinned != null && catalog.collections.has(pinned)
-        ? pinned
-        : (taskStartCollectionId ?? imagery.address?.collectionId ?? null);
+    const start = taskLandingCollectionId(
+      catalog,
+      taskStartCollectionId,
+      view ? usePrefsStore.getState().pinnedStart[view.id] : undefined,
+      imagery.address?.collectionId ?? null
+    );
     imagery.resetForTask(catalog, start, scope!);
     // Probes are comparisons at this task's location; the next task's map
     // is a different place, so they do not follow it.

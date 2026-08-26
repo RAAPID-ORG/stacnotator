@@ -17,6 +17,7 @@ import {
   PRIORITY_UPCOMING,
   taskPercents,
   usePreloading,
+  upcomingAddresses,
   visibleAddresses,
   visibleSliceJobs,
 } from './usePreloading';
@@ -155,6 +156,46 @@ describe('visibleSliceJobs', () => {
 
   it('does not preload unsynchronised background windows at the next task', () => {
     expect(visibleAddresses(CATALOG, NDVI, [100, 200], {}, false)).toEqual([NDVI]);
+  });
+});
+
+describe('upcomingAddresses', () => {
+  // The bug: the warm set followed whatever the user was browsing, so stepping
+  // a date rebuilt the queue against cold tiles and the preload bar fell back.
+  it('is the same wherever the user has browsed to within the task', () => {
+    const onCover = upcomingAddresses(CATALOG, NDVI, 100, [100, 200], true);
+    const laterDate = { ...NDVI, sliceIndex: 1 };
+    const otherCollection = { sourceId: 1, collectionId: 200, sliceIndex: 1, vizId: '11' };
+
+    expect(upcomingAddresses(CATALOG, laterDate, 100, [100, 200], true)).toEqual(onCover);
+    expect(upcomingAddresses(CATALOG, otherCollection, 100, [100, 200], true)).toEqual(onCover);
+  });
+
+  // resetForTask lands on the configured collection at its cover slice and
+  // drops per-window slice memory, so that is what gets warmed.
+  it('lands on the configured collection at its cover, not where the user is', () => {
+    const [main] = upcomingAddresses(CATALOG, { ...NDVI, sliceIndex: 1 }, 100, [], true);
+    expect(main).toMatchObject({ collectionId: 100, sliceIndex: 0 });
+  });
+
+  it('ignores a window date the user picked, because the next task forgets it', () => {
+    useImageryStore.getState().rememberWindowSlice(200, 1, true);
+    const addresses = upcomingAddresses(CATALOG, NDVI, 100, [200], true);
+    expect(addresses).toEqual([
+      { sourceId: 1, collectionId: 100, sliceIndex: 0, vizId: '11' },
+      // 200's cover does not publish ndvi, so it falls back as it always does.
+      { sourceId: 1, collectionId: 200, sliceIndex: 0, vizId: '10' },
+    ]);
+  });
+
+  // The one thing a task transition does carry over.
+  it('keeps the visualization the user chose', () => {
+    const [main] = upcomingAddresses(CATALOG, NDVI, 100, [], true);
+    expect(main.vizId).toBe('11');
+  });
+
+  it('leaves unsynchronised background windows out', () => {
+    expect(upcomingAddresses(CATALOG, NDVI, 100, [100, 200], false)).toHaveLength(1);
   });
 });
 

@@ -1,9 +1,13 @@
-import { useCatalog } from '../../stores/campaign';
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useCampaignStore, useCatalog } from '../../stores/campaign';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { type ImageryCatalog } from '../../campaign/imagery';
 import { type SliceAddress } from '../../campaign/imageryNav';
 import { sliceRaster } from '../../campaign/tileUrls';
-import { addressAtSlice } from '../../campaign/imageryNav';
+import {
+  addressAtSlice,
+  collectionAddress,
+  taskLandingCollectionId,
+} from '../../campaign/imageryNav';
 import { useImageryStore } from '../../stores/imagery';
 import { usePrefsStore, type PreloadTier } from '../../stores/prefs';
 import { mainCamera } from '../../map/camera';
@@ -224,6 +228,41 @@ export function visibleAddresses(
   return addresses;
 }
 
+/**
+ * The addresses the *next* task will open at.
+ *
+ * A task transition resets imagery to the view's landing collection at its
+ * cover slice and drops per-window slice memory (imagery.resetForTask), so
+ * what the next task shows is fixed by the campaign - not by the date the user
+ * happens to be browsing now. Warming the browsed date instead fetched tiles
+ * nobody would land on, and rebuilt the queue on every date step, which is
+ * what made the preload bar fall back while the user was only changing slice.
+ *
+ * The visualization is the one thing carried across, so it is the one thing
+ * here that legitimately follows the current address.
+ */
+export function upcomingAddresses(
+  catalog: ImageryCatalog,
+  current: SliceAddress | null,
+  landingCollectionId: number | null,
+  visibleCollectionIds: readonly number[],
+  viewSync: boolean
+): SliceAddress[] {
+  const landing =
+    landingCollectionId != null ? collectionAddress(catalog, landingCollectionId, current) : null;
+  const addresses: SliceAddress[] = landing ? [landing] : [];
+  // An unsynchronised background window stays at its own panned location when
+  // tasks advance, so preloading the next task into it would be pure waste.
+  if (!viewSync) return addresses;
+  for (const collectionId of visibleCollectionIds) {
+    if (collectionId === landing?.collectionId) continue;
+    // Cover slice, always: resetForTask clears the per-window memory.
+    const address = collectionAddress(catalog, collectionId, current);
+    if (address) addresses.push(address);
+  }
+  return addresses;
+}
+
 export interface PreloadingOptions {
   enabled: boolean;
   /** Foreground map traffic always outranks speculative work. */
@@ -299,11 +338,73 @@ export function usePreloading(options: PreloadingOptions): void {
   const address = useImageryStore((s) => s.address);
   const viewSync = useImageryStore((s) => s.viewSync);
   const windowSlices = useImageryStore((s) => s.windowSlices);
+  const view = useCampaignStore((s) => s.view);
+  const configuredStart = useCampaignStore((s) => s.taskStartCollectionId);
+  const pinnedStart = usePrefsStore((s) => (view ? s.pinnedStart[view.id] : undefined));
   const upcomingKey = JSON.stringify(upcoming ?? []);
   const visibleCollectionsKey = visibleCollectionIds.join(',');
   const viewportKey = viewportTileKey(viewportPx);
   const focusKey = focus ? `${focus[0]},${focus[1]}` : '';
   const lastFocusRef = useRef('');
+
+  const warmAddresses = useMemo(
+    () =>
+      upcomingAddresses(
+        catalog,
+        address,
+        taskLandingCollectionId(
+          catalog,
+          configuredStart,
+          pinnedStart,
+          address?.collectionId ?? null
+        ),
+        visibleCollectionIds,
+        viewSync
+      ),
+    // visibleCollectionsKey stands in for the array, rebuilt each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [catalog, address, configuredStart, pinnedStart, visibleCollectionsKey, viewSync]
+  );
+  const warmKey = JSON.stringify(warmAddresses);
+
+  // Changing what the user is looking at must not cost them their foreground
+  // tiles, but it does not change what the next task will show - so this only
+  // protects the foreground; the queue below is left alone.
+  useEffect(() => {
+    const preloader = preloaderRef.current;
+    if (!preloader || !focus) return;
+    preloader.pause();
+    const settle = setTimeout(() => {
+      if (!activeLoadingRef.current) preloader.resume();
+    }, SETTLE_MS);
+
+    const foreground = visibleSliceJobs({
+      catalog,
+      addresses: visibleAddresses(catalog, address, visibleCollectionIds, windowSlices, viewSync),
+      around: focus,
+      fallbackZoom: mainCamera.getState().zoom,
+      priority: PRIORITY_UPCOMING,
+      taskIndex: 0,
+      viewportPx,
+    });
+    // Heavy mode may have fifty old-task requests in flight. Keep only requests
+    // the new viewport can reuse; stale work must not hold the connection while
+    // the user waits, but shared URLs must not be aborted (see TilePreloader).
+    preloader.cancelInflightExcept(
+      new Set(foreground.flatMap((job) => tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom)))
+    );
+    return () => clearTimeout(settle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    catalog,
+    focusKey,
+    address,
+    windowSlices,
+    viewSync,
+    visibleCollectionsKey,
+    viewportKey,
+    enabled,
+  ]);
 
   useEffect(() => {
     const preloader = preloaderRef.current;
@@ -318,9 +419,8 @@ export function usePreloading(options: PreloadingOptions): void {
       if (!activeLoadingRef.current) preloader.resume();
     }, SETTLE_MS);
 
-    // Only a new focus makes the warm set stale. Browsing imagery within the
-    // same task rebuilds the queue but keeps what is already fetched, so
-    // stepping back onto a date or visualization already seen reads as warm
+    // Only a new focus makes the warm set stale. Rebuilding the queue keeps
+    // what is already fetched, so a target already warmed reads as warm
     // instead of re-requesting every tile from zero.
     if (lastFocusRef.current !== focusKey) {
       preloader.clearCache();
@@ -331,36 +431,12 @@ export function usePreloading(options: PreloadingOptions): void {
     const jobs: PreloadJob[] = [];
     // Upcoming centres are prefetched at the source's default zoom, not the
     // user's current one: that is the zoom the next task will open at, and
-    // tiles fetched at a zoom nobody lands on are wasted bandwidth
-    // (useTilePreloading.ts:325).
-    const addresses = visibleAddresses(
-      catalog,
-      address,
-      visibleCollectionIds,
-      windowSlices,
-      viewSync
-    );
-    const currentJobs = visibleSliceJobs({
-      catalog: catalog,
-      addresses,
-      around: focus,
-      fallbackZoom: mainCamera.getState().zoom,
-      priority: PRIORITY_UPCOMING,
-      taskIndex: 0,
-      viewportPx,
-    });
-    const foregroundUrls = new Set(
-      currentJobs.flatMap((job) => tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom))
-    );
-    // Heavy mode may have fifty old-task requests in flight. Keep only requests
-    // the new viewport can reuse; stale work must not hold the connection while
-    // the user waits, but shared URLs must not be aborted (see TilePreloader).
-    preloader.cancelInflightExcept(foregroundUrls);
+    // tiles fetched at a zoom nobody lands on are wasted bandwidth.
     (upcoming ?? []).forEach((center, taskIndex) => {
       jobs.push(
         ...visibleSliceJobs({
-          catalog: catalog,
-          addresses,
+          catalog,
+          addresses: warmAddresses,
           around: center,
           fallbackZoom: mainCamera.getState().zoom,
           priority: PRIORITY_UPCOMING,
@@ -374,16 +450,5 @@ export function usePreloading(options: PreloadingOptions): void {
     // itself is rebuilt by the caller on every render.
     return () => clearTimeout(settle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    catalog,
-    focusKey,
-    address,
-    viewportKey,
-    upcomingKey,
-    visibleCollectionsKey,
-    windowSlices,
-    viewSync,
-    concurrency,
-    enabled,
-  ]);
+  }, [catalog, focusKey, warmKey, viewportKey, upcomingKey, concurrency, enabled]);
 }

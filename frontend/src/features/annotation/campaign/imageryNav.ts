@@ -134,6 +134,25 @@ export function collectionAddress(
   );
 }
 
+/**
+ * The collection a task transition lands on.
+ *
+ * The view's pinned start wins, then its configured start, and only with
+ * neither does the task inherit wherever the user happens to be. Pure and
+ * shared so what preloading warms is what the next task will actually show -
+ * the two drifting apart is what made the preload bar move when the user
+ * merely changed date.
+ */
+export function taskLandingCollectionId(
+  cat: ImageryCatalog,
+  configuredStart: number | null,
+  pinnedStart: number | undefined,
+  currentCollectionId: number | null
+): number | null {
+  if (pinnedStart != null && cat.collections.has(pinnedStart)) return pinnedStart;
+  return configuredStart ?? currentCollectionId ?? null;
+}
+
 /** Every index, for the date dropdown - the dedicated cover included. */
 export function slicePickerIndices(collection: Pick<ImageryCollectionOut, 'slices'>): number[] {
   return collection.slices.map((_, i) => i);
