@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createImageryView, getCampaignWithImageryWindows } from '~/api/client';
 import { ensureTilerSession } from '~/api/tilerToken';
-import { campaignPath } from '~/app/routes';
+import { campaignPath, type CampaignSubpage } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
@@ -139,7 +139,7 @@ export function AnnotationPage() {
   const taskSets = useTasksStore((s) => s.taskSets);
   const scopedTaskSetName = taskSets.find((set) => set.id === taskFilter.taskSetId)?.name;
 
-  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name);
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Annotate');
   useEffect(() => useCampaignStore.getState().setMobile(isMobile), [isMobile]);
 
   // ------------------------------------------------------------------
@@ -159,7 +159,7 @@ export function AnnotationPage() {
   }, []);
 
   const goTo =
-    (subpage: 'settings' | 'tasks' | '', search = '') =>
+    (subpage: CampaignSubpage | '', search = '') =>
     () =>
       navigate(campaignPath(projectId, campaignId, subpage || undefined) + search);
 
@@ -512,7 +512,10 @@ export function AnnotationPage() {
             onDefaultSaved={() => setSettingUpFirstView(false)}
           />
         }
-        onNavigateWorkPage={workMode === 'tasks' ? goTo('tasks', '?taskSet=all') : goTo('')}
+        onNavigateCampaign={goTo('')}
+        onNavigateWorkPage={
+          workMode === 'tasks' ? goTo('tasks', '?taskSet=all') : goTo('annotations')
+        }
         onNavigateSettings={goTo('settings')}
         onOpenTour={() => setTourOpen(true)}
       />

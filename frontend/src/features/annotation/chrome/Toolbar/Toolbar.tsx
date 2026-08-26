@@ -5,6 +5,7 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Dropdown } from '~/shared/ui/motion';
 import {
   IconChevronDownFilled,
+  IconChevronLeft,
   IconFullscreenExitFilled,
   IconFullscreenFilled,
   IconGearFilled,
@@ -32,6 +33,7 @@ export interface ToolbarProps {
   /** Edit-layout controls (features/layout-edit's `EditControls`) - see the
    *  module doc for why this is a slot, not an import. */
   layoutControls?: ReactNode;
+  onNavigateCampaign?: () => void;
   onNavigateWorkPage?: () => void;
   onNavigateSettings?: () => void;
   onOpenTour?: () => void;
@@ -96,6 +98,7 @@ export function Toolbar({
   onTaskFilterChange,
   policy,
   layoutControls,
+  onNavigateCampaign,
   onNavigateWorkPage,
   onNavigateSettings,
   onOpenTour,
@@ -117,6 +120,19 @@ export function Toolbar({
       className="flex items-center justify-between px-2 desktop:px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0 gap-1"
     >
       <div className="flex items-center gap-0.5 desktop:gap-2">
+        {onNavigateCampaign && (
+          <button
+            type="button"
+            onClick={onNavigateCampaign}
+            className="flex items-center rounded px-1.5 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+            title={`Back to ${campaign.name}`}
+            aria-label={`Back to ${campaign.name}`}
+            data-testid="back-to-campaign"
+          >
+            <IconChevronLeft className="h-4 w-4 shrink-0" />
+          </button>
+        )}
+
         <ModeSwitch campaign={campaign} hasTasks={tasks.length > 0} policy={policy} />
 
         <ViewPicker campaign={campaign} />
