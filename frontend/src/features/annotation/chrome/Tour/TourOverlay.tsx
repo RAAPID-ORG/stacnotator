@@ -24,6 +24,7 @@ export interface TourOverlayProps {
   open: boolean;
   variant: TourVariant;
   hasTimeseries: boolean;
+  hasFormFields: boolean;
   /** Tasks mode with nothing visible under the current filter: the tour widens
    *  it for its duration so the task steps have something to walk through. */
   needsBroaderFilter?: boolean;
@@ -40,8 +41,6 @@ const TOOLTIP_FALLBACK = { width: 380, height: 200 };
 /** Re-measure cadence, so the spotlight tracks a dropdown opening or a panel
  *  being dragged without every such component reporting to the tour. */
 const REPOSITION_MS = 300;
-/** Breather between fulfilling a step and moving on, so the user sees it tick. */
-const AUTO_ADVANCE_MS = 800;
 
 function selectorFor(target: TourTarget): string {
   switch (target.kind) {
@@ -180,7 +179,7 @@ function ActionHint({ step, state }: { step: TourStep; state: TourState }) {
     >
       <span className="text-xs font-medium text-neutral-600">
         {done
-          ? 'Done!'
+          ? 'Done - hit Next when you are ready.'
           : waitsForLayoutEdit
             ? 'Drag a panel edge to resize, then click Save or Cancel.'
             : null}
@@ -213,12 +212,16 @@ export function TourOverlay({
   open,
   variant,
   hasTimeseries,
+  hasFormFields,
   needsBroaderFilter = false,
   onBroadenFilter,
   onRestoreFilter,
   onClose,
 }: TourOverlayProps) {
-  const steps = useMemo(() => buildTourSteps(variant, { hasTimeseries }), [variant, hasTimeseries]);
+  const steps = useMemo(
+    () => buildTourSteps(variant, { hasTimeseries, hasFormFields }),
+    [variant, hasTimeseries, hasFormFields]
+  );
   const [state, setState] = useState<TourState>(INITIAL_TOUR_STATE);
   const [rects, setRects] = useState<DOMRect[]>([]);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -390,14 +393,6 @@ export function TourOverlay({
       window.removeEventListener('resize', position);
     };
   }, [open, position, step]);
-
-  // Auto-advance once a practice step is satisfied, so the user never has to
-  // move their hand back to the mouse mid-drill.
-  useEffect(() => {
-    if (!open || !state.fulfilled) return;
-    const timer = setTimeout(() => dispatch({ type: 'next' }), AUTO_ADVANCE_MS);
-    return () => clearTimeout(timer);
-  }, [open, state.fulfilled, state.index, dispatch]);
 
   if (!open || !step) return null;
 

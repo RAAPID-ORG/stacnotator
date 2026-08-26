@@ -192,13 +192,13 @@ describe('tour engine task-filter broadening', () => {
 
 describe('tour steps content', () => {
   it('builds both variants, gated on whether the campaign has time series', () => {
-    const withTs = buildTourSteps('tasks', { hasTimeseries: true });
-    const withoutTs = buildTourSteps('tasks', { hasTimeseries: false });
+    const withTs = buildTourSteps('tasks', { hasTimeseries: true, hasFormFields: true });
+    const withoutTs = buildTourSteps('tasks', { hasTimeseries: false, hasFormFields: true });
     expect(withTs.length).toBe(withoutTs.length + 1);
     expect(withTs.some((s) => s.id === 'timeseries')).toBe(true);
     expect(withoutTs.some((s) => s.id === 'timeseries')).toBe(false);
 
-    const explore = buildTourSteps('explore', { hasTimeseries: true });
+    const explore = buildTourSteps('explore', { hasTimeseries: true, hasFormFields: true });
     expect(explore[0].title).toContain('Explore');
     expect(explore.some((s) => s.id === 'timeseries')).toBe(true);
   });
@@ -206,17 +206,52 @@ describe('tour steps content', () => {
   it('gives every step a unique id and every variant a closing step', () => {
     for (const variant of ['tasks', 'explore'] as const) {
       for (const hasTimeseries of [true, false]) {
-        const steps = buildTourSteps(variant, { hasTimeseries });
-        expect(new Set(steps.map((s) => s.id)).size).toBe(steps.length);
-        expect(steps[steps.length - 1].cheatSheet?.length).toBeGreaterThan(0);
-        expect(canAdvance(steps[steps.length - 1], INITIAL_TOUR_STATE)).toBe(true);
+        for (const hasFormFields of [true, false]) {
+          const steps = buildTourSteps(variant, { hasTimeseries, hasFormFields });
+          expect(new Set(steps.map((s) => s.id)).size).toBe(steps.length);
+          expect(steps[steps.length - 1].cheatSheet?.length).toBeGreaterThan(0);
+          expect(canAdvance(steps[steps.length - 1], INITIAL_TOUR_STATE)).toBe(true);
+        }
       }
     }
   });
 
+  it('teaches drawing, editing and deleting in explore mode', () => {
+    const explore = buildTourSteps('explore', { hasTimeseries: false, hasFormFields: false });
+    const drawing = explore.find((s) => s.id === 'drawing');
+    const editing = explore.find((s) => s.id === 'editing');
+    expect(drawing).toBeDefined();
+    expect(editing).toBeDefined();
+    expect(drawing!.bullets?.some((b) => b.text.includes('{{escape}}'))).toBe(true);
+    expect(editing!.bullets?.some((b) => b.text.includes('{{delete}}'))).toBe(true);
+  });
+
+  it('only walks through the annotation questions when the campaign asks any', () => {
+    for (const variant of ['tasks', 'explore'] as const) {
+      const withFields = buildTourSteps(variant, { hasTimeseries: false, hasFormFields: true });
+      const without = buildTourSteps(variant, { hasTimeseries: false, hasFormFields: false });
+      const mentions = (steps: typeof withFields) =>
+        JSON.stringify(steps).includes('{{tab}}') ||
+        steps.some((s) => s.id === 'annotation-questions');
+      expect(mentions(withFields)).toBe(true);
+      expect(mentions(without)).toBe(false);
+    }
+  });
+
+  it('never advances a practice step on its own - the reducer only moves on a next event', () => {
+    const steps = buildTourSteps('explore', { hasTimeseries: false, hasFormFields: false });
+    const practice = steps.findIndex((s) => s.requiredKeys != null);
+    const fulfilled = steps[practice].requiredKeys!.reduce(
+      (state, key) => reduce(steps, state, { type: 'key', key }).state,
+      { ...INITIAL_TOUR_STATE, index: practice }
+    );
+    expect(canAdvance(steps[practice], fulfilled)).toBe(true);
+    expect(fulfilled.index).toBe(practice);
+  });
+
   it('targets panels by id rather than a CSS selector', () => {
-    const targets = buildTourSteps('tasks', { hasTimeseries: true }).flatMap((s) =>
-      Array.isArray(s.target) ? s.target : [s.target]
+    const targets = buildTourSteps('tasks', { hasTimeseries: true, hasFormFields: true }).flatMap(
+      (s) => (Array.isArray(s.target) ? s.target : [s.target])
     );
     expect(targets.some((t) => t.kind === 'panel' && t.id === 'main')).toBe(true);
     expect(targets.some((t) => t.kind === 'panel' && t.id === 'controls')).toBe(true);
@@ -228,7 +263,7 @@ describe('tour steps content', () => {
 
   it('opens on a plain step and closes on the canvas view, not the other way round', () => {
     for (const variant of ['tasks', 'explore'] as const) {
-      const steps = buildTourSteps(variant, { hasTimeseries: true });
+      const steps = buildTourSteps(variant, { hasTimeseries: true, hasFormFields: true });
       expect(steps[0].id).toBe('welcome');
       const viewStep = steps.findIndex((s) => s.id.startsWith('canvas-view'));
       expect(viewStep).toBeGreaterThan(steps.length / 2);

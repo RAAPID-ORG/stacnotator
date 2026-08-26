@@ -2,6 +2,9 @@ import type { TourStep, TourVariant } from './engine';
 
 export interface TourConfig {
   hasTimeseries: boolean;
+  /** The campaign asks extra questions per annotation, so the tour has to
+   *  explain when they appear and what happens if they go unanswered. */
+  hasFormFields: boolean;
 }
 
 const toolbar = { kind: 'anchor', name: 'toolbar' } as const;
@@ -105,7 +108,7 @@ const LAYOUT_STEP: TourStep = {
   placement: 'bottom',
 };
 
-function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
+function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[] {
   return [
     {
       id: 'welcome',
@@ -235,7 +238,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
             title: 'Time Series Chart',
             body: [
               'The time series chart shows spectral indices (e.g. NDVI) for the task location over time. Vertical bars indicate the currently selected collection/slice.',
-              'Arm the timeseries probe in the map controls, then click the map to move the probe there. The + beside it drops a second probe so two places can be compared, and clicking a probe again takes it off the chart.',
+              'Pick up the timeseries probe from the map controls, then click the map to place it there. The + beside it drops a second probe so two places can be compared, and clicking a probe again takes it off the chart.',
               'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides observations that were flagged as cloud-covered, and Smooth applies a Savitzky-Golay filter to the curve so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
             ],
             placement: 'left' as const,
@@ -270,6 +273,13 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       body: ['This panel is where you actually annotate:'],
       bullets: [
         { text: 'Select a label (or press the number keys 1-9)' },
+        ...(hasFormFields
+          ? [
+              {
+                text: 'Answer the campaign’s questions below the labels - {{tab}} moves between them, and required ones must be filled in before the task can be submitted',
+              },
+            ]
+          : []),
         { text: 'Optionally add a comment (press {{c}} to focus it)' },
         { text: 'Adjust your confidence level with {{q}} / {{e}}' },
         { text: 'Press {{enter}} to submit, or use the Skip button to move on' },
@@ -364,7 +374,7 @@ function taskModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
   ];
 }
 
-function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
+function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[] {
   const toolKeys = hasTimeseries ? ['p', 'r', 'e', 't'] : ['p', 'r', 'e'];
 
   return [
@@ -460,11 +470,57 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
       target: controls,
       title: 'Annotation Controls',
       body: [
-        "We've armed the Annotate tool so the labels are on screen: the labels section lists the campaign's annotation classes and their geometry types (point, polygon, line).",
-        'Pick a label, then draw on the map. The number keys 1-9 select a label and arm the annotate tool in one go.',
+        "We've switched the Annotate tool on for you, so the labels are on screen: the labels section lists the campaign's annotation classes and their geometry types (point, polygon, line).",
+        'Pick a label, then draw on the map. The number keys 1-9 pick a label and switch to the Annotate tool in one go.',
       ],
       placement: 'left',
       effect: 'annotate-tool',
+    },
+    {
+      id: 'drawing',
+      target: [mainMap, controls],
+      title: 'Drawing an Annotation',
+      body: ['Pick a label first - the label decides the shape you draw.'],
+      bullets: [
+        { text: 'Point labels: one click on the map and it is placed.' },
+        {
+          text: 'Polygon and line labels: click each corner in turn, then finish with {{enter}} or a double-click.',
+        },
+        { text: '{{escape}} while drawing throws the shape away and starts over.' },
+      ],
+      placement: 'right',
+    },
+    ...(hasFormFields
+      ? [
+          {
+            id: 'annotation-questions',
+            target: controls,
+            title: 'Answering the Questions',
+            body: [
+              'This campaign asks a few questions about every annotation. The moment a shape is finished, the label list here is replaced by those questions.',
+              '{{tab}} and {{shift+tab}} move between the questions, and {{enter}} saves the annotation once they are answered. Anything marked required has to be filled in - closing the panel without it discards the annotation.',
+            ],
+            placement: 'left' as const,
+          },
+        ]
+      : []),
+    {
+      id: 'editing',
+      target: [mainMap, controls],
+      title: 'Changing and Removing Annotations',
+      body: ['Switch to the Edit tool with {{e}}, then click a shape on the map to pick it up.'],
+      bullets: [
+        { text: 'Drag its vertices to reshape it, then {{enter}} to keep the change.' },
+        { text: '{{escape}} drops the selection and leaves the annotation as it was.' },
+        {
+          text: hasFormFields
+            ? 'The panel on the left shows its label and answers while it is selected - both can be changed there and saved.'
+            : 'The panel on the left shows its label while it is selected, and lets you change it.',
+        },
+        { text: '{{delete}} removes the selected annotation for good.' },
+      ],
+      hint: 'You can only change or delete other people’s annotations if the campaign allows it.',
+      placement: 'right',
     },
     {
       id: 'practice-tools',
@@ -509,7 +565,7 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
             target: timeseries,
             title: 'Time Series Chart',
             body: [
-              'The time series chart shows spectral indices (e.g. NDVI) over time. Arm the Timeseries tool ({{t}}) and click the map to move the probe there; + in the map header (or {{shift+t}}) drops another one so two places can be compared.',
+              'The time series chart shows spectral indices (e.g. NDVI) over time. Switch to the Timeseries tool ({{t}}) and click the map to move the probe there; + in the map header (or {{shift+t}}) drops another one so two places can be compared.',
               'The options menu (sliders icon) offers two useful filters: Remove Cloudy hides cloud-flagged observations, and Smooth applies a Savitzky-Golay filter so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result.',
             ],
             placement: 'left' as const,
@@ -551,6 +607,8 @@ function exploreModeSteps({ hasTimeseries }: TourConfig): TourStep[] {
         { label: 'Select label', text: '1-9' },
         { label: 'Save the drawn shape', keys: ['enter'] },
         { label: 'Cancel the edit', keys: ['escape'] },
+        { label: 'Delete the selection', keys: ['delete'] },
+        ...(hasFormFields ? [{ label: 'Cycle form fields', keys: ['tab'] }] : []),
         { label: 'Cycle imagery', keys: ['i'] },
         { label: 'Cycle visualization', keys: ['shift+i'] },
         { label: 'Toggle view sync', keys: ['l'] },

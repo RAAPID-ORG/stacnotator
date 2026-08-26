@@ -605,6 +605,7 @@ export function AnnotationPage() {
         open={tourOpen && !settingUpFirstView}
         variant={workMode}
         hasTimeseries={campaign.time_series.length > 0}
+        hasFormFields={(campaign.settings.form_fields ?? []).length > 0}
         needsBroaderFilter={workMode === 'tasks' && visibleTasks.length === 0}
         onBroadenFilter={() => {
           filterBeforeTour.current = taskFilter;

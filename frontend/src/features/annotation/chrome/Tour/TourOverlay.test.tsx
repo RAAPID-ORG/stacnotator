@@ -17,6 +17,7 @@ function renderTour(props: Partial<Parameters<typeof TourOverlay>[0]> = {}) {
       open
       variant="tasks"
       hasTimeseries={false}
+      hasFormFields={false}
       onClose={props.onClose ?? (() => {})}
       {...props}
     />
