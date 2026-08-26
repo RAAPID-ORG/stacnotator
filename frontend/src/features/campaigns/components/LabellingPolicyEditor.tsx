@@ -13,6 +13,20 @@ const KIND_LABELS: Record<PolicyKind, string> = {
   anyone: 'Anyone (public visitors)',
 };
 
+// These groups are the whole vocabulary of the policy, and none of them are
+// self-explanatory the first time you meet them.
+const KIND_HELP: Record<PolicyKind, string> = {
+  admins: 'Admins of the project this campaign belongs to. They always keep full access.',
+  authoritative:
+    'Project members marked as authoritative reviewers, under the project’s Members tab. ' +
+    'Their labels are the ones treated as the reference when annotators disagree.',
+  assignees: 'Whoever a task is assigned to - each person, on their own tasks only.',
+  members: 'Everybody in the project, whatever their role.',
+  anyone:
+    'Visitors with no account, reaching the campaign through its public link. ' +
+    'Only available while the project is public.',
+};
+
 // Per-axis allowed kinds, mirrors backend/src/campaigns/schemas.py validators.
 const AXES: {
   key: AxisKey;
@@ -194,28 +208,22 @@ export const LabellingPolicyEditor = ({
             <div className="flex flex-wrap gap-x-5 gap-y-2">
               {axis.allowedKinds.map((kind) => {
                 const anyoneDisabled = kind === 'anyone' && !isPublic;
-                const checkbox = (
-                  <label
-                    key={kind}
-                    className={`flex items-center gap-1.5 text-xs text-neutral-700 ${
-                      anyoneDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={kinds.has(kind)}
-                      disabled={anyoneDisabled}
-                      onChange={(e) => toggleKind(axis.key, kind, e.target.checked)}
-                    />
-                    {KIND_LABELS[kind]}
-                  </label>
-                );
-                return anyoneDisabled ? (
-                  <Tooltip key={kind} text="Only available for public campaigns.">
-                    {checkbox}
+                return (
+                  <Tooltip key={kind} text={KIND_HELP[kind]} align="start">
+                    <label
+                      className={`flex items-center gap-1.5 text-xs text-neutral-700 ${
+                        anyoneDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={kinds.has(kind)}
+                        disabled={anyoneDisabled}
+                        onChange={(e) => toggleKind(axis.key, kind, e.target.checked)}
+                      />
+                      {KIND_LABELS[kind]}
+                    </label>
                   </Tooltip>
-                ) : (
-                  checkbox
                 );
               })}
 

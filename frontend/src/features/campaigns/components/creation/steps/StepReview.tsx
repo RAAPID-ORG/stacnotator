@@ -1,31 +1,19 @@
-import type { CampaignCreate } from '~/api/client';
 import type { FullValidationResult } from '~/features/campaigns/utils/campaignValidation';
 import { ValidationSummary, ValidationSuccess } from '~/features/campaigns/components/ValidationUI';
-import { STEP_CONFIG } from '../steps';
 
-export const StepReview = ({
-  form,
-  validation,
-}: {
-  form: CampaignCreate;
-  validation: FullValidationResult;
-}) => {
-  // Collect all error messages across steps for the summary
-  const allErrors: string[] = [];
-  const stepNames = STEP_CONFIG[form.mode ?? 'tasks'].map((s) => s.name);
-
-  const stepResults = [
-    validation.campaign,
-    validation.settings,
-    validation.imagery,
-    validation.timeseries,
+export const StepReview = ({ validation }: { validation: FullValidationResult }) => {
+  // Named rather than zipped against the step list: the wizard's order has
+  // changed before, and a positional mapping labels errors with the wrong step.
+  const byStep: [string, typeof validation.campaign][] = [
+    ['Campaign', validation.campaign],
+    ['Settings', validation.settings],
+    ['Imagery', validation.imagery],
+    ['Time Series', validation.timeseries],
   ];
 
-  stepResults.forEach((result, i) => {
-    Object.values(result.errors).forEach((msg) => {
-      allErrors.push(`${stepNames[i]}: ${msg}`);
-    });
-  });
+  const allErrors = byStep.flatMap(([name, result]) =>
+    Object.values(result.errors).map((msg) => `${name}: ${msg}`)
+  );
 
   return (
     <div className="space-y-4">

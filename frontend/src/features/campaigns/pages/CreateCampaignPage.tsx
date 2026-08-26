@@ -24,9 +24,10 @@ import { StepCampaign } from '../components/creation/steps/StepCampaign';
 import { StepSettings } from '../components/creation/steps/StepSettings';
 import { StepImagery, createInitialImageryState } from '../components/creation/steps/StepImagery';
 import { StepAddTimeseries } from '../components/creation/steps/StepAddTimeseries';
+import { StepAccess } from '../components/creation/steps/StepAccess';
 import { StepReview } from '../components/creation/steps/StepReview';
 import { StepIndicator } from '~/shared/ui/StepIndicator';
-import { STEP_CONFIG } from '../components/creation/steps';
+import { WIZARD_STEPS, WIZARD_STEP_NAMES } from '../components/creation/steps';
 import type { ImageryStepState } from '../components/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
@@ -110,28 +111,13 @@ export const CreateCampaignPage = () => {
     [validation]
   );
 
-  const currentStepConfig = [
-    { name: 'Campaign', component: 'StepCampaign' },
-    { name: 'Settings', component: 'StepSettings' },
-    { name: 'Imagery', component: 'StepImagery' },
-    { name: 'Time Series', component: 'StepAddTimeseries' },
-    { name: 'Create', component: 'StepReview' },
-  ] as const;
-
-  const totalSteps = currentStepConfig.length;
+  const totalSteps = WIZARD_STEPS.length;
 
   const getStepContent = () => {
-    const stepComponent = currentStepConfig[step - 1]?.component;
+    const stepComponent = WIZARD_STEPS[step - 1]?.component;
     switch (stepComponent) {
       case 'StepCampaign':
-        return (
-          <StepCampaign
-            form={form}
-            setForm={setForm}
-            projectIsPublic={project?.visibility === 'public'}
-            members={projectUsers}
-          />
-        );
+        return <StepCampaign form={form} setForm={setForm} />;
       case 'StepSettings':
         return <StepSettings form={form} setForm={setForm} />;
       case 'StepImagery':
@@ -146,8 +132,17 @@ export const CreateCampaignPage = () => {
         );
       case 'StepAddTimeseries':
         return <StepAddTimeseries form={form} setForm={setForm} />;
+      case 'StepAccess':
+        return (
+          <StepAccess
+            form={form}
+            setForm={setForm}
+            projectIsPublic={project?.visibility === 'public'}
+            members={projectUsers}
+          />
+        );
       case 'StepReview':
-        return <StepReview form={form} validation={validation} />;
+        return <StepReview validation={validation} />;
       default:
         return null;
     }
@@ -196,11 +191,7 @@ export const CreateCampaignPage = () => {
         </header>
 
         <div className="mb-6">
-          <StepIndicator
-            steps={STEP_CONFIG[form.mode ?? 'tasks'].map((s) => s.name)}
-            step={step}
-            onStepClick={setStep}
-          />
+          <StepIndicator steps={WIZARD_STEP_NAMES} step={step} onStepClick={setStep} />
         </div>
 
         {loadingProject ? (
