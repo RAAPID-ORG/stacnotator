@@ -2,6 +2,7 @@ import type { VisualizerImageryOut, VisualizerStepOut, VisualizerViewOut } from 
 import { applyRenderOverride, type RenderOverride } from '~/shared/imagery/tileColors';
 import { apiUrl } from '~/api/base';
 import {
+  BASEMAP_STYLE_URL,
   basemapAttribution,
   isProxiedTileUrl,
   needsKeyProxy,
@@ -39,13 +40,6 @@ export interface ViewerState {
    *  visualizer configured none at all, when the built-in one stands in. */
   basemapId: number | null;
 }
-
-/** Drawn when a visualizer configures no backdrop of its own, so imagery always
- *  has coastlines and place names around it. Keyless, hence no setup. */
-const DEFAULT_BASEMAP_URL = 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
-
-const DEFAULT_BASEMAP_ATTRIBUTION =
-  '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const OVERLAY_Z = 3;
 const VECTOR_Z = 8;
@@ -200,14 +194,9 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
       attribution: basemapAttribution(basemap.url),
     });
   } else if (view.basemaps.length === 0) {
-    layers.push({
-      kind: 'raster',
-      id: 'basemap',
-      url: DEFAULT_BASEMAP_URL,
-      auth: 'none',
-      zIndex: 0,
-      attribution: DEFAULT_BASEMAP_ATTRIBUTION,
-    });
+    // A visualizer that configures no backdrop still gets coastlines and place
+    // names, so imagery is never floating on an empty canvas.
+    layers.push({ kind: 'gl-style', id: 'basemap', styleUrl: BASEMAP_STYLE_URL, zIndex: 0 });
   }
 
   const source = activeSource(view, state);

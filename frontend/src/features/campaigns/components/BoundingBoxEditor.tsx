@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { addGlBasemap } from './leafletBasemap';
 import { COUNTRY_BBOXES } from '~/features/campaigns/utils/countryBboxes';
 import { Input } from '~/shared/ui/forms';
 
@@ -105,13 +106,7 @@ export const BoundingBoxEditor = ({
       attributionControl: true,
     });
 
-    // Add CartoDB basemap
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: ['a', 'b', 'c', 'd'],
-      maxZoom: 19,
-    }).addTo(map);
+    addGlBasemap(map);
 
     mapRef.current = map;
 

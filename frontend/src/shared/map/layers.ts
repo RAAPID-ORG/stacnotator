@@ -12,9 +12,11 @@ import XYZ from 'ol/source/XYZ';
 import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text } from 'ol/style';
 import { createXYZ } from 'ol/tilegrid';
 import { PMTilesVectorSource } from 'ol-pmtiles';
+import { applyBackground, applyStyle } from 'ol-mapbox-style';
 import type {
   FeatureLayerSpec,
   GeoFeature,
+  GlStyleLayerSpec,
   LayerId,
   LayerSpec,
   RasterLayerSpec,
@@ -240,6 +242,18 @@ function createVectorTileSource(spec: VectorTileLayerSpec): {
   return { key, source };
 }
 
+/** Paints a GL style onto a layer: the style JSON and its TileJSON are fetched
+ *  first, so the layer mounts empty and fills in. A failure leaves the map
+ *  without its backdrop rather than rejecting into the render loop. */
+function applyGlStyle(
+  layer: VectorTileLayer<VectorTileSource<RenderFeature>>,
+  spec: GlStyleLayerSpec
+) {
+  Promise.all([applyStyle(layer, spec.styleUrl), applyBackground(layer, spec.styleUrl)]).catch(
+    () => {}
+  );
+}
+
 function toOlFeatures(specs: GeoFeature[]): Feature[] {
   return specs.map((spec) => {
     const feature = geoJson.readFeature({
@@ -301,6 +315,13 @@ function buildLayer(spec: LayerSpec): BaseLayer {
     attachTileErrorRecovery(layer);
     return layer;
   }
+  if (spec.kind === 'gl-style') {
+    // Declutter so the style's own label collision rules apply; without it
+    // place names stack on top of each other at every zoom.
+    const layer = new VectorTileLayer<VectorTileSource<RenderFeature>>({ declutter: true });
+    applyGlStyle(layer, spec);
+    return layer;
+  }
   if (spec.kind === 'vector-tiles') {
     const { key, source } = createVectorTileSource(spec);
     const layer = new VectorTileLayer({
@@ -359,6 +380,9 @@ function needsNewSource(prev: LayerSpec, next: LayerSpec): boolean {
       prev.cacheScope !== next.cacheScope
     );
   }
+  if (next.kind === 'gl-style' && prev.kind === 'gl-style') {
+    return prev.styleUrl !== next.styleUrl;
+  }
   if (next.kind === 'vector-tiles' && prev.kind === 'vector-tiles') {
     return (
       prev.url !== next.url ||
@@ -379,6 +403,11 @@ function replaceSource(layer: BaseLayer, spec: LayerSpec): void {
     raster.set(SOURCE_KEY_PROP, key);
     if (previous) releaseSource(previous);
     attachTileErrorRecovery(raster);
+    return;
+  }
+  if (spec.kind === 'gl-style') {
+    // applyStyle rewrites the existing source's tile URLs in place.
+    applyGlStyle(layer as VectorTileLayer<VectorTileSource<RenderFeature>>, spec);
     return;
   }
   if (spec.kind === 'vector-tiles') {

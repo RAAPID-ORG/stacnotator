@@ -26,6 +26,12 @@ export function sliceProxyUrl(base: string, sliceId: number, vizName: string): s
 /** Where a campaign's key-proxied slice tiles are fetched from. */
 export const campaignProxyBase = (campaignId: number) => `/api/${campaignId}/imagery/slices`;
 
+/** The backdrop the app draws where no basemap is configured: the minimap, the
+ *  Leaflet admin maps, and a visualizer that ships none of its own. OpenFreeMap
+ *  serves this MapLibre style and its tiles without an API key, which CARTO's
+ *  raster tiles no longer are. Attribution comes from the style's TileJSON. */
+export const BASEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
+
 const ATTRIBUTIONS: Array<[string, string]> = [
   [
     'carto',

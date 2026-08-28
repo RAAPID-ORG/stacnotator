@@ -89,6 +89,8 @@ const mockViewer = async (page: Page, over: Record<string, unknown> = {}) => {
   await page.route('**/basemaps.cartocdn.com/**', (route) =>
     route.fulfill({ contentType: 'image/png', body: PIXEL })
   );
+  // The backdrop a visualizer with no basemaps of its own falls back to.
+  await page.route('**/tiles.openfreemap.org/**', (route) => route.abort());
   await page.route(`**/api/shared-visualizers/${SLUG}/tiler-token`, (route) =>
     route.fulfill({ json: { expires_in: 3600 } })
   );

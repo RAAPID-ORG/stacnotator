@@ -10,6 +10,7 @@ import Point from 'ol/geom/Point';
 import type RenderFeature from 'ol/render/Feature';
 import type Style from 'ol/style/Style';
 import { get as getProjection, fromLonLat } from 'ol/proj';
+import { applyBackground, applyStyle } from 'ol-mapbox-style';
 import {
   LAYER_ID_PROP,
   createLayer,
@@ -18,8 +19,20 @@ import {
   layerFeatureId,
   updateLayer,
 } from './layers';
-import type { FeatureLayerSpec, RasterLayerSpec, VectorTileLayerSpec } from './types';
+import type {
+  FeatureLayerSpec,
+  GlStyleLayerSpec,
+  RasterLayerSpec,
+  VectorTileLayerSpec,
+} from './types';
 import { SELECTED_EXTRA_WIDTH } from './types';
+
+// The real ones fetch the style JSON and its TileJSON; what this file can check
+// is that we hand them the right layer and URL.
+vi.mock('ol-mapbox-style', () => ({
+  applyStyle: vi.fn(() => Promise.resolve()),
+  applyBackground: vi.fn(() => Promise.resolve()),
+}));
 
 const mercator = getProjection('EPSG:3857')!;
 
@@ -325,5 +338,47 @@ describe('sharing tiles between maps', () => {
     destroyLayer(second);
     destroyLayer(third);
     expect(sourceOf(createLayer(spec))).not.toBe(shared);
+  });
+});
+
+describe('GL style layers', () => {
+  const spec = (over: Partial<GlStyleLayerSpec> = {}): GlStyleLayerSpec => ({
+    kind: 'gl-style',
+    id: 'basemap',
+    styleUrl: 'https://tiles.test/styles/positron',
+    ...over,
+  });
+
+  it('paints the style and its background onto a decluttered vector tile layer', () => {
+    const layer = createLayer(spec({ opacity: 0.6, zIndex: 0 }));
+
+    expect(layer).toBeInstanceOf(VectorTileLayer);
+    expect(layer.get(LAYER_ID_PROP)).toBe('basemap');
+    expect(layer.getOpacity()).toBe(0.6);
+    // Without declutter the style's own label collision rules never run.
+    expect((layer as VectorTileLayer<VectorTileSource<RenderFeature>>).getDeclutter()).toBeTruthy();
+    expect(applyStyle).toHaveBeenCalledWith(layer, 'https://tiles.test/styles/positron');
+    expect(applyBackground).toHaveBeenCalledWith(layer, 'https://tiles.test/styles/positron');
+  });
+
+  it('re-applies only when the style URL changes', () => {
+    const prev = spec();
+    const layer = createLayer(prev);
+    vi.mocked(applyStyle).mockClear();
+
+    updateLayer(layer, prev, { ...prev, opacity: 0.5 });
+    expect(applyStyle).not.toHaveBeenCalled();
+    expect(layer.getOpacity()).toBe(0.5);
+
+    const next = spec({ styleUrl: 'https://tiles.test/styles/dark' });
+    updateLayer(layer, prev, next);
+    expect(applyStyle).toHaveBeenCalledWith(layer, 'https://tiles.test/styles/dark');
+  });
+
+  // olms owns the source, so it must not be handed to the shared raster pool.
+  it('holds no pooled source to release', () => {
+    const layer = createLayer(spec());
+    expect(() => destroyLayer(layer)).not.toThrow();
+    expect(sourceOf(layer)).toBeNull();
   });
 });

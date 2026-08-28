@@ -38,9 +38,19 @@ export default defineConfig({
 
           // Heavy libs that change rarely - split so app-code changes don't
           // invalidate them in long-lived (1y immutable) caches.
-          if (id.includes('/node_modules/ol/')) return 'ol';
+          if (id.includes('/node_modules/ol/') || id.includes('/node_modules/ol-mapbox-style/'))
+            return 'ol';
           if (id.includes('/node_modules/leaflet/') || id.includes('/node_modules/@geoman-io/'))
             return 'leaflet';
+          // Only the Leaflet admin maps render with maplibre, and they load it
+          // on demand - so it gets a chunk of its own rather than being merged
+          // into shared UI. Matched narrowly: ol-mapbox-style's own
+          // @maplibre/maplibre-gl-style-spec belongs with `ol`, not here.
+          if (
+            id.includes('/node_modules/maplibre-gl/') ||
+            id.includes('/node_modules/@maplibre/maplibre-gl-leaflet/')
+          )
+            return 'maplibre';
           if (
             id.includes('/node_modules/chart.js/') ||
             id.includes('/node_modules/chartjs-plugin-zoom/')
@@ -99,6 +109,10 @@ export default defineConfig({
       'ol/style/Style',
       'ol/tilegrid',
     ],
+    // maplibre-gl spawns its worker from a URL relative to its own module.
+    // Pre-bundling rewrites the module but not that worker chunk, so in dev the
+    // worker fails to load and the map silently never fetches its style.
+    exclude: ['maplibre-gl'],
   },
   server: {
     host: true, // Listen on all addresses (needed for Docker)

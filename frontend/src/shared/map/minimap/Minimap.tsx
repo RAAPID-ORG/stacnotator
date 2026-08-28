@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useContainerSize } from '~/shared/hooks/useContainerSize';
 import { type Camera, useCameraBounds, useCameraZoom } from '../Camera';
 import { MapView } from '../MapView';
-import type { Bbox, LayerSpec, LonLat, RasterLayerSpec } from '../types';
+import { BASEMAP_STYLE_URL } from '~/shared/imagery/tileUrls';
+import type { Bbox, GlStyleLayerSpec, LayerSpec, LonLat } from '../types';
 import {
   centerOfBounds,
   containsPoint,
@@ -12,13 +13,10 @@ import {
   viewportRectLayer,
 } from './viewportRect';
 
-const MINIMAP_BASEMAP: RasterLayerSpec = {
-  kind: 'raster',
+const MINIMAP_BASEMAP: GlStyleLayerSpec = {
+  kind: 'gl-style',
   id: 'minimap-basemap',
-  url: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-  auth: 'none',
-  attribution: 'OSM, CARTO',
-  maxZoom: 19,
+  styleUrl: BASEMAP_STYLE_URL,
 };
 
 /** How far a press may travel and still count as a click rather than a pan. */

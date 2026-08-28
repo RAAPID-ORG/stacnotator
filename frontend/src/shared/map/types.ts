@@ -38,6 +38,19 @@ export interface RasterLayerSpec {
   cacheScope?: string;
 }
 
+/** A MapLibre GL style, rendered as vector tiles. Only the keyless backdrops
+ *  we ship use this - a campaign's configured basemaps stay XYZ rasters. */
+export interface GlStyleLayerSpec {
+  kind: 'gl-style';
+  id: LayerId;
+  /** Style JSON URL. Tile URLs, zoom limits and attribution all come from the
+   *  style's own sources, so there is nothing else to configure here. */
+  styleUrl: string;
+  opacity?: number;
+  zIndex?: number;
+  visible?: boolean;
+}
+
 export interface VectorTileLayerSpec {
   kind: 'vector-tiles';
   id: LayerId;
@@ -76,7 +89,7 @@ export interface FeatureLayerSpec {
   minZoom?: number;
 }
 
-export type LayerSpec = RasterLayerSpec | VectorTileLayerSpec | FeatureLayerSpec;
+export type LayerSpec = RasterLayerSpec | GlStyleLayerSpec | VectorTileLayerSpec | FeatureLayerSpec;
 
 export interface CameraState {
   center: LonLat;

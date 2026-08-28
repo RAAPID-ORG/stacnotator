@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { addGlBasemap } from '../leafletBasemap';
 
 export function useLeafletMap(
   containerRef: React.RefObject<HTMLDivElement | null>,
@@ -23,12 +24,7 @@ export function useLeafletMap(
       attributionControl: true,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: ['a', 'b', 'c', 'd'],
-      maxZoom: 19,
-    }).addTo(map);
+    addGlBasemap(map);
 
     const bounds = L.latLngBounds([bbox.south, bbox.west], [bbox.north, bbox.east]);
     map.fitBounds(bounds, { padding: [20, 20] });

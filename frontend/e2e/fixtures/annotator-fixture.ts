@@ -361,6 +361,34 @@ async function installAuthBypass(page: Page): Promise<void> {
   await page.route('**/www.googleapis.com/**', (route) => route.abort());
   await page.route('**/firebaseinstallations.googleapis.com/**', (route) => route.abort());
 
+  // The minimap's backdrop, served locally so no spec depends on a public tile
+  // server. Shaped like the real thing - style, then the TileJSON the credit
+  // comes from - with the tiles they ask for blocked. The catch-all goes first
+  // because Playwright matches the most recently registered route.
+  await page.route('**/tiles.openfreemap.org/**', (route) => route.abort());
+  await page.route('**/tiles.openfreemap.org/styles/*', (route) =>
+    route.fulfill({
+      json: {
+        version: 8,
+        sources: { basemap: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' } },
+        layers: [
+          { id: 'roads', type: 'line', source: 'basemap', 'source-layer': 'transportation' },
+        ],
+      },
+    })
+  );
+  await page.route('**/tiles.openfreemap.org/planet', (route) =>
+    route.fulfill({
+      json: {
+        tilejson: '3.0.0',
+        tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'],
+        attribution: 'OpenFreeMap',
+        minzoom: 0,
+        maxzoom: 14,
+      },
+    })
+  );
+
   // Intercept the Firebase Auth JS module served by Vite and replace
   // the key exports with our fakes. This runs before the app code
   // imports from 'firebase/auth'.
