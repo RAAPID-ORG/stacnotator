@@ -10,7 +10,6 @@ from src.canvas.service import (
     sync_view_layouts,
 )
 from src.crypto import encrypt
-from src.imagery import registration
 from src.imagery.models import (
     Basemap,
     CollectionStacConfig,
@@ -23,7 +22,11 @@ from src.imagery.models import (
     SliceTileUrl,
     VisualizationTemplate,
 )
-from src.imagery.registration import StacRegistrationSpec
+from src.imagery.registration import (
+    PlanetRegistrationSpec,
+    Registration,
+    StacRegistrationSpec,
+)
 from src.imagery.schemas import (
     BasemapCreate,
     CollectionStacConfigCreate,
@@ -36,6 +39,7 @@ from src.imagery.schemas import (
 from src.imagery.tile_urls import update_collection_viz_params
 from src.layers import LayerOwner
 from src.organizations.models import Organization, OrganizationApiKey
+from src.planet.schemas import PlanetScenesGenerationConfigV1
 from src.tilers import providers, registry
 
 
@@ -360,8 +364,8 @@ def save_imagery_editor_state(
     db.flush()
 
     # Upsert sources. New ones go through the existing _create_source helper so
-    # the STAC pending-registration list works identically to campaign create.
-    pending_registrations: list[StacRegistrationSpec] = []
+    # the pending-registration list works identically to campaign create.
+    pending_registrations: list[Registration] = []
     current_sources: list[ImagerySource] = []
 
     for src_idx, src_create in enumerate(editor_state.sources):
@@ -404,12 +408,7 @@ def save_imagery_editor_state(
         "sources": campaign.imagery_sources,
         "views": campaign.imagery_views,
         "basemaps": created_basemaps,
-        "registrations": registration.PendingRegistrations(
-            stac=pending_registrations,
-            planet=registration.pending_planet_registrations(
-                db, [source.id for source in campaign.imagery_sources]
-            ),
-        ),
+        "registrations": pending_registrations,
         "bbox": bbox,
     }
 
@@ -543,7 +542,7 @@ def save_visualizer_imagery(
     visualizer,
     sources: list[ImagerySourceCreate],
     bbox: list[float],
-) -> registration.PendingRegistrations:
+) -> list[Registration]:
     """Reconcile a visualizer's own imagery, the way a campaign's is reconciled.
 
     Same rules as ``save_imagery_editor_state``: an entry with an id updates in
@@ -578,7 +577,7 @@ def save_visualizer_imagery(
                 db.delete(collection)
     db.flush()
 
-    pending: list[StacRegistrationSpec] = []
+    pending: list[Registration] = []
     for index, src_create in enumerate(sources):
         if src_create.id and src_create.id in existing:
             pending.extend(
@@ -590,12 +589,7 @@ def save_visualizer_imagery(
             )
             pending.extend(created)
     db.flush()
-    return registration.PendingRegistrations(
-        stac=pending,
-        planet=registration.pending_planet_registrations(
-            db, [source.id for source in visualizer.imagery_sources]
-        ),
-    )
+    return pending
 
 
 def save_visualizer_basemaps(db: Session, *, visualizer, basemaps: list[BasemapCreate]) -> None:
@@ -621,7 +615,7 @@ def _update_source_in_place(
     src_create: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
-) -> list[StacRegistrationSpec]:
+) -> list[Registration]:
     """Update source metadata + viz templates, then reconcile collections.
     Returns pending STAC registrations from any new or re-registered collections."""
     db_src.name = src_create.name
@@ -658,11 +652,9 @@ def _update_source_in_place(
                 )
             )
 
-    generation_series_by_key, stale_generation_series = _reconcile_generation_series(
+    generation_series_by_key, stale_generation_series, pending = _reconcile_generation_series(
         db, db_src, src_create
     )
-
-    pending: list[StacRegistrationSpec] = []
     for col_idx, col_create in enumerate(src_create.collections):
         existing_col = (
             next((c for c in db_src.collections if c.id == col_create.id), None)
@@ -712,16 +704,22 @@ def _update_source_in_place(
 
 def _reconcile_generation_series(
     db: Session, db_src: ImagerySource, src_create: ImagerySourceCreate
-) -> tuple[dict[str, int], list[ImageryGenerationSeries]]:
+) -> tuple[dict[str, int], list[ImageryGenerationSeries], list[Registration]]:
     """Upsert source-level generator inputs and resolve request keys to IDs.
 
     This is the persistence seam for generation provenance. Collection writes
     only receive the resolved foreign key; config ownership stays here.
+
+    A Planet series whose config is new or changed also comes back as a pending
+    registration: unlike a STAC collection, nothing else in the save flow can tell
+    that its layers have to be minted again.
     """
     existing = {series.id: series for series in db_src.generation_series}
     kept: set[int] = set()
     by_key: dict[str, int] = {}
+    pending: list[Registration] = []
     for incoming in src_create.generation_series:
+        config = incoming.config.model_dump(mode="json")
         if incoming.id is not None:
             series = existing.get(incoming.id)
             if series is None:
@@ -729,18 +727,33 @@ def _reconcile_generation_series(
                     status_code=400,
                     detail=f"Generation series {incoming.id} does not belong to source {db_src.id}",
                 )
-            series.config = incoming.config.model_dump(mode="json")
-            flag_modified(series, "config")
+            changed = series.config != config
+            if changed:
+                series.config = config
+                flag_modified(series, "config")
         else:
-            series = ImageryGenerationSeries(
-                source_id=db_src.id,
-                config=incoming.config.model_dump(mode="json"),
-            )
+            series = ImageryGenerationSeries(source_id=db_src.id, config=config)
             db.add(series)
             db.flush()
+            changed = True
         kept.add(series.id)
         by_key[incoming.key] = series.id
-    return by_key, [series for series_id, series in existing.items() if series_id not in kept]
+        if (
+            changed
+            and src_create.visualizations
+            and isinstance(incoming.config, PlanetScenesGenerationConfigV1)
+        ):
+            pending.append(
+                PlanetRegistrationSpec(
+                    source_id=db_src.id,
+                    source_name=src_create.name,
+                    generation_series_id=series.id,
+                    config=incoming.config,
+                    visualization_name=src_create.visualizations[0].name,
+                )
+            )
+    stale = [series for series_id, series in existing.items() if series_id not in kept]
+    return by_key, stale, pending
 
 
 def _update_collection_in_place(
@@ -891,10 +904,9 @@ def _create_source(
     src: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
-) -> tuple[ImagerySource, list[StacRegistrationSpec]]:
+) -> tuple[ImagerySource, list[Registration]]:
     """Create a single ImagerySource with all its children.
     Returns (source, pending_registrations)."""
-    pending: list[StacRegistrationSpec] = []
     source = ImagerySource(
         **owner.as_columns(),
         name=src.name,
@@ -909,7 +921,7 @@ def _create_source(
     db.add(source)
     db.flush()
 
-    generation_series_by_key, _ = _reconcile_generation_series(db, source, src)
+    generation_series_by_key, _, pending = _reconcile_generation_series(db, source, src)
 
     # Visualization templates
     for viz_idx, viz in enumerate(src.visualizations):

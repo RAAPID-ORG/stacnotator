@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.imagery import registration
-from src.imagery.registration import PendingRegistrations, StacRegistrationSpec
+from src.imagery.registration import StacRegistrationSpec
 from src.imagery.schemas import CollectionStacConfigCreate
 from src.layers import LayerOwner
 
@@ -42,7 +42,7 @@ class TestSpawnBackgroundRegistration:
     def test_spawns_the_registration_status_run(self, spawn):
         registration.spawn_background_registration(
             LayerOwner(campaign_id=1),
-            PendingRegistrations(stac=[_make_spec()]),
+            [_make_spec()],
             bbox=[0, 0, 1, 1],
         )
 
@@ -57,7 +57,7 @@ class TestSpawnBackgroundRegistration:
 
         specs = [_make_spec()]
         registration.spawn_background_registration(
-            LayerOwner(campaign_id=1), PendingRegistrations(stac=specs), bbox=[0, 0, 1, 1]
+            LayerOwner(campaign_id=1), specs, bbox=[0, 0, 1, 1]
         )
         db = MagicMock()
         assert spawn.call_args.kwargs["work"](db) == []
@@ -68,7 +68,7 @@ class TestSpawnBackgroundRegistration:
     def test_sanitizer_prefixes_the_domain(self, spawn):
         registration.spawn_background_registration(
             LayerOwner(campaign_id=1),
-            PendingRegistrations(stac=[_make_spec()]),
+            [_make_spec()],
             bbox=[0, 0, 1, 1],
         )
 

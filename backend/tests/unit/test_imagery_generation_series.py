@@ -105,7 +105,7 @@ def test_persistence_creates_one_config_owner_and_resolves_collection_key():
     db = FakeSession()
     source = ImagerySource(id=7, campaign_id=3, name="Source", generation_series=[])
 
-    by_key, stale = _reconcile_generation_series(db, source, source_payload())
+    by_key, stale, _ = _reconcile_generation_series(db, source, source_payload())
 
     assert by_key == {"series-a": 100}
     assert stale == []
@@ -137,7 +137,7 @@ def test_persistence_updates_kept_series_and_returns_stale_series_for_deletion()
     payload = source_payload(series_id=10)
     payload.generation_series[0].config.collection_title = "Updated series"
 
-    by_key, stale_series = _reconcile_generation_series(FakeSession(), source, payload)
+    by_key, stale_series, _ = _reconcile_generation_series(FakeSession(), source, payload)
 
     assert by_key == {"series-a": 10}
     assert kept.config["collection_title"] == "Updated series"
@@ -176,7 +176,7 @@ class TestGenerationConfigKinds:
                 "collection_period_unit": "months",
                 "slice_period_interval": 1,
                 "slice_period_unit": "days",
-                "cover_mode": "window",
+                "whole_window_cover": True,
             }
         )
 
@@ -186,3 +186,96 @@ class TestGenerationConfigKinds:
     def test_a_config_matching_neither_shape_is_rejected(self):
         with pytest.raises(ValidationError):
             self._series({"kind": "planet_scenes", "start_date": "2024-01-01"})
+
+
+PLANET_CONFIG = {
+    "kind": "planet_scenes",
+    "aoi": {"type": "Point", "coordinates": [0, 0]},
+    "start_date": "2024-01-01",
+    "end_date": "2024-01-31",
+    "collection_period_interval": 1,
+    "collection_period_unit": "months",
+    "slice_period_interval": 1,
+    "slice_period_unit": "days",
+    "whole_window_cover": True,
+}
+
+
+def planet_payload(*, series_id=None, **config_overrides):
+    return ImagerySourceCreate.model_validate(
+        {
+            "id": 7,
+            "name": "PlanetScope",
+            "visualizations": [{"name": "Visual"}],
+            "generation_series": [
+                {
+                    "key": "series-a",
+                    "id": series_id,
+                    "config": {**PLANET_CONFIG, **config_overrides},
+                }
+            ],
+            "collections": [
+                {
+                    "name": "January",
+                    "generation_series_key": "series-a",
+                    "slices": [{"start_date": "2024-01-05", "end_date": "2024-01-05"}],
+                }
+            ],
+        }
+    )
+
+
+class TestPlanetSeriesNeedRegistering:
+    """Minting spends Planet quota, so only a config that actually changed pays for it."""
+
+    def test_a_new_planet_series_is_handed_to_registration(self):
+        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[])
+
+        _, _, pending = _reconcile_generation_series(FakeSession(), source, planet_payload())
+
+        assert len(pending) == 1
+        assert pending[0].source_id == 7
+        assert pending[0].visualization_name == "Visual"
+        assert pending[0].config.start_date == "2024-01-01"
+
+    def test_saving_an_unchanged_planet_series_mints_nothing(self):
+        series = ImageryGenerationSeries(
+            id=10,
+            source_id=7,
+            config=PlanetScenesGenerationConfigV1.model_validate(PLANET_CONFIG).model_dump(
+                mode="json"
+            ),
+        )
+        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[series])
+
+        _, _, pending = _reconcile_generation_series(
+            FakeSession(), source, planet_payload(series_id=10)
+        )
+
+        assert pending == []
+
+    def test_a_changed_search_re_mints_the_series(self):
+        series = ImageryGenerationSeries(
+            id=10,
+            source_id=7,
+            config=PlanetScenesGenerationConfigV1.model_validate(PLANET_CONFIG).model_dump(
+                mode="json"
+            ),
+        )
+        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[series])
+
+        _, _, pending = _reconcile_generation_series(
+            FakeSession(), source, planet_payload(series_id=10, max_cloud_cover=20)
+        )
+
+        assert [spec.config.max_cloud_cover for spec in pending] == [20]
+
+    def test_an_unchanged_stac_series_is_not_a_registration_of_its_own(self):
+        series = ImageryGenerationSeries(id=10, source_id=7, config=generation_config())
+        source = ImagerySource(id=7, campaign_id=3, name="Source", generation_series=[series])
+
+        _, _, pending = _reconcile_generation_series(
+            FakeSession(), source, source_payload(series_id=10)
+        )
+
+        assert pending == []

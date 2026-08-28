@@ -163,7 +163,7 @@ SCENE_CONFIG = {
     "collection_period_unit": "months",
     "slice_period_interval": 1,
     "slice_period_unit": "days",
-    "cover_mode": "window",
+    "whole_window_cover": True,
 }
 
 
@@ -196,8 +196,8 @@ def test_scene_preview_returns_the_windows_and_slices_the_config_would_build(cli
 
     assert response.status_code == 200
     windows = response.json()
-    assert [w["name"] for w in windows] == ["2024-01"]
-    assert [s["name"] for s in windows[0]["slices"]] == ["2024-01-05", "2024-01-20"]
+    assert [w["start_date"] for w in windows] == ["2024-01-01"]
+    assert [s["start_date"] for s in windows[0]["slices"]] == ["2024-01-05", "2024-01-20"]
     assert windows[0]["slices"][0]["scene_count"] == 2
     # The cover stacks the whole window, which is what Planet's mosaics cannot offer.
     assert windows[0]["cover"]["scene_count"] == 3

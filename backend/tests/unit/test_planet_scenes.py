@@ -27,7 +27,7 @@ def config(**overrides) -> PlanetScenesGenerationConfigV1:
         collection_period_unit="months",
         slice_period_interval=1,
         slice_period_unit="days",
-        cover_mode="window",
+        whole_window_cover=True,
     )
     return PlanetScenesGenerationConfigV1(**{**defaults, **overrides})
 
@@ -82,21 +82,6 @@ class TestPeriods:
         assert all(p.start == p.end for p in got)
 
 
-class TestPeriodName:
-    @pytest.mark.parametrize(
-        ("start", "end", "expected"),
-        [
-            (date(2024, 1, 15), date(2024, 1, 15), "2024-01-15"),
-            (date(2024, 1, 1), date(2024, 1, 31), "2024-01"),
-            (date(2024, 1, 1), date(2024, 12, 31), "2024"),
-            (date(2024, 1, 1), date(2024, 3, 31), "2024-01 → 2024-03"),
-            (date(2024, 1, 3), date(2024, 1, 9), "2024-01-03 → 2024-01-09"),
-        ],
-    )
-    def test_whole_calendar_units_read_as_themselves(self, start, end, expected):
-        assert scenes.period_name(scenes.Period(start, end)) == expected
-
-
 class TestLayerIds:
     def make(self, *quality_by_id):
         return [
@@ -106,19 +91,16 @@ class TestLayerIds:
 
     def test_the_clearest_scene_is_emitted_last_so_it_draws_on_top(self):
         found = self.make(("a", 10), ("b", 90), ("c", 50))
-        assert scenes.layer_ids(found, min_quality=0, cap=10) == ("a", "c", "b")
+        assert scenes.layer_ids(found) == ("a", "c", "b")
 
-    def test_the_cap_keeps_the_clearest_scenes_not_the_first_ones(self):
+    def test_the_cap_keeps_the_clearest_scenes_not_the_first_ones(self, monkeypatch):
+        monkeypatch.setattr(scenes, "MAX_SCENES_PER_LAYER", 2)
         found = self.make(("a", 10), ("b", 90), ("c", 50))
-        assert scenes.layer_ids(found, min_quality=0, cap=2) == ("c", "b")
-
-    def test_scenes_below_the_floor_are_dropped_rather_than_ranked_last(self):
-        found = self.make(("a", 10), ("b", 90))
-        assert scenes.layer_ids(found, min_quality=50, cap=10) == ("b",)
+        assert scenes.layer_ids(found) == ("c", "b")
 
     def test_equal_quality_orders_by_id_so_the_same_search_mints_the_same_layer(self):
         found = self.make(("b", 50), ("a", 50))
-        assert scenes.layer_ids(found, min_quality=0, cap=10) == ("a", "b")
+        assert scenes.layer_ids(found) == ("a", "b")
 
 
 class TestGroup:
@@ -128,7 +110,7 @@ class TestGroup:
             feature("2", "2024-02-05T00:00:00Z", clear_percent=80),
         ]
         windows = scenes.group(found, config())
-        assert [w.name for w in windows] == ["2024-01", "2024-02"]
+        assert [w.period.start for w in windows] == [date(2024, 1, 1), date(2024, 2, 1)]
 
     def test_a_daily_slice_period_gives_one_slice_per_day_with_imagery(self):
         found = [
@@ -137,7 +119,7 @@ class TestGroup:
             feature("3", "2024-01-07T00:00:00Z", clear_percent=80),
         ]
         january = scenes.group(found, config(end_date="2024-01-31"))[0]
-        assert [s.name for s in january.slices] == ["2024-01-05", "2024-01-07"]
+        assert [s.period.start for s in january.slices] == [date(2024, 1, 5), date(2024, 1, 7)]
         assert january.slices[0].scene_ids == ("PSScene:2", "PSScene:1")
 
     def test_a_weekly_slice_period_stacks_the_week_into_one_layer(self):
@@ -158,16 +140,16 @@ class TestGroup:
         assert january.cover.scene_ids == ("PSScene:1", "PSScene:2")
         assert january.cover.period == january.period
 
-    def test_nth_cover_mode_leaves_the_cover_to_the_slices(self):
+    def test_without_a_window_cover_the_window_opens_on_a_slice(self):
         found = [feature("1", "2024-01-05T00:00:00Z", clear_percent=80)]
-        january = scenes.group(found, config(end_date="2024-01-31", cover_mode="nth"))[0]
+        january = scenes.group(found, config(end_date="2024-01-31", whole_window_cover=False))[0]
         assert january.cover is None
         assert len(january.slices) == 1
 
     def test_a_window_with_no_usable_imagery_is_not_offered(self):
         found = [feature("1", "2024-01-05T00:00:00Z", clear_percent=80)]
         windows = scenes.group(found, config())
-        assert [w.name for w in windows] == ["2024-01"]
+        assert [w.period.start for w in windows] == [date(2024, 1, 1)]
 
     def test_scenes_outside_the_configured_range_are_left_out(self):
         found = [feature("1", "2023-12-31T00:00:00Z", clear_percent=80)]
@@ -189,7 +171,6 @@ class TestMintingOneSlice:
 
     def job(self):
         group = scenes.SliceGroup(
-            name="2024-01-05",
             period=scenes.Period(date(2024, 1, 5), date(2024, 1, 5)),
             scene_ids=("PSScene:a", "PSScene:b"),
         )

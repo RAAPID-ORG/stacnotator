@@ -18,8 +18,6 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from src.planet.schemas import PlanetMosaicOut, PlanetSeriesMosaicsOut
 
 TILE_HOST = "tiles.planet.com"
-# Minted scene layers are served from the same numbered tile hosts as mosaics.
-LAYER_TILE_URL = "https://tiles0.planet.com/data/v1/layers/{layer_id}/{{z}}/{{x}}/{{y}}.png"
 _LAYER_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 
 _XYZ_PLACEHOLDERS = ("{z}", "{x}", "{y}")
@@ -155,4 +153,6 @@ def layer_template(layer_id: str) -> str:
     """
     if not _LAYER_ID.match(layer_id):
         raise UnexpectedTileLink(f"layer id is not safe to put in a URL path: {layer_id}")
-    return f"{LAYER_TILE_URL.format(layer_id=layer_id)}?api_key={{api_key}}"
+    return (
+        f"https://{TILE_HOST}/data/v1/layers/{layer_id}/{{z}}/{{x}}/{{y}}.png?api_key={{api_key}}"
+    )

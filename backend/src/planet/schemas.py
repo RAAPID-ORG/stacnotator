@@ -65,7 +65,6 @@ class PlanetScenesGenerationConfigV1(BaseModel):
 
     kind: Literal["planet_scenes"]
     version: Literal[1] = 1
-    # The GeoJSON geometry the search was bounded by, kept as searched.
     aoi: dict
     item_types: list[str] = ["PSScene"]
     start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
@@ -74,18 +73,14 @@ class PlanetScenesGenerationConfigV1(BaseModel):
     collection_period_unit: Literal["days", "weeks", "months", "years"]
     slice_period_interval: int = Field(ge=1)
     slice_period_unit: Literal["days", "weeks", "months", "years"]
-    # "window" stacks the whole window into a cover of its own - what a STAC cover
-    # search does, and what Planet's own mosaics cannot be asked for. "nth" makes one
-    # of the slices the cover instead.
-    cover_mode: Literal["window", "nth"]
-    cover_slice_nth: int = Field(default=1, ge=1)
+    # Stacks the whole window into a cover of its own - what a STAC cover search does,
+    # and what Planet's own mosaics cannot be asked for. Without it the window opens on
+    # its first slice.
+    whole_window_cover: bool
     # Pushed into Planet's search filter. Left at 100 the filter is omitted entirely,
     # so items that carry no cloud metadata are not silently dropped.
     max_cloud_cover: float = Field(default=100, ge=0, le=100)
-    # Applied to the unified clarity score after the search - see scenes.quality.
-    min_quality: float = Field(default=0, ge=0, le=100)
     quality_categories: list[str] = ["standard"]
-    max_scenes_per_layer: int = Field(default=200, ge=1)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -99,17 +94,15 @@ class PlanetScenesGenerationConfigV1(BaseModel):
 class PlanetSceneGroupOut(BaseModel):
     """One window or slice as previewed: what it covers and how much imagery it has."""
 
-    name: str
     start_date: str
     end_date: str
     scene_count: int
 
 
 class PlanetSceneWindowOut(BaseModel):
-    name: str
     start_date: str
     end_date: str
-    # Set under cover_mode="window": the whole window stacked into one layer.
+    # Set under whole_window_cover: the whole window stacked into one layer.
     cover: PlanetSceneGroupOut | None = None
     slices: list[PlanetSceneGroupOut]
 

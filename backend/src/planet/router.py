@@ -112,7 +112,6 @@ def list_planet_series_mosaics(
 
 def _previewed(group: scenes.SliceGroup) -> PlanetSceneGroupOut:
     return PlanetSceneGroupOut(
-        name=group.name,
         start_date=group.period.start.isoformat(),
         end_date=group.period.end.isoformat(),
         scene_count=len(group.scene_ids),
@@ -150,7 +149,6 @@ def preview_planet_scenes(
     )
     return [
         PlanetSceneWindowOut(
-            name=window.name,
             start_date=window.period.start.isoformat(),
             end_date=window.period.end.isoformat(),
             cover=_previewed(window.cover) if window.cover else None,

@@ -18,6 +18,10 @@ from typing import Any
 
 from src.planet.schemas import PlanetScenesGenerationConfigV1
 
+# One POST carries every id, and a layer of the clearest few hundred already has no
+# gaps left to fill.
+MAX_SCENES_PER_LAYER = 200
+
 
 @dataclass(frozen=True)
 class Scene:
@@ -40,21 +44,14 @@ class Period:
 
 @dataclass(frozen=True)
 class SliceGroup:
-    name: str
     period: Period
     scene_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
 class WindowGroup:
-    """One collection: its slices, and the cover stacked from the whole window.
+    """One collection: its slices, and the cover stacked from the whole window."""
 
-    ``cover`` is set only under ``cover_mode="window"``. Under ``"nth"`` the cover is
-    one of the slices, which is the collection's ``cover_slice_index`` and not a group
-    of its own.
-    """
-
-    name: str
     period: Period
     cover: SliceGroup | None
     slices: tuple[SliceGroup, ...]
@@ -65,8 +62,8 @@ def quality(properties: dict[str, Any]) -> float:
 
     ``clear_percent`` exists only on newer items, so ``cloud_cover`` stands in where it
     is missing, weighted lower because it is a coarser measure that misses thin cloud.
-    Scoring both onto one scale is what lets the filter be a threshold on the score
-    rather than on either field, so an older item is never dropped for lacking one.
+    Scoring both onto one scale is what keeps an older item rankable against a newer
+    one instead of being dropped for lacking a field.
     """
     clear = properties.get("clear_percent")
     if clear is not None:
@@ -128,34 +125,15 @@ def periods(start: date, end: date, interval: int, unit: str) -> list[Period]:
     return out
 
 
-def period_name(period: Period) -> str:
-    """A range titled by what it covers, whole calendar units reading as themselves."""
-    start, end = period.start, period.end
-    if start == end:
-        return start.isoformat()
-    if start.day == 1 and end.day == calendar.monthrange(end.year, end.month)[1]:
-        if (start.year, start.month) == (end.year, end.month):
-            return start.strftime("%Y-%m")
-        if (start.month, end.month) == (1, 12):
-            first, last = str(start.year), str(end.year)
-            return first if first == last else f"{first} → {last}"
-        return f"{start.strftime('%Y-%m')} → {end.strftime('%Y-%m')}"
-    return f"{start.isoformat()} → {end.isoformat()}"
-
-
-def layer_ids(candidates: Iterable[Scene], *, min_quality: float, cap: int) -> tuple[str, ...]:
-    """The ids one layer is minted from: the clearest ``cap`` scenes, in draw order.
+def layer_ids(candidates: Iterable[Scene]) -> tuple[str, ...]:
+    """The ids one layer is minted from: the clearest few hundred, in draw order.
 
     A layer stacks its ids in the order it is given them, so the best scene is emitted
     last. Which end Planet actually draws on top is the one thing here that has to be
     confirmed against the live service - flipping it is this ``reversed`` and its test.
     Ties break on the id so the same search always mints the same layer.
     """
-    kept = sorted(
-        (s for s in candidates if s.quality >= min_quality),
-        key=lambda s: (s.quality, s.id),
-        reverse=True,
-    )[:cap]
+    kept = sorted(candidates, key=lambda s: (s.quality, s.id), reverse=True)[:MAX_SCENES_PER_LAYER]
     return tuple(s.id for s in reversed(kept))
 
 
@@ -168,31 +146,24 @@ def group(
     that can never render is worse than one that is not offered.
     """
     found = scenes(features)
-    start = date.fromisoformat(config.start_date)
-    end = date.fromisoformat(config.end_date)
     windows: list[WindowGroup] = []
     for window in periods(
-        start, end, config.collection_period_interval, config.collection_period_unit
+        date.fromisoformat(config.start_date),
+        date.fromisoformat(config.end_date),
+        config.collection_period_interval,
+        config.collection_period_unit,
     ):
         inside = [s for s in found if window.start <= s.acquired <= window.end]
-        slices: list[SliceGroup] = []
-        for period in periods(
-            window.start, window.end, config.slice_period_interval, config.slice_period_unit
-        ):
-            ids = layer_ids(
-                (s for s in inside if period.start <= s.acquired <= period.end),
-                min_quality=config.min_quality,
-                cap=config.max_scenes_per_layer,
+        slices = tuple(
+            SliceGroup(period, ids)
+            for period in periods(
+                window.start, window.end, config.slice_period_interval, config.slice_period_unit
             )
-            if ids:
-                slices.append(SliceGroup(period_name(period), period, ids))
-        cover = None
-        if config.cover_mode == "window":
-            cover_ids = layer_ids(
-                inside, min_quality=config.min_quality, cap=config.max_scenes_per_layer
-            )
-            if cover_ids:
-                cover = SliceGroup(period_name(window), window, cover_ids)
+            if (ids := layer_ids(s for s in inside if period.start <= s.acquired <= period.end))
+        )
+        cover = (
+            SliceGroup(window, layer_ids(inside)) if config.whole_window_cover and inside else None
+        )
         if cover or slices:
-            windows.append(WindowGroup(period_name(window), window, cover, tuple(slices)))
+            windows.append(WindowGroup(window, cover, slices))
     return windows

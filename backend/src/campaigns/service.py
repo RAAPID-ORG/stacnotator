@@ -40,7 +40,7 @@ from src.imagery.models import (
 )
 from src.imagery.registration import (
     REGISTRATION_RUN,
-    PendingRegistrations,
+    Registration,
     re_register_stac_collections,
     spawn_background_registration,
 )
@@ -303,7 +303,7 @@ def create_campaign(
         db.refresh(campaign)
 
     # Create imagery structure (sources, collections, slices, views - no STAC calls yet)
-    pending_registrations = PendingRegistrations()
+    pending_registrations: list[Registration] = []
     registration_bbox: list[float] = []
     if imagery_editor_state:
         imagery_result = create_imagery_from_editor_state(

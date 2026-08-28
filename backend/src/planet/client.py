@@ -19,6 +19,7 @@ from urllib.parse import quote, urlparse
 import httpx
 
 from src import net_guard
+from src.planet import tiles
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,7 @@ API_HOST = "api.planet.com"
 API_ROOT = f"https://{API_HOST}/basemaps/v1"
 DATA_ROOT = f"https://{API_HOST}/data/v1"
 # Minting a scene layer is the one call that goes to the tile host rather than the API.
-LAYERS_HOST = "tiles.planet.com"
-LAYERS_URL = f"https://{LAYERS_HOST}/data/v1/layers"
+LAYERS_URL = f"https://{tiles.TILE_HOST}/data/v1/layers"
 READ_TIMEOUT = 30.0
 PAGE_SIZE = 500
 # A series is a decade of mosaics at worst; anything beyond this is a paging loop.

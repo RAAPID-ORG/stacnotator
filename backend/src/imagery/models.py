@@ -96,6 +96,14 @@ class ImagerySource(Base):
     def has_api_key(self) -> bool:
         return self.encrypted_api_key is not None or self.organization_api_key_id is not None
 
+    @property
+    def encrypted_key(self) -> str | None:
+        """The ciphertext to decrypt for this layer's tiles: its own key, or the
+        organization key it points at."""
+        return self.encrypted_api_key or (
+            self.organization_api_key.encrypted_key if self.organization_api_key else None
+        )
+
     # Registration state, per source rather than per campaign: one source can be
     # fully registered while another is still missing tiles, and the campaign's
     # single status cannot say which.
@@ -378,6 +386,14 @@ class Basemap(Base):
     @property
     def has_api_key(self) -> bool:
         return self.encrypted_api_key is not None or self.organization_api_key_id is not None
+
+    @property
+    def encrypted_key(self) -> str | None:
+        """The ciphertext to decrypt for this layer's tiles: its own key, or the
+        organization key it points at."""
+        return self.encrypted_api_key or (
+            self.organization_api_key.encrypted_key if self.organization_api_key else None
+        )
 
 
 class ImageryView(Base):

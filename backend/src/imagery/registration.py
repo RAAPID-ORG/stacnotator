@@ -13,7 +13,7 @@ import json
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 
@@ -28,16 +28,13 @@ from src.config import get_settings
 from src.crypto import DecryptionError, decrypt
 from src.imagery.models import (
     ImageryCollection,
-    ImageryGenerationSeries,
     ImagerySlice,
     ImagerySource,
     SliceTileUrl,
-    VisualizationTemplate,
 )
 from src.imagery.schemas import CollectionStacConfigCreate
 from src.imagery.tile_urls import _slice_viz_params
 from src.layers import LayerOwner
-from src.organizations.models import OrganizationApiKey
 from src.planet import client as planet_client
 from src.planet import scenes as planet_scenes
 from src.planet import tiles as planet_tiles
@@ -364,94 +361,11 @@ class PlanetRegistrationSpec:
     visualization_name: str
 
 
-@dataclass(frozen=True)
-class PendingRegistrations:
-    """What one save left for registration to do, by provider path.
-
-    Both paths end at the same place - a provider id and a tile URL against each
-    slice - so they travel together and share one background run and one status
-    field. Empty means there is nothing to spawn.
-    """
-
-    stac: list[StacRegistrationSpec] = field(default_factory=list)
-    planet: list[PlanetRegistrationSpec] = field(default_factory=list)
-
-    def __bool__(self) -> bool:
-        return bool(self.stac or self.planet)
+Registration = StacRegistrationSpec | PlanetRegistrationSpec
 
 
-def pending_planet_registrations(
-    db: Session, source_ids: list[int]
-) -> list[PlanetRegistrationSpec]:
-    """Planet scene series whose slices are still missing their tile URLs.
-
-    Being derived from the stored state rather than from what the save changed is
-    what makes this self-healing: a new source qualifies, a regenerated one whose
-    slice rows were replaced qualifies, a rename does not, and a run that failed
-    halfway retries on the next save.
-    """
-    if not source_ids:
-        return []
-    db.flush()
-    specs: list[PlanetRegistrationSpec] = []
-    series_rows = (
-        db.execute(
-            select(ImageryGenerationSeries).where(ImageryGenerationSeries.source_id.in_(source_ids))
-        )
-        .scalars()
-        .all()
-    )
-    for series in series_rows:
-        if series.config.get("kind") != "planet_scenes":
-            continue
-        source = db.get(ImagerySource, series.source_id)
-        # Queried rather than read off ``source.visualizations``: the save adds those
-        # rows by foreign key, so a source created in this transaction still has an
-        # empty relationship collection here and the series would be skipped.
-        visualization_name = db.execute(
-            select(VisualizationTemplate.name)
-            .where(VisualizationTemplate.source_id == series.source_id)
-            .order_by(VisualizationTemplate.display_order)
-            .limit(1)
-        ).scalar()
-        if source is None or visualization_name is None:
-            continue
-        unregistered = db.execute(
-            select(ImagerySlice.id)
-            .join(ImageryCollection, ImagerySlice.collection_id == ImageryCollection.id)
-            .outerjoin(SliceTileUrl, SliceTileUrl.slice_id == ImagerySlice.id)
-            .where(
-                ImageryCollection.generation_series_id == series.id,
-                SliceTileUrl.id.is_(None),
-            )
-            .limit(1)
-        ).first()
-        if unregistered is None:
-            continue
-        specs.append(
-            PlanetRegistrationSpec(
-                source_id=source.id,
-                source_name=source.name,
-                generation_series_id=series.id,
-                config=PlanetScenesGenerationConfigV1.model_validate(series.config),
-                visualization_name=visualization_name,
-            )
-        )
-    return specs
-
-
-def _provider_key(db: Session, source: ImagerySource) -> str | None:
-    """The source's Planet key in plaintext, from wherever it is stored."""
-    ciphertext = source.encrypted_api_key
-    if ciphertext is None and source.organization_api_key_id is not None:
-        organization_key = db.get(OrganizationApiKey, source.organization_api_key_id)
-        ciphertext = organization_key.encrypted_key if organization_key else None
-    if not ciphertext:
-        return None
-    try:
-        return decrypt(ciphertext)
-    except DecryptionError:
-        return None
+def _slice_key(period: "planet_scenes.Period") -> tuple[str, str]:
+    return period.start.isoformat(), period.end.isoformat()
 
 
 def _mint_slice_layer(
@@ -464,10 +378,19 @@ def _mint_slice_layer(
     except Exception as e:
         return {
             "collection": source_name,
-            "slice": group.name,
+            "slice": f"{group.period.start}",
             "datetime": f"{group.period.start}/{group.period.end}",
             "error": sanitize_error_message(e, fallback="Minting the tile layer failed"),
         }
+
+
+def _planet_error(spec: PlanetRegistrationSpec, slice_label: str, message: str) -> dict:
+    return {
+        "collection": spec.source_name,
+        "slice": slice_label,
+        "datetime": f"{spec.config.start_date}/{spec.config.end_date}",
+        "error": message,
+    }
 
 
 def _register_planet_sources(db: Session, specs: list[PlanetRegistrationSpec]) -> list[dict]:
@@ -491,15 +414,13 @@ def _register_planet_sources(db: Session, specs: list[PlanetRegistrationSpec]) -
         source = db.get(ImagerySource, spec.source_id)
         if source is None:
             continue
-        api_key = _provider_key(db, source)
+        try:
+            api_key = decrypt(source.encrypted_key) if source.encrypted_key else None
+        except DecryptionError:
+            api_key = None
         if api_key is None:
             errors.append(
-                {
-                    "collection": spec.source_name,
-                    "slice": "",
-                    "datetime": "",
-                    "error": "No usable Planet API key is configured for this source",
-                }
+                _planet_error(spec, "", "No usable Planet API key is configured for this source")
             )
             continue
         slice_rows = db.execute(
@@ -526,33 +447,27 @@ def _register_planet_sources(db: Session, specs: list[PlanetRegistrationSpec]) -
             )
         except Exception as e:
             errors.append(
-                {
-                    "collection": spec.source_name,
-                    "slice": "",
-                    "datetime": f"{config.start_date}/{config.end_date}",
-                    "error": sanitize_error_message(e, fallback="Planet scene search failed"),
-                }
+                _planet_error(
+                    spec, "", sanitize_error_message(e, fallback="Planet scene search failed")
+                )
             )
             continue
 
         wanted: list[tuple[int, planet_scenes.SliceGroup]] = []
         for window in planet_scenes.group(features, config):
             for group in (*([window.cover] if window.cover else []), *window.slices):
-                slice_id = slice_ids.get(
-                    (group.period.start.isoformat(), group.period.end.isoformat())
-                )
+                slice_id = slice_ids.get(_slice_key(group.period))
                 if slice_id is not None:
                     wanted.append((slice_id, group))
 
         empty = len(slice_ids) - len(wanted)
         if empty > 0:
             errors.append(
-                {
-                    "collection": spec.source_name,
-                    "slice": f"{empty} of {len(slice_ids)} slices",
-                    "datetime": f"{config.start_date}/{config.end_date}",
-                    "error": "Planet returned no usable scenes for these dates",
-                }
+                _planet_error(
+                    spec,
+                    f"{empty} of {len(slice_ids)} slices",
+                    "Planet returned no usable scenes for these dates",
+                )
             )
 
         with ThreadPoolExecutor(max_workers=PLANET_MINT_WORKERS) as pool:
@@ -623,7 +538,7 @@ def status_run_for(owner: LayerOwner) -> tuple[int, background.StatusField]:
 
 def spawn_background_registration(
     owner: LayerOwner,
-    pending: PendingRegistrations,
+    pending: list[Registration],
     bbox: list[float],
 ) -> None:
     """Run registration off the request path (see src/background.py).
@@ -634,16 +549,19 @@ def spawn_background_registration(
     (and begin_status_run) first, then calls this to rebuild the tile URLs and
     flip `registration_status` to ready/failed when done.
 
-    ``pending`` is already plain data (see `StacRegistrationSpec`), so the thread
-    hands it straight to registration without touching any ORM object from the
-    request session. Both provider paths share this one run rather than getting one
-    each: they would otherwise contend for the single status field this owner has.
+    ``pending`` is already plain data, so the thread hands it straight to
+    registration without touching any ORM object from the request session. Both
+    provider paths share this one run rather than getting one each: they would
+    otherwise contend for the single status field this owner has.
     """
     row_id, status_field = status_run_for(owner)
+    stac = [spec for spec in pending if isinstance(spec, StacRegistrationSpec)]
+    planet = [spec for spec in pending if isinstance(spec, PlanetRegistrationSpec)]
 
     def work(db: Session) -> list[dict]:
-        errors = _register_all_stac_browser_collections(db, pending.stac, bbox, owner.tile_scope)
-        return errors + _register_planet_sources(db, pending.planet)
+        return _register_all_stac_browser_collections(
+            db, stac, bbox, owner.tile_scope
+        ) + _register_planet_sources(db, planet)
 
     background.spawn_status_run(
         row_id,

@@ -40,7 +40,6 @@ from src.imagery.models import (
 )
 from src.imagery.proxy import build_upstream_tile_url
 from src.layers import LayerOwner
-from src.organizations.models import OrganizationApiKey
 from src.tile_bulkhead import tile_db_slot, tile_upstream_slot
 from src.tilers import tokens
 
@@ -145,17 +144,6 @@ def require_visualizer_tile_access(request: Request, visualizer_id: int = Path(.
     _assert_scope(request, LayerOwner(visualizer_id=visualizer_id).tile_scope)
 
 
-def _resolve_key(db: Session, layer: Basemap | ImagerySource) -> str | None:
-    """The layer's own key, or the organization key it points at. Both are the
-    same ciphertext; only where it is stored differs."""
-    if layer.encrypted_api_key is not None:
-        return layer.encrypted_api_key
-    if layer.organization_api_key_id is None:
-        return None
-    key = db.get(OrganizationApiKey, layer.organization_api_key_id)
-    return key.encrypted_key if key else None
-
-
 async def _proxy(template: str, encrypted_api_key: str | None, z: int, x: int, y: int) -> Response:
     if not encrypted_api_key:
         raise HTTPException(status_code=404, detail="Provider API key not configured")
@@ -212,7 +200,7 @@ def _basemap_lookup(basemap_id: int, owner: LayerOwner):
         basemap = db.get(Basemap, basemap_id)
         if basemap is None or basemap.owner != owner:
             raise HTTPException(status_code=404, detail="Basemap not found")
-        return basemap.url, _resolve_key(db, basemap)
+        return basemap.url, basemap.encrypted_key
 
     return lookup
 
@@ -237,7 +225,7 @@ def _slice_lookup(slice_id: int, visualization_name: str, owner: LayerOwner):
         ).scalar_one_or_none()
         if tile is None:
             raise HTTPException(status_code=404, detail="Tile URL not found")
-        return tile.tile_url, _resolve_key(db, source)
+        return tile.tile_url, source.encrypted_key
 
     return lookup
 
