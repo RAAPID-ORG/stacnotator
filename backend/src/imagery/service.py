@@ -702,6 +702,24 @@ def _update_source_in_place(
     return pending
 
 
+def _has_unminted_slice(db: Session, generation_series_id: int) -> bool:
+    """Whether a mint still owes this series a tile URL, which is how a run that failed
+    part-way is picked back up on the next save."""
+    return (
+        db.execute(
+            select(ImagerySlice.id)
+            .join(ImageryCollection, ImagerySlice.collection_id == ImageryCollection.id)
+            .outerjoin(SliceTileUrl, SliceTileUrl.slice_id == ImagerySlice.id)
+            .where(
+                ImageryCollection.generation_series_id == generation_series_id,
+                SliceTileUrl.id.is_(None),
+            )
+            .limit(1)
+        ).first()
+        is not None
+    )
+
+
 def _reconcile_generation_series(
     db: Session, db_src: ImagerySource, src_create: ImagerySourceCreate
 ) -> tuple[dict[str, int], list[ImageryGenerationSeries], list[Registration]]:
@@ -710,9 +728,10 @@ def _reconcile_generation_series(
     This is the persistence seam for generation provenance. Collection writes only
     receive the resolved foreign key; config ownership stays here.
 
-    A Planet series whose config is new or changed also comes back as a pending
-    registration - nothing else in the save flow can tell its layers need minting
-    again, and minting spends the organization's Planet quota.
+    A Planet series also comes back as a pending registration when its layers are not
+    what its config says they should be - nothing else in the save flow can tell.
+    Minting spends the organization's Planet quota, so a series that is unchanged and
+    fully minted asks for nothing.
     """
     existing = {series.id: series for series in db_src.generation_series}
     kept: set[int] = set()
@@ -739,9 +758,9 @@ def _reconcile_generation_series(
         kept.add(series.id)
         by_key[incoming.key] = series.id
         if (
-            changed
-            and src_create.visualizations
+            src_create.visualizations
             and isinstance(incoming.config, PlanetScenesGenerationConfigV1)
+            and (changed or _has_unminted_slice(db, series.id))
         ):
             pending.append(
                 PlanetRegistrationSpec(

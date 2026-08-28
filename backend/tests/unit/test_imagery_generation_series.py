@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -64,9 +66,10 @@ def source_payload(*, series_id=None):
 
 
 class FakeSession:
-    def __init__(self):
+    def __init__(self, unminted_slice=False):
         self.next_id = 100
         self.added = []
+        self.unminted_slice = unminted_slice
 
     def add(self, value):
         if value.id is None:
@@ -76,6 +79,10 @@ class FakeSession:
 
     def flush(self):
         pass
+
+    def execute(self, _statement):
+        """Only _has_unminted_slice reads through here."""
+        return SimpleNamespace(first=lambda: (1,) if self.unminted_slice else None)
 
 
 def test_generation_config_is_versioned_typed_and_strict():
@@ -238,7 +245,7 @@ class TestPlanetSeriesNeedRegistering:
         assert pending[0].visualization_name == "Visual"
         assert pending[0].config.start_date == "2024-01-01"
 
-    def test_saving_an_unchanged_planet_series_mints_nothing(self):
+    def test_saving_an_unchanged_and_fully_minted_series_mints_nothing(self):
         series = ImageryGenerationSeries(
             id=10,
             source_id=7,
@@ -253,6 +260,22 @@ class TestPlanetSeriesNeedRegistering:
         )
 
         assert pending == []
+
+    def test_a_series_a_failed_run_left_half_minted_is_picked_back_up(self):
+        series = ImageryGenerationSeries(
+            id=10,
+            source_id=7,
+            config=PlanetScenesGenerationConfigV1.model_validate(PLANET_CONFIG).model_dump(
+                mode="json"
+            ),
+        )
+        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[series])
+
+        _, _, pending = _reconcile_generation_series(
+            FakeSession(unminted_slice=True), source, planet_payload(series_id=10)
+        )
+
+        assert [spec.generation_series_id for spec in pending] == [10]
 
     def test_a_changed_search_re_mints_the_series(self):
         series = ImageryGenerationSeries(
