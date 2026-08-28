@@ -28,7 +28,7 @@ def _serve_basemap(monkeypatch, url: str, log: list[str]) -> None:
                 campaign_id=CAMPAIGN_ID,
                 owner=LayerOwner(campaign_id=CAMPAIGN_ID),
                 url=url,
-                encrypted_api_key="enc",
+                encrypted_key="enc",
             )
 
         def close(self):

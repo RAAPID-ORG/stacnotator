@@ -15,6 +15,7 @@ from src.imagery import proxy_router
 from src.imagery.models import Basemap
 from src.imagery.router import bearer
 from src.main import app
+from src.organizations.models import OrganizationApiKey
 from src.tilers import tokens as tiler_token
 
 CAMPAIGN_ID = 7
@@ -194,11 +195,12 @@ def test_proxy_uses_the_organization_key_when_the_layer_points_at_one(
         name="p",
         url="https://e/{z}/{x}/{y}.png?api_key={api_key}",
     )
-    basemap.organization_api_key_id = 11
-    org_key = SimpleNamespace(id=11, encrypted_key=crypto.encrypt("shared-secret"))
+    basemap.organization_api_key = OrganizationApiKey(
+        id=11, encrypted_key=crypto.encrypt("shared-secret")
+    )
 
     db = MagicMock()
-    db.get.side_effect = lambda model, _id: basemap if model is Basemap else org_key
+    db.get.return_value = basemap
     monkeypatch.setattr(proxy_router, "SessionLocal", lambda: db)
 
     captured = {}
