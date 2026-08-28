@@ -56,7 +56,8 @@ def quality(properties: dict[str, Any]) -> float:
 
     ``clear_percent`` exists only on newer items, so ``cloud_cover`` stands in where it
     is missing, weighted lower because it misses thin cloud. One scale for both keeps
-    an older item rankable rather than dropped for lacking a field.
+    an older item rankable rather than dropped for lacking a field. Same heuristic and
+    same weighting Collect Earth Online scores Planet scenes with.
     """
     clear = properties.get("clear_percent")
     if clear is not None:
@@ -119,12 +120,16 @@ def periods(start: date, end: date, interval: int, unit: str) -> list[Period]:
 
 
 def layer_ids(candidates: Iterable[Scene]) -> tuple[str, ...]:
-    """The ids one layer is minted from: the clearest few hundred, in draw order.
+    """The ids one layer is minted from: the clearest few hundred, best last.
 
-    A layer stacks its ids in the order given, so the best scene is emitted last. Which
-    end Planet draws on top is the one thing here to confirm against the live service -
-    flipping it is this ``reversed`` and its test. Ties break on the id so the same
-    search always mints the same layer.
+    Planet documents no stacking rule for a layer's ids and its two open-source
+    consumers disagree: the QGIS plugin reverses its newest-first list before the POST,
+    putting the preferred scene last, which is the convention followed here; Collect
+    Earth Online sorts by the same quality score but records that the caller has no
+    control over the result. If a minted layer turns out to draw the cloudiest scene on
+    top, this ``reversed`` and its test are the whole fix.
+
+    Ties break on the id so the same search always mints the same layer.
     """
     kept = sorted(candidates, key=lambda s: (s.quality, s.id), reverse=True)[:MAX_SCENES_PER_LAYER]
     return tuple(s.id for s in reversed(kept))
