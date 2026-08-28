@@ -12,6 +12,7 @@ from pydantic import (
 )
 
 from src.canvas.schemas import CanvasLayoutOut
+from src.planet.schemas import PlanetScenesGenerationConfigV1
 
 # ============================================================================
 # Slice / Collection / Source - Output Schemas
@@ -89,6 +90,9 @@ class VisualizationTemplateOut(BaseModel):
 class ImageryGenerationConfigV1(BaseModel):
     """Lossless, versioned input for the temporal imagery generator."""
 
+    # Defaulted rather than required: series saved before Planet scenes existed carry
+    # no tag, and they are all STAC ones.
+    kind: Literal["stac"] = "stac"
     version: Literal[1] = 1
     catalog_url: str
     stac_collection_id: str
@@ -117,9 +121,14 @@ class ImageryGenerationConfigV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+# Deliberately not a discriminated union: the STAC tag is a default, so stored configs
+# written before it existed still parse.
+GenerationConfig = ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1
+
+
 class ImageryGenerationSeriesOut(BaseModel):
     id: int
-    config: ImageryGenerationConfigV1
+    config: GenerationConfig
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -292,7 +301,7 @@ class ImageryGenerationSeriesCreate(BaseModel):
 
     key: str = Field(min_length=1)
     id: int | None = None
-    config: ImageryGenerationConfigV1
+    config: GenerationConfig
 
 
 class VisualizationTemplateCreate(BaseModel):

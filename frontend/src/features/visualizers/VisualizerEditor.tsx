@@ -176,7 +176,6 @@ export function VisualizerEditor({
       title={visualizerId === null ? 'New visualizer' : 'Edit visualizer'}
       onClose={onClose}
       maxWidth="max-w-3xl"
-      scrollable
       footer={
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-neutral-500">

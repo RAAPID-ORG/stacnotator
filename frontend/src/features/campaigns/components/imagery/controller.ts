@@ -7,6 +7,7 @@ import {
 import type {
   ImageryEditorStateCreate,
   ImageryGenerationConfigV1,
+  ImageryGenerationSeriesOut,
   ImagerySourceOut,
   ImageryCollectionOut,
 } from '~/api/client';
@@ -74,6 +75,9 @@ function withoutCollection(source: ImagerySource, collectionId: string): Partial
   return {
     collections,
     generationSeries: source.generationSeries.filter((series) => referencedSeries.has(series.id)),
+    rawGenerationSeries: (source.rawGenerationSeries ?? []).filter((series) =>
+      referencedSeries.has(series.key)
+    ),
   };
 }
 
@@ -236,6 +240,12 @@ function isMpcCatalogUrl(url: string | null | undefined): boolean {
   }
 }
 
+/** Which of the two shapes the config column holds. Only the STAC one is authored
+ *  here; the rest round-trips untouched. */
+const isStacGenerationConfig = (
+  config: ImageryGenerationSeriesOut['config']
+): config is ImageryGenerationConfigV1 => config.kind !== 'planet_scenes';
+
 function generationConfigToFrontend(config: ImageryGenerationConfigV1): ImageryGenerationConfig {
   return {
     version: 1,
@@ -340,10 +350,14 @@ export function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
     defaultZoom: src.default_zoom,
     maxNativeZoom: src.max_native_zoom,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
-    generationSeries: (src.generation_series ?? []).map((series) => ({
-      id: String(series.id),
-      config: generationConfigToFrontend(series.config),
-    })),
+    generationSeries: (src.generation_series ?? []).flatMap((series) =>
+      isStacGenerationConfig(series.config)
+        ? [{ id: String(series.id), config: generationConfigToFrontend(series.config) }]
+        : []
+    ),
+    rawGenerationSeries: (src.generation_series ?? [])
+      .filter((series) => !isStacGenerationConfig(series.config))
+      .map((series) => ({ key: String(series.id), id: series.id, config: series.config })),
     collections: src.collections.map((col) => mapCollectionOutToFe(col, vizNames)),
     hasApiKey: src.has_api_key,
     organizationApiKeyId: src.organization_api_key_id,

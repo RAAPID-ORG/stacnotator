@@ -101,3 +101,16 @@ def test_describe_series_keeps_unusable_mosaics_with_a_reason():
     assert reasons[1] and reasons[2]
     assert [m.name for m in described.mosaics] == ["good", "no_link", "bad_link"]
     assert described.mosaics[1].tile_urls == {}
+
+
+class TestLayerTemplate:
+    def test_the_key_is_a_placeholder_the_proxy_fills_in(self):
+        url = tiles.layer_template("abc123")
+
+        assert url.endswith("?api_key={api_key}")
+        assert "/data/v1/layers/abc123/{z}/{x}/{y}.png" in url
+
+    @pytest.mark.parametrize("layer_id", ["../evil", "a/b", "a?x=1", "a b"])
+    def test_a_layer_id_that_would_escape_the_path_is_refused(self, layer_id):
+        with pytest.raises(tiles.UnexpectedTileLink):
+            tiles.layer_template(layer_id)

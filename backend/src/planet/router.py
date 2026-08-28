@@ -10,8 +10,15 @@ from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.crypto import DecryptionError, decrypt
 from src.database import get_db, release
-from src.planet import client, tiles
-from src.planet.schemas import PlanetCredentials, PlanetSeriesMosaicsOut, PlanetSeriesOut
+from src.planet import client, scenes, tiles
+from src.planet.schemas import (
+    PlanetCredentials,
+    PlanetSceneGroupOut,
+    PlanetScenePreview,
+    PlanetSceneWindowOut,
+    PlanetSeriesMosaicsOut,
+    PlanetSeriesOut,
+)
 from src.projects.dependencies import require_project_access
 
 logger = logging.getLogger(__name__)
@@ -101,3 +108,53 @@ def list_planet_series_mosaics(
     release(db)
     mosaics = _upstream(lambda: client.list_mosaics(series_id, api_key), "list series mosaics")
     return tiles.describe_series(series_id, mosaics)
+
+
+def _previewed(group: scenes.SliceGroup) -> PlanetSceneGroupOut:
+    return PlanetSceneGroupOut(
+        name=group.name,
+        start_date=group.period.start.isoformat(),
+        end_date=group.period.end.isoformat(),
+        scene_count=len(group.scene_ids),
+    )
+
+
+@router.post("/scenes/preview", response_model=list[PlanetSceneWindowOut])
+def preview_planet_scenes(
+    request: PlanetScenePreview,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+):
+    """The windows and slices a scene config would produce, without minting anything.
+
+    This is the same search and the same grouping that registration runs later, so what
+    the wizard shows is what gets built - only the layers are missing, and those cost a
+    call each.
+    """
+    api_key = _api_key(request.credentials, db, user)
+    # See list_planet_series: Planet is a network call away and the connection must
+    # not sit idle in a transaction across it.
+    release(db)
+    config = request.config
+    features = _upstream(
+        lambda: client.search_scenes(
+            api_key,
+            geometry=config.aoi,
+            start=config.start_date,
+            end=config.end_date,
+            item_types=config.item_types,
+            max_cloud_cover=config.max_cloud_cover,
+            quality_categories=config.quality_categories,
+        ),
+        "search for scenes",
+    )
+    return [
+        PlanetSceneWindowOut(
+            name=window.name,
+            start_date=window.period.start.isoformat(),
+            end_date=window.period.end.isoformat(),
+            cover=_previewed(window.cover) if window.cover else None,
+            slices=[_previewed(s) for s in window.slices],
+        )
+        for window in scenes.group(features, config)
+    ]

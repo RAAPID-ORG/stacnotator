@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  getProjectOrganizationKeys,
   listPlanetSeries,
   listPlanetSeriesMosaics,
-  type OrganizationApiKeyOut,
   type PlanetCredentials,
   type PlanetSeriesMosaicsOut,
   type PlanetSeriesOut,
@@ -11,7 +9,7 @@ import {
 import { Modal } from '~/shared/ui/Modal';
 import { Button, Input, Select } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
-import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
+import { PlanetKeyConnect } from './PlanetKeyConnect';
 import {
   COLLECTION_PERIODS,
   defaultMosaicRange,
@@ -28,8 +26,6 @@ interface PlanetBrowserProps {
   onAdd: (source: ImagerySource) => Promise<void>;
   onClose: () => void;
 }
-
-const OWN_KEY = 'own';
 
 const NO_COVER = 'none';
 
@@ -51,12 +47,7 @@ const PERIOD_LABELS: Record<CollectionPeriod, string> = {
  * manual collections. Nothing is searched, registered or rendered on a tiler.
  */
 export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps) => {
-  const [keys, setKeys] = useState<OrganizationApiKeyOut[] | null>(null);
-  const [keyId, setKeyId] = useState<number | null>(null);
-  const [ownKey, setOwnKey] = useState('');
-  const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
-  /** The credential the browse calls are currently allowed to use, set by "Connect"
-   *  rather than by typing, so every keystroke does not fire a request at Planet. */
+  /** The credential the browse calls are currently allowed to use. */
   const [credentials, setCredentials] = useState<PlanetCredentials | null>(null);
   const [series, setSeries] = useState<PlanetSeriesOut[] | null>(null);
   const [chosen, setChosen] = useState<PlanetSeriesOut | null>(null);
@@ -72,20 +63,6 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [renderings, setRenderings] = useState<string[]>([]);
-
-  useEffect(() => {
-    void getProjectOrganizationKeys({ path: { project_id: projectId } })
-      .then(({ data }) => {
-        const items = data?.items ?? [];
-        setKeys(items);
-        // A shared key is the better default when the organization has one.
-        setKeyId(items[0]?.id ?? null);
-      })
-      .catch((err) => {
-        setKeys([]);
-        handleError(err, 'Failed to load organization keys', { showUser: false });
-      });
-  }, [projectId]);
 
   useEffect(() => {
     if (!credentials) return;
@@ -144,21 +121,11 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
 
   /** Any change to the key drops what the previous one found. */
   const reset = () => {
-    setCredentials(null);
     setSeries(null);
     setChosen(null);
     setDetails(null);
     setCoverSeries(null);
   };
-
-  const canConnect = keyId !== null || (ownKey.trim().length > 0 && readOnlyConfirmed);
-
-  const connect = () =>
-    setCredentials(
-      keyId !== null
-        ? { project_id: projectId, organization_api_key_id: keyId }
-        : { project_id: projectId, api_key: ownKey.trim() }
-    );
 
   const { collections, orphans } = useMemo(() => {
     // A chosen cover series whose mosaics are still in flight would otherwise
@@ -226,7 +193,6 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
       title="Add Planet basemaps"
       onClose={onClose}
       maxWidth="max-w-2xl"
-      scrollable
       footer={
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-neutral-500">
@@ -246,54 +212,14 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
       }
     >
       <div className="p-4 space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-xs text-neutral-700 font-medium">Planet API key</label>
-          <p className="text-[11px] text-neutral-500 leading-snug">
-            Use one of your organization&apos;s shared keys, or provide a key for this campaign. The
-            key is encrypted on the server and used only to fetch tiles on each annotator&apos;s
-            behalf - it never reaches their browser.
-          </p>
-          <Select
-            size="sm"
-            value={keyId === null ? OWN_KEY : String(keyId)}
-            onChange={(e) => {
-              setKeyId(e.target.value === OWN_KEY ? null : Number(e.target.value));
-              reset();
-            }}
-            aria-label="Planet key source"
-          >
-            {(keys ?? []).map((key) => (
-              <option key={key.id} value={key.id}>
-                {key.name} (organization)
-              </option>
-            ))}
-            <option value={OWN_KEY}>Enter a key for this campaign</option>
-          </Select>
-
-          {keyId === null && (
-            <>
-              <Input
-                size="sm"
-                type="password"
-                value={ownKey}
-                onChange={(e) => {
-                  setOwnKey(e.target.value);
-                  reset();
-                }}
-                placeholder="Paste your Planet API key"
-                autoComplete="off"
-                className="text-[11px] font-mono"
-              />
-              <ReadOnlyKeyConsent confirmed={readOnlyConfirmed} onChange={setReadOnlyConfirmed} />
-            </>
-          )}
-
-          {!credentials && (
-            <Button variant="secondary" size="sm" onClick={connect} disabled={!canConnect}>
-              Connect to Planet
-            </Button>
-          )}
-        </div>
+        <PlanetKeyConnect
+          projectId={projectId}
+          credentials={credentials}
+          onChange={(next) => {
+            reset();
+            setCredentials(next);
+          }}
+        />
 
         {loading && <p className="text-[11px] text-neutral-500">Asking Planet…</p>}
 

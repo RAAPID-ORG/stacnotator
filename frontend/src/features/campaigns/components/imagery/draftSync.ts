@@ -146,11 +146,14 @@ export function sourceToBackend(src: ImagerySource): ImagerySourceCreate {
     organization_api_key_id: src.organizationApiKeyId ?? null,
     api_key: src.apiKey || null,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
-    generation_series: src.generationSeries.map((series) => ({
-      key: series.id,
-      id: toIdField(series.id),
-      config: generationConfigToBackend(series.config),
-    })),
+    generation_series: [
+      ...src.generationSeries.map((series) => ({
+        key: series.id,
+        id: toIdField(series.id),
+        config: generationConfigToBackend(series.config),
+      })),
+      ...(src.rawGenerationSeries ?? []),
+    ],
     collections: src.collections.map((c) =>
       collectionToBackend(
         c,

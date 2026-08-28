@@ -415,7 +415,6 @@ export const SourceEditor = ({
         title="Edit collection"
         onClose={closeCollection}
         maxWidth="max-w-xl"
-        scrollable
         footer={
           <div className="flex items-center justify-between">
             <Button variant="primary" size="sm" onClick={closeCollection}>
@@ -446,7 +445,6 @@ export const SourceEditor = ({
       title="Edit source"
       onClose={onClose}
       maxWidth="max-w-xl"
-      scrollable
       footer={
         <div className="flex items-center justify-between gap-3">
           <button

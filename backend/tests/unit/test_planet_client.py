@@ -1,4 +1,5 @@
 import base64
+import json
 
 import httpx
 import pytest
@@ -95,3 +96,80 @@ def test_paging_stops_at_the_page_cap(planet):
 
     assert len(client.list_series("KEY")) == client.MAX_PAGES
     assert len(seen) == client.MAX_PAGES
+
+
+AOI = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}
+
+
+def _search(**overrides):
+    return {
+        "geometry": AOI,
+        "start": "2024-01-01",
+        "end": "2024-01-31",
+        "item_types": ["PSScene"],
+        **overrides,
+    }
+
+
+def test_scene_search_follows_paging_from_the_first_post(planet):
+    pages = iter(
+        [
+            {
+                "features": [{"id": "a"}],
+                "_links": {"_next": "https://api.planet.com/data/v1/searches/x?_page=2"},
+            },
+            {"features": [{"id": "b"}], "_links": {}},
+        ]
+    )
+    planet(lambda request: httpx.Response(200, json=next(pages)))
+
+    found = client.search_scenes("KEY", **_search())
+
+    assert [f["id"] for f in found] == ["a", "b"]
+
+
+def test_the_search_filter_carries_the_geometry_and_the_dates(planet):
+    seen = planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
+
+    client.search_scenes("KEY", **_search())
+
+    body = json.loads(seen[0].content)
+    kinds = {f["type"]: f for f in body["filter"]["config"]}
+    assert kinds["GeometryFilter"]["config"] == AOI
+    assert kinds["DateRangeFilter"]["config"]["gte"].startswith("2024-01-01")
+    assert body["item_types"] == ["PSScene"]
+
+
+def test_a_permissive_cloud_setting_sends_no_cloud_filter_at_all(planet):
+    seen = planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
+
+    client.search_scenes("KEY", **_search(max_cloud_cover=100))
+
+    kinds = {f["type"] for f in json.loads(seen[0].content)["filter"]["config"]}
+    assert "RangeFilter" not in kinds
+
+
+def test_a_cloud_limit_is_sent_as_planets_zero_to_one_fraction(planet):
+    seen = planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
+
+    client.search_scenes("KEY", **_search(max_cloud_cover=20))
+
+    cloud = next(
+        f for f in json.loads(seen[0].content)["filter"]["config"] if f["type"] == "RangeFilter"
+    )
+    assert cloud["config"] == {"lte": 0.2}
+
+
+def test_minting_a_layer_posts_the_ids_in_the_order_given(planet):
+    seen = planet(lambda request: httpx.Response(200, json={"name": "abc123"}))
+
+    assert client.create_layer("KEY", ["PSScene:a", "PSScene:b"]) == "abc123"
+    assert seen[0].content == b"ids=PSScene%3Aa%2CPSScene%3Ab"
+
+
+def test_an_empty_layer_is_refused_rather_than_posted(planet):
+    seen = planet(lambda request: httpx.Response(200, json={"name": "abc123"}))
+
+    with pytest.raises(client.PlanetError, match="empty scene layer"):
+        client.create_layer("KEY", [])
+    assert seen == []

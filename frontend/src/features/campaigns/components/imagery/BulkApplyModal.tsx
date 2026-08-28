@@ -302,7 +302,6 @@ const VizFocus = ({
       title={`Edit “${name}” · all collections`}
       onClose={onClose}
       maxWidth="max-w-xl"
-      scrollable
       footer={modalFooter(onClose, regularDirty || coverDirty, apply)}
     >
       <div className="p-4 space-y-3">
@@ -393,7 +392,6 @@ const SearchFocus = ({
       title="Search settings · all collections"
       onClose={onClose}
       maxWidth="max-w-xl"
-      scrollable
       footer={modalFooter(onClose, regularDirty || coverDirty, apply)}
     >
       <div className="p-4 space-y-3">

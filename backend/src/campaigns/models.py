@@ -52,7 +52,7 @@ class Campaign(Base):
         nullable=False,
     )
     mode: Mapped[str] = mapped_column(String(20), nullable=False)  # tasks or open
-    # Mosaic registration status: pending, registering, ready, failed
+    # Imagery registration status: pending, registering, ready, failed
     registration_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
     )

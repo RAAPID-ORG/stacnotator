@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field, model_validator
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PlanetCredentials(BaseModel):
@@ -50,3 +52,68 @@ class PlanetSeriesMosaicsOut(BaseModel):
     # Deepest zoom Planet serves for this series, from its ground resolution.
     max_native_zoom: int | None = None
     mosaics: list[PlanetMosaicOut]
+
+
+class PlanetScenesGenerationConfigV1(BaseModel):
+    """Lossless, versioned input for a Planet scene-stack source.
+
+    Saved on the source's generation series exactly as the STAC generator's config is,
+    so a source can be regenerated or extended later without anyone having to remember
+    what was searched. The periods here are what a window and a slice mean for this
+    source: "daily" is ``slice_period_interval=1``, ``slice_period_unit="days"``.
+    """
+
+    kind: Literal["planet_scenes"]
+    version: Literal[1] = 1
+    # The GeoJSON geometry the search was bounded by, kept as searched.
+    aoi: dict
+    item_types: list[str] = ["PSScene"]
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    collection_period_interval: int = Field(ge=1)
+    collection_period_unit: Literal["days", "weeks", "months", "years"]
+    slice_period_interval: int = Field(ge=1)
+    slice_period_unit: Literal["days", "weeks", "months", "years"]
+    # "window" stacks the whole window into a cover of its own - what a STAC cover
+    # search does, and what Planet's own mosaics cannot be asked for. "nth" makes one
+    # of the slices the cover instead.
+    cover_mode: Literal["window", "nth"]
+    cover_slice_nth: int = Field(default=1, ge=1)
+    # Pushed into Planet's search filter. Left at 100 the filter is omitted entirely,
+    # so items that carry no cloud metadata are not silently dropped.
+    max_cloud_cover: float = Field(default=100, ge=0, le=100)
+    # Applied to the unified clarity score after the search - see scenes.quality.
+    min_quality: float = Field(default=0, ge=0, le=100)
+    quality_categories: list[str] = ["standard"]
+    max_scenes_per_layer: int = Field(default=200, ge=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def dates_are_ordered(self) -> "PlanetScenesGenerationConfigV1":
+        if self.end_date < self.start_date:
+            raise ValueError("end_date must not precede start_date")
+        return self
+
+
+class PlanetSceneGroupOut(BaseModel):
+    """One window or slice as previewed: what it covers and how much imagery it has."""
+
+    name: str
+    start_date: str
+    end_date: str
+    scene_count: int
+
+
+class PlanetSceneWindowOut(BaseModel):
+    name: str
+    start_date: str
+    end_date: str
+    # Set under cover_mode="window": the whole window stacked into one layer.
+    cover: PlanetSceneGroupOut | None = None
+    slices: list[PlanetSceneGroupOut]
+
+
+class PlanetScenePreview(BaseModel):
+    credentials: PlanetCredentials
+    config: PlanetScenesGenerationConfigV1

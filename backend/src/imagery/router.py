@@ -63,7 +63,7 @@ def save_imagery(
         editor_state=editor_state,
     )
 
-    pending = result["pending_registrations"]
+    pending = result["registrations"]
     if pending:
         # Cycle-boundary clear, not a finished-work write: this commits before the
         # background thread spawns, so it cannot race finish_status_run's append.
@@ -73,7 +73,7 @@ def save_imagery(
         campaign.registration_errors = None
     db.commit()
     if pending:
-        registration.spawn_background_mosaic_registration(
+        registration.spawn_background_registration(
             LayerOwner(campaign_id=campaign.id), pending, result["bbox"]
         )
     return {

@@ -3,8 +3,13 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from src.imagery.models import ImageryCollection, ImageryGenerationSeries, ImagerySource
-from src.imagery.schemas import ImageryGenerationConfigV1, ImagerySourceCreate
+from src.imagery.schemas import (
+    ImageryGenerationConfigV1,
+    ImageryGenerationSeriesCreate,
+    ImagerySourceCreate,
+)
 from src.imagery.service import _reconcile_generation_series
+from src.planet.schemas import PlanetScenesGenerationConfigV1
 
 
 def generation_config(**overrides):
@@ -146,3 +151,38 @@ def test_collection_model_only_references_the_series():
     collection_columns = set(ImageryCollection.__table__.columns.keys())
     assert "generation_series_id" in collection_columns
     assert "generation_config" not in collection_columns
+
+
+class TestGenerationConfigKinds:
+    """The config column now holds two shapes; neither may swallow the other."""
+
+    def _series(self, config):
+        return ImageryGenerationSeriesCreate(key="k", config=config)
+
+    def test_a_config_saved_before_planet_scenes_existed_still_parses_as_stac(self):
+        series = self._series(generation_config())
+
+        assert isinstance(series.config, ImageryGenerationConfigV1)
+        assert series.config.kind == "stac"
+
+    def test_a_planet_scene_config_is_not_mistaken_for_a_stac_one(self):
+        series = self._series(
+            {
+                "kind": "planet_scenes",
+                "aoi": {"type": "Point", "coordinates": [0, 0]},
+                "start_date": "2024-01-01",
+                "end_date": "2024-01-31",
+                "collection_period_interval": 1,
+                "collection_period_unit": "months",
+                "slice_period_interval": 1,
+                "slice_period_unit": "days",
+                "cover_mode": "window",
+            }
+        )
+
+        assert isinstance(series.config, PlanetScenesGenerationConfigV1)
+        assert series.config.item_types == ["PSScene"]
+
+    def test_a_config_matching_neither_shape_is_rejected(self):
+        with pytest.raises(ValidationError):
+            self._series({"kind": "planet_scenes", "start_date": "2024-01-01"})

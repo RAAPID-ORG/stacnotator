@@ -1112,7 +1112,7 @@ export const CatalogBrowser = ({
     ) : undefined;
 
   return (
-    <Modal title={stepTitle} onClose={onClose} maxWidth="max-w-xl" scrollable footer={footer}>
+    <Modal title={stepTitle} onClose={onClose} maxWidth="max-w-xl" footer={footer}>
       <div className="p-4 space-y-3">
         {/* Full-screen loading for preset initialization */}
         {loading && preset && (

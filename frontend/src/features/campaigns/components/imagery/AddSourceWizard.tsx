@@ -6,6 +6,7 @@ import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
 import type { CatalogBrowserPreset, CatalogBrowserResult } from './CatalogBrowser';
 import { CollectionEditor } from './CollectionEditor';
 import { PlanetBrowser } from './PlanetBrowser';
+import { PlanetSceneBrowser } from './PlanetSceneBrowser';
 import type { CollectionItem, ImagerySource, NamedVizParams } from './types';
 import { emptyManualCollection, emptySource } from './types';
 import type { ImageryController } from './controller';
@@ -22,7 +23,8 @@ interface AddSourceWizardProps {
 type WizardStep =
   | { kind: 'pick-preset' }
   | { kind: 'configure-preset'; preset: CatalogBrowserPreset }
-  | { kind: 'planet' }
+  | { kind: 'planet-mosaics' }
+  | { kind: 'planet-scenes' }
   | { kind: 'custom-stac-question' }
   | { kind: 'custom-stac-browse' }
   | { kind: 'custom-xyz' };
@@ -49,10 +51,19 @@ export const AddSourceWizard = ({
 }: AddSourceWizardProps) => {
   const [step, setStep] = useState<WizardStep>({ kind: 'pick-preset' });
 
+  /** Both Planet flows finish the same way: the source is created, then handed to
+   *  the caller so it can be opened for editing. */
+  const added = async (source: ImagerySource) => {
+    await controller.addSource(source);
+    if (onCreated) onCreated(source.id);
+    else onClose();
+  };
+
   const back = () => {
     if (
       step.kind === 'configure-preset' ||
-      step.kind === 'planet' ||
+      step.kind === 'planet-mosaics' ||
+      step.kind === 'planet-scenes' ||
       step.kind === 'custom-stac-question'
     ) {
       setStep({ kind: 'pick-preset' });
@@ -113,15 +124,16 @@ export const AddSourceWizard = ({
     );
   }
 
-  if (step.kind === 'planet') {
+  if (step.kind === 'planet-mosaics') {
+    return <PlanetBrowser projectId={controller.projectId} onAdd={added} onClose={back} />;
+  }
+
+  if (step.kind === 'planet-scenes') {
     return (
-      <PlanetBrowser
+      <PlanetSceneBrowser
         projectId={controller.projectId}
-        onAdd={async (source) => {
-          await controller.addSource(source);
-          if (onCreated) onCreated(source.id);
-          else onClose();
-        }}
+        campaignBbox={campaignBbox}
+        onAdd={added}
         onClose={back}
       />
     );
@@ -186,7 +198,7 @@ export const AddSourceWizard = ({
               ))}
               <button
                 type="button"
-                onClick={() => setStep({ kind: 'planet' })}
+                onClick={() => setStep({ kind: 'planet-mosaics' })}
                 className="text-left px-4 py-3 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
               >
                 <div className="flex items-center gap-2">
@@ -197,8 +209,25 @@ export const AddSourceWizard = ({
                   </span>
                 </div>
                 <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                  High-resolution optical mosaics, worldwide, monthly or quarterly. Needs your
-                  organization&apos;s Planet key.
+                  Mosaics Planet has already built, at the cadence its series offer - monthly and
+                  quarterly worldwide, finer only where you are subscribed.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep({ kind: 'planet-scenes' })}
+                className="text-left px-4 py-3 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <IconStac className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                  <span className="text-sm font-medium text-neutral-900">Planet Daily Imagery</span>
+                  <span className="ml-auto text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold">
+                    PLANET
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-500 mt-1 leading-snug">
+                  The PlanetScope archive over your campaign area, grouped into periods you choose -
+                  down to a single day. Raw acquisitions stacked best-first, not a seamless basemap.
                 </p>
               </button>
               <button
@@ -313,7 +342,6 @@ const CustomXyzStep = ({ projectId, onBack, onConfirm }: CustomXyzStepProps) => 
       title="Add custom XYZ source"
       onClose={onBack}
       maxWidth="max-w-xl"
-      scrollable
       footer={
         <div className="flex justify-between">
           <button

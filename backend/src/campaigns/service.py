@@ -40,9 +40,9 @@ from src.imagery.models import (
 )
 from src.imagery.registration import (
     REGISTRATION_RUN,
-    RegistrationSpec,
+    PendingRegistrations,
     re_register_stac_collections,
-    spawn_background_mosaic_registration,
+    spawn_background_registration,
 )
 from src.imagery.service import create_imagery_from_editor_state
 from src.layers import LayerOwner
@@ -303,7 +303,7 @@ def create_campaign(
         db.refresh(campaign)
 
     # Create imagery structure (sources, collections, slices, views - no STAC calls yet)
-    pending_registrations: list[RegistrationSpec] = []
+    pending_registrations = PendingRegistrations()
     registration_bbox: list[float] = []
     if imagery_editor_state:
         imagery_result = create_imagery_from_editor_state(
@@ -311,8 +311,8 @@ def create_campaign(
             campaign=campaign,
             editor_state=imagery_editor_state,
         )
-        pending_registrations = imagery_result.get("pending_registrations", [])
-        registration_bbox = imagery_result.get("bbox", [])
+        pending_registrations = imagery_result["registrations"]
+        registration_bbox = imagery_result["bbox"]
 
     # Set initial statuses based on what background work is needed
     embedding_year = campaign.settings.embedding_year
@@ -328,10 +328,10 @@ def create_campaign(
 
     campaign_id = campaign.id
 
-    # Background thread: mosaic registration (off the request path so the
+    # Background thread: imagery registration (off the request path so the
     # commit above isn't blocked on the slow parallel STAC calls).
     if pending_registrations:
-        spawn_background_mosaic_registration(
+        spawn_background_registration(
             LayerOwner(campaign_id=campaign_id), pending_registrations, registration_bbox
         )
 

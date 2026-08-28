@@ -2352,6 +2352,10 @@ export type ImageryEditorStateCreate = {
  */
 export type ImageryGenerationConfigV1 = {
     /**
+     * Kind
+     */
+    kind?: 'stac';
+    /**
      * Version
      */
     version?: 1;
@@ -2470,7 +2474,10 @@ export type ImageryGenerationSeriesCreate = {
      * Id
      */
     id?: number | null;
-    config: ImageryGenerationConfigV1;
+    /**
+     * Config
+     */
+    config: ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1;
 };
 
 /**
@@ -2481,7 +2488,10 @@ export type ImageryGenerationSeriesOut = {
      * Id
      */
     id: number;
-    config: ImageryGenerationConfigV1;
+    /**
+     * Config
+     */
+    config: ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1;
 };
 
 /**
@@ -3280,6 +3290,140 @@ export type PlanetMosaicOut = {
      * Unavailable Reason
      */
     unavailable_reason?: string | null;
+};
+
+/**
+ * PlanetSceneGroupOut
+ *
+ * One window or slice as previewed: what it covers and how much imagery it has.
+ */
+export type PlanetSceneGroupOut = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Scene Count
+     */
+    scene_count: number;
+};
+
+/**
+ * PlanetScenePreview
+ */
+export type PlanetScenePreview = {
+    credentials: PlanetCredentials;
+    config: PlanetScenesGenerationConfigV1;
+};
+
+/**
+ * PlanetSceneWindowOut
+ */
+export type PlanetSceneWindowOut = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    cover?: PlanetSceneGroupOut | null;
+    /**
+     * Slices
+     */
+    slices: Array<PlanetSceneGroupOut>;
+};
+
+/**
+ * PlanetScenesGenerationConfigV1
+ *
+ * Lossless, versioned input for a Planet scene-stack source.
+ *
+ * Saved on the source's generation series exactly as the STAC generator's config is,
+ * so a source can be regenerated or extended later without anyone having to remember
+ * what was searched. The periods here are what a window and a slice mean for this
+ * source: "daily" is ``slice_period_interval=1``, ``slice_period_unit="days"``.
+ */
+export type PlanetScenesGenerationConfigV1 = {
+    /**
+     * Kind
+     */
+    kind: 'planet_scenes';
+    /**
+     * Version
+     */
+    version?: 1;
+    /**
+     * Aoi
+     */
+    aoi: {
+        [key: string]: unknown;
+    };
+    /**
+     * Item Types
+     */
+    item_types?: Array<string>;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Collection Period Interval
+     */
+    collection_period_interval: number;
+    /**
+     * Collection Period Unit
+     */
+    collection_period_unit: 'days' | 'weeks' | 'months' | 'years';
+    /**
+     * Slice Period Interval
+     */
+    slice_period_interval: number;
+    /**
+     * Slice Period Unit
+     */
+    slice_period_unit: 'days' | 'weeks' | 'months' | 'years';
+    /**
+     * Cover Mode
+     */
+    cover_mode: 'window' | 'nth';
+    /**
+     * Cover Slice Nth
+     */
+    cover_slice_nth?: number;
+    /**
+     * Max Cloud Cover
+     */
+    max_cloud_cover?: number;
+    /**
+     * Min Quality
+     */
+    min_quality?: number;
+    /**
+     * Quality Categories
+     */
+    quality_categories?: Array<string>;
+    /**
+     * Max Scenes Per Layer
+     */
+    max_scenes_per_layer?: number;
 };
 
 /**
@@ -9621,6 +9765,33 @@ export type ListPlanetSeriesMosaicsResponses = {
 };
 
 export type ListPlanetSeriesMosaicsResponse = ListPlanetSeriesMosaicsResponses[keyof ListPlanetSeriesMosaicsResponses];
+
+export type PreviewPlanetScenesData = {
+    body: PlanetScenePreview;
+    path?: never;
+    query?: never;
+    url: '/api/planet/scenes/preview';
+};
+
+export type PreviewPlanetScenesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewPlanetScenesError = PreviewPlanetScenesErrors[keyof PreviewPlanetScenesErrors];
+
+export type PreviewPlanetScenesResponses = {
+    /**
+     * Response Previewplanetscenes
+     *
+     * Successful Response
+     */
+    200: Array<PlanetSceneWindowOut>;
+};
+
+export type PreviewPlanetScenesResponse = PreviewPlanetScenesResponses[keyof PreviewPlanetScenesResponses];
 
 export type ListCustomMapsData = {
     body?: never;

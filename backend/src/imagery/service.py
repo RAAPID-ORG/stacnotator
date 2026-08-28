@@ -10,6 +10,7 @@ from src.canvas.service import (
     sync_view_layouts,
 )
 from src.crypto import encrypt
+from src.imagery import registration
 from src.imagery.models import (
     Basemap,
     CollectionStacConfig,
@@ -22,7 +23,7 @@ from src.imagery.models import (
     SliceTileUrl,
     VisualizationTemplate,
 )
-from src.imagery.registration import RegistrationSpec
+from src.imagery.registration import StacRegistrationSpec
 from src.imagery.schemas import (
     BasemapCreate,
     CollectionStacConfigCreate,
@@ -100,12 +101,12 @@ def _registration_spec(
     collection: ImageryCollection,
     col_create: ImageryCollectionCreate,
     src_create: ImagerySourceCreate,
-) -> RegistrationSpec:
+) -> StacRegistrationSpec:
     """Snapshot the plain fields `_register_all_stac_browser_collections` needs
     for one collection, decoupling the deferred registration from the ORM
     objects and request session that produced it."""
     assert col_create.stac_config is not None  # noqa: S101
-    return RegistrationSpec(
+    return StacRegistrationSpec(
         collection_id=collection.id,
         collection_name=collection.name,
         stac_config=col_create.stac_config,
@@ -277,8 +278,8 @@ def create_imagery_from_editor_state(
     A campaign with no existing imagery reduces the save/reconcile flow to pure
     creation, so this is a thin entry point over `save_imagery_editor_state`.
     Returns the same dict (keys 'sources', 'views', 'basemaps',
-    'pending_registrations', 'bbox'). Does NOT commit - caller commits and then
-    hands 'pending_registrations' to spawn_background_mosaic_registration.
+    'registrations', 'bbox'). Does NOT commit - caller commits and then
+    hands 'registrations' to spawn_background_registration.
     """
     return save_imagery_editor_state(db, campaign=campaign, editor_state=editor_state)
 
@@ -301,9 +302,9 @@ def save_imagery_editor_state(
     changed; pure metadata edits (rename, cover_slice_index) skip the expensive
     re-search and rebake viz params into the existing URLs instead.
 
-    Caller commits, then hands `pending_registrations` to
-    spawn_background_mosaic_registration - the actual STAC calls run off the
-    request path so this transaction isn't held open across them.
+    Caller commits, then hands `registrations` to spawn_background_registration -
+    the actual provider calls run off the request path so this transaction isn't
+    held open across them.
     """
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
@@ -360,7 +361,7 @@ def save_imagery_editor_state(
 
     # Upsert sources. New ones go through the existing _create_source helper so
     # the STAC pending-registration list works identically to campaign create.
-    pending_registrations: list[RegistrationSpec] = []
+    pending_registrations: list[StacRegistrationSpec] = []
     current_sources: list[ImagerySource] = []
 
     for src_idx, src_create in enumerate(editor_state.sources):
@@ -403,7 +404,12 @@ def save_imagery_editor_state(
         "sources": campaign.imagery_sources,
         "views": campaign.imagery_views,
         "basemaps": created_basemaps,
-        "pending_registrations": pending_registrations,
+        "registrations": registration.PendingRegistrations(
+            stac=pending_registrations,
+            planet=registration.pending_planet_registrations(
+                db, [source.id for source in campaign.imagery_sources]
+            ),
+        ),
         "bbox": bbox,
     }
 
@@ -537,7 +543,7 @@ def save_visualizer_imagery(
     visualizer,
     sources: list[ImagerySourceCreate],
     bbox: list[float],
-) -> list[RegistrationSpec]:
+) -> registration.PendingRegistrations:
     """Reconcile a visualizer's own imagery, the way a campaign's is reconciled.
 
     Same rules as ``save_imagery_editor_state``: an entry with an id updates in
@@ -547,9 +553,9 @@ def save_visualizer_imagery(
     the two. Basemaps are saved separately, so naming one never implies
     anything about the other.
 
-    Does not commit. The caller commits, then hands the returned specs to
-    ``spawn_background_mosaic_registration`` so the STAC calls run off the
-    request path.
+    Does not commit. The caller commits, then hands the returned work to
+    ``spawn_background_registration`` so the provider calls run off the request
+    path.
     """
     editor_state = ImageryEditorStateCreate(sources=sources, basemaps=[])
     organization = visualizer.project.organization
@@ -572,7 +578,7 @@ def save_visualizer_imagery(
                 db.delete(collection)
     db.flush()
 
-    pending: list[RegistrationSpec] = []
+    pending: list[StacRegistrationSpec] = []
     for index, src_create in enumerate(sources):
         if src_create.id and src_create.id in existing:
             pending.extend(
@@ -584,7 +590,12 @@ def save_visualizer_imagery(
             )
             pending.extend(created)
     db.flush()
-    return pending
+    return registration.PendingRegistrations(
+        stac=pending,
+        planet=registration.pending_planet_registrations(
+            db, [source.id for source in visualizer.imagery_sources]
+        ),
+    )
 
 
 def save_visualizer_basemaps(db: Session, *, visualizer, basemaps: list[BasemapCreate]) -> None:
@@ -610,7 +621,7 @@ def _update_source_in_place(
     src_create: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
-) -> list[RegistrationSpec]:
+) -> list[StacRegistrationSpec]:
     """Update source metadata + viz templates, then reconcile collections.
     Returns pending STAC registrations from any new or re-registered collections."""
     db_src.name = src_create.name
@@ -651,7 +662,7 @@ def _update_source_in_place(
         db, db_src, src_create
     )
 
-    pending: list[RegistrationSpec] = []
+    pending: list[StacRegistrationSpec] = []
     for col_idx, col_create in enumerate(src_create.collections):
         existing_col = (
             next((c for c in db_src.collections if c.id == col_create.id), None)
@@ -740,9 +751,9 @@ def _update_collection_in_place(
     src_create: ImagerySourceCreate,
     bbox: list[float],
     generation_series_id: int | None,
-) -> RegistrationSpec | None:
+) -> StacRegistrationSpec | None:
     """Update a collection's metadata, slices, and stac_config. Returns a
-    RegistrationSpec if mosaic re-search is required."""
+    StacRegistrationSpec if mosaic re-search is required."""
     db_col.name = col_create.name
     db_col.cover_slice_index = col_create.cover_slice_index
     db_col.has_dedicated_cover = col_create.has_dedicated_cover
@@ -880,10 +891,10 @@ def _create_source(
     src: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
-) -> tuple[ImagerySource, list[RegistrationSpec]]:
+) -> tuple[ImagerySource, list[StacRegistrationSpec]]:
     """Create a single ImagerySource with all its children.
     Returns (source, pending_registrations)."""
-    pending: list[RegistrationSpec] = []
+    pending: list[StacRegistrationSpec] = []
     source = ImagerySource(
         **owner.as_columns(),
         name=src.name,
@@ -941,11 +952,11 @@ def _create_collection_record(
     col_idx: int,
     bbox: list[float],
     generation_series_id: int | None,
-) -> tuple[ImageryCollection, RegistrationSpec | None]:
+) -> tuple[ImageryCollection, StacRegistrationSpec | None]:
     """Persist a single collection (stac_config, slices, tile_urls) for a source.
 
     Returns (collection, pending_registration_spec). The second item is a
-    RegistrationSpec for `registration._register_all_stac_browser_collections`,
+    StacRegistrationSpec for `registration._register_all_stac_browser_collections`,
     or None if the collection doesn't need deferred registration.
     """
     collection = ImageryCollection(
@@ -997,7 +1008,7 @@ def _create_collection_record(
                 )
             )
 
-    pending_entry: RegistrationSpec | None = None
+    pending_entry: StacRegistrationSpec | None = None
     if (
         col_create.stac_config
         and col_create.stac_config.catalog_url

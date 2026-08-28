@@ -1,3 +1,5 @@
+import type { ImageryGenerationSeriesCreate } from '~/api/client';
+
 export interface VisualizationOption {
   name: string;
 }
@@ -148,6 +150,10 @@ export interface ImagerySource {
   maxNativeZoom?: number | null;
   visualizations: VisualizationOption[];
   generationSeries: ImageryGenerationSeries[];
+  /** Generator inputs this editor does not author - a Planet scene source's config -
+   *  carried verbatim so a save neither drops them nor needs a second editor shape.
+   *  Freshly added ones carry only a `key`; the collections point at it. */
+  rawGenerationSeries?: ImageryGenerationSeriesCreate[];
   collections: CollectionItem[];
   /** Whether a provider API key is configured server-side (persisted sources only). */
   hasApiKey?: boolean;
@@ -203,6 +209,7 @@ export const emptySource = (): ImagerySource => ({
   defaultZoom: 15,
   visualizations: [{ name: 'True Color' }],
   generationSeries: [],
+  rawGenerationSeries: [],
   collections: [],
 });
 

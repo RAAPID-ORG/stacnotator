@@ -25,7 +25,7 @@ from src.imagery.models import (
     ImagerySlice,
     ImagerySource,
 )
-from src.imagery.registration import RegistrationSpec
+from src.imagery.registration import PendingRegistrations
 from src.imagery.schemas import (
     BasemapOut,
     ImagerySourceCreate,
@@ -184,7 +184,7 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
     pending = (
         _save_own_imagery(db, visualizer, payload.own_imagery)
         if payload.own_imagery is not None
-        else []
+        else PendingRegistrations()
     )
     if payload.basemaps is not None:
         imagery_service.save_visualizer_basemaps(
@@ -202,7 +202,7 @@ def delete(db: Session, visualizer: Visualizer) -> None:
 
 def _save_own_imagery(
     db: Session, visualizer: Visualizer, sources: list[ImagerySourceCreate]
-) -> list[RegistrationSpec]:
+) -> PendingRegistrations:
     """Set up imagery for this visualizer alone, searched over its own area.
 
     An area is what a STAC search is registered over, so imagery cannot be set
@@ -229,13 +229,13 @@ def _bbox(visualizer: Visualizer) -> list[float]:
 
 
 def _spawn_registration(
-    visualizer_id: int, pending: list[RegistrationSpec], area: VisualizerArea | None
+    visualizer_id: int, pending: PendingRegistrations, area: VisualizerArea | None
 ) -> None:
-    """Off the request path, after the commit - the STAC calls are slow enough
+    """Off the request path, after the commit - the provider calls are slow enough
     that holding the write transaction across them trips the idle backstop."""
     if not pending or area is None:
         return
-    registration.spawn_background_mosaic_registration(
+    registration.spawn_background_registration(
         LayerOwner(visualizer_id=visualizer_id),
         pending,
         [area.west, area.south, area.east, area.north],
