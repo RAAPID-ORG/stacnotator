@@ -146,10 +146,9 @@ def native_zoom(resolution: float | None) -> int | None:
 def layer_template(layer_id: str) -> str:
     """The storable XYZ template for a minted scene layer.
 
-    The key rides as ``{api_key}`` like every other stored provider URL, so these tiles
-    are fetched through the proxy. The layer id may well authorize them on its own, but
-    a keyless URL is a bearer token for those scenes, and it would move tile traffic off
-    the one place consumption can be counted and capped.
+    Keyed like every other stored provider URL so the tiles go through the proxy. The
+    layer id may authorize them on its own, but a keyless URL is a bearer token for
+    those scenes and moves traffic off the one place consumption can be capped.
     """
     if not _LAYER_ID.match(layer_id):
         raise UnexpectedTileLink(f"layer id is not safe to put in a URL path: {layer_id}")

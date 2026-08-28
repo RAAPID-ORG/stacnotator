@@ -126,13 +126,11 @@ def preview_planet_scenes(
 ):
     """The windows and slices a scene config would produce, without minting anything.
 
-    This is the same search and the same grouping that registration runs later, so what
-    the wizard shows is what gets built - only the layers are missing, and those cost a
-    call each.
+    The same search and grouping registration runs later, so what the wizard shows is
+    what gets built.
     """
     api_key = _api_key(request.credentials, db, user)
-    # See list_planet_series: Planet is a network call away and the connection must
-    # not sit idle in a transaction across it.
+    # See list_planet_series: the connection must not sit idle across the Planet call.
     release(db)
     config = request.config
     features = _upstream(

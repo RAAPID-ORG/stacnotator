@@ -1,14 +1,11 @@
 """Reads against Planet's Basemaps and Data APIs.
 
-Planet publishes imagery two ways, and this speaks to both.
-
 Basemaps are pre-built temporal mosaics rather than STAC items, so the temporal
 structure the wizard needs comes from a *series* - a named cadence (monthly, quarterly)
 whose mosaics are already ordered in time, served as XYZ tiles directly.
 
 Scenes are individual acquisitions, addressable only once a set of them has been minted
-into a tile layer. Searching for them and minting that layer are the two calls at the
-bottom of this file; deciding which scenes belong in one layer is ``scenes.py``.
+into a tile layer. Deciding which scenes belong in one layer is ``scenes.py``.
 """
 
 import logging
@@ -94,12 +91,9 @@ def _scene_filters(
     max_cloud_cover: float,
     quality_categories: list[str],
 ) -> list[dict[str, Any]]:
-    """The search filter, kept as data so it can be stored with the source.
-
-    The cloud filter is omitted at 100 rather than sent as a no-op: a strict range
+    """The cloud filter is omitted at 100 rather than sent as a no-op: a strict range
     filter also excludes items that carry no cloud metadata at all, which is how a
-    permissive setting can silently return nothing.
-    """
+    permissive setting can silently return nothing."""
     filters: list[dict[str, Any]] = [
         {
             "type": "DateRangeFilter",
@@ -137,11 +131,11 @@ def search_scenes(
     max_cloud_cover: float = 100,
     quality_categories: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Every scene intersecting ``geometry`` in the date range, newest paging first.
+    """Every scene intersecting ``geometry`` in the date range.
 
     Planet cannot sort a search, so ranking happens on the whole result set in
-    ``scenes.py``. That is why the caller bounds the date range rather than relying on
-    a page limit: a wide range is paid for in pages here.
+    ``scenes.py`` and the caller has to bound the date range: a wide one is paid for
+    in pages here.
     """
     request = {
         "item_types": item_types,
@@ -169,9 +163,8 @@ def search_scenes(
 def create_layer(api_key: str, scene_ids: list[str]) -> str:
     """Mint one tile layer from a set of scenes and return its id.
 
-    The ids stack in the order they are given. Planet returns a ready-made tile URL
-    alongside the id; it is ignored, because the URL we store has to be one we built
-    ourselves - see ``tiles.layer_template``.
+    Planet also returns a ready-made tile URL, ignored because the one we store has to
+    be keyless - see ``tiles.layer_template``.
     """
     if not scene_ids:
         raise PlanetError("refusing to mint an empty scene layer")

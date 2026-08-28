@@ -1,9 +1,8 @@
 """Grouping Planet scenes into the windows and slices a source is made of (pure).
 
-A Planet scene is not addressable imagery. It becomes tiles only once a set of scene
-ids has been minted into a layer, and a layer is one flat picture with no time in it.
-What this module decides is which ids belong together and in what order - one list per
-slice - so the caller can mint one layer each and store what comes back.
+A scene becomes tiles only once a set of ids has been minted into a layer, and a layer
+is one flat picture with no time in it. This decides which ids belong together and in
+what order, so the caller can mint one layer per slice.
 
 The periods come from the generator config rather than from the scenes themselves,
 which is what makes a scene source browse like every other source: a slice is a date
@@ -18,15 +17,12 @@ from typing import Any
 
 from src.planet.schemas import PlanetScenesGenerationConfigV1
 
-# One POST carries every id, and a layer of the clearest few hundred already has no
-# gaps left to fill.
+# One POST carries every id, and the clearest few hundred already leave no gaps.
 MAX_SCENES_PER_LAYER = 200
 
 
 @dataclass(frozen=True)
 class Scene:
-    """One acquisition, reduced to what grouping needs."""
-
     # ``ItemType:id``, the form the layers endpoint takes.
     id: str
     acquired: date
@@ -36,7 +32,7 @@ class Scene:
 
 @dataclass(frozen=True)
 class Period:
-    """A date range, both ends inclusive - the same convention as a stored slice."""
+    """Both ends inclusive, the same convention as a stored slice."""
 
     start: date
     end: date
@@ -50,8 +46,6 @@ class SliceGroup:
 
 @dataclass(frozen=True)
 class WindowGroup:
-    """One collection: its slices, and the cover stacked from the whole window."""
-
     period: Period
     cover: SliceGroup | None
     slices: tuple[SliceGroup, ...]
@@ -61,9 +55,8 @@ def quality(properties: dict[str, Any]) -> float:
     """How clear a scene is, 0-100.
 
     ``clear_percent`` exists only on newer items, so ``cloud_cover`` stands in where it
-    is missing, weighted lower because it is a coarser measure that misses thin cloud.
-    Scoring both onto one scale is what keeps an older item rankable against a newer
-    one instead of being dropped for lacking a field.
+    is missing, weighted lower because it misses thin cloud. One scale for both keeps
+    an older item rankable rather than dropped for lacking a field.
     """
     clear = properties.get("clear_percent")
     if clear is not None:
@@ -128,10 +121,10 @@ def periods(start: date, end: date, interval: int, unit: str) -> list[Period]:
 def layer_ids(candidates: Iterable[Scene]) -> tuple[str, ...]:
     """The ids one layer is minted from: the clearest few hundred, in draw order.
 
-    A layer stacks its ids in the order it is given them, so the best scene is emitted
-    last. Which end Planet actually draws on top is the one thing here that has to be
-    confirmed against the live service - flipping it is this ``reversed`` and its test.
-    Ties break on the id so the same search always mints the same layer.
+    A layer stacks its ids in the order given, so the best scene is emitted last. Which
+    end Planet draws on top is the one thing here to confirm against the live service -
+    flipping it is this ``reversed`` and its test. Ties break on the id so the same
+    search always mints the same layer.
     """
     kept = sorted(candidates, key=lambda s: (s.quality, s.id), reverse=True)[:MAX_SCENES_PER_LAYER]
     return tuple(s.id for s in reversed(kept))
@@ -142,8 +135,8 @@ def group(
 ) -> list[WindowGroup]:
     """Expand a search result into the windows and slices the source is made of.
 
-    A window with nothing in it is dropped rather than stored empty: an imagery window
-    that can never render is worse than one that is not offered.
+    An empty window is dropped rather than stored: one that can never render is worse
+    than one that is not offered.
     """
     found = scenes(features)
     windows: list[WindowGroup] = []

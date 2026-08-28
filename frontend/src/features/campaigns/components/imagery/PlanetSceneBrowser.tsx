@@ -22,11 +22,11 @@ interface PlanetSceneBrowserProps {
   onClose: () => void;
 }
 
-/** Past this the wizard says so: free-form periods make a decade of daily slices as
- *  easy to ask for as a month of them, and the cost only shows up at save time. */
+/** Free-form periods make a decade of daily slices as easy to ask for as a month of
+ *  them, and the cost only shows up at save time. */
 const MANY_SLICES = 300;
 
-/** Planet scene tiles come from the visual asset, so there is one rendering. */
+/** Scene tiles come from the visual asset, so there is one rendering. */
 const VISUALIZATION = 'Visual';
 
 type PeriodUnit = PlanetScenesGenerationConfigV1['slice_period_unit'];
@@ -42,8 +42,7 @@ const PERIOD_UNITS: { unit: PeriodUnit; label: string }[] = [
   { unit: 'years', label: 'years' },
 ];
 
-/** Roughly how long a period is, only ever compared against another period, so a
- *  month being 30 days here costs nothing. */
+/** Only ever compared against another period, so a 30-day month costs nothing. */
 const APPROXIMATE_DAYS: Record<PeriodUnit, number> = {
   days: 1,
   weeks: 7,
@@ -151,11 +150,11 @@ export function sceneCollections(
 /**
  * Build an imagery source from the PlanetScope archive.
  *
- * A basemap series hands over finished mosaics at Planet's cadence; here the cadence
- * is ours and Planet stacks each period's acquisitions into one layer on request.
- * Deliberately not called a mosaic: there is no harmonisation or seam removal, and
- * "mosaic" is Planet's word for the other product. Nothing is chosen scene by scene -
- * this settles what a window and a slice mean, and registration mints the layers.
+ * A basemap series hands over finished mosaics at Planet's cadence; here the cadence is
+ * ours and Planet stacks each period's acquisitions into one layer. Deliberately not
+ * called a mosaic: there is no harmonisation or seam removal, and "mosaic" is Planet's
+ * word for the other product. This settles what a window and a slice mean; registration
+ * mints the layers.
  */
 export const PlanetSceneBrowser = ({
   projectId,
@@ -192,10 +191,8 @@ export const PlanetSceneBrowser = ({
       }
     : null;
 
-  // A slice longer than its window is clipped to the window, so every window would
-  // hold one slice covering all of it. Said rather than silently corrected: the
-  // numbers are the user's, and which of the two they meant to change is not ours
-  // to guess.
+  // Said rather than silently corrected: which of the two numbers they meant to
+  // change is not ours to guess.
   const sliceTooCoarse = span(slicePeriod) > span(windowPeriod);
 
   const search = () => {
@@ -222,8 +219,7 @@ export const PlanetSceneBrowser = ({
         windowPeriod.unit,
         slicePeriod.unit
       );
-      // The search that produced these windows, so the source can be rebuilt or
-      // extended later without anyone having to remember what was asked for.
+      // The search that produced these windows, so the source can be rebuilt later.
       source.generationSeries = [{ id: seriesKey, config }];
       // The source keeps whichever key browsed it, so registration can mint with it.
       source.organizationApiKeyId = credentials.organization_api_key_id ?? null;

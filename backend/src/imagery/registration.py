@@ -45,7 +45,7 @@ from src.visualizers.models import Visualizer
 logger = logging.getLogger(__name__)
 
 MPC_REGISTER_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
-# Minting is a small POST each; the cap is politeness to Planet, not our own limit.
+# Politeness to Planet rather than a limit of ours: each mint is a small POST.
 PLANET_MINT_WORKERS = 8
 
 
@@ -99,13 +99,9 @@ class _SliceRef:
 
 @dataclass(frozen=True)
 class StacRegistrationSpec:
-    """A work order: what registering one STAC collection needs, as plain data.
-
-    Built by the imagery-editor save flow at the point a collection is created or
-    its search-affecting fields change, and handed to
-    ``spawn_background_registration``. Plain data because the background thread
-    must never touch a request-scoped ORM object.
-    """
+    """A work order for one STAC collection, built by the imagery-editor save flow when
+    the collection is created or its search-affecting fields change. Plain data because
+    the background thread must never touch a request-scoped ORM object."""
 
     collection_id: int
     collection_name: str
@@ -348,11 +344,8 @@ def _register_all_stac_browser_collections(
 
 @dataclass(frozen=True)
 class PlanetRegistrationSpec:
-    """The same work order for one Planet series, which mints layers instead.
-
-    Per series rather than per collection, because one search covers every window
-    the series produced.
-    """
+    """A work order for one Planet series, which mints layers instead of registering
+    a search. Per series rather than per collection: one search covers every window."""
 
     source_id: int
     source_name: str
@@ -396,14 +389,12 @@ def _planet_error(spec: PlanetRegistrationSpec, slice_label: str, message: str) 
 def _register_planet_sources(db: Session, specs: list[PlanetRegistrationSpec]) -> list[dict]:
     """Search once per series, then mint one tile layer per slice.
 
-    The search is the expensive call and one covers every window, so it runs per
-    series; minting is a small POST per slice and parallelizes. Slices are matched to
-    what the search produced by date range, because both sides come from the same
-    pure grouping in ``planet.scenes``.
+    Stored slices are matched to what the search produced by date range, both sides
+    coming from the same grouping in ``planet.scenes``.
 
-    Same transaction discipline as the STAC path: everything needed is snapshotted,
-    the read transaction is released, and the writes re-acquire - otherwise the
-    connection sits idle across the network calls until Postgres reaps it.
+    Same transaction discipline as the STAC path: snapshot, release, re-acquire for
+    the writes - otherwise the connection sits idle across the network calls until
+    Postgres reaps it.
     """
     if not specs:
         return []
@@ -492,8 +483,7 @@ def _register_planet_sources(db: Session, specs: list[PlanetRegistrationSpec]) -
                 slice_id=slice_id,
                 visualization_name=visualization_name,
                 tile_url=planet_tiles.layer_template(layer_id),
-                # Null provider: a direct URL fetched through our own tile proxy, which
-                # is also what keeps the key off the client. See SliceTileUrl.
+                # Null provider: a direct URL fetched through our own tile proxy.
                 tile_provider=None,
                 mosaic_id=layer_id,
             )
@@ -543,15 +533,12 @@ def spawn_background_registration(
 ) -> None:
     """Run registration off the request path (see src/background.py).
 
-    Registration makes many slow parallel provider calls; doing it inline holds the
-    request's write transaction open across them and trips the
-    idle-in-transaction backstop. The request commits the entity reconciliation
-    (and begin_status_run) first, then calls this to rebuild the tile URLs and
-    flip `registration_status` to ready/failed when done.
+    Registration makes many slow parallel provider calls; inline they hold the
+    request's write transaction open and trip the idle-in-transaction backstop. The
+    request commits the entity reconciliation (and begin_status_run) first, then calls
+    this to rebuild the tile URLs and flip `registration_status` when done.
 
-    ``pending`` is already plain data, so the thread hands it straight to
-    registration without touching any ORM object from the request session. Both
-    provider paths share this one run rather than getting one each: they would
+    Both provider paths share one run rather than getting one each: they would
     otherwise contend for the single status field this owner has.
     """
     row_id, status_field = status_run_for(owner)

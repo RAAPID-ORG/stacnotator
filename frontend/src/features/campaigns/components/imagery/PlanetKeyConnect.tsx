@@ -10,8 +10,8 @@ import { handleError } from '~/shared/utils/errorHandler';
 
 interface PlanetKeyConnectProps {
   projectId: number;
-  /** Set once the caller may start spending the key, cleared whenever the choice
-   *  changes so nothing browsed with the previous one survives. */
+  /** Set once the caller may spend the key, cleared when the choice changes so
+   *  nothing browsed with the previous one survives. */
   credentials: PlanetCredentials | null;
   onChange: (credentials: PlanetCredentials | null) => void;
 }
@@ -19,9 +19,8 @@ interface PlanetKeyConnectProps {
 const OWN_KEY = 'own';
 
 /**
- * Pick which Planet key to browse with. Shared by both Planet flows: a pasted key
- * is a secret either way, and connecting is an explicit step so a keystroke does
- * not fire a request at Planet.
+ * Pick which Planet key to browse with, shared by both Planet flows. Connecting is an
+ * explicit step so a keystroke does not fire a request at Planet.
  */
 export const PlanetKeyConnect = ({ projectId, credentials, onChange }: PlanetKeyConnectProps) => {
   const [keys, setKeys] = useState<OrganizationApiKeyOut[] | null>(null);

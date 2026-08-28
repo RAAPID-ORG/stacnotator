@@ -57,10 +57,8 @@ class PlanetSeriesMosaicsOut(BaseModel):
 class PlanetScenesGenerationConfigV1(BaseModel):
     """Lossless, versioned input for a Planet scene-stack source.
 
-    Saved on the source's generation series exactly as the STAC generator's config is,
-    so a source can be regenerated or extended later without anyone having to remember
-    what was searched. The periods here are what a window and a slice mean for this
-    source: "daily" is ``slice_period_interval=1``, ``slice_period_unit="days"``.
+    Saved on the source's generation series the way the STAC generator's config is, so
+    the source can be regenerated later without anyone remembering what was searched.
     """
 
     kind: Literal["planet_scenes"]
@@ -73,12 +71,11 @@ class PlanetScenesGenerationConfigV1(BaseModel):
     collection_period_unit: Literal["days", "weeks", "months", "years"]
     slice_period_interval: int = Field(ge=1)
     slice_period_unit: Literal["days", "weeks", "months", "years"]
-    # Stacks the whole window into a cover of its own - what a STAC cover search does,
-    # and what Planet's own mosaics cannot be asked for. Without it the window opens on
-    # its first slice.
+    # Stacks the whole window into a cover of its own, the way a STAC cover search
+    # does. Without it the window opens on its first slice.
     whole_window_cover: bool
-    # Pushed into Planet's search filter. Left at 100 the filter is omitted entirely,
-    # so items that carry no cloud metadata are not silently dropped.
+    # At 100 the filter is omitted entirely, so items carrying no cloud metadata are
+    # not silently dropped. See client._scene_filters.
     max_cloud_cover: float = Field(default=100, ge=0, le=100)
     quality_categories: list[str] = ["standard"]
 
@@ -92,7 +89,7 @@ class PlanetScenesGenerationConfigV1(BaseModel):
 
 
 class PlanetSceneGroupOut(BaseModel):
-    """One window or slice as previewed: what it covers and how much imagery it has."""
+    """One window or slice as previewed: what it covers, and how much imagery it has."""
 
     start_date: str
     end_date: str
@@ -102,7 +99,7 @@ class PlanetSceneGroupOut(BaseModel):
 class PlanetSceneWindowOut(BaseModel):
     start_date: str
     end_date: str
-    # Set under whole_window_cover: the whole window stacked into one layer.
+    # Set under whole_window_cover.
     cover: PlanetSceneGroupOut | None = None
     slices: list[PlanetSceneGroupOut]
 

@@ -707,12 +707,12 @@ def _reconcile_generation_series(
 ) -> tuple[dict[str, int], list[ImageryGenerationSeries], list[Registration]]:
     """Upsert source-level generator inputs and resolve request keys to IDs.
 
-    This is the persistence seam for generation provenance. Collection writes
-    only receive the resolved foreign key; config ownership stays here.
+    This is the persistence seam for generation provenance. Collection writes only
+    receive the resolved foreign key; config ownership stays here.
 
     A Planet series whose config is new or changed also comes back as a pending
-    registration: unlike a STAC collection, nothing else in the save flow can tell
-    that its layers have to be minted again.
+    registration - nothing else in the save flow can tell its layers need minting
+    again, and minting spends the organization's Planet quota.
     """
     existing = {series.id: series for series in db_src.generation_series}
     kept: set[int] = set()
