@@ -3299,10 +3299,6 @@ export type PlanetMosaicOut = {
  */
 export type PlanetSceneGroupOut = {
     /**
-     * Name
-     */
-    name: string;
-    /**
      * Start Date
      */
     start_date: string;
@@ -3328,10 +3324,6 @@ export type PlanetScenePreview = {
  * PlanetSceneWindowOut
  */
 export type PlanetSceneWindowOut = {
-    /**
-     * Name
-     */
-    name: string;
     /**
      * Start Date
      */
@@ -3401,29 +3393,17 @@ export type PlanetScenesGenerationConfigV1 = {
      */
     slice_period_unit: 'days' | 'weeks' | 'months' | 'years';
     /**
-     * Cover Mode
+     * Whole Window Cover
      */
-    cover_mode: 'window' | 'nth';
-    /**
-     * Cover Slice Nth
-     */
-    cover_slice_nth?: number;
+    whole_window_cover: boolean;
     /**
      * Max Cloud Cover
      */
     max_cloud_cover?: number;
     /**
-     * Min Quality
-     */
-    min_quality?: number;
-    /**
      * Quality Categories
      */
     quality_categories?: Array<string>;
-    /**
-     * Max Scenes Per Layer
-     */
-    max_scenes_per_layer?: number;
 };
 
 /**

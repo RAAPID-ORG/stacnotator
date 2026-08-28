@@ -6,6 +6,7 @@ import type {
   ImagerySource,
   StacBrowserCollectionData,
 } from './types';
+import { isPlanetSceneConfig } from './types';
 
 export interface EditableGenerationSeries {
   id: string;
@@ -30,6 +31,7 @@ const earliest = (collections: CollectionItem[]) =>
  * the source-level series; collections only provide membership. */
 export function editableGenerationSeries(source: ImagerySource): EditableGenerationSeries[] {
   return source.generationSeries.flatMap((series: ImageryGenerationSeries) => {
+    if (isPlanetSceneConfig(series.config)) return [];
     const candidates = source.collections.filter(
       (collection) =>
         collection.generationSeriesId === series.id &&

@@ -2,12 +2,14 @@ import { useState } from 'react';
 import {
   previewPlanetScenes,
   type PlanetCredentials,
+  type PlanetSceneGroupOut,
   type PlanetSceneWindowOut,
   type PlanetScenesGenerationConfigV1,
 } from '~/api/client';
 import { Modal } from '~/shared/ui/Modal';
 import { Button, Input, Select } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
+import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import { PlanetKeyConnect } from './PlanetKeyConnect';
 import { createId, emptySource } from './types';
 import type { CollectionItem, ImagerySlice, ImagerySource } from './types';
@@ -116,9 +118,9 @@ const polygonOf = (bbox: number[]) => {
   };
 };
 
-const toSlice = (group: { name: string; start_date: string; end_date: string }): ImagerySlice => ({
+const toSlice = (group: PlanetSceneGroupOut, unit: PeriodUnit): ImagerySlice => ({
   id: createId(),
-  name: group.name,
+  name: formatSliceLabel(group.start_date, group.end_date, unit, 0),
   startDate: group.start_date,
   endDate: group.end_date,
   // Filled in by registration, which mints one Planet layer per slice.
@@ -128,14 +130,16 @@ const toSlice = (group: { name: string; start_date: string; end_date: string }):
 /** The windows a preview describes, as the collections a source is made of. */
 export function sceneCollections(
   windows: PlanetSceneWindowOut[],
-  generationSeriesId: string
+  generationSeriesId: string,
+  windowUnit: PeriodUnit,
+  sliceUnit: PeriodUnit
 ): CollectionItem[] {
   return windows.map((window) => {
-    const cover = window.cover ? [toSlice(window.cover)] : [];
+    const cover = window.cover ? [toSlice(window.cover, windowUnit)] : [];
     return {
       id: createId(),
-      name: window.name,
-      slices: [...cover, ...window.slices.map(toSlice)],
+      name: formatWindowLabel(window.start_date, window.end_date, windowUnit),
+      slices: [...cover, ...window.slices.map((slice) => toSlice(slice, sliceUnit))],
       coverSliceIndex: 0,
       hasDedicatedCover: cover.length > 0,
       generationSeriesId,
@@ -182,12 +186,9 @@ export const PlanetSceneBrowser = ({
         collection_period_unit: windowPeriod.unit,
         slice_period_interval: slicePeriod.interval,
         slice_period_unit: slicePeriod.unit,
-        cover_mode: wholeWindowCover ? 'window' : 'nth',
-        cover_slice_nth: 1,
+        whole_window_cover: wholeWindowCover,
         max_cloud_cover: maxCloudCover,
-        min_quality: 0,
         quality_categories: ['standard'],
-        max_scenes_per_layer: 200,
       }
     : null;
 
@@ -215,10 +216,15 @@ export const PlanetSceneBrowser = ({
       const source = emptySource();
       source.name = 'PlanetScope daily imagery';
       source.visualizations = [{ name: VISUALIZATION }];
-      source.collections = sceneCollections(windows, seriesKey);
+      source.collections = sceneCollections(
+        windows,
+        seriesKey,
+        windowPeriod.unit,
+        slicePeriod.unit
+      );
       // The search that produced these windows, so the source can be rebuilt or
       // extended later without anyone having to remember what was asked for.
-      source.rawGenerationSeries = [{ key: seriesKey, config }];
+      source.generationSeries = [{ id: seriesKey, config }];
       // The source keeps whichever key browsed it, so registration can mint with it.
       source.organizationApiKeyId = credentials.organization_api_key_id ?? null;
       source.apiKey = credentials.api_key ?? undefined;
@@ -392,8 +398,11 @@ export const PlanetSceneBrowser = ({
                 <p className="text-xs text-neutral-700 font-medium">What will be created</p>
                 <ul className="text-[11px] text-neutral-600 space-y-0.5 max-h-48 overflow-y-auto">
                   {windows.map((window) => (
-                    <li key={window.name}>
-                      <strong>{window.name}</strong> - {window.slices.length} slice
+                    <li key={window.start_date}>
+                      <strong>
+                        {formatWindowLabel(window.start_date, window.end_date, windowPeriod.unit)}
+                      </strong>{' '}
+                      - {window.slices.length} slice
                       {window.slices.length === 1 ? '' : 's'}
                       {window.cover && `, cover from ${window.cover.scene_count} scenes`}
                     </li>

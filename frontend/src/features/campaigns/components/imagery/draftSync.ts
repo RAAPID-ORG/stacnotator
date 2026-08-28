@@ -14,7 +14,7 @@ import type {
   ImageryStepState,
   VizParams,
 } from './types';
-import { emptyVizParams } from './types';
+import { emptyVizParams, isPlanetSceneConfig } from './types';
 
 /** Local IDs are strings: real DB rows are decimal-integer strings (from
  *  server), freshly-added entities are random UUID slices. Only emit `id`
@@ -146,14 +146,13 @@ export function sourceToBackend(src: ImagerySource): ImagerySourceCreate {
     organization_api_key_id: src.organizationApiKeyId ?? null,
     api_key: src.apiKey || null,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
-    generation_series: [
-      ...src.generationSeries.map((series) => ({
-        key: series.id,
-        id: toIdField(series.id),
-        config: generationConfigToBackend(series.config),
-      })),
-      ...(src.rawGenerationSeries ?? []),
-    ],
+    generation_series: src.generationSeries.map((series) => ({
+      key: series.id,
+      id: toIdField(series.id),
+      config: isPlanetSceneConfig(series.config)
+        ? series.config
+        : generationConfigToBackend(series.config),
+    })),
     collections: src.collections.map((c) =>
       collectionToBackend(
         c,

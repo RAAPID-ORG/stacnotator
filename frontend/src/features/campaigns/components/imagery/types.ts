@@ -1,4 +1,4 @@
-import type { ImageryGenerationSeriesCreate } from '~/api/client';
+import type { PlanetScenesGenerationConfigV1 } from '~/api/client';
 
 export interface VisualizationOption {
   name: string;
@@ -85,11 +85,16 @@ export interface ImageryGenerationConfig {
 }
 
 /** One persisted or draft generator run. Configuration has one owner here;
- * collections refer to it by id. */
+ * collections refer to it by id. A Planet scene config is stored as the backend
+ * sends it: this editor never authors one, it only has to carry it through a save. */
 export interface ImageryGenerationSeries {
   id: string;
-  config: ImageryGenerationConfig;
+  config: ImageryGenerationConfig | PlanetScenesGenerationConfigV1;
 }
+
+export const isPlanetSceneConfig = (
+  config: ImageryGenerationSeries['config']
+): config is PlanetScenesGenerationConfigV1 => 'kind' in config && config.kind === 'planet_scenes';
 
 export const ITEM_SORT_OPTIONS = ['date_desc', 'date_asc', 'cloud_cover_asc'] as const;
 export type ItemSortOption = (typeof ITEM_SORT_OPTIONS)[number];
@@ -150,10 +155,6 @@ export interface ImagerySource {
   maxNativeZoom?: number | null;
   visualizations: VisualizationOption[];
   generationSeries: ImageryGenerationSeries[];
-  /** Generator inputs this editor does not author - a Planet scene source's config -
-   *  carried verbatim so a save neither drops them nor needs a second editor shape.
-   *  Freshly added ones carry only a `key`; the collections point at it. */
-  rawGenerationSeries?: ImageryGenerationSeriesCreate[];
   collections: CollectionItem[];
   /** Whether a provider API key is configured server-side (persisted sources only). */
   hasApiKey?: boolean;
@@ -209,7 +210,6 @@ export const emptySource = (): ImagerySource => ({
   defaultZoom: 15,
   visualizations: [{ name: 'True Color' }],
   generationSeries: [],
-  rawGenerationSeries: [],
   collections: [],
 });
 
