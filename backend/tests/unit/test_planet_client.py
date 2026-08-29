@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from src.planet import client
+from src.planet.schemas import PlanetScenesGenerationConfigV1
 
 
 def _mock(handler) -> httpx.Client:
@@ -173,3 +174,79 @@ def test_an_empty_layer_is_refused_rather_than_posted(planet):
     with pytest.raises(client.PlanetError, match="empty scene layer"):
         client.create_layer("KEY", [])
     assert seen == []
+
+
+def scene_config(**overrides) -> PlanetScenesGenerationConfigV1:
+    defaults = dict(
+        kind="planet_scenes",
+        aoi=AOI,
+        start_date="2026-08-01",
+        end_date="2026-08-29",
+        collection_period_interval=1,
+        collection_period_unit="months",
+        slice_period_interval=3,
+        slice_period_unit="days",
+        whole_window_cover=True,
+    )
+    return PlanetScenesGenerationConfigV1(**{**defaults, **overrides})
+
+
+class TestRunningOutOfPages:
+    """Planet returns results in an order we do not control, so a truncated search
+    loses an arbitrary end of the range rather than the least interesting scenes."""
+
+    def test_a_search_that_runs_out_of_pages_raises_instead_of_truncating(self, planet):
+        planet(
+            lambda request: httpx.Response(
+                200,
+                json={
+                    "features": [{"id": "a"}],
+                    "_links": {"_next": "https://api.planet.com/data/v1/searches/x?_page=2"},
+                },
+            )
+        )
+
+        with pytest.raises(client.PlanetError, match="Narrow the area"):
+            client.search_scenes("KEY", **_search())
+
+
+class TestSearchingAConfig:
+    def test_one_search_per_slice_period_covers_the_whole_range(self, planet):
+        seen = planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
+
+        client.search_config("KEY", scene_config())
+
+        ranges = sorted(
+            (
+                f["config"]["gte"][:10],
+                f["config"]["lte"][:10],
+            )
+            for body in (json.loads(r.content) for r in seen)
+            for f in body["filter"]["config"]
+            if f["type"] == "DateRangeFilter"
+        )
+        assert ranges[0] == ("2026-08-01", "2026-08-03")
+        # The month is 29 days on a 3-day slice, so the last range is the clipped tail.
+        assert ranges[-1] == ("2026-08-28", "2026-08-29")
+        assert len(ranges) == 10
+
+    def test_every_slice_search_contributes_its_scenes(self, planet):
+        counter = iter(range(100))
+        planet(
+            lambda request: httpx.Response(
+                200, json={"features": [{"id": str(next(counter))}], "_links": {}}
+            )
+        )
+
+        found = client.search_config("KEY", scene_config())
+
+        assert len(found) == 10
+        assert len({f["id"] for f in found}) == 10
+
+    def test_a_config_needing_more_searches_than_the_cap_is_refused(self, planet):
+        planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
+
+        with pytest.raises(client.PlanetError, match="past the"):
+            client.search_config(
+                "KEY", scene_config(start_date="2020-01-01", end_date="2026-08-29")
+            )

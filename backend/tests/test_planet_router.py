@@ -178,15 +178,19 @@ def _scene(scene_id: str, acquired: str, clear_percent: float = 90):
     }
 
 
+SCENES_BY_DAY = {
+    "2024-01-05": [_scene("a", "2024-01-05T00:00:00Z"), _scene("b", "2024-01-05T09:00:00Z")],
+    "2024-01-20": [_scene("c", "2024-01-20T00:00:00Z")],
+}
+
+
 def test_scene_preview_returns_the_windows_and_slices_the_config_would_build(client, monkeypatch):
+    # Patched at the per-period search, so the fan-out in search_config is exercised:
+    # a day the archive has nothing for contributes nothing.
     monkeypatch.setattr(
         planet_client,
         "search_scenes",
-        lambda *a, **k: [
-            _scene("a", "2024-01-05T00:00:00Z"),
-            _scene("b", "2024-01-05T09:00:00Z"),
-            _scene("c", "2024-01-20T00:00:00Z"),
-        ],
+        lambda _key, **kwargs: SCENES_BY_DAY.get(kwargs["start"], []),
     )
 
     response = client.post(
@@ -206,11 +210,11 @@ def test_scene_preview_returns_the_windows_and_slices_the_config_would_build(cli
 def test_scene_preview_spends_the_key_the_caller_chose(client, monkeypatch):
     seen: list[str] = []
 
-    def search_scenes(api_key, **_):
+    def search_config(api_key, _config):
         seen.append(api_key)
         return []
 
-    monkeypatch.setattr(planet_client, "search_scenes", search_scenes)
+    monkeypatch.setattr(planet_client, "search_config", search_config)
 
     client.post(
         "/api/planet/scenes/preview", json={"credentials": _org_key(), "config": SCENE_CONFIG}
@@ -227,7 +231,7 @@ def test_a_config_that_would_not_regenerate_is_rejected_before_planet_is_called(
     client, monkeypatch
 ):
     monkeypatch.setattr(
-        planet_client, "search_scenes", lambda *a, **k: pytest.fail("should not reach Planet")
+        planet_client, "search_config", lambda *a, **k: pytest.fail("should not reach Planet")
     )
 
     response = client.post(

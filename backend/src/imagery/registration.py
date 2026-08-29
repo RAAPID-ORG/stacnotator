@@ -427,15 +427,7 @@ def _register_planet_sources(db: Session, specs: list[PlanetRegistrationSpec]) -
     for spec, api_key, slice_ids in jobs:
         config = spec.config
         try:
-            features = planet_client.search_scenes(
-                api_key,
-                geometry=config.aoi,
-                start=config.start_date,
-                end=config.end_date,
-                item_types=config.item_types,
-                max_cloud_cover=config.max_cloud_cover,
-                quality_categories=config.quality_categories,
-            )
+            features = planet_client.search_config(api_key, config)
         except Exception as e:
             errors.append(
                 _planet_error(

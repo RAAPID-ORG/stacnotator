@@ -10,13 +10,16 @@ into a tile layer. Deciding which scenes belong in one layer is ``scenes.py``.
 
 import logging
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 from typing import Any
 from urllib.parse import quote, urlparse
 
 import httpx
 
 from src import net_guard
-from src.planet import tiles
+from src.planet import scenes, tiles
+from src.planet.schemas import PlanetScenesGenerationConfigV1
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,9 @@ READ_TIMEOUT = 30.0
 PAGE_SIZE = 500
 # A series is a decade of mosaics at worst; anything beyond this is a paging loop.
 MAX_PAGES = 20
+# One scene search per slice, so this bounds how wide a source the wizard will build.
+MAX_SEARCHES = 400
+SEARCH_WORKERS = 8
 
 _http = net_guard.guarded_client(
     timeout=READ_TIMEOUT, follow_redirects=True, headers={"Accept": "application/json"}
@@ -133,9 +139,10 @@ def search_scenes(
 ) -> list[dict[str, Any]]:
     """Every scene intersecting ``geometry`` in the date range.
 
-    Planet cannot sort a search, so ranking happens on the whole result set in
-    ``scenes.py`` and the caller has to bound the date range: a wide one is paid for
-    in pages here.
+    Bound the range narrowly - see ``search_config``. Planet returns results in an
+    order we cannot control, so running out of pages here does not mean "the rest is
+    less interesting", it means an arbitrary end of the range is missing. That is why
+    the cap raises rather than returning what it has.
     """
     request = {
         "item_types": item_types,
@@ -156,8 +163,46 @@ def search_scenes(
         page = _get(next_url, api_key)
         features.extend(page.get("features", []))
         next_url = page.get("_links", {}).get("_next")
-    logger.warning("Planet scene search stopped at the %d page cap", MAX_PAGES)
-    return features
+    raise PlanetError(
+        f"Planet has more than {MAX_PAGES * PAGE_SIZE} scenes over this area for "
+        f"{start} to {end}. Narrow the area, or use a shorter slice period."
+    )
+
+
+def search_config(api_key: str, config: PlanetScenesGenerationConfigV1) -> list[dict[str, Any]]:
+    """Every scene the config's slices can draw on.
+
+    One search per slice period rather than one for the whole range. A single wide
+    search runs out of pages and loses whichever end Planet happened to return last -
+    silently, since a short result looks the same as a sparse archive. Bounding each
+    search by the dates a slice already uses makes that impossible, and the searches
+    run in parallel instead of walking one ``_next`` chain.
+    """
+    periods = scenes.periods(
+        date.fromisoformat(config.start_date),
+        date.fromisoformat(config.end_date),
+        config.slice_period_interval,
+        config.slice_period_unit,
+    )
+    if len(periods) > MAX_SEARCHES:
+        raise PlanetError(
+            f"{len(periods)} slices needs {len(periods)} searches, past the "
+            f"{MAX_SEARCHES} cap. Shorten the date range or lengthen the slice period."
+        )
+
+    def one(period: "scenes.Period") -> list[dict[str, Any]]:
+        return search_scenes(
+            api_key,
+            geometry=config.aoi,
+            start=period.start.isoformat(),
+            end=period.end.isoformat(),
+            item_types=config.item_types,
+            max_cloud_cover=config.max_cloud_cover,
+            quality_categories=config.quality_categories,
+        )
+
+    with ThreadPoolExecutor(max_workers=SEARCH_WORKERS) as pool:
+        return [feature for page in pool.map(one, periods) for feature in page]
 
 
 def create_layer(api_key: str, scene_ids: list[str]) -> str:

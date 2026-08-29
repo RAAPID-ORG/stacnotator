@@ -133,18 +133,7 @@ def preview_planet_scenes(
     # See list_planet_series: the connection must not sit idle across the Planet call.
     release(db)
     config = request.config
-    features = _upstream(
-        lambda: client.search_scenes(
-            api_key,
-            geometry=config.aoi,
-            start=config.start_date,
-            end=config.end_date,
-            item_types=config.item_types,
-            max_cloud_cover=config.max_cloud_cover,
-            quality_categories=config.quality_categories,
-        ),
-        "search for scenes",
-    )
+    features = _upstream(lambda: client.search_config(api_key, config), "search for scenes")
     return [
         PlanetSceneWindowOut(
             start_date=window.period.start.isoformat(),
