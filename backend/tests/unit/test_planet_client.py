@@ -12,6 +12,14 @@ def _mock(handler) -> httpx.Client:
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
+@pytest.fixture(autouse=True)
+def instant_sleep(monkeypatch):
+    """Pacing and backoff are real waits; the tests want the decisions, not the delay."""
+    slept: list[float] = []
+    monkeypatch.setattr(client.time, "sleep", slept.append)
+    return slept
+
+
 @pytest.fixture
 def planet(monkeypatch):
     """Swap the guarded client for a scripted one; returns the requests made."""
@@ -250,3 +258,38 @@ class TestSearchingAConfig:
             client.search_config(
                 "KEY", scene_config(start_date="2020-01-01", end_date="2026-08-29")
             )
+
+
+class TestRateLimiting:
+    """A config with many slices is a burst of searches against a key an organization
+    shares, which is exactly what Planet answers with 429."""
+
+    def test_a_rate_limited_search_is_waited_out_rather_than_failed(self, planet, instant_sleep):
+        replies = iter(
+            [
+                httpx.Response(429, headers={"Retry-After": "2"}),
+                httpx.Response(200, json={"features": [{"id": "a"}], "_links": {}}),
+            ]
+        )
+        planet(lambda request: next(replies))
+
+        found = client.search_scenes("KEY", **_search())
+
+        assert [f["id"] for f in found] == ["a"]
+        assert 2.0 in instant_sleep
+
+    def test_a_key_that_stays_rate_limited_says_what_to_do_about_it(self, planet):
+        seen = planet(lambda request: httpx.Response(429, json={}))
+
+        with pytest.raises(client.PlanetError, match="rate limiting"):
+            client.search_scenes("KEY", **_search())
+
+        assert len(seen) == client.RETRY_ATTEMPTS
+
+    def test_a_burst_of_slice_searches_is_paced(self, planet, instant_sleep):
+        planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
+
+        client.search_config("KEY", scene_config())
+
+        # Ten slice searches: the first can go at once, the rest wait their turn.
+        assert len([delay for delay in instant_sleep if delay > 0]) >= 9

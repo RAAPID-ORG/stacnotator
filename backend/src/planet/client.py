@@ -9,7 +9,9 @@ into a tile layer. Deciding which scenes belong in one layer is ``scenes.py``.
 """
 
 import logging
-from collections.abc import Iterator
+import threading
+import time
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Any
@@ -35,6 +37,12 @@ MAX_PAGES = 20
 # One scene search per slice, so this bounds how wide a source the wizard will build.
 MAX_SEARCHES = 400
 SEARCH_WORKERS = 8
+TOO_MANY_REQUESTS = 429
+# Planet rate-limits per key across the whole Data API, and a config with many slices is
+# a burst of searches
+REQUESTS_PER_SECOND = 5.0
+RETRY_ATTEMPTS = 4
+MAX_RETRY_WAIT = 10.0
 
 _http = net_guard.guarded_client(
     timeout=READ_TIMEOUT, follow_redirects=True, headers={"Accept": "application/json"}
@@ -43,6 +51,52 @@ _http = net_guard.guarded_client(
 
 class PlanetError(RuntimeError):
     """Planet refused or could not answer the request."""
+
+
+class _Pacer:
+    """Hands out request slots no closer together than one interval, across threads."""
+
+    def __init__(self, per_second: float) -> None:
+        self._interval = 1.0 / per_second
+        self._lock = threading.Lock()
+        self._free_at = 0.0
+
+    def wait(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            start = max(now, self._free_at)
+            self._free_at = start + self._interval
+        if start > now:
+            time.sleep(start - now)
+
+
+_pacer = _Pacer(REQUESTS_PER_SECOND)
+
+
+def _retry_wait(response: httpx.Response, attempt: int) -> float:
+    """Planet's own Retry-After where it sends one, otherwise a widening backoff."""
+    header = response.headers.get("Retry-After", "")
+    try:
+        return min(float(header), MAX_RETRY_WAIT)
+    except ValueError:
+        return min(2.0**attempt, MAX_RETRY_WAIT)
+
+
+def _send(request: Callable[[], httpx.Response]) -> dict[str, Any]:
+    """One paced request, retried while Planet is only asking us to slow down."""
+    for attempt in range(RETRY_ATTEMPTS):
+        _pacer.wait()
+        response = request()
+        if response.status_code != TOO_MANY_REQUESTS:
+            return _checked(response)
+        if attempt < RETRY_ATTEMPTS - 1:
+            wait = _retry_wait(response, attempt)
+            logger.warning("Planet rate limited us, waiting %.1fs (attempt %d)", wait, attempt + 1)
+            time.sleep(wait)
+    raise PlanetError(
+        "Planet is rate limiting this API key. Wait a moment and search again, or "
+        "shorten the date range so fewer searches are needed."
+    )
 
 
 def _require_host(url: str, host: str) -> None:
@@ -63,7 +117,7 @@ def _get(url: str, api_key: str) -> dict[str, Any]:
     """Fetch one page. The key travels as basic-auth credentials, so it never
     lands in a query string we might log."""
     _require_host(url, API_HOST)
-    return _checked(_http.get(url, auth=(api_key, "")))
+    return _send(lambda: _http.get(url, auth=(api_key, "")))
 
 
 def _paged(url: str, api_key: str, field: str) -> Iterator[dict[str, Any]]:
@@ -153,7 +207,7 @@ def search_scenes(
             ),
         },
     }
-    body = _checked(_http.post(f"{DATA_ROOT}/quick-search", auth=(api_key, ""), json=request))
+    body = _send(lambda: _http.post(f"{DATA_ROOT}/quick-search", auth=(api_key, ""), json=request))
 
     features = list(body.get("features", []))
     next_url = body.get("_links", {}).get("_next")
@@ -213,7 +267,9 @@ def create_layer(api_key: str, scene_ids: list[str]) -> str:
     """
     if not scene_ids:
         raise PlanetError("refusing to mint an empty scene layer")
-    body = _checked(_http.post(LAYERS_URL, auth=(api_key, ""), data={"ids": ",".join(scene_ids)}))
+    body = _send(
+        lambda: _http.post(LAYERS_URL, auth=(api_key, ""), data={"ids": ",".join(scene_ids)})
+    )
     name = body.get("name")
     if not name:
         raise PlanetError("Planet returned a layer without an id")

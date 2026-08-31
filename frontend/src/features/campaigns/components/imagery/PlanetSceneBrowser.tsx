@@ -194,9 +194,13 @@ export const PlanetSceneBrowser = ({
   // Said rather than silently corrected: which of the two numbers they meant to
   // change is not ours to guess.
   const sliceTooCoarse = span(slicePeriod) > span(windowPeriod);
+  // A date input is empty until the whole date is typed, and a half-typed range is a
+  // request the backend can only reject.
+  const datesReversed = Boolean(startDate && endDate && endDate < startDate);
+  const datesIncomplete = !startDate || !endDate || datesReversed;
 
   const search = () => {
-    if (!credentials || !config) return;
+    if (!credentials || !config || datesIncomplete) return;
     setSearching(true);
     setWindows(null);
     void previewPlanetScenes({ body: { credentials, config } })
@@ -319,6 +323,12 @@ export const PlanetSceneBrowser = ({
               onChange={setSlicePeriod}
             />
 
+            {datesReversed && (
+              <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
+                The end date is before the start date.
+              </p>
+            )}
+
             {sliceTooCoarse && (
               <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
                 A slice cannot be longer than its window, or every window holds a single slice
@@ -371,7 +381,7 @@ export const PlanetSceneBrowser = ({
               variant="secondary"
               size="sm"
               onClick={search}
-              disabled={searching || sliceTooCoarse}
+              disabled={searching || sliceTooCoarse || datesIncomplete}
             >
               {searching ? 'Searching Planet…' : 'Search'}
             </Button>
