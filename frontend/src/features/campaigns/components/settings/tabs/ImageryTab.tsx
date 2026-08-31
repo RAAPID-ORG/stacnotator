@@ -5,15 +5,14 @@ interface Props {
   /** Persisted imagery controller, owned by the page so the header action can
    *  reflect the dirty/save state. */
   controller: ImageryController;
-  campaignBbox?: number[] | null;
 }
 
-const ImageryTab = ({ controller, campaignBbox }: Props) => {
+const ImageryTab = ({ controller }: Props) => {
   const { isDirty, pending, save, discard } = controller;
 
   return (
     <div id="tab-imagery" role="tabpanel">
-      <ImagerySetup controller={controller} campaignBbox={campaignBbox ?? null} />
+      <ImagerySetup controller={controller} />
 
       {isDirty && (
         <div className="sticky bottom-0 left-0 right-0 mt-6 -mx-4 px-4 py-3 bg-white border-t border-amber-300 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] flex items-center justify-between gap-4 z-20">

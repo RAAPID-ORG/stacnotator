@@ -1,10 +1,12 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import termsMd from './terms.md?raw';
+import privacyMd from './privacy.md?raw';
 import { type LegalKey } from './docs';
 
 const CONTENT: Record<LegalKey, string> = {
   terms: termsMd,
+  privacy: privacyMd,
 };
 
 /** The document itself, without page chrome - shared by the standalone page and

@@ -5,6 +5,7 @@ import { useAccountStore } from '~/shared/stores/account.store';
 import { Button } from '~/shared/ui/forms';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { LegalBody } from './LegalBody';
+import { legalPath } from './docs';
 
 /** Blocks the app until the signed-in user accepts the terms in force: new accounts
  * on their first visit, and everyone else once the version is bumped. */
@@ -32,7 +33,17 @@ const TermsGate = ({ version }: { version: string }) => {
         <div>
           <h1 className="text-lg font-semibold text-neutral-900">Before you continue</h1>
           <p className="mt-1 text-sm text-neutral-600">
-            Please read and accept the Terms of Service to use STACNotator.
+            Please read and accept the Terms of Service to use STACNotator. How we handle your data
+            is described in the{' '}
+            <a
+              href={legalPath('privacy')}
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-brand-700"
+            >
+              Privacy Policy
+            </a>
+            .
           </p>
         </div>
 

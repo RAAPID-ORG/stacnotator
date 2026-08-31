@@ -32,7 +32,6 @@ interface SourceEditorProps {
   source: ImagerySource;
   controller: ImageryController;
   onClose: () => void;
-  campaignBbox?: number[] | null;
 }
 
 type AddCollectionStep =
@@ -138,12 +137,7 @@ function SourceRegistration({
   );
 }
 
-export const SourceEditor = ({
-  source,
-  controller,
-  onClose,
-  campaignBbox = null,
-}: SourceEditorProps) => {
+export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps) => {
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
   const [addStep, setAddStep] = useState<AddCollectionStep>(null);
   const [bulkFocus, setBulkFocus] = useState<BulkFocus | null>(null);
@@ -279,7 +273,7 @@ export const SourceEditor = ({
         projectId={controller.projectId}
         preset={addStep.preset}
         initialMode="mosaic"
-        campaignBbox={campaignBbox}
+        campaignBbox={controller.campaignBbox}
         initialAdvanced={controller.mode === 'persisted'}
         onAdd={(result) => void addCollectionsFromCatalog(result)}
         onClose={() => setAddStep(null)}
@@ -292,7 +286,7 @@ export const SourceEditor = ({
       <CatalogBrowser
         projectId={controller.projectId}
         initialMode="mosaic"
-        campaignBbox={campaignBbox}
+        campaignBbox={controller.campaignBbox}
         initialAdvanced={controller.mode === 'persisted'}
         initialGeneration={activeGenerationSeries.config}
         generationSeriesId={activeGenerationSeries.id}

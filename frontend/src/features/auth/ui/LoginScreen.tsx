@@ -27,7 +27,8 @@ const LegalLink = ({ doc, children }: { doc: LegalKey; children: ReactNode }) =>
  * sign-in wrap as accepted only when the notice is next to the action it binds. */
 const LegalNotice = () => (
   <p className="text-center text-xs text-brand-500">
-    By continuing you agree to our <LegalLink doc="terms">Terms of Service</LegalLink>.
+    By continuing you agree to our <LegalLink doc="terms">Terms of Service</LegalLink> and to our{' '}
+    <LegalLink doc="privacy">Privacy Policy</LegalLink>.
   </p>
 );
 

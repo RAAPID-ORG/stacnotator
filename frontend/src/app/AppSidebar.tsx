@@ -198,7 +198,7 @@ export const AppSidebar = ({
           </button>
 
           {!collapsed && (
-            <nav className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-neutral-400">
+            <nav className="mt-3 flex justify-center gap-x-3 whitespace-nowrap text-[11px] text-neutral-400">
               {LEGAL_DOCS.map((doc) => (
                 <a
                   key={doc.key}

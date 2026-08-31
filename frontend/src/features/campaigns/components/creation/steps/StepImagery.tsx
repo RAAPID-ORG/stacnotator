@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { CampaignCreate } from '~/api/client';
 import type { ImageryStepState } from '../../imagery/types';
 import { DEFAULT_BASEMAPS } from '../../imagery/types';
@@ -23,8 +24,19 @@ export const StepImagery = ({
   imageryState: ImageryStepState;
   setImageryState: (s: ImageryStepState) => void;
 }) => {
+  const settings = form.settings;
+  // The area is picked one step earlier, so imagery searches can already be bound by it.
+  const campaignBbox = useMemo(
+    () =>
+      settings
+        ? [settings.bbox_west, settings.bbox_south, settings.bbox_east, settings.bbox_north]
+        : null,
+    [settings]
+  );
+
   const controller = useDraftController({
     projectId,
+    campaignBbox,
     state: imageryState,
     setState: (next) => {
       setImageryState(next);

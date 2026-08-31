@@ -14,7 +14,6 @@ import type { ImageryController } from './controller';
 interface AddSourceWizardProps {
   controller: ImageryController;
   onClose: () => void;
-  campaignBbox?: number[] | null;
   /** Called with the new source id right after it's created, so the caller can
    *  open it for editing immediately. */
   onCreated?: (sourceId: string) => void;
@@ -43,12 +42,7 @@ const PRESET_BLURBS: Record<string, string> = {
   'cop-dem-glo-30': 'Global digital elevation model at 30 m resolution. Static (non-temporal).',
 };
 
-export const AddSourceWizard = ({
-  controller,
-  onClose,
-  campaignBbox = null,
-  onCreated,
-}: AddSourceWizardProps) => {
+export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWizardProps) => {
   const [step, setStep] = useState<WizardStep>({ kind: 'pick-preset' });
 
   /** Both Planet flows finish the same way: the source is created, then handed to
@@ -98,7 +92,7 @@ export const AddSourceWizard = ({
         projectId={controller.projectId}
         preset={step.preset}
         initialMode="mosaic"
-        campaignBbox={campaignBbox}
+        campaignBbox={controller.campaignBbox}
         onAdd={(result) => finalizeFromCatalog(result, step.preset.label)}
         onClose={back}
       />
@@ -110,7 +104,7 @@ export const AddSourceWizard = ({
       <CatalogBrowser
         projectId={controller.projectId}
         initialMode="mosaic"
-        campaignBbox={campaignBbox}
+        campaignBbox={controller.campaignBbox}
         onAdd={(result) => {
           const { collections: cols } = result;
           const fallback =
@@ -132,7 +126,7 @@ export const AddSourceWizard = ({
     return (
       <PlanetSceneBrowser
         projectId={controller.projectId}
-        campaignBbox={campaignBbox}
+        campaignBbox={controller.campaignBbox}
         onAdd={added}
         onClose={back}
       />

@@ -8,10 +8,9 @@ import { SourceEditor } from './SourceEditor';
 
 interface ImagerySetupProps {
   controller: ImageryController;
-  campaignBbox?: number[] | null;
 }
 
-export const ImagerySetup = ({ controller, campaignBbox = null }: ImagerySetupProps) => {
+export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
   // Single source-editor instance shared by every entry point (Sources list and
   // the add-source wizard) so a source can be opened for editing from anywhere.
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
@@ -21,11 +20,7 @@ export const ImagerySetup = ({ controller, campaignBbox = null }: ImagerySetupPr
 
   return (
     <div className="space-y-8">
-      <SourcesTab
-        controller={controller}
-        campaignBbox={campaignBbox}
-        onEditSource={setEditingSourceId}
-      />
+      <SourcesTab controller={controller} onEditSource={setEditingSourceId} />
 
       <BasemapList controller={controller} />
 
@@ -53,7 +48,6 @@ export const ImagerySetup = ({ controller, campaignBbox = null }: ImagerySetupPr
         <SourceEditor
           source={editingSource}
           controller={controller}
-          campaignBbox={campaignBbox}
           onClose={() => setEditingSourceId(null)}
         />
       )}

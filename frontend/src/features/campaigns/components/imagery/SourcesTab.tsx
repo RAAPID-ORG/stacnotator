@@ -6,7 +6,6 @@ import { AddSourceWizard } from './AddSourceWizard';
 
 interface SourcesTabProps {
   controller: ImageryController;
-  campaignBbox?: number[] | null;
   /** Open the shared source editor for the given source id. */
   onEditSource: (sourceId: string) => void;
   /** Replaces the default blurb, or drops it when null - a caller that has
@@ -20,7 +19,6 @@ const DEFAULT_DESCRIPTION =
 
 export const SourcesTab = ({
   controller,
-  campaignBbox = null,
   onEditSource,
   description = DEFAULT_DESCRIPTION,
 }: SourcesTabProps) => {
@@ -84,7 +82,6 @@ export const SourcesTab = ({
       {wizardOpen && (
         <AddSourceWizard
           controller={controller}
-          campaignBbox={campaignBbox}
           onClose={() => setWizardOpen(false)}
           onCreated={(sourceId) => {
             setWizardOpen(false);

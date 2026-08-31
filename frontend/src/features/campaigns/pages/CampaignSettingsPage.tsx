@@ -422,9 +422,7 @@ export const CampaignSettingsPage = () => {
                     />
                   )}
 
-                  {activeTab === 'imagery' && (
-                    <ImageryTab controller={imageryController} campaignBbox={campaignBbox} />
-                  )}
+                  {activeTab === 'imagery' && <ImageryTab controller={imageryController} />}
 
                   {activeTab === 'timeseries' && (
                     <TimeseriesTab
