@@ -3,7 +3,6 @@ import { Modal } from '~/shared/ui/Modal';
 import { IconPlus } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
-import { MonthPicker } from '~/shared/ui/MonthPicker';
 import { listCatalogs, getCollections, search } from '~/api/client';
 import type { StacCatalogOut, StacCollectionOut, StacItemOut, AssetInfo } from '~/api/client';
 import type {
@@ -24,7 +23,7 @@ import { CoverSearchParams } from './CoverSearchParams';
 import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
 import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
-import { Button, Input, Select } from '~/shared/ui/forms';
+import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 
@@ -1409,14 +1408,24 @@ export const CatalogBrowser = ({
                           Start Month
                           <Tooltip text="First month of the temporal range." />
                         </label>
-                        <MonthPicker value={startDate} onChange={setStartDate} />
+                        <DateField
+                          size="sm"
+                          granularity="month"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                        />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs text-neutral-700 flex items-center gap-1">
                           End Month (inclusive)
                           <Tooltip text="Last month of the temporal range (inclusive)." />
                         </label>
-                        <MonthPicker value={endDate} onChange={setEndDate} />
+                        <DateField
+                          size="sm"
+                          granularity="month"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                        />
                       </div>
                     </div>
 

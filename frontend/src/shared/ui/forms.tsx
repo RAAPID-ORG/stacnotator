@@ -146,6 +146,55 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 );
 Input.displayName = 'Input';
 
+/** The satellite era: Landsat 1 flew in 1972, and a campaign is sometimes planned a
+ *  few years out. Inherited from the month dropdowns this replaced, where the range
+ *  was what the list offered. */
+const EARLIEST_MONTH = '1972-01';
+const LATEST_MONTH = `${new Date().getFullYear() + 5}-12`;
+
+interface DateFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
+  invalid?: boolean;
+  size?: FieldSize;
+  /** Whole days (``YYYY-MM-DD``, the default) or whole months (``YYYY-MM``). */
+  granularity?: 'day' | 'month';
+}
+
+/**
+ * Every date the app asks for, in one control.
+ *
+ * The browser's own picker rather than a widget of ours: it already knows the
+ * viewer's locale, keyboard and calendar, and it is one field instead of the pair of
+ * dropdowns months used to need. What is ours is the shape of the field, which is the
+ * same as every other input, and the click target - the native indicator is a few
+ * pixels of icon, so clicking anywhere in the field opens the picker.
+ */
+export const DateField = forwardRef<HTMLInputElement, DateFieldProps>(
+  ({ className, invalid, size = 'md', granularity = 'day', onClick, ...rest }, ref) => (
+    <input
+      ref={ref}
+      type={granularity === 'month' ? 'month' : 'date'}
+      min={granularity === 'month' ? EARLIEST_MONTH : undefined}
+      max={granularity === 'month' ? LATEST_MONTH : undefined}
+      onClick={(e) => {
+        // Not supported everywhere, and it throws rather than no-ops where it is not.
+        try {
+          e.currentTarget.showPicker();
+        } catch {
+          /* the indicator still opens it */
+        }
+        onClick?.(e);
+      }}
+      className={`${fieldBase} ${fieldSingleSize[size]} ${invalid ? invalidClass : ''} cursor-pointer
+        [&::-webkit-calendar-picker-indicator]:cursor-pointer
+        [&::-webkit-calendar-picker-indicator]:opacity-50
+        [&::-webkit-calendar-picker-indicator]:hover:opacity-100
+        [&::-webkit-calendar-picker-indicator]:transition-opacity ${className ?? ''}`}
+      {...rest}
+    />
+  )
+);
+DateField.displayName = 'DateField';
+
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   invalid?: boolean;
   size?: FieldSize;

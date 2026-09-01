@@ -7,7 +7,7 @@ import {
   type PlanetSeriesOut,
 } from '~/api/client';
 import { Modal } from '~/shared/ui/Modal';
-import { Button, Input, Select } from '~/shared/ui/forms';
+import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
 import { PlanetKeyConnect } from './PlanetKeyConnect';
 import {
@@ -276,21 +276,15 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs text-neutral-700 font-medium">From</label>
-                <Input
+                <DateField
                   size="sm"
-                  type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                 />
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-neutral-700 font-medium">To</label>
-                <Input
-                  size="sm"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
+                <DateField size="sm" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             </div>
 

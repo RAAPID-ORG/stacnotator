@@ -1,4 +1,5 @@
 import type { DateRangeValue } from '~/api/client';
+import { DateField } from '~/shared/ui/forms';
 import type { FormField } from '../campaign/annotation';
 import {
   applyCategoryOption,
@@ -292,22 +293,20 @@ function DateFamilyField({
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-1.5">
           <label className="text-[10px] text-neutral-500 w-8">From</label>
-          <input
-            type="date"
+          <DateField
+            size="sm"
             value={start}
             onChange={(e) => onChange(applyDateRangeSide(values, field, 'start', e.target.value))}
             disabled={disabled}
-            className={textInputClass}
           />
         </div>
         <div className="flex items-center gap-1.5">
           <label className="text-[10px] text-neutral-500 w-8">To</label>
-          <input
-            type="date"
+          <DateField
+            size="sm"
             value={end}
             onChange={(e) => onChange(applyDateRangeSide(values, field, 'end', e.target.value))}
             disabled={disabled}
-            className={textInputClass}
           />
         </div>
       </div>
@@ -318,14 +317,13 @@ function DateFamilyField({
   const stringValue = typeof raw === 'string' ? raw : '';
 
   return (
-    <input
-      type="date"
+    <DateField
+      size="sm"
       value={stringValue}
       onChange={(e) =>
         onChange(setFieldValue(values, field.id, e.target.value === '' ? null : e.target.value))
       }
       disabled={disabled}
-      className={textInputClass}
     />
   );
 }

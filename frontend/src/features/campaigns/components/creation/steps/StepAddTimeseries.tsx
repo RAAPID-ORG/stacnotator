@@ -8,8 +8,7 @@ import {
 } from '~/api/client';
 import { getTimeseriesCreationOptionsOptions } from '~/api/queries';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
-import { MonthPicker } from '~/shared/ui/MonthPicker';
-import { Input, Select, Button } from '~/shared/ui/forms';
+import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import { IconCheck, IconClose } from '~/shared/ui/Icons';
 import { DEFAULT_TIMESERIES_WINDOW_NAME } from '~/shared/utils/constants';
 
@@ -216,16 +215,24 @@ export const StepAddTimeseries = ({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-xs text-neutral-700">Start Date</label>
-                <MonthPicker
+                <DateField
+                  size="sm"
+                  granularity="month"
                   value={yyyymmToInputMonth(i.start_ym)}
-                  onChange={(v) => updateItem(index, { start_ym: inputMonthToYYYYMM(v) })}
+                  onChange={(e) =>
+                    updateItem(index, { start_ym: inputMonthToYYYYMM(e.target.value) })
+                  }
                 />
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-neutral-700">End Date</label>
-                <MonthPicker
+                <DateField
+                  size="sm"
+                  granularity="month"
                   value={yyyymmToInputMonth(i.end_ym)}
-                  onChange={(v) => updateItem(index, { end_ym: inputMonthToYYYYMM(v) })}
+                  onChange={(e) =>
+                    updateItem(index, { end_ym: inputMonthToYYYYMM(e.target.value) })
+                  }
                 />
               </div>
             </div>

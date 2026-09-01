@@ -18,7 +18,7 @@ import {
   IconPlus,
   IconClock,
 } from '~/shared/ui/Icons';
-import { IconButton, Input, Select } from '~/shared/ui/forms';
+import { DateField, IconButton, Input, Select } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { VizTabs } from './VizTabs';
 import { CoverSearchParams } from './CoverSearchParams';
@@ -476,18 +476,16 @@ export const CollectionEditor = ({
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-0.5">
                         <label className="text-[11px] text-neutral-500">Start</label>
-                        <Input
+                        <DateField
                           size="sm"
-                          type="date"
                           value={slice.startDate}
                           onChange={(e) => updateSlice(slice.id, { startDate: e.target.value })}
                         />
                       </div>
                       <div className="space-y-0.5">
                         <label className="text-[11px] text-neutral-500">End</label>
-                        <Input
+                        <DateField
                           size="sm"
-                          type="date"
                           value={slice.endDate}
                           onChange={(e) => updateSlice(slice.id, { endDate: e.target.value })}
                         />
