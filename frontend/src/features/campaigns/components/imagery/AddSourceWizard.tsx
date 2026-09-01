@@ -123,14 +123,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
   }
 
   if (step.kind === 'planet-scenes') {
-    return (
-      <PlanetSceneBrowser
-        projectId={controller.projectId}
-        campaignBbox={controller.campaignBbox}
-        onAdd={added}
-        onClose={back}
-      />
-    );
+    return <PlanetSceneBrowser projectId={controller.projectId} onAdd={added} onClose={back} />;
   }
 
   if (step.kind === 'custom-xyz') {

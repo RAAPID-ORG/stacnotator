@@ -6,7 +6,7 @@ export const needsKeyProxy = (template: string): boolean => template.includes('{
 
 /** Our proxy routes require the tiler cookie, exactly like self-hosted tilers. */
 export function isProxiedTileUrl(url: string): boolean {
-  return /\/imagery\/(?:basemaps|slices)\/[^/]+\/tiles\//.test(url);
+  return /\/imagery\/(?:basemaps|slices|sources)\/[^/]+\/(?:tiles|planet-layers)\//.test(url);
 }
 
 /** Where a key-protected basemap's tiles are fetched from: the provider
@@ -15,6 +15,14 @@ export function resolveBasemapUrl(campaignId: number, basemap: { id: number; url
   return needsKeyProxy(basemap.url)
     ? apiUrl(`/api/${campaignId}/imagery/basemaps/${basemap.id}/tiles/{z}/{x}/{y}`)
     : basemap.url;
+}
+
+/** A Planet layer minted for one viewport, which no slice row knows about:
+ *  the search that made it lives only in the page that ran it. */
+export function planetLayerProxyUrl(campaignId: number, sourceId: number, layerId: string): string {
+  return apiUrl(
+    `/api/${campaignId}/imagery/sources/${sourceId}/planet-layers/${encodeURIComponent(layerId)}/tiles/{z}/{x}/{y}`
+  );
 }
 
 /** One slice's tiles under a named visualization, off the proxy route its

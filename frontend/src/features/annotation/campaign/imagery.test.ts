@@ -10,7 +10,7 @@ import {
   makeViz,
 } from '../testing/fixtures';
 import type { CustomMapOut } from '~/api/client';
-import { buildImageryCatalog, readyCustomMaps } from './imagery';
+import { buildImageryCatalog, readyCustomMaps, withSceneLayers } from './imagery';
 
 const source = makeSource({
   id: 1,
@@ -108,5 +108,53 @@ describe('readyCustomMaps', () => {
         map(5, { tile_url: null }),
       ])
     ).toEqual([ready]);
+  });
+});
+
+describe('withSceneLayers', () => {
+  const catalogWithScenes = () =>
+    buildImageryCatalog(
+      makeCampaign({
+        imagery_sources: [
+          makeSource({
+            id: 1,
+            visualizations: [makeViz({ id: 1000, name: 'Visual' })],
+            collections: [
+              makeCollection({
+                id: 10,
+                slices: [
+                  makeSlice({ id: 100, tile_urls: [] }),
+                  makeSlice({ id: 101, tile_urls: [] }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      })
+    );
+
+  it('gives the found dates their layer and leaves the rest undrawable', () => {
+    const cat = withSceneLayers(
+      catalogWithScenes(),
+      1,
+      'Visual',
+      new Map([[100, 'https://proxy/planet-layers/abc/tiles/{z}/{x}/{y}']])
+    );
+
+    const [first, second] = cat.collections.get(10)!.slices;
+    expect(first.tile_urls[0].tile_url).toContain('planet-layers/abc');
+    expect(first.tile_urls[0].visualization_name).toBe('Visual');
+    expect(second.tile_urls).toEqual([]);
+    // The slice index has to agree with the collection, or the map draws one thing
+    // and navigation reasons about another.
+    expect(cat.slices.get(100)!.tile_urls).toHaveLength(1);
+  });
+
+  it('replaces what a previous search left, because it was over somewhere else', () => {
+    const first = withSceneLayers(catalogWithScenes(), 1, 'Visual', new Map([[100, 'url-a']]));
+    const second = withSceneLayers(first, 1, 'Visual', new Map([[101, 'url-b']]));
+
+    expect(second.slices.get(100)!.tile_urls).toEqual([]);
+    expect(second.slices.get(101)!.tile_urls[0].tile_url).toBe('url-b');
   });
 });

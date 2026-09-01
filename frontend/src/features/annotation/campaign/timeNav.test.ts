@@ -312,3 +312,21 @@ describe('visualization carried across navigation', () => {
     expect(collectionAddress(mvCat, 999, null)).toBeNull();
   });
 });
+
+describe('slices nothing can draw', () => {
+  const searchedCollection = makeCollection({
+    id: 20,
+    slices: [
+      makeSlice({ id: 200, name: 'found' }),
+      makeSlice({ id: 201, name: 'nothing here', tile_urls: [] }),
+      makeSlice({ id: 202, name: 'also found' }),
+    ],
+  });
+
+  it('are offered by neither the picker nor stepping', () => {
+    // A scene source's dates exist before any imagery does, and a search over one
+    // viewport resolves only some of them. Offering the rest is offering a blank map.
+    expect(slicePickerIndices(searchedCollection)).toEqual([0, 2]);
+    expect(sliceNavIndices(searchedCollection, {})).toEqual([0, 2]);
+  });
+});

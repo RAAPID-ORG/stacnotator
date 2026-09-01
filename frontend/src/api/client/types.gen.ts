@@ -3293,11 +3293,11 @@ export type PlanetMosaicOut = {
 };
 
 /**
- * PlanetSceneGroupOut
+ * PlanetScenePeriodOut
  *
- * One window or slice as previewed: what it covers and how much imagery it has.
+ * One window or slice as planned: the dates it covers.
  */
-export type PlanetSceneGroupOut = {
+export type PlanetScenePeriodOut = {
     /**
      * Start Date
      */
@@ -3306,18 +3306,75 @@ export type PlanetSceneGroupOut = {
      * End Date
      */
     end_date: string;
+};
+
+/**
+ * PlanetScenePlan
+ *
+ * What a scene config would be built from. No Planet call: which of these dates
+ * hold imagery depends on where you are standing, and is asked at annotation time.
+ */
+export type PlanetScenePlan = {
+    /**
+     * Project Id
+     */
+    project_id: number;
+    config: PlanetScenesGenerationConfigV1;
+};
+
+/**
+ * PlanetSceneSearchIn
+ *
+ * The extent to search, west/south/east/north: whatever is on screen.
+ */
+export type PlanetSceneSearchIn = {
+    /**
+     * Bbox
+     */
+    bbox: [
+        number,
+        number,
+        number,
+        number
+    ];
+};
+
+/**
+ * PlanetSceneSearchOut
+ *
+ * What this extent has. Slices missing from ``slices`` hold no imagery here, which
+ * is the answer the search exists to give - a date with nothing over you is a date
+ * not worth stepping to.
+ */
+export type PlanetSceneSearchOut = {
+    /**
+     * Slices
+     */
+    slices: Array<PlanetSceneSliceOut>;
+    /**
+     * Errors
+     */
+    errors?: Array<string>;
+};
+
+/**
+ * PlanetSceneSliceOut
+ *
+ * One of the source's slices, and the layer minted for it over this extent.
+ */
+export type PlanetSceneSliceOut = {
+    /**
+     * Slice Id
+     */
+    slice_id: number;
     /**
      * Scene Count
      */
     scene_count: number;
-};
-
-/**
- * PlanetScenePreview
- */
-export type PlanetScenePreview = {
-    credentials: PlanetCredentials;
-    config: PlanetScenesGenerationConfigV1;
+    /**
+     * Layer Id
+     */
+    layer_id: string;
 };
 
 /**
@@ -3332,11 +3389,11 @@ export type PlanetSceneWindowOut = {
      * End Date
      */
     end_date: string;
-    cover?: PlanetSceneGroupOut | null;
+    cover?: PlanetScenePeriodOut | null;
     /**
      * Slices
      */
-    slices: Array<PlanetSceneGroupOut>;
+    slices: Array<PlanetScenePeriodOut>;
 };
 
 /**
@@ -3344,10 +3401,8 @@ export type PlanetSceneWindowOut = {
  *
  * Lossless, versioned input for a Planet scene-stack source.
  *
- * Saved on the source's generation series exactly as the STAC generator's config is,
- * so a source can be regenerated or extended later without anyone having to remember
- * what was searched. The periods here are what a window and a slice mean for this
- * source: "daily" is ``slice_period_interval=1``, ``slice_period_unit="days"``.
+ * Saved on the source's generation series the way the STAC generator's config is, so
+ * the source can be regenerated later without anyone remembering what was searched.
  */
 export type PlanetScenesGenerationConfigV1 = {
     /**
@@ -3361,9 +3416,9 @@ export type PlanetScenesGenerationConfigV1 = {
     /**
      * Aoi
      */
-    aoi: {
+    aoi?: {
         [key: string]: unknown;
-    };
+    } | null;
     /**
      * Item Types
      */
@@ -9173,6 +9228,40 @@ export type RefreshSourceImageryResponses = {
     200: unknown;
 };
 
+export type SearchPlanetScenesData = {
+    body: PlanetSceneSearchIn;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Source Id
+         */
+        source_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search';
+};
+
+export type SearchPlanetScenesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchPlanetScenesError = SearchPlanetScenesErrors[keyof SearchPlanetScenesErrors];
+
+export type SearchPlanetScenesResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlanetSceneSearchOut;
+};
+
+export type SearchPlanetScenesResponse = SearchPlanetScenesResponses[keyof SearchPlanetScenesResponses];
+
 export type CreateImageryViewData = {
     body: ImageryViewCreate;
     path: {
@@ -9491,6 +9580,54 @@ export type ProxySliceTileResponses = {
     200: unknown;
 };
 
+export type ProxyPlanetLayerTileData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Source Id
+         */
+        source_id: number;
+        /**
+         * Layer Id
+         */
+        layer_id: string;
+        /**
+         * Z
+         */
+        z: number;
+        /**
+         * X
+         */
+        x: number;
+        /**
+         * Y
+         */
+        y: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}';
+};
+
+export type ProxyPlanetLayerTileErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProxyPlanetLayerTileError = ProxyPlanetLayerTileErrors[keyof ProxyPlanetLayerTileErrors];
+
+export type ProxyPlanetLayerTileResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type ProxyVisualizerBasemapTileData = {
     body?: never;
     path: {
@@ -9746,32 +9883,32 @@ export type ListPlanetSeriesMosaicsResponses = {
 
 export type ListPlanetSeriesMosaicsResponse = ListPlanetSeriesMosaicsResponses[keyof ListPlanetSeriesMosaicsResponses];
 
-export type PreviewPlanetScenesData = {
-    body: PlanetScenePreview;
+export type PlanPlanetScenesData = {
+    body: PlanetScenePlan;
     path?: never;
     query?: never;
-    url: '/api/planet/scenes/preview';
+    url: '/api/planet/scenes/plan';
 };
 
-export type PreviewPlanetScenesErrors = {
+export type PlanPlanetScenesErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type PreviewPlanetScenesError = PreviewPlanetScenesErrors[keyof PreviewPlanetScenesErrors];
+export type PlanPlanetScenesError = PlanPlanetScenesErrors[keyof PlanPlanetScenesErrors];
 
-export type PreviewPlanetScenesResponses = {
+export type PlanPlanetScenesResponses = {
     /**
-     * Response Previewplanetscenes
+     * Response Planplanetscenes
      *
      * Successful Response
      */
     200: Array<PlanetSceneWindowOut>;
 };
 
-export type PreviewPlanetScenesResponse = PreviewPlanetScenesResponses[keyof PreviewPlanetScenesResponses];
+export type PlanPlanetScenesResponse = PlanPlanetScenesResponses[keyof PlanPlanetScenesResponses];
 
 export type ListCustomMapsData = {
     body?: never;

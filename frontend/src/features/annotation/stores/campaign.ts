@@ -4,6 +4,7 @@ import {
   buildImageryCatalog,
   collectionStartDate,
   collectionsInView,
+  withSceneLayers,
   type ImageryCatalog,
 } from '../campaign/imagery';
 import {
@@ -42,6 +43,7 @@ interface CampaignState {
   setReviewMode: (isReviewMode: boolean) => void;
   setMobile: (isMobile: boolean) => void;
   setTaskStartCollection: (collectionId: number) => void;
+  applySceneSearch: (sourceId: number, vizName: string, urlBySliceId: Map<number, string>) => void;
   /** Make `view` the selected one. Its imagery nav state and its canvas
    *  windows both come with it, so the whole page belongs to one view. */
   selectView: (view: ImageryViewOut) => void;
@@ -102,6 +104,11 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     imagery.setCrosshair(workMode === 'tasks');
     // Task-scoped no-data observations mean nothing once the mode changes.
     imagery.setEmptyScope(null);
+  },
+
+  applySceneSearch: (sourceId, vizName, urlBySliceId) => {
+    const catalog = get().catalog;
+    if (catalog) set({ catalog: withSceneLayers(catalog, sourceId, vizName, urlBySliceId) });
   },
 
   setReviewMode: (isReviewMode) => set({ isReviewMode }),

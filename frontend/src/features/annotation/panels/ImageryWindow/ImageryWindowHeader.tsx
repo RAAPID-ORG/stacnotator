@@ -8,6 +8,8 @@ import { useSliceNotes } from '../../stores/work';
 import { HeaderSelect } from '../../components/HeaderSelect';
 import { NoteBadge, SliceCommentButton } from '../../chrome/SliceComments';
 import { selectWindowSlice, windowAddress } from './ImageryWindow';
+import { SceneSearchButton } from './SceneSearchButton';
+import { sceneSourceOf } from './useSceneSearch';
 
 export interface ImageryWindowHeaderProps {
   collection: ImageryCollectionOut;
@@ -21,6 +23,7 @@ export function ImageryWindowHeader({ collection }: ImageryWindowHeaderProps) {
   const isActive = imagery.address?.collectionId === collection.id;
   const address = windowAddress(catalog, imagery, collection.id);
   const indices = slicePickerIndices(collection);
+  const sceneSource = sceneSourceOf(catalog, collection);
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1">
@@ -52,6 +55,7 @@ export function ImageryWindowHeader({ collection }: ImageryWindowHeaderProps) {
           />
         </span>
       )}
+      {sceneSource && <SceneSearchButton source={sceneSource} />}
       <SliceCommentButton compact address={address} hint="or double-click the map" />
     </div>
   );

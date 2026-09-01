@@ -14,9 +14,14 @@ def _mock(handler) -> httpx.Client:
 
 @pytest.fixture(autouse=True)
 def instant_sleep(monkeypatch):
-    """Pacing and backoff are real waits; the tests want the decisions, not the delay."""
+    """Pacing and backoff are real waits; the tests want the decisions, not the delay.
+
+    The pacer is module state, and with the sleeps skipped its schedule runs away from
+    the clock - so each test gets a fresh one rather than the last test's backlog.
+    """
     slept: list[float] = []
     monkeypatch.setattr(client.time, "sleep", slept.append)
+    monkeypatch.setattr(client, "_pacer", client._Pacer(client.REQUESTS_PER_SECOND))
     return slept
 
 
@@ -222,7 +227,7 @@ class TestSearchingAConfig:
     def test_one_search_per_slice_period_covers_the_whole_range(self, planet):
         seen = planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
 
-        client.search_config("KEY", scene_config())
+        client.search_config("KEY", scene_config(), AOI)
 
         ranges = sorted(
             (
@@ -246,7 +251,7 @@ class TestSearchingAConfig:
             )
         )
 
-        found = client.search_config("KEY", scene_config())
+        found = client.search_config("KEY", scene_config(), AOI)
 
         assert len(found) == 10
         assert len({f["id"] for f in found}) == 10
@@ -256,7 +261,7 @@ class TestSearchingAConfig:
 
         with pytest.raises(client.PlanetError, match="past the"):
             client.search_config(
-                "KEY", scene_config(start_date="2020-01-01", end_date="2026-08-29")
+                "KEY", scene_config(start_date="2020-01-01", end_date="2026-08-29"), AOI
             )
 
 
@@ -278,6 +283,22 @@ class TestRateLimiting:
         assert [f["id"] for f in found] == ["a"]
         assert 2.0 in instant_sleep
 
+    def test_planets_own_retry_after_never_shortens_the_backoff(self, planet, instant_sleep):
+        """Planet answers 429 with ``Retry-After: 0``, which is not a licence to go
+        straight back at it."""
+        replies = iter(
+            [
+                httpx.Response(429, headers={"Retry-After": "0"}),
+                httpx.Response(200, json={"features": [], "_links": {}}),
+            ]
+        )
+        planet(lambda request: next(replies))
+
+        client.search_scenes("KEY", **_search())
+
+        # Pacing sleeps are a fifth of a second, so a whole second is the backoff.
+        assert max(instant_sleep) >= 1.0
+
     def test_a_key_that_stays_rate_limited_says_what_to_do_about_it(self, planet):
         seen = planet(lambda request: httpx.Response(429, json={}))
 
@@ -286,10 +307,48 @@ class TestRateLimiting:
 
         assert len(seen) == client.RETRY_ATTEMPTS
 
+    def test_pacing_widens_after_a_refusal(self, instant_sleep):
+        pacer = client._Pacer(5.0)
+        pacer.wait()
+        pacer.wait()
+        before = instant_sleep[-1]
+
+        pacer.refused()
+        pacer.wait()
+        pacer.wait()
+
+        assert instant_sleep[-1] > before
+
     def test_a_burst_of_slice_searches_is_paced(self, planet, instant_sleep):
         planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
 
-        client.search_config("KEY", scene_config())
+        client.search_config("KEY", scene_config(), AOI)
 
         # Ten slice searches: the first can go at once, the rest wait their turn.
         assert len([delay for delay in instant_sleep if delay > 0]) >= 9
+
+
+def test_a_refusal_carries_what_planet_said_was_wrong(planet):
+    planet(
+        lambda request: httpx.Response(
+            400,
+            json={
+                "general": [{"message": "Unable to parse the geometry"}],
+                "field": {"filter": [{"message": "config is not valid"}]},
+            },
+        )
+    )
+
+    with pytest.raises(client.PlanetError, match="Unable to parse the geometry"):
+        client.search_scenes("KEY", **_search())
+
+
+def test_a_search_page_stays_inside_planets_maximum(planet):
+    seen = planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
+
+    client.search_scenes("KEY", **_search())
+
+    # Asking for more is a 400 rather than a clamp, which is how a working search
+    # turned into "Planet returned 400" the moment the page size was raised.
+    assert seen[0].url.params["_page_size"] == str(client.SEARCH_PAGE_SIZE)
+    assert client.SEARCH_PAGE_SIZE <= 250

@@ -404,3 +404,31 @@ class ImageryViewOrderUpdate(BaseModel):
     """Full campaign view ordering; must list every view id exactly once."""
 
     view_ids: list[int]
+
+
+# ============================================================================
+# Planet scene search (at annotation time, not at setup)
+# ============================================================================
+
+
+class PlanetSceneSearchIn(BaseModel):
+    """The extent to search, west/south/east/north: whatever is on screen."""
+
+    bbox: list[float] = Field(min_length=4, max_length=4)
+
+
+class PlanetSceneSliceOut(BaseModel):
+    """One of the source's slices, and the layer minted for it over this extent."""
+
+    slice_id: int
+    scene_count: int
+    layer_id: str
+
+
+class PlanetSceneSearchOut(BaseModel):
+    """What this extent has. Slices missing from ``slices`` hold no imagery here, which
+    is the answer the search exists to give - a date with nothing over you is a date
+    not worth stepping to."""
+
+    slices: list[PlanetSceneSliceOut]
+    errors: list[str] = []

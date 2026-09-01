@@ -184,47 +184,28 @@ SCENES_BY_DAY = {
 }
 
 
-def test_scene_preview_returns_the_windows_and_slices_the_config_would_build(client, monkeypatch):
-    # Patched at the per-period search, so the fan-out in search_config is exercised:
-    # a day the archive has nothing for contributes nothing.
+def test_the_plan_is_the_dates_alone_and_never_calls_planet(client, monkeypatch):
     monkeypatch.setattr(
-        planet_client,
-        "search_scenes",
-        lambda _key, **kwargs: SCENES_BY_DAY.get(kwargs["start"], []),
+        planet_client, "search_config", lambda *a, **k: pytest.fail("should not reach Planet")
     )
 
     response = client.post(
-        "/api/planet/scenes/preview",
-        json={"credentials": _org_key(), "config": SCENE_CONFIG},
+        "/api/planet/scenes/plan",
+        json={"project_id": 1, "config": {**SCENE_CONFIG, "slice_period_interval": 10}},
     )
 
     assert response.status_code == 200
     windows = response.json()
     assert [w["start_date"] for w in windows] == ["2024-01-01"]
-    assert [s["start_date"] for s in windows[0]["slices"]] == ["2024-01-05", "2024-01-20"]
-    assert windows[0]["slices"][0]["scene_count"] == 2
-    # The cover stacks the whole window, which is what Planet's mosaics cannot offer.
-    assert windows[0]["cover"]["scene_count"] == 3
-
-
-def test_scene_preview_spends_the_key_the_caller_chose(client, monkeypatch):
-    seen: list[str] = []
-
-    def search_config(api_key, _config):
-        seen.append(api_key)
-        return []
-
-    monkeypatch.setattr(planet_client, "search_config", search_config)
-
-    client.post(
-        "/api/planet/scenes/preview", json={"credentials": _org_key(), "config": SCENE_CONFIG}
-    )
-    client.post(
-        "/api/planet/scenes/preview",
-        json={"credentials": _own_key(), "config": SCENE_CONFIG},
-    )
-
-    assert seen == ["PLANET-SECRET", "MY-OWN-KEY"]
+    # Every configured date is planned, whether or not Planet has anything there:
+    # what a slice holds depends on where the annotator is standing.
+    assert [s["start_date"] for s in windows[0]["slices"]] == [
+        "2024-01-01",
+        "2024-01-11",
+        "2024-01-21",
+        "2024-01-31",
+    ]
+    assert windows[0]["cover"]["start_date"] == "2024-01-01"
 
 
 def test_a_config_that_would_not_regenerate_is_rejected_before_planet_is_called(
@@ -235,8 +216,8 @@ def test_a_config_that_would_not_regenerate_is_rejected_before_planet_is_called(
     )
 
     response = client.post(
-        "/api/planet/scenes/preview",
-        json={"credentials": _org_key(), "config": {**SCENE_CONFIG, "cadence": "daily"}},
+        "/api/planet/scenes/plan",
+        json={"project_id": 1, "config": {**SCENE_CONFIG, "cadence": "daily"}},
     )
 
     assert response.status_code == 422

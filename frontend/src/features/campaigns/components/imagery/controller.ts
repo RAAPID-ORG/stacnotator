@@ -13,6 +13,7 @@ import type {
 } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
+import { isPlanetSceneConfig } from './types';
 import type {
   Basemap,
   CollectionItem,
@@ -111,14 +112,17 @@ export interface SourceRegistrationProgress {
 }
 
 /** How far a source's slices have got with the tiler, or null when the question
- *  doesn't apply yet: an unsaved source has nothing registered by definition,
- *  and a source without slices has nothing to register. */
+ *  doesn't apply: an unsaved source has nothing registered by definition, a source
+ *  without slices has nothing to register, and a scene source is never registered at
+ *  all - its layers are minted per annotator, per viewport, and would show as 0%
+ *  forever. */
 export function sourceRegistration(
   source: ImagerySource,
   campaignId: number | undefined
 ): SourceRegistrationProgress | null {
   const total = source.sliceCount ?? 0;
   if (campaignId == null || !isRealId(source.id) || total === 0) return null;
+  if (source.generationSeries.some((series) => isPlanetSceneConfig(series.config))) return null;
   const registered = source.registeredSliceCount ?? 0;
   return {
     registered,

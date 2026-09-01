@@ -1,3 +1,7 @@
+import logging
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -23,9 +27,8 @@ from src.imagery.models import (
     VisualizationTemplate,
 )
 from src.imagery.registration import (
-    PlanetRegistrationSpec,
-    Registration,
     StacRegistrationSpec,
+    sanitize_error_message,
 )
 from src.imagery.schemas import (
     BasemapCreate,
@@ -35,10 +38,14 @@ from src.imagery.schemas import (
     ImagerySourceCreate,
     ImageryViewCreate,
     ImageryViewUpdate,
+    PlanetSceneSearchOut,
+    PlanetSceneSliceOut,
 )
 from src.imagery.tile_urls import update_collection_viz_params
 from src.layers import LayerOwner
 from src.organizations.models import Organization, OrganizationApiKey
+from src.planet import client as planet_client
+from src.planet import scenes as planet_scenes
 from src.planet.schemas import PlanetScenesGenerationConfigV1
 from src.tilers import providers, registry
 
@@ -365,7 +372,7 @@ def save_imagery_editor_state(
 
     # Upsert sources. New ones go through the existing _create_source helper so
     # the pending-registration list works identically to campaign create.
-    pending_registrations: list[Registration] = []
+    pending_registrations: list[StacRegistrationSpec] = []
     current_sources: list[ImagerySource] = []
 
     for src_idx, src_create in enumerate(editor_state.sources):
@@ -542,7 +549,7 @@ def save_visualizer_imagery(
     visualizer,
     sources: list[ImagerySourceCreate],
     bbox: list[float],
-) -> list[Registration]:
+) -> list[StacRegistrationSpec]:
     """Reconcile a visualizer's own imagery, the way a campaign's is reconciled.
 
     Same rules as ``save_imagery_editor_state``: an entry with an id updates in
@@ -577,7 +584,7 @@ def save_visualizer_imagery(
                 db.delete(collection)
     db.flush()
 
-    pending: list[Registration] = []
+    pending: list[StacRegistrationSpec] = []
     for index, src_create in enumerate(sources):
         if src_create.id and src_create.id in existing:
             pending.extend(
@@ -615,7 +622,7 @@ def _update_source_in_place(
     src_create: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
-) -> list[Registration]:
+) -> list[StacRegistrationSpec]:
     """Update source metadata + viz templates, then reconcile collections.
     Returns pending STAC registrations from any new or re-registered collections."""
     db_src.name = src_create.name
@@ -702,41 +709,18 @@ def _update_source_in_place(
     return pending
 
 
-def _has_unminted_slice(db: Session, generation_series_id: int) -> bool:
-    """Whether a mint still owes this series a tile URL, which is how a run that failed
-    part-way is picked back up on the next save."""
-    return (
-        db.execute(
-            select(ImagerySlice.id)
-            .join(ImageryCollection, ImagerySlice.collection_id == ImageryCollection.id)
-            .outerjoin(SliceTileUrl, SliceTileUrl.slice_id == ImagerySlice.id)
-            .where(
-                ImageryCollection.generation_series_id == generation_series_id,
-                SliceTileUrl.id.is_(None),
-            )
-            .limit(1)
-        ).first()
-        is not None
-    )
-
-
 def _reconcile_generation_series(
     db: Session, db_src: ImagerySource, src_create: ImagerySourceCreate
-) -> tuple[dict[str, int], list[ImageryGenerationSeries], list[Registration]]:
+) -> tuple[dict[str, int], list[ImageryGenerationSeries], list[StacRegistrationSpec]]:
     """Upsert source-level generator inputs and resolve request keys to IDs.
 
     This is the persistence seam for generation provenance. Collection writes only
     receive the resolved foreign key; config ownership stays here.
-
-    A Planet series also comes back as a pending registration when its layers are not
-    what its config says they should be - nothing else in the save flow can tell.
-    Minting spends the organization's Planet quota, so a series that is unchanged and
-    fully minted asks for nothing.
     """
     existing = {series.id: series for series in db_src.generation_series}
     kept: set[int] = set()
     by_key: dict[str, int] = {}
-    pending: list[Registration] = []
+    pending: list[StacRegistrationSpec] = []
     for incoming in src_create.generation_series:
         config = incoming.config.model_dump(mode="json")
         if incoming.id is not None:
@@ -746,31 +730,15 @@ def _reconcile_generation_series(
                     status_code=400,
                     detail=f"Generation series {incoming.id} does not belong to source {db_src.id}",
                 )
-            changed = series.config != config
-            if changed:
+            if series.config != config:
                 series.config = config
                 flag_modified(series, "config")
         else:
             series = ImageryGenerationSeries(source_id=db_src.id, config=config)
             db.add(series)
             db.flush()
-            changed = True
         kept.add(series.id)
         by_key[incoming.key] = series.id
-        if (
-            src_create.visualizations
-            and isinstance(incoming.config, PlanetScenesGenerationConfigV1)
-            and (changed or _has_unminted_slice(db, series.id))
-        ):
-            pending.append(
-                PlanetRegistrationSpec(
-                    source_id=db_src.id,
-                    source_name=src_create.name,
-                    generation_series_id=series.id,
-                    config=incoming.config,
-                    visualization_name=src_create.visualizations[0].name,
-                )
-            )
     stale = [series for series_id, series in existing.items() if series_id not in kept]
     return by_key, stale, pending
 
@@ -923,7 +891,7 @@ def _create_source(
     src: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
-) -> tuple[ImagerySource, list[Registration]]:
+) -> tuple[ImagerySource, list[StacRegistrationSpec]]:
     """Create a single ImagerySource with all its children.
     Returns (source, pending_registrations)."""
     source = ImagerySource(
@@ -1066,3 +1034,95 @@ def _create_basemaps(
         db.add(obj)
         created.append(obj)
     return created
+
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Planet scene search, at annotation time
+# ============================================================================
+
+# One search per slice already fans out; minting is what is left to overlap.
+PLANET_MINT_WORKERS = 8
+
+
+@dataclass(frozen=True)
+class PlanetSceneSeries:
+    """One scene series of a source, ready to search: what it asks Planet for, and the
+    slices its dates already own."""
+
+    config: PlanetScenesGenerationConfigV1
+    slice_ids: dict[tuple[str, str], int]
+
+
+def planet_scene_series(db: Session, source: ImagerySource) -> list[PlanetSceneSeries]:
+    """Read what a search needs before any network call, so no connection is held
+    across one."""
+    series: list[PlanetSceneSeries] = []
+    for stored in source.generation_series:
+        if (stored.config or {}).get("kind") != "planet_scenes":
+            continue
+        rows = db.execute(
+            select(ImagerySlice.id, ImagerySlice.start_date, ImagerySlice.end_date)
+            .join(ImageryCollection, ImagerySlice.collection_id == ImageryCollection.id)
+            .where(ImageryCollection.generation_series_id == stored.id)
+        ).all()
+        series.append(
+            PlanetSceneSeries(
+                config=PlanetScenesGenerationConfigV1.model_validate(stored.config),
+                slice_ids={(row[1], row[2]): row[0] for row in rows},
+            )
+        )
+    return series
+
+
+def search_planet_scenes_in_view(
+    api_key: str, series: list[PlanetSceneSeries], bbox: list[float]
+) -> PlanetSceneSearchOut:
+    """Search what is on screen, and mint a layer for each slice that has scenes there.
+
+    Nothing is written. A minted layer belongs to the search that asked for it, so two
+    annotators standing in different places never overwrite each other's imagery, and
+    what a country-sized campaign area could never produce - a layer that actually
+    covers where you are looking - falls out of bounding the search by the viewport.
+    """
+    geometry = planet_scenes.bbox_polygon(bbox)
+    found: list[PlanetSceneSliceOut] = []
+    errors: list[str] = []
+
+    for one in series:
+        try:
+            features = planet_client.search_config(api_key, one.config, geometry)
+        except Exception as e:
+            errors.append(sanitize_error_message(e, fallback="Planet scene search failed"))
+            continue
+
+        wanted = planet_scenes.matched(features, one.config, one.slice_ids)
+        with ThreadPoolExecutor(max_workers=PLANET_MINT_WORKERS) as pool:
+            minted = pool.map(lambda pair: _mint_view_layer(api_key, *pair), wanted)
+        for result in minted:
+            if isinstance(result, str):
+                errors.append(result)
+            else:
+                found.append(result)
+
+    for message in errors:
+        # Reported to the annotator and to us: a search that half worked still answers
+        # 200, so without this the only record of why is a toast someone dismissed.
+        logger.warning("Planet scene search over %s: %s", bbox, message)
+    return PlanetSceneSearchOut(slices=found, errors=errors)
+
+
+def _mint_view_layer(
+    api_key: str, slice_id: int, group: "planet_scenes.SliceGroup"
+) -> PlanetSceneSliceOut | str:
+    """One slice's layer, or the message saying why it has none."""
+    try:
+        return PlanetSceneSliceOut(
+            slice_id=slice_id,
+            scene_count=len(group.scene_ids),
+            layer_id=planet_client.create_layer(api_key, list(group.scene_ids)),
+        )
+    except Exception as e:
+        return sanitize_error_message(e, fallback="Minting the tile layer failed")

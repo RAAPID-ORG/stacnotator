@@ -63,7 +63,10 @@ class PlanetScenesGenerationConfigV1(BaseModel):
 
     kind: Literal["planet_scenes"]
     version: Literal[1] = 1
-    aoi: dict
+    # Where to search is not part of a scene source: it is wherever the annotator is
+    # standing when they ask. Accepted and ignored so configs written before that
+    # moved to annotation time still load.
+    aoi: dict | None = None
     item_types: list[str] = ["PSScene"]
     start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
@@ -88,22 +91,24 @@ class PlanetScenesGenerationConfigV1(BaseModel):
         return self
 
 
-class PlanetSceneGroupOut(BaseModel):
-    """One window or slice as previewed: what it covers, and how much imagery it has."""
+class PlanetScenePeriodOut(BaseModel):
+    """One window or slice as planned: the dates it covers."""
 
     start_date: str
     end_date: str
-    scene_count: int
 
 
 class PlanetSceneWindowOut(BaseModel):
     start_date: str
     end_date: str
     # Set under whole_window_cover.
-    cover: PlanetSceneGroupOut | None = None
-    slices: list[PlanetSceneGroupOut]
+    cover: PlanetScenePeriodOut | None = None
+    slices: list[PlanetScenePeriodOut]
 
 
-class PlanetScenePreview(BaseModel):
-    credentials: PlanetCredentials
+class PlanetScenePlan(BaseModel):
+    """What a scene config would be built from. No Planet call: which of these dates
+    hold imagery depends on where you are standing, and is asked at annotation time."""
+
+    project_id: int
     config: PlanetScenesGenerationConfigV1

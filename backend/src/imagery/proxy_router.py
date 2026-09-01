@@ -40,6 +40,7 @@ from src.imagery.models import (
 )
 from src.imagery.proxy import build_upstream_tile_url
 from src.layers import LayerOwner
+from src.planet import tiles as planet_tiles
 from src.tile_bulkhead import tile_db_slot, tile_upstream_slot
 from src.tilers import tokens
 
@@ -246,6 +247,48 @@ async def proxy_slice_tile(
     tile_url, encrypted_api_key = await _resolve(
         ("slice", owner.tile_scope, slice_id, visualization_name),
         _slice_lookup(slice_id, visualization_name, owner),
+    )
+    return await _proxy(tile_url, encrypted_api_key, z, x, y)
+
+
+def _planet_layer_lookup(source_id: int, layer_id: str, owner: LayerOwner):
+    """Resolve a runtime-minted Planet layer to its template and the source's key.
+
+    The layer id comes from the client because nothing about a viewport search is
+    stored. That is safe but not free: it lets a viewer of this campaign render any
+    layer the campaign's own Planet key can see, which is that organization's own
+    imagery. It cannot reach the key, another organization's layers, or anything but
+    Planet's tile host, since the template is built here rather than sent in.
+    """
+
+    def lookup(db: Session) -> tuple[str, str | None]:
+        source = db.get(ImagerySource, source_id)
+        if source is None or source.owner != owner:
+            raise HTTPException(status_code=404, detail="Imagery source not found")
+        try:
+            return planet_tiles.layer_template(layer_id), source.encrypted_key
+        except planet_tiles.UnexpectedTileLink as e:
+            raise HTTPException(status_code=400, detail="Not a Planet layer id") from e
+
+    return lookup
+
+
+@router.get(
+    "/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}",
+    dependencies=[Depends(require_tile_access)],
+)
+async def proxy_planet_layer_tile(
+    campaign_id: int,
+    source_id: int,
+    layer_id: str,
+    z: int,
+    x: int,
+    y: int,
+) -> Response:
+    owner = LayerOwner(campaign_id=campaign_id)
+    tile_url, encrypted_api_key = await _resolve(
+        ("planet-layer", owner.tile_scope, source_id, layer_id),
+        _planet_layer_lookup(source_id, layer_id, owner),
     )
     return await _proxy(tile_url, encrypted_api_key, z, x, y)
 

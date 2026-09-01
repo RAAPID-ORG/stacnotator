@@ -7,8 +7,8 @@ const window = (overrides: Partial<PlanetSceneWindowOut> = {}): PlanetSceneWindo
   end_date: '2024-01-31',
   cover: null,
   slices: [
-    { start_date: '2024-01-05', end_date: '2024-01-05', scene_count: 2 },
-    { start_date: '2024-01-20', end_date: '2024-01-20', scene_count: 1 },
+    { start_date: '2024-01-05', end_date: '2024-01-05' },
+    { start_date: '2024-01-20', end_date: '2024-01-20' },
   ],
   ...overrides,
 });
@@ -27,7 +27,7 @@ describe('sceneCollections', () => {
 
   it('puts a window cover first and marks it dedicated', () => {
     const [collection] = collectionsOf([
-      window({ cover: { start_date: '2024-01-01', end_date: '2024-01-31', scene_count: 3 } }),
+      window({ cover: { start_date: '2024-01-01', end_date: '2024-01-31' } }),
     ]);
 
     expect(collection.hasDedicatedCover).toBe(true);

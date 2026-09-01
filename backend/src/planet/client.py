@@ -31,7 +31,12 @@ DATA_ROOT = f"https://{API_HOST}/data/v1"
 # Minting a scene layer is the one call that goes to the tile host rather than the API.
 LAYERS_URL = f"https://{tiles.TILE_HOST}/data/v1/layers"
 READ_TIMEOUT = 30.0
+# Asked for explicitly so a listing is not walked 250 rows at a time. The Basemaps API
+# takes this; the Data API caps its pages lower, hence the separate size below.
 PAGE_SIZE = 500
+# Planet's documented maximum for a Data API search page. Asking for more is a 400,
+# not a clamp, so this is also what the reachable-scenes cap is counted in.
+SEARCH_PAGE_SIZE = 250
 # A series is a decade of mosaics at worst; anything beyond this is a paging loop.
 MAX_PAGES = 20
 # One scene search per slice, so this bounds how wide a source the wizard will build.
@@ -41,6 +46,8 @@ TOO_MANY_REQUESTS = 429
 # Planet rate-limits per key across the whole Data API, and a config with many slices is
 # a burst of searches
 REQUESTS_PER_SECOND = 5.0
+# Where pacing lands if Planet keeps refusing: one request a second.
+MIN_REQUESTS_PER_SECOND = 1.0
 RETRY_ATTEMPTS = 4
 MAX_RETRY_WAIT = 10.0
 
@@ -54,10 +61,17 @@ class PlanetError(RuntimeError):
 
 
 class _Pacer:
-    """Hands out request slots no closer together than one interval, across threads."""
+    """Hands out request slots no closer together than one interval, across threads.
+
+    The interval widens when Planet refuses and narrows again as requests get through.
+    What a key is actually allowed is neither documented nor constant - it is shared
+    with everything else spending it - so the rate is found rather than assumed.
+    """
 
     def __init__(self, per_second: float) -> None:
-        self._interval = 1.0 / per_second
+        self._base = 1.0 / per_second
+        self._slowest = 1.0 / MIN_REQUESTS_PER_SECOND
+        self._interval = self._base
         self._lock = threading.Lock()
         self._free_at = 0.0
 
@@ -69,17 +83,31 @@ class _Pacer:
         if start > now:
             time.sleep(start - now)
 
+    def refused(self) -> None:
+        with self._lock:
+            self._interval = min(self._interval * 2, self._slowest)
+
+    def allowed(self) -> None:
+        with self._lock:
+            self._interval = max(self._interval * 0.9, self._base)
+
 
 _pacer = _Pacer(REQUESTS_PER_SECOND)
 
 
 def _retry_wait(response: httpx.Response, attempt: int) -> float:
-    """Planet's own Retry-After where it sends one, otherwise a widening backoff."""
+    """A widening backoff, or Planet's own Retry-After where it asks for longer.
+
+    Planet answers 429 with ``Retry-After: 0``, so taking the header at face value is
+    a retry storm dressed up as backoff - it is a floor for how long to wait, never a
+    licence to go straight back.
+    """
+    backoff = min(2.0**attempt, MAX_RETRY_WAIT)
     header = response.headers.get("Retry-After", "")
     try:
-        return min(float(header), MAX_RETRY_WAIT)
+        return min(max(float(header), backoff), MAX_RETRY_WAIT)
     except ValueError:
-        return min(2.0**attempt, MAX_RETRY_WAIT)
+        return backoff
 
 
 def _send(request: Callable[[], httpx.Response]) -> dict[str, Any]:
@@ -88,7 +116,9 @@ def _send(request: Callable[[], httpx.Response]) -> dict[str, Any]:
         _pacer.wait()
         response = request()
         if response.status_code != TOO_MANY_REQUESTS:
+            _pacer.allowed()
             return _checked(response)
+        _pacer.refused()
         if attempt < RETRY_ATTEMPTS - 1:
             wait = _retry_wait(response, attempt)
             logger.warning("Planet rate limited us, waiting %.1fs (attempt %d)", wait, attempt + 1)
@@ -104,11 +134,33 @@ def _require_host(url: str, host: str) -> None:
         raise PlanetError(f"refusing to send Planet credentials to {url}")
 
 
+def _complaint(response: httpx.Response) -> str:
+    """What Planet said was wrong, if it said anything.
+
+    A bare status is not a diagnosis: 400 covers a geometry it cannot parse, a filter
+    it does not know and a page size past its maximum, and only Planet knows which.
+    Its errors come back as ``{"general": [{"message": ...}], "field": {...}}``.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    messages = [str(item.get("message", "")) for item in body.get("general", [])]
+    for problems in (body.get("field") or {}).values():
+        messages += [str(item.get("message", "")) for item in problems]
+    return "; ".join(m for m in messages if m)[:200]
+
+
 def _checked(response: httpx.Response) -> dict[str, Any]:
     if response.status_code in (401, 403):
         raise PlanetError("Planet rejected the API key")
     if response.status_code >= 400:
-        raise PlanetError(f"Planet returned {response.status_code}")
+        said = _complaint(response)
+        raise PlanetError(
+            f"Planet returned {response.status_code}: {said}"
+            if said
+            else f"Planet returned {response.status_code}"
+        )
     body: dict[str, Any] = response.json()
     return body
 
@@ -207,7 +259,14 @@ def search_scenes(
             ),
         },
     }
-    body = _send(lambda: _http.post(f"{DATA_ROOT}/quick-search", auth=(api_key, ""), json=request))
+    body = _send(
+        lambda: _http.post(
+            f"{DATA_ROOT}/quick-search",
+            auth=(api_key, ""),
+            params={"_page_size": SEARCH_PAGE_SIZE},
+            json=request,
+        )
+    )
 
     features = list(body.get("features", []))
     next_url = body.get("_links", {}).get("_next")
@@ -218,13 +277,18 @@ def search_scenes(
         features.extend(page.get("features", []))
         next_url = page.get("_links", {}).get("_next")
     raise PlanetError(
-        f"Planet has more than {MAX_PAGES * PAGE_SIZE} scenes over this area for "
+        f"Planet has more than {MAX_PAGES * SEARCH_PAGE_SIZE} scenes over this area for "
         f"{start} to {end}. Narrow the area, or use a shorter slice period."
     )
 
 
-def search_config(api_key: str, config: PlanetScenesGenerationConfigV1) -> list[dict[str, Any]]:
-    """Every scene the config's slices can draw on.
+def search_config(
+    api_key: str, config: PlanetScenesGenerationConfigV1, geometry: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Every scene the config's slices can draw on over ``geometry``.
+
+    The config settles the dates and the filters; where to look is the caller's, since
+    it is wherever the annotator is standing rather than anything set up in advance.
 
     One search per slice period rather than one for the whole range. A single wide
     search runs out of pages and loses whichever end Planet happened to return last -
@@ -247,7 +311,7 @@ def search_config(api_key: str, config: PlanetScenesGenerationConfigV1) -> list[
     def one(period: "scenes.Period") -> list[dict[str, Any]]:
         return search_scenes(
             api_key,
-            geometry=config.aoi,
+            geometry=geometry,
             start=period.start.isoformat(),
             end=period.end.isoformat(),
             item_types=config.item_types,

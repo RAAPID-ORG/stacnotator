@@ -25,7 +25,7 @@ from src.imagery.models import (
     ImagerySlice,
     ImagerySource,
 )
-from src.imagery.registration import Registration
+from src.imagery.registration import StacRegistrationSpec
 from src.imagery.schemas import (
     BasemapOut,
     ImagerySourceCreate,
@@ -202,7 +202,7 @@ def delete(db: Session, visualizer: Visualizer) -> None:
 
 def _save_own_imagery(
     db: Session, visualizer: Visualizer, sources: list[ImagerySourceCreate]
-) -> list[Registration]:
+) -> list[StacRegistrationSpec]:
     """Set up imagery for this visualizer alone, searched over its own area.
 
     An area is what a STAC search is registered over, so imagery cannot be set
@@ -229,7 +229,7 @@ def _bbox(visualizer: Visualizer) -> list[float]:
 
 
 def _spawn_registration(
-    visualizer_id: int, pending: list[Registration], area: VisualizerArea | None
+    visualizer_id: int, pending: list[StacRegistrationSpec], area: VisualizerArea | None
 ) -> None:
     """Off the request path, after the commit - the provider calls are slow enough
     that holding the write transaction across them trips the idle backstop."""

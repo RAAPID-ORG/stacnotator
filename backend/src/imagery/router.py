@@ -9,8 +9,10 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.canvas import service as canvas_service
 from src.canvas.schemas import CanvasLayoutCreateRequest
-from src.database import get_db
+from src.crypto import DecryptionError, decrypt
+from src.database import get_db, release
 from src.imagery import registration, service
+from src.imagery.models import ImagerySource
 from src.imagery.schemas import (
     ApiKeyStatusOut,
     ApiKeyUpdate,
@@ -19,6 +21,8 @@ from src.imagery.schemas import (
     ImageryViewOrderUpdate,
     ImageryViewOut,
     ImageryViewUpdate,
+    PlanetSceneSearchIn,
+    PlanetSceneSearchOut,
 )
 from src.layers import LayerOwner
 from src.organizations.schemas import OrganizationApiKeyOut, OrganizationApiKeysResponse
@@ -166,6 +170,46 @@ def refresh_source_imagery(
     db.commit()
     registration.spawn_background_source_refresh(campaign.id, collection_ids, bbox)
     return {"registration_status": "registering"}
+
+
+@router.post(
+    "/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search",
+    response_model=PlanetSceneSearchOut,
+)
+def search_planet_scenes(
+    campaign_id: int,
+    source_id: int,
+    payload: PlanetSceneSearchIn,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """Find the Planet scenes covering this extent and mint a layer per slice.
+
+    An annotator's own action, not an admin's: a scene source is set up with dates
+    only, and the area to search is wherever they are standing. Nothing is stored, so
+    the answer is theirs alone and stale the moment they move on.
+    """
+    source = db.get(ImagerySource, source_id)
+    if source is None or source.campaign_id != campaign.id:
+        raise HTTPException(status_code=404, detail="Imagery source not found")
+    if not source.encrypted_key:
+        raise HTTPException(
+            status_code=400, detail="No Planet API key is configured for this source"
+        )
+    try:
+        api_key = decrypt(source.encrypted_key)
+    except DecryptionError as e:
+        raise HTTPException(
+            status_code=500, detail="The source's Planet API key could not be read"
+        ) from e
+
+    series = service.planet_scene_series(db, source)
+    if not series:
+        raise HTTPException(status_code=400, detail="This source has no Planet scene series")
+    # Planet is a network call away, and the connection must not sit idle in a
+    # transaction across it - see planet/router.py.
+    release(db)
+    return service.search_planet_scenes_in_view(api_key, series, payload.bbox)
 
 
 @router.post("/{campaign_id}/imagery/views", response_model=ImageryViewOut, status_code=201)

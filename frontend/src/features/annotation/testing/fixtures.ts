@@ -78,7 +78,9 @@ export function makeSlice(overrides: Partial<ImagerySliceOut> = {}): ImagerySlic
     start_date: '2024-01-01',
     end_date: '2024-01-31',
     display_order: 0,
-    tile_urls: [],
+    // Resolved by default: a slice with no tile URL is one nothing can draw, which
+    // navigation now skips. Pass `tile_urls: []` to build that case on purpose.
+    tile_urls: [makeTileUrl()],
     ...overrides,
   };
 }

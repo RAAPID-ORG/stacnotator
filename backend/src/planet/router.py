@@ -13,8 +13,8 @@ from src.database import get_db, release
 from src.planet import client, scenes, tiles
 from src.planet.schemas import (
     PlanetCredentials,
-    PlanetSceneGroupOut,
-    PlanetScenePreview,
+    PlanetScenePeriodOut,
+    PlanetScenePlan,
     PlanetSceneWindowOut,
     PlanetSeriesMosaicsOut,
     PlanetSeriesOut,
@@ -61,6 +61,9 @@ def _upstream[T](call: Callable[[], T], what: str) -> T:
     try:
         return call()
     except client.PlanetError as e:
+        # Logged, not just returned: the browser shows this to one person, and the
+        # next report of "it says 502" has to be answerable from the logs alone.
+        logger.warning("Planet %s refused: %s", what, e)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
     except httpx.HTTPError as e:
         logger.error("Planet %s failed: %s", what, e)
@@ -110,36 +113,32 @@ def list_planet_series_mosaics(
     return tiles.describe_series(series_id, mosaics)
 
 
-def _previewed(group: scenes.SliceGroup) -> PlanetSceneGroupOut:
-    return PlanetSceneGroupOut(
+def _period(group: scenes.SliceGroup) -> PlanetScenePeriodOut:
+    return PlanetScenePeriodOut(
         start_date=group.period.start.isoformat(),
         end_date=group.period.end.isoformat(),
-        scene_count=len(group.scene_ids),
     )
 
 
-@router.post("/scenes/preview", response_model=list[PlanetSceneWindowOut])
-def preview_planet_scenes(
-    request: PlanetScenePreview,
+@router.post("/scenes/plan", response_model=list[PlanetSceneWindowOut])
+def plan_planet_scenes(
+    request: PlanetScenePlan,
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ):
-    """The windows and slices a scene config would produce, without minting anything.
+    """The windows and slices this config describes.
 
-    The same search and grouping registration runs later, so what the wizard shows is
-    what gets built.
+    Pure date arithmetic - Planet is not asked anything here. A scene source is not
+    searched when it is set up: the area a search would be bounded by is wherever an
+    annotator is standing, so it happens at annotation time instead.
     """
-    api_key = _api_key(request.credentials, db, user)
-    # See list_planet_series: the connection must not sit idle across the Planet call.
-    release(db)
-    config = request.config
-    features = _upstream(lambda: client.search_config(api_key, config), "search for scenes")
+    require_project_access(project_id=request.project_id, db=db, user=user)
     return [
         PlanetSceneWindowOut(
             start_date=window.period.start.isoformat(),
             end_date=window.period.end.isoformat(),
-            cover=_previewed(window.cover) if window.cover else None,
-            slices=[_previewed(s) for s in window.slices],
+            cover=_period(window.cover) if window.cover else None,
+            slices=[_period(s) for s in window.slices],
         )
-        for window in scenes.group(features, config)
+        for window in scenes.plan(request.config)
     ]

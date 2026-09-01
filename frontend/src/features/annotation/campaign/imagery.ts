@@ -60,6 +60,57 @@ export function buildImageryCatalog(campaign: CampaignOutFull): ImageryCatalog {
   };
 }
 
+/**
+ * A Planet scene source after a viewport search: the slices that had scenes get the
+ * layer minted for them, and every other slice of that source loses whatever a
+ * previous search left it.
+ *
+ * The result lives here and nowhere else. A minted layer covers the extent it was
+ * searched over, so it is the answer to one question asked from one place, and
+ * storing it would hand the next annotator imagery over somewhere they are not.
+ */
+export function withSceneLayers(
+  cat: ImageryCatalog,
+  sourceId: number,
+  vizName: string,
+  urlBySliceId: Map<number, string>
+): ImageryCatalog {
+  const source = cat.sources.get(sourceId);
+  if (!source) return cat;
+
+  const sources = new Map(cat.sources);
+  const collections = new Map(cat.collections);
+  const slices = new Map(cat.slices);
+
+  const rebuilt = {
+    ...source,
+    collections: source.collections.map((collection) => {
+      const next = {
+        ...collection,
+        slices: collection.slices.map((slice) => {
+          const url = urlBySliceId.get(slice.id);
+          const tile_urls = url
+            ? [{ id: slice.id, visualization_name: vizName, tile_url: url }]
+            : [];
+          const updated = { ...slice, tile_urls };
+          slices.set(slice.id, updated);
+          return updated;
+        }),
+      };
+      collections.set(collection.id, next);
+      return next;
+    }),
+  };
+  sources.set(sourceId, rebuilt);
+
+  return { ...cat, sources, collections, slices };
+}
+
+/** Whether a slice can be drawn at all. A scene source starts with none of them
+ *  resolved, and a search over one viewport resolves only the dates it found. */
+export const sliceHasImagery = (slice: Pick<ImagerySliceOut, 'tile_urls'>): boolean =>
+  slice.tile_urls.length > 0;
+
 /** Collections a view browses, in the view's source order then each source's own. */
 export function collectionsInView(
   cat: ImageryCatalog,

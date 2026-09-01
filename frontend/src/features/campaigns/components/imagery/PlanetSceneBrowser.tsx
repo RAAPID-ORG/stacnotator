@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  previewPlanetScenes,
+  planPlanetScenes,
   type PlanetCredentials,
-  type PlanetSceneGroupOut,
+  type PlanetScenePeriodOut,
   type PlanetSceneWindowOut,
   type PlanetScenesGenerationConfigV1,
 } from '~/api/client';
 import { Modal } from '~/shared/ui/Modal';
-import { Button, Input, Select } from '~/shared/ui/forms';
+import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import { PlanetKeyConnect } from './PlanetKeyConnect';
@@ -16,18 +16,19 @@ import type { CollectionItem, ImagerySlice, ImagerySource } from './types';
 
 interface PlanetSceneBrowserProps {
   projectId: number;
-  /** The area the search is bounded by: west, south, east, north. */
-  campaignBbox: number[] | null;
   onAdd: (source: ImagerySource) => Promise<void>;
   onClose: () => void;
 }
 
 /** Free-form periods make a decade of daily slices as easy to ask for as a month of
- *  them, and the cost only shows up at save time. */
+ *  them, and the cost only shows up when someone searches. */
 const MANY_SLICES = 300;
 
 /** Scene tiles come from the visual asset, so there is one rendering. */
 const VISUALIZATION = 'Visual';
+
+/** Long enough that a typed date or interval is not sent digit by digit. */
+const TYPING_SETTLES_MS = 250;
 
 type PeriodUnit = PlanetScenesGenerationConfigV1['slice_period_unit'];
 interface Period {
@@ -101,23 +102,7 @@ const monthBack = () => {
   return from.toISOString().slice(0, 10);
 };
 
-const polygonOf = (bbox: number[]) => {
-  const [west, south, east, north] = bbox;
-  return {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [west, south],
-        [east, south],
-        [east, north],
-        [west, north],
-        [west, south],
-      ],
-    ],
-  };
-};
-
-const toSlice = (group: PlanetSceneGroupOut, unit: PeriodUnit): ImagerySlice => ({
+const toSlice = (group: PlanetScenePeriodOut, unit: PeriodUnit): ImagerySlice => ({
   id: createId(),
   name: formatSliceLabel(group.start_date, group.end_date, unit, 0),
   startDate: group.start_date,
@@ -126,7 +111,7 @@ const toSlice = (group: PlanetSceneGroupOut, unit: PeriodUnit): ImagerySlice => 
   vizUrls: [],
 });
 
-/** The windows a preview describes, as the collections a source is made of. */
+/** The windows a plan describes, as the collections a source is made of. */
 export function sceneCollections(
   windows: PlanetSceneWindowOut[],
   generationSeriesId: string,
@@ -153,15 +138,10 @@ export function sceneCollections(
  * A basemap series hands over finished mosaics at Planet's cadence; here the cadence is
  * ours and Planet stacks each period's acquisitions into one layer. Deliberately not
  * called a mosaic: there is no harmonisation or seam removal, and "mosaic" is Planet's
- * word for the other product. This settles what a window and a slice mean; registration
- * mints the layers.
+ * word for the other product. This settles what a window and a slice mean; the layers
+ * are minted later, from wherever an annotator asks for them.
  */
-export const PlanetSceneBrowser = ({
-  projectId,
-  campaignBbox,
-  onAdd,
-  onClose,
-}: PlanetSceneBrowserProps) => {
+export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBrowserProps) => {
   const [credentials, setCredentials] = useState<PlanetCredentials | null>(null);
   const [startDate, setStartDate] = useState(monthBack());
   const [endDate, setEndDate] = useState(today());
@@ -170,26 +150,25 @@ export const PlanetSceneBrowser = ({
   const [wholeWindowCover, setWholeWindowCover] = useState(true);
   const [maxCloudCover, setMaxCloudCover] = useState(80);
   const [windows, setWindows] = useState<PlanetSceneWindowOut[] | null>(null);
-  const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const config: PlanetScenesGenerationConfigV1 | null = campaignBbox
-    ? {
-        kind: 'planet_scenes',
-        version: 1,
-        aoi: polygonOf(campaignBbox),
-        item_types: ['PSScene'],
-        start_date: startDate,
-        end_date: endDate,
-        collection_period_interval: windowPeriod.interval,
-        collection_period_unit: windowPeriod.unit,
-        slice_period_interval: slicePeriod.interval,
-        slice_period_unit: slicePeriod.unit,
-        whole_window_cover: wholeWindowCover,
-        max_cloud_cover: maxCloudCover,
-        quality_categories: ['standard'],
-      }
-    : null;
+  const config: PlanetScenesGenerationConfigV1 = useMemo(
+    () => ({
+      kind: 'planet_scenes',
+      version: 1,
+      item_types: ['PSScene'],
+      start_date: startDate,
+      end_date: endDate,
+      collection_period_interval: windowPeriod.interval,
+      collection_period_unit: windowPeriod.unit,
+      slice_period_interval: slicePeriod.interval,
+      slice_period_unit: slicePeriod.unit,
+      whole_window_cover: wholeWindowCover,
+      max_cloud_cover: maxCloudCover,
+      quality_categories: ['standard'],
+    }),
+    [startDate, endDate, windowPeriod, slicePeriod, wholeWindowCover, maxCloudCover]
+  );
 
   // Said rather than silently corrected: which of the two numbers they meant to
   // change is not ours to guess.
@@ -199,18 +178,33 @@ export const PlanetSceneBrowser = ({
   const datesReversed = Boolean(startDate && endDate && endDate < startDate);
   const datesIncomplete = !startDate || !endDate || datesReversed;
 
-  const search = () => {
-    if (!credentials || !config || datesIncomplete) return;
-    setSearching(true);
-    setWindows(null);
-    void previewPlanetScenes({ body: { credentials, config } })
-      .then(({ data }) => setWindows(data ?? []))
-      .catch((err) => handleError(err, 'Could not search Planet for scenes'))
-      .finally(() => setSearching(false));
-  };
+  // The dates follow the settings as they are typed. It is arithmetic, not a search -
+  // nothing is asked of Planet - but it lives on the server so there is one
+  // implementation of it: the slices stored here are matched to search results by the
+  // ranges they cover, and two implementations that disagree would match nothing.
+  useEffect(() => {
+    if (datesIncomplete || sliceTooCoarse) {
+      setWindows(null);
+      return;
+    }
+    let current = true;
+    const timer = setTimeout(() => {
+      void planPlanetScenes({ body: { project_id: projectId, config } })
+        .then(({ data }) => {
+          if (current) setWindows(data ?? []);
+        })
+        .catch((err) => {
+          if (current) handleError(err, 'Could not work out the dates');
+        });
+    }, TYPING_SETTLES_MS);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [config, projectId, datesIncomplete, sliceTooCoarse]);
 
   const add = async () => {
-    if (!credentials || !config || !windows?.length) return;
+    if (!credentials || !windows?.length) return;
     setSubmitting(true);
     try {
       const seriesKey = createId();
@@ -255,7 +249,7 @@ export const PlanetSceneBrowser = ({
             variant="primary"
             size="sm"
             onClick={() => void add()}
-            disabled={submitting || !windows?.length}
+            disabled={submitting || !windows?.length || !credentials}
           >
             {submitting ? 'Adding…' : 'Add source'}
           </Button>
@@ -264,10 +258,16 @@ export const PlanetSceneBrowser = ({
     >
       <div className="p-4 space-y-4">
         <p className="text-[11px] text-neutral-500 leading-snug">
-          Each period&apos;s acquisitions are stacked into one layer on request, clearest on top, so
-          a slice can be as fine as a single day. Overlaps stay visible as seams - this is the raw
-          archive, not a harmonised basemap. The tiles count against your scene-tile quota, which is
-          separate from the basemap allowance.
+          Each period&apos;s acquisitions are stacked into one layer, clearest on top, so a slice
+          can be as fine as a single day. Overlaps stay visible as seams - this is the raw archive,
+          not a harmonised basemap. The tiles count against your scene-tile quota, which is separate
+          from the basemap allowance.
+        </p>
+        <p className="text-[11px] text-neutral-500 leading-snug">
+          Only the dates are settled here. A scene covers about 25 km, so which of them hold imagery
+          depends on where you are standing - annotators search the archive from the imagery panel,
+          over whatever is on their screen, and the dates with nothing over them drop out of the
+          list.
         </p>
 
         <PlanetKeyConnect
@@ -279,149 +279,117 @@ export const PlanetSceneBrowser = ({
           }}
         />
 
-        {!campaignBbox && (
-          <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-            This campaign has no area yet, and the scene search is bounded by it. Set the campaign
-            area first.
-          </p>
-        )}
-
-        {credentials && campaignBbox && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs text-neutral-700 font-medium">From</label>
-                <Input
-                  size="sm"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-neutral-700 font-medium">To</label>
-                <Input
-                  size="sm"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <PeriodField
-              label="New window"
-              help="One canvas window per period, named after the dates it covers."
-              value={windowPeriod}
-              onChange={setWindowPeriod}
-            />
-
-            <PeriodField
-              label="New slice"
-              help="What one step through the imagery moves by, inside a window."
-              value={slicePeriod}
-              onChange={setSlicePeriod}
-            />
-
-            {datesReversed && (
-              <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-                The end date is before the start date.
-              </p>
-            )}
-
-            {sliceTooCoarse && (
-              <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-                A slice cannot be longer than its window, or every window holds a single slice
-                covering all of it. Shorten the slice period or lengthen the window.
-              </p>
-            )}
-
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700 font-medium">
-                What the window opens on
-              </label>
-              <p className="text-[11px] text-neutral-500 leading-snug">
-                Annotators see this before stepping through the dates inside it. A composite stacks
-                every acquisition in the window, so it has fewer gaps than any single date.
-              </p>
-              <Select
+              <label className="text-xs text-neutral-700 font-medium">From</label>
+              <DateField
                 size="sm"
-                value={wholeWindowCover ? 'composite' : 'first'}
-                onChange={(e) => setWholeWindowCover(e.target.value === 'composite')}
-                aria-label="What the window opens on"
-              >
-                <option value="composite">A composite of the whole window</option>
-                <option value="first">Its first date</option>
-              </Select>
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
             </div>
-
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700 font-medium">Maximum cloud cover</label>
-              <p className="text-[11px] text-neutral-500 leading-snug">
-                Cloudier acquisitions are left out, so a date with nothing clear enough gets no
-                slice at all.
-              </p>
-              <div className="flex items-center gap-1.5">
-                <Input
-                  size="sm"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={maxCloudCover}
-                  onChange={(e) =>
-                    setMaxCloudCover(Math.min(100, Math.max(0, Number(e.target.value) || 0)))
-                  }
-                  className="!w-20"
-                />
-                <span className="text-xs text-neutral-500">%</span>
-              </div>
+              <label className="text-xs text-neutral-700 font-medium">To</label>
+              <DateField size="sm" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
-
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={search}
-              disabled={searching || sliceTooCoarse || datesIncomplete}
-            >
-              {searching ? 'Searching Planet…' : 'Search'}
-            </Button>
-
-            {windows?.length === 0 && (
-              <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-                Planet has no scenes over this area for these dates and filters.
-              </p>
-            )}
-
-            {sliceTotal > MANY_SLICES && (
-              <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-                {sliceTotal} slices is a lot to build and a lot to step through. Each one is a layer
-                minted when you save, and a date in the annotator&apos;s navigation.
-              </p>
-            )}
-
-            {!!windows?.length && (
-              <div className="space-y-1.5">
-                <p className="text-xs text-neutral-700 font-medium">What will be created</p>
-                <ul className="text-[11px] text-neutral-600 space-y-0.5 max-h-48 overflow-y-auto">
-                  {windows.map((window) => (
-                    <li key={window.start_date}>
-                      <strong>
-                        {formatWindowLabel(window.start_date, window.end_date, windowPeriod.unit)}
-                      </strong>{' '}
-                      - {window.slices.length} slice
-                      {window.slices.length === 1 ? '' : 's'}
-                      {window.cover && `, cover from ${window.cover.scene_count} scenes`}
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-[11px] text-neutral-500 leading-snug">
-                  Layers are minted in the background after saving, so the source shows as
-                  registering until every slice has one.
-                </p>
-              </div>
-            )}
           </div>
-        )}
+
+          <PeriodField
+            label="New window"
+            help="One canvas window per period, named after the dates it covers."
+            value={windowPeriod}
+            onChange={setWindowPeriod}
+          />
+
+          <PeriodField
+            label="New slice"
+            help="What one step through the imagery moves by, inside a window."
+            value={slicePeriod}
+            onChange={setSlicePeriod}
+          />
+
+          {datesReversed && (
+            <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
+              The end date is before the start date.
+            </p>
+          )}
+
+          {sliceTooCoarse && (
+            <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
+              A slice cannot be longer than its window, or every window holds a single slice
+              covering all of it. Shorten the slice period or lengthen the window.
+            </p>
+          )}
+
+          <div className="space-y-1">
+            <label className="text-xs text-neutral-700 font-medium">What the window opens on</label>
+            <p className="text-[11px] text-neutral-500 leading-snug">
+              Annotators see this before stepping through the dates inside it. A composite stacks
+              every acquisition in the window, so it has fewer gaps than any single date.
+            </p>
+            <Select
+              size="sm"
+              value={wholeWindowCover ? 'composite' : 'first'}
+              onChange={(e) => setWholeWindowCover(e.target.value === 'composite')}
+              aria-label="What the window opens on"
+            >
+              <option value="composite">A composite of the whole window</option>
+              <option value="first">Its first date</option>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-neutral-700 font-medium">Maximum cloud cover</label>
+            <p className="text-[11px] text-neutral-500 leading-snug">
+              Cloudier acquisitions are left out, so a date with nothing clear enough gets no slice
+              at all.
+            </p>
+            <div className="flex items-center gap-1.5">
+              <Input
+                size="sm"
+                type="number"
+                min={0}
+                max={100}
+                value={maxCloudCover}
+                onChange={(e) =>
+                  setMaxCloudCover(Math.min(100, Math.max(0, Number(e.target.value) || 0)))
+                }
+                className="!w-20"
+              />
+              <span className="text-xs text-neutral-500">%</span>
+            </div>
+          </div>
+
+          {sliceTotal > MANY_SLICES && (
+            <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
+              {sliceTotal} slices is a lot to step through, and every search an annotator runs asks
+              Planet about each of them.
+            </p>
+          )}
+
+          {!!windows?.length && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-neutral-700 font-medium">What will be created</p>
+              <ul className="text-[11px] text-neutral-600 space-y-0.5 max-h-48 overflow-y-auto">
+                {windows.map((window) => (
+                  <li key={window.start_date}>
+                    <strong>
+                      {formatWindowLabel(window.start_date, window.end_date, windowPeriod.unit)}
+                    </strong>{' '}
+                    - {window.slices.length} slice
+                    {window.slices.length === 1 ? '' : 's'}
+                    {window.cover && ', plus a cover over the whole window'}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-neutral-500 leading-snug">
+                Nothing is searched or built now. Annotators fill these dates in from where they are
+                working.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );

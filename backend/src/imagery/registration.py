@@ -2,10 +2,12 @@
 
 Owns everything that talks to the outside world for that: parallel slice
 registration against STAC providers (MPC direct or hosted tilers) with retries,
-the equivalent for Planet scene sources (search once, mint one layer per slice),
-the background thread that runs either off the request path, bbox-change
+the background thread that runs it off the request path, bbox-change
 re-registration, and the manual refresh endpoint's re-ingest. Editor-state
 persistence lives in ``service.py``; it only hands over plain snapshots.
+
+Planet scene sources register nothing: a search is bounded by an area, and theirs
+is wherever an annotator is standing - see ``service.search_planet_scenes_in_view``.
 """
 
 import copy
@@ -15,17 +17,15 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
-from functools import partial
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src import background
 from src.campaigns.models import Campaign
 from src.config import get_settings
-from src.crypto import DecryptionError, decrypt
 from src.imagery.models import (
     ImageryCollection,
     ImagerySlice,
@@ -35,18 +35,12 @@ from src.imagery.models import (
 from src.imagery.schemas import CollectionStacConfigCreate
 from src.imagery.tile_urls import _slice_viz_params
 from src.layers import LayerOwner
-from src.planet import client as planet_client
-from src.planet import scenes as planet_scenes
-from src.planet import tiles as planet_tiles
-from src.planet.schemas import PlanetScenesGenerationConfigV1
 from src.tilers import providers
 from src.visualizers.models import Visualizer
 
 logger = logging.getLogger(__name__)
 
 MPC_REGISTER_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
-# Politeness to Planet rather than a limit of ours: each mint is a small POST.
-PLANET_MINT_WORKERS = 8
 
 
 def sanitize_error_message(exc: Exception, *, fallback: str) -> str:
@@ -342,148 +336,6 @@ def _register_all_stac_browser_collections(
     return registration_errors
 
 
-@dataclass(frozen=True)
-class PlanetRegistrationSpec:
-    """A work order for one Planet series, which mints layers instead of registering
-    a search. Per series rather than per collection: one search covers every window."""
-
-    source_id: int
-    source_name: str
-    generation_series_id: int
-    config: PlanetScenesGenerationConfigV1
-    visualization_name: str
-
-
-Registration = StacRegistrationSpec | PlanetRegistrationSpec
-
-
-def _slice_key(period: "planet_scenes.Period") -> tuple[str, str]:
-    return period.start.isoformat(), period.end.isoformat()
-
-
-def _mint_slice_layer(
-    api_key: str, source_name: str, job: tuple[int, "planet_scenes.SliceGroup"]
-) -> tuple[int, str] | dict:
-    """One slice's layer, or the error dict describing why it has none."""
-    slice_id, group = job
-    try:
-        return slice_id, planet_client.create_layer(api_key, list(group.scene_ids))
-    except Exception as e:
-        return {
-            "collection": source_name,
-            "slice": f"{group.period.start}",
-            "datetime": f"{group.period.start}/{group.period.end}",
-            "error": sanitize_error_message(e, fallback="Minting the tile layer failed"),
-        }
-
-
-def _planet_error(spec: PlanetRegistrationSpec, slice_label: str, message: str) -> dict:
-    return {
-        "collection": spec.source_name,
-        "slice": slice_label,
-        "datetime": f"{spec.config.start_date}/{spec.config.end_date}",
-        "error": message,
-    }
-
-
-def _register_planet_sources(db: Session, specs: list[PlanetRegistrationSpec]) -> list[dict]:
-    """Search once per series, then mint one tile layer per slice.
-
-    Stored slices are matched to what the search produced by date range, both sides
-    coming from the same grouping in ``planet.scenes``.
-
-    Same transaction discipline as the STAC path: snapshot, release, re-acquire for
-    the writes - otherwise the connection sits idle across the network calls until
-    Postgres reaps it.
-    """
-    if not specs:
-        return []
-
-    errors: list[dict] = []
-    jobs: list[tuple[PlanetRegistrationSpec, str, dict[tuple[str, str], int]]] = []
-    for spec in specs:
-        source = db.get(ImagerySource, spec.source_id)
-        if source is None:
-            continue
-        try:
-            api_key = decrypt(source.encrypted_key) if source.encrypted_key else None
-        except DecryptionError:
-            api_key = None
-        if api_key is None:
-            errors.append(
-                _planet_error(spec, "", "No usable Planet API key is configured for this source")
-            )
-            continue
-        slice_rows = db.execute(
-            select(ImagerySlice.id, ImagerySlice.start_date, ImagerySlice.end_date)
-            .join(ImageryCollection, ImagerySlice.collection_id == ImageryCollection.id)
-            .where(ImageryCollection.generation_series_id == spec.generation_series_id)
-        ).all()
-        jobs.append((spec, api_key, {(row[1], row[2]): row[0] for row in slice_rows}))
-
-    db.commit()
-
-    minted: list[tuple[int, str, str]] = []
-    for spec, api_key, slice_ids in jobs:
-        config = spec.config
-        try:
-            features = planet_client.search_config(api_key, config)
-        except Exception as e:
-            errors.append(
-                _planet_error(
-                    spec, "", sanitize_error_message(e, fallback="Planet scene search failed")
-                )
-            )
-            continue
-
-        wanted: list[tuple[int, planet_scenes.SliceGroup]] = []
-        for window in planet_scenes.group(features, config):
-            for group in (*([window.cover] if window.cover else []), *window.slices):
-                slice_id = slice_ids.get(_slice_key(group.period))
-                if slice_id is not None:
-                    wanted.append((slice_id, group))
-
-        empty = len(slice_ids) - len(wanted)
-        if empty > 0:
-            errors.append(
-                _planet_error(
-                    spec,
-                    f"{empty} of {len(slice_ids)} slices",
-                    "Planet returned no usable scenes for these dates",
-                )
-            )
-
-        with ThreadPoolExecutor(max_workers=PLANET_MINT_WORKERS) as pool:
-            results = pool.map(partial(_mint_slice_layer, api_key, spec.source_name), wanted)
-        for result in results:
-            if isinstance(result, dict):
-                errors.append(result)
-            else:
-                minted.append((*result, spec.visualization_name))
-
-    logger.info("Planet scene registration minted %d layers", len(minted))
-
-    for slice_id, layer_id, visualization_name in minted:
-        db.execute(
-            delete(SliceTileUrl).where(
-                SliceTileUrl.slice_id == slice_id,
-                SliceTileUrl.visualization_name == visualization_name,
-            )
-        )
-        db.add(
-            SliceTileUrl(
-                slice_id=slice_id,
-                visualization_name=visualization_name,
-                tile_url=planet_tiles.layer_template(layer_id),
-                # Null provider: a direct URL fetched through our own tile proxy.
-                tile_provider=None,
-                mosaic_id=layer_id,
-            )
-        )
-
-    return errors
-
-
 # The imagery domain's background run: registration and collection
 # refresh both report through this status/heartbeat pair on the campaign.
 REGISTRATION_RUN = background.StatusField(
@@ -520,7 +372,7 @@ def status_run_for(owner: LayerOwner) -> tuple[int, background.StatusField]:
 
 def spawn_background_registration(
     owner: LayerOwner,
-    pending: list[Registration],
+    pending: list[StacRegistrationSpec],
     bbox: list[float],
 ) -> None:
     """Run registration off the request path (see src/background.py).
@@ -530,17 +382,11 @@ def spawn_background_registration(
     request commits the entity reconciliation (and begin_status_run) first, then calls
     this to rebuild the tile URLs and flip `registration_status` when done.
 
-    Both provider paths share one run rather than getting one each: they would
-    otherwise contend for the single status field this owner has.
     """
     row_id, status_field = status_run_for(owner)
-    stac = [spec for spec in pending if isinstance(spec, StacRegistrationSpec)]
-    planet = [spec for spec in pending if isinstance(spec, PlanetRegistrationSpec)]
 
     def work(db: Session) -> list[dict]:
-        return _register_all_stac_browser_collections(
-            db, stac, bbox, owner.tile_scope
-        ) + _register_planet_sources(db, planet)
+        return _register_all_stac_browser_collections(db, pending, bbox, owner.tile_scope)
 
     background.spawn_status_run(
         row_id,

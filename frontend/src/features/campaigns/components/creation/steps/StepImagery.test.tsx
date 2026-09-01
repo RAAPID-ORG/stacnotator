@@ -1,21 +1,16 @@
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { CampaignCreate } from '~/api/client';
 import { StepImagery, createInitialImageryState } from './StepImagery';
 
-vi.mock('~/api/client', async () => {
-  const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
-  return {
-    ...actual,
-    getProjectOrganizationKeys: vi.fn(() =>
-      Promise.resolve({ data: { items: [{ id: 7, name: 'Shared key' }] } })
-    ),
-    previewPlanetScenes: vi.fn(() => Promise.resolve({ data: [] })),
-  };
+vi.mock('../../imagery/controller', async () => {
+  const actual = await vi.importActual<typeof import('../../imagery/controller')>(
+    '../../imagery/controller'
+  );
+  return { ...actual, useDraftController: vi.fn(actual.useDraftController) };
 });
 
-import { previewPlanetScenes } from '~/api/client';
+import { useDraftController } from '../../imagery/controller';
 
 const form: CampaignCreate = {
   name: 'New campaign',
@@ -30,8 +25,9 @@ const form: CampaignCreate = {
 };
 
 describe('StepImagery', () => {
-  it('bounds a Planet scene search by the area the wizard already has', async () => {
-    const user = userEvent.setup();
+  it('hands the area picked one step earlier to the imagery controller', () => {
+    // Catalog searches are bounded by it, and the wizard used to leave it null - which
+    // compiles, renders, and quietly searches the whole world.
     render(
       <StepImagery
         projectId={1}
@@ -42,25 +38,6 @@ describe('StepImagery', () => {
       />
     );
 
-    await user.click(screen.getByText('Create source'));
-    await user.click(screen.getByText('Planet Daily Imagery'));
-
-    expect(screen.queryByText(/no area yet/)).toBeNull();
-
-    await user.click(await screen.findByText('Connect to Planet'));
-    await user.click(screen.getByText('Search'));
-
-    expect(vi.mocked(previewPlanetScenes).mock.calls[0][0].body.config.aoi).toEqual({
-      type: 'Polygon',
-      coordinates: [
-        [
-          [10, 20],
-          [11, 20],
-          [11, 21],
-          [10, 21],
-          [10, 20],
-        ],
-      ],
-    });
+    expect(vi.mocked(useDraftController).mock.calls[0][0].campaignBbox).toEqual([10, 20, 11, 21]);
   });
 });

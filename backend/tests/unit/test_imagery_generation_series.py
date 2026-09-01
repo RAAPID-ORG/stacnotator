@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -66,10 +64,9 @@ def source_payload(*, series_id=None):
 
 
 class FakeSession:
-    def __init__(self, unminted_slice=False):
+    def __init__(self):
         self.next_id = 100
         self.added = []
-        self.unminted_slice = unminted_slice
 
     def add(self, value):
         if value.id is None:
@@ -79,10 +76,6 @@ class FakeSession:
 
     def flush(self):
         pass
-
-    def execute(self, _statement):
-        """Only _has_unminted_slice reads through here."""
-        return SimpleNamespace(first=lambda: (1,) if self.unminted_slice else None)
 
 
 def test_generation_config_is_versioned_typed_and_strict():
@@ -232,67 +225,29 @@ def planet_payload(*, series_id=None, **config_overrides):
     )
 
 
-class TestPlanetSeriesNeedRegistering:
-    """Minting spends Planet quota, so only a config that actually changed pays for it."""
+class TestPlanetSeriesAreNotRegisteredAtSetup:
+    """A scene search is bounded by an area, and at setup the only area on offer is
+    the whole campaign - which for a country is thousands of scenes and a layer that
+    covers a fraction of it. The search happens where an annotator is standing."""
 
-    def test_a_new_planet_series_is_handed_to_registration(self):
+    def test_saving_a_planet_series_asks_for_no_registration(self):
         source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[])
 
         _, _, pending = _reconcile_generation_series(FakeSession(), source, planet_payload())
 
-        assert len(pending) == 1
-        assert pending[0].source_id == 7
-        assert pending[0].visualization_name == "Visual"
-        assert pending[0].config.start_date == "2024-01-01"
-
-    def test_saving_an_unchanged_and_fully_minted_series_mints_nothing(self):
-        series = ImageryGenerationSeries(
-            id=10,
-            source_id=7,
-            config=PlanetScenesGenerationConfigV1.model_validate(PLANET_CONFIG).model_dump(
-                mode="json"
-            ),
-        )
-        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[series])
-
-        _, _, pending = _reconcile_generation_series(
-            FakeSession(), source, planet_payload(series_id=10)
-        )
-
         assert pending == []
 
-    def test_a_series_a_failed_run_left_half_minted_is_picked_back_up(self):
-        series = ImageryGenerationSeries(
-            id=10,
-            source_id=7,
-            config=PlanetScenesGenerationConfigV1.model_validate(PLANET_CONFIG).model_dump(
-                mode="json"
-            ),
-        )
-        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[series])
+    def test_the_config_is_still_stored_so_the_dates_survive(self):
+        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[])
+        session = FakeSession()
 
-        _, _, pending = _reconcile_generation_series(
-            FakeSession(unminted_slice=True), source, planet_payload(series_id=10)
-        )
+        _reconcile_generation_series(session, source, planet_payload())
 
-        assert [spec.generation_series_id for spec in pending] == [10]
+        stored = PlanetScenesGenerationConfigV1.model_validate(session.added[0].config)
+        assert (stored.start_date, stored.slice_period_unit) == ("2024-01-01", "days")
 
-    def test_a_changed_search_re_mints_the_series(self):
-        series = ImageryGenerationSeries(
-            id=10,
-            source_id=7,
-            config=PlanetScenesGenerationConfigV1.model_validate(PLANET_CONFIG).model_dump(
-                mode="json"
-            ),
-        )
-        source = ImagerySource(id=7, campaign_id=3, name="PlanetScope", generation_series=[series])
 
-        _, _, pending = _reconcile_generation_series(
-            FakeSession(), source, planet_payload(series_id=10, max_cloud_cover=20)
-        )
-
-        assert [spec.config.max_cloud_cover for spec in pending] == [20]
-
+class TestStacSeriesStillRegister:
     def test_an_unchanged_stac_series_is_not_a_registration_of_its_own(self):
         series = ImageryGenerationSeries(id=10, source_id=7, config=generation_config())
         source = ImagerySource(id=7, campaign_id=3, name="Source", generation_series=[series])

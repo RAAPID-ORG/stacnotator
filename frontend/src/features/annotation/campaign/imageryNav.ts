@@ -1,5 +1,5 @@
 import type { ImageryCollectionOut, ImageryViewOut } from '~/api/client';
-import { collectionStartDate, type ImageryCatalog } from './imagery';
+import { collectionStartDate, sliceHasImagery, type ImageryCatalog } from './imagery';
 
 /** Where the maps are pointed: a slice of one collection of one source, drawn
  *  with one of that source's visualizations. */
@@ -155,7 +155,7 @@ export function taskLandingCollectionId(
 
 /** Every index, for the date dropdown - the dedicated cover included. */
 export function slicePickerIndices(collection: Pick<ImageryCollectionOut, 'slices'>): number[] {
-  return collection.slices.map((_, i) => i);
+  return collection.slices.flatMap((slice, i) => (sliceHasImagery(slice) ? [i] : []));
 }
 
 /** Indices a/d steps through: regular slices that are neither a dedicated
@@ -166,6 +166,7 @@ export function sliceNavIndices(collection: ImageryCollectionOut, empties: Empti
   for (let i = 0; i < collection.slices.length; i++) {
     if (collection.has_dedicated_cover && i === cover) continue;
     if (empties[emptyKey(collection.id, i)]) continue;
+    if (!sliceHasImagery(collection.slices[i])) continue;
     out.push(i);
   }
   return out;

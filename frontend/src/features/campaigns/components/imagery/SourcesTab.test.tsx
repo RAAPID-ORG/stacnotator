@@ -59,6 +59,38 @@ describe('SourcesTab registration progress', () => {
     expect(bars[1].querySelector('svg')).toBeTruthy();
   });
 
+  it('stays quiet for a scene source, which is never registered at all', () => {
+    const scenes = controllerWith(
+      [
+        source('planet', 'PlanetScope', {
+          sliceCount: 30,
+          registeredSliceCount: 0,
+          generationSeries: [
+            {
+              id: 'series-a',
+              config: {
+                kind: 'planet_scenes',
+                version: 1,
+                item_types: ['PSScene'],
+                start_date: '2024-01-01',
+                end_date: '2024-01-31',
+                collection_period_interval: 1,
+                collection_period_unit: 'months',
+                slice_period_interval: 1,
+                slice_period_unit: 'days',
+                whole_window_cover: true,
+              },
+            },
+          ],
+        }),
+      ],
+      42
+    );
+    render(<SourcesTab controller={scenes} onEditSource={() => {}} />);
+
+    expect(screen.queryByTestId('source-registration-progress')).toBeNull();
+  });
+
   it('stays quiet for sources that have nothing to register yet', () => {
     const drafted = controllerWith([source('new-source', 'Draft', { sliceCount: 3 })], 42);
     render(<SourcesTab controller={drafted} onEditSource={() => {}} />);

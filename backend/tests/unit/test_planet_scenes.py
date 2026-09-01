@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from src.imagery import registration
+from src.imagery import service as imagery_service
 from src.planet import client as planet_client
 from src.planet import scenes
 from src.planet.schemas import PlanetScenesGenerationConfigV1
@@ -166,32 +166,107 @@ class TestConfig:
             config(cadence="daily")
 
 
-class TestMintingOneSlice:
-    """The step registration parallelizes: one slice's ids become one layer."""
+class TestMintingOneSliceInView:
+    """The step a viewport search parallelizes: one slice's ids become one layer."""
 
-    def job(self):
-        group = scenes.SliceGroup(
+    def group(self):
+        return scenes.SliceGroup(
             period=scenes.Period(date(2024, 1, 5), date(2024, 1, 5)),
             scene_ids=("PSScene:a", "PSScene:b"),
         )
-        return (42, group)
 
     def test_a_minted_layer_comes_back_against_its_slice(self, monkeypatch):
         monkeypatch.setattr(planet_client, "create_layer", lambda key, ids: "layer-1")
 
-        assert registration._mint_slice_layer("KEY", "Planet daily", self.job()) == (42, "layer-1")
+        minted = imagery_service._mint_view_layer("KEY", 42, self.group())
 
-    def test_a_failed_mint_becomes_an_error_the_admin_can_read(self, monkeypatch):
+        assert (minted.slice_id, minted.layer_id, minted.scene_count) == (42, "layer-1", 2)
+
+    def test_a_failed_mint_becomes_a_message_the_annotator_can_read(self, monkeypatch):
         def boom(key, ids):
             raise planet_client.PlanetError("Planet returned 429")
 
         monkeypatch.setattr(planet_client, "create_layer", boom)
 
-        result = registration._mint_slice_layer("KEY", "Planet daily", self.job())
+        assert imagery_service._mint_view_layer("KEY", 42, self.group()) == "Planet returned 429"
 
-        assert result == {
-            "collection": "Planet daily",
-            "slice": "2024-01-05",
-            "datetime": "2024-01-05/2024-01-05",
-            "error": "Planet returned 429",
-        }
+
+class TestSearchingWhatIsOnScreen:
+    """The whole point of moving the search to annotation time: it is bounded by the
+    viewport, and it answers which dates are worth stepping to from where you stand."""
+
+    def series(self):
+        return [
+            imagery_service.PlanetSceneSeries(
+                config=config(),
+                slice_ids={
+                    ("2024-01-05", "2024-01-05"): 42,
+                    ("2024-01-06", "2024-01-06"): 43,
+                },
+            )
+        ]
+
+    def test_the_search_is_bounded_by_the_extent_not_the_campaign_area(self, monkeypatch):
+        seen: list[dict] = []
+
+        def search_config(_key, _config, geometry):
+            seen.append(geometry)
+            return []
+
+        monkeypatch.setattr(planet_client, "search_config", search_config)
+
+        imagery_service.search_planet_scenes_in_view("KEY", self.series(), [10.0, 20.0, 11.0, 21.0])
+
+        assert seen[0]["coordinates"][0][0] == [10.0, 20.0]
+        assert seen[0]["coordinates"][0][2] == [11.0, 21.0]
+
+    def test_only_the_dates_with_scenes_over_you_come_back(self, monkeypatch):
+        monkeypatch.setattr(
+            planet_client,
+            "search_config",
+            lambda *_a: [feature("a", "2024-01-05T00:00:00Z", clear_percent=90)],
+        )
+        monkeypatch.setattr(planet_client, "create_layer", lambda _key, ids: "layer-1")
+
+        found = imagery_service.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
+
+        assert [(s.slice_id, s.layer_id, s.scene_count) for s in found.slices] == [
+            (42, "layer-1", 1)
+        ]
+        assert found.errors == []
+
+    def test_a_refused_search_is_reported_rather_than_raised(self, monkeypatch):
+        def boom(*_a):
+            raise planet_client.PlanetError("Planet is rate limiting this API key")
+
+        monkeypatch.setattr(planet_client, "search_config", boom)
+
+        found = imagery_service.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
+
+        assert found.slices == []
+        assert found.errors == ["Planet is rate limiting this API key"]
+
+
+class TestTheExtentAsGeometry:
+    """A viewport is not a valid geometry: Planet answers coordinates outside the world
+    with a 400, and a map hands them over routinely."""
+
+    def test_an_ordinary_view_passes_through(self):
+        polygon = scenes.bbox_polygon([10.0, 20.0, 11.0, 21.0])
+
+        assert polygon["coordinates"][0][0] == [10.0, 20.0]
+        assert polygon["coordinates"][0][2] == [11.0, 21.0]
+
+    def test_a_view_wider_than_the_world_becomes_the_world(self):
+        polygon = scenes.bbox_polygon([-400.0, -90.0, 400.0, 90.0])
+
+        corners = polygon["coordinates"][0]
+        assert corners[0] == [-180.0, -85.0]
+        assert corners[2] == [180.0, 85.0]
+
+    def test_panning_past_the_antimeridian_is_wrapped_back(self):
+        # OpenLayers keeps counting: two turns west of Greenwich reads -710, not 10.
+        polygon = scenes.bbox_polygon([-710.0, 0.0, -709.0, 1.0])
+
+        assert polygon["coordinates"][0][0] == [10.0, 0.0]
+        assert polygon["coordinates"][0][2] == [11.0, 1.0]

@@ -330,8 +330,8 @@ class SliceTileUrl(Base):
     # "mpc" or a configured tiler name (Settings.TILERS); null = direct/manual URL.
     tile_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # The provider's id for the registered set of items this URL renders: an MPC
-    # searchid, a titiler-pgstac id, or a Planet scene-layer id. What is stored to
-    # reconstruct it is the generation config, never the item list.
+    # searchid or a titiler-pgstac id. What is stored to reconstruct it is the
+    # generation config, never the item list.
     mosaic_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     slice: Mapped["ImagerySlice"] = relationship(back_populates="tile_urls")
