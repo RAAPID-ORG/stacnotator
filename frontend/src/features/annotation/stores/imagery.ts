@@ -97,23 +97,50 @@ function activeAddress(
   );
 }
 
+type WindowSlices = ImageryState['windowSlices'];
+
+function rememberSlice(
+  windowSlices: WindowSlices,
+  collectionId: number,
+  sliceIndex: number,
+  byUser: boolean
+): WindowSlices {
+  return {
+    ...windowSlices,
+    [collectionId]: {
+      selected: sliceIndex,
+      userPicked: byUser ? sliceIndex : (windowSlices[collectionId]?.userPicked ?? null),
+    },
+  };
+}
+
+/** Every write of the shared address is also that collection's window memory:
+ *  a/d, the timeline and the date pickers all move the slice the active window
+ *  shows, so re-activating it later must resume there instead of snapping back
+ *  to the cover. */
+function land(
+  s: Pick<ImageryState, 'windowSlices'>,
+  address: SliceAddress | null
+): Pick<ImageryState, 'address' | 'windowSlices'> {
+  return {
+    address,
+    windowSlices: address
+      ? rememberSlice(s.windowSlices, address.collectionId, address.sliceIndex, false)
+      : s.windowSlices,
+  };
+}
+
 export const useImageryStore = create<ImageryState>((set) => ({
   ...INITIAL_NAV,
   viewSnapshots: {},
   windowSlices: {},
   emptyScope: null,
 
-  setAddress: (address) => set({ address }),
+  setAddress: (address) => set((s) => land(s, address)),
 
   rememberWindowSlice: (collectionId, sliceIndex, byUser = false) =>
     set((s) => ({
-      windowSlices: {
-        ...s.windowSlices,
-        [collectionId]: {
-          selected: sliceIndex,
-          userPicked: byUser ? sliceIndex : (s.windowSlices[collectionId]?.userPicked ?? null),
-        },
-      },
+      windowSlices: rememberSlice(s.windowSlices, collectionId, sliceIndex, byUser),
     })),
 
   markEmpty: (collectionId, sliceIndex) =>
@@ -163,7 +190,7 @@ export const useImageryStore = create<ImageryState>((set) => ({
       if (!result) return s;
       return result.kind === 'basemap'
         ? { showBasemap: true, selectedBasemapId: result.basemapId }
-        : { address: result.address, showBasemap: false };
+        : { ...land(s, result.address), showBasemap: false };
     }),
 
   cycleVizAction: (cat, dir) =>
@@ -176,7 +203,7 @@ export const useImageryStore = create<ImageryState>((set) => ({
     set((s) => {
       if (!s.address) return s;
       const next = stepSlice(cat, s.address, dir, s.empties);
-      return next ? { address: next } : s;
+      return next ? land(s, next) : s;
     }),
 
   stepCollectionAction: (cat, dir) =>
@@ -185,12 +212,12 @@ export const useImageryStore = create<ImageryState>((set) => ({
       const collectionId = stepCollectionId(cat, s.address, dir);
       if (collectionId == null) return s;
       const address = activeAddress(cat, s, collectionId);
-      return address ? { address } : s;
+      return address ? land(s, address) : s;
     }),
 
   activateCollection: (cat, collectionId) =>
     set((s) => ({
-      address: collectionId != null ? activeAddress(cat, s, collectionId) : null,
+      ...land(s, collectionId != null ? activeAddress(cat, s, collectionId) : null),
       showBasemap: false,
     })),
 
@@ -200,8 +227,10 @@ export const useImageryStore = create<ImageryState>((set) => ({
         fromViewId != null
           ? { ...s.viewSnapshots, [fromViewId]: snapshotForView(s) }
           : s.viewSnapshots;
+      const snapshot = restoreSnapshot(cat, viewSnapshots[toViewId], fallbackCollectionId);
       return {
-        ...restoreSnapshot(cat, viewSnapshots[toViewId], fallbackCollectionId),
+        ...snapshot,
+        ...land(s, snapshot.address),
         viewSnapshots,
       };
     }),

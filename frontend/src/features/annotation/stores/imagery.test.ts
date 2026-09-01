@@ -92,6 +92,34 @@ describe('activateCollection', () => {
     expect(s.empties).toEqual({ '20:0': true });
   });
 
+  it('keeps the browsed slice when its own window is clicked again', () => {
+    useImageryStore
+      .getState()
+      .setAddress({ sourceId: 1, collectionId: 20, sliceIndex: 0, vizId: '1' });
+    useImageryStore.getState().stepSliceAction(cat, 1);
+
+    useImageryStore.getState().activateCollection(cat, 20);
+
+    expect(useImageryStore.getState().address).toEqual({
+      sourceId: 1,
+      collectionId: 20,
+      sliceIndex: 1,
+      vizId: '1',
+    });
+  });
+
+  it('resumes the slice a/d left a collection on after visiting another window', () => {
+    useImageryStore
+      .getState()
+      .setAddress({ sourceId: 1, collectionId: 20, sliceIndex: 0, vizId: '1' });
+    useImageryStore.getState().stepSliceAction(cat, 1);
+    useImageryStore.getState().activateCollection(cat, 10);
+
+    useImageryStore.getState().activateCollection(cat, 20);
+
+    expect(useImageryStore.getState().address?.sliceIndex).toBe(1);
+  });
+
   it('restores the slice previously selected in the target imagery window', () => {
     useImageryStore
       .getState()
