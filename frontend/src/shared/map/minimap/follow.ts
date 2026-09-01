@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { Camera } from '../Camera';
 import type { Bbox, LonLat } from '../types';
 
-/** Fixed task-mode zoom: always centred on the task, at a stable scale. */
+/** Fixed task-mode zoom: the overview opens on the task at a stable scale. */
 export const TASK_OVERVIEW_ZOOM = 8;
 
 /** Each side of the padded box extends by this multiple of the viewport's
@@ -14,8 +14,10 @@ export const MINIMAP_PADDING_FACTOR = 1.5;
  *  small to be a useful overview" even though it's still contained. */
 export const MIN_VIEWPORT_AREA_RATIO = 0.02;
 
-export function tasksModeTarget(mainCenter: LonLat): { center: LonLat; zoom: number } {
-  return { center: mainCenter, zoom: TASK_OVERVIEW_ZOOM };
+/** Where the overview sits when it is put back on the task - on arriving at
+ *  one, and on Space. In between the viewer moves it wherever they like. */
+export function tasksModeTarget(taskCenter: LonLat): { center: LonLat; zoom: number } {
+  return { center: taskCenter, zoom: TASK_OVERVIEW_ZOOM };
 }
 
 export function paddedBounds(bounds: Bbox, factor: number = MINIMAP_PADDING_FACTOR): Bbox {
@@ -82,8 +84,8 @@ const ROI_FIT_PADDING_PX = 12;
  * Opens the overview on `roi` and holds that view until the main camera walks
  * out of it, then keeps a padded box around the viewport from there on.
  *
- * Turn it off with `enabled` where another rule takes over (task mode pins the
- * overview to a fixed zoom instead).
+ * Turn it off with `enabled` where another rule takes over (task mode places
+ * the overview on the task once and then leaves it to the viewer).
  */
 export function useOverviewFollow(
   minimap: Camera,

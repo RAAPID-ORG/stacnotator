@@ -6,23 +6,23 @@ import { LocationSearch } from '~/shared/map/LocationSearch';
 import { useCameraCenter } from '~/shared/map/Camera';
 import { Minimap } from '~/shared/map/minimap/Minimap';
 import { tasksModeTarget, useOverviewFollow } from '~/shared/map/minimap/follow';
-import { type Bbox, type FeatureLayerSpec, type LayerSpec } from '~/shared/map/types';
+import { type Bbox, type FeatureLayerSpec, type LayerSpec, type LonLat } from '~/shared/map/types';
 import { useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { useImageryStore } from '../../stores/imagery';
+import { useMapFocus } from '../../stores/tasks';
 import { mainCamera, minimapCamera } from '../../map/camera';
 
-/** Task mode pins the overview to a fixed zoom on the task, so switching mode
- *  or mounting gets an immediate correct view. Explore opens on the campaign
- *  ROI and tracks the main camera from there. */
-function useMinimapFollow(mode: WorkMode, roi: Bbox): void {
+/** Task mode opens the overview on the task at a fixed zoom and then leaves it
+ *  alone: what it is about is the pin, not where the main map happens to look,
+ *  so the user is free to pan and zoom around it (Space brings it back).
+ *  Explore opens on the campaign ROI and tracks the main camera from there. */
+function useMinimapFollow(mode: WorkMode, roi: Bbox, taskCenter: LonLat | null): void {
   useOverviewFollow(minimapCamera, mainCamera, roi, mode === 'explore');
   useEffect(() => {
-    if (mode !== 'tasks') return;
-    const sync = () => minimapCamera.moveTo(tasksModeTarget(mainCamera.getState().center));
-    sync();
-    return mainCamera.onChange(sync);
-  }, [mode]);
+    if (mode !== 'tasks' || !taskCenter) return;
+    minimapCamera.moveTo(tasksModeTarget(taskCenter));
+  }, [mode, taskCenter]);
 }
 
 function densityLayer(cells: AnnotationDensityCell[]): FeatureLayerSpec | null {
@@ -123,8 +123,10 @@ const DENSITY_DEBOUNCE_MS = 600;
 export function MinimapBody() {
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
+  const focus = useMapFocus();
+  const pin = mode === 'tasks' ? (focus?.center ?? null) : null;
 
-  useMinimapFollow(mode, catalog.bbox);
+  useMinimapFollow(mode, catalog.bbox, pin);
 
   // The dots stand for the same annotations the map draws, so they follow the
   // same filter - otherwise the overview would advertise work the map hides.
@@ -178,6 +180,7 @@ export function MinimapBody() {
       // In task mode the main map belongs to the task, not to the person
       // looking at it - a stray click here used to sail off the task location.
       jumpOnClick={mode === 'explore'}
+      pin={pin}
     />
   );
 }

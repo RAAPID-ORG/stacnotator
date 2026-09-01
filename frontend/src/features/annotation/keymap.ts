@@ -18,7 +18,8 @@ import {
 } from './campaign/annotation';
 import { readyCustomMaps } from './campaign/imagery';
 import { rememberAddress, type SliceAddress } from './campaign/imageryNav';
-import { fitAnnotations, mainCamera, pan, zoom } from './map/camera';
+import { fitAnnotations, mainCamera, minimapCamera, pan, zoom } from './map/camera';
+import { tasksModeTarget } from '~/shared/map/minimap/follow';
 import {
   campaignState,
   formFields,
@@ -603,7 +604,11 @@ function mapBindings(): Binding[] {
       run: () => {
         if (workMode === 'tasks') {
           const focus = useTasksStore.getState().focus;
-          if (focus) mainCamera.moveTo({ center: focus.center });
+          if (!focus) return;
+          mainCamera.moveTo({ center: focus.center });
+          // The overview is the user's to pan in task mode, so recentring is
+          // also how it gets back to the pin.
+          minimapCamera.moveTo(tasksModeTarget(focus.center));
         } else {
           void fitAnnotations(catalog.campaignId, imagery().showTaskAnnotations);
         }

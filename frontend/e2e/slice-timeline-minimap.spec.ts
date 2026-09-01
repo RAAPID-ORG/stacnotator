@@ -245,23 +245,11 @@ test.describe('Slice cycling via keyboard (A / D)', () => {
       if (isTileHost(request.url())) requested.push(request.url());
     });
 
-    const minimapBody = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
-    await minimapBody.scrollIntoViewIfNeeded();
-    const minimap = await minimapBody.boundingBox();
-    if (!minimap) throw new Error('minimap has no bounding box');
-    const start = { x: minimap.x + minimap.width / 2, y: minimap.y + minimap.height / 2 };
-    const destination = { x: start.x + 24, y: start.y + 18 };
-    await annotationPage.mouse.move(start.x, start.y);
-    await annotationPage.mouse.down();
-    await annotationPage.mouse.move(destination.x, destination.y, { steps: 8 });
-    await annotationPage.waitForTimeout(100);
-
-    // Dragging previews only the vector rectangle. The full-size map receives
-    // no intermediate camera positions (and therefore no imagery requests).
-    expect(requested).toEqual([]);
-
-    await annotationPage.mouse.up();
-    await annotationPage.waitForTimeout(500);
+    // Arrow keys, not the minimap: in task mode the overview is a pin the user
+    // pans freely, not a viewport rectangle that drags the main map.
+    for (let i = 0; i < 3; i++) await annotationPage.keyboard.press('ArrowRight');
+    for (let i = 0; i < 2; i++) await annotationPage.keyboard.press('ArrowDown');
+    await annotationPage.waitForTimeout(800);
 
     expect(requested.some((url) => url.includes('search-jan-2024'))).toBe(true);
     expect(requested.some((url) => url.includes('search-jun-2024'))).toBe(false);
@@ -425,8 +413,8 @@ test.describe('Minimap center tracks current task', () => {
   });
 
   test('a background click does not move away from the task', async ({ annotationPage }) => {
-    // In task mode the main map belongs to the task, so the click-to-jump the
-    // minimap offers in explore mode is off - see open-mode-imagery.spec.ts.
+    // In task mode the overview marks the task with a pin and takes no input
+    // that moves the main map - see open-mode-imagery.spec.ts for explore.
     const before = await getMinimapCenter(annotationPage);
     const minimapBody = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
     await minimapBody.scrollIntoViewIfNeeded();

@@ -77,6 +77,22 @@ export function viewportRectLayer(
   };
 }
 
+export const PIN_LAYER_ID = 'minimap-pin';
+
+/** A fixed place the overview is about, drawn where the viewport rectangle
+ *  would otherwise go - and as the same dot, since to the eye it means the
+ *  same thing. It marks that spot and nothing else: the overview camera is
+ *  free to move around it. */
+export function pinLayer(point: LonLat, zIndex = 5): FeatureLayerSpec {
+  return {
+    kind: 'features',
+    id: PIN_LAYER_ID,
+    features: [{ id: PIN_LAYER_ID, geometry: { type: 'Point', coordinates: point } }],
+    style: VIEWPORT_MARKER_STYLE,
+    zIndex,
+  };
+}
+
 /** The area the overview is about, drawn as a dashed outline behind everything. */
 export function roiOutlineLayer(bounds: Bbox): FeatureLayerSpec {
   return {

@@ -7,6 +7,7 @@ import type { Bbox, GlStyleLayerSpec, LayerSpec, LonLat } from '../types';
 import {
   centerOfBounds,
   containsPoint,
+  pinLayer,
   roiOutlineLayer,
   translateBounds,
   rectIsLegible,
@@ -35,6 +36,7 @@ export function Minimap({
   roi,
   layers = [],
   jumpOnClick = true,
+  pin = null,
 }: {
   camera: Camera;
   /** The camera this reflects, and lands somewhere new on click or drag. */
@@ -44,6 +46,10 @@ export function Minimap({
   /** Whether a click on the background moves the main map there. Off where the
    *  main map's position is not the user's to choose - a task pins it. */
   jumpOnClick?: boolean;
+  /** A fixed place to mark instead of the main map's viewport. Given one, this
+   *  stops standing for where the main map looks: no rectangle to drag, and the
+   *  overview camera is the viewer's alone to pan and zoom. */
+  pin?: LonLat | null;
 }) {
   const { containerRef, width, height } = useContainerSize();
   const dragFrame = useRef<number | null>(null);
@@ -78,10 +84,10 @@ export function Minimap({
     () => [
       MINIMAP_BASEMAP,
       ...(roi ? [roiOutlineLayer(roi)] : []),
-      viewportRectLayer(displayedBounds, { asMarker: !rectLegible }),
+      pin ? pinLayer(pin) : viewportRectLayer(displayedBounds, { asMarker: !rectLegible }),
       ...layers,
     ],
-    [roi, displayedBounds, rectLegible, layers]
+    [roi, pin, displayedBounds, rectLegible, layers]
   );
 
   const pointAt = (clientX: number, clientY: number): LonLat | null => {
@@ -189,7 +195,7 @@ export function Minimap({
       data-viewport-center-x={viewportCenterPixel?.[0]}
       data-viewport-center-y={viewportCenterPixel?.[1]}
       className={`relative h-full w-full ${previewBounds ? 'cursor-grabbing' : ''}`}
-      onPointerDownCapture={handlePointerDownCapture}
+      onPointerDownCapture={pin ? undefined : handlePointerDownCapture}
     >
       <MapView camera={camera} layers={allLayers} wheelZoom="plain" />
     </div>
