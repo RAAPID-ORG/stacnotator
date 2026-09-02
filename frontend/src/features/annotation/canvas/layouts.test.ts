@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import type { WorkspaceLayout } from './grid';
+import type { ImageryViewOut } from '~/api/client';
+import type { LayoutItem, WorkspaceLayout } from './grid';
 import {
   defaultWindowItem,
   hideAllWindows,
   hideWindow,
   mainLayoutChanged,
   showWindow,
+  syncViewWindows,
 } from './grid';
 
 const baseLayout = (): WorkspaceLayout => ({
@@ -109,5 +111,64 @@ describe('defaultWindowItem', () => {
 
   it('floors an uneven division', () => {
     expect(defaultWindowItem(4, 5)).toEqual({ w: 15, h: 5 });
+  });
+});
+
+describe('syncViewWindows', () => {
+  const view = (windows: LayoutItem[]) =>
+    ({ default_canvas_layout: { layout_data: windows } }) as unknown as ImageryViewOut;
+
+  const withWindows = (windows: Record<number, LayoutItem>): WorkspaceLayout => ({
+    ...baseLayout(),
+    windows,
+  });
+
+  it('places a newly eligible collection where the server put it', () => {
+    const next = syncViewWindows(
+      withWindows({ 1: { i: '1', x: 0, y: 30, w: 10, h: 9 } }),
+      view([
+        { i: '1', x: 0, y: 30, w: 10, h: 9 },
+        { i: '2', x: 10, y: 30, w: 10, h: 9 },
+      ]),
+      new Set([1, 2])
+    );
+    expect(next.windows[2]).toEqual({ i: '2', x: 10, y: 30, w: 10, h: 9 });
+  });
+
+  it('keeps an unsaved placement rather than the server one', () => {
+    const moved = { i: '1', x: 25, y: 40, w: 20, h: 12 };
+    const next = syncViewWindows(
+      withWindows({ 1: moved }),
+      view([{ i: '1', x: 0, y: 30, w: 10, h: 9 }]),
+      new Set([1])
+    );
+    expect(next.windows[1]).toEqual(moved);
+  });
+
+  it('drops a window whose collection left the view', () => {
+    const next = syncViewWindows(
+      withWindows({
+        1: { i: '1', x: 0, y: 30, w: 10, h: 9 },
+        2: { i: '2', x: 10, y: 30, w: 10, h: 9 },
+      }),
+      view([{ i: '1', x: 0, y: 30, w: 10, h: 9 }]),
+      new Set([1])
+    );
+    expect(Object.keys(next.windows)).toEqual(['1']);
+  });
+
+  it('keeps a window added from the tray but not yet saved', () => {
+    const unsaved = { i: '2', x: 0, y: 39, w: 10, h: 9 };
+    const next = syncViewWindows(
+      withWindows({ 1: { i: '1', x: 0, y: 30, w: 10, h: 9 }, 2: unsaved }),
+      view([{ i: '1', x: 0, y: 30, w: 10, h: 9 }]),
+      new Set([1, 2])
+    );
+    expect(next.windows[2]).toEqual(unsaved);
+  });
+
+  it('leaves the page chrome alone', () => {
+    const layout = withWindows({});
+    expect(syncViewWindows(layout, view([]), new Set()).main).toBe(layout.main);
   });
 });

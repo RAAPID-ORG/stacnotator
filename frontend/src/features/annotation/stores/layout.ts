@@ -6,6 +6,7 @@ import {
   hideWindow,
   scaleWidthToScreen,
   showWindow,
+  syncViewWindows,
   viewWindows,
   EMPTY_LAYOUT,
   type LayoutItem,
@@ -64,6 +65,9 @@ interface LayoutState {
   setLayout: (layout: WorkspaceLayout) => void;
   /** Swap in another view's windows, leaving the page chrome where it is. */
   loadViewLayout: (view: ImageryViewOut | null) => void;
+  /** Pick up a source-membership change on the view already loaded: drop the
+   *  windows that left, place the ones that arrived, keep the rest put. */
+  syncWindowsToView: (view: ImageryViewOut | null, eligible: ReadonlySet<number>) => void;
   showWindow: (collectionId: number) => void;
   hideWindow: (collectionId: number) => void;
   hideAllWindows: () => void;
@@ -146,6 +150,15 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
           savedLayout: { main: s.savedLayout.main, windows },
         };
       }),
+
+    // Membership is committed server-side the moment it is toggled, so it lands
+    // in the cancel baseline too - cancelling the layout edit reverts
+    // placements, never which windows the view has.
+    syncWindowsToView: (view, eligible) =>
+      set((s) => ({
+        currentLayout: syncViewWindows(s.currentLayout, view, eligible),
+        savedLayout: syncViewWindows(s.savedLayout, view, eligible),
+      })),
 
     showWindow: (collectionId) =>
       set((s) => ({

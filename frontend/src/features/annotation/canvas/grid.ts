@@ -173,6 +173,29 @@ export function hideAllWindows(layout: WorkspaceLayout): WorkspaceLayout {
   return { main: layout.main, windows: {} };
 }
 
+/** Re-seed the windows after a view's source membership changed.
+ *
+ * `eligible` decides membership: a window whose collection left the view goes,
+ * everything else stays exactly where it is, so unsaved drags and tray
+ * additions survive. The server reconciles the stored layouts on the same
+ * change and returns the result, which is where a newly-eligible window gets
+ * its position from.
+ */
+export function syncViewWindows(
+  layout: WorkspaceLayout,
+  view: ImageryViewOut | null,
+  eligible: ReadonlySet<number>
+): WorkspaceLayout {
+  const windows: Record<number, LayoutItem> = {};
+  for (const [key, item] of Object.entries(layout.windows)) {
+    if (eligible.has(Number(key))) windows[Number(key)] = item;
+  }
+  for (const [key, item] of Object.entries(viewWindows(view))) {
+    if (eligible.has(Number(key)) && !(Number(key) in windows)) windows[Number(key)] = item;
+  }
+  return { main: layout.main, windows };
+}
+
 export const overlaps = (
   a: { x: number; y: number; w: number; h: number },
   b: { x: number; y: number; w: number; h: number }
