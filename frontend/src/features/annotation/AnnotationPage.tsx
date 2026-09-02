@@ -575,12 +575,7 @@ export function AnnotationPage() {
       <SliceCommentDialog />
 
       {!isMobile && editing && (
-        <TrayContent
-          catalog={catalog}
-          view={view}
-          canvasRef={canvasRef}
-          isCampaignAdmin={policy.isAdmin}
-        />
+        <TrayContent catalog={catalog} view={view} isCampaignAdmin={policy.isAdmin} />
       )}
 
       {!isMobile &&
