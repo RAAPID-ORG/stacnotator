@@ -180,12 +180,20 @@ def _planet_scene_source(
     source = db.get(ImagerySource, source_id)
     if source is None or source.campaign_id != campaign.id:
         raise HTTPException(status_code=404, detail="Imagery source not found")
-    if not source.encrypted_key:
+    # A shared key with no host bound reads as no key at all - see ImagerySource. The
+    # search itself would be safe (Planet's client pins the API host), but the layers it
+    # mints are rendered through the proxy, which would refuse the key a moment later.
+    key = source.provider_key
+    if key is None:
         raise HTTPException(
-            status_code=400, detail="No Planet API key is configured for this source"
+            status_code=400,
+            detail=(
+                "No usable Planet API key is configured for this source. A shared "
+                "organization key also needs the tile host it may be sent to."
+            ),
         )
     try:
-        api_key = decrypt(source.encrypted_key)
+        api_key = decrypt(key.ciphertext)
     except DecryptionError as e:
         raise HTTPException(
             status_code=500, detail="The source's Planet API key could not be read"

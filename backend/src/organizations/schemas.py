@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from src import net_guard
 from src.auth.schemas import UserOut
 
 
@@ -108,11 +109,27 @@ class InvitesListResponse(BaseModel):
     items: list[InviteOut]
 
 
+def _tile_host(raw: str) -> str:
+    """The hostname an admin named for a key, however they wrote it.
+
+    A pasted URL is as good as a bare host. The dot is the one shape check: it
+    rejects a key value fat-fingered into this box, which would otherwise bind
+    the key to a host that can never match and silently stop its tiles.
+    """
+    host = net_guard.hostname_of(raw)
+    if host is None or "." not in host:
+        raise ValueError("Enter the provider's tile host, e.g. tiles.planet.com")
+    return host
+
+
 class OrganizationApiKeyOut(BaseModel):
     """A stored provider key, named. The secret itself is never returned."""
 
     id: int
     name: str
+    # Null only on keys stored before hosts were bound; those serve no tiles
+    # until an admin sets one.
+    allowed_tile_host: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -125,12 +142,23 @@ class OrganizationApiKeysResponse(BaseModel):
 class OrganizationApiKeyCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     value: str = Field(min_length=1)
+    # Required on the way in: a key with nowhere to go is the state this binding
+    # exists to prevent, so it is never one a new key can be created in.
+    allowed_tile_host: str = Field(min_length=1, max_length=255)
+
+    _normalize_host = field_validator("allowed_tile_host")(_tile_host)
 
 
 class OrganizationApiKeyUpdate(BaseModel):
-    """Rotation: the same key under the same name."""
+    """Rotation: the same key under the same name, optionally re-pointed."""
 
     value: str = Field(min_length=1)
+    allowed_tile_host: str | None = Field(default=None, max_length=255)
+
+    @field_validator("allowed_tile_host")
+    @classmethod
+    def _normalize_host(cls, v: str | None) -> str | None:
+        return None if v is None else _tile_host(v)
 
 
 class OrganizationTilersOut(BaseModel):

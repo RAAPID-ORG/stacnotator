@@ -159,7 +159,9 @@ def _send(url: str, request: Callable[[], httpx.Response]) -> dict[str, Any]:
 
 def _require_host(url: str, host: str) -> None:
     if urlparse(url).hostname != host:
-        raise PlanetError(f"refusing to send Planet credentials to {url}")
+        # Reached with Planet's own `_next` links, which the caller sees as an error
+        # message - so the URL arrives here stripped of whatever its query held.
+        raise PlanetError(f"refusing to send Planet credentials to {tiles.without_query(url)}")
 
 
 def _complaint(response: httpx.Response) -> str:

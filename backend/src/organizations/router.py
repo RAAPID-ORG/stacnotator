@@ -289,7 +289,12 @@ def create_organization_api_key(
     org: Organization = Depends(require_org_admin),
 ):
     key = service.create_api_key(
-        db, organization_id, name=body.name, value=body.value, created_by=user.id
+        db,
+        organization_id,
+        name=body.name,
+        value=body.value,
+        allowed_tile_host=body.allowed_tile_host,
+        created_by=user.id,
     )
     return OrganizationApiKeyOut.model_validate(key)
 
@@ -302,7 +307,7 @@ def rotate_organization_api_key(
     db: Session = Depends(get_db),
     org: Organization = Depends(require_org_admin),
 ):
-    service.rotate_api_key(db, organization_id, key_id, body.value)
+    service.rotate_api_key(db, organization_id, key_id, body.value, body.allowed_tile_host)
 
 
 @router.delete("/{organization_id}/api-keys/{key_id}", status_code=204)

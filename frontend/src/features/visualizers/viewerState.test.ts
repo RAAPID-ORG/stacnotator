@@ -19,7 +19,7 @@ const step = (id: number, start: string, end: string, viz = 'True Color'): Visua
 
 const source = (over: Partial<VisualizerImageryOut> = {}): VisualizerImageryOut => ({
   id: '1',
-  tile_proxy_base: '/api/7/imagery/slices',
+  tile_proxy_base: '/api/visualizers/1/imagery/slices',
   name: 'Sentinel-2',
   visualizations: ['True Color'],
   default_zoom: 15,
@@ -215,7 +215,9 @@ describe('composeLayers', () => {
     const layers = composeLayers(keyed, initialState(keyed));
     const imagery = layers.find((l) => l.id.startsWith('slice-'));
     expect(imagery).toMatchObject({
-      url: expect.stringContaining('/api/7/imagery/slices/3/tiles/True%20Color/{z}/{x}/{y}'),
+      url: expect.stringContaining(
+        '/api/visualizers/1/imagery/slices/3/tiles/True%20Color/{z}/{x}/{y}'
+      ),
       auth: 'cookie',
     });
   });

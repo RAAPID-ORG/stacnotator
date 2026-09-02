@@ -126,7 +126,8 @@ class OrganizationApiKey(Base):
     and so rotating it is one edit rather than one per campaign.
 
     Same AES-256-GCM ciphertext as the per-campaign keys (src/crypto.py); it is
-    decrypted only by the tile proxy and never leaves the backend."""
+    decrypted only by the tile proxy, sent only to `allowed_tile_host`, and never
+    leaves the backend."""
 
     __tablename__ = "organization_api_keys"
     __table_args__ = (
@@ -140,6 +141,12 @@ class OrganizationApiKey(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     encrypted_key: Mapped[str] = mapped_column(Text, nullable=False)
+    # The provider host this key belongs to - `tiles.planet.com` for a Planet key.
+    # The tile proxy sends the key there and nowhere else, which is what keeps a
+    # shared secret out of reach of the campaign admins who write the tile URLs it
+    # is used with. Null on rows stored before the binding existed; those are
+    # refused until an admin names the host.
+    allowed_tile_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
     )

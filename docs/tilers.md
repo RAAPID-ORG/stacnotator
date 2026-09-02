@@ -135,9 +135,20 @@ imagery, and only data actually registered on that tiler. A tiler is therefore p
 trusted deployment, not a third-party service: it must share `TILER_TOKEN_SECRET` with the
 backend and sit on a subdomain of the app so the cookie reaches it.
 
+A published visualizer hands its visitors the same kind of cookie, scoped to the campaigns it
+draws linked layers from - the tiler knows no unit smaller than a campaign, so that is what a
+linked source has to be asked for by. Those tokens also carry a `visualizer` claim, and the
+backend's own tile proxy (the path that spends a provider API key, `imagery/proxy_router.py`)
+honours it: such a session is served only under `/api/visualizers/{id}/...`, which resolves
+just the sources that visualizer owns or links. Without it a shared link would be a read
+session on every layer of the campaigns behind it.
+
 Known trade-offs (intentionally simple for now): a single shared secret works across all
 tilers, and a campaign's tiler access is implicit (it's "on" a tiler once data is registered
-there). In the future we might want to switch to asymetric keys.
+there). The tiler itself still checks only the campaign scope, so tiler-served imagery a
+visualizer links is reachable at campaign granularity by anyone holding that visualizer's
+cookie; narrowing that needs a finer claim the tiler understands. In the future we might want
+to switch to asymetric keys.
 
 ## Deploying a tiler
 

@@ -2998,6 +2998,10 @@ export type OrganizationApiKeyCreate = {
      * Value
      */
     value: string;
+    /**
+     * Allowed Tile Host
+     */
+    allowed_tile_host: string;
 };
 
 /**
@@ -3015,6 +3019,10 @@ export type OrganizationApiKeyOut = {
      */
     name: string;
     /**
+     * Allowed Tile Host
+     */
+    allowed_tile_host?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -3023,13 +3031,17 @@ export type OrganizationApiKeyOut = {
 /**
  * OrganizationApiKeyUpdate
  *
- * Rotation: the same key under the same name.
+ * Rotation: the same key under the same name, optionally re-pointed.
  */
 export type OrganizationApiKeyUpdate = {
     /**
      * Value
      */
     value: string;
+    /**
+     * Allowed Tile Host
+     */
+    allowed_tile_host?: string | null;
 };
 
 /**

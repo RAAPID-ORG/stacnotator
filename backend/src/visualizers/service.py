@@ -427,7 +427,11 @@ def build_view(
         project_id=visualizer.project_id,
         project_name=visualizer.project.name,
         area=area_out(visualizer),
-        imagery=[out for source in browsable_sources(visualizer) for out in _imagery_out(source)],
+        imagery=[
+            out
+            for source in browsable_sources(visualizer)
+            for out in _imagery_out(source, visualizer)
+        ],
         basemaps=[_basemap_out(b) for b in visualizer.basemaps],
         overlays=[out for out in (_overlay_out(o) for o in visualizer.overlays) if out],
         can_edit=can_edit,
@@ -458,14 +462,17 @@ def browsable_sources(visualizer: Visualizer) -> list[ImagerySource]:
     return [*visualizer.imagery_sources, *linked]
 
 
-def tile_proxy_base(owner: LayerOwner) -> str:
-    """The backend route serving this owner's key-proxied slice tiles."""
-    if owner.campaign_id is not None:
-        return f"/api/{owner.campaign_id}/imagery/slices"
-    return f"/api/visualizers/{owner.visualizer_id}/imagery/slices"
+def tile_proxy_base(visualizer: Visualizer) -> str:
+    """The backend route serving this visualizer's key-proxied slice tiles.
+
+    Its own route even for a source linked from a campaign: that route serves
+    what the visualizer publishes, where the campaign's serves everything the
+    campaign has.
+    """
+    return f"/api/visualizers/{visualizer.id}/imagery/slices"
 
 
-def _imagery_out(source: ImagerySource) -> list[VisualizerImageryOut]:
+def _imagery_out(source: ImagerySource, visualizer: Visualizer) -> list[VisualizerImageryOut]:
     """This source as the one or two dated records a visualizer offers.
 
     A source with monthly composites over weekly acquisitions is two records,
@@ -483,7 +490,7 @@ def _imagery_out(source: ImagerySource) -> list[VisualizerImageryOut]:
     return [
         VisualizerImageryOut(
             id=f"{source.id}:{record.cadence}" if len(records) > 1 else str(source.id),
-            tile_proxy_base=tile_proxy_base(source.owner),
+            tile_proxy_base=tile_proxy_base(visualizer),
             name=f"{source.name} {record.cadence}" if len(records) > 1 else source.name,
             visualizations=[v.name for v in source.visualizations],
             default_zoom=source.default_zoom,

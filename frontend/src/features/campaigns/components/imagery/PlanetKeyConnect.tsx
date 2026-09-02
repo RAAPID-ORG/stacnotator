@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  getProject,
   getProjectOrganizationKeys,
   type OrganizationApiKeyOut,
   type PlanetCredentials,
 } from '~/api/client';
 import { Input, Select } from '~/shared/ui/forms';
 import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
+import { SharedKeyAudience } from './SharedKeyAudience';
 import { handleError } from '~/shared/utils/errorHandler';
 
 interface PlanetKeyConnectProps {
@@ -26,6 +28,7 @@ export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps)
   const [keyId, setKeyId] = useState<number | null>(null);
   const [ownKey, setOwnKey] = useState('');
   const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
+  const [projectIsPublic, setProjectIsPublic] = useState(false);
 
   // Callers pass an inline handler; keeping it out of the effect below is what
   // stops every render from re-emitting the same choice.
@@ -44,6 +47,14 @@ export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps)
         setKeys([]);
         handleError(err, 'Failed to load organization keys', { showUser: false });
       });
+  }, [projectId]);
+
+  useEffect(() => {
+    // Context for the choice above, not the choice itself: if this read fails the
+    // picker still works, one caveat poorer.
+    void getProject({ path: { project_id: projectId } })
+      .then(({ data }) => setProjectIsPublic(data?.visibility === 'public'))
+      .catch((err) => handleError(err, 'Failed to load project', { showUser: false }));
   }, [projectId]);
 
   useEffect(() => {
@@ -84,6 +95,8 @@ export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps)
         ))}
         <option value={OWN_KEY}>Enter a key for this campaign</option>
       </Select>
+
+      {keyId !== null && <SharedKeyAudience projectIsPublic={projectIsPublic} />}
 
       {keyId === null && (
         <>

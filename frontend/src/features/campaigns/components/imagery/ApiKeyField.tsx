@@ -2,12 +2,16 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { type ApiKeyUpdate, type OrganizationApiKeyOut } from '~/api/client';
 import { listCampaignOrganizationKeysOptions } from '~/api/queries';
+import { useProject } from '~/app/projectRoute';
 import { Input, Select } from '~/shared/ui/forms';
 import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
+import { SharedKeyAudience } from './SharedKeyAudience';
 
 interface ApiKeyFieldProps {
   /** Absent in the create wizard - there is no campaign to scope keys to yet. */
   campaignId?: number | null;
+  /** Owning project. Only used to say who a shared key would be spent by. */
+  projectId?: number | null;
   /** False in the create wizard (entity not saved yet) - the key can't be set until saved. */
   persisted: boolean;
   /** Whether a key is already configured server-side. */
@@ -30,6 +34,7 @@ const NO_KEYS: OrganizationApiKeyOut[] = [];
  */
 export const ApiKeyField = ({
   campaignId,
+  projectId,
   persisted,
   hasApiKey,
   organizationApiKeyId,
@@ -41,6 +46,9 @@ export const ApiKeyField = ({
   const [orgKeyId, setOrgKeyId] = useState<number | null>(organizationApiKeyId ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { project } = useProject(projectId ?? null);
+  const projectIsPublic = project?.visibility === 'public';
 
   const { data: orgKeysData } = useQuery({
     ...listCampaignOrganizationKeysOptions({ path: { campaign_id: campaignId ?? 0 } }),
@@ -126,6 +134,7 @@ export const ApiKeyField = ({
           {orgKeyId !== null && status}
         </div>
       )}
+      {orgKeyId !== null && <SharedKeyAudience projectIsPublic={projectIsPublic} />}
       {orgKeyId === null && (
         <ReadOnlyKeyConsent confirmed={readOnlyConfirmed} onChange={setReadOnlyConfirmed} />
       )}

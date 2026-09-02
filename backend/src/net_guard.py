@@ -141,6 +141,44 @@ def _pin(request: httpx.Request, ip: str) -> None:
     request.url = request.url.copy_with(host=ip)
 
 
+def hostname_of(raw: str) -> str | None:
+    """The bare hostname in whatever someone typed, or None if there isn't one.
+
+    ``https://tiles.planet.com/basemaps/`` and ``tiles.planet.com:443`` both give
+    ``tiles.planet.com``, so an admin naming a host can paste a URL and be right.
+    """
+    candidate = raw.strip().lower()
+    if not candidate:
+        return None
+    # Without a scheme urlparse reads the whole thing as a path, so give it one.
+    if "//" not in candidate:
+        candidate = f"//{candidate}"
+    try:
+        return urlparse(candidate).hostname
+    except ValueError:
+        return None
+
+
+def host_is_within(host: str | None, allowed_host: str) -> bool:
+    """Whether ``host`` is ``allowed_host`` or a subdomain of it.
+
+    Takes a hostname rather than a URL on purpose: the caller must pass the host
+    the request will actually be sent to, read off the same parse that will make
+    the request. Deciding on a second parse of the URL string invites the two to
+    disagree about where a hostile URL points, which is the whole game here.
+
+    Subdomains count because providers shard their tiles across them (``a.tile``,
+    ``b.tile``); the dot is what keeps ``nottiles.planet.com`` outside
+    ``tiles.planet.com``. An empty ``allowed_host`` matches nothing, so a binding
+    nobody has filled in refuses rather than waves everything through.
+    """
+    allowed = hostname_of(allowed_host)
+    if not host or allowed is None:
+        return False
+    target = host.lower()
+    return target == allowed or target.endswith(f".{allowed}")
+
+
 def assert_public_url(url: str) -> None:
     """Reject a URL that a downstream service must not be asked to fetch.
 

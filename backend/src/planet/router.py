@@ -48,6 +48,17 @@ def _api_key(credentials: PlanetCredentials, db: Session, user: User) -> str:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Organization API key not found"
         )
+    # Browsing with it would work - the client only ever talks to Planet's API host -
+    # but every mosaic it turned up would then fail to render, since the proxy will not
+    # send an unbound key anywhere. Better to say so here than one screen later.
+    if not key.allowed_tile_host:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "This organization key has no tile host set. An organization admin "
+                "needs to set it (tiles.planet.com for Planet) before it can be used."
+            ),
+        )
     try:
         return decrypt(key.encrypted_key)
     except DecryptionError as e:

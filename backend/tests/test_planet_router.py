@@ -33,7 +33,12 @@ def crypto_key(monkeypatch):
 
 @pytest.fixture()
 def client(crypto_key, monkeypatch):
-    key = SimpleNamespace(id=KEY_ID, name="Planet", encrypted_key=crypto.encrypt("PLANET-SECRET"))
+    key = SimpleNamespace(
+        id=KEY_ID,
+        name="Planet",
+        encrypted_key=crypto.encrypt("PLANET-SECRET"),
+        allowed_tile_host="tiles.planet.com",
+    )
     project = SimpleNamespace(organization=SimpleNamespace(api_keys=[key]))
     monkeypatch.setattr(planet_router, "require_project_access", lambda **_: project)
     app.dependency_overrides[get_db] = lambda: MagicMock()

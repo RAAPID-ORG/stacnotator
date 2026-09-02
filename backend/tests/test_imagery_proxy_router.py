@@ -1,16 +1,23 @@
-"""What the tile proxy does around the upstream fetch: DB handling, and what it
-lets back out to the browser."""
+"""What the tile proxy does around the upstream fetch: who it serves, DB handling,
+and what it lets back out to the browser."""
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from src import net_guard
 from src.imagery import proxy_router
-from src.imagery.proxy_router import require_tile_access
+from src.imagery.models import ProviderKey
+from src.imagery.proxy_router import (
+    require_tile_access,
+    require_visualizer_tile_access,
+)
 from src.layers import LayerOwner
 from src.main import app
+from src.tilers import tokens
 
 CAMPAIGN_ID = 3
 BASEMAP_ID = 7
@@ -28,7 +35,7 @@ def _serve_basemap(monkeypatch, url: str, log: list[str]) -> None:
                 campaign_id=CAMPAIGN_ID,
                 owner=LayerOwner(campaign_id=CAMPAIGN_ID),
                 url=url,
-                encrypted_key="enc",
+                provider_key=ProviderKey("enc", None),
             )
 
         def close(self):
@@ -98,3 +105,74 @@ def test_an_internal_basemap_url_is_never_fetched(monkeypatch):
 
     assert resp.status_code == 502
     assert net_guard.BLOCKED_HOST in resp.json()["detail"]
+
+
+class TestWhoTheProxyServes:
+    """A visualizer's tile session holds the scopes of the campaigns it links from -
+    the tiler has no finer unit to check against - so the proxy, where a provider key
+    is actually spent, has to be the thing that keeps a shared link off the rest of
+    those campaigns."""
+
+    LINKED_CAMPAIGN = 42
+    VISUALIZER = 3
+
+    def _request(self, **claims):
+        return SimpleNamespace(cookies={"tiler_token": tokens.mint(**claims)})
+
+    def _visualizer_session(self):
+        return self._request(
+            sub=f"visualizer:{self.VISUALIZER}",
+            campaigns=[str(self.LINKED_CAMPAIGN), f"visualizer:{self.VISUALIZER}"],
+            visualizer_id=self.VISUALIZER,
+        )
+
+    def test_a_visualizer_session_reads_the_visualizers_own_route(self):
+        require_visualizer_tile_access(self._visualizer_session(), visualizer_id=self.VISUALIZER)
+
+    def test_a_visualizer_session_cannot_read_the_campaign_it_links_from(self):
+        with pytest.raises(HTTPException) as exc:
+            require_tile_access(self._visualizer_session(), campaign_id=self.LINKED_CAMPAIGN)
+
+        assert exc.value.status_code == 403
+
+    def test_a_visualizer_session_cannot_read_another_visualizer(self):
+        with pytest.raises(HTTPException) as exc:
+            require_visualizer_tile_access(self._visualizer_session(), visualizer_id=99)
+
+        assert exc.value.status_code == 403
+
+    def test_a_users_session_still_reads_their_campaigns(self):
+        request = self._request(sub="user", campaigns=[str(self.LINKED_CAMPAIGN)])
+
+        require_tile_access(request, campaign_id=self.LINKED_CAMPAIGN)
+
+
+class TestServes:
+    OWNER = LayerOwner(visualizer_id=3)
+
+    def _source(self, owner):
+        return SimpleNamespace(id=8, owner=owner)
+
+    def test_a_visualizer_serves_its_own_imagery_without_a_lookup(self):
+        db = MagicMock()
+
+        assert proxy_router._serves(db, self._source(self.OWNER), self.OWNER)
+        db.scalar.assert_not_called()
+
+    def test_a_visualizer_serves_a_source_it_links(self):
+        db = MagicMock()
+        db.scalar.return_value = 1
+
+        assert proxy_router._serves(db, self._source(LayerOwner(campaign_id=42)), self.OWNER)
+
+    def test_a_visualizer_does_not_serve_the_rest_of_that_campaign(self):
+        db = MagicMock()
+        db.scalar.return_value = None
+
+        assert not proxy_router._serves(db, self._source(LayerOwner(campaign_id=42)), self.OWNER)
+
+    def test_a_campaigns_route_serves_only_its_own(self):
+        owner = LayerOwner(campaign_id=42)
+
+        assert proxy_router._serves(MagicMock(), self._source(owner), owner)
+        assert not proxy_router._serves(MagicMock(), self._source(LayerOwner(campaign_id=7)), owner)

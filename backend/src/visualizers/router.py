@@ -219,12 +219,15 @@ def get_visualizer_tiler_token(
     """Tile access for exactly the campaigns this visualizer draws from.
 
     Scoping the token to the visualizer's own campaigns is what lets a visitor
-    with no account fetch its tiles without opening anything else.
+    with no account fetch its tiles without opening anything else. The scopes
+    alone would be the whole of those campaigns, so the token also names the
+    visualizer and the tile proxy serves it nothing else.
     """
     set_tiler_cookie(
         response,
         sub=f"visualizer:{viewer.visualizer.id}",
         campaigns=service.tile_scopes(viewer.visualizer),
+        visualizer_id=viewer.visualizer.id,
     )
     return TilerSessionOut(expires_in=TILER_TOKEN_TTL)
 

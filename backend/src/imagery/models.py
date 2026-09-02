@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -22,6 +23,24 @@ if TYPE_CHECKING:
     from src.canvas.models import CanvasLayout
     from src.organizations.models import OrganizationApiKey
     from src.visualizers.models import Visualizer
+
+
+@dataclass(frozen=True)
+class ProviderKey:
+    """A layer's provider credential, and the only host it may be sent to.
+
+    Two people set a keyed layer up and they are not the same person: an
+    organization admin stores the shared secret, a campaign admin points a layer
+    at it and writes that layer's tile URL. Without a host on the key, writing
+    the URL would be enough to have the proxy deliver the secret anywhere -
+    which is why a shared key names its host and this pairs the two.
+
+    ``allowed_host`` is None for a key typed into the layer itself, which
+    restricts nothing: whoever typed it already knows it.
+    """
+
+    ciphertext: str
+    allowed_host: str | None
 
 
 class ImagerySource(Base):
@@ -97,12 +116,20 @@ class ImagerySource(Base):
         return self.encrypted_api_key is not None or self.organization_api_key_id is not None
 
     @property
-    def encrypted_key(self) -> str | None:
-        """The ciphertext to decrypt for this layer's tiles: its own key, or the
-        organization key it points at."""
-        return self.encrypted_api_key or (
-            self.organization_api_key.encrypted_key if self.organization_api_key else None
-        )
+    def provider_key(self) -> ProviderKey | None:
+        """The key to decrypt for this layer's tiles: its own, or the shared one
+        it points at, with the host that one is bound to.
+
+        A shared key with no host bound is no key at all - it predates the
+        binding and an organization admin has to say where it may be sent before
+        anything will spend it.
+        """
+        if self.encrypted_api_key:
+            return ProviderKey(self.encrypted_api_key, None)
+        shared = self.organization_api_key
+        if shared is None or not shared.allowed_tile_host:
+            return None
+        return ProviderKey(shared.encrypted_key, shared.allowed_tile_host)
 
     # Registration state, per source rather than per campaign: one source can be
     # fully registered while another is still missing tiles, and the campaign's
@@ -388,12 +415,20 @@ class Basemap(Base):
         return self.encrypted_api_key is not None or self.organization_api_key_id is not None
 
     @property
-    def encrypted_key(self) -> str | None:
-        """The ciphertext to decrypt for this layer's tiles: its own key, or the
-        organization key it points at."""
-        return self.encrypted_api_key or (
-            self.organization_api_key.encrypted_key if self.organization_api_key else None
-        )
+    def provider_key(self) -> ProviderKey | None:
+        """The key to decrypt for this layer's tiles: its own, or the shared one
+        it points at, with the host that one is bound to.
+
+        A shared key with no host bound is no key at all - it predates the
+        binding and an organization admin has to say where it may be sent before
+        anything will spend it.
+        """
+        if self.encrypted_api_key:
+            return ProviderKey(self.encrypted_api_key, None)
+        shared = self.organization_api_key
+        if shared is None or not shared.allowed_tile_host:
+            return None
+        return ProviderKey(shared.encrypted_key, shared.allowed_tile_host)
 
 
 class ImageryView(Base):

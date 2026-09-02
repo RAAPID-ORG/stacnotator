@@ -478,6 +478,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
             </label>
             <ApiKeyField
               campaignId={controller.campaignId}
+              projectId={controller.projectId}
               persisted={controller.campaignId != null && isRealId(source.id)}
               hasApiKey={source.hasApiKey}
               organizationApiKeyId={source.organizationApiKeyId}

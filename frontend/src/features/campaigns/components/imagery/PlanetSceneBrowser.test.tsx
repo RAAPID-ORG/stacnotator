@@ -2,8 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlanetSceneBrowser } from './PlanetSceneBrowser';
 
-const { orgKeys } = vi.hoisted(() => ({
+const { orgKeys, project } = vi.hoisted(() => ({
   orgKeys: { items: [] as { id: number; name: string }[] },
+  project: { visibility: 'private' as string },
 }));
 
 vi.mock('~/api/client', async () => {
@@ -11,6 +12,7 @@ vi.mock('~/api/client', async () => {
   return {
     ...actual,
     getProjectOrganizationKeys: vi.fn(() => Promise.resolve({ data: { items: orgKeys.items } })),
+    getProject: vi.fn(() => Promise.resolve({ data: { visibility: project.visibility } })),
     planPlanetScenes: vi.fn(() =>
       Promise.resolve({
         data: [
@@ -31,6 +33,7 @@ import { planPlanetScenes } from '~/api/client';
 describe('PlanetSceneBrowser', () => {
   beforeEach(() => {
     orgKeys.items = [];
+    project.visibility = 'private';
     // The plan mock is shared by the whole file, and these tests count its calls -
     // one test's calls must not answer the next one's wait.
     vi.mocked(planPlanetScenes).mockClear();
@@ -67,5 +70,21 @@ describe('PlanetSceneBrowser', () => {
 
     const add = await screen.findByRole('button', { name: 'Add source' });
     await waitFor(() => expect(add.hasAttribute('disabled')).toBe(false));
+  });
+
+  it('says who will be spending a shared key on a public project', async () => {
+    orgKeys.items = [{ id: 7, name: 'Shared Planet key' }];
+    project.visibility = 'public';
+    render(<PlanetSceneBrowser projectId={1} onAdd={async () => {}} onClose={() => {}} />);
+
+    expect(await screen.findByTestId('shared-key-public-warning')).toBeTruthy();
+  });
+
+  it('stays quiet about the audience on a private project', async () => {
+    orgKeys.items = [{ id: 7, name: 'Shared Planet key' }];
+    render(<PlanetSceneBrowser projectId={1} onAdd={async () => {}} onClose={() => {}} />);
+
+    await screen.findByRole('button', { name: 'Add source' });
+    expect(screen.queryByTestId('shared-key-public-warning')).toBeNull();
   });
 });

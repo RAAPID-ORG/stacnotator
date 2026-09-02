@@ -199,3 +199,60 @@ def test_ranges_the_ipaddress_flags_do_not_cover_are_internal(ip):
 def test_public_addresses_stay_public(ip):
     """100.128.0.1 sits just past the CGNAT block - the added range must not overreach."""
     assert net_guard.is_internal_ip(ip) is False
+
+
+class TestHostBinding:
+    """Where a stored provider key is allowed to be sent."""
+
+    @pytest.mark.parametrize(
+        ("typed", "expected"),
+        [
+            ("tiles.planet.com", "tiles.planet.com"),
+            ("  TILES.Planet.com ", "tiles.planet.com"),
+            ("https://tiles.planet.com/basemaps/v1/", "tiles.planet.com"),
+            ("tiles.planet.com:443", "tiles.planet.com"),
+            ("", None),
+        ],
+    )
+    def test_a_host_is_read_out_of_whatever_was_typed(self, typed, expected):
+        assert net_guard.hostname_of(typed) == expected
+
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "tiles.planet.com",
+            "TILES.planet.com",
+            "a.tiles.planet.com",  # providers shard across subdomains
+        ],
+    )
+    def test_the_bound_host_and_its_subdomains_are_within(self, host):
+        assert net_guard.host_is_within(host, "tiles.planet.com") is True
+
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "attacker.test",
+            "nottiles.planet.com",  # the dot is what makes this outside
+            "tiles.planet.com.attacker.test",
+            "planet.com",  # the parent of the bound host is not the bound host
+            None,
+        ],
+    )
+    def test_anything_else_is_outside(self, host):
+        assert net_guard.host_is_within(host, "tiles.planet.com") is False
+
+    def test_a_binding_nobody_filled_in_matches_nothing(self):
+        assert net_guard.host_is_within("tiles.planet.com", "") is False
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://tiles.planet.com@attacker.test/1/2/3.png",  # userinfo, not a host
+            "https://tiles.planet.com.attacker.test/1/2/3.png",
+            "https://attacker.test/1/2/3.png?from=tiles.planet.com",
+        ],
+    )
+    def test_a_url_dressed_up_as_the_bound_host_is_still_outside(self, url):
+        """The check reads the host off the same parse the request is made with, so a
+        URL that only looks like the bound host has nowhere to hide."""
+        assert net_guard.host_is_within(httpx.URL(url).host, "tiles.planet.com") is False

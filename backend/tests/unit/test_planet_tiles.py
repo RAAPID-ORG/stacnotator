@@ -36,6 +36,22 @@ def test_to_template_refuses_links_it_cannot_vouch_for(link):
         tiles.to_template(link)
 
 
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://evil.example.com/x/{z}/{x}/{y}.png?api_key=SECRET",
+        "https://tiles.planet.com/basemaps/v1/mosaics/abc?api_key=SECRET",
+    ],
+)
+def test_a_refused_link_is_quoted_back_without_its_key(link):
+    """The complaint reaches the browser as `unavailable_reason`, and the key it
+    would otherwise carry belongs to the organization, not to whoever is browsing."""
+    with pytest.raises(tiles.UnexpectedTileLink) as exc:
+        tiles.to_template(link)
+
+    assert "SECRET" not in str(exc.value)
+
+
 def test_analytic_series_offer_derived_renderings():
     assert [r.name for r in tiles.renderings_for("uint16")] == ["Visual", "False Color", "NDVI"]
     assert [r.name for r in tiles.renderings_for("uint8")] == ["Visual"]
@@ -99,6 +115,7 @@ def test_describe_series_keeps_unusable_mosaics_with_a_reason():
     reasons = [m.unavailable_reason for m in described.mosaics]
     assert reasons[0] is None
     assert reasons[1] and reasons[2]
+    assert not any("api_key" in (reason or "") for reason in reasons)
     assert [m.name for m in described.mosaics] == ["good", "no_link", "bad_link"]
     assert described.mosaics[1].tile_urls == {}
 

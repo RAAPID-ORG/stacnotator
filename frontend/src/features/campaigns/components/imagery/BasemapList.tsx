@@ -94,6 +94,7 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
               {bm.url.includes('{api_key}') && (
                 <ApiKeyField
                   campaignId={controller.campaignId}
+                  projectId={controller.projectId}
                   persisted={controller.campaignId != null && isRealId(bm.id)}
                   hasApiKey={bm.hasApiKey}
                   organizationApiKeyId={bm.organizationApiKeyId}

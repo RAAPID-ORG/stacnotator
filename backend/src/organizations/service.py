@@ -548,7 +548,13 @@ def list_api_keys(db: Session, organization_id: int) -> list[OrganizationApiKey]
 
 
 def create_api_key(
-    db: Session, organization_id: int, *, name: str, value: str, created_by: UUID
+    db: Session,
+    organization_id: int,
+    *,
+    name: str,
+    value: str,
+    allowed_tile_host: str,
+    created_by: UUID,
 ) -> OrganizationApiKey:
     if db.scalar(
         select(OrganizationApiKey).where(
@@ -561,6 +567,7 @@ def create_api_key(
         organization_id=organization_id,
         name=name,
         encrypted_key=encrypt(value),
+        allowed_tile_host=allowed_tile_host,
         created_by=created_by,
     )
     db.add(key)
@@ -576,10 +583,23 @@ def _get_api_key(db: Session, organization_id: int, key_id: int) -> Organization
     return key
 
 
-def rotate_api_key(db: Session, organization_id: int, key_id: int, value: str) -> None:
+def rotate_api_key(
+    db: Session,
+    organization_id: int,
+    key_id: int,
+    value: str,
+    allowed_tile_host: str | None = None,
+) -> None:
     """Replace the secret in place. Everything pointing at this key picks the
-    new one up on its next tile request - that is the point of sharing it."""
-    _get_api_key(db, organization_id, key_id).encrypted_key = encrypt(value)
+    new one up on its next tile request - that is the point of sharing it.
+
+    The host comes along because this is also the only way to give one to a key
+    stored before hosts were bound, which cannot serve a tile without it.
+    """
+    key = _get_api_key(db, organization_id, key_id)
+    key.encrypted_key = encrypt(value)
+    if allowed_tile_host is not None:
+        key.allowed_tile_host = allowed_tile_host
     db.commit()
 
 

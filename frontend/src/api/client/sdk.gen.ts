@@ -2077,6 +2077,8 @@ export const addVisualizerFeedback = <ThrowOnError extends boolean = false>(opti
  * Tile access for exactly the campaigns this visualizer draws from.
  *
  * Scoping the token to the visualizer's own campaigns is what lets a visitor
- * with no account fetch its tiles without opening anything else.
+ * with no account fetch its tiles without opening anything else. The scopes
+ * alone would be the whole of those campaigns, so the token also names the
+ * visualizer and the tile proxy serves it nothing else.
  */
 export const getVisualizerTilerToken = <ThrowOnError extends boolean = false>(options: Options<GetVisualizerTilerTokenData, ThrowOnError>) => (options.client ?? client).post<GetVisualizerTilerTokenResponses, GetVisualizerTilerTokenErrors, ThrowOnError>({ url: '/api/shared-visualizers/{slug}/tiler-token', ...options });

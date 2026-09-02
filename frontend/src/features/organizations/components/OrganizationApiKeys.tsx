@@ -18,6 +18,9 @@ export type OrganizationApiKeysProps = {
 
 const NO_KEYS: OrganizationApiKeyOut[] = [];
 
+/** Planet is the provider most of these keys are for, so its host is the example. */
+const TILE_HOST_PLACEHOLDER = 'tiles.planet.com';
+
 /** Provider keys the org's campaigns can share. The secret is write-only: it
  *  goes to the backend encrypted at rest and is never read back, so a key can
  *  be replaced but never displayed. */
@@ -28,9 +31,11 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
 
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
+  const [host, setHost] = useState('');
   const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
   const [rotatingId, setRotatingId] = useState<number | null>(null);
   const [rotateValue, setRotateValue] = useState('');
+  const [rotateHost, setRotateHost] = useState('');
   const [rotateConfirmed, setRotateConfirmed] = useState(false);
 
   const { data } = useQuery({
@@ -49,6 +54,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
       void refetchKeys();
       setName('');
       setValue('');
+      setHost('');
       setReadOnlyConfirmed(false);
     },
   });
@@ -59,6 +65,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
       void refetchKeys();
       setRotatingId(null);
       setRotateValue('');
+      setRotateHost('');
       setRotateConfirmed(false);
     },
   });
@@ -70,12 +77,16 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
 
   const busy = create.isPending || rotateKey.isPending || removeKey.isPending;
 
-  const add = () => create.mutate({ path, body: { name: name.trim(), value: value.trim() } });
+  const add = () =>
+    create.mutate({
+      path,
+      body: { name: name.trim(), value: value.trim(), allowed_tile_host: host.trim() },
+    });
 
   const rotate = (key: OrganizationApiKeyOut) =>
     rotateKey.mutate({
       path: { ...path, key_id: key.id },
-      body: { value: rotateValue.trim() },
+      body: { value: rotateValue.trim(), allowed_tile_host: rotateHost.trim() || null },
     });
 
   const remove = async (key: OrganizationApiKeyOut) => {
@@ -94,7 +105,8 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
       <h2 className="section-heading">Provider API keys</h2>
       <p className="section-description">
         Provider keys shared across this organization. Store one here and any campaign can use it
-        without seeing the secret; replacing it here updates every campaign at once.
+        without seeing the secret; replacing it here updates every campaign at once. Each key is
+        tied to the provider host it belongs to and is never sent anywhere else.
       </p>
 
       {keys.length > 0 && (
@@ -103,6 +115,15 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
             <li key={key.id} data-testid="org-api-key-row" className="px-4 py-2.5">
               <div className="flex items-center gap-3">
                 <span className="flex-1 min-w-0 text-sm text-neutral-900 truncate">{key.name}</span>
+                {key.allowed_tile_host ? (
+                  <span className="text-[11px] font-mono text-neutral-500 shrink-0 truncate">
+                    {key.allowed_tile_host}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-amber-700 shrink-0">
+                    No tile host - not usable yet
+                  </span>
+                )}
                 <span className="text-[11px] text-neutral-500 shrink-0">
                   added {new Date(key.created_at).toLocaleDateString()}
                 </span>
@@ -111,6 +132,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                   onClick={() => {
                     setRotatingId(rotatingId === key.id ? null : key.id);
                     setRotateValue('');
+                    setRotateHost(key.allowed_tile_host ?? '');
                     setRotateConfirmed(false);
                   }}
                   className="inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md text-neutral-700 hover:bg-neutral-100"
@@ -138,10 +160,20 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                       placeholder="New key value"
                       className="!w-64 text-[11px] font-mono"
                     />
+                    <Input
+                      size="sm"
+                      value={rotateHost}
+                      onChange={(e) => setRotateHost(e.target.value)}
+                      placeholder={TILE_HOST_PLACEHOLDER}
+                      aria-label="Tile host"
+                      className="!w-48 text-[11px] font-mono"
+                    />
                     <Button
                       size="sm"
                       onClick={() => rotate(key)}
-                      disabled={busy || !rotateValue.trim() || !rotateConfirmed}
+                      disabled={
+                        busy || !rotateValue.trim() || !rotateHost.trim() || !rotateConfirmed
+                      }
                     >
                       Save
                     </Button>
@@ -179,13 +211,31 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
               disabled={busy}
             />
           </Field>
+          <Field label="Tile host" htmlFor="org-key-host">
+            <Input
+              id="org-key-host"
+              size="sm"
+              value={host}
+              onChange={(e) => setHost(e.target.value)}
+              placeholder={TILE_HOST_PLACEHOLDER}
+              className="font-mono"
+              disabled={busy}
+            />
+          </Field>
           <Button
             onClick={add}
-            disabled={busy || !name.trim() || !value.trim() || !readOnlyConfirmed}
+            disabled={busy || !name.trim() || !value.trim() || !host.trim() || !readOnlyConfirmed}
           >
             Add key
           </Button>
         </div>
+        <p className="text-[11px] text-neutral-500 leading-snug">
+          The tile host is the provider address this key belongs to -{' '}
+          <span className="font-mono">{TILE_HOST_PLACEHOLDER}</span> for Planet basemaps and scenes,
+          the host in your provider&apos;s tile URL otherwise (its subdomains count too). The server
+          sends this key there and refuses everywhere else, so a campaign pointing its imagery at
+          some other address cannot use the key to get it delivered there.
+        </p>
         <ReadOnlyKeyConsent confirmed={readOnlyConfirmed} onChange={setReadOnlyConfirmed} />
       </div>
     </section>

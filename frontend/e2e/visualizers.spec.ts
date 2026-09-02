@@ -24,7 +24,7 @@ const SHARED_VISUALIZER = {
   imagery: [
     {
       id: '11',
-      tile_proxy_base: '/api/42/imagery/slices',
+      tile_proxy_base: '/api/visualizers/3/imagery/slices',
       name: 'Sentinel-2',
       visualizations: ['True Color'],
       default_zoom: 12,

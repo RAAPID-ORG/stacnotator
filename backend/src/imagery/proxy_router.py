@@ -19,6 +19,7 @@ used to, capped the whole proxy at roughly sixty tiles a second.
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import httpx
 import jwt
@@ -36,6 +37,7 @@ from src.imagery.models import (
     ImageryCollection,
     ImagerySlice,
     ImagerySource,
+    ProviderKey,
     SliceTileUrl,
 )
 from src.imagery.proxy import build_upstream_tile_url
@@ -43,6 +45,7 @@ from src.layers import LayerOwner
 from src.planet import tiles as planet_tiles
 from src.tile_bulkhead import tile_db_slot, tile_upstream_slot
 from src.tilers import tokens
+from src.visualizers.models import VisualizerImagery
 
 router = APIRouter(tags=["Imagery Tiles"])
 
@@ -61,15 +64,24 @@ _client = net_guard.guarded_async_client(
     ),
 )
 
+
+@dataclass(frozen=True)
+class TileTarget:
+    """Where one layer's tiles come from: the URL template, and the key to spend."""
+
+    url: str
+    key: ProviderKey | None
+
+
 # Resolved tile targets, keyed by what identifies the layer. One query and one pool
 # checkout per tile is the difference between a proxy that scales and one that does not,
 # and the value changes only when an admin edits the layer - so it is cached for
 # TILE_TARGET_CACHE_TTL and the edit shows up within that. Only successes are stored: a
 # 404 stays uncached so a newly created layer works immediately.
-_targets: OrderedDict[tuple, tuple[float, tuple[str, str | None]]] = OrderedDict()
+_targets: OrderedDict[tuple, tuple[float, TileTarget]] = OrderedDict()
 
 
-def _cache_get(key: tuple) -> tuple[str, str | None] | None:
+def _cache_get(key: tuple) -> TileTarget | None:
     entry = _targets.get(key)
     if entry is None:
         return None
@@ -81,7 +93,7 @@ def _cache_get(key: tuple) -> tuple[str, str | None] | None:
     return value
 
 
-def _cache_put(key: tuple, value: tuple[str, str | None]) -> None:
+def _cache_put(key: tuple, value: TileTarget) -> None:
     settings = get_settings()
     _targets[key] = (time.monotonic() + settings.TILE_TARGET_CACHE_TTL, value)
     _targets.move_to_end(key)
@@ -93,9 +105,7 @@ def reset_target_cache() -> None:
     _targets.clear()
 
 
-async def _resolve(
-    key: tuple, lookup: Callable[[Session], tuple[str, str | None]]
-) -> tuple[str, str | None]:
+async def _resolve(key: tuple, lookup: Callable[[Session], TileTarget]) -> TileTarget:
     """The tile's upstream target, from cache when possible.
 
     Only the miss touches the database, and only the miss holds a DB slot. The slot is
@@ -119,12 +129,19 @@ def _with_session[T](lookup: Callable[[Session], T]) -> T:
         db.close()
 
 
-def _assert_scope(request: Request, scope: str) -> None:
+def _assert_scope(request: Request, owner: LayerOwner) -> None:
     """Authorize a tile request from the ``tiler_token`` cookie for one owner.
 
     The cookie carries the scopes its holder may read; a campaign's is its bare
     id and a visualizer's is prefixed, so the two can never be mistaken for one
     another. See ``imagery.models.LayerOwner``.
+
+    A visualizer's session is the exception, and the reason this takes an owner
+    rather than a scope string. It holds the scopes of the campaigns it links
+    from, because the tiler has no finer unit to check - but here, where a
+    provider key gets spent, a shared link must not be a session on the whole
+    campaign behind it. Such a session is confined to its own routes, which
+    serve only what the visualizer publishes.
     """
     token = request.cookies.get("tiler_token")
     if not token:
@@ -133,26 +150,42 @@ def _assert_scope(request: Request, scope: str) -> None:
         claims = tokens.verify(token)
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid tiler session") from None
-    if scope not in claims.get("campaigns", []):
+    if owner.tile_scope not in claims.get("campaigns", []):
+        raise HTTPException(status_code=403, detail="No access to this imagery")
+    session_visualizer = claims.get("visualizer")
+    if session_visualizer is not None and owner.visualizer_id != session_visualizer:
         raise HTTPException(status_code=403, detail="No access to this imagery")
 
 
 def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
-    _assert_scope(request, LayerOwner(campaign_id=campaign_id).tile_scope)
+    _assert_scope(request, LayerOwner(campaign_id=campaign_id))
 
 
 def require_visualizer_tile_access(request: Request, visualizer_id: int = Path(...)) -> None:
-    _assert_scope(request, LayerOwner(visualizer_id=visualizer_id).tile_scope)
+    _assert_scope(request, LayerOwner(visualizer_id=visualizer_id))
 
 
-async def _proxy(template: str, encrypted_api_key: str | None, z: int, x: int, y: int) -> Response:
-    if not encrypted_api_key:
+async def _proxy(target: TileTarget, z: int, x: int, y: int) -> Response:
+    if target.key is None:
         raise HTTPException(status_code=404, detail="Provider API key not configured")
     try:
-        api_key = decrypt(encrypted_api_key)
+        api_key = decrypt(target.key.ciphertext)
     except DecryptionError as e:
         raise HTTPException(status_code=500, detail="Provider API key could not be read") from e
-    url = build_upstream_tile_url(template, z, x, y, api_key)
+    # httpx's own parse, and the object the request is then made with: the host that is
+    # checked here is by construction the host the key is sent to, with no second parse
+    # in between for a hostile URL to exploit.
+    url = httpx.URL(build_upstream_tile_url(target.url, z, x, y, api_key))
+    allowed_host = target.key.allowed_host
+    # The template is written by a campaign admin and the shared key belongs to the
+    # organization, so this is the line between "an admin chose where these tiles come
+    # from" and "an admin chose where this secret goes". Checked after the URL is built,
+    # because a {a-c} subdomain range only resolves there.
+    if allowed_host is not None and not net_guard.host_is_within(url.host, allowed_host):
+        raise HTTPException(
+            status_code=502,
+            detail=f"This provider key may only be sent to {allowed_host}",
+        )
     try:
         async with tile_upstream_slot():
             resp = await _client.get(url)
@@ -188,35 +221,57 @@ async def proxy_basemap_tile(
     y: int,
 ) -> Response:
     owner = LayerOwner(campaign_id=campaign_id)
-    url, encrypted_api_key = await _resolve(
+    target = await _resolve(
         ("basemap", owner.tile_scope, basemap_id), _basemap_lookup(basemap_id, owner)
     )
-    return await _proxy(url, encrypted_api_key, z, x, y)
+    return await _proxy(target, z, x, y)
 
 
 def _basemap_lookup(basemap_id: int, owner: LayerOwner):
     """Resolve one basemap's upstream template and key, scoped to its owner."""
 
-    def lookup(db: Session) -> tuple[str, str | None]:
+    def lookup(db: Session) -> TileTarget:
         basemap = db.get(Basemap, basemap_id)
         if basemap is None or basemap.owner != owner:
             raise HTTPException(status_code=404, detail="Basemap not found")
-        return basemap.url, basemap.encrypted_key
+        return TileTarget(basemap.url, basemap.provider_key)
 
     return lookup
+
+
+def _serves(db: Session, source: ImagerySource, owner: LayerOwner) -> bool:
+    """Whether this owner's tile routes may serve that source.
+
+    A visualizer serves its own imagery and whatever it links from the project's
+    campaigns. The link is the grant: it is what lets a shared link render one
+    source of a campaign without being able to ask for the rest of it.
+    """
+    if source.owner == owner:
+        return True
+    if owner.visualizer_id is None:
+        return False
+    return (
+        db.scalar(
+            select(VisualizerImagery.id).where(
+                VisualizerImagery.visualizer_id == owner.visualizer_id,
+                VisualizerImagery.source_id == source.id,
+            )
+        )
+        is not None
+    )
 
 
 def _slice_lookup(slice_id: int, visualization_name: str, owner: LayerOwner):
     """Resolve one slice's upstream template and key, scoped to its owner."""
 
-    def lookup(db: Session) -> tuple[str, str | None]:
+    def lookup(db: Session) -> TileTarget:
         source = db.execute(
             select(ImagerySource)
             .join(ImageryCollection, ImageryCollection.source_id == ImagerySource.id)
             .join(ImagerySlice, ImagerySlice.collection_id == ImageryCollection.id)
             .where(ImagerySlice.id == slice_id)
         ).scalar_one_or_none()
-        if source is None or source.owner != owner:
+        if source is None or not _serves(db, source, owner):
             raise HTTPException(status_code=404, detail="Slice not found")
         tile = db.execute(
             select(SliceTileUrl).where(
@@ -226,7 +281,7 @@ def _slice_lookup(slice_id: int, visualization_name: str, owner: LayerOwner):
         ).scalar_one_or_none()
         if tile is None:
             raise HTTPException(status_code=404, detail="Tile URL not found")
-        return tile.tile_url, source.encrypted_key
+        return TileTarget(tile.tile_url, source.provider_key)
 
     return lookup
 
@@ -244,11 +299,11 @@ async def proxy_slice_tile(
     y: int,
 ) -> Response:
     owner = LayerOwner(campaign_id=campaign_id)
-    tile_url, encrypted_api_key = await _resolve(
+    target = await _resolve(
         ("slice", owner.tile_scope, slice_id, visualization_name),
         _slice_lookup(slice_id, visualization_name, owner),
     )
-    return await _proxy(tile_url, encrypted_api_key, z, x, y)
+    return await _proxy(target, z, x, y)
 
 
 def _planet_layer_lookup(source_id: int, layer_id: str, owner: LayerOwner):
@@ -261,12 +316,12 @@ def _planet_layer_lookup(source_id: int, layer_id: str, owner: LayerOwner):
     Planet's tile host, since the template is built here rather than sent in.
     """
 
-    def lookup(db: Session) -> tuple[str, str | None]:
+    def lookup(db: Session) -> TileTarget:
         source = db.get(ImagerySource, source_id)
         if source is None or source.owner != owner:
             raise HTTPException(status_code=404, detail="Imagery source not found")
         try:
-            return planet_tiles.layer_template(layer_id), source.encrypted_key
+            return TileTarget(planet_tiles.layer_template(layer_id), source.provider_key)
         except planet_tiles.UnexpectedTileLink as e:
             raise HTTPException(status_code=400, detail="Not a Planet layer id") from e
 
@@ -286,11 +341,11 @@ async def proxy_planet_layer_tile(
     y: int,
 ) -> Response:
     owner = LayerOwner(campaign_id=campaign_id)
-    tile_url, encrypted_api_key = await _resolve(
+    target = await _resolve(
         ("planet-layer", owner.tile_scope, source_id, layer_id),
         _planet_layer_lookup(source_id, layer_id, owner),
     )
-    return await _proxy(tile_url, encrypted_api_key, z, x, y)
+    return await _proxy(target, z, x, y)
 
 
 @router.get(
@@ -305,10 +360,10 @@ async def proxy_visualizer_basemap_tile(
     y: int,
 ) -> Response:
     owner = LayerOwner(visualizer_id=visualizer_id)
-    tile_url, encrypted_api_key = await _resolve(
+    target = await _resolve(
         ("basemap", owner.tile_scope, basemap_id), _basemap_lookup(basemap_id, owner)
     )
-    return await _proxy(tile_url, encrypted_api_key, z, x, y)
+    return await _proxy(target, z, x, y)
 
 
 @router.get(
@@ -324,8 +379,8 @@ async def proxy_visualizer_slice_tile(
     y: int,
 ) -> Response:
     owner = LayerOwner(visualizer_id=visualizer_id)
-    tile_url, encrypted_api_key = await _resolve(
+    target = await _resolve(
         ("slice", owner.tile_scope, slice_id, visualization_name),
         _slice_lookup(slice_id, visualization_name, owner),
     )
-    return await _proxy(tile_url, encrypted_api_key, z, x, y)
+    return await _proxy(target, z, x, y)

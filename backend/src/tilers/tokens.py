@@ -23,14 +23,23 @@ def mint(
     campaigns: list,
     scope: list[str] | None = None,
     ttl: int = DEFAULT_TTL,
+    visualizer_id: int | None = None,
 ) -> str:
-    """Create a signed tile-access token. Campaign ids are stringified to match the tiler."""
+    """Create a signed tile-access token. Campaign ids are stringified to match the tiler.
+
+    ``visualizer_id`` marks a session handed out for one published map. Such a session
+    holds the scopes of the campaigns that map draws from - the tiler needs them to serve
+    a linked source at all - but it is not a session on those campaigns, and the tile
+    proxy narrows it back down to the visualizer's own routes.
+    """
     payload = {
         "sub": str(sub),
         "exp": int(time.time()) + ttl,
         "scope": scope or ["tiles:read"],
         "campaigns": [str(c) for c in campaigns],
     }
+    if visualizer_id is not None:
+        payload["visualizer"] = visualizer_id
     return jwt.encode(payload, get_settings().TILER_TOKEN_SECRET, algorithm=ALGORITHM)
 
 
@@ -43,7 +52,9 @@ def verify(token: str) -> dict:
     return jwt.decode(token, get_settings().TILER_TOKEN_SECRET, algorithms=[ALGORITHM])
 
 
-def set_tiler_cookie(response: Response, *, sub: str, campaigns: list) -> None:
+def set_tiler_cookie(
+    response: Response, *, sub: str, campaigns: list, visualizer_id: int | None = None
+) -> None:
     """Attach the browser's ``tiles:read`` cookie for exactly these campaigns.
 
     The subject is whatever the caller is granting access on behalf of - a user
@@ -52,7 +63,13 @@ def set_tiler_cookie(response: Response, *, sub: str, campaigns: list) -> None:
     settings = get_settings()
     response.set_cookie(
         key="tiler_token",
-        value=mint(sub, campaigns, scope=["tiles:read"], ttl=TILER_TOKEN_TTL),
+        value=mint(
+            sub,
+            campaigns,
+            scope=["tiles:read"],
+            ttl=TILER_TOKEN_TTL,
+            visualizer_id=visualizer_id,
+        ),
         max_age=TILER_TOKEN_TTL,
         httponly=True,
         secure=settings.TILER_COOKIE_SECURE,

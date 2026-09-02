@@ -58,13 +58,25 @@ def renderings_for(datatype: str | None) -> tuple[Rendering, ...]:
     return VISUAL_RENDERINGS if (datatype or "uint8") == "uint8" else ANALYTIC_RENDERINGS
 
 
+def without_query(url: str) -> str:
+    """The link with its query string dropped.
+
+    Planet's live key rides in that query, and these links end up quoted in
+    ``unavailable_reason``, which a browser reads - so nothing that names a link
+    may carry the query along with it.
+    """
+    return urlunparse(urlparse(url)._replace(query="", fragment=""))
+
+
 def to_template(tiles_link: str) -> str:
     """Rewrite a mosaic's ``_links.tiles`` into a storable ``{api_key}`` template."""
     parsed = urlparse(tiles_link)
     if parsed.scheme != "https" or parsed.hostname != TILE_HOST:
-        raise UnexpectedTileLink(f"tile link is not an https {TILE_HOST} URL: {tiles_link}")
+        raise UnexpectedTileLink(
+            f"tile link is not an https {TILE_HOST} URL: {without_query(tiles_link)}"
+        )
     if not all(placeholder in parsed.path for placeholder in _XYZ_PLACEHOLDERS):
-        raise UnexpectedTileLink(f"tile link is not an XYZ template: {tiles_link}")
+        raise UnexpectedTileLink(f"tile link is not an XYZ template: {without_query(tiles_link)}")
 
     params = [(k, v) for k, v in parse_qsl(parsed.query) if k not in ("api_key", "proc")]
     params.append(("api_key", "{api_key}"))
