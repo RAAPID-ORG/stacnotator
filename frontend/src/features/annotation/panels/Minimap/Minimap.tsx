@@ -3,7 +3,6 @@ import { getAnnotationDensity, type AnnotationDensityCell } from '~/api/client';
 import { IconExternalLink } from '~/shared/ui/Icons';
 import { type GeocodingResult } from '~/shared/map/geocoding';
 import { LocationSearch } from '~/shared/map/LocationSearch';
-import { useCameraCenter } from '~/shared/map/Camera';
 import { Minimap } from '~/shared/map/minimap/Minimap';
 import { tasksModeTarget, useOverviewFollow } from '~/shared/map/minimap/follow';
 import { type Bbox, type FeatureLayerSpec, type LayerSpec, type LonLat } from '~/shared/map/types';
@@ -46,11 +45,36 @@ function densityLayer(cells: AnnotationDensityCell[]): FeatureLayerSpec | null {
   };
 }
 
-/** The live centre, and the two things that act on it, as leaves of their own: the
- *  camera publishes a snapshot on every frame it moves, and the header holds the
- *  location search box, which must not re-render with it. */
+/**
+ * The location this header names.
+ *
+ * In Tasks that is the task itself: the overview is pinned to it, the crosshair sits
+ * on it, and it is what an annotator wants to copy or open elsewhere - so looking
+ * around the main map does not change it, and nothing here subscribes to the camera.
+ * Explore has no such anchor; there the only answer is where the user is looking.
+ */
+function useHeaderCenter(): LonLat {
+  const mode = useCampaignStore((s) => s.workMode);
+  const focus = useMapFocus();
+  const pinned = mode === 'tasks' ? (focus?.center ?? null) : null;
+  const [center, setCenter] = useState<LonLat>(() => pinned ?? mainCamera.getState().center);
+
+  useEffect(() => {
+    if (pinned) {
+      setCenter(pinned);
+      return;
+    }
+    setCenter(mainCamera.getState().center);
+    // The camera publishes a snapshot every frame it moves, so this stays in leaves of
+    // its own: the header holds the location search box, which must not re-render with it.
+    return mainCamera.onChange((state) => setCenter(state.center));
+  }, [pinned]);
+
+  return center;
+}
+
 function ViewportCenter() {
-  const center = useCameraCenter(mainCamera);
+  const center = useHeaderCenter();
   return (
     <span
       data-testid="viewport-center"
@@ -62,7 +86,7 @@ function ViewportCenter() {
 }
 
 function CenterActions() {
-  const center = useCameraCenter(mainCamera);
+  const center = useHeaderCenter();
 
   return (
     <>

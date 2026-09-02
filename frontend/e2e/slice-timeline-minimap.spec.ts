@@ -430,8 +430,10 @@ test.describe('Minimap center tracks current task', () => {
   test('dragging the minimap background pans it without moving the main map', async ({
     annotationPage,
   }) => {
-    const center = await annotationPage.locator('[data-testid="viewport-center"]').textContent();
     const minimapBody = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    // The main camera, not the header readout: in Tasks the readout names the task,
+    // which no amount of minimap dragging could move.
+    const center = await minimapBody.getAttribute('data-main-lon');
     await minimapBody.scrollIntoViewIfNeeded();
     const minimap = await minimapBody.boundingBox();
     if (!minimap) throw new Error('minimap has no bounding box');
@@ -441,7 +443,7 @@ test.describe('Minimap center tracks current task', () => {
     await annotationPage.mouse.move(minimap.x + 48, minimap.y + 48, { steps: 8 });
     await annotationPage.mouse.up();
 
-    await expect(annotationPage.locator('[data-testid="viewport-center"]')).toHaveText(center!);
+    await expect(minimapBody).toHaveAttribute('data-main-lon', center!);
   });
 
   test('the minimap zooms independently with the mouse wheel', async ({ annotationPage }) => {
@@ -459,11 +461,12 @@ test.describe('Minimap center tracks current task', () => {
   });
 
   test('clicking minimap attribution never navigates the main map', async ({ annotationPage }) => {
-    const center = await annotationPage.locator('[data-testid="viewport-center"]').textContent();
+    const minimapBody = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
+    const center = await minimapBody.getAttribute('data-main-lon');
     await annotationPage
       .locator('[data-tour="minimap"] .ol-attribution button')
       .click({ force: true });
-    await expect(annotationPage.locator('[data-testid="viewport-center"]')).toHaveText(center!);
+    await expect(minimapBody).toHaveAttribute('data-main-lon', center!);
   });
 
   test('minimap center is at TASK_1 location on initial load', async ({ annotationPage }) => {

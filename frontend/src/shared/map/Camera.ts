@@ -211,9 +211,3 @@ export function useCameraBounds(camera: Camera): Bbox {
   useEffect(() => camera.onChange((s) => setBounds(s.bounds)), [camera]);
   return bounds;
 }
-
-export function useCameraCenter(camera: Camera): LonLat {
-  const [center, setCenter] = useState<LonLat>(() => camera.getState().center);
-  useEffect(() => camera.onChange((s) => setCenter(s.center)), [camera]);
-  return center;
-}

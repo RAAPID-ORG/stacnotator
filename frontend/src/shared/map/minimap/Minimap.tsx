@@ -61,6 +61,7 @@ export function Minimap({
   const bounds = useCameraBounds(main);
   const minimapZoom = useCameraZoom(camera);
   const displayedBounds = previewBounds ?? bounds;
+  const mainCenter = centerOfBounds(bounds);
 
   const viewportCenterPixel =
     width > 0 && height > 0
@@ -194,6 +195,10 @@ export function Minimap({
       data-minimap-zoom={minimapZoom}
       data-viewport-center-x={viewportCenterPixel?.[0]}
       data-viewport-center-y={viewportCenterPixel?.[1]}
+      // Where the main map is looking, from the component that already tracks it for
+      // the rectangle. The one handle on that camera the DOM offers.
+      data-main-lon={mainCenter[0].toFixed(5)}
+      data-main-lat={mainCenter[1].toFixed(5)}
       className={`relative h-full w-full ${previewBounds ? 'cursor-grabbing' : ''}`}
       onPointerDownCapture={pin ? undefined : handlePointerDownCapture}
     >
