@@ -34,6 +34,16 @@ const agreementBadgeCls = (agreement: number) => {
 const displayName = (annotator: AnnotatorInfo) =>
   annotator.user_display_name || annotator.user_email.split('@')[0];
 
+const labelShare = (annotator: AnnotatorInfo, label: string) =>
+  annotator.total_annotations > 0
+    ? (annotator.label_distribution?.[label] || 0) / annotator.total_annotations
+    : 0;
+
+/** One scale for the whole table, so equal shares shade equally wherever they sit
+ *  and a column reads as "everyone agrees" only when they really do. */
+const heatBackground = (intensity: number) =>
+  intensity <= 0 ? undefined : `rgba(50, 98, 71, ${(0.08 + 0.77 * intensity).toFixed(3)})`;
+
 const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -73,10 +83,15 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
   const allLabels = Array.from(
     new Set(annotators.flatMap((ann) => Object.keys(ann.label_distribution || {})))
   ).sort();
+  const maxLabelShare = Math.max(
+    0,
+    ...annotators.flatMap((ann) => allLabels.map((label) => labelShare(ann, label)))
+  );
 
-  // The figures worth seeing without asking. Agreement only means something once more
-  // than one person has annotated the same task, so it is shown only when it does.
-  const headline: { label: string; value: string; tone?: string }[] = [
+  // The figures worth seeing without asking. Agreement stays in the row even when it
+  // cannot be computed - a blank slot reads better than a grid that changes shape.
+  const hasAlpha = alpha !== null && alpha !== undefined;
+  const headline: { label: string; value: string; tone?: string; hint?: string }[] = [
     { label: 'Annotations', value: statistics.total_annotations.toLocaleString() },
     {
       label: annotators.length === 1 ? 'Annotator' : 'Annotators',
@@ -86,23 +101,28 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
       label: 'Multi-annotated tasks',
       value: statistics.tasks_with_multiple_annotations.toLocaleString(),
     },
+    hasAlpha
+      ? { label: 'Agreement (α)', value: alpha.toFixed(3), tone: alphaColor(alpha) }
+      : {
+          label: 'Agreement (α)',
+          value: '-',
+          tone: 'text-neutral-400',
+          hint: 'Needs at least two annotators on the same task.',
+        },
   ];
-  if (alpha !== null && alpha !== undefined) {
-    headline.push({ label: 'Agreement (α)', value: alpha.toFixed(3), tone: alphaColor(alpha) });
-  }
 
   return (
     <div>
       {heading}
-      <p className="section-description">
-        {alpha !== null && alpha !== undefined
-          ? `Krippendorff's α indicates ${alphaQualifier(alpha)} between annotators.`
-          : 'Agreement needs at least two annotators on the same task.'}
-      </p>
+      {hasAlpha && (
+        <p className="section-description">
+          {`Krippendorff's α indicates ${alphaQualifier(alpha)} between annotators.`}
+        </p>
+      )}
 
       <dl className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-neutral-200 border border-neutral-200 rounded-lg overflow-hidden mb-4">
-        {headline.map(({ label, value, tone }) => (
-          <div key={label} className="bg-white px-4 py-3">
+        {headline.map(({ label, value, tone, hint }) => (
+          <div key={label} className="bg-white px-4 py-3" title={hint}>
             <dt className="text-xs text-neutral-500">{label}</dt>
             <dd className={`text-lg font-semibold tabular-nums ${tone ?? 'text-neutral-900'}`}>
               {value}
@@ -124,7 +144,7 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
             <IconChevronRight className="w-4 h-4" />
           )}
         </span>
-        {isExpanded ? 'Hide details' : 'Show details'}
+        {isExpanded ? 'Hide statistics' : 'More statistics'}
       </button>
 
       {isExpanded && (
@@ -241,7 +261,8 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
             <div>
               <h3 className="section-heading">Labels by annotator</h3>
               <p className="section-description">
-                Comparing how each annotator uses different labels.
+                Each annotator's share of annotations per label, shaded so a column of similar
+                colours means the label is being used the same way by everyone.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
@@ -273,15 +294,20 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
                         </td>
                         {allLabels.map((label) => {
                           const count = annotator.label_distribution?.[label] || 0;
-                          const total = annotator.total_annotations;
+                          const share = labelShare(annotator, label);
+                          const intensity = maxLabelShare > 0 ? share / maxLabelShare : 0;
                           return (
-                            <td key={label} className="px-4 py-3 text-center">
+                            <td
+                              key={label}
+                              className="px-4 py-3 text-center"
+                              style={{ backgroundColor: heatBackground(intensity) }}
+                              title={`${count} of ${annotator.total_annotations} annotations`}
+                            >
                               {count > 0 ? (
-                                <span className="text-neutral-900">
-                                  {count}{' '}
-                                  <span className="text-neutral-400">
-                                    ({total > 0 ? ((count / total) * 100).toFixed(0) : 0}%)
-                                  </span>
+                                <span
+                                  className={intensity > 0.6 ? 'text-white' : 'text-neutral-900'}
+                                >
+                                  {(share * 100).toFixed(0)}%
                                 </span>
                               ) : (
                                 <span className="text-neutral-300">-</span>

@@ -17,7 +17,7 @@ export function SlicePicker({ catalog, title }: { catalog: ImageryCatalog; title
   const collection = address ? catalog.collections.get(address.collectionId) : undefined;
   if (!address || !collection || collection.slices.length <= 1) return null;
 
-  const options = slicePickerIndices(collection).map((index) => {
+  const options = slicePickerIndices(catalog, collection).map((index) => {
     const slice = collection.slices[index];
     const isEmpty = !!empties[emptyKey(collection.id, index)];
     return {

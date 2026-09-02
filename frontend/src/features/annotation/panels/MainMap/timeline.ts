@@ -31,11 +31,14 @@ export interface TimelineRange {
 
 /** Earliest start and latest end across the collections' navigable slices - a
  *  dedicated cover is out-of-band imagery and would skew both ends. */
-export function timelineRange(collections: ImageryCollectionOut[]): TimelineRange {
+export function timelineRange(
+  catalog: ImageryCatalog,
+  collections: ImageryCollectionOut[]
+): TimelineRange {
   let start: string | null = null;
   let end: string | null = null;
   for (const collection of collections) {
-    for (const index of sliceNavIndices(collection, {})) {
+    for (const index of sliceNavIndices(catalog, collection, {})) {
       const slice = collection.slices[index];
       if (!start || slice.start_date < start) start = slice.start_date;
       if (!end || slice.end_date > end) end = slice.end_date;

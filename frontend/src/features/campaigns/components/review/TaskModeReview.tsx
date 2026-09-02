@@ -68,6 +68,8 @@ interface TaskModeReviewProps {
   embedded?: boolean;
   /** Heading content for the filters row (e.g. the tasks page's "Annotation tasks (N)" h2). Falls back to a local "Filters & search" label. */
   headerSlot?: ReactNode;
+  /** Controls the host puts beside the filter button - adding tasks, moving assignments in and out. */
+  headerActions?: ReactNode;
   /** Enables row selection and the management action bar (delete/unassign/move/bulk-assign). */
   selectable?: boolean;
   onDeleteTasks?: (taskIds: number[]) => Promise<void>;
@@ -89,6 +91,7 @@ export const TaskModeReview = ({
   hideSetFilter = false,
   embedded = false,
   headerSlot,
+  headerActions,
   selectable = false,
   onDeleteTasks,
   onBatchUnassignTasks,
@@ -401,6 +404,9 @@ export const TaskModeReview = ({
                       </span>
                     )}
                   </button>
+                  {headerActions && (
+                    <div className="ml-auto flex items-center gap-2">{headerActions}</div>
+                  )}
                 </div>
 
                 {/* Stats stay visible regardless of the filter panel's collapsed state. */}

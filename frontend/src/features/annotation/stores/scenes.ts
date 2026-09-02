@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { create } from 'zustand';
-import { searchPlanetScenes, type ImagerySourceOut, type PlanetSceneSliceOut } from '~/api/client';
-import { planetLayerProxyUrl } from '~/shared/imagery/tileUrls';
+import {
+  mintPlanetSceneLayers,
+  searchPlanetScenes,
+  type ImagerySourceOut,
+  type PlanetSceneSliceOut,
+} from '~/api/client';
 import { useCameraValue } from '~/shared/map/Camera';
 import type { Bbox, CameraSnapshot } from '~/shared/map/types';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -11,9 +15,14 @@ import {
   covers,
   searchBox,
   sceneSourcesInView,
+  shownSceneSource,
 } from '../campaign/scenes';
+import type { ImageryCollectionOut } from '~/api/client';
+import type { ImageryCatalog } from '../campaign/imagery';
+import { sliceNavIndices, type Empties } from '../campaign/imageryNav';
 import { mainCamera } from '../map/camera';
 import { useCampaignStore, useCatalog } from './campaign';
+import { useImageryStore } from './imagery';
 import { useMapFocus } from './tasks';
 
 /**
@@ -31,14 +40,24 @@ interface ScenesState {
   loaded: Record<number, Bbox>;
   /** Sources being searched for the view the user is looking at now. */
   loading: Record<number, boolean>;
+  /** Sources with a tile layer on its way for a date being opened. */
+  minting: Record<number, boolean>;
 }
 
-export const useScenesStore = create<ScenesState>(() => ({ loaded: {}, loading: {} }));
+export const useScenesStore = create<ScenesState>(() => ({
+  loaded: {},
+  loading: {},
+  minting: {},
+}));
 
 interface Found {
   sourceId: number;
   box: Bbox;
+  /** Every date this extent holds imagery for. ``layer_id`` fills in as the layers
+   *  are minted, so a view that was searched ahead of time arrives already drawable. */
   slices: PlanetSceneSliceOut[];
+  /** Dates whose layer has been asked for, so nothing is asked for twice. */
+  asked: Set<number>;
 }
 
 /** A few tasks' worth, which is what the prefetch below can be ahead by. */
@@ -69,7 +88,11 @@ export function resetScenes(): void {
   queue = [];
   running?.abort.abort();
   running = null;
-  useScenesStore.setState({ loaded: {}, loading: {} });
+  urgentQueue = [];
+  fillQueue = [];
+  mintRunning?.abort.abort();
+  mintRunning = null;
+  useScenesStore.setState({ loaded: {}, loading: {}, minting: {} });
 }
 
 /** Forget speculative work that has not started: once the annotator has moved on, the
@@ -77,6 +100,10 @@ export function resetScenes(): void {
  *  queued again by the caller, and matches what is already running or cached. */
 export function forgetSpeculative(): void {
   queue = queue.filter((job) => job.show);
+  // Same for the layers: filling in the dates of a view that is no longer coming up
+  // would spend the rate limit the view in front of the annotator needs. The ones
+  // still wanted are asked for again by the caller, off what the search already found.
+  fillQueue = [];
 }
 
 /**
@@ -94,6 +121,7 @@ export function wantScenes(
   const known = cache.find((found) => found.sourceId === source.id && covers(found.box, view));
   if (known) {
     if (show) draw(source, campaignId, known);
+    fill(known, source, campaignId);
     return;
   }
 
@@ -136,10 +164,16 @@ function pump(): void {
   })
     .then(({ data }) => {
       if (era !== epoch) return;
-      const found: Found = { sourceId: job.source.id, box: job.box, slices: data.slices };
+      const found: Found = {
+        sourceId: job.source.id,
+        box: job.box,
+        slices: data.slices,
+        asked: new Set(),
+      };
       cache = [found, ...cache].slice(0, CACHE_LIMIT);
+      if (job.show) draw(job.source, job.campaignId, found);
+      fill(found, job.source, job.campaignId);
       if (!job.show) return;
-      draw(job.source, job.campaignId, found);
       // Planet refusing one date still leaves the others usable, so this reports
       // rather than throws away what came back.
       for (const message of data.errors ?? []) handleError(new Error(message), message);
@@ -147,7 +181,7 @@ function pump(): void {
     .catch((error: unknown) => {
       if (era !== epoch) return;
       if (abort.signal.aborted) queue.push(job);
-      else if (job.show) handleError(error, 'Could not load Planet imagery for this view');
+      else if (job.show) handleError(error, 'Could not load Planet imagery for this viewport');
     })
     .finally(() => {
       if (era !== epoch) return;
@@ -170,17 +204,158 @@ function draw(source: ImagerySourceOut, campaignId: number, found: Found): void 
   // among them - would come straight back here.
   const shown = useScenesStore.getState().loaded[source.id];
   if (shown && sameBox(shown, found.box)) return;
-  applySceneSearch(
-    source.id,
-    vizName,
-    new Map(
-      found.slices.map((slice) => [
-        slice.slice_id,
-        planetLayerProxyUrl(campaignId, source.id, slice.layer_id),
-      ])
-    )
-  );
+  // What is on screen is filled in before anything that was searched ahead.
+  fillQueue = [
+    ...fillQueue.filter((job) => job.found === found),
+    ...fillQueue.filter((job) => job.found !== found),
+  ];
+  applySceneSearch(source.id, vizName, found.slices);
   useScenesStore.setState((state) => ({ loaded: { ...state.loaded, [source.id]: found.box } }));
+}
+
+// ---------------------------------------------------------------------------
+// Tile layers for the dates that were found
+// ---------------------------------------------------------------------------
+
+interface MintJob {
+  found: Found;
+  source: ImagerySourceOut;
+  campaignId: number;
+  sliceIds: number[];
+}
+
+/** The date on screen and its neighbours, ahead of the steady fill behind them. */
+let urgentQueue: MintJob[] = [];
+let fillQueue: MintJob[] = [];
+let mintRunning: { job: MintJob; abort: AbortController } | null = null;
+
+/** One request carries a handful of dates: Planet is asked for their scenes once and
+ *  mints them together, and a short request is one the annotator can overtake. */
+const MINT_BATCH = 8;
+
+/**
+ * Have `sliceIds` drawable, ahead of everything else.
+ *
+ * A search says which dates hold imagery here and mints the covers; the layer that
+ * draws any other date is one request per date, so the date being opened - and the
+ * next ones along - jump the queue in front of the fill.
+ */
+export function wantSliceLayers(
+  source: ImagerySourceOut,
+  campaignId: number,
+  sliceIds: number[]
+): void {
+  const box = useScenesStore.getState().loaded[source.id];
+  const found = box && cache.find((f) => f.sourceId === source.id && sameBox(f.box, box));
+  if (!found) return;
+
+  // A date the fill has already queued is not asked for again - it is promoted, batch
+  // and all, so opening it does not wait for everything ahead of it in the fill.
+  const wanted = new Set(sliceIds);
+  const promoted = fillQueue.filter(
+    (job) => job.found === found && job.sliceIds.some((id) => wanted.has(id))
+  );
+  if (promoted.length > 0) {
+    fillQueue = fillQueue.filter((job) => !promoted.includes(job));
+    urgentQueue.push(...promoted);
+  }
+
+  const job = mintJob(found, source, campaignId, sliceIds);
+  if (job) urgentQueue.push(job);
+  if (promoted.length > 0 || job) pumpMint();
+}
+
+/**
+ * Mint every date this view found, a batch at a time.
+ *
+ * What makes a task that was searched ahead of time arrive complete rather than
+ * cover-only: the fill runs behind whatever the annotator is opening, and is dropped
+ * for views that are no longer coming up (`forgetSpeculative`).
+ */
+function fill(found: Found, source: ImagerySourceOut, campaignId: number): void {
+  const rest = found.slices.filter((slice) => !slice.layer_id).map((slice) => slice.slice_id);
+  for (let i = 0; i < rest.length; i += MINT_BATCH) {
+    const job = mintJob(found, source, campaignId, rest.slice(i, i + MINT_BATCH));
+    if (job) fillQueue.push(job);
+  }
+  pumpMint();
+}
+
+/** The dates of `sliceIds` still worth asking for, as one request, or null. */
+function mintJob(
+  found: Found,
+  source: ImagerySourceOut,
+  campaignId: number,
+  sliceIds: number[]
+): MintJob | null {
+  const wanted = sliceIds
+    .filter((id) => !found.asked.has(id))
+    .filter((id) => found.slices.some((slice) => slice.slice_id === id && !slice.layer_id))
+    .slice(0, MINT_BATCH);
+  if (wanted.length === 0) return null;
+  for (const id of wanted) found.asked.add(id);
+  return { found, source, campaignId, sliceIds: wanted };
+}
+
+function pumpMint(): void {
+  if (mintRunning) return;
+  // Only what someone is waiting for is worth saying out loud; the fill behind it runs
+  // for a minute at a time and is nobody's cue to wait.
+  const urgent = urgentQueue.length > 0;
+  const job = urgent ? urgentQueue.shift()! : fillQueue.shift();
+  if (!job) return;
+  const era = epoch;
+  const abort = new AbortController();
+  mintRunning = { job, abort };
+  setMinting(job.source.id, urgent);
+
+  void mintPlanetSceneLayers({
+    path: { campaign_id: job.campaignId, source_id: job.source.id },
+    body: { bbox: job.found.box, slice_ids: job.sliceIds },
+    signal: abort.signal,
+    throwOnError: true,
+  })
+    .then(({ data }) => {
+      if (era !== epoch) return;
+      const layers = new Map(data.slices.map((slice) => [slice.slice_id, slice.layer_id]));
+      job.found.slices = job.found.slices.map((slice) =>
+        layers.has(slice.slice_id)
+          ? { ...slice, layer_id: layers.get(slice.slice_id) ?? null }
+          : slice
+      );
+      const vizName = job.source.visualizations[0]?.name;
+      const { catalog, applySceneLayers } = useCampaignStore.getState();
+      // Only into the place these layers are of: a view searched ahead of time keeps
+      // them until it is the one being looked at.
+      if (!vizName || catalog?.campaignId !== job.campaignId || !isDrawn(job.found)) return;
+      applySceneLayers(job.source.id, vizName, data.slices);
+      for (const message of data.errors ?? []) handleError(new Error(message), message);
+    })
+    .catch((error: unknown) => {
+      if (era !== epoch || abort.signal.aborted) return;
+      // Asked for again on the next step rather than left permanently unminted.
+      for (const id of job.sliceIds) job.found.asked.delete(id);
+      handleError(error, 'Could not load Planet imagery for this date', { showUser: urgent });
+    })
+    .finally(() => {
+      if (era !== epoch) return;
+      mintRunning = null;
+      setMinting(
+        job.source.id,
+        urgentQueue.some((next) => next.source.id === job.source.id)
+      );
+      pumpMint();
+    });
+}
+
+/** Whether these layers are of the extent this source is currently drawn over. */
+function isDrawn(found: Found): boolean {
+  const shown = useScenesStore.getState().loaded[found.sourceId];
+  return !!shown && sameBox(shown, found.box);
+}
+
+function setMinting(sourceId: number, minting: boolean): void {
+  useScenesStore.setState((state) => ({ minting: { ...state.minting, [sourceId]: minting } }));
 }
 
 // ---------------------------------------------------------------------------
@@ -200,19 +375,25 @@ export function useSceneSourcesInView(): ImagerySourceOut[] {
   return useMemo(() => sceneSourcesInView(catalog, view), [catalog, view]);
 }
 
-/** Whether any scene source has nothing drawn over what is on screen - after a pan
- *  past the edge of the last search, or before the first one. A boolean rather than
- *  the camera's bounds, so panning inside what is loaded re-renders nothing. */
-export function useScenesUncovered(): boolean {
-  const sources = useSceneSourcesInView();
+/** The scene source the main map is showing, if that is what it is showing. */
+export function useShownSceneSource(): ImagerySourceOut | null {
+  const catalog = useCatalog();
+  const sourceId = useImageryStore((state) => state.address?.sourceId ?? null);
+  return useMemo(() => shownSceneSource(catalog, sourceId), [catalog, sourceId]);
+}
+
+/** Whether `source` has nothing drawn over what is on screen - after a pan past the
+ *  edge of the last search, or before the first one. A boolean rather than the
+ *  camera's bounds, so panning inside what is loaded re-renders nothing. */
+export function useScenesUncovered(source: ImagerySourceOut | null): boolean {
   const loaded = useScenesStore((state) => state.loaded);
   const uncovered = useCallback(
-    ({ bounds }: CameraSnapshot) =>
-      sources.some((source) => {
-        const box = loaded[source.id];
-        return !box || !covers(box, bounds);
-      }),
-    [sources, loaded]
+    ({ bounds }: CameraSnapshot) => {
+      if (!source) return false;
+      const box = loaded[source.id];
+      return !box || !covers(box, bounds);
+    },
+    [source, loaded]
   );
   return useCameraValue(mainCamera, uncovered);
 }
@@ -226,6 +407,12 @@ const loadableZoom = ({ zoom }: CameraSnapshot) => zoom >= MIN_SCENE_ZOOM;
 
 export function useScenesLoading(): boolean {
   return useScenesStore((state) => Object.values(state.loading).some(Boolean));
+}
+
+/** Whether a date's own tile layer is on its way. Separate from the search: the map
+ *  already has the rest of the window, and this is one date filling in. */
+export function useSceneDateLoading(): boolean {
+  return useScenesStore((state) => Object.values(state.minting).some(Boolean));
 }
 
 /**
@@ -278,4 +465,61 @@ export function useSceneAutoLoad(): void {
     // sourceKey stands in for the source list, rebuilt on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, sourceKey, mode, focus]);
+}
+
+/** How far ahead of the date on screen the layers are minted. Forward-weighted:
+ *  stepping through a window is a walk in one direction. */
+const LOOKAHEAD = 2;
+const LOOKBEHIND = 1;
+
+/**
+ * Mint the layer for every date on screen, and for the next ones along.
+ *
+ * The dates a search found are navigable straight away; this is what makes them
+ * drawable, one small request at a time, so opening a window is not behind hundreds of
+ * mints for dates nobody asked for.
+ */
+export function useSceneSliceLayers(): void {
+  const catalog = useCatalog();
+  const view = useCampaignStore((state) => state.view);
+  const address = useImageryStore((state) => state.address);
+  const windowSlices = useImageryStore((state) => state.windowSlices);
+  const empties = useImageryStore((state) => state.empties);
+  const loaded = useScenesStore((state) => state.loaded);
+
+  useEffect(() => {
+    for (const source of sceneSourcesInView(catalog, view)) {
+      if (!loaded[source.id]) continue;
+      const wanted = new Set<number>();
+      for (const collection of source.collections) {
+        const shown =
+          address?.collectionId === collection.id
+            ? address.sliceIndex
+            : windowSlices[collection.id]?.selected;
+        if (shown === undefined) continue;
+        for (const index of aroundSlice(catalog, collection, empties, shown)) {
+          const slice = collection.slices[index];
+          if (slice) wanted.add(slice.id);
+        }
+      }
+      if (wanted.size > 0) wantSliceLayers(source, catalog.campaignId, [...wanted]);
+    }
+  }, [catalog, view, address, windowSlices, empties, loaded]);
+}
+
+/** The date being shown and its neighbours, in the order they are worth having. */
+function aroundSlice(
+  catalog: ImageryCatalog,
+  collection: ImageryCollectionOut,
+  empties: Empties,
+  index: number
+): number[] {
+  const nav = sliceNavIndices(catalog, collection, empties);
+  const at = nav.findIndex((i) => i >= index);
+  if (at === -1) return [index];
+  return [
+    index,
+    ...nav.slice(at + 1, at + 1 + LOOKAHEAD),
+    ...nav.slice(Math.max(0, at - LOOKBEHIND), at),
+  ];
 }

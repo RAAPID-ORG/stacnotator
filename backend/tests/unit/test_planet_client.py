@@ -1,5 +1,6 @@
 import base64
 import json
+from datetime import date, timedelta
 
 import httpx
 import pytest
@@ -21,7 +22,14 @@ def instant_sleep(monkeypatch):
     """
     slept: list[float] = []
     monkeypatch.setattr(client.time, "sleep", slept.append)
-    monkeypatch.setattr(client, "_pacer", client._Pacer(client.REQUESTS_PER_SECOND))
+    monkeypatch.setattr(
+        client,
+        "_pacers",
+        {
+            client.API_HOST: client._Pacer(client.REQUESTS_PER_SECOND),
+            client.tiles.TILE_HOST: client._Pacer(client.MINT_REQUESTS_PER_SECOND),
+        },
+    )
     return slept
 
 
@@ -204,6 +212,16 @@ def scene_config(**overrides) -> PlanetScenesGenerationConfigV1:
     return PlanetScenesGenerationConfigV1(**{**defaults, **overrides})
 
 
+def _ranges(requests: list[httpx.Request]) -> list[tuple[str, str]]:
+    """The date ranges the searches actually asked Planet for, in order."""
+    return sorted(
+        (f["config"]["gte"][:10], f["config"]["lte"][:10])
+        for body in (json.loads(r.content) for r in requests if r.method == "POST")
+        for f in body["filter"]["config"]
+        if f["type"] == "DateRangeFilter"
+    )
+
+
 class TestRunningOutOfPages:
     """Planet returns results in an order we do not control, so a truncated search
     loses an arbitrary end of the range rather than the least interesting scenes."""
@@ -224,26 +242,68 @@ class TestRunningOutOfPages:
 
 
 class TestSearchingAConfig:
-    def test_one_search_per_slice_period_covers_the_whole_range(self, planet):
+    """One search per slice would be 183 requests for a year of two-day slices. The
+    range is chunked instead, and a chunk splits only when it says it had to."""
+
+    def test_a_short_config_is_covered_by_one_search(self, planet):
         seen = planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
 
         client.search_config("KEY", scene_config(), AOI)
 
-        ranges = sorted(
-            (
-                f["config"]["gte"][:10],
-                f["config"]["lte"][:10],
-            )
-            for body in (json.loads(r.content) for r in seen)
-            for f in body["filter"]["config"]
-            if f["type"] == "DateRangeFilter"
-        )
-        assert ranges[0] == ("2026-08-01", "2026-08-03")
-        # The month is 29 days on a 3-day slice, so the last range is the clipped tail.
-        assert ranges[-1] == ("2026-08-28", "2026-08-29")
-        assert len(ranges) == 10
+        assert len(seen) == 1
+        assert _ranges(seen) == [("2026-08-01", "2026-08-29")]
 
-    def test_every_slice_search_contributes_its_scenes(self, planet):
+    def test_a_long_config_is_cut_into_chunks_that_cover_it_end_to_end(self, planet):
+        seen = planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
+
+        client.search_config(
+            "KEY", scene_config(start_date="2024-01-01", end_date="2024-12-31"), AOI
+        )
+
+        ranges = _ranges(seen)
+        assert len(ranges) == 4
+        assert ranges[0][0] == "2024-01-01"
+        assert ranges[-1][1] == "2024-12-31"
+        # Contiguous: a gap between chunks is a date nobody searched.
+        for earlier, later in zip(ranges, ranges[1:], strict=False):
+            assert date.fromisoformat(later[0]) - date.fromisoformat(earlier[1]) == timedelta(
+                days=1
+            )
+
+    def test_a_chunk_with_more_scenes_than_it_can_page_splits_itself(self, planet):
+        """The one thing a search cannot do is come back short without saying so, so a
+        chunk that runs out of pages is halved until each half fits."""
+        overflowing = {"features": [{"id": "a"}], "_links": {"_next": "https://api.planet.com/x"}}
+        answered: list[tuple[date, date]] = []
+
+        def handler(request):
+            if request.method == "GET":
+                return httpx.Response(200, json=overflowing)
+            body = json.loads(request.content)
+            span = next(
+                f["config"] for f in body["filter"]["config"] if f["type"] == "DateRangeFilter"
+            )
+            start = date.fromisoformat(span["gte"][:10])
+            end = date.fromisoformat(span["lte"][:10])
+            if end - start > timedelta(days=8):
+                return httpx.Response(200, json=overflowing)
+            answered.append((start, end))
+            return httpx.Response(200, json={"features": [{"id": "b"}], "_links": {}})
+
+        seen = planet(handler)
+
+        found = client.search_config("KEY", scene_config(), AOI)
+
+        # Nothing from a truncated page is kept, and the halves that did fit tile the
+        # whole range end to end - a gap between them would be a date nobody searched.
+        assert {f["id"] for f in found} == {"b"}
+        answered.sort()
+        assert (answered[0][0], answered[-1][1]) == (date(2026, 8, 1), date(2026, 8, 29))
+        for earlier, later in zip(answered, answered[1:], strict=False):
+            assert later[0] - earlier[1] == timedelta(days=1)
+        assert ("2026-08-01", "2026-08-29") in _ranges(seen)
+
+    def test_every_chunk_contributes_its_scenes(self, planet):
         counter = iter(range(100))
         planet(
             lambda request: httpx.Response(
@@ -251,18 +311,28 @@ class TestSearchingAConfig:
             )
         )
 
-        found = client.search_config("KEY", scene_config(), AOI)
+        found = client.search_config(
+            "KEY", scene_config(start_date="2024-01-01", end_date="2024-12-31"), AOI
+        )
 
-        assert len(found) == 10
-        assert len({f["id"] for f in found}) == 10
+        assert len({f["id"] for f in found}) == 4
 
-    def test_a_config_needing_more_searches_than_the_cap_is_refused(self, planet):
-        planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
-
-        with pytest.raises(client.PlanetError, match="past the"):
-            client.search_config(
-                "KEY", scene_config(start_date="2020-01-01", end_date="2026-08-29"), AOI
+    def test_a_view_that_keeps_overflowing_is_refused_rather_than_split_forever(self, planet):
+        """Splitting stops at a single day: a day that still overflows is a view too
+        wide to search, not a range to cut smaller."""
+        seen = planet(
+            lambda request: httpx.Response(
+                200,
+                json={"features": [{"id": "a"}], "_links": {"_next": "https://api.planet.com/x"}},
             )
+        )
+
+        with pytest.raises(client.PlanetError, match="Narrow the area"):
+            client.search_config(
+                "KEY", scene_config(start_date="2024-01-01", end_date="2026-12-31"), AOI
+            )
+
+        assert len([r for r in seen if r.method == "POST"]) <= client.MAX_SEARCHES
 
 
 class TestRateLimiting:
@@ -319,13 +389,26 @@ class TestRateLimiting:
 
         assert instant_sleep[-1] > before
 
-    def test_a_burst_of_slice_searches_is_paced(self, planet, instant_sleep):
+    def test_a_burst_of_searches_is_paced(self, planet, instant_sleep):
         planet(lambda request: httpx.Response(200, json={"features": [], "_links": {}}))
 
-        client.search_config("KEY", scene_config(), AOI)
+        client.search_config(
+            "KEY", scene_config(start_date="2024-01-01", end_date="2024-12-31"), AOI
+        )
 
-        # Ten slice searches: the first can go at once, the rest wait their turn.
-        assert len([delay for delay in instant_sleep if delay > 0]) >= 9
+        # Four chunk searches: the first can go at once, the rest wait their turn.
+        assert len([delay for delay in instant_sleep if delay > 0]) >= 3
+
+    def test_minting_does_not_spend_the_search_budget(self, planet, instant_sleep):
+        """The tile host is a different service with its own limit, so a slowed-down
+        search is no reason to slow a mint."""
+        planet(lambda request: httpx.Response(200, json={"name": "layer-1"}))
+        client._pacers[client.API_HOST].refused()
+        before = client._pacers[client.API_HOST]._interval
+
+        client.create_layer("KEY", ["PSScene:a"])
+
+        assert client._pacers[client.tiles.TILE_HOST]._interval < before
 
 
 def test_a_refusal_carries_what_planet_said_was_wrong(planet):

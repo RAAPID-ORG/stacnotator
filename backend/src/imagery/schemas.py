@@ -417,12 +417,22 @@ class PlanetSceneSearchIn(BaseModel):
     bbox: list[float] = Field(min_length=4, max_length=4)
 
 
+class PlanetSceneLayersIn(BaseModel):
+    """The dates to mint tile layers for, over the extent they were found on."""
+
+    bbox: list[float] = Field(min_length=4, max_length=4)
+    slice_ids: list[int] = Field(min_length=1, max_length=64)
+
+
 class PlanetSceneSliceOut(BaseModel):
-    """One of the source's slices, and the layer minted for it over this extent."""
+    """One of the source's slices, and what this extent has for it.
+
+    ``layer_id`` is null for a date that holds imagery but has no tile layer yet: a
+    search mints the covers only, and the rest are minted when they are opened."""
 
     slice_id: int
     scene_count: int
-    layer_id: str
+    layer_id: str | None = None
 
 
 class PlanetSceneSearchOut(BaseModel):

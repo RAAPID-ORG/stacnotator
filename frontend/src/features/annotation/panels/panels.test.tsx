@@ -52,10 +52,16 @@ describe('buildPanels', () => {
     ]);
   });
 
+  it('offers every window the hover affordance that says clicking activates it', () => {
+    const windows = panelsFor(100).filter((p) => p.role === 'imagery-window');
+    expect(windows).toHaveLength(2);
+    for (const window of windows) expect(window.className).toContain('grid-card-hoverable');
+  });
+
   it('marks the window of the collection the main map is showing', () => {
     const active = (id: number | null) =>
       panelsFor(id)
-        .filter((p) => p.className === 'active-window')
+        .filter((p) => p.className?.includes('active-window'))
         .map((p) => p.id);
 
     expect(active(100)).toEqual(['100']);

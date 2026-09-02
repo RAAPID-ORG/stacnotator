@@ -85,8 +85,8 @@ export interface ImageryGenerationConfig {
 }
 
 /** One persisted or draft generator run. Configuration has one owner here;
- * collections refer to it by id. A Planet scene config is stored as the backend
- * sends it: this editor never authors one, it only has to carry it through a save. */
+ * collections refer to it by id. A Planet scene config is stored in the shape the
+ * backend planned it from, since that is what a later search is matched against. */
 export interface ImageryGenerationSeries {
   id: string;
   config: ImageryGenerationConfig | PlanetScenesGenerationConfigV1;

@@ -1,10 +1,16 @@
 import { create } from 'zustand';
-import type { AnnotationOut, CampaignOutFull, ImageryViewOut } from '~/api/client';
+import type {
+  AnnotationOut,
+  CampaignOutFull,
+  ImageryViewOut,
+  PlanetSceneSliceOut,
+} from '~/api/client';
 import {
   buildImageryCatalog,
   collectionStartDate,
   collectionsInView,
   withSceneLayers,
+  withSceneSearch,
   type ImageryCatalog,
 } from '../campaign/imagery';
 import {
@@ -43,7 +49,11 @@ interface CampaignState {
   setReviewMode: (isReviewMode: boolean) => void;
   setMobile: (isMobile: boolean) => void;
   setTaskStartCollection: (collectionId: number) => void;
-  applySceneSearch: (sourceId: number, vizName: string, urlBySliceId: Map<number, string>) => void;
+  /** What a viewport search found for a scene source: which dates hold imagery
+   *  here, and the covers that are already drawable. */
+  applySceneSearch: (sourceId: number, vizName: string, found: PlanetSceneSliceOut[]) => void;
+  /** Layers minted for dates that were already found, as they are opened. */
+  applySceneLayers: (sourceId: number, vizName: string, minted: PlanetSceneSliceOut[]) => void;
   /** Make `view` the selected one. Its imagery nav state and its canvas
    *  windows both come with it, so the whole page belongs to one view. */
   selectView: (view: ImageryViewOut) => void;
@@ -106,9 +116,14 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     imagery.setEmptyScope(null);
   },
 
-  applySceneSearch: (sourceId, vizName, urlBySliceId) => {
+  applySceneSearch: (sourceId, vizName, found) => {
     const catalog = get().catalog;
-    if (catalog) set({ catalog: withSceneLayers(catalog, sourceId, vizName, urlBySliceId) });
+    if (catalog) set({ catalog: withSceneSearch(catalog, sourceId, vizName, found) });
+  },
+
+  applySceneLayers: (sourceId, vizName, minted) => {
+    const catalog = get().catalog;
+    if (catalog) set({ catalog: withSceneLayers(catalog, sourceId, vizName, minted) });
   },
 
   setReviewMode: (isReviewMode) => set({ isReviewMode }),

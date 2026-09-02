@@ -1,3 +1,4 @@
+import { planetLayerProxyUrl } from '~/shared/imagery/tileUrls';
 import type {
   BasemapOut,
   CampaignOutFull,
@@ -6,6 +7,7 @@ import type {
   ImagerySliceOut,
   ImagerySourceOut,
   ImageryViewOut,
+  PlanetSceneSliceOut,
   VectorLayerOut,
   VisualizationTemplateOut,
 } from '~/api/client';
@@ -24,6 +26,9 @@ export interface ImageryCatalog {
   customMaps: Map<number, CustomMapOut>;
   vectorLayers: Map<number, VectorLayerOut>;
   sourceOf: Map<number, number>;
+  /** Slices a scene search found imagery for over the extent it was asked about,
+   *  whether or not a tile layer has been minted for them yet. */
+  sceneSlices: ReadonlySet<number>;
   bbox: Bbox;
 }
 
@@ -56,28 +61,77 @@ export function buildImageryCatalog(campaign: CampaignOutFull): ImageryCatalog {
     customMaps: new Map((campaign.custom_maps ?? []).map((m) => [m.id, m])),
     vectorLayers: new Map((campaign.vector_layers ?? []).map((l) => [l.id, l])),
     sourceOf,
+    sceneSlices: new Set(),
     bbox: [bbox_west, bbox_south, bbox_east, bbox_north],
   };
 }
 
 /**
- * A Planet scene source after a viewport search: the slices that had scenes get the
- * layer minted for them, and every other slice of that source loses whatever a
- * previous search left it.
+ * A Planet scene source after a viewport search: the dates that had scenes here become
+ * navigable, the covers arrive drawable, and every other slice of that source loses
+ * whatever a previous search left it.
  *
  * The result lives here and nowhere else. A minted layer covers the extent it was
  * searched over, so it is the answer to one question asked from one place, and
  * storing it would hand the next annotator imagery over somewhere they are not.
  */
-export function withSceneLayers(
+export function withSceneSearch(
   cat: ImageryCatalog,
   sourceId: number,
   vizName: string,
-  urlBySliceId: Map<number, string>
+  found: PlanetSceneSliceOut[]
 ): ImageryCatalog {
   const source = cat.sources.get(sourceId);
   if (!source) return cat;
 
+  const searched = new Set(found.map((slice) => slice.slice_id));
+  const sceneSlices = new Set(cat.sceneSlices);
+  for (const collection of source.collections) {
+    for (const slice of collection.slices) sceneSlices.delete(slice.id);
+  }
+  for (const id of searched) sceneSlices.add(id);
+
+  return {
+    ...writeSliceUrls(cat, source, vizName, urlsFrom(cat.campaignId, sourceId, found), true),
+    sceneSlices,
+  };
+}
+
+/** The layers minted for dates that were already known to hold imagery, drawn into
+ *  what the search left. Everything else stays as it is: this is a date being opened,
+ *  not a new place being searched. */
+export function withSceneLayers(
+  cat: ImageryCatalog,
+  sourceId: number,
+  vizName: string,
+  minted: PlanetSceneSliceOut[]
+): ImageryCatalog {
+  const source = cat.sources.get(sourceId);
+  if (!source) return cat;
+  return writeSliceUrls(cat, source, vizName, urlsFrom(cat.campaignId, sourceId, minted), false);
+}
+
+function urlsFrom(
+  campaignId: number,
+  sourceId: number,
+  slices: PlanetSceneSliceOut[]
+): Map<number, string> {
+  const urls = new Map<number, string>();
+  for (const slice of slices) {
+    if (slice.layer_id) {
+      urls.set(slice.slice_id, planetLayerProxyUrl(campaignId, sourceId, slice.layer_id));
+    }
+  }
+  return urls;
+}
+
+function writeSliceUrls(
+  cat: ImageryCatalog,
+  source: ImagerySourceOut,
+  vizName: string,
+  urlBySliceId: Map<number, string>,
+  replace: boolean
+): ImageryCatalog {
   const sources = new Map(cat.sources);
   const collections = new Map(cat.collections);
   const slices = new Map(cat.slices);
@@ -89,6 +143,7 @@ export function withSceneLayers(
         ...collection,
         slices: collection.slices.map((slice) => {
           const url = urlBySliceId.get(slice.id);
+          if (!url && !replace) return slice;
           const tile_urls = url
             ? [{ id: slice.id, visualization_name: vizName, tile_url: url }]
             : [];
@@ -101,15 +156,18 @@ export function withSceneLayers(
       return next;
     }),
   };
-  sources.set(sourceId, rebuilt);
+  sources.set(source.id, rebuilt);
 
   return { ...cat, sources, collections, slices };
 }
 
-/** Whether a slice can be drawn at all. A scene source starts with none of them
- *  resolved, and a search over one viewport resolves only the dates it found. */
-export const sliceHasImagery = (slice: Pick<ImagerySliceOut, 'tile_urls'>): boolean =>
-  slice.tile_urls.length > 0;
+/** Whether a slice is worth stepping to. A scene source starts with none of them
+ *  resolved; a search over one viewport says which dates hold imagery there, and the
+ *  layer that draws one of them may still be on its way. */
+export const sliceHasImagery = (
+  cat: ImageryCatalog,
+  slice: Pick<ImagerySliceOut, 'id' | 'tile_urls'>
+): boolean => slice.tile_urls.length > 0 || cat.sceneSlices.has(slice.id);
 
 /** Collections a view browses, in the view's source order then each source's own. */
 export function collectionsInView(

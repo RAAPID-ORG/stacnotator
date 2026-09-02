@@ -48,7 +48,7 @@ describe('timelineCollections', () => {
 
 describe('timelineRange', () => {
   it('spans the earliest start to the latest end', () => {
-    expect(timelineRange(timelineCollections(catalog, [1], 1))).toEqual({
+    expect(timelineRange(catalog, timelineCollections(catalog, [1], 1))).toEqual({
       start: '2019-06-01',
       end: '2021-01-31',
     });
@@ -60,11 +60,14 @@ describe('timelineRange', () => {
       cover_slice_index: 0,
       slices: [slice('2010-01-01', '2030-12-31'), slice('2020-01-01', '2020-01-31')],
     });
-    expect(timelineRange([collection])).toEqual({ start: '2020-01-01', end: '2020-01-31' });
+    expect(timelineRange(catalog, [collection])).toEqual({
+      start: '2020-01-01',
+      end: '2020-01-31',
+    });
   });
 
   it('has no range without collections', () => {
-    expect(timelineRange([])).toEqual({ start: null, end: null });
+    expect(timelineRange(catalog, [])).toEqual({ start: null, end: null });
   });
 });
 

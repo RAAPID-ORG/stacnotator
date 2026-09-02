@@ -13,7 +13,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 from urllib.parse import quote, urlparse
 
@@ -39,13 +39,25 @@ PAGE_SIZE = 500
 SEARCH_PAGE_SIZE = 250
 # A series is a decade of mosaics at worst; anything beyond this is a paging loop.
 MAX_PAGES = 20
-# One scene search per slice, so this bounds how wide a source the wizard will build.
-MAX_SEARCHES = 400
+# How much of a range one scene search covers before it is split. A viewport-sized box
+# over four months is a page or two of scenes, so a year costs a handful of searches
+# rather than one per slice - and a chunk that turns out denser splits itself.
+SEARCH_CHUNK_DAYS = 120
+# Bisecting stops here: a single day that still overflows is a genuine refusal, not
+# something a narrower range can fix.
+MIN_CHUNK_DAYS = 1
+# Backstop on one view's searches, splits included, so a dense archive under a wide
+# view cannot bisect its way into thousands of requests.
+MAX_SEARCHES = 64
 SEARCH_WORKERS = 8
 TOO_MANY_REQUESTS = 429
-# Planet rate-limits per key across the whole Data API, and a config with many slices is
-# a burst of searches
+# Planet rate-limits per key across the whole Data API, and a view's searches are a
+# burst against a key the whole organization shares.
 REQUESTS_PER_SECOND = 5.0
+# Minting layers is a different service on a different host, so it has its own budget
+# rather than competing with the searches for one. Adaptive either way: what a key is
+# allowed is found, not assumed.
+MINT_REQUESTS_PER_SECOND = 10.0
 # Where pacing lands if Planet keeps refusing: one request a second.
 MIN_REQUESTS_PER_SECOND = 1.0
 RETRY_ATTEMPTS = 4
@@ -58,6 +70,10 @@ _http = net_guard.guarded_client(
 
 class PlanetError(RuntimeError):
     """Planet refused or could not answer the request."""
+
+
+class PlanetTooManyResults(PlanetError):
+    """More scenes than one search can page through, so the range has to be split."""
 
 
 class _Pacer:
@@ -92,7 +108,14 @@ class _Pacer:
             self._interval = max(self._interval * 0.9, self._base)
 
 
-_pacer = _Pacer(REQUESTS_PER_SECOND)
+_pacers = {
+    API_HOST: _Pacer(REQUESTS_PER_SECOND),
+    tiles.TILE_HOST: _Pacer(MINT_REQUESTS_PER_SECOND),
+}
+
+
+def _pacer_for(url: str) -> _Pacer:
+    return _pacers.get(urlparse(url).hostname or "", _pacers[API_HOST])
 
 
 def _retry_wait(response: httpx.Response, attempt: int) -> float:
@@ -110,15 +133,20 @@ def _retry_wait(response: httpx.Response, attempt: int) -> float:
         return backoff
 
 
-def _send(request: Callable[[], httpx.Response]) -> dict[str, Any]:
-    """One paced request, retried while Planet is only asking us to slow down."""
+def _send(url: str, request: Callable[[], httpx.Response]) -> dict[str, Any]:
+    """One paced request, retried while Planet is only asking us to slow down.
+
+    Paced per host: the Data API and the tile host are separate services with separate
+    limits, and one of them being slowed down is no reason to slow the other.
+    """
+    pacer = _pacer_for(url)
     for attempt in range(RETRY_ATTEMPTS):
-        _pacer.wait()
+        pacer.wait()
         response = request()
         if response.status_code != TOO_MANY_REQUESTS:
-            _pacer.allowed()
+            pacer.allowed()
             return _checked(response)
-        _pacer.refused()
+        pacer.refused()
         if attempt < RETRY_ATTEMPTS - 1:
             wait = _retry_wait(response, attempt)
             logger.warning("Planet rate limited us, waiting %.1fs (attempt %d)", wait, attempt + 1)
@@ -169,7 +197,7 @@ def _get(url: str, api_key: str) -> dict[str, Any]:
     """Fetch one page. The key travels as basic-auth credentials, so it never
     lands in a query string we might log."""
     _require_host(url, API_HOST)
-    return _send(lambda: _http.get(url, auth=(api_key, "")))
+    return _send(url, lambda: _http.get(url, auth=(api_key, "")))
 
 
 def _paged(url: str, api_key: str, field: str) -> Iterator[dict[str, Any]]:
@@ -260,12 +288,13 @@ def search_scenes(
         },
     }
     body = _send(
+        DATA_ROOT,
         lambda: _http.post(
             f"{DATA_ROOT}/quick-search",
             auth=(api_key, ""),
             params={"_page_size": SEARCH_PAGE_SIZE},
             json=request,
-        )
+        ),
     )
 
     features = list(body.get("features", []))
@@ -276,10 +305,73 @@ def search_scenes(
         page = _get(next_url, api_key)
         features.extend(page.get("features", []))
         next_url = page.get("_links", {}).get("_next")
-    raise PlanetError(
+    raise PlanetTooManyResults(
         f"Planet has more than {MAX_PAGES * SEARCH_PAGE_SIZE} scenes over this area for "
-        f"{start} to {end}. Narrow the area, or use a shorter slice period."
+        f"{start} to {end}. Narrow the area, or search a shorter range."
     )
+
+
+class _Budget:
+    """How many searches one view may still spend, shared across the threads."""
+
+    def __init__(self, total: int) -> None:
+        self._left = total
+        self._lock = threading.Lock()
+
+    def spend(self) -> None:
+        with self._lock:
+            if self._left <= 0:
+                raise PlanetError(
+                    "This view holds more Planet archive than one search can work "
+                    "through. Zoom in, or shorten the source's date range."
+                )
+            self._left -= 1
+
+
+def search_range(
+    api_key: str,
+    config: PlanetScenesGenerationConfigV1,
+    geometry: dict[str, Any],
+    start: date,
+    end: date,
+) -> list[dict[str, Any]]:
+    """Every scene ``start``..``end`` holds over ``geometry``, in as few searches as
+    the archive allows.
+
+    The range is cut into chunks wide enough that a viewport-sized search answers in a
+    page or two, and a chunk that turns out to hold more than its pages can carry is
+    halved until it fits. Splitting on the answer rather than on the slice period is
+    what keeps a year of two-day slices at a handful of searches instead of 183, and
+    still cannot silently lose an end of the range: a truncated search raises.
+    """
+    budget = _Budget(MAX_SEARCHES)
+    chunks = scenes.periods(start, end, SEARCH_CHUNK_DAYS, "days")
+
+    def one(period: "scenes.Period") -> list[dict[str, Any]]:
+        budget.spend()
+        try:
+            return search_scenes(
+                api_key,
+                geometry=geometry,
+                start=period.start.isoformat(),
+                end=period.end.isoformat(),
+                item_types=config.item_types,
+                max_cloud_cover=config.max_cloud_cover,
+                quality_categories=config.quality_categories,
+            )
+        except PlanetTooManyResults:
+            span = (period.end - period.start).days
+            if span < MIN_CHUNK_DAYS * 2:
+                raise
+            middle = period.start + timedelta(days=span // 2)
+            halves = [
+                scenes.Period(period.start, middle),
+                scenes.Period(middle + timedelta(days=1), period.end),
+            ]
+            return [feature for half in halves for feature in one(half)]
+
+    with ThreadPoolExecutor(max_workers=SEARCH_WORKERS) as pool:
+        return [feature for page in pool.map(one, chunks) for feature in page]
 
 
 def search_config(
@@ -289,38 +381,14 @@ def search_config(
 
     The config settles the dates and the filters; where to look is the caller's, since
     it is wherever the annotator is standing rather than anything set up in advance.
-
-    One search per slice period rather than one for the whole range. A single wide
-    search runs out of pages and loses whichever end Planet happened to return last -
-    silently, since a short result looks the same as a sparse archive. Bounding each
-    search by the dates a slice already uses makes that impossible, and the searches
-    run in parallel instead of walking one ``_next`` chain.
     """
-    periods = scenes.periods(
+    return search_range(
+        api_key,
+        config,
+        geometry,
         date.fromisoformat(config.start_date),
         date.fromisoformat(config.end_date),
-        config.slice_period_interval,
-        config.slice_period_unit,
     )
-    if len(periods) > MAX_SEARCHES:
-        raise PlanetError(
-            f"{len(periods)} slices needs {len(periods)} searches, past the "
-            f"{MAX_SEARCHES} cap. Shorten the date range or lengthen the slice period."
-        )
-
-    def one(period: "scenes.Period") -> list[dict[str, Any]]:
-        return search_scenes(
-            api_key,
-            geometry=geometry,
-            start=period.start.isoformat(),
-            end=period.end.isoformat(),
-            item_types=config.item_types,
-            max_cloud_cover=config.max_cloud_cover,
-            quality_categories=config.quality_categories,
-        )
-
-    with ThreadPoolExecutor(max_workers=SEARCH_WORKERS) as pool:
-        return [feature for page in pool.map(one, periods) for feature in page]
 
 
 def create_layer(api_key: str, scene_ids: list[str]) -> str:
@@ -332,7 +400,8 @@ def create_layer(api_key: str, scene_ids: list[str]) -> str:
     if not scene_ids:
         raise PlanetError("refusing to mint an empty scene layer")
     body = _send(
-        lambda: _http.post(LAYERS_URL, auth=(api_key, ""), data={"ids": ",".join(scene_ids)})
+        LAYERS_URL,
+        lambda: _http.post(LAYERS_URL, auth=(api_key, ""), data={"ids": ",".join(scene_ids)}),
     )
     name = body.get("name")
     if not name:

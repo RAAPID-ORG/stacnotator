@@ -1,32 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   getProjectOrganizationKeys,
   type OrganizationApiKeyOut,
   type PlanetCredentials,
 } from '~/api/client';
-import { Button, Input, Select } from '~/shared/ui/forms';
+import { Input, Select } from '~/shared/ui/forms';
 import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
 import { handleError } from '~/shared/utils/errorHandler';
 
 interface PlanetKeyConnectProps {
   projectId: number;
-  /** Set once the caller may spend the key, cleared when the choice changes so
-   *  nothing browsed with the previous one survives. */
-  credentials: PlanetCredentials | null;
+  /** The key to spend, or null while the choice is incomplete - a pasted key
+   *  counts only once its owner has confirmed it is read-only. */
   onChange: (credentials: PlanetCredentials | null) => void;
 }
 
 const OWN_KEY = 'own';
 
-/**
- * Pick which Planet key to browse with, shared by both Planet flows. Connecting is an
- * explicit step so a keystroke does not fire a request at Planet.
- */
-export const PlanetKeyConnect = ({ projectId, credentials, onChange }: PlanetKeyConnectProps) => {
+/** Long enough that a pasted key is not sent character by character. */
+const TYPING_SETTLES_MS = 250;
+
+/** Pick which Planet key to browse with, shared by both Planet flows. */
+export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps) => {
   const [keys, setKeys] = useState<OrganizationApiKeyOut[] | null>(null);
   const [keyId, setKeyId] = useState<number | null>(null);
   const [ownKey, setOwnKey] = useState('');
   const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
+
+  // Callers pass an inline handler; keeping it out of the effect below is what
+  // stops every render from re-emitting the same choice.
+  const emit = useRef(onChange);
+  emit.current = onChange;
 
   useEffect(() => {
     void getProjectOrganizationKeys({ path: { project_id: projectId } })
@@ -42,7 +46,22 @@ export const PlanetKeyConnect = ({ projectId, credentials, onChange }: PlanetKey
       });
   }, [projectId]);
 
-  const canConnect = keyId !== null || (ownKey.trim().length > 0 && readOnlyConfirmed);
+  useEffect(() => {
+    if (keyId !== null) {
+      emit.current({ project_id: projectId, organization_api_key_id: keyId });
+      return;
+    }
+    const key = ownKey.trim();
+    if (!key || !readOnlyConfirmed) {
+      emit.current(null);
+      return;
+    }
+    const timer = setTimeout(
+      () => emit.current({ project_id: projectId, api_key: key }),
+      TYPING_SETTLES_MS
+    );
+    return () => clearTimeout(timer);
+  }, [projectId, keyId, ownKey, readOnlyConfirmed]);
 
   return (
     <div className="space-y-1.5">
@@ -55,10 +74,7 @@ export const PlanetKeyConnect = ({ projectId, credentials, onChange }: PlanetKey
       <Select
         size="sm"
         value={keyId === null ? OWN_KEY : String(keyId)}
-        onChange={(e) => {
-          setKeyId(e.target.value === OWN_KEY ? null : Number(e.target.value));
-          onChange(null);
-        }}
+        onChange={(e) => setKeyId(e.target.value === OWN_KEY ? null : Number(e.target.value))}
         aria-label="Planet key source"
       >
         {(keys ?? []).map((key) => (
@@ -75,33 +91,13 @@ export const PlanetKeyConnect = ({ projectId, credentials, onChange }: PlanetKey
             size="sm"
             type="password"
             value={ownKey}
-            onChange={(e) => {
-              setOwnKey(e.target.value);
-              onChange(null);
-            }}
+            onChange={(e) => setOwnKey(e.target.value)}
             placeholder="Paste your Planet API key"
             autoComplete="off"
             className="text-[11px] font-mono"
           />
           <ReadOnlyKeyConsent confirmed={readOnlyConfirmed} onChange={setReadOnlyConfirmed} />
         </>
-      )}
-
-      {!credentials && (
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!canConnect}
-          onClick={() =>
-            onChange(
-              keyId !== null
-                ? { project_id: projectId, organization_api_key_id: keyId }
-                : { project_id: projectId, api_key: ownKey.trim() }
-            )
-          }
-        >
-          Connect to Planet
-        </Button>
       )}
     </div>
   );

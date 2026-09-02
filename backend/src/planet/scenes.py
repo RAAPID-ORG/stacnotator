@@ -140,26 +140,37 @@ def _wrapped(longitude: float) -> float:
     return (longitude + 180.0) % 360.0 - 180.0
 
 
+@dataclass(frozen=True)
+class MatchedSlice:
+    """A stored slice a search found imagery for, and what to mint for it."""
+
+    slice_id: int
+    group: SliceGroup
+    is_cover: bool
+
+
 def matched(
     features: Iterable[dict[str, Any]],
     config: PlanetScenesGenerationConfigV1,
     slice_ids: dict[tuple[str, str], int],
-) -> list[tuple[int, SliceGroup]]:
+) -> list[MatchedSlice]:
     """The stored slices a search found imagery for, paired with what to mint for them.
 
     Both sides come from the same date arithmetic, so a slice is matched by the range
-    it covers rather than by anything the search has to carry back.
+    it covers rather than by anything the search has to carry back. Covers come first:
+    a window's cover is what the annotator sees when they get there, so it is what is
+    worth having ready.
     """
-    found: list[tuple[int, SliceGroup]] = []
+    found: list[MatchedSlice] = []
     for window in group(features, config):
-        for slice_group in (window.cover, *window.slices):
+        for is_cover, slice_group in ((True, window.cover), *((False, s) for s in window.slices)):
             if slice_group is None:
                 continue
             key = (slice_group.period.start.isoformat(), slice_group.period.end.isoformat())
             slice_id = slice_ids.get(key)
             if slice_id is not None:
-                found.append((slice_id, slice_group))
-    return found
+                found.append(MatchedSlice(slice_id, slice_group, is_cover))
+    return sorted(found, key=lambda m: (not m.is_cover, m.group.period.start))
 
 
 def bbox_polygon(bbox: list[float]) -> dict[str, Any]:

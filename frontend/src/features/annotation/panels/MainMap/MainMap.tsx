@@ -35,7 +35,7 @@ import { TimelineSidebar } from './TimelineSidebar';
 import { SelectionControls } from './SelectionControls';
 import { usePreloading } from './usePreloading';
 import { useSceneNotice } from './SceneNotice';
-import { useSceneAutoLoad } from '../../stores/scenes';
+import { useSceneAutoLoad, useSceneSliceLayers } from '../../stores/scenes';
 
 /** Stable empty array: a fresh [] each render would recompose the layers. */
 const EMPTY_PROBES: LonLat[] = [];
@@ -393,6 +393,7 @@ export function MainMapBody() {
   // Same idea as the tile preloader below, one level up: the scenes each upcoming
   // task will need are searched for while this one is being worked on.
   useSceneAutoLoad();
+  useSceneSliceLayers();
 
   usePreloading({
     enabled: mode === 'tasks',

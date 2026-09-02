@@ -45,8 +45,8 @@ const PRESET_BLURBS: Record<string, string> = {
 export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWizardProps) => {
   const [step, setStep] = useState<WizardStep>({ kind: 'pick-preset' });
 
-  /** Both Planet flows finish the same way: the source is created, then handed to
-   *  the caller so it can be opened for editing. */
+  /** Every flow finishes the same way: the source is created, then handed to the
+   *  caller so it can be opened for editing. */
   const added = async (source: ImagerySource) => {
     await controller.addSource(source);
     if (onCreated) onCreated(source.id);
@@ -81,9 +81,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
     src.generationSeries = generationSeries ? [generationSeries] : [];
     src.collections = collections;
 
-    await controller.addSource(src);
-    if (onCreated) onCreated(src.id);
-    else onClose();
+    await added(src);
   };
 
   if (step.kind === 'configure-preset') {
@@ -127,17 +125,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
   }
 
   if (step.kind === 'custom-xyz') {
-    return (
-      <CustomXyzStep
-        projectId={controller.projectId}
-        onBack={back}
-        onConfirm={async (source) => {
-          await controller.addSource(source);
-          if (onCreated) onCreated(source.id);
-          else onClose();
-        }}
-      />
-    );
+    return <CustomXyzStep projectId={controller.projectId} onBack={back} onConfirm={added} />;
   }
 
   const title = step.kind === 'pick-preset' ? 'Add Imagery Source' : 'Custom imagery source';

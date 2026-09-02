@@ -200,6 +200,7 @@ class TestSearchingWhatIsOnScreen:
             imagery_service.PlanetSceneSeries(
                 config=config(),
                 slice_ids={
+                    ("2024-01-01", "2024-01-31"): 1,
                     ("2024-01-05", "2024-01-05"): 42,
                     ("2024-01-06", "2024-01-06"): 43,
                 },
@@ -230,10 +231,34 @@ class TestSearchingWhatIsOnScreen:
 
         found = imagery_service.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
 
-        assert [(s.slice_id, s.layer_id, s.scene_count) for s in found.slices] == [
-            (42, "layer-1", 1)
-        ]
+        assert (42, 1) in [(s.slice_id, s.scene_count) for s in found.slices]
+        assert 43 not in [s.slice_id for s in found.slices]
         assert found.errors == []
+
+    def test_the_cover_is_the_only_layer_a_search_mints(self, monkeypatch):
+        """A source can hold hundreds of dates and minting is a request each. The
+        window's cover is what the annotator arrives on, so it is what is made ready."""
+        monkeypatch.setattr(
+            planet_client,
+            "search_config",
+            lambda *_a: [
+                feature("a", "2024-01-05T00:00:00Z", clear_percent=90),
+                feature("b", "2024-01-06T00:00:00Z", clear_percent=90),
+            ],
+        )
+        minted: list[tuple[str, ...]] = []
+
+        def create_layer(_key, ids):
+            minted.append(tuple(ids))
+            return "cover-layer"
+
+        monkeypatch.setattr(planet_client, "create_layer", create_layer)
+
+        found = imagery_service.search_planet_scenes_in_view("KEY", self.series(), [0, 0, 1, 1])
+
+        drawable = {s.slice_id: s.layer_id for s in found.slices}
+        assert drawable == {1: "cover-layer", 42: None, 43: None}
+        assert len(minted) == 1
 
     def test_a_refused_search_is_reported_rather_than_raised(self, monkeypatch):
         def boom(*_a):
@@ -245,6 +270,53 @@ class TestSearchingWhatIsOnScreen:
 
         assert found.slices == []
         assert found.errors == ["Planet is rate limiting this API key"]
+
+
+class TestMintingTheDatesBeingOpened:
+    """What a search leaves unminted: the date the annotator steps to, and the next
+    ones along, asked for a few at a time."""
+
+    def series(self):
+        return [
+            imagery_service.PlanetSceneSeries(
+                config=config(),
+                slice_ids={
+                    ("2024-01-01", "2024-01-31"): 1,
+                    ("2024-01-05", "2024-01-05"): 42,
+                    ("2024-01-06", "2024-01-06"): 43,
+                },
+            )
+        ]
+
+    def test_the_search_only_covers_the_dates_asked_for(self, monkeypatch):
+        seen: list[tuple[date, date]] = []
+
+        def search_range(_key, _config, _geometry, start, end):
+            seen.append((start, end))
+            return [feature("a", "2024-01-06T00:00:00Z", clear_percent=90)]
+
+        monkeypatch.setattr(planet_client, "search_range", search_range)
+        monkeypatch.setattr(planet_client, "create_layer", lambda _key, ids: "layer-43")
+
+        found = imagery_service.mint_planet_scene_layers("KEY", self.series(), [0, 0, 1, 1], [43])
+
+        assert seen == [(date(2024, 1, 6), date(2024, 1, 6))]
+        assert [(s.slice_id, s.layer_id) for s in found.slices] == [(43, "layer-43")]
+
+    def test_dates_that_were_not_asked_for_are_not_minted(self, monkeypatch):
+        monkeypatch.setattr(
+            planet_client,
+            "search_range",
+            lambda *_a: [
+                feature("a", "2024-01-05T00:00:00Z", clear_percent=90),
+                feature("b", "2024-01-06T00:00:00Z", clear_percent=90),
+            ],
+        )
+        monkeypatch.setattr(planet_client, "create_layer", lambda _key, ids: "layer")
+
+        found = imagery_service.mint_planet_scene_layers("KEY", self.series(), [0, 0, 1, 1], [42])
+
+        assert [s.slice_id for s in found.slices] == [42]
 
 
 class TestTheExtentAsGeometry:

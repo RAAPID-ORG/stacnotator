@@ -10,7 +10,13 @@ import {
   makeViz,
 } from '../testing/fixtures';
 import type { CustomMapOut } from '~/api/client';
-import { buildImageryCatalog, readyCustomMaps, withSceneLayers } from './imagery';
+import {
+  buildImageryCatalog,
+  readyCustomMaps,
+  sliceHasImagery,
+  withSceneLayers,
+  withSceneSearch,
+} from './imagery';
 
 const source = makeSource({
   id: 1,
@@ -111,7 +117,7 @@ describe('readyCustomMaps', () => {
   });
 });
 
-describe('withSceneLayers', () => {
+describe('a scene source over one viewport', () => {
   const catalogWithScenes = () =>
     buildImageryCatalog(
       makeCampaign({
@@ -133,28 +139,47 @@ describe('withSceneLayers', () => {
       })
     );
 
-  it('gives the found dates their layer and leaves the rest undrawable', () => {
-    const cat = withSceneLayers(
-      catalogWithScenes(),
-      1,
-      'Visual',
-      new Map([[100, 'https://proxy/planet-layers/abc/tiles/{z}/{x}/{y}']])
-    );
+  it('mints nothing but what came back with a layer, and keeps the rest steppable', () => {
+    const cat = withSceneSearch(catalogWithScenes(), 1, 'Visual', [
+      { slice_id: 100, scene_count: 3, layer_id: 'abc' },
+      { slice_id: 101, scene_count: 2, layer_id: null },
+    ]);
 
-    const [first, second] = cat.collections.get(10)!.slices;
-    expect(first.tile_urls[0].tile_url).toContain('planet-layers/abc');
-    expect(first.tile_urls[0].visualization_name).toBe('Visual');
-    expect(second.tile_urls).toEqual([]);
+    const [cover, date] = cat.collections.get(10)!.slices;
+    expect(cover.tile_urls[0].tile_url).toContain('abc');
+    expect(cover.tile_urls[0].visualization_name).toBe('Visual');
+    // Found here, so it is worth stepping to - its layer is minted when it is opened.
+    expect(date.tile_urls).toEqual([]);
+    expect(sliceHasImagery(cat, date)).toBe(true);
     // The slice index has to agree with the collection, or the map draws one thing
     // and navigation reasons about another.
     expect(cat.slices.get(100)!.tile_urls).toHaveLength(1);
   });
 
+  it('draws a minted layer in without disturbing what the search left', () => {
+    const searched = withSceneSearch(catalogWithScenes(), 1, 'Visual', [
+      { slice_id: 100, scene_count: 3, layer_id: 'abc' },
+      { slice_id: 101, scene_count: 2, layer_id: null },
+    ]);
+
+    const opened = withSceneLayers(searched, 1, 'Visual', [
+      { slice_id: 101, scene_count: 2, layer_id: 'def' },
+    ]);
+
+    expect(opened.slices.get(100)!.tile_urls[0].tile_url).toContain('abc');
+    expect(opened.slices.get(101)!.tile_urls[0].tile_url).toContain('def');
+  });
+
   it('replaces what a previous search left, because it was over somewhere else', () => {
-    const first = withSceneLayers(catalogWithScenes(), 1, 'Visual', new Map([[100, 'url-a']]));
-    const second = withSceneLayers(first, 1, 'Visual', new Map([[101, 'url-b']]));
+    const first = withSceneSearch(catalogWithScenes(), 1, 'Visual', [
+      { slice_id: 100, scene_count: 1, layer_id: 'abc' },
+    ]);
+    const second = withSceneSearch(first, 1, 'Visual', [
+      { slice_id: 101, scene_count: 1, layer_id: 'def' },
+    ]);
 
     expect(second.slices.get(100)!.tile_urls).toEqual([]);
-    expect(second.slices.get(101)!.tile_urls[0].tile_url).toBe('url-b');
+    expect(sliceHasImagery(second, second.slices.get(100)!)).toBe(false);
+    expect(second.slices.get(101)!.tile_urls[0].tile_url).toContain('def');
   });
 });

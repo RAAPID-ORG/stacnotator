@@ -7,10 +7,10 @@ import {
 import type {
   ImageryEditorStateCreate,
   ImageryGenerationConfigV1,
-  ImageryGenerationSeriesOut,
   ImagerySourceOut,
   ImageryCollectionOut,
 } from '~/api/client';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
 import { isPlanetSceneConfig } from './types';
@@ -457,6 +457,21 @@ export function usePersistedController({
 
   const save = useCallback(async () => {
     if (pending) return;
+    // A source created here joins none of the campaign's views, so it stays off
+    // the annotation canvas until someone puts it in one - and nothing else in
+    // this editor mentions views at all. Only worth saying for a source that is
+    // about to exist for the first time.
+    if (stateRef.current.sources.some((source) => !isRealId(source.id))) {
+      const ok = await useLayoutStore.getState().showConfirmDialog({
+        title: 'New sources start off the canvas',
+        description:
+          'A source only shows up in the annotation view once it belongs to a view. ' +
+          'After saving, open the campaign, click "Edit Layout", and tick the new source ' +
+          'under "Sources in this view".',
+        confirmText: 'Got it, save',
+      });
+      if (!ok) return;
+    }
     setPending(true);
     try {
       await apiSaveImagery({

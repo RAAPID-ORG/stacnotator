@@ -1,6 +1,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import date
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
@@ -1080,12 +1081,17 @@ def planet_scene_series(db: Session, source: ImagerySource) -> list[PlanetSceneS
 def search_planet_scenes_in_view(
     api_key: str, series: list[PlanetSceneSeries], bbox: list[float]
 ) -> PlanetSceneSearchOut:
-    """Search what is on screen, and mint a layer for each slice that has scenes there.
+    """Which of the source's dates hold imagery here, with the covers ready to draw.
 
     Nothing is written. A minted layer belongs to the search that asked for it, so two
     annotators standing in different places never overwrite each other's imagery, and
     what a country-sized campaign area could never produce - a layer that actually
     covers where you are looking - falls out of bounding the search by the viewport.
+
+    Only the covers are minted: a source can hold hundreds of slices, minting is one
+    request each, and what the annotator sees on arrival is the cover of each window.
+    The rest come back as found, so the dates are navigable straight away, and their
+    layers are minted by ``mint_planet_scene_layers`` when a date is actually opened.
     """
     geometry = planet_scenes.bbox_polygon(bbox)
     found: list[PlanetSceneSliceOut] = []
@@ -1099,19 +1105,79 @@ def search_planet_scenes_in_view(
             continue
 
         wanted = planet_scenes.matched(features, one.config, one.slice_ids)
-        with ThreadPoolExecutor(max_workers=PLANET_MINT_WORKERS) as pool:
-            minted = pool.map(lambda pair: _mint_view_layer(api_key, *pair), wanted)
-        for result in minted:
-            if isinstance(result, str):
-                errors.append(result)
-            else:
-                found.append(result)
+        found.extend(
+            PlanetSceneSliceOut(
+                slice_id=match.slice_id, scene_count=len(match.group.scene_ids), layer_id=None
+            )
+            for match in wanted
+            if not match.is_cover
+        )
+        minted, failures = _mint_layers(api_key, [m for m in wanted if m.is_cover])
+        found.extend(minted)
+        errors.extend(failures)
 
+    _report(errors, bbox)
+    return PlanetSceneSearchOut(slices=found, errors=errors)
+
+
+def mint_planet_scene_layers(
+    api_key: str, series: list[PlanetSceneSeries], bbox: list[float], slice_ids: list[int]
+) -> PlanetSceneSearchOut:
+    """Tile URLs for the dates being looked at now, over this same extent.
+
+    Searched again rather than remembered: the search is bounded to the dates asked
+    for, which is one request for a handful of neighbouring slices, and a stateless
+    answer survives the worker recycling a cached one would not.
+    """
+    geometry = planet_scenes.bbox_polygon(bbox)
+    wanted_ids = set(slice_ids)
+    found: list[PlanetSceneSliceOut] = []
+    errors: list[str] = []
+
+    for one in series:
+        dates = [d for d, sid in one.slice_ids.items() if sid in wanted_ids]
+        if not dates:
+            continue
+        try:
+            features = planet_client.search_range(
+                api_key,
+                one.config,
+                geometry,
+                date.fromisoformat(min(start for start, _ in dates)),
+                date.fromisoformat(max(end for _, end in dates)),
+            )
+        except Exception as e:
+            errors.append(sanitize_error_message(e, fallback="Planet scene search failed"))
+            continue
+
+        matches = planet_scenes.matched(features, one.config, one.slice_ids)
+        minted, failures = _mint_layers(api_key, [m for m in matches if m.slice_id in wanted_ids])
+        found.extend(minted)
+        errors.extend(failures)
+
+    _report(errors, bbox)
+    return PlanetSceneSearchOut(slices=found, errors=errors)
+
+
+def _mint_layers(
+    api_key: str, wanted: list["planet_scenes.MatchedSlice"]
+) -> tuple[list[PlanetSceneSliceOut], list[str]]:
+    """One layer per slice, minted in parallel; the failures come back as messages."""
+    if not wanted:
+        return [], []
+    with ThreadPoolExecutor(max_workers=PLANET_MINT_WORKERS) as pool:
+        results = list(pool.map(lambda m: _mint_view_layer(api_key, m.slice_id, m.group), wanted))
+    return (
+        [r for r in results if isinstance(r, PlanetSceneSliceOut)],
+        [r for r in results if isinstance(r, str)],
+    )
+
+
+def _report(errors: list[str], bbox: list[float]) -> None:
     for message in errors:
         # Reported to the annotator and to us: a search that half worked still answers
         # 200, so without this the only record of why is a toast someone dismissed.
         logger.warning("Planet scene search over %s: %s", bbox, message)
-    return PlanetSceneSearchOut(slices=found, errors=errors)
 
 
 def _mint_view_layer(

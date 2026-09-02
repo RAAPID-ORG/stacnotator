@@ -115,7 +115,10 @@ export function buildPanels({
     panels.push({
       id: String(collection.id),
       role: 'imagery-window',
-      className: collection.id === activeCollectionId ? 'active-window' : undefined,
+      // Hoverable because clicking a window makes it the active one: the border is
+      // the affordance saying so, and the active one keeps its own outline instead.
+      className:
+        `grid-card-hoverable ${collection.id === activeCollectionId ? 'active-window' : ''}`.trim(),
       header: <ImageryWindowHeader collection={collection} />,
       body: <ImageryWindowBody collection={collection} />,
       hideTarget: true,

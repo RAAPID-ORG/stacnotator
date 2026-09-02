@@ -25,6 +25,16 @@ export function sceneSourceOf(
   return source && isSceneSource(source) ? source : null;
 }
 
+/** The source the main map is showing, when it is a scene source - which is the only
+ *  time loading the viewport is on offer, since that is what the load would fill. */
+export function shownSceneSource(
+  catalog: ImageryCatalog,
+  sourceId: number | null
+): ImagerySourceOut | null {
+  const source = sourceId != null ? catalog.sources.get(sourceId) : undefined;
+  return source && isSceneSource(source) ? source : null;
+}
+
 /** Scene sources the page is currently browsing. */
 export function sceneSourcesInView(
   catalog: ImageryCatalog,

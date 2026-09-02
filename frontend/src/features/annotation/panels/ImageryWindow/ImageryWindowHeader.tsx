@@ -22,16 +22,26 @@ export function ImageryWindowHeader({ collection }: ImageryWindowHeaderProps) {
 
   const isActive = imagery.address?.collectionId === collection.id;
   const address = windowAddress(catalog, imagery, collection.id);
-  const indices = slicePickerIndices(collection);
+  const indices = slicePickerIndices(catalog, collection);
   const sceneSource = sceneSourceOf(catalog, collection);
+  const source = catalog.sources.get(catalog.sourceOf.get(collection.id) ?? -1);
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1">
       <span
         data-window-active={isActive}
-        className={`min-w-0 flex-1 truncate text-xs ${isActive ? 'font-semibold text-brand-700' : 'text-neutral-700'}`}
+        // A canvas of windows named by period says nothing about which imagery each
+        // one is of, so hovering a window names its source - dimmed and after the
+        // period, so a narrow window loses the source rather than the date it shows.
+        title={source ? `${source.name} - ${collection.name}` : collection.name}
+        className={`flex min-w-0 flex-1 items-baseline gap-1 truncate text-xs ${isActive ? 'font-semibold text-brand-700' : 'text-neutral-700'}`}
       >
-        {collection.name}
+        <span className="shrink-0">{collection.name}</span>
+        {source && (
+          <span className="truncate font-normal text-neutral-400 opacity-0 transition-opacity group-hover/card:opacity-100">
+            {source.name}
+          </span>
+        )}
       </span>
       {indices.length > 1 && address && (
         <span onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>

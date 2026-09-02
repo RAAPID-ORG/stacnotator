@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { IconCheck, IconPlus, IconSettings } from '~/shared/ui/Icons';
-import { useLayoutStore } from '~/shared/stores/layout.store';
 import type { ImageryController } from './controller';
 import { sourceRegistration } from './controller';
 import { AddSourceWizard } from './AddSourceWizard';
@@ -24,30 +23,8 @@ export const SourcesTab = ({
   description = DEFAULT_DESCRIPTION,
 }: SourcesTabProps) => {
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [viewNoticeAcknowledged, setViewNoticeAcknowledged] = useState(false);
-  const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
 
   const sources = controller.state.sources;
-
-  // A source added to an existing campaign joins none of its views, so it stays
-  // off the annotation canvas until someone puts it in one - and nothing else
-  // in this editor mentions views at all. During campaign creation there is
-  // nothing to say: the first view is created later, with every source in it.
-  const openWizard = async () => {
-    if (controller.campaignId != null && !viewNoticeAcknowledged) {
-      const ok = await showConfirmDialog({
-        title: 'New sources start off the canvas',
-        description:
-          'A source only shows up in the annotation view once it belongs to a view. ' +
-          'After saving, open the campaign, click "Edit Layout", and tick the new source ' +
-          'under "Sources in this view".',
-        confirmText: 'Got it, create a source',
-      });
-      if (!ok) return;
-      setViewNoticeAcknowledged(true);
-    }
-    setWizardOpen(true);
-  };
 
   return (
     <div className="space-y-3">
@@ -94,7 +71,7 @@ export const SourcesTab = ({
 
         <button
           type="button"
-          onClick={() => void openWizard()}
+          onClick={() => setWizardOpen(true)}
           className="flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 transition-all cursor-pointer px-4 py-3 shrink-0"
         >
           <IconPlus className="w-4 h-4 text-neutral-400" />

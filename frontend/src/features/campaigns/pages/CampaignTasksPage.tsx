@@ -195,21 +195,20 @@ export const CampaignTasksPage = () => {
     [campaign]
   );
 
-  const handleUploadAnnotationTasks = () => {
-    if (!taskFile || taskScope === 'all') return;
+  const handleUploadAnnotationTasks = async (): Promise<boolean> => {
+    if (!taskFile || taskScope === 'all') return false;
     const body = { file: taskFile, task_set_id: taskScope } as never;
     const name = taskFile.name.toLowerCase();
     const upload = name.endsWith('.geojson') || name.endsWith('.json') ? uploadGeojson : uploadCsv;
-    upload.mutate(
-      { path, body },
-      {
-        onSuccess: () => {
-          setTaskFile(null);
-          showAlert('Annotation task(s) uploaded successfully', 'success');
-          reloadTasksAndSets();
-        },
-      }
-    );
+    try {
+      await upload.mutateAsync({ path, body });
+    } catch {
+      return false;
+    }
+    setTaskFile(null);
+    showAlert('Annotation task(s) uploaded successfully', 'success');
+    reloadTasksAndSets();
+    return true;
   };
 
   const handleCreateTaskSet = async (name: string): Promise<number | null> => {

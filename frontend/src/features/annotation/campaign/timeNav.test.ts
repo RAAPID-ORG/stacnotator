@@ -32,18 +32,18 @@ const collectionWithCover = makeCollection({
 
 describe('sliceNavIndices / slicePickerIndices (cover-slice rules)', () => {
   it('excludes the dedicated cover from stepping but includes it in the picker listing', () => {
-    expect(sliceNavIndices(collectionWithCover, {})).toEqual([1, 2, 3]);
-    expect(slicePickerIndices(collectionWithCover)).toEqual([0, 1, 2, 3]);
+    expect(sliceNavIndices(cat, collectionWithCover, {})).toEqual([1, 2, 3]);
+    expect(slicePickerIndices(cat, collectionWithCover)).toEqual([0, 1, 2, 3]);
   });
 
   it('includes the cover in stepping when it is not a dedicated cover', () => {
     const col = { ...collectionWithCover, has_dedicated_cover: false };
-    expect(sliceNavIndices(col, {})).toEqual([0, 1, 2, 3]);
+    expect(sliceNavIndices(cat, col, {})).toEqual([0, 1, 2, 3]);
   });
 
   it('skips slices marked empty', () => {
     const empties = { [emptyKey(10, 2)]: true as const };
-    expect(sliceNavIndices(collectionWithCover, empties)).toEqual([1, 3]);
+    expect(sliceNavIndices(cat, collectionWithCover, empties)).toEqual([1, 3]);
   });
 });
 
@@ -326,7 +326,7 @@ describe('slices nothing can draw', () => {
   it('are offered by neither the picker nor stepping', () => {
     // A scene source's dates exist before any imagery does, and a search over one
     // viewport resolves only some of them. Offering the rest is offering a blank map.
-    expect(slicePickerIndices(searchedCollection)).toEqual([0, 2]);
-    expect(sliceNavIndices(searchedCollection, {})).toEqual([0, 2]);
+    expect(slicePickerIndices(cat, searchedCollection)).toEqual([0, 2]);
+    expect(sliceNavIndices(cat, searchedCollection, {})).toEqual([0, 2]);
   });
 });

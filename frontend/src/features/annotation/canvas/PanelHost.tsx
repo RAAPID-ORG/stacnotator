@@ -45,7 +45,9 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
       data-panel-id={panel.id}
       data-panel-role={panel.role}
       data-tour={panel.id}
-      className={`grid-card flex flex-col ${panel.className ?? ''} ${className ?? ''}`}
+      // group/card: what a panel shows only while the pointer is over it - the
+      // imagery window names its source that way - hangs off this.
+      className={`grid-card group/card flex flex-col ${panel.className ?? ''} ${className ?? ''}`}
       style={style}
       {...rest}
     >

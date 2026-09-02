@@ -47,7 +47,7 @@ const PERIOD_LABELS: Record<CollectionPeriod, string> = {
  * manual collections. Nothing is searched, registered or rendered on a tiler.
  */
 export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps) => {
-  /** The credential the browse calls are currently allowed to use. */
+  /** The key the browse calls spend. */
   const [credentials, setCredentials] = useState<PlanetCredentials | null>(null);
   const [series, setSeries] = useState<PlanetSeriesOut[] | null>(null);
   const [chosen, setChosen] = useState<PlanetSeriesOut | null>(null);
@@ -214,7 +214,6 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
       <div className="p-4 space-y-4">
         <PlanetKeyConnect
           projectId={projectId}
-          credentials={credentials}
           onChange={(next) => {
             reset();
             setCredentials(next);

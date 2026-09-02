@@ -21,6 +21,7 @@ from src.imagery.schemas import (
     ImageryViewOrderUpdate,
     ImageryViewOut,
     ImageryViewUpdate,
+    PlanetSceneLayersIn,
     PlanetSceneSearchIn,
     PlanetSceneSearchOut,
 )
@@ -172,23 +173,10 @@ def refresh_source_imagery(
     return {"registration_status": "registering"}
 
 
-@router.post(
-    "/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search",
-    response_model=PlanetSceneSearchOut,
-)
-def search_planet_scenes(
-    campaign_id: int,
-    source_id: int,
-    payload: PlanetSceneSearchIn,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    """Find the Planet scenes covering this extent and mint a layer per slice.
-
-    An annotator's own action, not an admin's: a scene source is set up with dates
-    only, and the area to search is wherever they are standing. Nothing is stored, so
-    the answer is theirs alone and stale the moment they move on.
-    """
+def _planet_scene_source(
+    db: Session, campaign: Campaign, source_id: int
+) -> tuple[str, list[service.PlanetSceneSeries]]:
+    """The key to search with and the series to search, or the reason neither works."""
     source = db.get(ImagerySource, source_id)
     if source is None or source.campaign_id != campaign.id:
         raise HTTPException(status_code=404, detail="Imagery source not found")
@@ -206,10 +194,54 @@ def search_planet_scenes(
     series = service.planet_scene_series(db, source)
     if not series:
         raise HTTPException(status_code=400, detail="This source has no Planet scene series")
+    return api_key, series
+
+
+@router.post(
+    "/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search",
+    response_model=PlanetSceneSearchOut,
+)
+def search_planet_scenes(
+    campaign_id: int,
+    source_id: int,
+    payload: PlanetSceneSearchIn,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """Find which of the source's dates hold Planet scenes over this extent.
+
+    An annotator's own action, not an admin's: a scene source is set up with dates
+    only, and the area to search is wherever they are standing. Nothing is stored, so
+    the answer is theirs alone and stale the moment they move on. Only the covers come
+    back drawable; the other dates are minted by ``mint_planet_scene_layers``.
+    """
+    api_key, series = _planet_scene_source(db, campaign, source_id)
     # Planet is a network call away, and the connection must not sit idle in a
     # transaction across it - see planet/router.py.
     release(db)
     return service.search_planet_scenes_in_view(api_key, series, payload.bbox)
+
+
+@router.post(
+    "/{campaign_id}/imagery/sources/{source_id}/planet-scenes/layers",
+    response_model=PlanetSceneSearchOut,
+)
+def mint_planet_scene_layers(
+    campaign_id: int,
+    source_id: int,
+    payload: PlanetSceneLayersIn,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """Tile layers for the dates the annotator is opening, over the same extent.
+
+    The search says which dates hold imagery; this is what makes one drawable. Asked
+    for a few at a time - the date being opened and the next ones along - so stepping
+    through a window does not wait on the hundreds of dates nobody has looked at.
+    """
+    api_key, series = _planet_scene_source(db, campaign, source_id)
+    release(db)
+    return service.mint_planet_scene_layers(api_key, series, payload.bbox, payload.slice_ids)
 
 
 @router.post("/{campaign_id}/imagery/views", response_model=ImageryViewOut, status_code=201)

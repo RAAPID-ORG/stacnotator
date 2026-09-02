@@ -37,23 +37,26 @@ function collection(
 
 const cand = (index: number): ProbeCandidate => ({ index, label: `s${index}` });
 
+/** Only the scene-slice set is read here, and a plain campaign has none. */
+const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [] }));
+
 describe('candidateOrder', () => {
   it('orders forward from the current index, then backward, then the rest', () => {
     const col = collection(6);
-    expect(candidateOrder(col, {}, 2)).toEqual([3, 4, 5, 1, 0]);
+    expect(candidateOrder(cat, col, {}, 2)).toEqual([3, 4, 5, 1, 0]);
   });
 
   it('skips a dedicated cover slice, which never participates in navigation', () => {
     const col = collection(4, { cover_slice_index: 0, has_dedicated_cover: true });
     // nav indices are 1,2,3 (0 is the dedicated cover); current=2 -> forward [3], backward [1] -> rest is [0]
-    expect(candidateOrder(col, {}, 2)).toEqual([3, 1, 0]);
+    expect(candidateOrder(cat, col, {}, 2)).toEqual([3, 1, 0]);
   });
 
   it('never retries a slice already known empty', () => {
     const col = collection(5);
     const empties: Empties = { [emptyKey(1, 3)]: true };
     // current=1 -> nav=[0,1,2,4] (3 excluded); forward [2,4]; backward [0]; rest empty (3 is known-empty)
-    expect(candidateOrder(col, empties, 1)).toEqual([2, 4, 0]);
+    expect(candidateOrder(cat, col, empties, 1)).toEqual([2, 4, 0]);
   });
 });
 

@@ -23,7 +23,7 @@ export function TimelineSidebar() {
     () => timelineCollections(catalog, view?.source_ids ?? [], address?.sourceId ?? null),
     [catalog, view, address?.sourceId]
   );
-  const range = useMemo(() => timelineRange(collections), [collections]);
+  const range = useMemo(() => timelineRange(catalog, collections), [catalog, collections]);
 
   // The ticks don't move while scrubbing, and the scrub tooltip re-renders on
   // every pointer move - holding them as one memoized element keeps those

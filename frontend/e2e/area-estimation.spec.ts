@@ -109,13 +109,13 @@ test('sizes a sample from the target precision and locks the set it lives in', a
   expect(created).toEqual([SAMPLE_SET_NAME]);
 
   // The sample set is closed to anything the design did not draw.
-  await expect(page.getByRole('heading', { name: 'Add annotation tasks' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add tasks' })).toHaveCount(0);
   await expect(page.getByTitle('Rename set')).toHaveCount(0);
   await expect(page.getByTitle('Delete set')).toHaveCount(0);
 
   // Ordinary sets keep their controls, and their own way of getting tasks.
   await page.goto('/projects/7/campaigns/42/tasks?taskSet=1');
-  await expect(page.getByRole('heading', { name: 'Add annotation tasks' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add tasks' })).toBeVisible();
   await expect(page.getByTitle('Rename set')).toBeVisible();
 
   // The estimate has its own section on the overview and is not repeated as

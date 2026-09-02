@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
-import { CollapsibleSection } from '~/shared/ui/CollapsibleSection';
+import { Modal } from '~/shared/ui/Modal';
 import { TaskModeReview } from '~/features/campaigns/components/review/TaskModeReview';
 import Statistics from '~/features/campaigns/components/review/Statistics';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
@@ -16,8 +16,9 @@ import type {
   TaskSetOut,
 } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
+import { Tooltip } from '~/shared/ui/Tooltip';
 import { FileInput } from '~/shared/ui/FileInput';
-import { IconChevronLeft } from '~/shared/ui/Icons';
+import { IconChevronLeft, IconImportExport, IconPlus } from '~/shared/ui/Icons';
 import { AreaEstimationSetup } from '~/features/areaEstimation/AreaEstimation';
 
 interface Props {
@@ -30,7 +31,8 @@ interface Props {
   taskFile: File | null;
   setTaskFile: (f: File | null) => void;
   uploadingTasks: boolean;
-  handleUploadAnnotationTasks: () => void;
+  /** Resolves true once the file landed, so the host can close the dialog it sits in. */
+  handleUploadAnnotationTasks: () => Promise<boolean>;
   handleTasksGenerated: (response: GenerateTasksResponse) => void;
   onTaskGenerationError: (message: string) => void;
   onOpenBulkAssign: () => void;
@@ -94,8 +96,25 @@ export const TasksTab: React.FC<Props> = ({
   // the set list and the task table would otherwise repeat under every step of
   // it, and neither can be acted on until the sample is drawn.
   const [designEditing, setDesignEditing] = useState(false);
-  useEffect(() => setDesignEditing(false), [taskScope]);
+  // Adding tasks and moving assignments around are occasional admin errands, so they
+  // live behind the task list's own header rather than as sections competing with it.
+  const [openDialog, setOpenDialog] = useState<'add-tasks' | 'assignments' | null>(null);
+  useEffect(() => {
+    setDesignEditing(false);
+    setOpenDialog(null);
+  }, [taskScope]);
   const writingDesign = scopeIsLocked && designEditing;
+
+  // A sample set the design owns takes no hand-added tasks at all, so the button is
+  // gone there. Across all sets it stays put but disabled: there is no one set to
+  // upload into, and hiding it would just look like the control had moved.
+  const canAddTasks = canManage && !scopeIsLocked;
+  const noSetToAddTo = taskScope === 'all';
+  const canMoveAssignments = canManage && totalTasks > 0;
+
+  const uploadThenClose = async () => {
+    if (await handleUploadAnnotationTasks()) setOpenDialog(null);
+  };
 
   const areaEstimationSection = scopedSet && (
     <section className={sectionCls}>
@@ -108,15 +127,12 @@ export const TasksTab: React.FC<Props> = ({
     </section>
   );
 
-  const addTasksSection = (
-    <section className={sectionCls}>
-      <div>
-        <h2 className="section-heading">Add annotation tasks</h2>
-        <p className="section-description">
-          Tasks define the points or polygons annotators will label. Upload existing locations or
-          generate them with random/grid sampling into <strong>{scopedSet?.name}</strong>.
-        </p>
-      </div>
+  const addTasksBody = (
+    <div className="p-5 space-y-4">
+      <p className="section-description">
+        Tasks define the points or polygons annotators will label. Upload existing locations or
+        generate them with random/grid sampling into <strong>{scopedSet?.name}</strong>.
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
@@ -169,7 +185,7 @@ export const TasksTab: React.FC<Props> = ({
               onSelect={setTaskFile}
             />
             <Button
-              onClick={handleUploadAnnotationTasks}
+              onClick={uploadThenClose}
               disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
             >
               Upload
@@ -182,17 +198,55 @@ export const TasksTab: React.FC<Props> = ({
         <TaskGenerationSection
           campaignId={campaignId}
           taskSetId={taskScope}
-          onTasksGenerated={handleTasksGenerated}
+          onTasksGenerated={(response) => {
+            setOpenDialog(null);
+            handleTasksGenerated(response);
+          }}
           onError={onTaskGenerationError}
         />
       )}
-    </section>
+    </div>
   );
 
   const tasksTableHeading = (
     <h2 className="section-heading">
       Annotation tasks <span className="text-neutral-400 font-normal">({scopedTasks.length})</span>
     </h2>
+  );
+
+  const addTasksButton = (
+    <Button
+      size="sm"
+      disabled={noSetToAddTo}
+      onClick={() => setOpenDialog('add-tasks')}
+      leading={<IconPlus className="w-3.5 h-3.5" />}
+    >
+      Add tasks
+    </Button>
+  );
+
+  const tasksTableActions = (canAddTasks || canMoveAssignments) && (
+    <>
+      {canMoveAssignments && (
+        <button
+          type="button"
+          onClick={() => setOpenDialog('assignments')}
+          className="h-8 w-8 inline-flex items-center justify-center rounded text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
+          title="Export or import who these tasks are assigned to"
+          aria-label="Export or import assignments"
+        >
+          <IconImportExport className="w-4 h-4" />
+        </button>
+      )}
+      {canAddTasks &&
+        (noSetToAddTo ? (
+          <Tooltip text="Select the task set to upload or generate tasks into.">
+            {addTasksButton}
+          </Tooltip>
+        ) : (
+          addTasksButton
+        ))}
+    </>
   );
 
   const tasksTable = (
@@ -206,6 +260,7 @@ export const TasksTab: React.FC<Props> = ({
           hideSetFilter
           embedded
           headerSlot={tasksTableHeading}
+          headerActions={tasksTableActions}
           selectable={canManage}
           onOpenBulkAssign={canManage ? onOpenBulkAssign : undefined}
           onOpenReviewerAssign={canManage ? onOpenReviewerAssign : undefined}
@@ -218,7 +273,12 @@ export const TasksTab: React.FC<Props> = ({
         />
       ) : (
         <>
-          <div>{tasksTableHeading}</div>
+          <div className="flex items-center gap-2">
+            {tasksTableHeading}
+            {tasksTableActions && (
+              <div className="ml-auto flex items-center gap-2">{tasksTableActions}</div>
+            )}
+          </div>
           <p className="text-sm text-neutral-500">
             {scopeIsLocked
               ? 'No sampling units drawn yet. They appear here once the design above is finished.'
@@ -226,7 +286,7 @@ export const TasksTab: React.FC<Props> = ({
                 ? 'No annotation tasks in this set yet.'
                 : taskScope === 'all'
                   ? 'No annotation tasks yet. Select a set to upload or generate tasks.'
-                  : 'No tasks in this set yet. Upload a file or generate tasks above.'}
+                  : 'No tasks in this set yet. Add tasks to upload a file or generate them.'}
           </p>
         </>
       )}
@@ -282,39 +342,41 @@ export const TasksTab: React.FC<Props> = ({
           </section>
         )}
 
-        {taskScope !== 'all' &&
-          (scopeIsLocked
-            ? areaEstimationSection
-            : canManage && (
-                <section className={sectionCls}>
-                  <CollapsibleSection
-                    title="Add annotation tasks"
-                    description="Upload locations as CSV or GeoJSON, or generate them across the campaign area."
-                  >
-                    {addTasksSection}
-                  </CollapsibleSection>
-                </section>
-              ))}
-
-        {canManage && totalTasks > 0 && (
-          <section className={sectionCls}>
-            <CollapsibleSection
-              title="Task assignments"
-              description="Export assignees and reviewers as CSV, edit, and re-upload to apply changes."
-              meta={taskScope === 'all' ? 'whole campaign' : 'this task set'}
-            >
-              <TaskAssignmentsExportImport
-                campaignId={campaignId}
-                campaignName={campaign.name}
-                taskSetId={taskScope === 'all' ? undefined : taskScope}
-                onImported={onAssignmentsImported}
-              />
-            </CollapsibleSection>
-          </section>
-        )}
+        {taskScope !== 'all' && scopeIsLocked && areaEstimationSection}
 
         {!writingDesign && tasksTable}
       </div>
+
+      {openDialog === 'add-tasks' && (
+        <Modal
+          title={`Add annotation tasks to ${scopedSet?.name ?? 'this set'}`}
+          onClose={() => setOpenDialog(null)}
+          maxWidth="max-w-3xl"
+        >
+          {addTasksBody}
+        </Modal>
+      )}
+
+      {openDialog === 'assignments' && (
+        <Modal
+          title="Export or import assignments"
+          onClose={() => setOpenDialog(null)}
+          maxWidth="max-w-xl"
+        >
+          <div className="p-5 space-y-3">
+            <p className="section-description">
+              Who each task is assigned to and who reviews it, as a CSV to edit and upload again.
+              This never creates or removes tasks.
+            </p>
+            <TaskAssignmentsExportImport
+              campaignId={campaignId}
+              campaignName={campaign.name}
+              taskSetId={taskScope === 'all' ? undefined : taskScope}
+              onImported={onAssignmentsImported}
+            />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

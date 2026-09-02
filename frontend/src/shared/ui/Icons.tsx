@@ -85,6 +85,15 @@ export const IconChevronDoubleLeft = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+/** The download/upload tray with both arrows: a file going out and coming back in. */
+export const IconImportExport = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M3 12.5v2A2.5 2.5 0 0 0 5.5 17h9a2.5 2.5 0 0 0 2.5-2.5v-2" />
+    <path d="M6.5 3v7M4 7.5 6.5 10 9 7.5" />
+    <path d="M13.5 10V3M11 5.5 13.5 3 16 5.5" />
+  </svg>
+);
+
 export const IconMap = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M7 3L2 5.5v12L7 15l6 2.5 5-2.5v-12L13 5 7 3z" />
@@ -170,6 +179,14 @@ export const IconSearch = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <circle cx="8.5" cy="8.5" r="5.5" />
     <path d="M17 17l-3.5-3.5" />
+  </svg>
+);
+
+/** Bring this up to date: the arrow-path loop. Drawn on the 24-grid it was designed
+ *  on, like IconProbe, so the arrowheads keep their shape at header size. */
+export const IconRefresh = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className} viewBox="0 0 24 24">
+    <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
   </svg>
 );
 

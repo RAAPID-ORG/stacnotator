@@ -3293,6 +3293,27 @@ export type PlanetMosaicOut = {
 };
 
 /**
+ * PlanetSceneLayersIn
+ *
+ * The dates to mint tile layers for, over the extent they were found on.
+ */
+export type PlanetSceneLayersIn = {
+    /**
+     * Bbox
+     */
+    bbox: [
+        number,
+        number,
+        number,
+        number
+    ];
+    /**
+     * Slice Ids
+     */
+    slice_ids: Array<number>;
+};
+
+/**
  * PlanetScenePeriodOut
  *
  * One window or slice as planned: the dates it covers.
@@ -3360,7 +3381,10 @@ export type PlanetSceneSearchOut = {
 /**
  * PlanetSceneSliceOut
  *
- * One of the source's slices, and the layer minted for it over this extent.
+ * One of the source's slices, and what this extent has for it.
+ *
+ * ``layer_id`` is null for a date that holds imagery but has no tile layer yet: a
+ * search mints the covers only, and the rest are minted when they are opened.
  */
 export type PlanetSceneSliceOut = {
     /**
@@ -3374,7 +3398,7 @@ export type PlanetSceneSliceOut = {
     /**
      * Layer Id
      */
-    layer_id: string;
+    layer_id?: string | null;
 };
 
 /**
@@ -9261,6 +9285,40 @@ export type SearchPlanetScenesResponses = {
 };
 
 export type SearchPlanetScenesResponse = SearchPlanetScenesResponses[keyof SearchPlanetScenesResponses];
+
+export type MintPlanetSceneLayersData = {
+    body: PlanetSceneLayersIn;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Source Id
+         */
+        source_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-scenes/layers';
+};
+
+export type MintPlanetSceneLayersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MintPlanetSceneLayersError = MintPlanetSceneLayersErrors[keyof MintPlanetSceneLayersErrors];
+
+export type MintPlanetSceneLayersResponses = {
+    /**
+     * Successful Response
+     */
+    200: PlanetSceneSearchOut;
+};
+
+export type MintPlanetSceneLayersResponse = MintPlanetSceneLayersResponses[keyof MintPlanetSceneLayersResponses];
 
 export type CreateImageryViewData = {
     body: ImageryViewCreate;

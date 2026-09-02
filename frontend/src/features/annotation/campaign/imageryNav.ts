@@ -154,19 +154,26 @@ export function taskLandingCollectionId(
 }
 
 /** Every index, for the date dropdown - the dedicated cover included. */
-export function slicePickerIndices(collection: Pick<ImageryCollectionOut, 'slices'>): number[] {
-  return collection.slices.flatMap((slice, i) => (sliceHasImagery(slice) ? [i] : []));
+export function slicePickerIndices(
+  cat: ImageryCatalog,
+  collection: Pick<ImageryCollectionOut, 'slices'>
+): number[] {
+  return collection.slices.flatMap((slice, i) => (sliceHasImagery(cat, slice) ? [i] : []));
 }
 
 /** Indices a/d steps through: regular slices that are neither a dedicated
  *  cover nor known to be empty here. */
-export function sliceNavIndices(collection: ImageryCollectionOut, empties: Empties): number[] {
+export function sliceNavIndices(
+  cat: ImageryCatalog,
+  collection: ImageryCollectionOut,
+  empties: Empties
+): number[] {
   const cover = coverIndex(collection);
   const out: number[] = [];
   for (let i = 0; i < collection.slices.length; i++) {
     if (collection.has_dedicated_cover && i === cover) continue;
     if (empties[emptyKey(collection.id, i)]) continue;
-    if (!sliceHasImagery(collection.slices[i])) continue;
+    if (!sliceHasImagery(cat, collection.slices[i])) continue;
     out.push(i);
   }
   return out;
@@ -212,7 +219,7 @@ export function stepSlice(
   const collection = cat.collections.get(addr.collectionId);
   if (!collection) return null;
 
-  const nav = sliceNavIndices(collection, empties);
+  const nav = sliceNavIndices(cat, collection, empties);
   const next =
     dir === 1
       ? nav.find((i) => i > addr.sliceIndex)
@@ -221,7 +228,7 @@ export function stepSlice(
 
   const target = neighbor(cat, addr, dir);
   if (!target) return null;
-  const navigable = sliceNavIndices(target, empties);
+  const navigable = sliceNavIndices(cat, target, empties);
   const landing =
     navigable.length === 0
       ? coverIndex(target)

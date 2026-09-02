@@ -1,18 +1,19 @@
 import type { ImagerySourceOut } from '~/api/client';
-import { IconSearch } from '~/shared/ui/Icons';
+import { IconRefresh } from '~/shared/ui/Icons';
 import { useCatalog } from '../../stores/campaign';
 import { loadScenesHere, useScenesLoadable, useScenesStore } from '../../stores/scenes';
 
 /** What a load actually does, said the same way wherever it is offered. */
 export const SCENE_LOAD_HINT =
-  'Searches Planet scnenes over the current viewport is on screen. One search per date (slice) - and builds each date ' +
-  'from the clearest scenes it finds. Dates with nothing here stay empty. Worth doing ' +
-  'when the imagery looks poor or there is none; moving the map only needs another ' +
-  'load once you leave what was searched.';
+  'Load Planet imagery for this viewport: the dates with imagery here become ' +
+  'steppable, each built from the clearest scenes it finds, and the rest stay empty. ' +
+  'Worth doing when the imagery looks poor or there is none; moving the map only ' +
+  'needs another load once you leave what was loaded.';
 
 /** Fills a scene source's dates in from the archive over whatever is on screen.
  *  Deliberately pressed rather than fired on every pan: each load spends the
- *  organization's Planet rate limit on a search per date. */
+ *  organization's Planet rate limit. An icon alone in here - a window header has
+ *  room for the date it is showing, and little else. */
 export function SceneLoadButton({ source }: { source: ImagerySourceOut }) {
   const catalog = useCatalog();
   const loading = useScenesStore((state) => state.loading[source.id] ?? false);
@@ -26,7 +27,7 @@ export function SceneLoadButton({ source }: { source: ImagerySourceOut }) {
       disabled={loading || tooWide}
       title={
         tooWide
-          ? 'Zoom in to load Planet imagery: a view this wide holds more archive than one search should ask for.'
+          ? 'Zoom in to load Planet imagery: a viewport this wide holds more archive than one search should ask for.'
           : SCENE_LOAD_HINT
       }
       onClick={(e) => {
@@ -34,14 +35,14 @@ export function SceneLoadButton({ source }: { source: ImagerySourceOut }) {
         loadScenesHere([source], catalog.campaignId);
       }}
       onMouseDown={(e) => e.stopPropagation()}
-      className={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
+      className={`flex shrink-0 items-center rounded p-0.5 ${
         loading || tooWide
           ? 'cursor-not-allowed text-neutral-400'
           : 'text-brand-700 hover:bg-brand-700/10 cursor-pointer'
       }`}
+      aria-label="Load Planet imagery for this viewport"
     >
-      <IconSearch className="h-3 w-3" />
-      {loading ? 'Loading…' : 'Load viewport'}
+      <IconRefresh className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
     </button>
   );
 }

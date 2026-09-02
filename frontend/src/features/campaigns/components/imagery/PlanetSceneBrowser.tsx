@@ -270,14 +270,7 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
           list.
         </p>
 
-        <PlanetKeyConnect
-          projectId={projectId}
-          credentials={credentials}
-          onChange={(next) => {
-            setWindows(null);
-            setCredentials(next);
-          }}
-        />
+        <PlanetKeyConnect projectId={projectId} onChange={setCredentials} />
 
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">

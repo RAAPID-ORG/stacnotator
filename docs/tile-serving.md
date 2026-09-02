@@ -41,6 +41,25 @@ Any standard XYZ tile URL (`https://.../{z}/{x}/{y}.png`) can be used directly. 
 
 **Planet basemaps are this case**, filled in automatically. Planet publishes its temporal structure through the Basemaps API's *series* rather than STAC, and serves each mosaic as finished XYZ tiles, so `backend/src/planet/` only reads that structure: it lists the series a key can see and turns each mosaic's tile link into a storable `{api_key}` template (`planet/tiles.py` - the link Planet returns carries the live key, which never leaves the backend). The wizard expands a series into ordinary manual collections, one slice per mosaic. Nothing is searched or registered, so the slices are renderable the moment they are saved, and the tiles then take route 4 below. The browse endpoints are POSTs whose body names either an organization key or one provided for this campaign - a pasted key is a secret, and query strings reach access logs. Analytic series expose their renderings through Planet's `proc` parameter, giving one `SliceTileUrl` per visualization exactly as elsewhere.
 
+**Planet scene sources are the same route, filled in at annotation time.** A PlanetScope
+scene is about 25 km across and a campaign area can be a country, so a scene source is
+set up with dates only: the wizard stores the generator config and empty slices, and
+nothing is asked of Planet until an annotator is standing somewhere
+(`imagery/router.py`'s `planet-scenes/search`). That search covers the source's whole
+range over the current viewport in as few requests as the archive allows -
+`planet/client.py` cuts the range into chunks and halves a chunk only when it says it
+ran out of pages, so a year of two-day slices costs a handful of searches rather than
+one per date. Which dates hold imagery comes back straight away and they become
+steppable; a date is only *drawable* once its scenes are minted into a Planet tile layer
+(`POST tiles.planet.com/data/v1/layers`), which is one request per date. The search
+mints each window's cover, and `planet-scenes/layers` mints the rest a batch at a time
+(`annotation/stores/scenes.ts`): the date on screen and the next ones along jump the
+queue, and a steady fill behind them works through every date the search found - for
+the task being worked on and for the ones searched ahead of it, so arriving at a
+prefetched task draws every date without a request. The fill for a view that is no
+longer coming up is dropped rather than finished. Requests are paced per host, adaptively: the Data API
+and the tile host have separate budgets, and both widen on a 429.
+
 ### 4. Backend key proxy
 
 XYZ templates that contain an `{api_key}` placeholder (key-protected providers and basemaps) are never passed to the map. The frontend rewrites them to backend endpoints (`/api/{campaign_id}/imagery/slices|basemaps/.../tiles/{z}/{x}/{y}`, see `proxyTile.ts`); the backend decrypts the provider key server-side (`imagery/proxy_router.py`), fetches the upstream tile, and returns it with long-lived caching. Requests are authorized via the same `tiler_token` cookie the hosted tiler uses, so the key never reaches the client.

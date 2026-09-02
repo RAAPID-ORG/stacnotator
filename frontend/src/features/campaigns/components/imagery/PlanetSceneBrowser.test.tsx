@@ -1,12 +1,16 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlanetSceneBrowser } from './PlanetSceneBrowser';
+
+const { orgKeys } = vi.hoisted(() => ({
+  orgKeys: { items: [] as { id: number; name: string }[] },
+}));
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
   return {
     ...actual,
-    getProjectOrganizationKeys: vi.fn(() => Promise.resolve({ data: { items: [] } })),
+    getProjectOrganizationKeys: vi.fn(() => Promise.resolve({ data: { items: orgKeys.items } })),
     planPlanetScenes: vi.fn(() =>
       Promise.resolve({
         data: [
@@ -25,6 +29,13 @@ vi.mock('~/api/client', async () => {
 import { planPlanetScenes } from '~/api/client';
 
 describe('PlanetSceneBrowser', () => {
+  beforeEach(() => {
+    orgKeys.items = [];
+    // The plan mock is shared by the whole file, and these tests count its calls -
+    // one test's calls must not answer the next one's wait.
+    vi.mocked(planPlanetScenes).mockClear();
+  });
+
   it('shows what will be created without being asked', async () => {
     render(<PlanetSceneBrowser projectId={1} onAdd={async () => {}} onClose={() => {}} />);
 
@@ -48,5 +59,13 @@ describe('PlanetSceneBrowser', () => {
     expect(vi.mocked(planPlanetScenes).mock.lastCall?.[0].body.config.slice_period_unit).toBe(
       'weeks'
     );
+  });
+
+  it('is ready to add with an organization key, without a connect step', async () => {
+    orgKeys.items = [{ id: 7, name: 'Shared Planet key' }];
+    render(<PlanetSceneBrowser projectId={1} onAdd={async () => {}} onClose={() => {}} />);
+
+    const add = await screen.findByRole('button', { name: 'Add source' });
+    await waitFor(() => expect(add.hasAttribute('disabled')).toBe(false));
   });
 });

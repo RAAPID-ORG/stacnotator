@@ -73,13 +73,18 @@ export function nextProbe(state: ProbeState, empty: boolean): ProbeState {
  *  series), then backward, then any remaining slice (e.g. a custom cover) as
  *  a last resort. Already-known-empty slices are skipped via
  *  `sliceNavIndices`'s `empties` filter, matching stepSlice/stepCollection's
- *  own candidate set. */
+ *  own candidate set. A date whose layer has not been minted yet is left out
+ *  too: probing it would answer "empty" about a tile that does not exist yet
+ *  and record that against the date itself. It becomes a candidate as soon as
+ *  it is drawable, which rebuilds the catalog and re-runs the search. */
 export function candidateOrder(
+  cat: ImageryCatalog,
   collection: ImageryCollectionOut,
   empties: Empties,
   currentIndex: number
 ): number[] {
-  const nav = sliceNavIndices(collection, empties);
+  const drawable = (i: number) => (collection.slices[i]?.tile_urls.length ?? 0) > 0;
+  const nav = sliceNavIndices(cat, collection, empties).filter(drawable);
   const navSet = new Set(nav);
   const forward = nav.filter((i) => i > currentIndex);
   const backward = [...nav].reverse().filter((i) => i < currentIndex);
@@ -87,7 +92,10 @@ export function candidateOrder(
   // already known empty is skipped entirely rather than retried last.
   const rest = collection.slices
     .map((_, i) => i)
-    .filter((i) => i !== currentIndex && !navSet.has(i) && !empties[emptyKey(collection.id, i)]);
+    .filter(
+      (i) =>
+        i !== currentIndex && !navSet.has(i) && drawable(i) && !empties[emptyKey(collection.id, i)]
+    );
   return [...forward, ...backward, ...rest];
 }
 
@@ -233,7 +241,7 @@ export function useEmptyHealing(args: UseEmptyHealingArgs): EmptyHealingResult {
       const currentlyEmpty = await probeEmpty(current, controller.signal);
       if (controller.signal.aborted || !currentlyEmpty) return;
 
-      const order = candidateOrder(collection, empties, address.sliceIndex);
+      const order = candidateOrder(catalog, collection, empties, address.sliceIndex);
       const candidates = order.map((i) => ({ index: i, label: candidateLabel(collection, i) }));
       let probe = startProbe(address.sliceIndex, candidates);
       setState(probe);
