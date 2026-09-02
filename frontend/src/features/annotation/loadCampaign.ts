@@ -6,6 +6,7 @@ import { seedFilter } from './campaign/tasks';
 import { startCollectionFor, useCampaignStore, type WorkMode } from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
 import { useLayoutStore } from './stores/layout';
+import { resetScenes } from './stores/scenes';
 import { useTasksStore } from './stores/tasks';
 import { useWorkStore } from './stores/work';
 
@@ -59,6 +60,7 @@ export async function loadCampaign(
   const startCollectionId = startCollectionFor(catalog, view, layout.windows);
 
   useWorkStore.getState().resetAll();
+  resetScenes();
   useCampaignStore.setState({
     campaign,
     catalog,

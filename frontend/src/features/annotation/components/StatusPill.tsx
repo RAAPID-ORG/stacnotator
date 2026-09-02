@@ -1,9 +1,21 @@
 import type { ReactNode } from 'react';
 
-/** Transient status line over a map: zoom hints, imagery searches, loading. */
-export function StatusPill({ children }: { children: ReactNode }) {
+/** Transient status line over a map: zoom hints, imagery searches, loading.
+ *  `interactive` for the few that offer something to press - the rest must not
+ *  take clicks off the map underneath. */
+export function StatusPill({
+  children,
+  interactive = false,
+}: {
+  children: ReactNode;
+  interactive?: boolean;
+}) {
   return (
-    <div className="pointer-events-none absolute bottom-1.5 left-1/2 z-[1000] -translate-x-1/2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white">
+    <div
+      className={`absolute bottom-1.5 left-1/2 z-[1000] -translate-x-1/2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white ${
+        interactive ? '' : 'pointer-events-none'
+      }`}
+    >
       {children}
     </div>
   );

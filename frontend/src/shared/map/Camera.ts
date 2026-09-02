@@ -198,6 +198,34 @@ export class Camera {
   }
 }
 
+/**
+ * A value derived from the camera, re-rendered only when the value itself changes.
+ *
+ * The camera publishes a snapshot on every frame it moves, so subscribing to the
+ * snapshot re-renders through every frame of every pan. Most callers want an answer
+ * that changes far less often than that - a threshold crossed, a box still covered -
+ * and this gives them only that. `select` must be stable (module scope or
+ * `useCallback`); it is a subscription dependency.
+ */
+export function useCameraValue<T>(camera: Camera, select: (state: CameraSnapshot) => T): T {
+  const [value, setValue] = useState(() => select(snapshotOf(camera)));
+  useEffect(() => {
+    setValue(() => select(snapshotOf(camera)));
+    return camera.onChange((state) =>
+      setValue((current) => {
+        const next = select(state);
+        return Object.is(next, current) ? current : next;
+      })
+    );
+  }, [camera, select]);
+  return value;
+}
+
+const snapshotOf = (camera: Camera): CameraSnapshot => ({
+  ...camera.getState(),
+  bounds: camera.getBounds(),
+});
+
 /** A camera's zoom, re-rendered as it moves. */
 export function useCameraZoom(camera: Camera): number {
   const [zoom, setZoom] = useState(() => camera.getState().zoom);

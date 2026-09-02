@@ -34,6 +34,8 @@ import { ViewControls } from './controls/ViewControls';
 import { TimelineSidebar } from './TimelineSidebar';
 import { SelectionControls } from './SelectionControls';
 import { usePreloading } from './usePreloading';
+import { useSceneNotice } from './SceneNotice';
+import { useSceneAutoLoad } from '../../stores/scenes';
 
 /** Stable empty array: a fresh [] each render would recompose the layers. */
 const EMPTY_PROBES: LonLat[] = [];
@@ -275,6 +277,7 @@ function DraftQuestionsHint({ missing }: { missing: string[] }) {
 function MapNotice() {
   const mode = useCampaignStore((s) => s.workMode);
   const needsLabel = useWorkStore((s) => s.tool === 'annotate' && s.selectedLabelId === null);
+  const sceneNotice = useSceneNotice();
 
   if (mode === 'explore' && needsLabel) {
     return (
@@ -285,7 +288,9 @@ function MapNotice() {
       </StatusPill>
     );
   }
-  return <AnnotationZoomNotice />;
+  // Above the zoom hint: imagery that stopped at the edge of the last search is the
+  // more urgent of the two, and only one pill fits the slot.
+  return sceneNotice ?? <AnnotationZoomNotice />;
 }
 
 export function MainMapBody() {
@@ -384,6 +389,10 @@ export function MainMapBody() {
   // Nothing else moves the leader camera off state: task navigation changes the
   // focus, and this is what turns that into a camera move.
   useFocusCamera(mode, workingZoom);
+
+  // Same idea as the tile preloader below, one level up: the scenes each upcoming
+  // task will need are searched for while this one is being worked on.
+  useSceneAutoLoad();
 
   usePreloading({
     enabled: mode === 'tasks',

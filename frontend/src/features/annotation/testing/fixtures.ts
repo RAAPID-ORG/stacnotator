@@ -10,8 +10,10 @@ import type {
   CustomMapOut,
   ImageryCollectionOut,
   ImagerySliceOut,
+  ImageryGenerationSeriesOut,
   ImagerySourceOut,
   ImageryViewOut,
+  PlanetScenesGenerationConfigV1,
   SliceTileUrlOut,
   TaskSetOut,
   TimeSeriesOut,
@@ -101,6 +103,27 @@ export function makeSource(overrides: Partial<ImagerySourceOut> = {}): ImagerySo
     visualizations: [],
     collections: [],
     ...overrides,
+  };
+}
+
+/** A Planet scene series - the mark that makes a source one whose imagery is searched
+ *  for at annotation time rather than registered up front. */
+export function makeSceneSeries(
+  overrides: Partial<PlanetScenesGenerationConfigV1> = {}
+): ImageryGenerationSeriesOut {
+  return {
+    id: 1,
+    config: {
+      kind: 'planet_scenes',
+      start_date: '2024-01-01',
+      end_date: '2024-03-01',
+      collection_period_interval: 1,
+      collection_period_unit: 'months',
+      slice_period_interval: 3,
+      slice_period_unit: 'days',
+      whole_window_cover: true,
+      ...overrides,
+    },
   };
 }
 

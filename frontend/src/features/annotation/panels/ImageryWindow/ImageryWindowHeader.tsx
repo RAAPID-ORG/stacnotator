@@ -2,14 +2,14 @@ import type { ImageryCollectionOut } from '~/api/client';
 import { sliceLabel } from '../../campaign/imagery';
 import { emptyKey } from '../../campaign/imageryNav';
 import { slicePickerIndices } from '../../campaign/imageryNav';
+import { sceneSourceOf } from '../../campaign/scenes';
 import { useImageryStore } from '../../stores/imagery';
 import { useCatalog } from '../../stores/campaign';
 import { useSliceNotes } from '../../stores/work';
 import { HeaderSelect } from '../../components/HeaderSelect';
 import { NoteBadge, SliceCommentButton } from '../../chrome/SliceComments';
 import { selectWindowSlice, windowAddress } from './ImageryWindow';
-import { SceneSearchButton } from './SceneSearchButton';
-import { sceneSourceOf } from './useSceneSearch';
+import { SceneLoadButton } from './SceneLoadButton';
 
 export interface ImageryWindowHeaderProps {
   collection: ImageryCollectionOut;
@@ -55,7 +55,7 @@ export function ImageryWindowHeader({ collection }: ImageryWindowHeaderProps) {
           />
         </span>
       )}
-      {sceneSource && <SceneSearchButton source={sceneSource} />}
+      {sceneSource && <SceneLoadButton source={sceneSource} />}
       <SliceCommentButton compact address={address} hint="or double-click the map" />
     </div>
   );
