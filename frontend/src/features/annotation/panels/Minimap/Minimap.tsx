@@ -46,13 +46,58 @@ function densityLayer(cells: AnnotationDensityCell[]): FeatureLayerSpec | null {
   };
 }
 
-export function MinimapHeader() {
-  const [expanded, setExpanded] = useState(false);
+/** The live centre, and the two things that act on it, as leaves of their own: the
+ *  camera publishes a snapshot on every frame it moves, and the header holds the
+ *  location search box, which must not re-render with it. */
+function ViewportCenter() {
+  const center = useCameraCenter(mainCamera);
+  return (
+    <span
+      data-testid="viewport-center"
+      className="truncate text-xs font-medium tabular-nums text-neutral-700"
+    >
+      {center[1].toFixed(5)}, {center[0].toFixed(5)}
+    </span>
+  );
+}
+
+function CenterActions() {
   const center = useCameraCenter(mainCamera);
 
-  const copyCoordinates = () => {
-    void navigator.clipboard?.writeText(`${center[1].toFixed(5)},${center[0].toFixed(5)}`);
-  };
+  return (
+    <>
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() =>
+          void navigator.clipboard?.writeText(`${center[1].toFixed(5)},${center[0].toFixed(5)}`)
+        }
+        title="Copy coordinates to clipboard"
+        className="p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 rounded transition-colors"
+      >
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+          <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+        </svg>
+      </button>
+      <a
+        href={`https://earth.google.com/web/search/${center[1]},${center[0]}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open in Google Earth"
+        data-tour="open-in-google-earth"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        className="p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 rounded transition-colors"
+      >
+        <IconExternalLink className="h-3 w-3" />
+      </a>
+    </>
+  );
+}
+
+export function MinimapHeader() {
+  const [expanded, setExpanded] = useState(false);
 
   const onSelect = (result: GeocodingResult) => {
     mainCamera.moveTo({ center: result.center });
@@ -61,51 +106,11 @@ export function MinimapHeader() {
 
   return (
     <div className="flex w-full min-w-0 items-center gap-2">
-      {!expanded && (
-        <span
-          data-testid="viewport-center"
-          className="truncate text-xs font-medium tabular-nums text-neutral-700"
-        >
-          {center[1].toFixed(5)}, {center[0].toFixed(5)}
-        </span>
-      )}
+      {!expanded && <ViewportCenter />}
       <div
         className={`flex min-w-0 items-center gap-0.5 ${expanded ? 'flex-1' : 'ml-auto shrink-0'}`}
       >
-        {!expanded && (
-          <>
-            <button
-              type="button"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={copyCoordinates}
-              title="Copy coordinates to clipboard"
-              className="p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 rounded transition-colors"
-            >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
-              </svg>
-            </button>
-            <a
-              href={`https://earth.google.com/web/search/${center[1]},${center[0]}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Open in Google Earth"
-              data-tour="open-in-google-earth"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              className="p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 rounded transition-colors"
-            >
-              <IconExternalLink className="h-3 w-3" />
-            </a>
-          </>
-        )}
+        {!expanded && <CenterActions />}
         <LocationSearch
           expanded={expanded}
           onExpandedChange={setExpanded}
