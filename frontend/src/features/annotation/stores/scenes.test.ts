@@ -11,6 +11,7 @@ import {
   makeView,
   makeViz,
 } from '../testing/fixtures';
+import { isForegroundLoading } from '~/shared/map/tileLoading';
 import { useCampaignStore } from './campaign';
 import {
   forgetSpeculative,
@@ -23,7 +24,9 @@ import {
 vi.mock('~/api/client/sdk.gen', async (original) => ({
   ...(await original<typeof import('~/api/client/sdk.gen')>()),
   searchPlanetScenes: vi.fn(),
-  mintPlanetSceneLayers: vi.fn(),
+  // Answers nothing by default: the tests about searching are not about the fill that
+  // follows one, and it must not be left calling into an unmocked promise.
+  mintPlanetSceneLayers: vi.fn(() => Promise.resolve({ data: { slices: [], errors: [] } })),
 }));
 
 import { mintPlanetSceneLayers, searchPlanetScenes } from '~/api/client';
@@ -84,9 +87,9 @@ function seedCampaign(): ImagerySourceOut {
   return source;
 }
 
-/** Enough dates to need more than one batch of mints, which is what lets a test see
- *  the date being opened overtake the fill behind it. */
-const DATE_IDS = Array.from({ length: 20 }, (_, i) => 1001 + i);
+/** Enough dates to need several batches of mints, which is what lets a test see the
+ *  date being opened overtake the fill behind it. */
+const DATE_IDS = Array.from({ length: 60 }, (_, i) => 1001 + i);
 
 /** What a search answers: the window's cover is minted, the dates inside it are only
  *  reported as holding imagery. */
@@ -182,13 +185,14 @@ describe('the layers for the dates a search found', () => {
   interface Mint {
     bbox: number[];
     sliceIds: number[];
+    answered: boolean;
     answer: () => void;
   }
 
   let mints: Mint[];
 
-  /** Mints that only finish when the test says so, which is how one can be caught in
-   *  flight while the queue behind it is reordered. */
+  /** Mints that only finish when the test says so, which is how the queue behind one
+   *  can be caught mid-flight. */
   function deferMints(): void {
     mints = [];
     vi.mocked(mintPlanetSceneLayers).mockImplementation(((options: {
@@ -197,10 +201,12 @@ describe('the layers for the dates a search found', () => {
     }) => {
       return new Promise((resolve, reject) => {
         options.signal.addEventListener('abort', () => reject(new Error('aborted')));
-        mints.push({
+        const mint: Mint = {
           bbox: options.body.bbox,
           sliceIds: options.body.slice_ids,
-          answer: () =>
+          answered: false,
+          answer: () => {
+            mint.answered = true;
             resolve({
               data: {
                 slices: options.body.slice_ids.map((id) => ({
@@ -210,11 +216,25 @@ describe('the layers for the dates a search found', () => {
                 })),
                 errors: [],
               },
-            }),
-        });
+            });
+          },
+        };
+        mints.push(mint);
       });
     }) as unknown as typeof mintPlanetSceneLayers);
   }
+
+  /** Let the queue run to the end, one round of answers at a time. */
+  async function answerAll(): Promise<void> {
+    for (let round = 0; round < 20; round++) {
+      const pending = mints.filter((mint) => !mint.answered);
+      if (pending.length === 0) return;
+      for (const mint of pending) mint.answer();
+      await flush();
+    }
+  }
+
+  const requested = () => mints.flatMap((mint) => mint.sliceIds);
 
   beforeEach(() => {
     resetScenes();
@@ -229,36 +249,35 @@ describe('the layers for the dates a search found', () => {
     await flush();
   };
 
-  it('fills in the dates the search left, a batch at a time, over the same extent', async () => {
+  it('asks for every date the search left, once each, over the same extent', async () => {
     await search([-1, -1, 1, 1], true);
 
-    // The cover came back drawable; the rest are asked for behind it, never all at once.
-    expect(mints).toHaveLength(1);
-    expect(mints[0].bbox).toEqual(searchBox([-1, -1, 1, 1]));
-    expect(mints[0].sliceIds.length).toBeLessThan(DATE_IDS.length);
+    // Batched, not one request per date and not one request for all of them.
+    expect(mints.length).toBeGreaterThan(0);
+    expect(mints.length).toBeLessThan(DATE_IDS.length);
+    await answerAll();
 
-    mints[0].answer();
-    await flush();
+    expect(requested().sort((a, b) => a - b)).toEqual(DATE_IDS);
+    for (const mint of mints) expect(mint.bbox).toEqual(searchBox([-1, -1, 1, 1]));
 
     const catalog = useCampaignStore.getState().catalog!;
-    for (const id of mints[0].sliceIds) {
+    for (const id of DATE_IDS) {
       expect(catalog.slices.get(id)!.tile_urls[0].tile_url).toContain(`layer-${id}`);
     }
-    // ...and the next batch is already on its way.
-    expect(mints).toHaveLength(2);
   });
 
-  it('puts the date being opened in front of the fill', async () => {
+  it('sends the date being opened at once, ahead of the fill and on its own', async () => {
     await search([-1, -1, 1, 1], true);
+    const started = mints.length;
     const last = DATE_IDS[DATE_IDS.length - 1];
-    expect(mints[0].sliceIds).not.toContain(last);
+    expect(requested()).not.toContain(last);
 
     wantSliceLayers(source, CAMPAIGN_ID, [last]);
-    mints[0].answer();
-    await flush();
 
-    // Its whole batch is promoted - one request either way - and it is in it.
-    expect(mints[1].sliceIds).toContain(last);
+    // Not behind the batch still in flight, and carrying that date alone rather than
+    // the twenty-four the fill had queued it in.
+    expect(mints[started].sliceIds).toEqual([last]);
+    expect(mints[started - 1].answered).toBe(false);
   });
 
   it('asks for a date once, however often it is on screen', async () => {
@@ -267,23 +286,14 @@ describe('the layers for the dates a search found', () => {
 
     wantSliceLayers(source, CAMPAIGN_ID, [last]);
     wantSliceLayers(source, CAMPAIGN_ID, [last]);
-    mints[0].answer();
-    await flush();
-    mints[1].answer();
-    await flush();
+    await answerAll();
 
-    expect(mints.filter((mint) => mint.sliceIds.includes(last))).toHaveLength(1);
+    expect(requested().filter((id) => id === last)).toHaveLength(1);
   });
 
   it('fills a view searched ahead of time, so arriving at it draws every date', async () => {
     await search([10, 10, 11, 11], false);
-
-    while (mints.some((mint) => mint.sliceIds.length > 0)) {
-      const pending = mints.length;
-      mints[mints.length - 1].answer();
-      await flush();
-      if (mints.length === pending) break;
-    }
+    await answerAll();
     const requests = mints.length;
     // Nothing is drawn while it is only being prepared.
     expect(useCampaignStore.getState().catalog!.slices.get(1001)!.tile_urls).toEqual([]);
@@ -298,14 +308,26 @@ describe('the layers for the dates a search found', () => {
     expect(mints).toHaveLength(requests);
   });
 
+  it('stands the tile preloader aside while a date is being opened', async () => {
+    await search([-1, -1, 1, 1], true);
+    // The fill alone is nobody's cue to stop preloading.
+    expect(isForegroundLoading()).toBe(false);
+
+    wantSliceLayers(source, CAMPAIGN_ID, [DATE_IDS[DATE_IDS.length - 1]]);
+    expect(isForegroundLoading()).toBe(true);
+
+    await answerAll();
+    expect(isForegroundLoading()).toBe(false);
+  });
+
   it('drops the fill for views that are no longer coming up', async () => {
     await search([10, 10, 11, 11], false);
+    const started = mints.length;
     forgetSpeculative();
 
-    mints[0].answer();
-    await flush();
+    await answerAll();
 
-    // The batch in flight finishes; nothing behind it is asked for.
-    expect(mints).toHaveLength(1);
+    // What was in flight finishes; nothing behind it is asked for.
+    expect(mints).toHaveLength(started);
   });
 });

@@ -1044,9 +1044,6 @@ logger = logging.getLogger(__name__)
 # Planet scene search, at annotation time
 # ============================================================================
 
-# One search per slice already fans out; minting is what is left to overlap.
-PLANET_MINT_WORKERS = 8
-
 
 @dataclass(frozen=True)
 class PlanetSceneSeries:
@@ -1162,10 +1159,15 @@ def mint_planet_scene_layers(
 def _mint_layers(
     api_key: str, wanted: list["planet_scenes.MatchedSlice"]
 ) -> tuple[list[PlanetSceneSliceOut], list[str]]:
-    """One layer per slice, minted in parallel; the failures come back as messages."""
+    """One layer per slice, all of them at once; the failures come back as messages.
+
+    A thread each because minting is a blocking POST that spends its time waiting, and
+    how fast they actually leave is not this pool's business - the client paces every
+    call to Planet, so the pool is sized to the work rather than to a limit of its own.
+    """
     if not wanted:
         return [], []
-    with ThreadPoolExecutor(max_workers=PLANET_MINT_WORKERS) as pool:
+    with ThreadPoolExecutor(max_workers=len(wanted)) as pool:
         results = list(pool.map(lambda m: _mint_view_layer(api_key, m.slice_id, m.group), wanted))
     return (
         [r for r in results if isinstance(r, PlanetSceneSliceOut)],

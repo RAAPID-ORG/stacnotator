@@ -55,9 +55,10 @@ TOO_MANY_REQUESTS = 429
 # burst against a key the whole organization shares.
 REQUESTS_PER_SECOND = 5.0
 # Minting layers is a different service on a different host, so it has its own budget
-# rather than competing with the searches for one. Adaptive either way: what a key is
-# allowed is found, not assumed.
-MINT_REQUESTS_PER_SECOND = 10.0
+# rather than competing with the searches for one. Planet documents no figure we can
+# rely on for it, so this is a starting point rather than a limit: the pacer widens on
+# every 429 and narrows back as requests get through, which is what finds the real one.
+MINT_REQUESTS_PER_SECOND = 20.0
 # Where pacing lands if Planet keeps refusing: one request a second.
 MIN_REQUESTS_PER_SECOND = 1.0
 RETRY_ATTEMPTS = 4

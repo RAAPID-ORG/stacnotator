@@ -146,7 +146,10 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
   const [startDate, setStartDate] = useState(monthBack());
   const [endDate, setEndDate] = useState(today());
   const [windowPeriod, setWindowPeriod] = useState<Period>({ interval: 1, unit: 'months' });
-  const [slicePeriod, setSlicePeriod] = useState<Period>({ interval: 1, unit: 'days' });
+  // Three days rather than one: PlanetScope revisits about daily, but a single date
+  // over one place is often cloudy or missed entirely, and a three-day slice usually
+  // has something to show without blurring what "this date" means.
+  const [slicePeriod, setSlicePeriod] = useState<Period>({ interval: 3, unit: 'days' });
   const [wholeWindowCover, setWholeWindowCover] = useState(true);
   const [maxCloudCover, setMaxCloudCover] = useState(80);
   const [windows, setWindows] = useState<PlanetSceneWindowOut[] | null>(null);

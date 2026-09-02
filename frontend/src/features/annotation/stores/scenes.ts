@@ -7,6 +7,7 @@ import {
   type PlanetSceneSliceOut,
 } from '~/api/client';
 import { useCameraValue } from '~/shared/map/Camera';
+import { setForegroundMapLoading } from '~/shared/map/tileLoading';
 import type { Bbox, CameraSnapshot } from '~/shared/map/types';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
@@ -90,8 +91,11 @@ export function resetScenes(): void {
   running = null;
   urgentQueue = [];
   fillQueue = [];
-  mintRunning?.abort.abort();
-  mintRunning = null;
+  mintRunning.urgent?.abort.abort();
+  mintRunning.fill?.abort.abort();
+  mintRunning.urgent = null;
+  mintRunning.fill = null;
+  setForegroundMapLoading('scenes', false);
   useScenesStore.setState({ loaded: {}, loading: {}, minting: {} });
 }
 
@@ -155,6 +159,7 @@ function pump(): void {
   const abort = new AbortController();
   running = { job, abort };
   setLoading(job.source.id, job.show);
+  publishSceneUrgency();
 
   void searchPlanetScenes({
     path: { campaign_id: job.campaignId, source_id: job.source.id },
@@ -187,8 +192,21 @@ function pump(): void {
       if (era !== epoch) return;
       running = null;
       setLoading(job.source.id, false);
+      publishSceneUrgency();
       pump();
     });
+}
+
+/**
+ * Whether the annotator is waiting on Planet right now: a search they can see, or the
+ * layer for a date they have opened.
+ *
+ * Published where the tile preloader reads it, so speculation stands aside. Both spend
+ * the same six connections the browser gives this origin, and a mint stuck behind
+ * fifty speculative tiles is thirty seconds of a blank date.
+ */
+function publishSceneUrgency(): void {
+  setForegroundMapLoading('scenes', Boolean(running?.job.show || mintRunning.urgent));
 }
 
 function setLoading(sourceId: number, loading: boolean): void {
@@ -227,18 +245,30 @@ interface MintJob {
 /** The date on screen and its neighbours, ahead of the steady fill behind them. */
 let urgentQueue: MintJob[] = [];
 let fillQueue: MintJob[] = [];
-let mintRunning: { job: MintJob; abort: AbortController } | null = null;
+/** Two lanes, one request each: the fill works through the dates nobody has opened
+ *  yet, and a date someone opens is never behind it. More than that would only be a
+ *  second way to queue - the pace Planet allows is kept on the server. */
+const mintRunning: { urgent: Running | null; fill: Running | null } = {
+  urgent: null,
+  fill: null,
+};
 
-/** One request carries a handful of dates: Planet is asked for their scenes once and
- *  mints them together, and a short request is one the annotator can overtake. */
-const MINT_BATCH = 8;
+interface Running {
+  job: MintJob;
+  abort: AbortController;
+}
+
+/** Dates per request. One search covers the batch and its layers are minted together,
+ *  so a bigger batch is cheaper per date - bounded by the endpoint's own limit of 64,
+ *  and by a batch still being short enough for an opened date to overtake. */
+const MINT_BATCH = 24;
 
 /**
- * Have `sliceIds` drawable, ahead of everything else.
+ * Have `sliceIds` drawable now: the date on screen, and the next ones along.
  *
- * A search says which dates hold imagery here and mints the covers; the layer that
- * draws any other date is one request per date, so the date being opened - and the
- * next ones along - jump the queue in front of the fill.
+ * Asked for on its own and sent at once - it does not wait behind the fill, and it
+ * carries only these dates even when the fill had already queued them in a batch of
+ * twenty-four. Opening a date is the one thing here somebody is watching.
  */
 export function wantSliceLayers(
   source: ImagerySourceOut,
@@ -249,20 +279,22 @@ export function wantSliceLayers(
   const found = box && cache.find((f) => f.sourceId === source.id && sameBox(f.box, box));
   if (!found) return;
 
-  // A date the fill has already queued is not asked for again - it is promoted, batch
-  // and all, so opening it does not wait for everything ahead of it in the fill.
+  // Taken out of whatever the fill was going to ask for them in, so they are not
+  // minted twice and the batch left behind still carries the rest.
   const wanted = new Set(sliceIds);
-  const promoted = fillQueue.filter(
-    (job) => job.found === found && job.sliceIds.some((id) => wanted.has(id))
-  );
-  if (promoted.length > 0) {
-    fillQueue = fillQueue.filter((job) => !promoted.includes(job));
-    urgentQueue.push(...promoted);
-  }
+  fillQueue = fillQueue.flatMap((job) => {
+    if (job.found !== found) return [job];
+    const rest = job.sliceIds.filter((id) => !wanted.has(id));
+    if (rest.length === job.sliceIds.length) return [job];
+    // Re-asked below, as part of the urgent job.
+    for (const id of job.sliceIds) if (wanted.has(id)) found.asked.delete(id);
+    return rest.length > 0 ? [{ ...job, sliceIds: rest }] : [];
+  });
 
   const job = mintJob(found, source, campaignId, sliceIds);
-  if (job) urgentQueue.push(job);
-  if (promoted.length > 0 || job) pumpMint();
+  if (!job) return;
+  urgentQueue.push(job);
+  pumpMint();
 }
 
 /**
@@ -298,16 +330,21 @@ function mintJob(
 }
 
 function pumpMint(): void {
-  if (mintRunning) return;
-  // Only what someone is waiting for is worth saying out loud; the fill behind it runs
-  // for a minute at a time and is nobody's cue to wait.
-  const urgent = urgentQueue.length > 0;
-  const job = urgent ? urgentQueue.shift()! : fillQueue.shift();
-  if (!job) return;
+  if (!mintRunning.urgent && urgentQueue.length > 0) runMint(urgentQueue.shift()!, true);
+  if (!mintRunning.fill && fillQueue.length > 0) runMint(fillQueue.shift()!, false);
+}
+
+function runMint(job: MintJob, urgent: boolean): void {
   const era = epoch;
   const abort = new AbortController();
-  mintRunning = { job, abort };
-  setMinting(job.source.id, urgent);
+  const lane = urgent ? 'urgent' : 'fill';
+  mintRunning[lane] = { job, abort };
+  // Only what someone is waiting for is worth saying out loud; the fill runs for a
+  // minute at a time and is nobody's cue to wait.
+  if (urgent) {
+    setMinting(job.source.id, true);
+    publishSceneUrgency();
+  }
 
   void mintPlanetSceneLayers({
     path: { campaign_id: job.campaignId, source_id: job.source.id },
@@ -338,12 +375,15 @@ function pumpMint(): void {
       handleError(error, 'Could not load Planet imagery for this date', { showUser: urgent });
     })
     .finally(() => {
+      mintRunning[lane] = null;
       if (era !== epoch) return;
-      mintRunning = null;
-      setMinting(
-        job.source.id,
-        urgentQueue.some((next) => next.source.id === job.source.id)
-      );
+      if (urgent) {
+        setMinting(
+          job.source.id,
+          urgentQueue.some((next) => next.source.id === job.source.id)
+        );
+        publishSceneUrgency();
+      }
       pumpMint();
     });
 }
