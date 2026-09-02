@@ -329,6 +329,9 @@ input[type='range'] {
 
 .grid-card {
   background: white;
+  /* The grid sets its own absolute position on every card; this is for the panels
+     that are laid out some other way, so the active ring still has a box to sit in. */
+  position: relative;
   border: 1px solid var(--color-neutral-200);
   border-radius: var(--radius-lg);
   display: flex;
@@ -361,14 +364,27 @@ input[type='range'] {
 }
 
 /* The active window is the one the keyboard and the timeline act on, so it is marked
-   by weight rather than by depth: a second green pixel drawn inside the border, which
-   costs no layout the way a 2px border would. */
+   by weight rather than by depth: the border goes green, and a ring drawn just inside
+   it makes that two pixels without the layout shift a 2px border would cost.
+
+   The ring is an element rather than a shadow or an outline because both of those are
+   painted with the card itself, which the map canvas then covers - the border read
+   thicker across the header, where nothing paints over it, than across the map. This
+   one is a positioned child, so it is over the canvas and even the whole way round. */
 .active-window {
   border-color: var(--color-brand-500) !important;
-  box-shadow: inset 0 0 0 1px var(--color-brand-500) !important;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
+  box-shadow: none !important;
+  transition: border-color 0.18s ease;
+}
+
+.active-window::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--color-brand-500);
+  border-radius: calc(var(--radius-lg) - 1px);
+  pointer-events: none;
+  z-index: 5;
 }
 
 .is-editing .grid-card {

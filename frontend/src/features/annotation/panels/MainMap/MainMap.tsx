@@ -14,7 +14,8 @@ import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from
 import { annotationsVisibleAt, composeLayers, type ComposeState } from '../../map/compose';
 import { MapView, type MapAnchor } from '~/shared/map/MapView';
 import { CenterCrosshair } from '../../components/CenterCrosshair';
-import { StatusPill } from '../../components/StatusPill';
+import { PillSpinner, StatusPill } from '../../components/StatusPill';
+import { Delayed } from '~/shared/ui/Delayed';
 import { setForegroundMapLoading, useForegroundLoading } from '~/shared/map/tileLoading';
 import type { LonLat, MapClickEvent } from '~/shared/map/types';
 import { useCampaign, useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
@@ -278,6 +279,7 @@ function MapNotice() {
   const mode = useCampaignStore((s) => s.workMode);
   const needsLabel = useWorkStore((s) => s.tool === 'annotate' && s.selectedLabelId === null);
   const sceneNotice = useSceneNotice();
+  const loadingTiles = useForegroundLoading();
 
   if (mode === 'explore' && needsLabel) {
     return (
@@ -289,8 +291,23 @@ function MapNotice() {
     );
   }
   // Above the zoom hint: imagery that stopped at the edge of the last search is the
-  // more urgent of the two, and only one pill fits the slot.
-  return sceneNotice ?? <AnnotationZoomNotice />;
+  // more urgent of the two, and only one pill fits the slot. The scene notice comes
+  // first again - it says which imagery is missing, where this only says that tiles
+  // are on their way, whichever source they are from.
+  if (sceneNotice) return sceneNotice;
+  if (loadingTiles) {
+    // Delayed: a map that fetches a handful of cached tiles is done in under a frame,
+    // and a spinner that appears and vanishes reads as a fault rather than as progress.
+    return (
+      <Delayed delayMs={400}>
+        <StatusPill>
+          <PillSpinner />
+          <span data-testid="imagery-loading-notice">Loading imagery</span>
+        </StatusPill>
+      </Delayed>
+    );
+  }
+  return <AnnotationZoomNotice />;
 }
 
 export function MainMapBody() {
