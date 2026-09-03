@@ -125,15 +125,28 @@ if [ "${CI:-}" != "true" ]; then
     }
 fi
 
-# Firebase client config is not secret (it ships inside the frontend bundle) but is
-# stored in Key Vault so a deploy has one source of truth per environment.
-VITE_FIREBASE_API_KEY=$(az keyvault secret show --vault-name "$KV_NAME" --name firebase-api-key --query value -o tsv 2>/dev/null || echo "")
-VITE_FIREBASE_AUTH_DOMAIN=$(az keyvault secret show --vault-name "$KV_NAME" --name firebase-auth-domain --query value -o tsv 2>/dev/null || echo "")
-VITE_FIREBASE_PROJECT_ID=$(az keyvault secret show --vault-name "$KV_NAME" --name firebase-project-id --query value -o tsv 2>/dev/null || echo "")
+# Firebase client config is public: it ships inside the frontend bundle. CI passes it in
+# as environment variables; a laptop deploy leaves them unset and reads Key Vault, which
+# needs the VPN.
+firebase_config() {
+    local secret_name="$1" supplied="$2"
+    [ -n "$supplied" ] && {
+        echo "$supplied"
+        return 0
+    }
+    az keyvault secret show --vault-name "$KV_NAME" --name "$secret_name" --query value -o tsv 2>/dev/null || echo ""
+}
+
+VITE_FIREBASE_API_KEY=$(firebase_config firebase-api-key "${VITE_FIREBASE_API_KEY:-}")
+VITE_FIREBASE_AUTH_DOMAIN=$(firebase_config firebase-auth-domain "${VITE_FIREBASE_AUTH_DOMAIN:-}")
+VITE_FIREBASE_PROJECT_ID=$(firebase_config firebase-project-id "${VITE_FIREBASE_PROJECT_ID:-}")
 if [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
-    echo -e "${RED}Could not read Firebase client config from Key Vault '$KV_NAME'.${NC}" >&2
-    echo -e "${YELLOW}Allow your IP: az keyvault network-rule add --name $KV_NAME --ip-address \$(curl -s ifconfig.me)/32${NC}" >&2
-    echo -e "${YELLOW}Or upload it:  ./deployment/azure/bootstrap.sh $ENV${NC}" >&2
+    echo -e "${RED}Missing Firebase client config for '$ENV'.${NC}" >&2
+    echo -e "${YELLOW}CI:    set VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN and VITE_FIREBASE_PROJECT_ID${NC}" >&2
+    echo -e "${YELLOW}       as variables on the '$ENV' GitHub Environment.${NC}" >&2
+    echo -e "${YELLOW}Local: falls back to Key Vault '$KV_NAME', which needs the VPN.${NC}" >&2
+    echo -e "${YELLOW}       Allow your IP: az keyvault network-rule add --name $KV_NAME --ip-address \$(curl -s ifconfig.me)/32${NC}" >&2
+    echo -e "${YELLOW}       Or upload it:  ./deployment/azure/bootstrap.sh $ENV${NC}" >&2
     exit 1
 fi
 ci_mask "$VITE_FIREBASE_API_KEY" "$VITE_FIREBASE_AUTH_DOMAIN" "$VITE_FIREBASE_PROJECT_ID"

@@ -78,7 +78,9 @@ currently off in both envs; turn it on if you need it for heavy tile load.
 
 CI runs `deploy.sh` only. The environment must already be bootstrapped from a laptop ([Run once per environment](#run-once-per-environment)) and its GitHub Environment configured ([One-time setup](#one-time-setup-do-this-before-the-first-ci-dev-deploy)).
 
-`deploy.sh` runs from GitHub Actions on a self-hosted runner inside the Azure VNet, authenticating via OIDC (no stored credentials). Both environments are gated by a GitHub Environment with required reviewers, so every deploy waits on a human Approve click.
+`deploy.sh` runs from GitHub Actions on a GitHub-hosted runner, authenticating via OIDC (no stored credentials). Both environments are gated by a GitHub Environment with required reviewers, so every deploy waits on a human Approve click.
+
+The job reaches nothing private: every step is the ARM control plane, ACR (which builds server-side and is publicly reachable), or a public upload endpoint. Migrations run on backend container startup, inside the VNet, not from CI. A step that did need the VNet would have to run on the platform's shared self-hosted runners, which GitHub advises against for a public repository - so keep the deploy on public endpoints.
 
 Both callers share `.github/workflows/deploy.yml`, a reusable workflow taking the GitHub Environment to use and the argument for `deploy.sh`. All deploy mechanics live there; the callers differ only in which environment they select.
 
@@ -141,7 +143,7 @@ against the Flexible Server before the tiler can serve, and is **not** done by `
 
 The full, provider-agnostic procedure and rationale live in the tiler repo:
 **`stacnotator-tiler/docs/database.md`**. Run it from a host that can reach the (private) admin
-endpoint - on VPN or the self-hosted CI runner. Exact Azure steps (copy-paste, set the two vars
+endpoint - on VPN, or any host inside the platform VNet. It is a manual one-off; no CI job does this. Exact Azure steps (copy-paste, set the two vars
 at the top for your environment):
 
 ```bash
@@ -365,6 +367,11 @@ Safety relies on:
    | `PUBLIC_DOMAIN` | The environment's parent domain. Only needed once the custom domains are bound (see [Custom domains](#custom-domains---one-time-per-environment-required-for-hosted-tiler-tiles) above) |
    | `EXTRA_TILERS` | Optional. Additional externally-hosted tilers, inner JSON without outer braces |
    | `TILER_AZURE_SIGNING` | Optional. `true` to let the tiler read internal-storage COGs via managed identity |
+   | `VITE_FIREBASE_API_KEY` | Firebase client config, same values `bootstrap.sh` uploads to Key Vault |
+   | `VITE_FIREBASE_AUTH_DOMAIN` | " |
+   | `VITE_FIREBASE_PROJECT_ID` | " |
+
+   The three `VITE_FIREBASE_*` values are public: they ship inside the frontend bundle. Key Vault holds the same values for laptop deploys, which read it over VPN, so rotating the Firebase project means updating both.
 
    Until `PUBLIC_DOMAIN` is set, deploys use the default Azure hostnames: MPC imagery works, but hosted-tiler tiles 401 in the browser (cross-domain cookie).
 
@@ -417,7 +424,7 @@ Config reaches a deploy from two places, and the environment always wins over th
 | Kind | Names |
 |---|---|
 | Environment secrets | `AZURE_CLIENT_ID`, `AZURE_RESOURCE_GROUP`, `EE_SERVICE_ACCOUNT`, `CUSTOM_DOMAINS` (prod), `TILER_REPO_TOKEN` |
-| Environment variables | `PUBLIC_DOMAIN`, `EXTRA_TILERS`, `TILER_AZURE_SIGNING`, `TILER_REPO_REF` |
+| Environment variables | `PUBLIC_DOMAIN`, `EXTRA_TILERS`, `TILER_AZURE_SIGNING`, `TILER_REPO_REF`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID` |
 | Repository secrets | `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` |
 
 **Laptop deploys** read `deployment/azure/.env.deploy.<env>` (gitignored; see `.env.deploy.example`). It supplies the same identifiers plus the credential file paths `bootstrap.sh` uploads. It never overrides a variable already present in the environment, so a stray file on a runner cannot influence CI.

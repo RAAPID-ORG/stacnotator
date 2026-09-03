@@ -26,6 +26,8 @@ We will review the PR as soon as capacities free up, which might take a few days
 
 ## Bug Reports
 
+Open an issue with steps to reproduce. **Security problems are the exception: never report those publicly.** See [SECURITY.md](SECURITY.md) for the private channel.
+
 ## Reaching out to us
 
 If you have any further questions that you would like to discus in depth or be part of a longer-term collaboration, please reach out to rsawahn@umd.edu

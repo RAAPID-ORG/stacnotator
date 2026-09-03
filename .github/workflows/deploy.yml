@@ -38,7 +38,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, linux, x64, azure]
+    runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     permissions:
       contents: read
@@ -80,6 +80,9 @@ jobs:
           CUSTOM_DOMAINS: ${{ secrets.CUSTOM_DOMAINS }}
           TILER_REPO_DIR: ${{ github.workspace }}/stacnotator-tiler
           PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
           EXTRA_TILERS: ${{ vars.EXTRA_TILERS }}
           TILER_AZURE_SIGNING: ${{ vars.TILER_AZURE_SIGNING }}
           DEPLOY_ENV: ${{ inputs.deploy-env }}
