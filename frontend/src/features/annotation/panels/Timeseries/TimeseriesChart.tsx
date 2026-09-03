@@ -1,4 +1,4 @@
-import { useCatalog } from '../../stores/campaign';
+import { useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Chart as ChartJS,
@@ -80,6 +80,7 @@ export interface ChartProps {
 
 export function Chart({ series, points }: ChartProps) {
   const catalog = useCatalog();
+  const view = useCampaignStore((s) => s.view);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<ChartJS<'line'> | null>(null);
 
@@ -235,10 +236,10 @@ export function Chart({ series, points }: ChartProps) {
       const clickedTime = parseSeriesDate(labels[labelIdx]);
       if (Number.isNaN(clickedTime)) return;
 
-      const target = nearestSlice(catalog, clickedTime, useImageryStore.getState().address);
+      const target = nearestSlice(catalog, clickedTime, useImageryStore.getState().address, view);
       if (target) setImageryAddress(target);
     },
-    [chartData.labels, catalog, setImageryAddress]
+    [chartData.labels, catalog, view, setImageryAddress]
   );
 
   const handleResetZoom = useCallback(() => chartRef.current?.resetZoom(), []);

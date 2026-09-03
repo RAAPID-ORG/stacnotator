@@ -392,13 +392,26 @@ export function findNearestSlice(
 }
 
 /** Catalog-level wrapper: resolves back to a full address, keeping the
- *  caller's visualization where the target source has it. */
+ *  caller's visualization where the target source has it.
+ *
+ *  Scoped to the view's sources, as window composition and source cycling are.
+ *  The catalog holds every source the campaign has, and landing on one the view
+ *  does not show strands the address: there is no window for it, `i` cannot
+ *  reach it, and a/d only walk the collections of whatever source the address
+ *  names - so the keys go quiet with nothing on screen to say why. */
 export function nearestSlice(
   cat: ImageryCatalog,
   epochMs: number,
-  addr: SliceAddress | null
+  addr: SliceAddress | null,
+  view: Pick<ImageryViewOut, 'source_ids'> | null
 ): SliceAddress | null {
-  const best = findNearestSlice([...cat.sources.values()], epochMs, addr?.collectionId ?? null);
+  const sources = view
+    ? view.source_ids.flatMap((id) => {
+        const source = cat.sources.get(id);
+        return source ? [source] : [];
+      })
+    : [...cat.sources.values()];
+  const best = findNearestSlice(sources, epochMs, addr?.collectionId ?? null);
   if (!best) return null;
 
   const sourceId = cat.sourceOf.get(best.collectionId);

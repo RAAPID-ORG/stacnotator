@@ -146,21 +146,43 @@ const cat = buildImageryCatalog(campaign);
 
 describe('nearestSlice (catalog-level)', () => {
   it('resolves collectionId/sliceIndex back to a full SliceAddress, preserving the current viz', () => {
-    const addr = nearestSlice(cat, day('2024-06-10'), {
-      sourceId: 1,
-      collectionId: 10,
-      sliceIndex: 0,
-      vizId: '101',
-    });
+    const addr = nearestSlice(
+      cat,
+      day('2024-06-10'),
+      { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '101' },
+      { source_ids: [1] }
+    );
     expect(addr).toEqual({ sourceId: 1, collectionId: 10, sliceIndex: 1, vizId: '101' });
   });
 
   it('defaults to the source first visualization when there is no current address', () => {
-    const addr = nearestSlice(cat, day('2024-06-10'), null);
+    const addr = nearestSlice(cat, day('2024-06-10'), null, { source_ids: [1] });
     expect(addr).toEqual({ sourceId: 1, collectionId: 10, sliceIndex: 1, vizId: '100' });
   });
 
   it('returns null when nothing is eligible', () => {
-    expect(nearestSlice(buildImageryCatalog(makeCampaign()), day('2024-01-01'), null)).toBeNull();
+    expect(
+      nearestSlice(buildImageryCatalog(makeCampaign()), day('2024-01-01'), null, { source_ids: [] })
+    ).toBeNull();
+  });
+
+  it('ignores sources the view does not show, so a/d can still step from where it lands', () => {
+    const vhr = makeSource({
+      id: 2,
+      name: 'VHR',
+      visualizations: [makeViz({ id: 200, name: 'True Color' })],
+      collections: [
+        makeCollection({
+          id: 20,
+          name: 'Sep',
+          slices: [
+            makeSlice({ id: 2000, name: 'wk1', start_date: '2024-09-01', end_date: '2024-09-07' }),
+          ],
+        }),
+      ],
+    });
+    const both = buildImageryCatalog(makeCampaign({ imagery_sources: [s2, vhr] }));
+    const addr = nearestSlice(both, day('2024-09-04'), null, { source_ids: [1] });
+    expect(addr?.sourceId).toBe(1);
   });
 });

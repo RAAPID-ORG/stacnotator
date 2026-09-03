@@ -22,7 +22,7 @@ type ApiCapture = import('./fixtures/annotator-fixture').ApiCapture;
 // the same address off the two header controls fed by it: the active window
 // header (collection) and the main-map slice picker (slice).
 
-const chartCanvas = (page: Page) => page.locator('[data-tour="timeseries"] canvas');
+const chartCanvas = (page: Page) => page.locator('[data-panel-role="timeseries"] canvas');
 const activeWindowName = (page: Page) => page.locator('[data-window-active="true"]');
 const mainSliceBtn = (page: Page) =>
   page.locator('[data-tour="map-controls"] button[title^="Select time slice"]');
@@ -50,7 +50,7 @@ async function useCampaign(page: Page, api: ApiCapture, campaign: object): Promi
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
-  await page.waitForSelector('[data-tour="timeseries"]', { timeout: 10_000 });
+  await page.waitForSelector('[data-panel-role="timeseries"]', { timeout: 10_000 });
   await waitForNavIdle(page);
   api.clear();
 }
@@ -68,13 +68,13 @@ test.describe('Control: single-source chart click updates the indicator', () => 
   test('starts on Jan 2024 and moves to Jun 2024 after a right-side click', async ({
     annotationPage,
   }) => {
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_S2.name);
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_S2.name);
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name);
 
     await clickChartAtFraction(annotationPage, 0.95);
 
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_S2.name);
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_S2.name);
   });
 });
 
@@ -89,7 +89,7 @@ test.describe('Multi-source: active-window indicator', () => {
 
   test.beforeEach(async ({ annotationPage, api }) => {
     await useCampaign(annotationPage, api, MOCK_CAMPAIGN_MULTI_SOURCE_WITH_TIMESERIES);
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_S2.name);
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_S2.name);
   });
 
   test('P1: clicking the chart at a date inside source B coverage switches the indicator to source B', async ({
@@ -100,7 +100,7 @@ test.describe('Multi-source: active-window indicator', () => {
     // cross-source nearest-slice search should land on collection 40.
     await clickChartAtFraction(annotationPage, 0.95);
 
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_VHR_MULTI.name, {
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_VHR_MULTI.name, {
       timeout: 3000,
     });
     await expect(mainSliceBtn(annotationPage)).toContainText(SEP_WK2.name);
@@ -117,7 +117,7 @@ test.describe('Multi-source: active-window indicator', () => {
       .first()
       .click();
 
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_VHR_MULTI.name, {
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_VHR_MULTI.name, {
       timeout: 3000,
     });
     await expect(mainSliceBtn(annotationPage)).toContainText(SEP_WK2.name);
@@ -130,7 +130,7 @@ test.describe('Multi-source: active-window indicator', () => {
       .locator(`[data-panel-id="${COLLECTION_VHR_MULTI.id}"] .card-header`)
       .click({ position: { x: 4, y: 4 } });
 
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_VHR_MULTI.name, {
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_VHR_MULTI.name, {
       timeout: 3000,
     });
     // Activation lands on the window's own remembered slice - its cover here.

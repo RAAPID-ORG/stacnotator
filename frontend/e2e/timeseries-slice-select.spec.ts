@@ -27,12 +27,12 @@ async function loadWithTimeseries(page: Page, api: ApiCapture): Promise<void> {
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
-  await page.waitForSelector('[data-tour="timeseries"]', { timeout: 10_000 });
+  await page.waitForSelector('[data-panel-role="timeseries"]', { timeout: 10_000 });
   await waitForNavIdle(page);
   api.clear();
 }
 
-const chartCanvas = (page: Page) => page.locator('[data-tour="timeseries"] canvas');
+const chartCanvas = (page: Page) => page.locator('[data-panel-role="timeseries"] canvas');
 // The main-map slice dropdown reflects which slice is shown in the main view.
 // Its title carries the live hotkey hint, so match on the stable prefix.
 const mainSliceBtn = (page: Page) =>
@@ -145,12 +145,13 @@ async function loadMonthsCampaign(page: Page, api: ApiCapture): Promise<void> {
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
-  await page.waitForSelector('[data-tour="timeseries"]', { timeout: 10_000 });
+  await page.waitForSelector('[data-panel-role="timeseries"]', { timeout: 10_000 });
   await waitForNavIdle(page);
   api.clear();
 }
 
-// Exactly one imagery window header marks itself as the active collection.
+// Exactly one imagery window header marks itself as the active collection. Its
+// text is the collection name plus the source name, so match on the collection.
 const activeWindowName = (page: Page) => page.locator('[data-window-active="true"]');
 
 test.describe('Chart click switches active collection (month-per-collection)', () => {
@@ -160,7 +161,7 @@ test.describe('Chart click switches active collection (month-per-collection)', (
   });
 
   test('starts on the first collection (Mar 2022) cover slice', async ({ annotationPage }) => {
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_MAR_2022.name);
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_MAR_2022.name);
     await expect(mainSliceBtn(annotationPage)).toContainText('Cover');
   });
 
@@ -171,7 +172,7 @@ test.describe('Chart click switches active collection (month-per-collection)', (
 
     await clickChartAtFraction(annotationPage, 0.95);
 
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_SEP_2022.name, {
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_SEP_2022.name, {
       timeout: 3000,
     });
     await tileArrived;
@@ -180,7 +181,7 @@ test.describe('Chart click switches active collection (month-per-collection)', (
   test('a specific weekly slice is selected, not the month Cover', async ({ annotationPage }) => {
     await clickChartAtFraction(annotationPage, 0.95);
 
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_SEP_2022.name, {
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_SEP_2022.name, {
       timeout: 3000,
     });
     // Midpoint matching prefers the narrow weekly slice over the month Cover.
@@ -189,12 +190,12 @@ test.describe('Chart click switches active collection (month-per-collection)', (
 
   test('clicking back near spring returns to Mar 2022', async ({ annotationPage }) => {
     await clickChartAtFraction(annotationPage, 0.95);
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_SEP_2022.name, {
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_SEP_2022.name, {
       timeout: 3000,
     });
 
     await clickChartAtFraction(annotationPage, 0.18);
-    await expect(activeWindowName(annotationPage)).toHaveText(COLLECTION_MAR_2022.name, {
+    await expect(activeWindowName(annotationPage)).toContainText(COLLECTION_MAR_2022.name, {
       timeout: 3000,
     });
   });

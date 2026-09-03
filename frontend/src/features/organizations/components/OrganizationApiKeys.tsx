@@ -186,9 +186,11 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
         </ul>
       )}
 
-      <div className="mt-4 max-w-xl space-y-2">
+      <div className="mt-4 max-w-4xl space-y-2">
+        {/* One row: a key is the three of these together, and a wrapped form reads as
+            three separate things to fill in. It still wraps when there is no room. */}
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Name" htmlFor="org-key-name">
+          <Field label="Name" htmlFor="org-key-name" className="min-w-0 flex-1 basis-44">
             <Input
               id="org-key-name"
               size="sm"
@@ -198,7 +200,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
               disabled={busy}
             />
           </Field>
-          <Field label="Key" htmlFor="org-key-value">
+          <Field label="Key" htmlFor="org-key-value" className="min-w-0 flex-1 basis-52">
             <Input
               id="org-key-value"
               size="sm"
@@ -211,7 +213,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
               disabled={busy}
             />
           </Field>
-          <Field label="Tile host" htmlFor="org-key-host">
+          <Field label="Tile host" htmlFor="org-key-host" className="min-w-0 flex-1 basis-44">
             <Input
               id="org-key-host"
               size="sm"
@@ -223,6 +225,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
             />
           </Field>
           <Button
+            className="shrink-0"
             onClick={add}
             disabled={busy || !name.trim() || !value.trim() || !host.trim() || !readOnlyConfirmed}
           >
