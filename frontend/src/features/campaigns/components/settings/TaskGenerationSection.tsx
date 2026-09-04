@@ -272,6 +272,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
           </label>
           <input
             type="number"
+            min="0"
             placeholder="Leave empty for random"
             value={seed ?? ''}
             onChange={(e) => setSeed(e.target.value ? parseInt(e.target.value) : undefined)}

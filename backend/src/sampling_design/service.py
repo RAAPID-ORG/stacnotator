@@ -263,6 +263,7 @@ def create_bbox_polygon(campaign: Campaign) -> Polygon:
 # Bounds the lattice built before it is clipped to the region, so a spacing far
 # finer than the region's extent fails instead of exhausting memory.
 MAX_LATTICE_NODES = 5_000_000
+EDGE_SEGMENT_DEGREES = 0.05
 
 
 def generate_random_points(
@@ -326,7 +327,10 @@ def generate_grid_points(
             would create more tasks than one run allows
     """
     crs = local_equal_area_crs(geometry)
-    projected = gpd.GeoSeries([geometry], crs=4326).to_crs(crs).iloc[0]
+    # Densify first: a bbox's four corners would project to straight chords,
+    # while its parallels curve, and edge cells would land on the wrong side.
+    dense = shapely.segmentize(geometry, max_segment_length=EDGE_SEGMENT_DEGREES)
+    projected = gpd.GeoSeries([dense], crs=4326).to_crs(crs).iloc[0]
     spacing = spacing_km * 1000
     min_x, min_y, max_x, max_y = projected.bounds
 

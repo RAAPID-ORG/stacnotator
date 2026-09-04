@@ -86,6 +86,15 @@ class TestGenerateGridPoints:
         for pt in points:
             assert region.contains(pt)
 
+    def test_wide_bbox_keeps_its_curved_edges(self):
+        # Four corners alone project to straight chords, not parallels; the
+        # region has to be densified or edge cells land on the wrong side.
+        region = box(0, 40, 20, 50)
+        points = generate_grid_points(region, spacing_km=15, rng=rng())
+        assert 7000 < len(points) < 8000
+        for pt in points:
+            assert region.contains(pt)
+
     def test_multipolygon_boundary(self):
         multi = MultiPolygon([box(0, 0, 0.5, 0.5), box(3, 3, 3.5, 3.5)])
         points = generate_grid_points(multi, spacing_km=10, rng=rng())
@@ -144,6 +153,14 @@ class TestParseSamplingStrategy:
     def test_grid_without_spacing_is_rejected(self):
         with pytest.raises(ValidationError):
             parse_sampling_strategy('{"strategy_type":"grid"}')
+
+    def test_negative_seed_is_rejected(self):
+        with pytest.raises(ValidationError):
+            parse_sampling_strategy('{"strategy_type":"grid","spacing_km":5,"seed":-1}')
+
+    def test_infinite_spacing_is_rejected(self):
+        with pytest.raises(ValidationError):
+            parse_sampling_strategy('{"strategy_type":"grid","spacing_km":Infinity}')
 
     def test_random_without_samples_is_rejected(self):
         with pytest.raises(ValidationError):
