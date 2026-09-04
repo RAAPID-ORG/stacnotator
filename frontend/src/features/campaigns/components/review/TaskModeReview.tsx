@@ -56,6 +56,9 @@ const IconFunnel = ({ className }: { className?: string }) => (
  *  leaves behind. Campaign label ids are positive. */
 const NO_LABEL = -1;
 
+/** Rows painted per step. The list itself is never truncated, only what is drawn. */
+const ROWS_PER_PAGE = 200;
+
 interface TaskModeReviewProps {
   campaign?: CampaignSummaryOut;
   campaignId: number;
@@ -158,6 +161,11 @@ export const TaskModeReview = ({
     }
   }, [taskSets, setFilter]);
 
+  // A campaign can hold tens of thousands of tasks, and every painted row is
+  // real DOM. Filtering, selection and the bulk actions all read the whole
+  // filtered list, so this bounds what is drawn and nothing else.
+  const [paintedRows, setPaintedRows] = useState(ROWS_PER_PAGE);
+
   const filteredTasks = useMemo(() => {
     const filtered = tasks.filter((task) => {
       if (statusFilter !== 'all' && task.task_status !== statusFilter) return false;
@@ -242,6 +250,8 @@ export const TaskModeReview = ({
       return next.size === prev.size ? prev : next;
     });
   }, [filteredTasks, selectable]);
+
+  useEffect(() => setPaintedRows(ROWS_PER_PAGE), [filteredTasks]);
 
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
@@ -834,7 +844,7 @@ export const TaskModeReview = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredTasks.map((task, index) => {
+                      {filteredTasks.slice(0, paintedRows).map((task, index) => {
                         const latLon = extractCentroidFromWKT(task.geometry.geometry);
                         const taskStatus = task.task_status ?? 'pending';
                         const assignments = task.assignments || [];
@@ -1072,6 +1082,20 @@ export const TaskModeReview = ({
                       })}
                     </tbody>
                   </table>
+                  {filteredTasks.length > paintedRows && (
+                    <div className="flex items-center justify-center gap-3 py-4 text-sm text-neutral-500">
+                      <span>
+                        Showing {paintedRows.toLocaleString()} of{' '}
+                        {filteredTasks.length.toLocaleString()}
+                      </span>
+                      <Button
+                        variant="secondary"
+                        onClick={() => setPaintedRows((shown) => shown + ROWS_PER_PAGE)}
+                      >
+                        Show more
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
 
