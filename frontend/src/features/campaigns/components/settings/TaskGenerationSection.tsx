@@ -30,6 +30,31 @@ const SAMPLING_STRATEGIES = [
 
 type StrategyType = (typeof SAMPLING_STRATEGIES)[number]['value'];
 
+/**
+ * What a grid run actually produces. Stated in the form because these three
+ * properties are what someone has to be able to defend later, when asked how
+ * the sample was drawn.
+ */
+const GridExplainer = () => (
+  <div className="rounded-lg bg-neutral-50 border border-neutral-200 p-3 space-y-1.5">
+    <p className="text-xs font-medium text-neutral-700">How the grid is drawn</p>
+    <ul className="text-xs text-neutral-500 space-y-1 list-disc pl-4">
+      <li>
+        Spacing is ground distance, so points stay the same distance apart everywhere in the region,
+        however far north or south it reaches.
+      </li>
+      <li>
+        The grid is placed at a random offset rather than pinned to a corner, so it cannot line up
+        with roads, field edges or anything else laid out regularly.
+      </li>
+      <li>
+        Tasks are created in random order, so stopping part way through still leaves the whole
+        region covered.
+      </li>
+    </ul>
+  </div>
+);
+
 export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   campaignId,
   taskSetId,
@@ -237,58 +262,60 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
         {/* How much to sample: a count for random, a spacing for grid */}
         {strategyType === 'grid' ? (
-          <Field
-            label="Grid Spacing (km)"
-            hint="Distance between neighbouring points. The number of tasks follows from the size of the region."
-            error={spacingValid ? undefined : 'Must be a positive number'}
-          >
-            <Input
-              type="number"
-              min="0"
-              step="any"
-              value={spacingKm}
-              onChange={(e) => setSpacingKm(e.target.value)}
-              disabled={generating}
-              invalid={!spacingValid}
-            />
-          </Field>
+          <div className="space-y-3">
+            <Field
+              label="Grid Spacing (km)"
+              htmlFor="grid-spacing"
+              hint="Distance between neighbouring points. The number of tasks follows from the size of the region."
+              error={spacingValid ? undefined : 'Must be a positive number'}
+            >
+              <Input
+                id="grid-spacing"
+                type="number"
+                min="0"
+                step="any"
+                value={spacingKm}
+                onChange={(e) => setSpacingKm(e.target.value)}
+                disabled={generating}
+                invalid={!spacingValid}
+              />
+            </Field>
+            <GridExplainer />
+          </div>
         ) : (
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Number of Samples
-            </label>
-            <input
+          <Field label="Number of Samples" htmlFor="num-samples">
+            <Input
+              id="num-samples"
               type="number"
               min="1"
               max="20000"
               value={numSamples}
               onChange={(e) => setNumSamples(parseInt(e.target.value) || 1)}
               disabled={generating}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-50 disabled:cursor-not-allowed"
             />
-          </div>
+          </Field>
         )}
 
         {/* Optional Seed (for reproducibility) */}
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Random Seed (optional)
-          </label>
-          <input
+        <Field
+          label="Random Seed (optional)"
+          htmlFor="sampling-seed"
+          hint={
+            strategyType === 'grid'
+              ? 'Fixes the offset the grid is placed at, so the same seed redraws the same grid'
+              : 'Set a seed for reproducible sampling results'
+          }
+        >
+          <Input
+            id="sampling-seed"
             type="number"
             min="0"
             placeholder="Leave empty for random"
             value={seed ?? ''}
             onChange={(e) => setSeed(e.target.value ? parseInt(e.target.value) : undefined)}
             disabled={generating}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-50 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-neutral-400 mt-1">
-            {strategyType === 'grid'
-              ? 'Sets where the grid starts, for reproducible sampling results'
-              : 'Set a seed for reproducible sampling results'}
-          </p>
-        </div>
+        </Field>
 
         {/* Generate Button */}
         <button
