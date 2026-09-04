@@ -81,7 +81,7 @@ export const SettingsPage = () => {
   const navigate = useNavigate();
   const { auth } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'organizations'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'platform'>('profile');
 
   // Username editing state
   const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
@@ -113,14 +113,14 @@ export const SettingsPage = () => {
 
   const usersQuery = useQuery({
     ...listUsersOptions({}),
-    enabled: isPlatformAdmin && activeTab === 'users',
+    enabled: isPlatformAdmin && activeTab === 'platform',
     meta: { errorMessage: 'Failed to load users' },
   });
   const users = useMemo(() => (usersQuery.data ?? []).filter(isDetailedUser), [usersQuery.data]);
 
   const tilersQuery = useQuery({
     ...listGrantableTilersOptions(),
-    enabled: isPlatformAdmin && activeTab === 'organizations',
+    enabled: isPlatformAdmin && activeTab === 'platform',
     meta: { errorMessage: 'Failed to load tilers' },
   });
 
@@ -337,39 +337,24 @@ export const SettingsPage = () => {
               >
                 Profile
               </button>
-              {account.is_admin && (
-                <>
-                  <button
-                    onClick={() => setActiveTab('users')}
-                    className={`px-1 py-3 border-b-2 transition-colors ${
-                      activeTab === 'users'
-                        ? 'border-brand-600 text-brand-700 font-medium'
-                        : 'border-transparent text-neutral-500 hover:text-brand-700'
-                    }`}
-                    type="button"
-                  >
-                    User management
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('organizations')}
-                    className={`px-1 py-3 border-b-2 transition-colors ${
-                      activeTab === 'organizations'
-                        ? 'border-brand-600 text-brand-700 font-medium'
-                        : 'border-transparent text-neutral-500 hover:text-brand-700'
-                    }`}
-                    type="button"
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      Organizations
-                      <CountBadge
-                        count={
-                          pendingAdminActions(knownOrgs, account.is_admin).organizationApprovals
-                        }
-                        label="organizations to review"
-                      />
-                    </span>
-                  </button>
-                </>
+              {isPlatformAdmin && (
+                <button
+                  onClick={() => setActiveTab('platform')}
+                  className={`px-1 py-3 border-b-2 transition-colors ${
+                    activeTab === 'platform'
+                      ? 'border-brand-600 text-brand-700 font-medium'
+                      : 'border-transparent text-neutral-500 hover:text-brand-700'
+                  }`}
+                  type="button"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    Platform
+                    <CountBadge
+                      count={pendingAdminActions(knownOrgs, account.is_admin).organizationApprovals}
+                      label="organizations to review"
+                    />
+                  </span>
+                </button>
               )}
             </div>
 
@@ -561,47 +546,47 @@ export const SettingsPage = () => {
                 </div>
               )}
 
-              {activeTab === 'users' && account.is_admin && (
-                <section className={sectionCls}>
-                  <div className="flex items-center justify-between">
-                    <h2 className="section-heading">
-                      Platform users{' '}
-                      <span className="text-neutral-400 font-normal">({users.length})</span>
-                    </h2>
-                    <RefreshButton onClick={refetchUsers} busy={usersQuery.isFetching} />
-                  </div>
-                  <PlatformUsersTable
-                    users={users}
-                    onGrantAdmin={handleGrantAdmin}
-                    onRevokeAdmin={handleRevokeAdmin}
-                    loading={usersQuery.isPending}
-                  />
-                </section>
-              )}
-
-              {activeTab === 'organizations' && account.is_admin && (
-                <section className={sectionCls}>
-                  <div className="flex items-center justify-between">
-                    <h2 className="section-heading">
-                      Organizations{' '}
-                      <span className="text-neutral-400 font-normal">({knownOrgs.length})</span>
-                    </h2>
-                    <RefreshButton
-                      onClick={refreshOrganizationsTab}
-                      busy={tilersQuery.isFetching}
+              {activeTab === 'platform' && isPlatformAdmin && (
+                <div>
+                  <section className={sectionCls}>
+                    <div className="flex items-center justify-between">
+                      <h2 className="section-heading">
+                        Platform users{' '}
+                        <span className="text-neutral-400 font-normal">({users.length})</span>
+                      </h2>
+                      <RefreshButton onClick={refetchUsers} busy={usersQuery.isFetching} />
+                    </div>
+                    <PlatformUsersTable
+                      users={users}
+                      onGrantAdmin={handleGrantAdmin}
+                      onRevokeAdmin={handleRevokeAdmin}
+                      loading={usersQuery.isPending}
                     />
-                  </div>
-                  <PlatformOrganizationsTable
-                    organizations={knownOrgs}
-                    allTilers={tilersQuery.data ?? NO_TILERS}
-                    onApprove={handleApproveOrganization}
-                    onReject={handleRejectOrganization}
-                    onSetInternalStorage={handleSetInternalStorage}
-                    onLoadTilers={handleLoadOrganizationTilers}
-                    onSaveTilers={handleSaveOrganizationTilers}
-                    loading={orgsLoading || tilersQuery.isPending}
-                  />
-                </section>
+                  </section>
+
+                  <section className={sectionCls}>
+                    <div className="flex items-center justify-between">
+                      <h2 className="section-heading">
+                        Organizations{' '}
+                        <span className="text-neutral-400 font-normal">({knownOrgs.length})</span>
+                      </h2>
+                      <RefreshButton
+                        onClick={refreshOrganizationsTab}
+                        busy={tilersQuery.isFetching}
+                      />
+                    </div>
+                    <PlatformOrganizationsTable
+                      organizations={knownOrgs}
+                      allTilers={tilersQuery.data ?? NO_TILERS}
+                      onApprove={handleApproveOrganization}
+                      onReject={handleRejectOrganization}
+                      onSetInternalStorage={handleSetInternalStorage}
+                      onLoadTilers={handleLoadOrganizationTilers}
+                      onSaveTilers={handleSaveOrganizationTilers}
+                      loading={orgsLoading || tilersQuery.isPending}
+                    />
+                  </section>
+                </div>
               )}
             </div>
           </div>

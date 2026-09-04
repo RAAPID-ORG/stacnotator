@@ -74,10 +74,10 @@ export const CreateCampaignPage = () => {
     project_id: projectId,
     settings: {
       labels: [],
-      bbox_west: -17.5,
-      bbox_south: -35.0,
-      bbox_east: 51.5,
-      bbox_north: 37.5,
+      bbox_west: 33.9,
+      bbox_south: -4.7,
+      bbox_east: 41.9,
+      bbox_north: 5.0,
     },
     imagery_editor_state: null,
     timeseries_configs: [],
@@ -184,9 +184,6 @@ export const CreateCampaignPage = () => {
         <header className="page-header">
           <div>
             <h1 className="page-title">New campaign</h1>
-            <p className="page-subtitle">
-              Set up your campaign step by step - details, settings, imagery, and more.
-            </p>
           </div>
         </header>
 

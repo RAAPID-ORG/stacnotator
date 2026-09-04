@@ -365,13 +365,6 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       </section>
 
       <section className={sectionCls}>
-        <div>
-          <h2 className="section-heading">Bounding box</h2>
-          <p className="section-description">
-            The geographic area where imagery can be loaded. All annotation tasks must fall within
-            this region.
-          </p>
-        </div>
         <BoundingBoxEditor
           value={bboxDraft}
           onChange={(updates) => setBboxDraft((current) => ({ ...current, ...updates }))}

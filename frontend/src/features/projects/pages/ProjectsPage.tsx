@@ -7,8 +7,8 @@ import { listProjectsOptions } from '~/api/queries';
 import { newOrganizationPath, newProjectPath, projectPath } from '~/app/routes';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useOrgStore } from '~/shared/stores/org.store';
-import { Button, Input } from '~/shared/ui/forms';
-import { IconFolder, IconPlus } from '~/shared/ui/Icons';
+import { Button, IconButton, Input } from '~/shared/ui/forms';
+import { IconClose, IconFolder, IconPlus, IconSearch } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { ProjectRow } from '../components/ProjectRow';
@@ -138,13 +138,24 @@ export const ProjectsPage = () => {
               </button>
             ))}
           </div>
-          <div className="flex-1 min-w-[14rem] max-w-sm">
+          <div className="flex-1 min-w-[14rem] max-w-sm relative">
+            <IconSearch className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
             <Input
-              type="search"
+              type="text"
+              className="pl-8 pr-8"
               placeholder="Search projects…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            {query && (
+              <IconButton
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+                aria-label="Clear search"
+                onClick={() => setQuery('')}
+              >
+                <IconClose className="w-3.5 h-3.5" />
+              </IconButton>
+            )}
           </div>
         </div>
 

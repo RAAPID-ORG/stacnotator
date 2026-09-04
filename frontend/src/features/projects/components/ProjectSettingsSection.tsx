@@ -148,7 +148,7 @@ export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps)
         <div>
           <h2 className="section-heading">Visibility</h2>
           <p className="section-description">
-            Who can open this project and work on its campaigns. Changes apply immediately.
+            Who can open this project and work on its campaigns.
           </p>
         </div>
         <ProjectVisibilityPicker

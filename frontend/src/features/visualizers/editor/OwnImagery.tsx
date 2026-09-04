@@ -82,7 +82,7 @@ export function OwnImagery({
   return (
     <div className="space-y-6">
       {area ? (
-        <SourcesTab controller={controller} onEditSource={setEditingId} description={null} />
+        <SourcesTab controller={controller} onEditSource={setEditingId} />
       ) : (
         <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
           Choose the area above first. Imagery is searched and registered over it.

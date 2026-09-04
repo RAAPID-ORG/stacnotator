@@ -104,9 +104,10 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
     <section className="surface surface-section" data-testid="org-api-keys">
       <h2 className="section-heading">Provider API keys</h2>
       <p className="section-description">
-        Provider keys shared across this organization. Store one here and any campaign can use it
-        without seeing the secret; replacing it here updates every campaign at once. Each key is
-        tied to the provider host it belongs to and is never sent anywhere else.
+        Register API keys from your data providers. These keys will be made usable for all members
+        of your organization, to access imagery that requires an API key. API Keys are saved
+        encrypted and are never exposed to users in their requests. Keys are tied to a host-adress
+        to prevent campaign users trying to pass it anywhere else,
       </p>
 
       {keys.length > 0 && (

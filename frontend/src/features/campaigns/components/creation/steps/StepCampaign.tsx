@@ -10,7 +10,7 @@ export const StepCampaign = ({
 }) => (
   <Field
     label="Campaign name"
-    hint="Shown to everyone working on it, and in exports. Something a colleague would recognise months from now - e.g. “Malawi maize 2024” rather than “test 3”."
+    hint="Pick a name that a colleague would recognise months from now - e.g. “Malawi maize 2024” rather than “test 3”."
     htmlFor="campaign-name"
     required
   >

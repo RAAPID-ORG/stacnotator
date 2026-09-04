@@ -127,8 +127,9 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
       <section className="surface-section">
         <h2 className="section-heading">Add members</h2>
         <p className="section-description">
-          Paste one or more email addresses, separated by commas, spaces, or newlines. Addresses
-          without an account yet are invited automatically. {INVITE_SIGNUP_NOTE}
+          Invite users that are not yet registered on STACNotator. Paste one or more email
+          addresses, separated by commas, spaces or newlines. Addresses without an account yet, will
+          be automatically added to the project when signing up to STACNotator. {INVITE_SIGNUP_NOTE}
         </p>
         <div className="space-y-3 max-w-xl">
           <Field label="Emails" htmlFor="org-member-emails">

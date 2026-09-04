@@ -26,10 +26,9 @@ interface BoundingBoxEditorProps {
 }
 
 const DEFAULT_HEADING = {
-  title: 'Bounding Box',
+  title: 'Region of Interest',
   description:
-    'The geographic area where imagery can be loaded for this campaign. Search for a country or ' +
-    'region, or set coordinates manually.',
+    'The region of interest defines your study region and limits the geographic area in which imagery will be prepared.',
 };
 
 /**
@@ -303,8 +302,8 @@ export const BoundingBoxEditor = ({
     <div className="space-y-4">
       {heading && (
         <div>
-          <h3 className="text-sm font-medium text-neutral-700 mb-1">{heading.title}</h3>
-          <p className="text-xs text-neutral-500">{heading.description}</p>
+          <h3 className="section-heading">{heading.title}</h3>
+          <p className="section-description">{heading.description}</p>
         </div>
       )}
 
@@ -352,10 +351,10 @@ export const BoundingBoxEditor = ({
                     clipRule="evenodd"
                   />
                 </svg>
-                <div className="absolute bottom-full right-0 mb-1.5 w-56 px-2.5 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                  Country bounding boxes were AI-generated as a quick prototype. They may not
-                  reflect actual boundaries and do not represent any geopolitical positions of the
-                  authors.
+                <div className="absolute bottom-full right-0 mb-1.5 w-64 px-2.5 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
+                  Boxes are derived from Natural Earth and OpenStreetMap boundaries and cover core
+                  national territory only. They are a starting point to drag, not an authoritative
+                  boundary.
                   <div className="absolute top-full right-2 border-4 border-transparent border-t-neutral-800"></div>
                 </div>
               </div>

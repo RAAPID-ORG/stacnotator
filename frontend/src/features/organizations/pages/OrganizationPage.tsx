@@ -78,32 +78,34 @@ const DetailsForm = ({ org }: { org: OrganizationOut }) => {
   }
 
   return (
-    <div className="surface surface-section space-y-4 max-w-xl">
+    <div className="surface surface-section space-y-4">
       <h2 className="section-heading">Details</h2>
-      <Field label="Name" htmlFor="org-edit-name" required error={error}>
-        <Input
-          id="org-edit-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          invalid={Boolean(error)}
-          disabled={saving}
-        />
-      </Field>
-      <Field label="Description" htmlFor="org-edit-description">
-        <Textarea
-          id="org-edit-description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          disabled={saving}
-        />
-      </Field>
-      <div className="flex gap-2">
-        <Button onClick={submit} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
-        </Button>
-        <Button variant="secondary" onClick={() => setEditing(false)} disabled={saving}>
-          Cancel
-        </Button>
+      <div className="space-y-4 max-w-xl">
+        <Field label="Name" htmlFor="org-edit-name" required error={error}>
+          <Input
+            id="org-edit-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            invalid={Boolean(error)}
+            disabled={saving}
+          />
+        </Field>
+        <Field label="Description" htmlFor="org-edit-description">
+          <Textarea
+            id="org-edit-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={saving}
+          />
+        </Field>
+        <div className="flex gap-2">
+          <Button onClick={submit} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+          <Button variant="secondary" onClick={() => setEditing(false)} disabled={saving}>
+            Cancel
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -172,7 +174,6 @@ export const OrganizationPage = () => {
             ) : (
               <Skeleton className="h-7 w-52" />
             )}
-            <p className="page-subtitle">Manage the organization details and its members.</p>
           </div>
         </header>
 

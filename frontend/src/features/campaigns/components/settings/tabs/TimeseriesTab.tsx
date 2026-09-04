@@ -61,14 +61,6 @@ export const TimeseriesTab: React.FC<Props> = ({
   return (
     <div id="tab-timeseries" role="tabpanel">
       <section className="space-y-4">
-        <div>
-          <h2 className="section-heading">Add timeseries</h2>
-          <p className="section-description">
-            Time series show how a location changes over time using a spectral index. They are
-            displayed as interactive charts alongside imagery during annotation to provide temporal
-            context.
-          </p>
-        </div>
         <StepAddTimeseries
           form={
             {

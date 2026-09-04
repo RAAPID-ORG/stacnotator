@@ -123,12 +123,17 @@ export const StepAddTimeseries = ({
 
   return (
     <div className="space-y-6">
-      <p className="text-xs text-neutral-500">
-        This is optional. Add one or more time series if temporal context helps annotators make
-        decisions. Which indices are on offer depends on the bands the source carries. Each source
-        reads a single pixel at its own resolution, so two sources at the same point cover different
-        ground and their values are not directly comparable.
-      </p>
+      <div>
+        <h3 className="section-heading">Timeseries</h3>
+        <p className="section-description">
+          Graphs that plot a single pixel&apos;s value over time: at the annotated point the chosen
+          spectral index is computed across the date range and drawn as a chart beside the imagery.
+          Optional - add one where temporal context helps annotators decide. Which indices are on
+          offer depends on the bands the source carries, and each source reads a single pixel at its
+          own resolution, so two sources at the same point cover different ground and their values
+          are not directly comparable.
+        </p>
+      </div>
 
       {items.map((i, index) => {
         const source = tsOptions?.sources.find((s) => s.key === i.data_source);

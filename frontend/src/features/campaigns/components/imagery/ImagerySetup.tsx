@@ -20,15 +20,25 @@ export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
 
   return (
     <div className="space-y-8">
-      <SourcesTab controller={controller} onEditSource={setEditingSourceId} />
+      <section>
+        <div className="mb-3">
+          <h3 className="section-heading">Imagery</h3>
+          <p className="section-description">
+            Imagery is at the core of you campaign. Setup and configure imagery here. Each imagery
+            source represents a dataset (e.g. Sentinel-2, Landsat, NAIP) with collections covering
+            specific time periods.
+          </p>
+        </div>
+        <SourcesTab controller={controller} onEditSource={setEditingSourceId} />
+      </section>
 
       <BasemapList controller={controller} />
 
       {controller.campaignId != null && (
         <section>
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-neutral-900">Overlays</h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
+            <h3 className="section-heading">Overlays</h3>
+            <p className="section-description">
               Layers drawn on top of the imagery in the annotation view - raster maps (COG, e.g.
               model predictions) and vector layers (PMTiles).
             </p>

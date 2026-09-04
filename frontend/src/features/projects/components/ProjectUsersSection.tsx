@@ -367,10 +367,12 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
 
           <section className={sectionCls}>
             <div>
-              <h2 className="section-heading">Add by email</h2>
+              <h2 className="section-heading">Invite to STACNotator</h2>
               <p className="section-description">
-                Paste one or more email addresses, separated by commas, spaces or newlines.
-                Addresses without an account yet are invited automatically. {INVITE_SIGNUP_NOTE}
+                Invite users that are not yet registered on STACNotator. Paste one or more email
+                addresses, separated by commas, spaces or newlines. Addresses without an account
+                yet, will be automatically added to the project when signing up to STACNotator.{' '}
+                {INVITE_SIGNUP_NOTE}
               </p>
             </div>
             <Field label="Email addresses" htmlFor="member-emails-input">

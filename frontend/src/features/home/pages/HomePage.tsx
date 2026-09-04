@@ -19,8 +19,10 @@ export const HomePage = () => {
         <div className="mb-10">
           <h1 className="text-2xl font-semibold text-neutral-900 tracking-tight">STACNotator</h1>
           <p className="mt-3 text-[15px] text-neutral-600 leading-relaxed max-w-2xl">
-            A collaborative annotator for satellite and aerial imagery. Build campaigns on top of
-            STAC catalogs, label features with your team, and review the result with built-in QA.
+            STACNotator is a free and opensource collaborative annotation platform for satellite and
+            aerial imagery. It is compatible with the STAC standard for geospatial data and allows
+            visualizing and labelling features in a team. STACNotator is designed around temporal
+            imagery, providing functionality to easily navigate through time.
           </p>
         </div>
 
@@ -62,12 +64,13 @@ export const HomePage = () => {
 
         <section className="mb-12">
           <h2 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider mb-4">
-            What you can do
+            Features
           </h2>
           <dl className="space-y-5">
             <Feature
               title="Connect any STAC catalog"
-              body="Microsoft Planetary Computer is best supported today, with experimental support for any public STAC endpoint. Imagery streams directly to the browser - no downloads, no pre-processing."
+              body="Microsoft Planetary Computer is best supported today, with experimental support for any public STAC endpoint. Imagery streams directly to the browser on the fly, without requiring
+              any downloading oe pre-processing."
             />
             <Feature
               title="Run team campaigns"
@@ -78,8 +81,8 @@ export const HomePage = () => {
               body="Per-pixel NDVI history from Sentinel-2 and MODIS, cloud-masked by Cloud Score+ and SCL. Customisable spectral indices on the roadmap."
             />
             <Feature
-              title="Two work styles, one campaign"
-              body="Work task-by-task through predefined points and polygons, or switch to Explore for free-form drawing on imagery you navigate yourself - switchable anytime while annotating."
+              title="Tasks and Exploration"
+              body="Work task-by-task through predefined points and polygons, or switch to Explore for free-form drawing on imagery you navigate yourself."
             />
             <Feature
               title="Active Learning"

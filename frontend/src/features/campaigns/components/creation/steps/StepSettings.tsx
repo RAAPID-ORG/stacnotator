@@ -53,15 +53,16 @@ export const StepSettings = ({
       />
 
       <div>
-        <h3 className="text-sm font-medium text-neutral-900 mb-1">Labels</h3>
-        <p className="text-xs text-neutral-500 mb-1">
-          A label is what a shape <em>is</em> - the class an annotator picks after drawing it. Each
-          annotation carries exactly one. The geometry type decides what gets drawn for that label,
-          and every label is given an ID automatically, in the order you add them here.
+        <h3 className="section-heading">Annotation labels</h3>
+        <p className="section-description mb-1">
+          A label defines what a shape <em>represents</em>. It is the class an annotator picks after
+          drawing/labelling. Each annotation carries exactly one label.
         </p>
         <p className="text-xs text-neutral-400 mb-3">
-          <span className="font-medium">Example:</span> for a crop survey - Maize, Cassava, Fallow,
-          Water, each as a polygon; Farm building as a point.
+          <span className="font-medium">Example:</span> For a crop survey you might want to identify
+          all fields with Maize, Cassava or Fallow, aswell as Farms. These would be your labels. If
+          you are drawing the shapes of these, you would select polygon as the geometry types for
+          the 3 field types and might want to select point for a farm.
         </p>
         <LabelsEditor
           value={s.labels}
@@ -71,23 +72,19 @@ export const StepSettings = ({
       </div>
 
       <div>
-        <h3 className="text-sm font-medium text-neutral-900 mb-1">
+        <h3 className="section-heading">
           Custom form fields
           <span className="ml-1 text-xs font-normal text-neutral-400">(optional)</span>
         </h3>
-        <p className="text-xs text-neutral-500 mb-1">
+        <p className="section-description mb-1">
           Extra questions asked about a single annotation, on top of its label. Use them for what
           varies <em>within</em> a class - if the answer decides what the shape is, it belongs in
           the labels above instead.
         </p>
-        <p className="text-xs text-neutral-500 mb-1">
-          Annotators see them right where they label: in explorative labelling the questions appear
-          once a shape has been drawn, and in task mode they sit beside the task with the label
-          list. A field marked required has to be answered before the annotation can be saved.
-        </p>
         <p className="text-xs text-neutral-400 mb-3">
-          <span className="font-medium">Example:</span> having drawn a Maize field - “Crop stage?”
-          (seedling / mature / harvested), “Field size in ha?”, “Anything unusual here?”.
+          <span className="font-medium">Example:</span> If you just drew a Maize field you might
+          want to distinguish the crop stage of the fields. So you could specify a “Crop stage?”
+          custom field with (seedling / mature / harvested).
         </p>
         <FormFieldsEditor
           value={s.form_fields ?? []}
@@ -97,13 +94,14 @@ export const StepSettings = ({
 
       {/* Embedding Year (optional) */}
       <div>
-        <h3 className="text-sm font-medium text-neutral-900 mb-1">
-          Satellite Embedding Year
+        <h3 className="section-heading">
+          Satellite embedding year
           <span className="ml-1 text-xs font-normal text-neutral-400">(optional)</span>
         </h3>
-        <p className="text-xs text-neutral-500 mb-3">
-          If set, satellite embeddings will be fetched for the chosen year to enable KNN-based label
-          validation during annotation. If not set, the validation feature will be unavailable.
+        <p className="section-description mb-3">
+          Experimental. If set, satellite embeddings are fetched for the chosen year to enable
+          KNN-based label validation during annotation: a new label is checked against the
+          embeddings of every existing one. Leave it at None unless you plan to use this.
         </p>
         <div className="w-48">
           <Select

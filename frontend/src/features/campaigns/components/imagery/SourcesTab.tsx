@@ -8,28 +8,15 @@ interface SourcesTabProps {
   controller: ImageryController;
   /** Open the shared source editor for the given source id. */
   onEditSource: (sourceId: string) => void;
-  /** Replaces the default blurb, or drops it when null - a caller that has
-   *  already said what these sources are does not want it said twice. */
-  description?: string | null;
 }
 
-const DEFAULT_DESCRIPTION =
-  'Define where imagery comes from. Each source represents a dataset (e.g. Sentinel-2, ' +
-  'Landsat, NAIP) with collections covering specific time periods.';
-
-export const SourcesTab = ({
-  controller,
-  onEditSource,
-  description = DEFAULT_DESCRIPTION,
-}: SourcesTabProps) => {
+export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
   const [wizardOpen, setWizardOpen] = useState(false);
 
   const sources = controller.state.sources;
 
   return (
-    <div className="space-y-3">
-      {description && <p className="text-xs text-neutral-500 mt-0.5">{description}</p>}
-
+    <>
       <div className="flex flex-wrap gap-2">
         {sources.map((source) => {
           const registration = sourceRegistration(source, controller.campaignId);
@@ -89,6 +76,6 @@ export const SourcesTab = ({
           }}
         />
       )}
-    </div>
+    </>
   );
 };

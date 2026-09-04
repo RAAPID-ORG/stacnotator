@@ -23,7 +23,8 @@ export const StepAccess = ({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <p className="text-sm text-neutral-700">
+        <h3 className="section-heading">Labelling access</h3>
+        <p className="section-description">
           Every campaign supports both task-by-task labelling and free exploration - annotators can
           switch between them anytime from the annotation view. The rules below decide who may label
           what, and whose labels count toward completing a task. You can change all of this later in
