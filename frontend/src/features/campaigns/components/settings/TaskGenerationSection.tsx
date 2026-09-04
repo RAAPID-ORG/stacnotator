@@ -260,7 +260,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
             <input
               type="number"
               min="1"
-              max="10000"
+              max="20000"
               value={numSamples}
               onChange={(e) => setNumSamples(parseInt(e.target.value) || 1)}
               disabled={generating}

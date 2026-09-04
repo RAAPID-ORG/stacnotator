@@ -136,7 +136,7 @@ class TestGenerateGridPoints:
         with pytest.raises(HTTPException) as exc_info:
             generate_grid_points(box(-1, -1, 1, 1), spacing_km=1, rng=rng())
         assert exc_info.value.status_code == 400
-        assert "10000" in str(exc_info.value.detail).replace(",", "")
+        assert "20000" in str(exc_info.value.detail).replace(",", "")
 
     def test_spacing_larger_than_region_is_rejected(self):
         with pytest.raises(HTTPException) as exc_info:

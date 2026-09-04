@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
-MAX_TASKS_PER_RUN = 10_000
+MAX_TASKS_PER_RUN = 20_000
 
 
 class RandomSamplingConfig(BaseModel):
