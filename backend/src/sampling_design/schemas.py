@@ -1,21 +1,39 @@
-from pydantic import BaseModel, Field
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field, TypeAdapter
+
+MAX_TASKS_PER_RUN = 10_000
 
 
-class SamplingStrategyConfig(BaseModel):
-    """Configuration for generating tasks using a sampling strategy."""
+class RandomSamplingConfig(BaseModel):
+    """Draw independent uniform points across the region."""
 
-    strategy_type: str = Field(
-        default="random",
-        description="Type of sampling strategy: 'random', 'stratified_random', etc.",
-    )
-    num_samples: int = Field(..., gt=0, le=10_000, description="Number of samples to generate")
-    parameters: dict | None = Field(
-        None, description="Additional strategy-specific parameters (e.g., seed for random)"
-    )
-    use_campaign_bbox: bool = Field(
-        default=False,
-        description="If true, use the campaign's bounding box instead of a region file",
-    )
+    strategy_type: Literal["random"] = "random"
+    num_samples: int = Field(..., gt=0, le=MAX_TASKS_PER_RUN)
+    seed: int | None = Field(None, description="Set for reproducible sampling")
+
+
+class GridSamplingConfig(BaseModel):
+    """Draw a regular lattice with the given spacing and one random offset."""
+
+    strategy_type: Literal["grid"] = "grid"
+    spacing_km: float = Field(..., gt=0, description="Distance between neighbouring points")
+    seed: int | None = Field(None, description="Set for a reproducible grid offset")
+
+
+SamplingStrategy = Annotated[
+    RandomSamplingConfig | GridSamplingConfig,
+    Field(discriminator="strategy_type"),
+]
+
+_strategy_adapter: TypeAdapter[RandomSamplingConfig | GridSamplingConfig] = TypeAdapter(
+    SamplingStrategy
+)
+
+
+def parse_sampling_strategy(raw: str) -> RandomSamplingConfig | GridSamplingConfig:
+    """Validate the strategy JSON a client sends as a multipart form field."""
+    return _strategy_adapter.validate_json(raw)
 
 
 class GenerateTasksResponse(BaseModel):

@@ -1121,13 +1121,19 @@ export type BodyGenerateTasksFromSampling = {
     /**
      * Strategy
      *
-     * JSON string of SamplingStrategyConfig
+     * JSON string of a sampling strategy
      */
     strategy: string;
     /**
      * Task Set Id
      */
     task_set_id: number;
+    /**
+     * Use Campaign Bbox
+     *
+     * Sample the campaign's bounding box instead of an uploaded region file
+     */
+    use_campaign_bbox?: boolean;
     /**
      * Region File
      *

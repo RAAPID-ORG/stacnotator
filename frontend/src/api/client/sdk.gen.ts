@@ -1445,24 +1445,21 @@ export const deleteTimeseries = <ThrowOnError extends boolean = false>(options: 
  *
  * Generate annotation tasks using a sampling strategy.
  *
- * You can either upload a region boundary file OR use the campaign's bounding box:
+ * **Region**, either an uploaded boundary or the campaign's own box:
+ * - `.zip` (shapefile with its .shp/.shx/.dbf/.prj), or `.geojson`/`.json`.
+ * Shapefiles are converted to EPSG:4326; GeoJSON is assumed to be in it
+ * already, per the specification. The region is clipped to the campaign box.
+ * - `use_campaign_bbox: true` and no file.
  *
- * **Option 1: Upload a region boundary file**
- * - `.zip` - Shapefile (containing .shp, .shx, .dbf, .prj files)
- * - `.geojson` or `.json` - GeoJSON file
+ * **Strategy**, a JSON string picked by `strategy_type`:
+ * - `{"strategy_type":"random","num_samples":100,"seed":42}` - independent
+ * uniform points across the region.
+ * - `{"strategy_type":"grid","spacing_km":5,"seed":42}` - a lattice with
+ * points 5 km apart, offset by one random step below a cell so the sample
+ * stays unbiased. The task count follows from the region's area.
  *
- * **Option 2: Use campaign bounding box**
- * - Set `use_campaign_bbox: true` in the strategy JSON
- * - No region_file required
- *
- * **Parameters:**
- * - strategy: JSON string with strategy_type, num_samples, use_campaign_bbox, and optional parameters
- * Example with file: {"strategy_type":"random","num_samples":10,"use_campaign_bbox":false,"parameters":{"seed":42}}
- * Example with bbox: {"strategy_type":"random","num_samples":10,"use_campaign_bbox":true,"parameters":{"seed":42}}
- *
- * Shapefiles will be automatically converted to EPSG:4326 if needed.
- * GeoJSON files are assumed to be in WGS84 (EPSG:4326) per specification.
- * Sample points will be generated within the boundary and created as annotation tasks.
+ * `seed` is optional in both and makes the draw reproducible. Sampled points
+ * become annotation tasks in the given task set.
  */
 export const generateTasksFromSampling = <ThrowOnError extends boolean = false>(options: Options<GenerateTasksFromSamplingData, ThrowOnError>) => (options.client ?? client).post<GenerateTasksFromSamplingResponses, GenerateTasksFromSamplingErrors, ThrowOnError>({
     ...formDataBodySerializer,

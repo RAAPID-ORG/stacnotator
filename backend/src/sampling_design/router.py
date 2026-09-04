@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.security import HTTPBearer
+from pydantic import ValidationError
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.geometry import box as shapely_box
 from sqlalchemy.orm import Session
@@ -10,7 +11,7 @@ from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.sampling_design import service
-from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategyConfig
+from src.sampling_design.schemas import GenerateTasksResponse, parse_sampling_strategy
 
 
 def _intersect_region_with_bbox(
@@ -52,8 +53,12 @@ router = APIRouter(
 @router.post("/generate-tasks", response_model=GenerateTasksResponse)
 async def generate_tasks_from_sampling(
     campaign_id: int,
-    strategy: str = Form(..., description="JSON string of SamplingStrategyConfig"),
+    strategy: str = Form(..., description="JSON string of a sampling strategy"),
     task_set_id: int = Form(...),
+    use_campaign_bbox: bool = Form(
+        False,
+        description="Sample the campaign's bounding box instead of an uploaded region file",
+    ),
     region_file: UploadFile | None = File(
         None,
         description="Region boundary file (.zip shapefile or .geojson). Optional if using campaign bbox.",
@@ -64,58 +69,54 @@ async def generate_tasks_from_sampling(
     """
     Generate annotation tasks using a sampling strategy.
 
-    You can either upload a region boundary file OR use the campaign's bounding box:
+    **Region**, either an uploaded boundary or the campaign's own box:
+    - `.zip` (shapefile with its .shp/.shx/.dbf/.prj), or `.geojson`/`.json`.
+      Shapefiles are converted to EPSG:4326; GeoJSON is assumed to be in it
+      already, per the specification. The region is clipped to the campaign box.
+    - `use_campaign_bbox: true` and no file.
 
-    **Option 1: Upload a region boundary file**
-    - `.zip` - Shapefile (containing .shp, .shx, .dbf, .prj files)
-    - `.geojson` or `.json` - GeoJSON file
+    **Strategy**, a JSON string picked by `strategy_type`:
+    - `{"strategy_type":"random","num_samples":100,"seed":42}` - independent
+      uniform points across the region.
+    - `{"strategy_type":"grid","spacing_km":5,"seed":42}` - a lattice with
+      points 5 km apart, offset by one random step below a cell so the sample
+      stays unbiased. The task count follows from the region's area.
 
-    **Option 2: Use campaign bounding box**
-    - Set `use_campaign_bbox: true` in the strategy JSON
-    - No region_file required
-
-    **Parameters:**
-    - strategy: JSON string with strategy_type, num_samples, use_campaign_bbox, and optional parameters
-      Example with file: {"strategy_type":"random","num_samples":10,"use_campaign_bbox":false,"parameters":{"seed":42}}
-      Example with bbox: {"strategy_type":"random","num_samples":10,"use_campaign_bbox":true,"parameters":{"seed":42}}
-
-    Shapefiles will be automatically converted to EPSG:4326 if needed.
-    GeoJSON files are assumed to be in WGS84 (EPSG:4326) per specification.
-    Sample points will be generated within the boundary and created as annotation tasks.
+    `seed` is optional in both and makes the draw reproducible. Sampled points
+    become annotation tasks in the given task set.
     """
-    # Parse strategy JSON string
-    strategy_config = SamplingStrategyConfig.model_validate_json(strategy)
+    try:
+        strategy_config = parse_sampling_strategy(strategy)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid sampling strategy: {e}") from e
+
     require_task_set(db, campaign.id, task_set_id, status_code=400)
 
-    # Determine region geometry source
-    if strategy_config.use_campaign_bbox:
-        # Use campaign bounding box
+    if use_campaign_bbox:
         region_geometry = service.create_bbox_polygon(campaign)
     else:
-        # Use uploaded region file
         if not region_file:
             raise HTTPException(
                 status_code=400,
                 detail="region_file is required when use_campaign_bbox is false",
             )
-        # Process region file (shapefile or GeoJSON)
         gdf = await service.process_uploaded_region_file(region_file)
         region_geometry = service.get_region_geometry(gdf)
         region_geometry = _intersect_region_with_bbox(region_geometry, campaign)
 
-    # Generate tasks
     num_tasks_created = service.create_tasks_from_sampling_strategy(
         db=db,
         campaign_id=campaign_id,
-        strategy_type=strategy_config.strategy_type,
-        num_samples=strategy_config.num_samples,
+        strategy=strategy_config,
         region_geometry=region_geometry,
-        parameters=strategy_config.parameters,
         task_set_id=task_set_id,
     )
 
     return GenerateTasksResponse(
         campaign_id=campaign_id,
         num_tasks_created=num_tasks_created,
-        message=f"Successfully generated {num_tasks_created} tasks using {strategy_config.strategy_type} sampling",
+        message=(
+            f"Successfully generated {num_tasks_created} tasks "
+            f"using {strategy_config.strategy_type} sampling"
+        ),
     )

@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { generateTasksFromSampling, type GenerateTasksResponse } from '~/api/client';
 import { FileInput } from '~/shared/ui/FileInput';
+import { extractErrorMessage } from '~/shared/utils/errorHandler';
 
-// Local type definition for sampling strategy configuration
-interface SamplingStrategyConfig {
-  strategy_type: string;
-  num_samples: number;
-  parameters: { seed?: number } | null;
-  use_campaign_bbox: boolean;
-}
+// The strategy travels as a JSON string in the multipart form, so it has no
+// generated type. Mirrors the discriminated union the backend validates.
+type SamplingStrategy =
+  | { strategy_type: 'random'; num_samples: number; seed?: number }
+  | { strategy_type: 'grid'; spacing_km: number; seed?: number };
 
 interface TaskGenerationSectionProps {
   campaignId: number;
@@ -23,10 +22,14 @@ const SAMPLING_STRATEGIES = [
     label: 'Random Sampling',
     description: 'Randomly sample points within the region',
   },
-  // Future strategies can be added here
-  // { value: 'stratified_random', label: 'Stratified Random', description: 'Random sampling with stratification' },
-  // { value: 'grid', label: 'Grid Sampling', description: 'Sample points on a regular grid' },
-];
+  {
+    value: 'grid',
+    label: 'Grid Sampling',
+    description: 'Sample a regular grid of points, a fixed distance apart',
+  },
+] as const;
+
+type StrategyType = (typeof SAMPLING_STRATEGIES)[number]['value'];
 
 export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   campaignId,
@@ -35,8 +38,9 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   onError,
 }) => {
   const [regionFile, setRegionFile] = useState<File | null>(null);
-  const [strategyType, setStrategyType] = useState<string>('random');
+  const [strategyType, setStrategyType] = useState<StrategyType>('random');
   const [numSamples, setNumSamples] = useState<number>(100);
+  const [spacingKm, setSpacingKm] = useState<number>(5);
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const [useCampaignBbox, setUseCampaignBbox] = useState<boolean>(false);
   const [generating, setGenerating] = useState(false);
@@ -57,8 +61,13 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
       return;
     }
 
-    if (numSamples < 1) {
+    if (strategyType === 'random' && numSamples < 1) {
       onError('Number of samples must be at least 1');
+      return;
+    }
+
+    if (strategyType === 'grid' && spacingKm <= 0) {
+      onError('Grid spacing must be greater than 0 km');
       return;
     }
 
@@ -70,17 +79,16 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
     try {
       setGenerating(true);
 
-      const strategy: SamplingStrategyConfig = {
-        strategy_type: strategyType,
-        num_samples: numSamples,
-        parameters: seed !== undefined ? { seed } : null,
-        use_campaign_bbox: useCampaignBbox,
-      };
+      const strategy: SamplingStrategy =
+        strategyType === 'grid'
+          ? { strategy_type: 'grid', spacing_km: spacingKm, seed }
+          : { strategy_type: 'random', num_samples: numSamples, seed };
 
       // Build the request body
       const requestBody: Record<string, unknown> = {
         strategy: JSON.stringify(strategy),
         task_set_id: taskSetId,
+        use_campaign_bbox: useCampaignBbox,
       };
 
       // Only include region_file if not using campaign bbox
@@ -94,7 +102,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
       });
 
       if (error) {
-        throw new Error(typeof error === 'string' ? error : 'Failed to generate tasks');
+        throw new Error(extractErrorMessage(error, 'Failed to generate tasks'));
       }
 
       if (data) {
@@ -137,7 +145,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
                   name="samplingStrategy"
                   value={strategy.value}
                   checked={strategyType === strategy.value}
-                  onChange={(e) => setStrategyType(e.target.value)}
+                  onChange={() => setStrategyType(strategy.value)}
                   className="mt-0.5 mr-3"
                 />
                 <div>
@@ -220,21 +228,42 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
           </div>
         </div>
 
-        {/* Number of Samples */}
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Number of Samples
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="10000"
-            value={numSamples}
-            onChange={(e) => setNumSamples(parseInt(e.target.value) || 1)}
-            disabled={generating}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-50 disabled:cursor-not-allowed"
-          />
-        </div>
+        {/* How much to sample: a count for random, a spacing for grid */}
+        {strategyType === 'grid' ? (
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Grid Spacing (km)
+            </label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.5"
+              value={spacingKm}
+              onChange={(e) => setSpacingKm(parseFloat(e.target.value) || 0)}
+              disabled={generating}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+            />
+            <p className="text-xs text-neutral-400 mt-1">
+              Distance between neighbouring points. The number of tasks follows from the size of the
+              region.
+            </p>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Number of Samples
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="10000"
+              value={numSamples}
+              onChange={(e) => setNumSamples(parseInt(e.target.value) || 1)}
+              disabled={generating}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+            />
+          </div>
+        )}
 
         {/* Optional Seed (for reproducibility) */}
         <div>
@@ -250,7 +279,9 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
             className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-50 disabled:cursor-not-allowed"
           />
           <p className="text-xs text-neutral-400 mt-1">
-            Set a seed for reproducible sampling results
+            {strategyType === 'grid'
+              ? 'Sets where the grid starts, for reproducible sampling results'
+              : 'Set a seed for reproducible sampling results'}
           </p>
         </div>
 
