@@ -1121,7 +1121,7 @@ export type BodyGenerateTasksFromSampling = {
     /**
      * Strategy
      *
-     * JSON string of a sampling strategy
+     * A sampling strategy as JSON
      */
     strategy: string;
     /**
@@ -2257,6 +2257,30 @@ export type GeometryOut = {
      * Geometry
      */
     geometry: string;
+};
+
+/**
+ * GridSamplingConfig
+ *
+ * Draw a regular lattice with the given spacing and one random offset.
+ */
+export type GridSamplingConfig = {
+    /**
+     * Strategy Type
+     */
+    strategy_type?: 'grid';
+    /**
+     * Spacing Km
+     *
+     * Distance between neighbouring points
+     */
+    spacing_km: number;
+    /**
+     * Seed
+     *
+     * Set for a reproducible grid offset
+     */
+    seed?: number | null;
 };
 
 /**
@@ -3706,6 +3730,28 @@ export type ProjectsListResponse = {
 };
 
 /**
+ * RandomSamplingConfig
+ *
+ * Draw independent uniform points across the region.
+ */
+export type RandomSamplingConfig = {
+    /**
+     * Strategy Type
+     */
+    strategy_type?: 'random';
+    /**
+     * Num Samples
+     */
+    num_samples: number;
+    /**
+     * Seed
+     *
+     * Set for reproducible sampling
+     */
+    seed?: number | null;
+};
+
+/**
  * RasterOverlayOut
  */
 export type RasterOverlayOut = {
@@ -3784,6 +3830,17 @@ export type RenderConfig = {
      */
     entries?: Array<CategoricalEntry> | null;
 };
+
+/**
+ * SamplingStrategy
+ *
+ * The strategy a client sends as a JSON string in the multipart form.
+ */
+export type SamplingStrategy = ({
+    strategy_type: 'random';
+} & RandomSamplingConfig) | ({
+    strategy_type: 'grid';
+} & GridSamplingConfig);
 
 /**
  * SearchRequest

@@ -18,7 +18,7 @@ from src.campaigns.models import Campaign
 from src.sampling_design.schemas import (
     MAX_TASKS_PER_RUN,
     GridSamplingConfig,
-    SamplingStrategy,
+    RandomSamplingConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -275,8 +275,7 @@ def generate_random_points(
     Args:
         geometry: Boundary within which to generate points
         num_samples: Number of points to generate
-        rng: Draws every random number this call needs. Seed it once per
-            request so composed strategies never repeat a stream.
+        rng: Draws every random number this call needs
 
     Returns:
         List of Point geometries within the boundary
@@ -302,6 +301,12 @@ def local_equal_area_crs(geometry: Polygon | MultiPolygon) -> str:
     """
     centroid = geometry.centroid
     return f"+proj=laea +lat_0={centroid.y} +lon_0={centroid.x} +datum=WGS84 +units=m +no_defs"
+
+
+def _lattice_axis(origin: float, low: float, high: float, spacing: float) -> np.ndarray:
+    """The lattice lines origin + k * spacing that fall in [low, high)."""
+    start = origin + np.ceil((low - origin) / spacing) * spacing
+    return np.arange(start, high, spacing)
 
 
 def generate_grid_points(
@@ -332,20 +337,35 @@ def generate_grid_points(
     dense = shapely.segmentize(geometry, max_segment_length=EDGE_SEGMENT_DEGREES)
     projected = gpd.GeoSeries([dense], crs=4326).to_crs(crs).iloc[0]
     spacing = spacing_km * 1000
-    min_x, min_y, max_x, max_y = projected.bounds
+    min_x, min_y, _, _ = projected.bounds
+    origin_x = min_x + rng.uniform(0, spacing)
+    origin_y = min_y + rng.uniform(0, spacing)
 
-    lattice_nodes = ((max_x - min_x) / spacing + 1) * ((max_y - min_y) / spacing + 1)
-    if lattice_nodes > MAX_LATTICE_NODES:
+    # One lattice, laid over each part's own envelope: far-apart parts
+    # would otherwise be charged for the empty space between them.
+    parts = shapely.get_parts(projected)
+    axes = [
+        (
+            _lattice_axis(origin_x, bounds[0], bounds[2], spacing),
+            _lattice_axis(origin_y, bounds[1], bounds[3], spacing),
+        )
+        for bounds in shapely.bounds(parts)
+    ]
+    if sum(len(xs) * len(ys) for xs, ys in axes) > MAX_LATTICE_NODES:
         raise HTTPException(
             status_code=400,
             detail=f"A {spacing_km} km grid is far too fine for the extent of this region.",
         )
 
-    xs = np.arange(min_x + rng.uniform(0, spacing), max_x, spacing)
-    ys = np.arange(min_y + rng.uniform(0, spacing), max_y, spacing)
-    grid_x, grid_y = (axis.ravel() for axis in np.meshgrid(xs, ys))
-    inside = shapely.contains_xy(projected, grid_x, grid_y)
-    num_points = int(inside.sum())
+    kept_x, kept_y = [], []
+    for part, (xs, ys) in zip(parts, axes, strict=True):
+        grid_x, grid_y = (axis.ravel() for axis in np.meshgrid(xs, ys))
+        inside = shapely.contains_xy(part, grid_x, grid_y)
+        kept_x.append(grid_x[inside])
+        kept_y.append(grid_y[inside])
+    xs_inside = np.concatenate(kept_x)
+    ys_inside = np.concatenate(kept_y)
+    num_points = len(xs_inside)
 
     if num_points == 0:
         raise HTTPException(
@@ -365,7 +385,7 @@ def generate_grid_points(
         )
 
     points = list(
-        gpd.GeoSeries(gpd.points_from_xy(grid_x[inside], grid_y[inside]), crs=crs).to_crs(epsg=4326)
+        gpd.GeoSeries(gpd.points_from_xy(xs_inside, ys_inside), crs=crs).to_crs(epsg=4326)
     )
     rng.shuffle(points)
 
@@ -380,7 +400,7 @@ def generate_grid_points(
 def create_tasks_from_sampling_strategy(
     db: Session,
     campaign_id: int,
-    strategy: SamplingStrategy,
+    strategy: RandomSamplingConfig | GridSamplingConfig,
     region_geometry: Polygon | MultiPolygon,
     task_set_id: int,
 ) -> int:
@@ -400,8 +420,7 @@ def create_tasks_from_sampling_strategy(
     Raises:
         HTTPException: If sampling or task creation fails
     """
-    # One generator per request: every stage of a strategy draws from the same
-    # stream, so no two of them can repeat each other's numbers.
+    # One generator per request, shared by everything the strategy draws.
     rng = np.random.default_rng(strategy.seed)
 
     if isinstance(strategy, GridSamplingConfig):

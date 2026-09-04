@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from pyproj import Geod
 from shapely.geometry import MultiPolygon, Point, Polygon, box
 
-from src.sampling_design.schemas import parse_sampling_strategy
+from src.sampling_design.schemas import SamplingStrategy
 from src.sampling_design.service import generate_grid_points, generate_random_points
 
 GEOD = Geod(ellps="WGS84")
@@ -102,6 +102,15 @@ class TestGenerateGridPoints:
         for pt in points:
             assert multi.contains(pt)
 
+    def test_far_apart_parts_are_gridded_without_their_empty_envelope(self):
+        # Two islands 4000 km apart: their joint envelope is tens of millions
+        # of nodes at 1 km, while the islands themselves hold a few thousand.
+        islands = MultiPolygon([box(0, 0, 0.5, 0.5), box(36, 36, 36.5, 36.5)])
+        points = generate_grid_points(islands, spacing_km=1, rng=rng())
+        assert 5000 < len(points) < 6000
+        for pt in points:
+            assert islands.contains(pt)
+
     def test_deterministic_with_same_rng_seed(self):
         region = box(0, 0, 1, 1)
         coords_a = [(p.x, p.y) for p in generate_grid_points(region, 10, rng(7))]
@@ -135,33 +144,30 @@ class TestGenerateGridPoints:
         assert exc_info.value.status_code == 400
 
 
-class TestParseSamplingStrategy:
-    def test_parses_random(self):
-        strategy = parse_sampling_strategy('{"strategy_type":"random","num_samples":10,"seed":3}')
-        assert strategy.num_samples == 10
-        assert strategy.seed == 3
-
-    def test_parses_grid(self):
-        strategy = parse_sampling_strategy('{"strategy_type":"grid","spacing_km":2.5}')
-        assert strategy.spacing_km == 2.5
-        assert strategy.seed is None
+class TestSamplingStrategySchema:
+    def test_picks_the_member_by_strategy_type(self):
+        strategy = SamplingStrategy.model_validate_json('{"strategy_type":"grid","spacing_km":2.5}')
+        assert strategy.root.spacing_km == 2.5
+        assert strategy.root.seed is None
 
     def test_unknown_strategy_type_is_rejected(self):
         with pytest.raises(ValidationError):
-            parse_sampling_strategy('{"strategy_type":"kriging","num_samples":10}')
-
-    def test_grid_without_spacing_is_rejected(self):
-        with pytest.raises(ValidationError):
-            parse_sampling_strategy('{"strategy_type":"grid"}')
+            SamplingStrategy.model_validate_json('{"strategy_type":"kriging","num_samples":10}')
 
     def test_negative_seed_is_rejected(self):
         with pytest.raises(ValidationError):
-            parse_sampling_strategy('{"strategy_type":"grid","spacing_km":5,"seed":-1}')
+            SamplingStrategy.model_validate_json(
+                '{"strategy_type":"grid","spacing_km":5,"seed":-1}'
+            )
 
     def test_infinite_spacing_is_rejected(self):
         with pytest.raises(ValidationError):
-            parse_sampling_strategy('{"strategy_type":"grid","spacing_km":Infinity}')
+            SamplingStrategy.model_validate_json('{"strategy_type":"grid","spacing_km":Infinity}')
 
-    def test_random_without_samples_is_rejected(self):
+    def test_old_request_shape_is_rejected_not_silently_trimmed(self):
+        # use_campaign_bbox used to live in here; accepting and ignoring it
+        # would flip an old client into file mode with no error.
         with pytest.raises(ValidationError):
-            parse_sampling_strategy('{"strategy_type":"random"}')
+            SamplingStrategy.model_validate_json(
+                '{"strategy_type":"random","num_samples":10,"use_campaign_bbox":true}'
+            )

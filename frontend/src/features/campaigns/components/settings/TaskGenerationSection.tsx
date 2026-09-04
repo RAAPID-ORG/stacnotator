@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { generateTasksFromSampling, type GenerateTasksResponse } from '~/api/client';
+import {
+  generateTasksFromSampling,
+  type GenerateTasksResponse,
+  type SamplingStrategy,
+} from '~/api/client';
 import { FileInput } from '~/shared/ui/FileInput';
+import { Field, Input } from '~/shared/ui/forms';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
-
-// The strategy travels as a JSON string in the multipart form, so it has no
-// generated type. Mirrors the discriminated union the backend validates.
-type SamplingStrategy =
-  | { strategy_type: 'random'; num_samples: number; seed?: number }
-  | { strategy_type: 'grid'; spacing_km: number; seed?: number };
 
 interface TaskGenerationSectionProps {
   campaignId: number;
@@ -40,10 +39,13 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   const [regionFile, setRegionFile] = useState<File | null>(null);
   const [strategyType, setStrategyType] = useState<StrategyType>('random');
   const [numSamples, setNumSamples] = useState<number>(100);
-  const [spacingKm, setSpacingKm] = useState<number>(5);
+  const [spacingKm, setSpacingKm] = useState('5');
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const [useCampaignBbox, setUseCampaignBbox] = useState<boolean>(false);
   const [generating, setGenerating] = useState(false);
+
+  const spacing = parseFloat(spacingKm);
+  const spacingValid = Number.isFinite(spacing) && spacing > 0;
 
   const handleFileSelect = (file: File) => {
     const isValid =
@@ -66,8 +68,13 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
       return;
     }
 
-    if (strategyType === 'grid' && spacingKm <= 0) {
+    if (strategyType === 'grid' && !spacingValid) {
       onError('Grid spacing must be greater than 0 km');
+      return;
+    }
+
+    if (seed !== undefined && (!Number.isInteger(seed) || seed < 0)) {
+      onError('Seed must be a whole number of 0 or more');
       return;
     }
 
@@ -81,7 +88,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
       const strategy: SamplingStrategy =
         strategyType === 'grid'
-          ? { strategy_type: 'grid', spacing_km: spacingKm, seed }
+          ? { strategy_type: 'grid', spacing_km: spacing, seed }
           : { strategy_type: 'random', num_samples: numSamples, seed };
 
       // Build the request body
@@ -230,24 +237,21 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
         {/* How much to sample: a count for random, a spacing for grid */}
         {strategyType === 'grid' ? (
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Grid Spacing (km)
-            </label>
-            <input
+          <Field
+            label="Grid Spacing (km)"
+            hint="Distance between neighbouring points. The number of tasks follows from the size of the region."
+            error={spacingValid ? undefined : 'Must be a positive number'}
+          >
+            <Input
               type="number"
-              min="0.01"
-              step="0.5"
+              min="0"
+              step="any"
               value={spacingKm}
-              onChange={(e) => setSpacingKm(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setSpacingKm(e.target.value)}
               disabled={generating}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+              invalid={!spacingValid}
             />
-            <p className="text-xs text-neutral-400 mt-1">
-              Distance between neighbouring points. The number of tasks follows from the size of the
-              region.
-            </p>
-          </div>
+          </Field>
         ) : (
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-2">
@@ -289,7 +293,11 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
         {/* Generate Button */}
         <button
           onClick={handleGenerate}
-          disabled={(!useCampaignBbox && !regionFile) || generating}
+          disabled={
+            (!useCampaignBbox && !regionFile) ||
+            (strategyType === 'grid' && !spacingValid) ||
+            generating
+          }
           className="w-full px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
         >
           {generating && (

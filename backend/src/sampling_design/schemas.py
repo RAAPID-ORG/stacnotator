@@ -1,12 +1,14 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 MAX_TASKS_PER_RUN = 10_000
 
 
 class RandomSamplingConfig(BaseModel):
     """Draw independent uniform points across the region."""
+
+    model_config = ConfigDict(extra="forbid")
 
     strategy_type: Literal["random"] = "random"
     num_samples: int = Field(..., gt=0, le=MAX_TASKS_PER_RUN)
@@ -16,6 +18,8 @@ class RandomSamplingConfig(BaseModel):
 class GridSamplingConfig(BaseModel):
     """Draw a regular lattice with the given spacing and one random offset."""
 
+    model_config = ConfigDict(extra="forbid")
+
     strategy_type: Literal["grid"] = "grid"
     spacing_km: float = Field(
         ..., gt=0, allow_inf_nan=False, description="Distance between neighbouring points"
@@ -23,19 +27,12 @@ class GridSamplingConfig(BaseModel):
     seed: int | None = Field(None, ge=0, description="Set for a reproducible grid offset")
 
 
-SamplingStrategy = Annotated[
-    RandomSamplingConfig | GridSamplingConfig,
-    Field(discriminator="strategy_type"),
-]
-
-_strategy_adapter: TypeAdapter[RandomSamplingConfig | GridSamplingConfig] = TypeAdapter(
-    SamplingStrategy
-)
-
-
-def parse_sampling_strategy(raw: str) -> RandomSamplingConfig | GridSamplingConfig:
-    """Validate the strategy JSON a client sends as a multipart form field."""
-    return _strategy_adapter.validate_json(raw)
+class SamplingStrategy(
+    RootModel[
+        Annotated[RandomSamplingConfig | GridSamplingConfig, Field(discriminator="strategy_type")]
+    ]
+):
+    """The strategy a client sends as a JSON string in the multipart form."""
 
 
 class GenerateTasksResponse(BaseModel):

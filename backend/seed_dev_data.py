@@ -15,6 +15,7 @@ Usage:
 import logging
 import sys
 
+import numpy as np
 from shapely.geometry import box as shapely_box
 from sqlalchemy import insert, select
 
@@ -305,7 +306,9 @@ def seed_dev_data(firebase_uid: str | None = None):
             UKRAINE_BBOX["bbox_east"],
             UKRAINE_BBOX["bbox_north"],
         )
-        sample_points = generate_random_points(ukraine_polygon, num_samples=100, seed=42)
+        sample_points = generate_random_points(
+            ukraine_polygon, num_samples=100, rng=np.random.default_rng(42)
+        )
 
         logger.info("Creating %d annotation tasks...", len(sample_points))
         geometry_records = [{"geometry": f"SRID=4326;POINT({pt.x} {pt.y})"} for pt in sample_points]

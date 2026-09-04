@@ -1,9 +1,14 @@
+from typing import Annotated
+
+import shapely
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.security import HTTPBearer
-from pydantic import ValidationError
+from pydantic import Json
 from shapely.geometry import MultiPolygon, Polygon
 from shapely.geometry import box as shapely_box
+from shapely.ops import unary_union
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_admin
@@ -11,7 +16,7 @@ from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.sampling_design import service
-from src.sampling_design.schemas import GenerateTasksResponse, parse_sampling_strategy
+from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategy
 
 
 def _intersect_region_with_bbox(
@@ -21,7 +26,9 @@ def _intersect_region_with_bbox(
     """Clip region_geometry to the campaign bbox if the campaign has settings.
 
     Returns the original geometry unchanged when the campaign has no settings
-    (no bbox configured). Raises HTTP 400 if the intersection is empty.
+    (no bbox configured). Raises HTTP 400 if nothing with area survives the
+    clip: a boundary that merely touches the box leaves lines behind, which
+    the samplers cannot draw from.
     """
     if campaign.settings is None:
         return region_geometry
@@ -32,14 +39,15 @@ def _intersect_region_with_bbox(
         campaign.settings.bbox_east,
         campaign.settings.bbox_north,
     )
-    intersection = region_geometry.intersection(campaign_bbox)
+    clipped = region_geometry.intersection(campaign_bbox)
+    polygons = [part for part in shapely.get_parts(clipped) if isinstance(part, Polygon)]
 
-    if intersection.is_empty:
+    if not polygons:
         raise HTTPException(
             status_code=400,
             detail="Region file does not overlap the campaign bounding box",
         )
-    return intersection
+    return unary_union(polygons)
 
 
 bearer = HTTPBearer()
@@ -53,7 +61,7 @@ router = APIRouter(
 @router.post("/generate-tasks", response_model=GenerateTasksResponse)
 async def generate_tasks_from_sampling(
     campaign_id: int,
-    strategy: str = Form(..., description="JSON string of a sampling strategy"),
+    strategy: Annotated[Json[SamplingStrategy], Form(description="A sampling strategy as JSON")],
     task_set_id: int = Form(...),
     use_campaign_bbox: bool = Form(
         False,
@@ -85,11 +93,6 @@ async def generate_tasks_from_sampling(
     `seed` is optional in both and makes the draw reproducible. Sampled points
     become annotation tasks in the given task set.
     """
-    try:
-        strategy_config = parse_sampling_strategy(strategy)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid sampling strategy: {e}") from e
-
     require_task_set(db, campaign.id, task_set_id, status_code=400)
 
     if use_campaign_bbox:
@@ -104,10 +107,12 @@ async def generate_tasks_from_sampling(
         region_geometry = service.get_region_geometry(gdf)
         region_geometry = _intersect_region_with_bbox(region_geometry, campaign)
 
-    num_tasks_created = service.create_tasks_from_sampling_strategy(
+    # Off the event loop: sampling a thin region can take seconds of CPU.
+    num_tasks_created = await run_in_threadpool(
+        service.create_tasks_from_sampling_strategy,
         db=db,
         campaign_id=campaign_id,
-        strategy=strategy_config,
+        strategy=strategy.root,
         region_geometry=region_geometry,
         task_set_id=task_set_id,
     )
@@ -117,6 +122,6 @@ async def generate_tasks_from_sampling(
         num_tasks_created=num_tasks_created,
         message=(
             f"Successfully generated {num_tasks_created} tasks "
-            f"using {strategy_config.strategy_type} sampling"
+            f"using {strategy.root.strategy_type} sampling"
         ),
     )
