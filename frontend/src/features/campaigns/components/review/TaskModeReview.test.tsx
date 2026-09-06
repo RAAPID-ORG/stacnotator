@@ -32,22 +32,51 @@ const renderTable = (count: number) =>
 
 const rowCount = () => screen.getAllByRole('row').length - 1; // minus the header row
 
+const firstRowNumber = () => screen.getAllByRole('row')[1].textContent;
+
 describe('TaskModeReview with a large task list', () => {
-  it('paints only the first page of rows', () => {
+  it('paints one page of rows and says where you are', () => {
     renderTable(500);
 
     expect(rowCount()).toBeLessThan(500);
-    expect(screen.getByRole('button', { name: /show more/i })).toBeTruthy();
+    expect(screen.getByText(/page 1 of 5/i)).toBeTruthy();
   });
 
-  it('paints more rows on demand', async () => {
+  it('moves to the next page', async () => {
     const user = userEvent.setup();
     renderTable(500);
-    const first = rowCount();
+    const firstOfPageOne = firstRowNumber();
 
-    await user.click(screen.getByRole('button', { name: /show more/i }));
+    await user.click(screen.getByRole('button', { name: /next/i }));
 
-    expect(rowCount()).toBeGreaterThan(first);
+    expect(screen.getByText(/page 2 of 5/i)).toBeTruthy();
+    expect(firstRowNumber()).not.toBe(firstOfPageOne);
+  });
+
+  it('goes back to the previous page', async () => {
+    const user = userEvent.setup();
+    renderTable(500);
+    const firstOfPageOne = firstRowNumber();
+
+    await user.click(screen.getByRole('button', { name: /next/i }));
+    await user.click(screen.getByRole('button', { name: /previous/i }));
+
+    expect(screen.getByText(/page 1 of 5/i)).toBeTruthy();
+    expect(firstRowNumber()).toBe(firstOfPageOne);
+  });
+
+  it('cannot page past either end', async () => {
+    const user = userEvent.setup();
+    renderTable(500);
+
+    expect(screen.getByRole('button', { name: /previous/i }).hasAttribute('disabled')).toBe(true);
+
+    for (let i = 0; i < 4; i++) {
+      await user.click(screen.getByRole('button', { name: /next/i }));
+    }
+
+    expect(screen.getByText(/page 5 of 5/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /next/i }).hasAttribute('disabled')).toBe(true);
   });
 
   it('selects every matching task, not just the painted ones', async () => {
@@ -63,6 +92,6 @@ describe('TaskModeReview with a large task list', () => {
     renderTable(5);
 
     expect(rowCount()).toBe(5);
-    expect(screen.queryByRole('button', { name: /show more/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /next/i })).toBeNull();
   });
 });

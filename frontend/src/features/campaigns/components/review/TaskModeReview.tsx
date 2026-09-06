@@ -56,8 +56,8 @@ const IconFunnel = ({ className }: { className?: string }) => (
  *  leaves behind. Campaign label ids are positive. */
 const NO_LABEL = -1;
 
-/** Rows painted per step. The list itself is never truncated, only what is drawn. */
-const ROWS_PER_PAGE = 200;
+/** Rows on one page. The list itself is never truncated, only what is drawn. */
+const ROWS_PER_PAGE = 100;
 
 interface TaskModeReviewProps {
   campaign?: CampaignSummaryOut;
@@ -164,7 +164,7 @@ export const TaskModeReview = ({
   // A campaign can hold tens of thousands of tasks, and every painted row is
   // real DOM. Filtering, selection and the bulk actions all read the whole
   // filtered list, so this bounds what is drawn and nothing else.
-  const [paintedRows, setPaintedRows] = useState(ROWS_PER_PAGE);
+  const [page, setPage] = useState(0);
 
   const filteredTasks = useMemo(() => {
     const filtered = tasks.filter((task) => {
@@ -251,7 +251,13 @@ export const TaskModeReview = ({
     });
   }, [filteredTasks, selectable]);
 
-  useEffect(() => setPaintedRows(ROWS_PER_PAGE), [filteredTasks]);
+  const pageCount = Math.max(1, Math.ceil(filteredTasks.length / ROWS_PER_PAGE));
+  // Filtering down to fewer pages must not strand the reader past the end.
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageStart = currentPage * ROWS_PER_PAGE;
+  const pageTasks = filteredTasks.slice(pageStart, pageStart + ROWS_PER_PAGE);
+
+  useEffect(() => setPage(0), [filteredTasks]);
 
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
@@ -844,7 +850,7 @@ export const TaskModeReview = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredTasks.slice(0, paintedRows).map((task, index) => {
+                      {pageTasks.map((task, index) => {
                         const latLon = extractCentroidFromWKT(task.geometry.geometry);
                         const taskStatus = task.task_status ?? 'pending';
                         const assignments = task.assignments || [];
@@ -1082,18 +1088,32 @@ export const TaskModeReview = ({
                       })}
                     </tbody>
                   </table>
-                  {filteredTasks.length > paintedRows && (
-                    <div className="flex items-center justify-center gap-3 py-4 text-sm text-neutral-500">
+                  {pageCount > 1 && (
+                    <div className="flex items-center justify-between gap-3 py-4 text-sm text-neutral-500">
                       <span>
-                        Showing {paintedRows.toLocaleString()} of{' '}
+                        Showing {(pageStart + 1).toLocaleString()} to{' '}
+                        {(pageStart + pageTasks.length).toLocaleString()} of{' '}
                         {filteredTasks.length.toLocaleString()}
                       </span>
-                      <Button
-                        variant="secondary"
-                        onClick={() => setPaintedRows((shown) => shown + ROWS_PER_PAGE)}
-                      >
-                        Show more
-                      </Button>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          variant="secondary"
+                          disabled={currentPage === 0}
+                          onClick={() => setPage(currentPage - 1)}
+                        >
+                          Previous
+                        </Button>
+                        <span className="tabular-nums">
+                          Page {currentPage + 1} of {pageCount.toLocaleString()}
+                        </span>
+                        <Button
+                          variant="secondary"
+                          disabled={currentPage >= pageCount - 1}
+                          onClick={() => setPage(currentPage + 1)}
+                        >
+                          Next
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
