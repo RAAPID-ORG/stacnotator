@@ -18,6 +18,10 @@ export function useLeafletMap(
     if (!containerRef.current || mapRef.current) return;
 
     const map = L.map(containerRef.current, {
+      // Points are drawn into one canvas rather than a DOM element each. These
+      // maps plot a whole campaign's tasks, and five figures of absolutely
+      // positioned markers have to be repositioned on every pan and zoom.
+      preferCanvas: true,
       center: [(bbox.south + bbox.north) / 2, (bbox.west + bbox.east) / 2],
       zoom: 10,
       zoomControl: true,

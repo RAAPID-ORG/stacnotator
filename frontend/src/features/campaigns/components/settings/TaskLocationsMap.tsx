@@ -36,18 +36,13 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(({ tasks, 
       const taskStatus = task.task_status ?? 'pending';
       const statusColor = TASK_STATUS_CONFIG[taskStatus]?.color ?? '#6B7280';
 
-      const icon = L.divIcon({
-        html: `
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="8" cy="8" r="6" fill="${statusColor}" stroke="white" stroke-width="2"/>
-          </svg>
-        `,
-        className: 'task-marker',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
+      const marker = L.circleMarker(coords, {
+        radius: 6,
+        fillColor: statusColor,
+        fillOpacity: 1,
+        color: 'white',
+        weight: 2,
       });
-
-      const marker = L.marker(coords, { icon });
 
       // Add popup with task info
       const assignments = task.assignments || [];
@@ -101,13 +96,6 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(({ tasks, 
 
       {/* Map Container */}
       <div ref={containerRef} className="w-full h-80 rounded-lg border border-neutral-200" />
-
-      <style>{`
-        .task-marker {
-          background: transparent !important;
-          border: none !important;
-        }
-      `}</style>
     </div>
   );
 });

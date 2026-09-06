@@ -59,18 +59,13 @@ export const TasksByLabelMap: React.FC<TasksByLabelMapProps> = ({ tasks, labels,
         labelName = 'Skipped';
       }
 
-      const icon = L.divIcon({
-        html: `
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="10" cy="10" r="7" fill="${markerColor}" stroke="white" stroke-width="2.5"/>
-          </svg>
-        `,
-        className: 'annotation-marker',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
+      const marker = L.circleMarker(coords, {
+        radius: 7,
+        fillColor: markerColor,
+        fillOpacity: 1,
+        color: 'white',
+        weight: 2.5,
       });
-
-      const marker = L.marker(coords, { icon });
 
       const assignments = task.assignments || [];
       const assignedTo =
@@ -168,13 +163,6 @@ export const TasksByLabelMap: React.FC<TasksByLabelMapProps> = ({ tasks, labels,
       </div>
 
       <div ref={containerRef} className="w-full h-96 rounded-lg border border-neutral-200" />
-
-      <style>{`
-        .annotation-marker {
-          background: transparent !important;
-          border: none !important;
-        }
-      `}</style>
     </div>
   );
 };
