@@ -18,6 +18,7 @@ import { StepPrior } from './StepPrior';
 import { formatCount } from './format';
 
 interface Props {
+  campaignId: number;
   plan: AreaEstimationPlan;
   update: (patch: Partial<AreaEstimationPlan>) => void;
   onActivate: () => void;
@@ -25,7 +26,14 @@ interface Props {
   onCancel?: () => void;
 }
 
-export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: Props) => {
+export const PlanWizard = ({
+  campaignId,
+  plan,
+  update,
+  onActivate,
+  activating,
+  onCancel,
+}: Props) => {
   const [stepIndex, setStepIndex] = useState(0);
   const top = useRef<HTMLDivElement>(null);
   const step = PLAN_STEPS[stepIndex].id;
@@ -60,7 +68,7 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
       />
 
       <div className="space-y-6">
-        {step === 'data' && <StepData plan={plan} update={update} />}
+        {step === 'data' && <StepData campaignId={campaignId} plan={plan} update={update} />}
         {step === 'classes' && <StepClasses plan={plan} update={update} />}
         {step === 'prior' && <StepPrior plan={plan} update={update} />}
         {step === 'design' && <StepDesign plan={plan} update={update} />}

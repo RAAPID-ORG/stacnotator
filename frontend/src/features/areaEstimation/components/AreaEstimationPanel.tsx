@@ -6,7 +6,7 @@ import { loadPlan, loadProgress, type Progress } from '../api';
 import type { AreaEstimates } from '../core/estimate';
 import { estimateAreas } from '../core/estimate';
 import type { AreaEstimationPlan } from '../core/plan';
-import { domainsOf, planNeedsPilot } from '../core/plan';
+import { domainsOf, pixelAreaOf, planNeedsPilot } from '../core/plan';
 import { Note, SubHeading } from './Explain';
 import { formatArea, formatCount, formatPercent } from './format';
 
@@ -153,7 +153,7 @@ export const AreaEstimationPanel = ({
           domains.map((domain) => {
             const samples = progress?.samples[domain.id] ?? [];
             if (samples.length === 0) return null;
-            const estimates = estimateAreas(samples, classIds, plan.raster?.areaPerPixel ?? 0);
+            const estimates = estimateAreas(samples, classIds, pixelAreaOf(plan));
             return (
               <EstimateTable
                 key={domain.id}

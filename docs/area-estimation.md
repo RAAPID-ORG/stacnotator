@@ -174,6 +174,17 @@ with reporting classes built from the raw census and poll that too. A map can
 be re-preprocessed or re-stratified at any point while no job is running on
 it; each run replaces the previous product.
 
+## The wizard
+
+The data step of the area estimation wizard (`frontend/src/features/areaEstimation/`)
+is what calls these routes: choosing a file or a URL stores the map, adding a
+boundary file sets its areas, and a count runs whenever there is a map without
+one - after the upload, after the areas change, after a band change, and when
+an edited projection is committed by leaving the field. The map's distinct
+values come out of that count, since a GeoTIFF carries no class list, and are
+named by hand. The plan itself is still kept in the browser's local storage;
+stratify is not called until a sample is drawn, which is not built yet.
+
 ## Settings
 
 | Setting | Default | Meaning |
