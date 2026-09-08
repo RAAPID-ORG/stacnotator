@@ -506,6 +506,18 @@ class AnnotationsExtentOut(BaseModel):
     bbox: tuple[float, float, float, float] | None = None
 
 
+class TaskDensityCell(BaseModel):
+    """One grid cell's worth of tasks sharing a status and a label: where they sit and
+    how many there are. The campaign maps draw from these instead of a marker per task,
+    so the payload grows with cells rather than with the size of the campaign."""
+
+    lon: float
+    lat: float
+    task_status: str
+    label_id: int | None
+    count: int
+
+
 class AnnotationDensityCell(BaseModel):
     """One aggregated grid cell for the minimap distribution overview: the
     cell centre (EPSG:4326) and how many annotation centroids fall in it.

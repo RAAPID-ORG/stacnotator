@@ -4178,6 +4178,36 @@ export type StacItemOut = {
 };
 
 /**
+ * TaskDensityCell
+ *
+ * One grid cell's worth of tasks sharing a status and a label: where they sit and
+ * how many there are. The campaign maps draw from these instead of a marker per task,
+ * so the payload grows with cells rather than with the size of the campaign.
+ */
+export type TaskDensityCell = {
+    /**
+     * Lon
+     */
+    lon: number;
+    /**
+     * Lat
+     */
+    lat: number;
+    /**
+     * Task Status
+     */
+    task_status: string;
+    /**
+     * Label Id
+     */
+    label_id: number | null;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
  * TaskSetCreate
  */
 export type TaskSetCreate = {
@@ -8991,6 +9021,53 @@ export type GetAnnotationsExtentResponses = {
 };
 
 export type GetAnnotationsExtentResponse = GetAnnotationsExtentResponses[keyof GetAnnotationsExtentResponses];
+
+export type GetTaskDensityData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Task Set Id
+         */
+        task_set_id?: number | null;
+        /**
+         * Bbox
+         *
+         * minx,miny,maxx,maxy in EPSG:4326
+         */
+        bbox?: string | null;
+        /**
+         * Target Cells
+         */
+        target_cells?: number;
+    };
+    url: '/api/campaigns/{campaign_id}/tasks/density';
+};
+
+export type GetTaskDensityErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTaskDensityError = GetTaskDensityErrors[keyof GetTaskDensityErrors];
+
+export type GetTaskDensityResponses = {
+    /**
+     * Response Gettaskdensity
+     *
+     * Successful Response
+     */
+    200: Array<TaskDensityCell>;
+};
+
+export type GetTaskDensityResponse = GetTaskDensityResponses[keyof GetTaskDensityResponses];
 
 export type GetAnnotationDensityData = {
     body?: never;
