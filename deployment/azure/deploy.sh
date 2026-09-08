@@ -98,6 +98,17 @@ BACKEND_ENV=(
     "DEFAULT_TILER=$TILER_NAME"
 )
 [ -n "$TILER_COOKIE_DOMAIN" ] && BACKEND_ENV+=("TILER_COOKIE_DOMAIN=$TILER_COOKIE_DOMAIN")
+# The worker and the backend share the map workspace over the file share both mount
+# at this path (README: "Area estimation worker").
+AREA_ESTIMATION_WORKDIR=/mnt/area-estimation
+if [ -n "$AREA_ESTIMATION_JOB" ]; then
+    BACKEND_ENV+=(
+        "AREA_ESTIMATION_RUNNER=azure"
+        "AREA_ESTIMATION_AZURE_JOB_ID=$AREA_ESTIMATION_JOB_ID"
+        "AREA_ESTIMATION_AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID"
+        "AREA_ESTIMATION_WORKDIR=$AREA_ESTIMATION_WORKDIR"
+    )
+fi
 
 if [ "$DRY_RUN" = "true" ]; then
     echo -e "${BLUE}Backend secrets:${NC}"
@@ -111,6 +122,7 @@ if [ "$DRY_RUN" = "true" ]; then
     echo "  $TILER_REPO_DIR/deployment/deploy-containerapp.sh  (tiler:$TILER_IMAGE_TAG)"
     echo "  npm ci && npm run build  (VITE_API_BASE_URL=https://$API_HOST)"
     echo "  az containerapp create-or-update $APP_BACKEND"
+    [ -n "$AREA_ESTIMATION_JOB" ] && echo "  az containerapp job update $AREA_ESTIMATION_JOB --image backend:$IMAGE_TAG"
     echo "  swa deploy ./dist --env production  ($APP_SWA)"
     echo ""
     echo -e "${GREEN}Dry run complete. Nothing was written.${NC}"
@@ -258,6 +270,15 @@ deploy_backend() {
     fi
 }
 
+# The worker runs the backend image with another command, so every release moves the
+# job to the same image. Its volume, command and sizing were set when it was created
+# and are left alone here.
+deploy_area_estimation_job() {
+    [ -n "$AREA_ESTIMATION_JOB" ] || return 0
+    az containerapp job update --name "$AREA_ESTIMATION_JOB" -g "$RESOURCE_GROUP" \
+        --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" --output none
+}
+
 # Migrations run on container startup (alembic upgrade head before gunicorn). A failed
 # migration, or unparseable env such as a malformed TILERS, exits non-zero: the
 # revision stays unhealthy and the previous one keeps serving all traffic.
@@ -317,6 +338,7 @@ PRE_MIGRATION_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 echo -e "${YELLOW}Deploying backend...${NC}"
 deploy_backend
+deploy_area_estimation_job
 echo -e "${GREEN}Backend deployed${NC}"
 
 join_stage build-frontend

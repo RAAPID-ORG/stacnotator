@@ -118,26 +118,37 @@ that connection to the address checked at link time.
 
 `jobs.execute` needs only the map's files on disk and nothing about FastAPI,
 the database, or the process serving requests - it runs the same wherever it
-is called. A `Runner` decides where that call happens. `LocalRunner` is the
-only one implemented: it runs the job on a daemon thread inside the backend
-process, against that process's own disk. It is the default, and what every
-non-Azure install uses.
+is called. A `Runner` decides where that call happens, chosen by
+`AREA_ESTIMATION_RUNNER`:
 
-A deployment that provisions a separate worker per job - an Azure-shaped
-detail, not implemented - would plug in another `Runner` that hands the same
-`JobRecord` to that worker instead of a thread; no caller can tell the
-difference, because both leave the same job file behind.
+- `local` (the default, what every install without Azure uses): `LocalRunner`
+  runs the job on a daemon thread inside the backend process, against that
+  process's own disk. Fine for county-sized maps; a country-sized warp
+  competes with request handling for the same CPU.
+- `azure`: `AzureJobRunner` starts one execution of an Azure Container Apps
+  Job per submitted job. The job runs the backend image with
+  `python -m src.area_estimation.worker`, which reads the job named in
+  `AREA_ESTIMATION_JOB` from the workspace, executes it, and exits. Backend
+  and worker mount the same Azure Files share as the workspace, so the worker
+  leaves exactly the files a local thread would and the backend polls them
+  the same way. The execution is started through the management API with
+  the backend's managed identity; a start that fails marks the job failed at
+  once rather than after the stale sweep. Setup is in
+  `deployment/azure/README.md`, "Area estimation worker".
 
 Liveness is heartbeat-based: a running job stamps `heartbeat_at` every 15
 seconds, and a job whose heartbeat has not moved in 120 seconds is judged
 stale on the next poll, swept to `failed`, and its map's `active_job_id`
-released so another job can start. Recovery needs nothing from the dead
-process - it is read off the job record alone.
+released so another job can start. A queued job gets 10 minutes before it
+counts as stale, since a worker spun up for it may still be pulling its
+image; a worker that starts after its job was swept sees it is no longer
+queued and exits. Recovery needs nothing from the dead process - it is read
+off the job record alone.
 
-The caveat this leaves: `LocalRunner` assumes one machine. With several
+The caveat the local runner leaves: it assumes one machine. With several
 backend replicas behind a load balancer, a map's files exist only on the
-replica that received the upload or the job request; a poll or a job start
-routed to a different replica will not find them.
+replica that received the upload; the Azure runner's shared workspace is what
+removes that.
 
 ## The API
 
@@ -193,6 +204,9 @@ stratify is not called until a sample is drawn, which is not built yet.
 | `AREA_ESTIMATION_MAX_UPLOAD_BYTES` | 4 GiB | Per-file upload limit, for map tiles and area files alike |
 | `AREA_ESTIMATION_MAX_GRID_PIXELS` | 200,000,000,000 | Upper bound on the equal-area grid a preprocess request may create |
 | `AREA_ESTIMATION_MAX_CONCURRENT_JOBS` | 1 | How many jobs `LocalRunner` runs at once, across all campaigns |
+| `AREA_ESTIMATION_RUNNER` | `local` | `local` runs jobs in the backend; `azure` starts a Container Apps Job execution per job |
+| `AREA_ESTIMATION_AZURE_JOB_ID` | unset | ARM resource id of that job; required with the `azure` runner |
+| `AREA_ESTIMATION_AZURE_CLIENT_ID` | unset | Client id of the user-assigned identity to start it with; unset means the system identity |
 
 ## Throughput
 

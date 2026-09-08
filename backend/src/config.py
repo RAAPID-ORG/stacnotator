@@ -6,7 +6,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import quote_plus
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEFAULT_CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
@@ -242,6 +242,19 @@ class Settings(BaseSettings):
     AREA_ESTIMATION_MAX_UPLOAD_BYTES: int = 4 * 1024 * 1024 * 1024
     AREA_ESTIMATION_MAX_GRID_PIXELS: int = 200_000_000_000
     AREA_ESTIMATION_MAX_CONCURRENT_JOBS: int = 1
+    # "azure" hands each job to a Container Apps Job execution that shares the
+    # workdir with the backend over a mounted file share; the job's ARM resource id
+    # names it, and the identity is the backend's own (a user-assigned one by client
+    # id, else the system one). See docs/area-estimation.md.
+    AREA_ESTIMATION_RUNNER: Literal["local", "azure"] = "local"
+    AREA_ESTIMATION_AZURE_JOB_ID: str | None = None
+    AREA_ESTIMATION_AZURE_CLIENT_ID: str | None = None
+
+    @model_validator(mode="after")
+    def _azure_runner_needs_a_job(self) -> "Settings":
+        if self.AREA_ESTIMATION_RUNNER == "azure" and not self.AREA_ESTIMATION_AZURE_JOB_ID:
+            raise ValueError("AREA_ESTIMATION_RUNNER=azure needs AREA_ESTIMATION_AZURE_JOB_ID")
+        return self
 
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None

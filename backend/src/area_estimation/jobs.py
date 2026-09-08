@@ -42,6 +42,10 @@ logger = logging.getLogger(__name__)
 HEARTBEAT_SECONDS = 15.0
 PROGRESS_WRITE_SECONDS = 2.0
 STALE_AFTER_SECONDS = 120.0
+# A queued job has no heartbeat yet: a worker spun up for it may still be
+# pulling its image. Patience here costs a user only a longer wait on a job
+# that never starts.
+QUEUED_STALE_AFTER_SECONDS = 600.0
 INTERRUPTED_ERROR = "Processing was interrupted; run it again"
 
 
@@ -72,7 +76,8 @@ class LocalRunner:
 def is_stale(job: JobRecord, at: datetime | None = None) -> bool:
     if job.status not in ("queued", "running"):
         return False
-    return (at or now()) - job.heartbeat_at > timedelta(seconds=STALE_AFTER_SECONDS)
+    limit = QUEUED_STALE_AFTER_SECONDS if job.status == "queued" else STALE_AFTER_SECONDS
+    return (at or now()) - job.heartbeat_at > timedelta(seconds=limit)
 
 
 def sweep_if_stale(workspace: Workspace, job: JobRecord) -> JobRecord:

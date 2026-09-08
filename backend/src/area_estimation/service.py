@@ -10,10 +10,12 @@ from tempfile import gettempdir
 from typing import BinaryIO
 from urllib.parse import urlparse
 
+import httpx
 from fastapi import HTTPException
 
 from src.area_estimation import jobs, raster
 from src.area_estimation.areas import read_areas
+from src.area_estimation.azure_jobs import AzureJobRunner, ManagedIdentity
 from src.area_estimation.raster import MapError
 from src.area_estimation.schemas import (
     MAX_SOURCES_PER_MAP,
@@ -45,6 +47,14 @@ def workspace() -> Workspace:
 @lru_cache
 def runner() -> jobs.Runner:
     settings = get_settings()
+    if settings.AREA_ESTIMATION_RUNNER == "azure":
+        client = httpx.Client(timeout=30)
+        return AzureJobRunner(
+            workspace(),
+            settings.AREA_ESTIMATION_AZURE_JOB_ID or "",
+            ManagedIdentity(client, settings.AREA_ESTIMATION_AZURE_CLIENT_ID),
+            client,
+        )
     return jobs.LocalRunner(
         workspace(),
         settings.AREA_ESTIMATION_MAX_CONCURRENT_JOBS,

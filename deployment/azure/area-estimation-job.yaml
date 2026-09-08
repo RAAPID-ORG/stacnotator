@@ -1,0 +1,45 @@
+# The Container Apps Job that preprocesses maps for area estimation, created once
+# per environment (README: "Area estimation worker"). Every <placeholder> is filled
+# in by the commands there; deploy.sh only moves the image on each release.
+#
+# Manual trigger with zero parallelism at rest: the backend starts one execution per
+# job and passes the job to run in AREA_ESTIMATION_JOB. The share mounted at the
+# workdir is the same one the backend mounts, which is how the two see one workspace.
+location: <location>
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    <identity-resource-id>: {}
+properties:
+  environmentId: <container-apps-environment-resource-id>
+  workloadProfileName: Consumption
+  configuration:
+    triggerType: Manual
+    replicaTimeout: 21600
+    replicaRetryLimit: 0
+    manualTriggerConfig:
+      parallelism: 1
+      replicaCompletionCount: 1
+    registries:
+      - server: <acr-login-server>
+        identity: <identity-resource-id>
+  template:
+    containers:
+      - name: worker
+        image: <acr-login-server>/backend:<image-tag>
+        command: ["python", "-m", "src.area_estimation.worker"]
+        resources:
+          cpu: 4
+          memory: 8Gi
+        env:
+          - name: AREA_ESTIMATION_WORKDIR
+            value: /mnt/area-estimation
+          - name: AREA_ESTIMATION_MAX_GRID_PIXELS
+            value: "200000000000"
+        volumeMounts:
+          - volumeName: area-estimation
+            mountPath: /mnt/area-estimation
+    volumes:
+      - name: area-estimation
+        storageType: AzureFile
+        storageName: area-estimation
