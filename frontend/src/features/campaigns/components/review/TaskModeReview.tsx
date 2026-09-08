@@ -287,6 +287,29 @@ export const TaskModeReview = ({
 
   const stats = useMemo(() => ({ total: tasks.length, ...countTasksByStatus(tasks) }), [tasks]);
 
+  // Campaign-wide totals for the distribution map's legend. The map fetches only the
+  // cells for its viewport, so the counts beside it have to come from the list.
+  const labelCounts = useMemo(
+    () =>
+      (campaign?.settings.labels ?? []).map((label) => ({
+        labelId: label.id as number | null,
+        count: tasks.filter((t) => (t.annotations || []).some((a) => a.label_id === label.id))
+          .length,
+      })),
+    [campaign, tasks]
+  );
+  const pendingCount = useMemo(
+    () =>
+      tasks.filter(
+        (t) => !(t.annotations || []).some((a) => a.label_id) && t.task_status !== 'skipped'
+      ).length,
+    [tasks]
+  );
+  const skippedCount = useMemo(
+    () => tasks.filter((t) => t.task_status === 'skipped').length,
+    [tasks]
+  );
+
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (statusFilter !== 'all') count++;
@@ -386,7 +409,11 @@ export const TaskModeReview = ({
         {!embedded && campaign && tasks.length > 0 && (
           <div className="mb-6">
             <TasksByLabelMap
-              tasks={tasks}
+              campaignId={campaignId}
+              labelCounts={labelCounts}
+              pendingCount={pendingCount}
+              skippedCount={skippedCount}
+              totalTasks={tasks.length}
               labels={campaign.settings.labels}
               bbox={{
                 west: campaign.settings.bbox_west,

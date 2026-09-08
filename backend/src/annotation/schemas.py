@@ -513,7 +513,7 @@ class TaskDensityCell(BaseModel):
 
     lon: float
     lat: float
-    task_status: str
+    task_status: TaskStatus
     label_id: int | None
     count: int
 

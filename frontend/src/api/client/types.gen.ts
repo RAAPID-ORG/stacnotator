@@ -4196,7 +4196,7 @@ export type TaskDensityCell = {
     /**
      * Task Status
      */
-    task_status: string;
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
     /**
      * Label Id
      */

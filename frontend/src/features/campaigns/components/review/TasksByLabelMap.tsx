@@ -1,166 +1,127 @@
 import { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { AnnotationTaskOut, LabelBase } from '~/api/client';
-import { extractCentroidFromWKT } from '~/shared/utils/utility';
+import { getTaskDensity, type LabelBase, type TaskDensityCell } from '~/api/client';
+import { handleError } from '~/shared/utils/errorHandler';
+import { DensityLegend } from './DensityLegend';
+import { drawDensityCells, TARGET_CELLS, useDensityViewport, useHiddenKeys } from './densityMap';
 import { generateLabelColors } from './labelColors';
 import { useLeafletMap } from './useLeafletMap';
 
 /**
  * Task locations coloured by the label an annotator gave them.
  *
- * Sibling to `settings/TaskLocationsMap`, which plots the same points coloured by task
- * *status*. Same geometry, different question - which is the only reason both exist.
- * Distinct again from `ClassDistributionMap`, which plots annotations rather than tasks
- * and aggregates them server-side.
+ * Sibling to `settings/TaskLocationsMap`, which draws the same grid coloured by task
+ * *status*. Same points, different question - which is the only reason both exist.
+ * Distinct again from `ClassDistributionMap`, which plots annotations rather than tasks.
+ *
+ * All three read a density grid built in the database, so the payload grows with cells
+ * rather than with the size of the campaign, and all three share the viewport
+ * following, cell drawing and legend in `densityMap`.
  */
 interface TasksByLabelMapProps {
-  tasks: AnnotationTaskOut[];
+  campaignId: number;
+  /** Campaign-wide counts, for the legend and the heading. */
+  labelCounts: { labelId: number | null; count: number }[];
+  pendingCount: number;
+  skippedCount: number;
+  totalTasks: number;
   labels: LabelBase[];
   bbox: { west: number; south: number; east: number; north: number };
 }
 
 const PENDING_COLOR = '#9CA3AF';
 const SKIPPED_COLOR = '#8B5CF6';
+/** Legend keys for the two states that are not a label. */
+const PENDING_KEY = 'pending';
+const SKIPPED_KEY = 'skipped';
 
-export const TasksByLabelMap: React.FC<TasksByLabelMapProps> = ({ tasks, labels, bbox }) => {
+/** What colours a cell: the label an annotator gave it, or the state it is still in. */
+const cellKey = (cell: TaskDensityCell): string | number => {
+  if (cell.label_id !== null) return cell.label_id;
+  return cell.task_status === 'skipped' ? SKIPPED_KEY : PENDING_KEY;
+};
+
+export const TasksByLabelMap: React.FC<TasksByLabelMapProps> = ({
+  campaignId,
+  labelCounts,
+  pendingCount,
+  skippedCount,
+  totalTasks,
+  labels,
+  bbox,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
+  const view = useDensityViewport(mapRef, mapReady);
+  const [cells, setCells] = useState<TaskDensityCell[]>([]);
   const [labelColors, setLabelColors] = useState<Record<number, string>>({});
+  const { hidden, toggle } = useHiddenKeys<string | number>();
 
   useEffect(() => {
     setLabelColors(generateLabelColors(labels));
   }, [labels]);
 
   useEffect(() => {
-    if (!mapRef.current || !markersLayerRef.current || !mapReady) return;
-
-    markersLayerRef.current.clearLayers();
-
-    tasks.forEach((task) => {
-      const centroid = extractCentroidFromWKT(task.geometry.geometry);
-      if (!centroid) return;
-      const coords: [number, number] = [centroid.lat, centroid.lon];
-
-      const annotations = task.annotations || [];
-
-      let markerColor = PENDING_COLOR;
-      let labelName = 'Pending';
-
-      if (annotations.length > 0 && annotations.some((a) => a.label_id)) {
-        const labeledAnn = annotations.find((a) => a.label_id);
-        if (labeledAnn?.label_id) {
-          markerColor = labelColors[labeledAnn.label_id] || PENDING_COLOR;
-          const label = labels.find((l) => l.id === labeledAnn.label_id);
-          labelName = label?.name || `Label #${labeledAnn.label_id}`;
-        }
-      } else if (task.task_status === 'skipped') {
-        markerColor = SKIPPED_COLOR;
-        labelName = 'Skipped';
-      }
-
-      const marker = L.circleMarker(coords, {
-        radius: 7,
-        fillColor: markerColor,
-        fillOpacity: 1,
-        color: 'white',
-        weight: 2.5,
-      });
-
-      const assignments = task.assignments || [];
-      const assignedTo =
-        assignments.length > 0
-          ? assignments.map((a) => a.user_display_name || a.user_email || a.user_id).join(', ')
-          : 'Unassigned';
-
-      const annotationInfo =
-        annotations.length > 0
-          ? annotations
-              .map((a) => {
-                const label = labels.find((l) => l.id === a.label_id);
-                const annotator = assignments.find((asgn) => asgn.user_id === a.created_by_user_id);
-                const annotatorName =
-                  annotator?.user_display_name ||
-                  annotator?.user_email ||
-                  a.created_by_user_display_name ||
-                  a.created_by_user_email ||
-                  a.created_by_user_id;
-                return `${label?.name || 'Skipped'} (by ${annotatorName})`;
-              })
-              .join('<br>')
-          : 'No annotations';
-
-      marker.bindPopup(`
-        <div class="text-sm">
-          <div class="font-medium mb-1">Task #${task.annotation_number}</div>
-          <div class="text-xs text-neutral-600">Status: <span class="capitalize">${task.task_status || 'pending'}</span></div>
-          <div class="text-xs text-neutral-600">Label: <span class="capitalize">${labelName}</span></div>
-          <div class="text-xs text-neutral-600">Annotations: ${annotationInfo}</div>
-          <div class="text-xs text-neutral-600">Assigned: ${assignedTo}</div>
-          ${annotations.length > 0 && annotations[0].comment ? `<div class="text-xs text-neutral-600 mt-1">💬 ${annotations[0].comment}</div>` : ''}
-        </div>
-      `);
-
-      markersLayerRef.current?.addLayer(marker);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mapRef/markersLayerRef are stable refs returned from useLeafletMap
-  }, [tasks, mapReady, labelColors, labels]);
-
-  const labelStats = labels
-    .map((label) => {
-      const count = tasks.filter((t) => {
-        const annotations = t.annotations || [];
-        return annotations.some((a) => a.label_id === label.id);
-      }).length;
-      return { label, count, color: labelColors[label.id] };
+    if (!view) return;
+    let cancelled = false;
+    getTaskDensity({
+      path: { campaign_id: campaignId },
+      query: { bbox: view, target_cells: TARGET_CELLS },
     })
-    .filter((stat) => stat.count > 0);
+      .then((res) => {
+        if (!cancelled) setCells(res.data ?? []);
+      })
+      .catch((err) => {
+        if (!cancelled) handleError(err, 'Failed to load annotation distribution');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, view]);
 
-  const pendingCount = tasks.filter((t) => {
-    const annotations = t.annotations || [];
-    const hasLabel = annotations.some((a) => a.label_id);
-    return !hasLabel && t.task_status !== 'skipped';
-  }).length;
+  const colorOf = (key: string | number) => {
+    if (key === PENDING_KEY) return PENDING_COLOR;
+    if (key === SKIPPED_KEY) return SKIPPED_COLOR;
+    return labelColors[key as number] ?? PENDING_COLOR;
+  };
+  const nameOf = (key: string | number) => {
+    if (key === PENDING_KEY) return 'Pending';
+    if (key === SKIPPED_KEY) return 'Skipped';
+    return labels.find((l) => l.id === key)?.name ?? `Label #${key}`;
+  };
 
-  const skippedCount = tasks.filter((t) => t.task_status === 'skipped').length;
+  useEffect(() => {
+    if (!markersLayerRef.current || !mapReady) return;
+    const points = cells
+      .map((cell) => ({
+        lon: cell.lon,
+        lat: cell.lat,
+        count: cell.count,
+        key: cellKey(cell),
+      }))
+      .filter((point) => !hidden.has(point.key));
+    drawDensityCells(markersLayerRef.current, points, colorOf, nameOf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- map refs are stable, from useLeafletMap
+  }, [cells, hidden, mapReady, labelColors, labels]);
+
+  const legend = [
+    ...labels.map((label) => ({
+      key: label.id as string | number,
+      name: label.name,
+      color: labelColors[label.id],
+      count: labelCounts.find((c) => c.labelId === label.id)?.count ?? 0,
+    })),
+    { key: PENDING_KEY, name: 'Pending', color: PENDING_COLOR, count: pendingCount },
+    { key: SKIPPED_KEY, name: 'Skipped', color: SKIPPED_COLOR, count: skippedCount },
+  ].filter((entry) => entry.count > 0);
 
   return (
     <div className="bg-white rounded-lg border border-neutral-300 p-6">
       <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-        Annotation Distribution ({tasks.length} total)
+        Annotation Distribution ({totalTasks} total)
       </h2>
 
-      <div className="flex flex-wrap gap-3 mb-4 text-sm">
-        {labelStats.map(({ label, count, color }) => (
-          <div key={label.id} className="flex items-center gap-2">
-            <span
-              className="w-4 h-4 rounded-full border-2 border-white"
-              style={{ backgroundColor: color, boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
-            />
-            <span className="text-neutral-700">
-              {label.name} ({count})
-            </span>
-          </div>
-        ))}
-        {pendingCount > 0 && (
-          <div className="flex items-center gap-2">
-            <span
-              className="w-4 h-4 rounded-full border-2 border-white"
-              style={{ backgroundColor: PENDING_COLOR, boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
-            />
-            <span className="text-neutral-700">Pending ({pendingCount})</span>
-          </div>
-        )}
-        {skippedCount > 0 && (
-          <div className="flex items-center gap-2">
-            <span
-              className="w-4 h-4 rounded-full border-2 border-white"
-              style={{ backgroundColor: SKIPPED_COLOR, boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
-            />
-            <span className="text-neutral-700">Skipped ({skippedCount})</span>
-          </div>
-        )}
-      </div>
+      <DensityLegend entries={legend} hidden={hidden} onToggle={toggle} />
 
       <div ref={containerRef} className="w-full h-96 rounded-lg border border-neutral-200" />
     </div>
