@@ -62,13 +62,13 @@ The in-repo `backend/.venv` is stale. Always run backend tooling via `uv run` (`
 
 ## Backend architecture
 
-FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `organizations`, `projects`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `planet` (Planet Basemaps browsing for the same wizard: series list, a series' mosaics as ready tile templates), `custom_layers` (overlay layers: COG custom maps + PMTiles vector layers, owned by a campaign or a visualizer), `visualizers` (published project-scoped maps; registers imagery of its own over its area and/or links what campaigns already registered, and serves the one route in the app reachable without an account). Tile *serving* lives in the separate tiler service - this backend only registers mosaics and mints tiler access tokens.
+FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `organizations`, `projects`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `planet` (Planet Basemaps browsing for the same wizard: series list, a series' mosaics as ready tile templates), `custom_layers` (overlay layers: COG custom maps + PMTiles vector layers, owned by a campaign or a visualizer), `visualizers` (published project-scoped maps; registers imagery of its own over its area and/or links what campaigns already registered, and serves the one route in the app reachable without an account), `area_estimation` (preprocessing a classified map onto an equal-area grid into a stratification for design-based area estimation). Tile *serving* lives in the separate tiler service - this backend only registers mosaics and mints tiler access tokens.
 
 Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` -FastAPI endpoints, dependency wiring
 - `service.py` -orchestration: DB I/O + external calls (STAC, Earth Engine, tiler)
 - `models.py` -SQLAlchemy models; `schemas.py` -Pydantic request/response models
-- **functional-core modules** -pure logic extracted out of `service.py` so it can be unit-tested without a DB: `campaigns/assignments.py` + `campaigns/statistics.py`, `imagery/tile_urls.py`, `annotation/io.py`, `canvas/layout.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
+- **functional-core modules** -pure logic extracted out of `service.py` so it can be unit-tested without a DB: `campaigns/assignments.py` + `campaigns/statistics.py`, `imagery/tile_urls.py`, `annotation/io.py`, `canvas/layout.py`, `area_estimation/raster.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
 
 `canvas/` is a routerless domain module that owns all canvas-layout state (the `CanvasLayout` model, the react-grid-layout item schema, bin-packing/reconciliation in `layout.py`, DB writes in `service.py`). Other domains contribute window keys (timeseries window names, imagery collection ids) and must never mutate `layout_data` themselves; the save endpoint stays at `imagery/router.py`'s `new-layout` for API stability.
 
@@ -182,4 +182,4 @@ Both campaign modes (**Task Mode**, predefined locations; **Open Mode**, free-fo
 
 ## Further docs
 
-`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `docs/annotation-tiles.md` (annotation vector tiles, editing, multi-user sync), `deployment/azure/README.md` (deployment).
+`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `docs/annotation-tiles.md` (annotation vector tiles, editing, multi-user sync), `docs/area-estimation.md` (area estimation preprocessing), `deployment/azure/README.md` (deployment).

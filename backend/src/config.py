@@ -233,6 +233,16 @@ class Settings(BaseSettings):
         # `DEFAULT_TILER=` (empty) from compose means "no default", not the tiler named "".
         return v or None
 
+    # Area estimation keeps a map only while its sampling design is being worked
+    # on, on the disk of whichever process runs the preprocessing - this one, with
+    # the local runner. Unset: a directory under the system temp dir. Uploads are
+    # capped by size; a grid is capped by pixel count so a fine resolution over a
+    # continent fails at planning rather than after filling the disk.
+    AREA_ESTIMATION_WORKDIR: str | None = None
+    AREA_ESTIMATION_MAX_UPLOAD_BYTES: int = 4 * 1024 * 1024 * 1024
+    AREA_ESTIMATION_MAX_GRID_PIXELS: int = 200_000_000_000
+    AREA_ESTIMATION_MAX_CONCURRENT_JOBS: int = 1
+
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None
     EE_PRIVATE_KEY: str | None = None  # Direct key content (alternative to path)
