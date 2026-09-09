@@ -98,15 +98,18 @@ BACKEND_ENV=(
     "DEFAULT_TILER=$TILER_NAME"
 )
 [ -n "$TILER_COOKIE_DOMAIN" ] && BACKEND_ENV+=("TILER_COOKIE_DOMAIN=$TILER_COOKIE_DOMAIN")
-# The worker and the backend share the map workspace over the file share both mount
-# at this path (README: "Area estimation worker").
-AREA_ESTIMATION_WORKDIR=/mnt/area-estimation
+# Maps live in the blob container while their design is written, which is what the
+# backend's replicas and the worker share (README: "Area estimation worker").
+if [ -n "$AREA_ESTIMATION_BLOB_URL" ]; then
+    BACKEND_ENV+=(
+        "AREA_ESTIMATION_BLOB_CONTAINER_URL=$AREA_ESTIMATION_BLOB_URL"
+        "AREA_ESTIMATION_AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID"
+    )
+fi
 if [ -n "$AREA_ESTIMATION_JOB" ]; then
     BACKEND_ENV+=(
         "AREA_ESTIMATION_RUNNER=azure"
         "AREA_ESTIMATION_AZURE_JOB_ID=$AREA_ESTIMATION_JOB_ID"
-        "AREA_ESTIMATION_AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID"
-        "AREA_ESTIMATION_WORKDIR=$AREA_ESTIMATION_WORKDIR"
     )
 fi
 
@@ -271,8 +274,8 @@ deploy_backend() {
 }
 
 # The worker runs the backend image with another command, so every release moves the
-# job to the same image. Its volume, command and sizing were set when it was created
-# and are left alone here.
+# job to the same image. Its command, environment and sizing were set when it was
+# created and are left alone here.
 deploy_area_estimation_job() {
     [ -n "$AREA_ESTIMATION_JOB" ] || return 0
     az containerapp job update --name "$AREA_ESTIMATION_JOB" -g "$RESOURCE_GROUP" \

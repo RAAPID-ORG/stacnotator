@@ -91,28 +91,44 @@ rejected before any reprojection starts.
 
 ## Where a map lives
 
-A map lives on the local disk of whichever process runs its jobs, under
-`Workspace.root`:
+A map, its areas of interest, the products a job wrote and the records
+describing them live in a *workspace* while the design is written. Records
+are whole documents replaced atomically, so a reader in another process never
+sees a half-written one. Two workspaces implement the same contract
+(`workspace.Workspace`):
+
+- `LocalWorkspace`: a directory on the machine running the backend, the
+  default, under `AREA_ESTIMATION_WORKDIR` or the system temp dir.
+- `BlobWorkspace` (`blob.py`): an Azure Blob container, chosen by
+  `AREA_ESTIMATION_BLOB_CONTAINER_URL`. Every replica and every worker sees
+  the same maps. GDAL reads sources and products in place through `/vsiaz/`
+  with range requests, authorised by a user-delegation SAS the workspace mints
+  from the managed identity and renews before it expires; nothing is copied
+  to read a map and no account key is involved. Products are written to
+  local scratch first, because a tiled GeoTIFF needs seeks while it is
+  written, and uploaded when the job finishes.
+
+Both use one key layout:
 
 ```
 campaign-<id>/
   maps/<map_id>/
     map.json          # MapRecord: sources, info, areas, latest products
-    sources/           # uploaded tiles only - never populated for linked URLs
-    areas.geojson       # areas of interest, EPSG:4326
-    reprojected.tif      # preprocess output
-    strata.tif            # stratify output
-  jobs/<job_id>.json  # JobRecord, one file per job
+    sources/          # uploaded tiles only - never populated for linked URLs
+    areas.geojson     # areas of interest, EPSG:4326
+    reprojected.tif   # preprocess output
+    strata.tif        # stratify output
+  jobs/<job_id>.json  # JobRecord, one per job
 ```
 
 Uploaded tiles are stored only for as long as the sampling design is being
-worked on and for as long as the worker holding them stays up - nothing here
-is durable, and there is no backup or migration path for it. A linked map is
+worked on; nothing here is durable, backed up, or migrated. A linked map is
 never copied at all: every job reads the URL directly, so it should point at
-a cloud-optimized GeoTIFF. Before a linked URL is accepted, `net_guard.assert_public_url`
-rejects anything that resolves to a private or loopback address; this check
-is point-in-time only, since GDAL does its own fetch later and nothing pins
-that connection to the address checked at link time.
+a cloud-optimized GeoTIFF. Before a linked URL is accepted,
+`net_guard.assert_public_url` rejects anything that resolves to a private or
+loopback address; this check is point-in-time only, since GDAL does its own
+fetch later and nothing pins that connection to the address checked at link
+time.
 
 ## The runner seam
 
@@ -128,12 +144,12 @@ is called. A `Runner` decides where that call happens, chosen by
 - `azure`: `AzureJobRunner` starts one execution of an Azure Container Apps
   Job per submitted job. The job runs the backend image with
   `python -m src.area_estimation.worker`, which reads the job named in
-  `AREA_ESTIMATION_JOB` from the workspace, executes it, and exits. Backend
-  and worker mount the same Azure Files share as the workspace, so the worker
-  leaves exactly the files a local thread would and the backend polls them
-  the same way. The execution is started through the management API with
-  the backend's managed identity; a start that fails marks the job failed at
-  once rather than after the stale sweep. Setup is in
+  `AREA_ESTIMATION_JOB` from the blob workspace, executes it, and exits. The
+  worker leaves exactly the records a local thread would and the backend
+  polls them the same way, which is why this runner requires the blob
+  workspace. The execution is started through the management API with the
+  backend's managed identity; a start that fails marks the job failed at once
+  rather than after the stale sweep. Setup is in
   `deployment/azure/README.md`, "Area estimation worker".
 
 Liveness is heartbeat-based: a running job stamps `heartbeat_at` every 15
@@ -145,10 +161,10 @@ image; a worker that starts after its job was swept sees it is no longer
 queued and exits. Recovery needs nothing from the dead process - it is read
 off the job record alone.
 
-The caveat the local runner leaves: it assumes one machine. With several
+The caveat the local workspace leaves: it assumes one machine. With several
 backend replicas behind a load balancer, a map's files exist only on the
-replica that received the upload; the Azure runner's shared workspace is what
-removes that.
+replica that received the upload; the blob workspace is what removes that,
+with or without the Azure runner.
 
 ## The API
 
@@ -206,7 +222,8 @@ stratify is not called until a sample is drawn, which is not built yet.
 | `AREA_ESTIMATION_MAX_CONCURRENT_JOBS` | 1 | How many jobs `LocalRunner` runs at once, across all campaigns |
 | `AREA_ESTIMATION_RUNNER` | `local` | `local` runs jobs in the backend; `azure` starts a Container Apps Job execution per job |
 | `AREA_ESTIMATION_AZURE_JOB_ID` | unset | ARM resource id of that job; required with the `azure` runner |
-| `AREA_ESTIMATION_AZURE_CLIENT_ID` | unset | Client id of the user-assigned identity to start it with; unset means the system identity |
+| `AREA_ESTIMATION_AZURE_CLIENT_ID` | unset | Client id of the user-assigned identity to act as; unset means whatever the environment offers |
+| `AREA_ESTIMATION_BLOB_CONTAINER_URL` | unset | Blob container to use as the workspace instead of the workdir; required with the `azure` runner |
 
 ## Throughput
 

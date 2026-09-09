@@ -1,10 +1,12 @@
-"""Orchestration between the API and the worker holding the map: creating maps
-from uploads or links, attaching areas of interest, starting jobs and reading
-them back. HTTP errors are raised here so the router stays thin."""
+"""Orchestration between the API and the workspace holding the map: creating
+maps from uploads or links, attaching areas of interest, starting jobs and
+reading them back. HTTP errors are raised here so the router stays thin."""
 
 import json
 import re
+import tempfile
 from functools import lru_cache
+from io import BytesIO
 from pathlib import Path
 from tempfile import gettempdir
 from typing import BinaryIO
@@ -15,7 +17,8 @@ from fastapi import HTTPException
 
 from src.area_estimation import jobs, raster
 from src.area_estimation.areas import read_areas
-from src.area_estimation.azure_jobs import AzureJobRunner, ManagedIdentity
+from src.area_estimation.azure_jobs import AzureJobRunner
+from src.area_estimation.blob import BlobWorkspace, credential
 from src.area_estimation.raster import MapError
 from src.area_estimation.schemas import (
     MAX_SOURCES_PER_MAP,
@@ -26,7 +29,16 @@ from src.area_estimation.schemas import (
     SourceRef,
     StratifyRequest,
 )
-from src.area_estimation.workspace import AREAS_FILE, UploadTooLarge, Workspace, is_id, new_id
+from src.area_estimation.workspace import (
+    AREAS_FILE,
+    SOURCES_DIR,
+    LocalWorkspace,
+    UploadTooLarge,
+    Workspace,
+    copy_bounded,
+    is_id,
+    new_id,
+)
 from src.config import get_settings
 from src.net_guard import UnsafeUrlError, assert_public_url
 
@@ -36,24 +48,29 @@ SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]")
 
 @lru_cache
 def workspace() -> Workspace:
-    root = get_settings().AREA_ESTIMATION_WORKDIR or str(
+    settings = get_settings()
+    if settings.AREA_ESTIMATION_BLOB_CONTAINER_URL:
+        return BlobWorkspace.from_url(
+            settings.AREA_ESTIMATION_BLOB_CONTAINER_URL,
+            credential(settings.AREA_ESTIMATION_AZURE_CLIENT_ID),
+        )
+    root = settings.AREA_ESTIMATION_WORKDIR or str(
         Path(gettempdir()) / "stacnotator-area-estimation"
     )
     path = Path(root)
     path.mkdir(parents=True, exist_ok=True)
-    return Workspace(path)
+    return LocalWorkspace(path)
 
 
 @lru_cache
 def runner() -> jobs.Runner:
     settings = get_settings()
     if settings.AREA_ESTIMATION_RUNNER == "azure":
-        client = httpx.Client(timeout=30)
         return AzureJobRunner(
             workspace(),
             settings.AREA_ESTIMATION_AZURE_JOB_ID or "",
-            ManagedIdentity(client, settings.AREA_ESTIMATION_AZURE_CLIENT_ID),
-            client,
+            credential(settings.AREA_ESTIMATION_AZURE_CLIENT_ID),
+            httpx.Client(timeout=30),
         )
     return jobs.LocalRunner(
         workspace(),
@@ -79,7 +96,9 @@ def _safe_file_name(index: int, name: str) -> str:
 def _finish_map(campaign_id: int, map_id: str, refs: list[SourceRef]) -> MapRecord:
     space = workspace()
     try:
-        info = raster.inspect_map(jobs.sources_of(refs, space.map_dir(campaign_id, map_id)))
+        info = raster.inspect_map(
+            jobs.sources_of(refs, space, campaign_id, map_id), space.gdal_options()
+        )
     except MapError as exc:
         space.delete_map(campaign_id, map_id)
         raise _bad_request(exc) from exc
@@ -102,13 +121,13 @@ def create_map_from_uploads(campaign_id: int, uploads: list[tuple[str, BinaryIO]
             raise HTTPException(status_code=400, detail=f"{name} is not a GeoTIFF (.tif)")
 
     space = workspace()
-    map_id, map_dir = space.create_map_dir(campaign_id)
+    map_id = new_id()
     limit = get_settings().AREA_ESTIMATION_MAX_UPLOAD_BYTES
     refs = []
     try:
         for index, (name, stream) in enumerate(uploads):
             stored = _safe_file_name(index, name)
-            space.save_stream(map_dir / "sources" / stored, stream, limit)
+            space.put_file(campaign_id, map_id, f"{SOURCES_DIR}/{stored}", stream, limit)
             refs.append(SourceRef(kind="upload", name=Path(name).name, location=stored))
     except UploadTooLarge as exc:
         space.delete_map(campaign_id, map_id)
@@ -127,15 +146,13 @@ def create_map_from_urls(campaign_id: int, urls: list[str]) -> MapRecord:
         except UnsafeUrlError as exc:
             raise _bad_request(exc) from exc
         refs.append(SourceRef(kind="url", name=Path(urlparse(url).path).name or url, location=url))
-    space = workspace()
-    map_id, _ = space.create_map_dir(campaign_id)
-    return _finish_map(campaign_id, map_id, refs)
+    return _finish_map(campaign_id, new_id(), refs)
 
 
 def get_map(campaign_id: int, map_id: str) -> MapRecord:
     record = workspace().read_map(campaign_id, map_id) if is_id(map_id) else None
     if record is None:
-        raise HTTPException(status_code=404, detail="Map not found on this worker")
+        raise HTTPException(status_code=404, detail="Map not found in the workspace")
     return _with_stale_job_released(record)
 
 
@@ -176,18 +193,19 @@ def set_areas(campaign_id: int, map_id: str, file_name: str, stream: BinaryIO) -
     record = get_map(campaign_id, map_id)
     _require_idle(record)
     space = workspace()
-    map_dir = space.map_dir(campaign_id, map_id)
-    upload = map_dir / f"areas-upload{Path(file_name).suffix.lower()}"
-    try:
-        space.save_stream(upload, stream, get_settings().AREA_ESTIMATION_MAX_UPLOAD_BYTES)
-        areas, collection = read_areas(upload, file_name)
-    except UploadTooLarge as exc:
-        raise HTTPException(status_code=413, detail=str(exc)) from exc
-    except MapError as exc:
-        raise _bad_request(exc) from exc
-    finally:
-        upload.unlink(missing_ok=True)
-    (map_dir / AREAS_FILE).write_text(json.dumps(collection))
+    limit = get_settings().AREA_ESTIMATION_MAX_UPLOAD_BYTES
+    # Parsed from a local copy: the vector readers want a file, not a stream.
+    with tempfile.TemporaryDirectory() as folder:
+        upload = Path(folder) / f"areas{Path(file_name).suffix.lower()}"
+        try:
+            with upload.open("wb") as out:
+                copy_bounded(stream, out, limit)
+            areas, collection = read_areas(upload, file_name)
+        except UploadTooLarge as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
+        except MapError as exc:
+            raise _bad_request(exc) from exc
+    space.put_file(campaign_id, map_id, AREAS_FILE, BytesIO(json.dumps(collection).encode()), limit)
     record.areas = AreaSet(file_name=Path(file_name).name, areas=areas)
     # Counts were taken over the previous areas, or none.
     record.preprocess = None
@@ -199,7 +217,7 @@ def set_areas(campaign_id: int, map_id: str, file_name: str, stream: BinaryIO) -
 def clear_areas(campaign_id: int, map_id: str) -> MapRecord:
     record = get_map(campaign_id, map_id)
     _require_idle(record)
-    (workspace().map_dir(campaign_id, map_id) / AREAS_FILE).unlink(missing_ok=True)
+    workspace().delete_file(campaign_id, map_id, AREAS_FILE)
     record.areas = None
     record.preprocess = None
     record.strata = None

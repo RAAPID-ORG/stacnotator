@@ -13,7 +13,7 @@ from rasterio.transform import from_origin
 
 from src.area_estimation import jobs, service
 from src.area_estimation import router as ae_router
-from src.area_estimation.workspace import Workspace
+from src.area_estimation.workspace import LocalWorkspace
 from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_admin
 from src.database import get_db
@@ -25,7 +25,7 @@ BASE = f"/api/campaigns/{CAMPAIGN_ID}/area-estimation"
 
 
 class InlineRunner:
-    def __init__(self, workspace: Workspace):
+    def __init__(self, workspace: LocalWorkspace):
         self._workspace = workspace
 
     def submit(self, job):
@@ -34,7 +34,7 @@ class InlineRunner:
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    workspace = Workspace(tmp_path)
+    workspace = LocalWorkspace(tmp_path)
     monkeypatch.setattr(service, "workspace", lambda: workspace)
     monkeypatch.setattr(service, "runner", lambda: InlineRunner(workspace))
     app.dependency_overrides[get_db] = lambda: MagicMock()

@@ -249,11 +249,19 @@ class Settings(BaseSettings):
     AREA_ESTIMATION_RUNNER: Literal["local", "azure"] = "local"
     AREA_ESTIMATION_AZURE_JOB_ID: str | None = None
     AREA_ESTIMATION_AZURE_CLIENT_ID: str | None = None
+    # Set, the workspace is this blob container instead of the workdir: what every
+    # replica and every worker share. https://<account>.blob.core.windows.net/<container>
+    AREA_ESTIMATION_BLOB_CONTAINER_URL: str | None = None
 
     @model_validator(mode="after")
     def _azure_runner_needs_a_job(self) -> "Settings":
         if self.AREA_ESTIMATION_RUNNER == "azure" and not self.AREA_ESTIMATION_AZURE_JOB_ID:
             raise ValueError("AREA_ESTIMATION_RUNNER=azure needs AREA_ESTIMATION_AZURE_JOB_ID")
+        if self.AREA_ESTIMATION_RUNNER == "azure" and not self.AREA_ESTIMATION_BLOB_CONTAINER_URL:
+            raise ValueError(
+                "AREA_ESTIMATION_RUNNER=azure needs AREA_ESTIMATION_BLOB_CONTAINER_URL: "
+                "a worker can only share a blob workspace"
+            )
         return self
 
     EE_SERVICE_ACCOUNT: str | None = None

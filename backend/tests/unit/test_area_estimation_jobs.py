@@ -16,7 +16,7 @@ from src.area_estimation.schemas import (
     SourceInfo,
     SourceRef,
 )
-from src.area_estimation.workspace import Workspace
+from src.area_estimation.workspace import LocalWorkspace, new_id
 
 CAMPAIGN = 3
 
@@ -49,12 +49,12 @@ def _info() -> MapInfo:
 
 @pytest.fixture()
 def workspace(tmp_path):
-    return Workspace(tmp_path)
+    return LocalWorkspace(tmp_path)
 
 
 @pytest.fixture()
 def record(workspace):
-    map_id, _ = workspace.create_map_dir(CAMPAIGN)
+    map_id = new_id()
     record = MapRecord(
         id=map_id,
         campaign_id=CAMPAIGN,
@@ -144,7 +144,7 @@ class TestExecute:
         job = _job(record)
         jobs.execute(workspace, job, max_grid_pixels=10)
         assert workspace.read_job(CAMPAIGN, job.id).status == "failed"
-        assert "no longer on this worker" in job.error
+        assert "no longer in the workspace" in job.error
 
     def test_progress_is_written_with_a_fresh_heartbeat(self, workspace, record, monkeypatch):
         seen = []

@@ -189,16 +189,22 @@ tiler doc). The runtime `tiler_app` role is unaffected.
 ### Area estimation worker - optional, one-time per environment
 
 Preprocessing a classified map for area estimation (`docs/area-estimation.md`) is CPU
-and disk heavy. Without this worker the backend runs those jobs on a thread of its
-own, which is fine for county-sized maps and wrong for a country. With it, each job
-runs as one execution of a Container Apps Job on the backend image, on its own CPU,
-billed only while it runs. The backend and the worker share the map workspace over
-an Azure Files share mounted at `/mnt/area-estimation` in both.
+and disk heavy, and the map has to be somewhere every backend replica and every
+worker can reach. Two opt-ins, in order:
 
-Not done by `deploy.sh`: it needs a storage account, a share, a role assignment and
-a volume mount, none of which change between releases. `deploy.sh` moves the job to
-each release's image once `AREA_ESTIMATION_JOB` is set. Copy-paste, filling in the
-two vars at the top:
+1. **A blob container as the map workspace** (`AREA_ESTIMATION_BLOB_URL`). Maps,
+   areas, job records and products live there while a design is written, instead of
+   on a replica's own disk. Wanted as soon as the backend runs more than one replica,
+   and required for the worker. Nothing there is backed up; it is scratch space.
+2. **A Container Apps Job as the worker** (`AREA_ESTIMATION_JOB`). Each preprocessing
+   job then runs as one execution of that job on the backend image, on its own CPU,
+   billed only while it runs. Without it the backend runs jobs on a thread of its
+   own, which is fine for county-sized maps and wrong for a country.
+
+Not done by `deploy.sh`: it needs a storage account, a container, role assignments
+and the job, none of which change between releases. `deploy.sh` passes the container
+to the backend and moves the job to each release's image once the variables are set.
+Copy-paste, filling in the two vars at the top:
 
 ```bash
 RG=<resource-group>
@@ -207,31 +213,36 @@ PROJECT=stacnotator-$ENV
 JOB=$PROJECT-area-estimation
 CAE=$(az resource list -g "$RG" --query "[?type=='Microsoft.App/managedEnvironments']|[0].name" -o tsv)
 IDENTITY_ID=$(az identity show -n "id-$PROJECT-apps" -g "$RG" --query id -o tsv)
+IDENTITY_CLIENT_ID=$(az identity show -n "id-$PROJECT-apps" -g "$RG" --query clientId -o tsv)
 IDENTITY_PRINCIPAL=$(az identity show -n "id-$PROJECT-apps" -g "$RG" --query principalId -o tsv)
 ACR=$(az resource list -g "$RG" --query "[?type=='Microsoft.ContainerRegistry/registries']|[0].name" -o tsv)
 LOCATION=$(az group show -n "$RG" --query location -o tsv)
 
-# 1. A share for the workspace. Standard tier is enough: the worker streams the map
-#    once, and a 1 TiB quota leaves room for a country at 10 m plus its products.
+# 1. A storage account and a private container for the workspace. Shared-key access
+#    is off: the backend and the worker read and write as the apps identity, and GDAL
+#    reads through a user-delegation SAS the backend mints from that identity.
 STORAGE=$(echo "${PROJECT//-/}aemaps" | cut -c1-24)
-az storage account create -n "$STORAGE" -g "$RG" -l "$LOCATION" --sku Standard_LRS --kind StorageV2
-KEY=$(az storage account keys list -n "$STORAGE" -g "$RG" --query "[0].value" -o tsv)
-az storage share-rm create --storage-account "$STORAGE" -g "$RG" -n area-estimation --quota 1024
+az storage account create -n "$STORAGE" -g "$RG" -l "$LOCATION" --sku Standard_LRS --kind StorageV2 \
+    --allow-blob-public-access false --allow-shared-key-access false --min-tls-version TLS1_2
+az storage container create -n area-estimation --account-name "$STORAGE" --auth-mode login
+BLOB_URL="https://$STORAGE.blob.core.windows.net/area-estimation"
 
-# 2. Register the share with the Container Apps environment under the name both
-#    volumes refer to.
-az containerapp env storage set -n "$CAE" -g "$RG" --storage-name area-estimation \
-    --azure-file-account-name "$STORAGE" --azure-file-account-key "$KEY" \
-    --azure-file-share-name area-estimation --access-mode ReadWrite
+# 2. The apps identity reads, writes and mints delegation SAS on that container.
+az role assignment create --assignee-object-id "$IDENTITY_PRINCIPAL" \
+    --assignee-principal-type ServicePrincipal \
+    --role "Storage Blob Data Contributor" \
+    --scope "$(az storage account show -n "$STORAGE" -g "$RG" --query id -o tsv)/blobServices/default/containers/area-estimation"
 
 # 3. The job, from the template. It runs the backend image with the worker command.
 TAG=$(az containerapp show -n "$PROJECT-backend" -g "$RG" \
     --query "properties.template.containers[0].image" -o tsv | sed 's/.*://')
 sed -e "s|<location>|$LOCATION|" \
     -e "s|<identity-resource-id>|$IDENTITY_ID|g" \
+    -e "s|<identity-client-id>|$IDENTITY_CLIENT_ID|" \
     -e "s|<container-apps-environment-resource-id>|$(az containerapp env show -n "$CAE" -g "$RG" --query id -o tsv)|" \
     -e "s|<acr-login-server>|$ACR.azurecr.io|g" \
     -e "s|<image-tag>|$TAG|" \
+    -e "s|<blob-container-url>|$BLOB_URL|" \
     deployment/azure/area-estimation-job.yaml > /tmp/area-estimation-job.yaml
 az containerapp job create -n "$JOB" -g "$RG" --yaml /tmp/area-estimation-job.yaml
 
@@ -241,28 +252,23 @@ az role assignment create --assignee-object-id "$IDENTITY_PRINCIPAL" \
     --assignee-principal-type ServicePrincipal \
     --role "Container Apps Jobs Operator" \
     --scope "$(az containerapp job show -n "$JOB" -g "$RG" --query id -o tsv)"
-
-# 5. Mount the same share in the backend. The CLI has no flag for volumes, so the
-#    app is read back, edited, and written: add the volume under template.volumes
-#    and the mount under template.containers[0].volumeMounts exactly as in the job
-#    template (volumeName area-estimation, mountPath /mnt/area-estimation).
-az containerapp show -n "$PROJECT-backend" -g "$RG" -o yaml > /tmp/backend.yaml
-$EDITOR /tmp/backend.yaml
-az containerapp update -n "$PROJECT-backend" -g "$RG" --yaml /tmp/backend.yaml
 ```
 
-Then set `AREA_ESTIMATION_JOB=$JOB` (a GitHub Environment variable in CI, or in
-`.env.deploy.<env>` locally) and deploy. The backend starts every preprocessing job
-as an execution of that job from then on; unset the variable to go back to running
-them in the backend. Executions and their logs:
+Then set `AREA_ESTIMATION_BLOB_URL=$BLOB_URL` and `AREA_ESTIMATION_JOB=$JOB` (GitHub
+Environment variables in CI, or in `.env.deploy.<env>` locally) and deploy. Step 1
+and 2 alone, with only `AREA_ESTIMATION_BLOB_URL` set, moves the workspace to blob
+while the backend keeps running the jobs itself. Unset a variable to go back.
+Executions and their logs:
 
 ```bash
 az containerapp job execution list -n "$JOB" -g "$RG" -o table
 az containerapp job logs show -n "$JOB" -g "$RG" --execution <execution-name> --container worker
 ```
 
-The share is scratch space. A map lives there only while its design is written, and
-nothing is backed up.
+The worker writes each product to its own disk before uploading it, so the job's
+ephemeral storage bounds the largest strata raster it can produce: the Consumption
+profile gives a few gigabytes, enough for a state; a country at 10 m wants a dedicated
+profile with more.
 
 ### Custom domains - one-time per environment (required for hosted-tiler tiles)
 

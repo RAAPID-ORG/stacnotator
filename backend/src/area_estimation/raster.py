@@ -96,6 +96,11 @@ EQUAL_AREA_METHODS = (
 )
 
 Progress = Callable[[float], None]
+GdalOptions = dict[str, str]
+
+
+def _env(options: GdalOptions | None) -> rasterio.Env:
+    return rasterio.Env(**GDAL_ENV, **(options or {}))
 
 
 @dataclass(frozen=True)
@@ -164,8 +169,8 @@ def _band_nodata(value: float | None) -> float | None:
     return None if value is None or math.isnan(value) else float(value)
 
 
-def inspect_source(source: Source) -> SourceInfo:
-    with rasterio.Env(**GDAL_ENV), _open(source) as ds:
+def inspect_source(source: Source, options: GdalOptions | None = None) -> SourceInfo:
+    with _env(options), _open(source) as ds:
         if ds.crs is None:
             raise MapError(f"{source.name} has no coordinate reference system")
         if ds.count == 0:
@@ -205,9 +210,9 @@ def proposed_laea(bbox: Bbox) -> str:
     return f"+proj=laea +lat_0={lat} +lon_0={lon} +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs"
 
 
-def inspect_map(sources: list[Source]) -> MapInfo:
+def inspect_map(sources: list[Source], options: GdalOptions | None = None) -> MapInfo:
     """Read every tile's header and check they describe one map."""
-    infos = [inspect_source(source) for source in sources]
+    infos = [inspect_source(source, options) for source in sources]
     first = infos[0]
     for info in infos[1:]:
         if [b.dtype for b in info.bands] != [b.dtype for b in first.bands]:
@@ -267,14 +272,18 @@ def _dst_bounds(
 
 
 def plan_grid(
-    sources: list[Source], crs_text: str, resolution_m: float | None, max_pixels: int
+    sources: list[Source],
+    crs_text: str,
+    resolution_m: float | None,
+    max_pixels: int,
+    options: GdalOptions | None = None,
 ) -> GridSpec:
     """The grid the map is counted on: the chosen CRS, at the given resolution
     (else the finest GDAL derives for a tile), over the union of the tiles."""
     dst = equal_area_crs(crs_text)
     bounds = []
     derived = []
-    with rasterio.Env(**GDAL_ENV):
+    with _env(options):
         for source in sources:
             with _open(source) as ds:
                 bounds.append(_dst_bounds(ds, dst, source.name))
@@ -487,6 +496,7 @@ def reproject(
     zones: list[Zone],
     out_path: str,
     progress: Progress,
+    options: GdalOptions | None = None,
 ) -> RawCensus:
     """Warp every tile onto the grid with nearest resampling, write the result
     as one GeoTIFF of class codes, and count the pixels as they pass.
@@ -503,7 +513,7 @@ def reproject(
     masked_total = 0
     declared: list[int] = []
 
-    with rasterio.Env(**GDAL_ENV), ExitStack() as stack:
+    with _env(options), ExitStack() as stack:
         warped = [stack.enter_context(_warped(source, band, grid, dst)) for source in sources]
         for item in warped:
             value = item.declared_nodata
@@ -585,6 +595,7 @@ def stratify(
     zones: list[Zone],
     out_path: str,
     progress: Progress,
+    options: GdalOptions | None = None,
 ) -> StrataCensus:
     """Fold the reprojected map's values into class codes, 1-based in the
     order given, writing a strata raster and counting the result. A value
@@ -608,7 +619,7 @@ def stratify(
     by_zone = {zone.id: np.zeros(len(classes) + 1, dtype=np.int64) for zone in zones}
     nodata_pixels = 0
 
-    with rasterio.Env(**GDAL_ENV), rasterio.open(src_path) as src:
+    with _env(options), rasterio.open(src_path) as src:
         _check_grid(src, grid)
         with rasterio.open(
             out_path,

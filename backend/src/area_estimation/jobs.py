@@ -1,11 +1,11 @@
 """Running a preprocessing job, and the seam between asking for one and doing it.
 
-``execute`` does the work: it needs the map's files and nothing else, so it runs
-the same in this process, in a worker spun up for one job, or on a developer's
-machine. A ``Runner`` decides where. The one here starts a daemon thread; a
-deployment that provisions a worker per map plugs in another that hands the
-same job record to that worker, and no caller can tell the difference because
-both leave the same job file behind.
+``execute`` does the work: it needs a workspace holding the map and nothing
+else, so it runs the same in this process, in a worker spun up for one job, or
+on a developer's machine. A ``Runner`` decides where. The one here starts a
+daemon thread; ``azure_jobs.AzureJobRunner`` hands the same job record to a
+Container Apps Job execution, and no caller can tell the difference because
+both leave the same job record behind.
 
 Liveness follows src/background.py: a running job stamps a heartbeat, and a
 job whose heartbeat stops belongs to a process that died. The record is judged
@@ -18,7 +18,6 @@ import logging
 import threading
 import time
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Protocol
 
 from src.area_estimation import raster
@@ -35,7 +34,13 @@ from src.area_estimation.schemas import (
     StrataProduct,
     StratifyRequest,
 )
-from src.area_estimation.workspace import AREAS_FILE, REPROJECTED_FILE, STRATA_FILE, Workspace
+from src.area_estimation.workspace import (
+    AREAS_FILE,
+    REPROJECTED_FILE,
+    SOURCES_DIR,
+    STRATA_FILE,
+    Workspace,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +63,7 @@ class Runner(Protocol):
 
 
 class LocalRunner:
-    """Runs jobs on daemon threads of this process, against this machine's disk."""
+    """Runs jobs on daemon threads of this process."""
 
     def __init__(self, workspace: Workspace, max_concurrent: int, max_grid_pixels: int):
         self._workspace = workspace
@@ -88,11 +93,11 @@ def sweep_if_stale(workspace: Workspace, job: JobRecord) -> JobRecord:
     job.error = INTERRUPTED_ERROR
     job.finished_at = now()
     workspace.write_job(job)
-    _release_map(workspace, job)
+    release_map(workspace, job)
     return job
 
 
-def _release_map(workspace: Workspace, job: JobRecord) -> None:
+def release_map(workspace: Workspace, job: JobRecord) -> None:
     record = workspace.read_map(job.campaign_id, job.map_id)
     if record is not None and record.active_job_id == job.id:
         record.active_job_id = None
@@ -137,7 +142,7 @@ def execute(workspace: Workspace, job: JobRecord, max_grid_pixels: int) -> None:
     try:
         record = workspace.read_map(job.campaign_id, job.map_id)
         if record is None:
-            raise MapError("The map is no longer on this worker; upload it again")
+            raise MapError("The map is no longer in the workspace; upload it again")
         job.result = _run(workspace, record, job, max_grid_pixels, writer.progress)
         job.status = "done"
         logger.info("Area estimation %s job %s done", job.kind, job.id)
@@ -154,7 +159,7 @@ def execute(workspace: Workspace, job: JobRecord, max_grid_pixels: int) -> None:
         beat.join(timeout=5)
         job.finished_at = now()
         writer.write()
-        _release_map(workspace, job)
+        release_map(workspace, job)
 
 
 def _run(
@@ -164,9 +169,8 @@ def _run(
     max_grid_pixels: int,
     progress: raster.Progress,
 ) -> RawCensus | StrataCensus:
-    map_dir = workspace.map_dir(record.campaign_id, record.id)
     if isinstance(job.spec, PreprocessRequest):
-        census = _preprocess(record, job.spec, map_dir, max_grid_pixels, progress)
+        census = _preprocess(workspace, record, job.spec, max_grid_pixels, progress)
         record.preprocess = PreprocessProduct(spec=job.spec, census=census, path=REPROJECTED_FILE)
         # Strata were folded from the previous grid; they no longer describe this one.
         record.strata = None
@@ -174,17 +178,19 @@ def _run(
         return census
     if record.preprocess is None:
         raise MapError("The map has not been preprocessed yet")
-    strata = _stratify(record.preprocess, job.spec, map_dir, progress)
+    strata = _stratify(workspace, record, job.spec, progress)
     record.strata = StrataProduct(spec=job.spec, census=strata, path=STRATA_FILE)
     workspace.write_map(record)
     return strata
 
 
-def sources_of(refs: list[SourceRef], map_dir: Path) -> list[Source]:
+def sources_of(
+    refs: list[SourceRef], workspace: Workspace, campaign_id: int, map_id: str
+) -> list[Source]:
     return [
         Source(
             name=ref.name,
-            location=str(map_dir / "sources" / ref.location)
+            location=workspace.location(campaign_id, map_id, f"{SOURCES_DIR}/{ref.location}")
             if ref.kind == "upload"
             else ref.location,
         )
@@ -192,46 +198,48 @@ def sources_of(refs: list[SourceRef], map_dir: Path) -> list[Source]:
     ]
 
 
-def _zones(map_dir: Path, grid_crs: str) -> list[Zone]:
-    path = map_dir / AREAS_FILE
-    if not path.is_file():
-        return []
-    return zones_on_grid(json.loads(path.read_text()), grid_crs)
+def _zones(workspace: Workspace, record: MapRecord, grid_crs: str) -> list[Zone]:
+    text = workspace.read_text(record.campaign_id, record.id, AREAS_FILE)
+    return zones_on_grid(json.loads(text), grid_crs) if text else []
 
 
 def _preprocess(
+    workspace: Workspace,
     record: MapRecord,
     spec: PreprocessRequest,
-    map_dir: Path,
     max_grid_pixels: int,
     progress: raster.Progress,
 ) -> RawCensus:
-    sources = sources_of(record.sources, map_dir)
-    grid = raster.plan_grid(sources, spec.crs, spec.resolution_m, max_grid_pixels)
-    return raster.reproject(
-        sources,
-        spec.band,
-        grid,
-        _zones(map_dir, grid.crs),
-        str(map_dir / REPROJECTED_FILE),
-        progress,
+    options = workspace.gdal_options()
+    sources = sources_of(record.sources, workspace, record.campaign_id, record.id)
+    grid = raster.plan_grid(sources, spec.crs, spec.resolution_m, max_grid_pixels, options)
+    out = workspace.scratch_dir(record.campaign_id, record.id) / REPROJECTED_FILE
+    census = raster.reproject(
+        sources, spec.band, grid, _zones(workspace, record, grid.crs), str(out), progress, options
     )
+    workspace.store_product(record.campaign_id, record.id, REPROJECTED_FILE, out)
+    return census
 
 
 def _stratify(
-    product: PreprocessProduct, spec: StratifyRequest, map_dir: Path, progress: raster.Progress
+    workspace: Workspace, record: MapRecord, spec: StratifyRequest, progress: raster.Progress
 ) -> StrataCensus:
+    product = record.preprocess
+    assert product is not None  # noqa: S101 - checked by the caller
     grid = product.census.grid
+    out = workspace.scratch_dir(record.campaign_id, record.id) / STRATA_FILE
     census = raster.stratify(
-        str(map_dir / product.path),
+        workspace.location(record.campaign_id, record.id, product.path),
         spec.classes,
         spec.nodata_values,
         grid,
-        _zones(map_dir, grid.crs),
-        str(map_dir / STRATA_FILE),
+        _zones(workspace, record, grid.crs),
+        str(out),
         progress,
+        workspace.gdal_options(),
     )
     _check_against_raw(product.census, spec, census)
+    workspace.store_product(record.campaign_id, record.id, STRATA_FILE, out)
     return census
 
 

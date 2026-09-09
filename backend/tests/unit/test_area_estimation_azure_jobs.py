@@ -2,12 +2,13 @@
 
 import json
 from datetime import timedelta
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
-from src.area_estimation import azure_jobs, jobs, worker
-from src.area_estimation.azure_jobs import AzureJobRunner, ManagedIdentity
+from src.area_estimation import azure_jobs, blob, jobs, worker
+from src.area_estimation.azure_jobs import AzureJobRunner
 from src.area_estimation.schemas import (
     BandInfo,
     Bbox,
@@ -17,7 +18,7 @@ from src.area_estimation.schemas import (
     SourceInfo,
     SourceRef,
 )
-from src.area_estimation.workspace import Workspace
+from src.area_estimation.workspace import LocalWorkspace, new_id
 
 CAMPAIGN = 5
 JOB_ID = "/subscriptions/s/resourceGroups/rg/providers/Microsoft.App/jobs/ae-worker"
@@ -30,13 +31,22 @@ JOB_DEFINITION = {
                     "image": "acr.io/backend:1",
                     "command": ["python", "-m", "src.area_estimation.worker"],
                     "resources": {"cpu": 2, "memory": "4Gi"},
-                    "env": [{"name": "AREA_ESTIMATION_WORKDIR", "value": "/mnt/ae"}],
+                    "env": [{"name": "AREA_ESTIMATION_BLOB_CONTAINER_URL", "value": "https://a/c"}],
                     "probes": [],
                 }
             ]
         }
     }
 }
+
+
+class _Credential:
+    def __init__(self):
+        self.scopes: list[str] = []
+
+    def get_token(self, *scopes, **kwargs):
+        self.scopes.extend(scopes)
+        return SimpleNamespace(token="tok", expires_on=9999999999)
 
 
 def _info() -> MapInfo:
@@ -67,12 +77,12 @@ def _info() -> MapInfo:
 
 @pytest.fixture()
 def workspace(tmp_path):
-    return Workspace(tmp_path)
+    return LocalWorkspace(tmp_path)
 
 
 @pytest.fixture()
 def job(workspace):
-    map_id, _ = workspace.create_map_dir(CAMPAIGN)
+    map_id = new_id()
     record = MapRecord(
         id=map_id,
         campaign_id=CAMPAIGN,
@@ -105,27 +115,25 @@ class _Api:
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.calls.append(request)
-        if request.url.host == "169.254.169.254":
-            assert request.headers["Metadata"] == "true"
-            return httpx.Response(200, json={"access_token": "tok", "expires_on": "9999999999"})
         if request.url.path.endswith("/start"):
             return httpx.Response(self.start_status, json={"name": "ae-worker-abc"})
         return httpx.Response(200, json=JOB_DEFINITION)
 
 
-def _runner(workspace, api: _Api, monkeypatch) -> AzureJobRunner:
-    monkeypatch.delenv("IDENTITY_ENDPOINT", raising=False)
+def _runner(workspace, api: _Api) -> tuple[AzureJobRunner, _Credential]:
+    cred = _Credential()
     client = httpx.Client(transport=httpx.MockTransport(api))
-    return AzureJobRunner(workspace, JOB_ID, ManagedIdentity(client, client_id="cid"), client)
+    return AzureJobRunner(workspace, JOB_ID, cred, client), cred
 
 
 class TestAzureJobRunner:
-    def test_starts_an_execution_carrying_the_job_reference(self, workspace, job, monkeypatch):
+    def test_starts_an_execution_carrying_the_job_reference(self, workspace, job):
         api = _Api()
-        _runner(workspace, api, monkeypatch).submit(job)
+        runner, cred = _runner(workspace, api)
+        runner.submit(job)
 
-        token, definition, start = api.calls
-        assert token.url.params["client_id"] == "cid"
+        assert cred.scopes == [azure_jobs.MANAGEMENT_SCOPE]
+        definition, start = api.calls
         assert definition.method == "GET"
         assert definition.headers["Authorization"] == "Bearer tok"
         assert start.url.path == f"{JOB_ID}/start"
@@ -136,42 +144,14 @@ class TestAzureJobRunner:
         assert container["command"] == ["python", "-m", "src.area_estimation.worker"]
         assert "probes" not in container
         assert container["env"] == [
-            {"name": "AREA_ESTIMATION_WORKDIR", "value": "/mnt/ae"},
+            {"name": "AREA_ESTIMATION_BLOB_CONTAINER_URL", "value": "https://a/c"},
             {"name": worker.JOB_ENV, "value": f"{CAMPAIGN}/{job.id}"},
         ]
         assert workspace.read_job(CAMPAIGN, job.id).status == "queued"
 
-    def test_reuses_the_token_across_jobs(self, workspace, job, monkeypatch):
-        api = _Api()
-        runner = _runner(workspace, api, monkeypatch)
+    def test_a_start_that_fails_fails_the_job_and_releases_the_map(self, workspace, job):
+        runner, _ = _runner(workspace, _Api(start_status=403))
         runner.submit(job)
-        runner.submit(job)
-        assert sum(1 for c in api.calls if c.url.host == "169.254.169.254") == 1
-
-    def test_uses_the_container_apps_identity_endpoint_when_present(
-        self, workspace, job, monkeypatch
-    ):
-        seen = {}
-
-        def api(request: httpx.Request) -> httpx.Response:
-            if request.url.host == "identity.local":
-                seen["header"] = request.headers["X-IDENTITY-HEADER"]
-                seen["version"] = request.url.params["api-version"]
-                return httpx.Response(200, json={"access_token": "t", "expires_on": "9999999999"})
-            if request.url.path.endswith("/start"):
-                return httpx.Response(202, json={})
-            return httpx.Response(200, json=JOB_DEFINITION)
-
-        monkeypatch.setenv("IDENTITY_ENDPOINT", "http://identity.local/msi/token")
-        monkeypatch.setenv("IDENTITY_HEADER", "secret-header")
-        client = httpx.Client(transport=httpx.MockTransport(api))
-        AzureJobRunner(workspace, JOB_ID, ManagedIdentity(client), client).submit(job)
-        assert seen == {"header": "secret-header", "version": "2019-08-01"}
-
-    def test_a_start_that_fails_fails_the_job_and_releases_the_map(
-        self, workspace, job, monkeypatch
-    ):
-        _runner(workspace, _Api(start_status=403), monkeypatch).submit(job)
 
         stored = workspace.read_job(CAMPAIGN, job.id)
         assert stored.status == "failed"
@@ -218,6 +198,17 @@ class TestWorker:
     def test_a_malformed_reference_is_rejected(self):
         with pytest.raises(ValueError):
             worker.parse_job_ref("nope")
+
+    def test_a_container_url_selects_the_blob_workspace(self, monkeypatch):
+        built = {}
+        monkeypatch.setattr(
+            blob.BlobWorkspace,
+            "from_url",
+            classmethod(lambda cls, url, cred, scratch_root=None: built.setdefault("url", url)),
+        )
+        monkeypatch.setattr(blob, "credential", lambda client_id: client_id)
+        worker.workspace_from_env({worker.BLOB_URL_ENV: "https://acct.blob.core.windows.net/ae"})
+        assert built == {"url": "https://acct.blob.core.windows.net/ae"}
 
 
 def test_queued_jobs_get_longer_before_they_count_as_stale(job):
