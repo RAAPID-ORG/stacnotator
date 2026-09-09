@@ -17,8 +17,6 @@ from fastapi import HTTPException
 
 from src.area_estimation import jobs, raster
 from src.area_estimation.areas import read_areas
-from src.area_estimation.azure_jobs import AzureJobRunner
-from src.area_estimation.blob import BlobWorkspace, credential
 from src.area_estimation.raster import MapError
 from src.area_estimation.schemas import (
     MAX_SOURCES_PER_MAP,
@@ -46,10 +44,16 @@ RASTER_SUFFIXES = (".tif", ".tiff")
 SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]")
 
 
+# The Azure modules are imported where they are chosen, not at the top: a local
+# install never loads an Azure SDK it does not use.
+
+
 @lru_cache
 def workspace() -> Workspace:
     settings = get_settings()
     if settings.AREA_ESTIMATION_BLOB_CONTAINER_URL:
+        from src.area_estimation.blob import BlobWorkspace, credential  # noqa: PLC0415
+
         return BlobWorkspace.from_url(
             settings.AREA_ESTIMATION_BLOB_CONTAINER_URL,
             credential(settings.AREA_ESTIMATION_AZURE_CLIENT_ID),
@@ -66,6 +70,9 @@ def workspace() -> Workspace:
 def runner() -> jobs.Runner:
     settings = get_settings()
     if settings.AREA_ESTIMATION_RUNNER == "azure":
+        from src.area_estimation.azure_jobs import AzureJobRunner  # noqa: PLC0415
+        from src.area_estimation.blob import credential  # noqa: PLC0415
+
         return AzureJobRunner(
             workspace(),
             settings.AREA_ESTIMATION_AZURE_JOB_ID or "",
