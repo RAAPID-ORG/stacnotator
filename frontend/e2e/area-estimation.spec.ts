@@ -44,7 +44,112 @@ async function mockCampaignAdmin(page: Page): Promise<{ created: string[] }> {
     return route.fallback();
   });
 
+  await mockAreaEstimationBackend(page);
   return { created };
+}
+
+const MAP_ID = 'a'.repeat(32);
+const CLASS_NAMES = [
+  'Nodata',
+  'Winter wheat',
+  'Rapeseed',
+  'Other winter cereals',
+  'Summer crops',
+  'Non-cropland',
+];
+const TOTAL = { '0': 1800, '1': 1400, '2': 300, '3': 500, '4': 2800, '5': 3200 };
+
+/**
+ * The map lives on the backend while the design is written: uploading it,
+ * attaching areas and counting are all server calls. The count answers
+ * finished at once, with per-area figures only once areas are attached.
+ */
+async function mockAreaEstimationBackend(page: Page): Promise<void> {
+  let areas: { id: string; name: string; feature_count: number }[] = [];
+  const map = () => ({
+    id: MAP_ID,
+    created_at: '2026-01-01T00:00:00Z',
+    sources: [{ kind: 'upload', name: 'cropmap_2025.tif', location: '00-cropmap_2025.tif' }],
+    info: {
+      sources: [
+        {
+          name: 'cropmap_2025.tif',
+          width: 100,
+          height: 100,
+          crs: 'EPSG:4326',
+          crs_name: 'WGS 84',
+          is_geographic: true,
+          is_equal_area: false,
+          resolution: [0.0001, 0.0001],
+          pixel_area_m2: null,
+          bbox: { west: 22.1, south: 44.4, east: 40.2, north: 52.4 },
+          bands: [{ index: 1, dtype: 'uint8', description: 'crop_type', nodata: 0 }],
+        },
+      ],
+      bands: [{ index: 1, dtype: 'uint8', description: 'crop_type', nodata: 0 }],
+      bbox: { west: 22.1, south: 44.4, east: 40.2, north: 52.4 },
+      total_pixels: 10000,
+      is_equal_area: false,
+      proposed_crs:
+        '+proj=laea +lat_0=48.4 +lon_0=31.15 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs',
+    },
+    areas: areas.length ? { file_name: 'oblast_regions.geojson', areas } : null,
+    preprocess: null,
+    strata: null,
+    active_job_id: null,
+  });
+  const halves = (share: number) =>
+    Object.fromEntries(Object.entries(TOTAL).map(([v, n]) => [v, Math.round(n * share)]));
+
+  await page.route('**/api/campaigns/42/area-estimation/maps', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await route.fulfill({ status: 201, json: map() });
+  });
+  await page.route(`**/api/campaigns/42/area-estimation/maps/${MAP_ID}/areas`, async (route) => {
+    areas = [
+      { id: 'area-1', name: 'Northern region', feature_count: 1 },
+      { id: 'area-2', name: 'Southern region', feature_count: 1 },
+    ];
+    await route.fulfill({ json: map() });
+  });
+  await page.route(
+    `**/api/campaigns/42/area-estimation/maps/${MAP_ID}/preprocess`,
+    async (route) => {
+      await route.fulfill({
+        status: 202,
+        json: {
+          id: 'b'.repeat(32),
+          map_id: MAP_ID,
+          kind: 'preprocess',
+          status: 'done',
+          progress: 1,
+          error: null,
+          result: {
+            grid: {
+              crs: 'LAEA',
+              resolution_m: 10,
+              width: 100,
+              height: 100,
+              transform: [0, 10, 0, 0, 0, -10],
+            },
+            band: 1,
+            total: TOTAL,
+            by_area: areas.length ? { 'area-1': halves(0.6), 'area-2': halves(0.4) } : {},
+            footprint_pixels: 10000,
+            masked_pixels: 0,
+            declared_nodata: [0],
+          },
+        },
+      });
+    }
+  );
+}
+
+/** The file carries no class list, so every counted value is named by hand. */
+async function nameClasses(page: Page): Promise<void> {
+  for (const [value, name] of CLASS_NAMES.entries()) {
+    await page.getByLabel(`Name for value ${value}`).fill(name);
+  }
 }
 
 /** Start an area estimate from the campaign overview, its first-class home. */
@@ -74,6 +179,7 @@ async function fillWizard(page: Page, upTo: 'prior' | 'design'): Promise<void> {
   // narrow it. Anchoring on the end of the line waits for the second one: only
   // the whole-map count carries a trailing clause.
   await expect(page.getByText(/pixels in the reporting area$/)).toBeVisible();
+  await nameClasses(page);
 
   await page.getByTestId('uae-continue').click();
   await page.getByTestId('uae-continue').click();
@@ -194,6 +300,7 @@ test('proposes an equal-area projection and keeps nodata handling out of the way
     buffer: Buffer.from('{}'),
   });
   await expect(page.getByText(/pixels in the reporting area$/)).toBeVisible();
+  await nameClasses(page);
   await page.getByTestId('uae-continue').click();
 
   // Nodata is excluded by default and says so; changing it is an advanced
@@ -220,6 +327,7 @@ test('a map that already covers the reporting area needs no boundary file', asyn
   await expect(
     page.getByText(/pixels in the reporting area, which is the whole map/)
   ).toBeVisible();
+  await nameClasses(page);
 
   // And the design solves from it, so the wizard reaches an activatable sample.
   await page.getByTestId('uae-continue').click();

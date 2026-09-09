@@ -41,6 +41,8 @@ export const NO_DATA_CLASS_ID = '__nodata__';
 export interface RasterBand {
   index: number;
   description: string | null;
+  /** The file's own nodata for this band, if it declares one. */
+  noData: number | null;
 }
 
 /** Geographic extent in WGS84 degrees. */
@@ -52,14 +54,20 @@ export interface Bbox {
 }
 
 export interface RasterInfo {
+  /**
+   * The map as the backend holds it while the design is being written. Absent
+   * from a plan stored before maps were uploaded, which then has to be replaced
+   * before it can be counted again.
+   */
+  mapId?: string;
   name: string;
   bands: RasterBand[];
   crs: string;
   /** Areas from pixel counts are only meaningful on an equal-area grid. */
   isEqualArea: boolean;
-  /** Square metres covered by one pixel. */
-  areaPerPixel: number;
-  resolutionMeters: number;
+  /** Square metres covered by one pixel of the file's own grid; null when it is in degrees. */
+  areaPerPixel: number | null;
+  resolutionMeters: number | null;
   /**
    * What the map covers, which is what the projection is proposed for.
    * Optional because a plan stored before this field existed has no extent to
@@ -111,8 +119,15 @@ export interface StudyArea {
 /** Pixels per raster value, per study area, for the selected band. */
 export interface PixelCensus {
   bandIndex: number;
+  /** The equal-area grid the pixels were counted on, and what one of them covers. */
+  crs: string;
+  pixelAreaM2: number;
   byArea: Record<string, Record<string, number>>;
 }
+
+/** Square metres one counted pixel stands for; the file's own only until a count exists. */
+export const pixelAreaOf = (plan: AreaEstimationPlan): number =>
+  plan.census?.pixelAreaM2 ?? plan.raster?.areaPerPixel ?? 0;
 
 export interface ReportingClass {
   id: string;
@@ -221,6 +236,22 @@ export const reportingAreas = (plan: AreaEstimationPlan): StudyArea[] =>
     : [{ id: WHOLE_MAP_AREA_ID, name: 'The whole map', featureCount: 1 }];
 
 /** Pixels the census counted for a set of map values, across every area. */
+/**
+ * The distinct values the count found, in order, keeping the names already
+ * given to any of them. The file carries no class list, so this is where the
+ * values to name come from.
+ */
+export const valuesOfCensus = (census: PixelCensus, named: readonly MapValue[]): MapValue[] => {
+  const labels = new Map(named.map((v) => [v.value, v.label]));
+  const found = new Set<number>();
+  Object.values(census.byArea).forEach((counts) =>
+    Object.keys(counts).forEach((value) => found.add(Number(value)))
+  );
+  return [...found]
+    .sort((a, b) => a - b)
+    .map((value) => ({ value, label: labels.get(value) ?? '' }));
+};
+
 export const pixelsFor = (plan: AreaEstimationPlan, values: readonly number[]): number =>
   countPixels(
     plan.census,

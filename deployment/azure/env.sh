@@ -23,7 +23,7 @@ IDENTIFIER_VARS=(
     RESOURCE_GROUP PUBLIC_DOMAIN EE_SERVICE_ACCOUNT CUSTOM_DOMAINS EXTRA_TILERS
     TILER_NAME TILER_ALLOWS_INGEST TILER_AZURE_SIGNING TILER_DEDICATED IMAGE_TAG
     FIREBASE_CREDS EE_CREDS FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN FIREBASE_PROJECT_ID
-    DB_NAME DB_ADMIN_USER
+    DB_NAME DB_ADMIN_USER AREA_ESTIMATION_BLOB_URL AREA_ESTIMATION_JOB
 )
 
 # Register sensitive values with GitHub Actions so they are replaced with "***" in
@@ -207,6 +207,35 @@ resolve_config() {
     TILERS_JSON="{${hosted_entry}${EXTRA_TILERS:+,${EXTRA_TILERS}}}"
 
     _resolve_sizing
+    _resolve_area_estimation || return 1
+    return 0
+}
+
+# Opt-in, in two steps (README: "Area estimation worker"). AREA_ESTIMATION_BLOB_URL is
+# the blob container the backend keeps maps in while their sampling design is written,
+# instead of its own disk. AREA_ESTIMATION_JOB names the Container Apps Job that
+# preprocesses them; unset, the backend runs those jobs on a thread of its own. The
+# job's ARM id and the identity's client id are what the backend needs to start an
+# execution as itself.
+_resolve_area_estimation() {
+    AREA_ESTIMATION_BLOB_URL="${AREA_ESTIMATION_BLOB_URL:-}"
+    AREA_ESTIMATION_JOB="${AREA_ESTIMATION_JOB:-}"
+    AREA_ESTIMATION_JOB_ID=""
+    IDENTITY_CLIENT_ID=""
+    [ -n "$AREA_ESTIMATION_BLOB_URL" ] || [ -n "$AREA_ESTIMATION_JOB" ] || return 0
+    if [ -z "$AREA_ESTIMATION_BLOB_URL" ]; then
+        echo -e "${RED}AREA_ESTIMATION_JOB needs AREA_ESTIMATION_BLOB_URL: a worker can only share a blob workspace.${NC}" >&2
+        return 1
+    fi
+    IDENTITY_CLIENT_ID=$(az identity show --ids "$IDENTITY_ID" --query clientId -o tsv) || return 1
+    [ -n "$AREA_ESTIMATION_JOB" ] || return 0
+    AREA_ESTIMATION_JOB_ID=$(az containerapp job show -n "$AREA_ESTIMATION_JOB" -g "$RESOURCE_GROUP" \
+        --query id -o tsv 2>/dev/null) || AREA_ESTIMATION_JOB_ID=""
+    if [ -z "$AREA_ESTIMATION_JOB_ID" ]; then
+        echo -e "${RED}Container Apps Job '$AREA_ESTIMATION_JOB' not found in $RESOURCE_GROUP.${NC}" >&2
+        echo -e "${RED}Create it first (README: Area estimation worker) or unset AREA_ESTIMATION_JOB.${NC}" >&2
+        return 1
+    fi
     return 0
 }
 
@@ -244,7 +273,8 @@ _resolve_public_hosts() {
 mask_resolved_config() {
     ci_mask "$RESOURCE_GROUP" "$ACR_NAME" "$ACR_LOGIN_SERVER" "$KV_NAME" "$CAE_NAME" \
         "$CAE_DEFAULT_DOMAIN" "$IDENTITY_ID" "${EE_SERVICE_ACCOUNT:-}" \
-        "${PUBLIC_DOMAIN:-}" "${CUSTOM_DOMAINS:-}" "${POSTGRES_SERVER:-}"
+        "${PUBLIC_DOMAIN:-}" "${CUSTOM_DOMAINS:-}" "${POSTGRES_SERVER:-}" \
+        "${AREA_ESTIMATION_JOB_ID:-}" "${IDENTITY_CLIENT_ID:-}"
 }
 
 print_config() {
@@ -259,5 +289,7 @@ print_config() {
     echo -e "  TILERS:         $TILERS_JSON"
     echo -e "  DEFAULT_TILER:  $TILER_NAME"
     [ -n "$TILER_COOKIE_DOMAIN" ] && echo -e "  TILER_COOKIE_DOMAIN: $TILER_COOKIE_DOMAIN"
+    [ -n "$AREA_ESTIMATION_BLOB_URL" ] && echo -e "  Area estimation maps:   $AREA_ESTIMATION_BLOB_URL"
+    [ -n "$AREA_ESTIMATION_JOB" ] && echo -e "  Area estimation worker: $AREA_ESTIMATION_JOB"
     return 0
 }

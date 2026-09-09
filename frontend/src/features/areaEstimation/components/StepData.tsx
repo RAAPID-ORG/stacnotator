@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { deleteMap } from '~/api/client';
 import { Button, Field, IconButton, Input, Select } from '~/shared/ui/forms';
 import { IconTrash } from '~/shared/ui/Icons';
 import { Spinner } from '~/shared/ui/Spinner';
@@ -10,36 +11,38 @@ import {
   looksNotEqualArea,
   pixelsFor,
   proposedEqualAreaCrs,
-  reportingAreas,
   studyAreaPixels,
+  valuesOfCensus,
 } from '../core/plan';
 import { EQUAL_AREA_PROJECTIONS } from '../core/guidance';
 import { ChoiceCard, expandLinkCls, Note, StepHeading, SubHeading } from './Explain';
-import { formatPixels } from './format';
+import { formatPercent, formatPixels } from './format';
 
 interface Props {
+  campaignId: number;
   plan: AreaEstimationPlan;
   update: (patch: Partial<AreaEstimationPlan>) => void;
 }
 
-export const StepData = ({ plan, update }: Props) => {
+export const StepData = ({ campaignId, plan, update }: Props) => {
   const [inspecting, setInspecting] = useState(false);
   const [crsOpen, setCrsOpen] = useState(false);
-  const [counting, setCounting] = useState(false);
+  const [counting, setCounting] = useState<number | null>(null);
   const [mapUrl, setMapUrl] = useState('');
   const [mapSource, setMapSource] = useState<'file' | 'url'>('file');
 
-  const loadRaster = async (name: string) => {
+  const loadRaster = async (source: File | string) => {
     setInspecting(true);
     try {
-      const result = await inspectRaster(name);
-      const band = result.raster.bands[0]?.index ?? 1;
+      const result = await inspectRaster(campaignId, source);
+      const band = result.raster.bands[0];
       update({
         raster: result.raster,
         equalAreaCrs: result.equalAreaCrs,
-        bandIndex: band,
-        values: result.legendByBand[band] ?? [],
-        noDataValues: result.noDataValuesByBand[band] ?? [],
+        bandIndex: band.index,
+        values: [],
+        noDataValues: band.noData === null ? [] : [band.noData],
+        areas: [],
         census: null,
         classes: [],
         targetClassId: null,
@@ -51,75 +54,73 @@ export const StepData = ({ plan, update }: Props) => {
     }
   };
 
-  const selectBand = async (bandIndex: number) => {
-    if (!plan.raster) return;
-    setInspecting(true);
-    try {
-      const result = await inspectRaster(plan.raster.name);
-      update({
-        bandIndex,
-        values: result.legendByBand[bandIndex] ?? [],
-        noDataValues: result.noDataValuesByBand[bandIndex] ?? [],
-        census: null,
-        classes: [],
-        targetClassId: null,
-      });
-    } finally {
-      setInspecting(false);
+  const replaceRaster = () => {
+    const mapId = plan.raster?.mapId;
+    if (mapId) {
+      // Best effort: the worker forgets the map on its own eventually.
+      void deleteMap({ path: { campaign_id: campaignId, map_id: mapId } });
     }
+    update({ raster: null, values: [], noDataValues: [], areas: [], census: null, classes: [] });
   };
 
-  const addAreas = async (name: string) => {
+  const selectBand = (bandIndex: number) => {
+    const band = plan.raster?.bands.find((b) => b.index === bandIndex);
+    if (!band) return;
+    update({
+      bandIndex,
+      values: [],
+      noDataValues: band.noData === null ? [] : [band.noData],
+      census: null,
+      classes: [],
+      targetClassId: null,
+    });
+  };
+
+  const setAreas = async (file: File) => {
+    const mapId = plan.raster?.mapId;
+    if (!mapId) return;
     try {
-      const parsed = await parseStudyAreas(name);
-      const existing = new Set(plan.areas.map((a) => a.id));
-      const added = parsed
-        .filter((a) => !existing.has(a.id))
-        .map((a, i) => ({ ...a, id: `${a.id}-${plan.areas.length + i}` }));
-      update({ areas: [...plan.areas, ...added], census: null });
+      const areas = await parseStudyAreas(campaignId, mapId, file);
+      update({ areas, census: null });
     } catch (err) {
       handleError(err, 'Could not read the area file');
     }
   };
 
-  // Counting runs itself whenever the map, the band or the areas change. The
-  // key is what the count depends on, so a rename or a class edit does not
-  // trigger a pointless recount.
-  const censusKey =
-    plan.raster && plan.values.length > 0
-      ? [
-          plan.raster.name,
-          plan.bandIndex,
-          reportingAreas(plan)
-            .map((a) => a.id)
-            .join(','),
-          plan.values.length,
-        ].join('|')
-      : null;
-  const countedKey = useRef<string | null>(null);
+  // The projection is committed when the field is left, not on every
+  // keystroke: each recount is a job over the whole map.
+  const commitCrs = () => {
+    if (plan.census && plan.census.crs !== plan.equalAreaCrs) update({ census: null });
+  };
+
+  // Counting runs itself whenever there is a map and no count for it. A map
+  // stored by an older plan has no backend copy to count, so it stays as it is.
+  const mapId = plan.raster?.mapId ?? null;
+  const needsCount =
+    mapId !== null && plan.census === null && !looksNotEqualArea(plan.equalAreaCrs);
+  const inFlight = useRef(false);
 
   useEffect(() => {
-    const raster = plan.raster;
-    if (!raster || censusKey === null || countedKey.current === censusKey) return;
-    countedKey.current = censusKey;
+    if (!needsCount || !mapId || inFlight.current) return;
+    inFlight.current = true;
     let cancelled = false;
-    setCounting(true);
-    censusPixels(raster, plan.bandIndex, reportingAreas(plan), plan.values)
+    setCounting(0);
+    censusPixels(campaignId, mapId, plan.bandIndex, plan.equalAreaCrs, (fraction) => {
+      if (!cancelled) setCounting(fraction);
+    })
       .then((census) => {
-        if (!cancelled) update({ census });
+        if (!cancelled) update({ census, values: valuesOfCensus(census, plan.values) });
       })
-      .catch((err) => {
-        countedKey.current = null;
-        handleError(err, 'Could not count the map pixels');
-      })
+      .catch((err) => handleError(err, 'Could not count the map pixels'))
       .finally(() => {
-        if (!cancelled) setCounting(false);
+        inFlight.current = false;
+        if (!cancelled) setCounting(null);
       });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [censusKey]);
+  }, [needsCount, mapId, plan.bandIndex, plan.equalAreaCrs]);
 
   const setValueLabel = (value: number, label: string) =>
     update({ values: plan.values.map((v) => (v.value === value ? { ...v, label } : v)) });
@@ -193,7 +194,7 @@ export const StepData = ({ plan, update }: Props) => {
                 disabled={inspecting}
                 data-testid="uae-map-file"
                 busyText={inspecting ? 'Reading the map…' : undefined}
-                onSelect={(file) => void loadRaster(file.name)}
+                onSelect={(file) => void loadRaster(file)}
               />
             ) : (
               <div className="flex items-center gap-2">
@@ -208,7 +209,7 @@ export const StepData = ({ plan, update }: Props) => {
                 <Button
                   size="sm"
                   disabled={!mapUrl.trim() || inspecting}
-                  onClick={() => void loadRaster(mapUrl.trim().split('/').pop() ?? mapUrl)}
+                  onClick={() => void loadRaster(mapUrl.trim())}
                   leading={inspecting ? <Spinner size="xs" variant="white" /> : undefined}
                 >
                   Read map
@@ -234,15 +235,13 @@ export const StepData = ({ plan, update }: Props) => {
                     {plan.raster.name}
                   </span>
                   <span className="block text-xs text-neutral-500">
-                    {plan.raster.crs} · {plan.raster.resolutionMeters} m pixels ·{' '}
-                    {(plan.raster.areaPerPixel / 10_000).toFixed(2)} ha per pixel
+                    {plan.raster.crs}
+                    {plan.raster.resolutionMeters !== null && plan.raster.areaPerPixel !== null
+                      ? ` · ${plan.raster.resolutionMeters} m pixels · ${(plan.raster.areaPerPixel / 10_000).toFixed(2)} ha per pixel`
+                      : ' · pixels in degrees, counted after reprojection'}
                   </span>
                 </span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => update({ raster: null, values: [], census: null, classes: [] })}
-                >
+                <Button size="sm" variant="secondary" onClick={replaceRaster}>
                   Replace
                 </Button>
               </li>
@@ -260,7 +259,7 @@ export const StepData = ({ plan, update }: Props) => {
                     value={plan.bandIndex}
                     disabled={inspecting}
                     data-testid="uae-band"
-                    onChange={(e) => void selectBand(Number(e.target.value))}
+                    onChange={(e) => selectBand(Number(e.target.value))}
                   >
                     {plan.raster.bands.map((b) => (
                       <option key={b.index} value={b.index}>
@@ -311,6 +310,7 @@ export const StepData = ({ plan, update }: Props) => {
                       size="sm"
                       value={plan.equalAreaCrs}
                       onChange={(e) => update({ equalAreaCrs: e.target.value })}
+                      onBlur={commitCrs}
                       className="font-mono text-[11px]"
                       spellCheck={false}
                       list="uae-equal-area-crs-options"
@@ -331,7 +331,7 @@ export const StepData = ({ plan, update }: Props) => {
                     <p className="text-xs leading-snug text-neutral-500">
                       <button
                         type="button"
-                        onClick={() => update({ equalAreaCrs: proposedCrs })}
+                        onClick={() => update({ equalAreaCrs: proposedCrs, census: null })}
                         className="cursor-pointer text-brand-700 underline decoration-brand-300 underline-offset-4 hover:decoration-brand-600"
                         data-testid="uae-use-proposed-crs"
                       >
@@ -362,10 +362,17 @@ export const StepData = ({ plan, update }: Props) => {
             </SubHeading>
 
             {plan.values.length === 0 ? (
-              <Note tone="warning">
-                This band carries no class list, so the distinct values have to be read from the
-                pixels and named by hand.
-              </Note>
+              counting !== null ? (
+                <p className="text-xs text-neutral-500">
+                  The distinct values are read from the pixels while counting.
+                </p>
+              ) : (
+                <Note tone="warning">
+                  {mapId
+                    ? 'No values were counted for this band.'
+                    : 'This map was stored before it could be counted here. Replace it to count it.'}
+                </Note>
+              )
             ) : missingNames > 0 ? (
               <Note tone="warning">
                 {missingNames} value{missingNames === 1 ? '' : 's'} still need a name. The file did
@@ -410,10 +417,11 @@ export const StepData = ({ plan, update }: Props) => {
 
           <FileInput
             accept=".geojson,.json,.zip"
-            action="Add areas"
+            action={plan.areas.length > 0 ? 'Replace areas' : 'Add areas'}
             placeholder="GeoJSON, or a zipped shapefile"
+            disabled={!mapId || counting !== null}
             data-testid="uae-areas-file"
-            onSelect={(file) => void addAreas(file.name)}
+            onSelect={(file) => void setAreas(file)}
           />
 
           {plan.areas.length > 0 && (
@@ -430,10 +438,10 @@ export const StepData = ({ plan, update }: Props) => {
           )}
 
           <p className="flex items-center gap-2 text-xs text-neutral-500">
-            {counting ? (
+            {counting !== null ? (
               <>
                 <Spinner size="xs" />
-                Counting map pixels in the reporting area…
+                Counting map pixels on the equal-area grid… {formatPercent(counting, 0)}
               </>
             ) : plan.census ? (
               <>

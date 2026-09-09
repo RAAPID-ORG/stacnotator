@@ -1,128 +1,150 @@
 /**
- * The seam between the wizard and the work only a server can do: reading a
- * raster's bands, counting pixels inside the areas of interest, and keeping
- * the plan and its running estimate.
+ * The seam between the wizard and the work only a server can do.
  *
- * Nothing here is the real implementation. Every function stands in for a
- * backend endpoint that does not exist yet, and answers from deterministic
- * fixtures so the interface can be exercised and reviewed first. Replacing
- * this file with generated client calls is the whole of the frontend's part
- * in the backend work.
+ * Reading a map, attaching areas of interest and counting pixels are real
+ * calls against the area estimation backend; the map lives there only while
+ * the design is being written. The plan itself and the running tally of
+ * annotated units are still kept locally, standing in for endpoints that do
+ * not exist yet.
  */
 
-import type { AreaEstimationPlan, MapValue, PixelCensus, RasterInfo, StudyArea } from './core/plan';
-import { NO_DATA_CLASS_ID, designsOf, emptyPlan, proposedEqualAreaCrs } from './core/plan';
-import { DEFAULT_EQUAL_AREA_CRS } from './core/guidance';
+import {
+  getJob,
+  linkMap,
+  preprocess,
+  setAreas,
+  uploadMap,
+  type JobOut,
+  type MapOut,
+} from '~/api/client';
+import { extractErrorMessage } from '~/shared/utils/errorHandler';
+import type { AreaEstimationPlan, PixelCensus, RasterInfo, StudyArea } from './core/plan';
+import { NO_DATA_CLASS_ID, WHOLE_MAP_AREA_ID, designsOf, emptyPlan } from './core/plan';
 import type { StratumSample } from './core/estimate';
 
+const POLL_MS = 1500;
 const LATENCY_MS = 450;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Deterministic PRNG so the same fixture always produces the same numbers. */
-const seededRandom = (seed: string) => {
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+/**
+ * The generated client types a multipart file as a string, which is what the
+ * schema says and not what the browser sends. Widening here keeps that one
+ * disagreement at the boundary.
+ */
+const multipartFile = (file: File): string => file as unknown as string;
+
+const unwrap = <T>({ data, error }: { data?: T; error?: unknown }, context: string): T => {
+  if (error !== undefined || data === undefined) {
+    throw new Error(extractErrorMessage(error, context));
   }
-  return () => {
-    h += 0x6d2b79f5;
-    let t = h;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+  return data;
 };
-
-const CROP_LEGEND: MapValue[] = [
-  { value: 0, label: 'Nodata' },
-  { value: 1, label: 'Winter wheat' },
-  { value: 2, label: 'Rapeseed' },
-  { value: 3, label: 'Other winter cereals' },
-  { value: 4, label: 'Summer crops' },
-  { value: 5, label: 'Non-cropland' },
-];
-
-/** Rough national shares, before the per-area jitter below. */
-const LEGEND_SHARES: Record<number, number> = {
-  0: 0.18,
-  1: 0.14,
-  2: 0.03,
-  3: 0.05,
-  4: 0.28,
-  5: 0.32,
-};
-
-const REGION_NAMES = ['Northern region', 'Central region', 'Southern region', 'Eastern region'];
 
 export interface RasterInspection {
   raster: RasterInfo;
   /** The projection to compute areas in: the map's own when it already is one. */
   equalAreaCrs: string;
-  /** Per band: the legend the file carries, empty when it has no metadata. */
-  legendByBand: Record<number, MapValue[]>;
-  noDataValuesByBand: Record<number, number[]>;
 }
 
-/** What the fixture map covers, and therefore what its projection is sized to. */
-const FIXTURE_BBOX = { west: 22.1, south: 44.4, east: 40.2, north: 52.4 };
-
-export const inspectRaster = async (fileName: string): Promise<RasterInspection> => {
-  await sleep(LATENCY_MS);
-  // A geographic CRS is the common mistake: pixel areas vary with latitude, so
-  // pixel counts are not proportional to area. Surfaced rather than corrected.
-  const isEqualArea = !/4326|wgs ?84|latlon/i.test(fileName);
-  const raster = {
-    name: fileName,
-    bands: [
-      { index: 1, description: 'crop_type' },
-      { index: 2, description: 'crop_type_no_legend' },
-    ],
-    crs: isEqualArea ? 'EPSG:6933 (World Equal Area)' : 'EPSG:4326 (WGS 84 lat/lon)',
-    isEqualArea,
-    areaPerPixel: 100,
-    resolutionMeters: 10,
-    bbox: FIXTURE_BBOX,
-  };
+const rasterOf = (map: MapOut): RasterInfo => {
+  const first = map.info.sources[0];
   return {
-    equalAreaCrs: proposedEqualAreaCrs(raster) ?? DEFAULT_EQUAL_AREA_CRS,
-    raster,
-    legendByBand: { 1: CROP_LEGEND, 2: [] },
-    noDataValuesByBand: { 1: [0], 2: [] },
+    mapId: map.id,
+    name: map.sources.map((s) => s.name).join(', '),
+    bands: map.info.bands.map((b) => ({
+      index: b.index,
+      description: b.description,
+      noData: b.nodata,
+    })),
+    crs: first.crs_name,
+    isEqualArea: map.info.is_equal_area,
+    areaPerPixel: first.pixel_area_m2,
+    resolutionMeters: first.is_geographic ? null : first.resolution[0],
+    bbox: map.info.bbox,
   };
 };
 
-export const parseStudyAreas = async (fileName: string): Promise<StudyArea[]> => {
-  await sleep(LATENCY_MS);
-  const base = fileName.replace(/\.[^.]+$/, '');
-  if (/region|admin|oblast|province|district/i.test(fileName)) {
-    return REGION_NAMES.map((name, i) => ({ id: `area-${i + 1}`, name, featureCount: 1 }));
+const inspectionOf = (map: MapOut): RasterInspection => ({
+  raster: rasterOf(map),
+  equalAreaCrs: map.info.proposed_crs,
+});
+
+/** Store a map on the backend, from a file or a URL, and read what its header says. */
+export const inspectRaster = async (
+  campaignId: number,
+  source: File | string
+): Promise<RasterInspection> => {
+  const path = { campaign_id: campaignId };
+  const response =
+    typeof source === 'string'
+      ? await linkMap({ path, body: { urls: [source] } })
+      : await uploadMap({ path, body: { files: [multipartFile(source)] } });
+  return inspectionOf(unwrap(response, 'Could not read the map'));
+};
+
+const areasOf = (map: MapOut): StudyArea[] =>
+  (map.areas?.areas ?? []).map((a) => ({ id: a.id, name: a.name, featureCount: a.feature_count }));
+
+/** Attach a boundary file to the map, replacing any areas it had. */
+export const parseStudyAreas = async (
+  campaignId: number,
+  mapId: string,
+  file: File
+): Promise<StudyArea[]> => {
+  const response = await setAreas({
+    path: { campaign_id: campaignId, map_id: mapId },
+    body: { file: multipartFile(file) },
+  });
+  return areasOf(unwrap(response, 'Could not read the area file'));
+};
+
+const censusOf = (job: JobOut, bandIndex: number): PixelCensus => {
+  if (!job.result || !('band' in job.result)) {
+    throw new Error('The count finished without a result');
   }
-  return [{ id: 'area-1', name: base || 'Study area', featureCount: 1 }];
+  const { grid, total, by_area } = job.result;
+  return {
+    bandIndex,
+    crs: grid.crs,
+    pixelAreaM2: grid.resolution_m * grid.resolution_m,
+    byArea: { ...by_area, [WHOLE_MAP_AREA_ID]: total },
+  };
 };
 
 /**
  * The zonal histogram: how many pixels of each map value fall inside each
- * area. This is the only place the map's own numbers enter the design.
+ * area, counted on the equal-area grid. A background job on the server; this
+ * waits for it, reporting progress as it goes.
  */
 export const censusPixels = async (
-  raster: RasterInfo,
+  campaignId: number,
+  mapId: string,
   bandIndex: number,
-  areas: readonly StudyArea[],
-  values: readonly MapValue[]
+  equalAreaCrs: string,
+  onProgress?: (fraction: number) => void
 ): Promise<PixelCensus> => {
-  await sleep(LATENCY_MS);
-  const byArea: Record<string, Record<string, number>> = {};
-  areas.forEach((area, areaIndex) => {
-    const random = seededRandom(`${raster.name}|${bandIndex}|${area.id}`);
-    const totalPixels = 40_000_000 + Math.round(random() * 30_000_000) * (areaIndex === 0 ? 2 : 1);
-    const shares = values.map((v) => (LEGEND_SHARES[v.value] ?? 0.1) * (0.6 + random() * 0.8));
-    const sum = shares.reduce((a, b) => a + b, 0);
-    byArea[area.id] = Object.fromEntries(
-      values.map((v, i) => [String(v.value), Math.round((shares[i] / sum) * totalPixels)])
+  const started = unwrap(
+    await preprocess({
+      path: { campaign_id: campaignId, map_id: mapId },
+      body: { band: bandIndex, crs: equalAreaCrs },
+    }),
+    'Could not count the map pixels'
+  );
+  let job = started;
+  while (job.status === 'queued' || job.status === 'running') {
+    onProgress?.(job.progress);
+    await sleep(POLL_MS);
+    job = unwrap(
+      await getJob({ path: { campaign_id: campaignId, job_id: started.id } }),
+      'Could not count the map pixels'
     );
-  });
-  return { bandIndex, byArea };
+  }
+  if (job.status === 'failed') {
+    throw new Error(job.error ?? 'Counting the map pixels failed');
+  }
+  onProgress?.(1);
+  return censusOf(job, bandIndex);
 };
 
 // A design belongs to the task set holding its sample, not to the campaign:
@@ -183,10 +205,26 @@ export interface Progress {
   planned: number;
 }
 
+/** Deterministic PRNG so the same fixture always produces the same numbers. */
+const seededRandom = (seed: string) => {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  }
+  return () => {
+    h += 0x6d2b79f5;
+    let t = h;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
 /**
- * Stands in for the running tally of annotated sampling units. The counts are
- * drawn from the plan's own prior so the estimates the admin sees behave like
- * real ones: wide early, tightening as points come in.
+ * Stands in for the running tally of annotated sampling units, which no
+ * endpoint serves yet. The counts are drawn from the plan's own prior so the
+ * estimates the admin sees behave like real ones: wide early, tightening as
+ * points come in.
  */
 export const loadProgress = async (
   taskSetId: number,

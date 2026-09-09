@@ -23,7 +23,7 @@ const basePlan = (): AreaEstimationPlan => ({
   ...emptyPlan(),
   raster: {
     name: 'cropmap.tif',
-    bands: [{ index: 1, description: 'crop_type' }],
+    bands: [{ index: 1, description: 'crop_type', noData: 0 }],
     crs: 'EPSG:6933',
     isEqualArea: true,
     areaPerPixel: 100,
@@ -43,6 +43,8 @@ const basePlan = (): AreaEstimationPlan => ({
   ],
   census: {
     bandIndex: 1,
+    crs: 'EPSG:6933',
+    pixelAreaM2: 100,
     byArea: {
       north: { '0': 100, '1': 300, '2': 100, '3': 500 },
       south: { '0': 200, '1': 100, '2': 100, '3': 600 },

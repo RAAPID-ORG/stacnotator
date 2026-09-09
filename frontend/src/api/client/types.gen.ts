@@ -894,6 +894,22 @@ export type ApiKeyUpdate = {
 };
 
 /**
+ * AreaSet
+ *
+ * Areas of interest, kept as EPSG:4326 GeoJSON features beside the map.
+ */
+export type AreaSet = {
+    /**
+     * File Name
+     */
+    file_name: string;
+    /**
+     * Areas
+     */
+    areas: Array<StudyArea>;
+};
+
+/**
  * AssetInfo
  */
 export type AssetInfo = {
@@ -912,7 +928,7 @@ export type AssetInfo = {
     /**
      * Bands
      */
-    bands?: Array<BandInfo>;
+    bands?: Array<SrcStacBrowserSchemasBandInfo>;
 };
 
 /**
@@ -1009,20 +1025,6 @@ export type AssignTasksToUsersResult = {
 };
 
 /**
- * BandInfo
- */
-export type BandInfo = {
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Description
-     */
-    description?: string | null;
-};
-
-/**
  * BasemapCreate
  */
 export type BasemapCreate = {
@@ -1115,6 +1117,28 @@ export type BatchDeleteAnnotationsResponse = {
 };
 
 /**
+ * Bbox
+ */
+export type Bbox = {
+    /**
+     * West
+     */
+    west: number;
+    /**
+     * South
+     */
+    south: number;
+    /**
+     * East
+     */
+    east: number;
+    /**
+     * North
+     */
+    north: number;
+};
+
+/**
  * Body_generateTasksFromSampling
  */
 export type BodyGenerateTasksFromSampling = {
@@ -1188,6 +1212,30 @@ export type BodyIngestAnnotationsFromGeojson = {
      * File
      */
     file: string;
+};
+
+/**
+ * Body_setAreas
+ */
+export type BodySetAreas = {
+    /**
+     * File
+     *
+     * GeoJSON, or a zipped shapefile
+     */
+    file: string;
+};
+
+/**
+ * Body_uploadMap
+ */
+export type BodyUploadMap = {
+    /**
+     * Files
+     *
+     * The map as one or more GeoTIFF tiles
+     */
+    files: Array<string>;
 };
 
 /**
@@ -2284,6 +2332,41 @@ export type GridSamplingConfig = {
 };
 
 /**
+ * GridSpec
+ *
+ * The equal-area grid every pixel is counted on.
+ */
+export type GridSpec = {
+    /**
+     * Crs
+     */
+    crs: string;
+    /**
+     * Resolution M
+     */
+    resolution_m: number;
+    /**
+     * Width
+     */
+    width: number;
+    /**
+     * Height
+     */
+    height: number;
+    /**
+     * Transform
+     */
+    transform: [
+        number,
+        number,
+        number,
+        number,
+        number,
+        number
+    ];
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -2813,6 +2896,40 @@ export type InvitesListResponse = {
 };
 
 /**
+ * JobOut
+ */
+export type JobOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Map Id
+     */
+    map_id: string;
+    /**
+     * Kind
+     */
+    kind: 'preprocess' | 'stratify';
+    /**
+     * Status
+     */
+    status: 'queued' | 'running' | 'done' | 'failed';
+    /**
+     * Progress
+     */
+    progress: number;
+    /**
+     * Error
+     */
+    error: string | null;
+    /**
+     * Result
+     */
+    result: RawCensus | StrataCensus | null;
+};
+
+/**
  * KnnValidationStatusOut
  *
  * Summary of what the KNN label validator has available.
@@ -2895,6 +3012,71 @@ export type LabellingPolicy = {
     assigned_tasks?: PolicyAudience;
     complete_assigned?: PolicyAudience;
     modify_others?: PolicyAudience;
+};
+
+/**
+ * LinkMapRequest
+ */
+export type LinkMapRequest = {
+    /**
+     * Urls
+     */
+    urls: Array<string>;
+};
+
+/**
+ * MapInfo
+ *
+ * One map, possibly in several tiles that together cover the region.
+ */
+export type MapInfo = {
+    /**
+     * Sources
+     */
+    sources: Array<SourceInfo>;
+    /**
+     * Bands
+     */
+    bands: Array<SrcAreaEstimationSchemasBandInfo>;
+    bbox: Bbox;
+    /**
+     * Total Pixels
+     */
+    total_pixels: number;
+    /**
+     * Is Equal Area
+     */
+    is_equal_area: boolean;
+    /**
+     * Proposed Crs
+     */
+    proposed_crs: string;
+};
+
+/**
+ * MapOut
+ */
+export type MapOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Sources
+     */
+    sources: Array<SourceRef>;
+    info: MapInfo;
+    areas: AreaSet | null;
+    preprocess: PreprocessProduct | null;
+    strata: StrataProduct | null;
+    /**
+     * Active Job Id
+     */
+    active_job_id: string | null;
 };
 
 /**
@@ -3588,6 +3770,36 @@ export type PolicyAudience = {
 };
 
 /**
+ * PreprocessProduct
+ */
+export type PreprocessProduct = {
+    spec: PreprocessRequest;
+    census: RawCensus;
+    /**
+     * Path
+     */
+    path: string;
+};
+
+/**
+ * PreprocessRequest
+ */
+export type PreprocessRequest = {
+    /**
+     * Band
+     */
+    band?: number;
+    /**
+     * Crs
+     */
+    crs: string;
+    /**
+     * Resolution M
+     */
+    resolution_m?: number | null;
+};
+
+/**
  * ProjectCreate
  */
 export type ProjectCreate = {
@@ -3799,6 +4011,49 @@ export type RasterOverlayOut = {
 };
 
 /**
+ * RawCensus
+ *
+ * Pixels per map value, on the equal-area grid, inside the map's footprint.
+ *
+ * ``total`` covers the whole footprint; ``by_area`` one entry per area of
+ * interest. A pixel is in an area when its centre is, so with areas that do not
+ * overlap every pixel is counted at most once.
+ */
+export type RawCensus = {
+    grid: GridSpec;
+    /**
+     * Band
+     */
+    band: number;
+    /**
+     * Total
+     */
+    total: {
+        [key: string]: number;
+    };
+    /**
+     * By Area
+     */
+    by_area: {
+        [key: string]: {
+            [key: string]: number;
+        };
+    };
+    /**
+     * Footprint Pixels
+     */
+    footprint_pixels: number;
+    /**
+     * Masked Pixels
+     */
+    masked_pixels: number;
+    /**
+     * Declared Nodata
+     */
+    declared_nodata: Array<number>;
+};
+
+/**
  * RenderConfig
  */
 export type RenderConfig = {
@@ -3829,6 +4084,20 @@ export type RenderConfig = {
      * Entries
      */
     entries?: Array<CategoricalEntry> | null;
+};
+
+/**
+ * ReportingClass
+ */
+export type ReportingClass = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Values
+     */
+    values: Array<number>;
 };
 
 /**
@@ -3972,6 +4241,58 @@ export type SliceTileUrlOut = {
 };
 
 /**
+ * SourceInfo
+ *
+ * What one file says about itself, read from its header only.
+ */
+export type SourceInfo = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Width
+     */
+    width: number;
+    /**
+     * Height
+     */
+    height: number;
+    /**
+     * Crs
+     */
+    crs: string;
+    /**
+     * Crs Name
+     */
+    crs_name: string;
+    /**
+     * Is Geographic
+     */
+    is_geographic: boolean;
+    /**
+     * Is Equal Area
+     */
+    is_equal_area: boolean;
+    /**
+     * Resolution
+     */
+    resolution: [
+        number,
+        number
+    ];
+    /**
+     * Pixel Area M2
+     */
+    pixel_area_m2: number | null;
+    bbox: Bbox;
+    /**
+     * Bands
+     */
+    bands: Array<SrcAreaEstimationSchemasBandInfo>;
+};
+
+/**
  * SourceOptionOut
  */
 export type SourceOptionOut = {
@@ -4007,6 +4328,24 @@ export type SourceOptionOut = {
      * Restriction
      */
     restriction: 'api_key' | 'internal_storage' | null;
+};
+
+/**
+ * SourceRef
+ */
+export type SourceRef = {
+    /**
+     * Kind
+     */
+    kind: 'upload' | 'url';
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Location
+     */
+    location: string;
 };
 
 /**
@@ -4175,6 +4514,88 @@ export type StacItemOut = {
      * Self Href
      */
     self_href?: string | null;
+};
+
+/**
+ * StrataCensus
+ *
+ * Pixels per stratum, keyed by class id, plus the code each class holds in
+ * the strata raster (1-based, in request order).
+ */
+export type StrataCensus = {
+    grid: GridSpec;
+    /**
+     * Codes
+     */
+    codes: {
+        [key: string]: number;
+    };
+    /**
+     * Total
+     */
+    total: {
+        [key: string]: number;
+    };
+    /**
+     * By Area
+     */
+    by_area: {
+        [key: string]: {
+            [key: string]: number;
+        };
+    };
+    /**
+     * Nodata Pixels
+     */
+    nodata_pixels: number;
+};
+
+/**
+ * StrataProduct
+ */
+export type StrataProduct = {
+    spec: StratifyRequest;
+    census: StrataCensus;
+    /**
+     * Path
+     */
+    path: string;
+};
+
+/**
+ * StratifyRequest
+ *
+ * How map values fold into strata. Every value the census saw must land in
+ * exactly one class or be declared nodata; anything else is an error, since a
+ * pixel silently dropped or double-counted breaks the stratum weights.
+ */
+export type StratifyRequest = {
+    /**
+     * Classes
+     */
+    classes: Array<ReportingClass>;
+    /**
+     * Nodata Values
+     */
+    nodata_values?: Array<number>;
+};
+
+/**
+ * StudyArea
+ */
+export type StudyArea = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Feature Count
+     */
+    feature_count: number;
 };
 
 /**
@@ -5502,6 +5923,42 @@ export type VizParamsCreate = {
      * Max Items
      */
     max_items?: number | null;
+};
+
+/**
+ * BandInfo
+ */
+export type SrcAreaEstimationSchemasBandInfo = {
+    /**
+     * Index
+     */
+    index: number;
+    /**
+     * Dtype
+     */
+    dtype: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Nodata
+     */
+    nodata: number | null;
+};
+
+/**
+ * BandInfo
+ */
+export type SrcStacBrowserSchemasBandInfo = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
 };
 
 /**
@@ -9283,6 +9740,336 @@ export type GenerateTasksFromSamplingResponses = {
 };
 
 export type GenerateTasksFromSamplingResponse = GenerateTasksFromSamplingResponses[keyof GenerateTasksFromSamplingResponses];
+
+export type ListMapsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/maps';
+};
+
+export type ListMapsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMapsError = ListMapsErrors[keyof ListMapsErrors];
+
+export type ListMapsResponses = {
+    /**
+     * Response Listmaps
+     *
+     * Successful Response
+     */
+    200: Array<MapOut>;
+};
+
+export type ListMapsResponse = ListMapsResponses[keyof ListMapsResponses];
+
+export type UploadMapData = {
+    body: BodyUploadMap;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/maps';
+};
+
+export type UploadMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadMapError = UploadMapErrors[keyof UploadMapErrors];
+
+export type UploadMapResponses = {
+    /**
+     * Successful Response
+     */
+    201: MapOut;
+};
+
+export type UploadMapResponse = UploadMapResponses[keyof UploadMapResponses];
+
+export type LinkMapData = {
+    body: LinkMapRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/maps/link';
+};
+
+export type LinkMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LinkMapError = LinkMapErrors[keyof LinkMapErrors];
+
+export type LinkMapResponses = {
+    /**
+     * Successful Response
+     */
+    201: MapOut;
+};
+
+export type LinkMapResponse = LinkMapResponses[keyof LinkMapResponses];
+
+export type DeleteMapData = {
+    body?: never;
+    path: {
+        /**
+         * Map Id
+         */
+        map_id: string;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/maps/{map_id}';
+};
+
+export type DeleteMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteMapError = DeleteMapErrors[keyof DeleteMapErrors];
+
+export type DeleteMapResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteMapResponse = DeleteMapResponses[keyof DeleteMapResponses];
+
+export type GetMapData = {
+    body?: never;
+    path: {
+        /**
+         * Map Id
+         */
+        map_id: string;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/maps/{map_id}';
+};
+
+export type GetMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetMapError = GetMapErrors[keyof GetMapErrors];
+
+export type GetMapResponses = {
+    /**
+     * Successful Response
+     */
+    200: MapOut;
+};
+
+export type GetMapResponse = GetMapResponses[keyof GetMapResponses];
+
+export type ClearAreasData = {
+    body?: never;
+    path: {
+        /**
+         * Map Id
+         */
+        map_id: string;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/maps/{map_id}/areas';
+};
+
+export type ClearAreasErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearAreasError = ClearAreasErrors[keyof ClearAreasErrors];
+
+export type ClearAreasResponses = {
+    /**
+     * Successful Response
+     */
+    200: MapOut;
+};
+
+export type ClearAreasResponse = ClearAreasResponses[keyof ClearAreasResponses];
+
+export type SetAreasData = {
+    body: BodySetAreas;
+    path: {
+        /**
+         * Map Id
+         */
+        map_id: string;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/maps/{map_id}/areas';
+};
+
+export type SetAreasErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetAreasError = SetAreasErrors[keyof SetAreasErrors];
+
+export type SetAreasResponses = {
+    /**
+     * Successful Response
+     */
+    200: MapOut;
+};
+
+export type SetAreasResponse = SetAreasResponses[keyof SetAreasResponses];
+
+export type PreprocessData = {
+    body: PreprocessRequest;
+    path: {
+        /**
+         * Map Id
+         */
+        map_id: string;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/maps/{map_id}/preprocess';
+};
+
+export type PreprocessErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreprocessError = PreprocessErrors[keyof PreprocessErrors];
+
+export type PreprocessResponses = {
+    /**
+     * Successful Response
+     */
+    202: JobOut;
+};
+
+export type PreprocessResponse = PreprocessResponses[keyof PreprocessResponses];
+
+export type StratifyData = {
+    body: StratifyRequest;
+    path: {
+        /**
+         * Map Id
+         */
+        map_id: string;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/maps/{map_id}/stratify';
+};
+
+export type StratifyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StratifyError = StratifyErrors[keyof StratifyErrors];
+
+export type StratifyResponses = {
+    /**
+     * Successful Response
+     */
+    202: JobOut;
+};
+
+export type StratifyResponse = StratifyResponses[keyof StratifyResponses];
+
+export type GetJobData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/area-estimation/jobs/{job_id}';
+};
+
+export type GetJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetJobError = GetJobErrors[keyof GetJobErrors];
+
+export type GetJobResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobOut;
+};
+
+export type GetJobResponse = GetJobResponses[keyof GetJobResponses];
 
 export type SaveImageryData = {
     body: ImageryEditorStateCreate;

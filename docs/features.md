@@ -206,6 +206,20 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 - Soft claims: opening an unassigned task takes a 30-minute lease on it, one per user per campaign (enforced by the database). Claimed tasks are kept out of everyone else's unassigned pool so two people do not label the same point, but the lease is advisory: reach one deliberately and you can still label it, and it never changes who the labelling policy allows
 - Working the unassigned pool: Next and submitting both ask the server for the next task nobody is on, which picks and claims it in one transaction. Annotators sharing a campaign are handed different tasks rather than each walking the list and colliding on everything already taken; the pick moves forward from where you are and wraps at the end
 
+## Area Estimation (Preprocessing)
+
+Backend support for design-based (Olofsson et al. 2014) area estimation,
+where a classified map is used only to stratify a probability sample rather
+than trusted for its own class areas. A campaign admin uploads or links a
+classified map, reprojects it onto a shared equal-area grid with a raw
+per-value pixel census (optionally split by areas of interest), then folds
+map values into reporting classes to get a strata raster and strata census.
+
+Only this preprocessing stage is implemented; drawing the stratified sample
+and computing the area estimator from reference labels are not built yet.
+See [area-estimation.md](area-estimation.md) for the processing rules, the
+API, and the background job model.
+
 ## Campaign Settings
 
 Post-creation editing via the settings page (three tabs):

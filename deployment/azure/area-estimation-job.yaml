@@ -1,0 +1,42 @@
+# The Container Apps Job that preprocesses maps for area estimation, created once
+# per environment (README: "Area estimation worker"). Every <placeholder> is filled
+# in by the commands there; deploy.sh only moves the image on each release.
+#
+# Manual trigger with zero parallelism at rest: the backend starts one execution per
+# job and passes the job to run in AREA_ESTIMATION_JOB. The worker reads and writes
+# the same blob container the backend does, as the same identity; its products are
+# written to the replica's own disk first, so size the profile's ephemeral storage
+# for the largest strata raster expected.
+location: <location>
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    <identity-resource-id>: {}
+properties:
+  environmentId: <container-apps-environment-resource-id>
+  workloadProfileName: Consumption
+  configuration:
+    triggerType: Manual
+    replicaTimeout: 21600
+    replicaRetryLimit: 0
+    manualTriggerConfig:
+      parallelism: 1
+      replicaCompletionCount: 1
+    registries:
+      - server: <acr-login-server>
+        identity: <identity-resource-id>
+  template:
+    containers:
+      - name: worker
+        image: <acr-login-server>/backend:<image-tag>
+        command: ["python", "-m", "src.area_estimation.worker"]
+        resources:
+          cpu: 4
+          memory: 8Gi
+        env:
+          - name: AREA_ESTIMATION_BLOB_CONTAINER_URL
+            value: <blob-container-url>
+          - name: AREA_ESTIMATION_AZURE_CLIENT_ID
+            value: <identity-client-id>
+          - name: AREA_ESTIMATION_MAX_GRID_PIXELS
+            value: "200000000000"

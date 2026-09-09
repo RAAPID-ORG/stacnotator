@@ -87,6 +87,7 @@ export const AreaEstimationSetup = ({
 
   return editing ? (
     <PlanWizard
+      campaignId={campaignId}
       plan={plan}
       update={update}
       onActivate={activate}

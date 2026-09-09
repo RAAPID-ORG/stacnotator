@@ -6,7 +6,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import quote_plus
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEFAULT_CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
@@ -232,6 +232,37 @@ class Settings(BaseSettings):
     def _blank_default_tiler_is_none(cls, v: str | None) -> str | None:
         # `DEFAULT_TILER=` (empty) from compose means "no default", not the tiler named "".
         return v or None
+
+    # Area estimation keeps a map only while its sampling design is being worked
+    # on, on the disk of whichever process runs the preprocessing - this one, with
+    # the local runner. Unset: a directory under the system temp dir. Uploads are
+    # capped by size; a grid is capped by pixel count so a fine resolution over a
+    # continent fails at planning rather than after filling the disk.
+    AREA_ESTIMATION_WORKDIR: str | None = None
+    AREA_ESTIMATION_MAX_UPLOAD_BYTES: int = 4 * 1024 * 1024 * 1024
+    AREA_ESTIMATION_MAX_GRID_PIXELS: int = 200_000_000_000
+    AREA_ESTIMATION_MAX_CONCURRENT_JOBS: int = 1
+    # "azure" hands each job to a Container Apps Job execution that shares the
+    # workdir with the backend over a mounted file share; the job's ARM resource id
+    # names it, and the identity is the backend's own (a user-assigned one by client
+    # id, else the system one). See docs/area-estimation.md.
+    AREA_ESTIMATION_RUNNER: Literal["local", "azure"] = "local"
+    AREA_ESTIMATION_AZURE_JOB_ID: str | None = None
+    AREA_ESTIMATION_AZURE_CLIENT_ID: str | None = None
+    # Set, the workspace is this blob container instead of the workdir: what every
+    # replica and every worker share. https://<account>.blob.core.windows.net/<container>
+    AREA_ESTIMATION_BLOB_CONTAINER_URL: str | None = None
+
+    @model_validator(mode="after")
+    def _azure_runner_needs_a_job(self) -> "Settings":
+        if self.AREA_ESTIMATION_RUNNER == "azure" and not self.AREA_ESTIMATION_AZURE_JOB_ID:
+            raise ValueError("AREA_ESTIMATION_RUNNER=azure needs AREA_ESTIMATION_AZURE_JOB_ID")
+        if self.AREA_ESTIMATION_RUNNER == "azure" and not self.AREA_ESTIMATION_BLOB_CONTAINER_URL:
+            raise ValueError(
+                "AREA_ESTIMATION_RUNNER=azure needs AREA_ESTIMATION_BLOB_CONTAINER_URL: "
+                "a worker can only share a blob workspace"
+            )
+        return self
 
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None
