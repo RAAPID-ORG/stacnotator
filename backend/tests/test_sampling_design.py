@@ -6,10 +6,35 @@ import pytest
 from fastapi import HTTPException
 from shapely.geometry import MultiPolygon, Polygon, box
 
+from src.sampling_design.router import _intersect_region_with_bbox
 from src.sampling_design.service import (
     create_bbox_polygon,
     get_region_geometry,
 )
+
+
+class TestIntersectRegionWithBbox:
+    def _campaign(self, west, south, east, north):
+        campaign = MagicMock()
+        campaign.settings.bbox_west = west
+        campaign.settings.bbox_south = south
+        campaign.settings.bbox_east = east
+        campaign.settings.bbox_north = north
+        return campaign
+
+    def test_keeps_only_polygonal_parts_of_the_clip(self):
+        # A U shape clipped along its inner edge leaves two polygons plus the
+        # touching line; the line must not survive, or random sampling
+        # silently returns zero points for a GeometryCollection.
+        region = Polygon([(0, 0), (1, 0), (1, 1), (2, 1), (2, 0), (3, 0), (3, 2), (0, 2)])
+        clipped = _intersect_region_with_bbox(region, self._campaign(0, 0, 3, 1))
+        assert isinstance(clipped, MultiPolygon)
+        assert clipped.area == pytest.approx(2)
+
+    def test_touching_edge_only_is_no_overlap(self):
+        with pytest.raises(HTTPException) as exc_info:
+            _intersect_region_with_bbox(box(0, 0, 1, 1), self._campaign(1, 0, 2, 1))
+        assert exc_info.value.status_code == 400
 
 
 class TestCreateBboxPolygon:

@@ -5,7 +5,9 @@ string): this module is the DB-bound half that actually executes PostGIS
 queries, kept out of `service.py`'s ORM-centric read/write flows.
 """
 
+from collections.abc import Hashable, Iterable
 from datetime import UTC, datetime
+from math import floor
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -104,6 +106,78 @@ def get_campaign_annotations_extent(
     return (float(row[0]), float(row[1]), float(row[2]), float(row[3]))
 
 
+def density_grid(
+    aoi: tuple[float, float, float, float] | None,
+    target_cells: int,
+    bbox: tuple[float, float, float, float] | None = None,
+) -> float:
+    """Grid cell size in degrees, so the wider span covers ~``target_cells`` cells.
+
+    A viewport, when given, sizes the grid instead of the area of interest. That is
+    what lets a caller resolve to detail: zooming shrinks the cells, counts fall, and
+    at one feature per cell the reported position is that feature's own.
+    """
+    source = bbox or aoi
+    if source is None:
+        return 0.01
+    span = max(source[2] - source[0], source[3] - source[1])
+    return span / target_cells if span > 0 else 0.01
+
+
+def bin_density_cells(points: Iterable[tuple[float, float, Hashable]], grid: float) -> list[dict]:
+    """Group ``(lon, lat, key)`` points into a lattice, one cell per key.
+
+    Each cell reports its group's own mean position rather than the cell centre, so a
+    dot sits where its points actually are instead of up to half a cell away.
+
+    The annotation grids do this in SQL, where the key is a column. A task's status is
+    derived from its assignments and annotations by rules that live in Python, so its
+    grid is binned here rather than duplicating those rules in a query.
+    """
+    groups: dict[tuple[int, int, Hashable], list[float]] = {}
+    for lon, lat, key in points:
+        cell = groups.setdefault((floor(lon / grid), floor(lat / grid), key), [0.0, 0.0, 0.0])
+        cell[0] += lon
+        cell[1] += lat
+        cell[2] += 1
+    return [
+        {"lon": lon_sum / n, "lat": lat_sum / n, "key": key, "count": int(n)}
+        for (_, _, key), (lon_sum, lat_sum, n) in groups.items()
+    ]
+
+
+def task_centroids(
+    db: Session,
+    campaign_id: int,
+    task_set_id: int | None = None,
+    bbox: tuple[float, float, float, float] | None = None,
+) -> dict[int, tuple[float, float]]:
+    """Every task's centroid in EPSG:4326, keyed by task id.
+
+    One indexed pass in the database rather than parsing each geometry in Python, and
+    the place the set and viewport filters are applied - a task missing from the result
+    is one the caller should skip.
+    """
+    params: dict = {"campaign_id": campaign_id}
+    scope = ""
+    if task_set_id is not None:
+        scope += " AND t.task_set_id = :task_set_id"
+        params["task_set_id"] = task_set_id
+    if bbox is not None:
+        scope += " AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
+        params |= dict(zip(("minx", "miny", "maxx", "maxy"), bbox, strict=True))
+
+    sql = text(
+        f"""
+        SELECT t.id, ST_X(ST_Centroid(g.geometry)), ST_Y(ST_Centroid(g.geometry))
+        FROM data.annotation_tasks t
+        JOIN data.annotation_geometries g ON g.id = t.geometry_id
+        WHERE t.campaign_id = :campaign_id{scope}
+        """  # noqa: S608
+    )
+    return {int(r[0]): (float(r[1]), float(r[2])) for r in db.execute(sql, params).all()}
+
+
 def _density_cell_size(
     db: Session, campaign_id: int, target_cells: int, include_tasks: bool
 ) -> float | None:
@@ -131,8 +205,7 @@ def _density_cell_size(
     ).first()
     if settings is None:
         return 0.01
-    span = max(settings[2] - settings[0], settings[3] - settings[1])
-    return span / target_cells if span > 0 else 0.01
+    return density_grid((settings[0], settings[1], settings[2], settings[3]), target_cells)
 
 
 def get_annotation_density(
@@ -259,8 +332,7 @@ def get_annotation_density_by_label(
         window = ""
     else:
         minx, miny, maxx, maxy = bbox
-        span = max(maxx - minx, maxy - miny)
-        grid = span / target_cells if span > 0 else 0.01
+        grid = density_grid(None, target_cells, bbox)
         window = "AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
         params |= {"minx": minx, "miny": miny, "maxx": maxx, "maxy": maxy}
     if grid is None:

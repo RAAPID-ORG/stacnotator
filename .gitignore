@@ -131,9 +131,10 @@ playwright-report/
 .superpowers/
 docs/superpowers/
 
-# Local COGs served from disk by the optional tiler
-cogs/*.tif
-cogs/*.tiff
+# Local COGs served from disk by the optional tiler, plus the sidecars GDAL writes
+# beside them. The README explaining the directory is the only thing tracked here.
+cogs/*
+!cogs/README.md
 
 # Load testing harness: scripts, generated configs and captured results. Kept out of
 # the repo because it carries environment-specific ids and points at live deployments.

@@ -44,6 +44,7 @@ from src.annotation.schemas import (
     ClaimNextResponse,
     ClaimTaskResponse,
     KnnValidationStatusOut,
+    TaskDensityCell,
     TaskStatusOut,
     ValidateLabelSubmissionsResponse,
 )
@@ -636,6 +637,33 @@ def get_annotations_extent(
     """Return the bounding box of a campaign's annotations for fit-to-bounds."""
     bbox = spatial.get_campaign_annotations_extent(db, campaign.id, include_tasks=include_tasks)
     return AnnotationsExtentOut(bbox=bbox)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/tasks/density",
+    response_model=list[TaskDensityCell],
+)
+def get_task_density(
+    campaign_id: int,
+    task_set_id: int | None = None,
+    bbox: str | None = Query(None, description="minx,miny,maxx,maxy in EPSG:4326"),
+    target_cells: int = Query(48, ge=1, le=512),
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> list[TaskDensityCell]:
+    """A grid of task counts by status and label, for the campaign maps.
+
+    `bbox` both windows the result and sizes the cells, so zooming resolves: cells
+    shrink until one holds a single task and its reported position is that task's own.
+    """
+    try:
+        window = parse_bbox(bbox) if bbox else None
+    except InvalidBBoxError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    cells = service.get_task_density(
+        db, campaign, target_cells=target_cells, task_set_id=task_set_id, bbox=window
+    )
+    return [TaskDensityCell(**cell) for cell in cells]
 
 
 @router.get(

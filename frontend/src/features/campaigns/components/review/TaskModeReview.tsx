@@ -56,6 +56,9 @@ const IconFunnel = ({ className }: { className?: string }) => (
  *  leaves behind. Campaign label ids are positive. */
 const NO_LABEL = -1;
 
+/** Rows on one page. The list itself is never truncated, only what is drawn. */
+const ROWS_PER_PAGE = 100;
+
 interface TaskModeReviewProps {
   campaign?: CampaignSummaryOut;
   campaignId: number;
@@ -158,6 +161,11 @@ export const TaskModeReview = ({
     }
   }, [taskSets, setFilter]);
 
+  // A campaign can hold tens of thousands of tasks, and every painted row is
+  // real DOM. Filtering, selection and the bulk actions all read the whole
+  // filtered list, so this bounds what is drawn and nothing else.
+  const [page, setPage] = useState(0);
+
   const filteredTasks = useMemo(() => {
     const filtered = tasks.filter((task) => {
       if (statusFilter !== 'all' && task.task_status !== statusFilter) return false;
@@ -243,6 +251,14 @@ export const TaskModeReview = ({
     });
   }, [filteredTasks, selectable]);
 
+  const pageCount = Math.max(1, Math.ceil(filteredTasks.length / ROWS_PER_PAGE));
+  // Filtering down to fewer pages must not strand the reader past the end.
+  const currentPage = Math.min(page, pageCount - 1);
+  const pageStart = currentPage * ROWS_PER_PAGE;
+  const pageTasks = filteredTasks.slice(pageStart, pageStart + ROWS_PER_PAGE);
+
+  useEffect(() => setPage(0), [filteredTasks]);
+
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
     tasks.forEach((t) => {
@@ -270,6 +286,29 @@ export const TaskModeReview = ({
   }, [tasks]);
 
   const stats = useMemo(() => ({ total: tasks.length, ...countTasksByStatus(tasks) }), [tasks]);
+
+  // Campaign-wide totals for the distribution map's legend. The map fetches only the
+  // cells for its viewport, so the counts beside it have to come from the list.
+  const labelCounts = useMemo(
+    () =>
+      (campaign?.settings.labels ?? []).map((label) => ({
+        labelId: label.id as number | null,
+        count: tasks.filter((t) => (t.annotations || []).some((a) => a.label_id === label.id))
+          .length,
+      })),
+    [campaign, tasks]
+  );
+  const pendingCount = useMemo(
+    () =>
+      tasks.filter(
+        (t) => !(t.annotations || []).some((a) => a.label_id) && t.task_status !== 'skipped'
+      ).length,
+    [tasks]
+  );
+  const skippedCount = useMemo(
+    () => tasks.filter((t) => t.task_status === 'skipped').length,
+    [tasks]
+  );
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -370,7 +409,11 @@ export const TaskModeReview = ({
         {!embedded && campaign && tasks.length > 0 && (
           <div className="mb-6">
             <TasksByLabelMap
-              tasks={tasks}
+              campaignId={campaignId}
+              labelCounts={labelCounts}
+              pendingCount={pendingCount}
+              skippedCount={skippedCount}
+              totalTasks={tasks.length}
               labels={campaign.settings.labels}
               bbox={{
                 west: campaign.settings.bbox_west,
@@ -834,7 +877,7 @@ export const TaskModeReview = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredTasks.map((task, index) => {
+                      {pageTasks.map((task, index) => {
                         const latLon = extractCentroidFromWKT(task.geometry.geometry);
                         const taskStatus = task.task_status ?? 'pending';
                         const assignments = task.assignments || [];
@@ -1072,6 +1115,34 @@ export const TaskModeReview = ({
                       })}
                     </tbody>
                   </table>
+                  {pageCount > 1 && (
+                    <div className="flex items-center justify-between gap-3 py-4 text-sm text-neutral-500">
+                      <span>
+                        Showing {(pageStart + 1).toLocaleString()} to{' '}
+                        {(pageStart + pageTasks.length).toLocaleString()} of{' '}
+                        {filteredTasks.length.toLocaleString()}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          variant="secondary"
+                          disabled={currentPage === 0}
+                          onClick={() => setPage(currentPage - 1)}
+                        >
+                          Previous
+                        </Button>
+                        <span className="tabular-nums">
+                          Page {currentPage + 1} of {pageCount.toLocaleString()}
+                        </span>
+                        <Button
+                          variant="secondary"
+                          disabled={currentPage >= pageCount - 1}
+                          onClick={() => setPage(currentPage + 1)}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

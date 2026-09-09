@@ -1,9 +1,12 @@
 import type { AnnotationTaskOut } from '~/api/client';
 
 /**
- * Task-level status values, matching backend-computed task_status.
+ * Task-level status values, matching backend-computed task_status. The tuple is what
+ * lets a caller walk every status without restating the list.
  */
-export type TaskStatus = 'pending' | 'partial' | 'conflicting' | 'done' | 'skipped';
+export const TASK_STATUSES = ['pending', 'partial', 'conflicting', 'done', 'skipped'] as const;
+
+export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 /**
  * Task status configuration with colors and labels

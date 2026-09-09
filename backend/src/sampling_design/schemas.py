@@ -1,21 +1,38 @@
-from pydantic import BaseModel, Field
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, RootModel
+
+MAX_TASKS_PER_RUN = 20_000
 
 
-class SamplingStrategyConfig(BaseModel):
-    """Configuration for generating tasks using a sampling strategy."""
+class RandomSamplingConfig(BaseModel):
+    """Draw independent uniform points across the region."""
 
-    strategy_type: str = Field(
-        default="random",
-        description="Type of sampling strategy: 'random', 'stratified_random', etc.",
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_type: Literal["random"] = "random"
+    num_samples: int = Field(..., gt=0, le=MAX_TASKS_PER_RUN)
+    seed: int | None = Field(None, ge=0, description="Set for reproducible sampling")
+
+
+class GridSamplingConfig(BaseModel):
+    """Draw a regular lattice with the given spacing and one random offset."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_type: Literal["grid"] = "grid"
+    spacing_km: float = Field(
+        ..., gt=0, allow_inf_nan=False, description="Distance between neighbouring points"
     )
-    num_samples: int = Field(..., gt=0, le=10_000, description="Number of samples to generate")
-    parameters: dict | None = Field(
-        None, description="Additional strategy-specific parameters (e.g., seed for random)"
-    )
-    use_campaign_bbox: bool = Field(
-        default=False,
-        description="If true, use the campaign's bounding box instead of a region file",
-    )
+    seed: int | None = Field(None, ge=0, description="Set for a reproducible grid offset")
+
+
+class SamplingStrategy(
+    RootModel[
+        Annotated[RandomSamplingConfig | GridSamplingConfig, Field(discriminator="strategy_type")]
+    ]
+):
+    """The strategy a client sends as a JSON string in the multipart form."""
 
 
 class GenerateTasksResponse(BaseModel):

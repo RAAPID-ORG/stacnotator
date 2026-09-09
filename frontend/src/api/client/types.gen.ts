@@ -1121,13 +1121,19 @@ export type BodyGenerateTasksFromSampling = {
     /**
      * Strategy
      *
-     * JSON string of SamplingStrategyConfig
+     * A sampling strategy as JSON
      */
     strategy: string;
     /**
      * Task Set Id
      */
     task_set_id: number;
+    /**
+     * Use Campaign Bbox
+     *
+     * Sample the campaign's bounding box instead of an uploaded region file
+     */
+    use_campaign_bbox?: boolean;
     /**
      * Region File
      *
@@ -2251,6 +2257,30 @@ export type GeometryOut = {
      * Geometry
      */
     geometry: string;
+};
+
+/**
+ * GridSamplingConfig
+ *
+ * Draw a regular lattice with the given spacing and one random offset.
+ */
+export type GridSamplingConfig = {
+    /**
+     * Strategy Type
+     */
+    strategy_type?: 'grid';
+    /**
+     * Spacing Km
+     *
+     * Distance between neighbouring points
+     */
+    spacing_km: number;
+    /**
+     * Seed
+     *
+     * Set for a reproducible grid offset
+     */
+    seed?: number | null;
 };
 
 /**
@@ -3700,6 +3730,28 @@ export type ProjectsListResponse = {
 };
 
 /**
+ * RandomSamplingConfig
+ *
+ * Draw independent uniform points across the region.
+ */
+export type RandomSamplingConfig = {
+    /**
+     * Strategy Type
+     */
+    strategy_type?: 'random';
+    /**
+     * Num Samples
+     */
+    num_samples: number;
+    /**
+     * Seed
+     *
+     * Set for reproducible sampling
+     */
+    seed?: number | null;
+};
+
+/**
  * RasterOverlayOut
  */
 export type RasterOverlayOut = {
@@ -3778,6 +3830,17 @@ export type RenderConfig = {
      */
     entries?: Array<CategoricalEntry> | null;
 };
+
+/**
+ * SamplingStrategy
+ *
+ * The strategy a client sends as a JSON string in the multipart form.
+ */
+export type SamplingStrategy = ({
+    strategy_type: 'random';
+} & RandomSamplingConfig) | ({
+    strategy_type: 'grid';
+} & GridSamplingConfig);
 
 /**
  * SearchRequest
@@ -4112,6 +4175,36 @@ export type StacItemOut = {
      * Self Href
      */
     self_href?: string | null;
+};
+
+/**
+ * TaskDensityCell
+ *
+ * One grid cell's worth of tasks sharing a status and a label: where they sit and
+ * how many there are. The campaign maps draw from these instead of a marker per task,
+ * so the payload grows with cells rather than with the size of the campaign.
+ */
+export type TaskDensityCell = {
+    /**
+     * Lon
+     */
+    lon: number;
+    /**
+     * Lat
+     */
+    lat: number;
+    /**
+     * Task Status
+     */
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
+    /**
+     * Label Id
+     */
+    label_id: number | null;
+    /**
+     * Count
+     */
+    count: number;
 };
 
 /**
@@ -8928,6 +9021,53 @@ export type GetAnnotationsExtentResponses = {
 };
 
 export type GetAnnotationsExtentResponse = GetAnnotationsExtentResponses[keyof GetAnnotationsExtentResponses];
+
+export type GetTaskDensityData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Task Set Id
+         */
+        task_set_id?: number | null;
+        /**
+         * Bbox
+         *
+         * minx,miny,maxx,maxy in EPSG:4326
+         */
+        bbox?: string | null;
+        /**
+         * Target Cells
+         */
+        target_cells?: number;
+    };
+    url: '/api/campaigns/{campaign_id}/tasks/density';
+};
+
+export type GetTaskDensityErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTaskDensityError = GetTaskDensityErrors[keyof GetTaskDensityErrors];
+
+export type GetTaskDensityResponses = {
+    /**
+     * Response Gettaskdensity
+     *
+     * Successful Response
+     */
+    200: Array<TaskDensityCell>;
+};
+
+export type GetTaskDensityResponse = GetTaskDensityResponses[keyof GetTaskDensityResponses];
 
 export type GetAnnotationDensityData = {
     body?: never;

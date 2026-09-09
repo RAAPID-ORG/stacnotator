@@ -6,6 +6,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
+import shapely
 from fastapi import HTTPException, UploadFile
 from shapely.geometry import MultiPolygon, Point, Polygon, box
 from sqlalchemy.orm import Session
@@ -14,6 +15,11 @@ from src import background
 from src.annotation import embeddings_service
 from src.annotation.ingest import insert_tasks
 from src.campaigns.models import Campaign
+from src.sampling_design.schemas import (
+    MAX_TASKS_PER_RUN,
+    GridSamplingConfig,
+    RandomSamplingConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -254,8 +260,14 @@ def create_bbox_polygon(campaign: Campaign) -> Polygon:
 # ============================================================================
 
 
+# Bounds the lattice built before it is clipped to the region, so a spacing far
+# finer than the region's extent fails instead of exhausting memory.
+MAX_LATTICE_NODES = 5_000_000
+EDGE_SEGMENT_DEGREES = 0.05
+
+
 def generate_random_points(
-    geometry: Polygon | MultiPolygon, num_samples: int, seed: int | None = None
+    geometry: Polygon | MultiPolygon, num_samples: int, rng: np.random.Generator
 ) -> list[Point]:
     """
     Generate random points within a polygon or multipolygon boundary.
@@ -263,13 +275,11 @@ def generate_random_points(
     Args:
         geometry: Boundary within which to generate points
         num_samples: Number of points to generate
-        seed: Random seed for reproducibility
+        rng: Draws every random number this call needs
 
     Returns:
         List of Point geometries within the boundary
     """
-    rng = np.random.default_rng(seed)
-
     # Use GeoSeries.sample_points for efficient sampling
     gs = gpd.GeoSeries([geometry])
     sampled = gs.sample_points(num_samples, rng=rng)
@@ -277,6 +287,106 @@ def generate_random_points(
     # Extract individual points from the result & shuffle
     result = sampled.iloc[0]
     points = list(result.geoms) if hasattr(result, "geoms") else [result]
+    rng.shuffle(points)
+
+    return points
+
+
+def local_equal_area_crs(geometry: Polygon | MultiPolygon) -> str:
+    """
+    Lambert azimuthal equal-area projection centred on the region.
+
+    Gives metres to work in anywhere on the globe, with no UTM zone edge for a
+    wide region to straddle, and equal cell areas across the whole lattice.
+    """
+    centroid = geometry.centroid
+    return f"+proj=laea +lat_0={centroid.y} +lon_0={centroid.x} +datum=WGS84 +units=m +no_defs"
+
+
+def _lattice_axis(origin: float, low: float, high: float, spacing: float) -> np.ndarray:
+    """The lattice lines origin + k * spacing that fall in [low, high)."""
+    start = origin + np.ceil((low - origin) / spacing) * spacing
+    return np.arange(start, high, spacing)
+
+
+def generate_grid_points(
+    geometry: Polygon | MultiPolygon, spacing_km: float, rng: np.random.Generator
+) -> list[Point]:
+    """
+    Generate a regular lattice of points spacing_km apart within a boundary.
+
+    The whole lattice carries one random offset smaller than a cell, which is
+    what makes systematic sampling unbiased under the design and keeps the grid
+    off periodic features in the landscape such as field rows or road grids.
+
+    Args:
+        geometry: Boundary within which to generate points
+        spacing_km: Distance between neighbouring points
+        rng: Draws the lattice offset and the task order
+
+    Returns:
+        List of Point geometries within the boundary, in random order
+
+    Raises:
+        HTTPException: If the spacing leaves no points inside the region or
+            would create more tasks than one run allows
+    """
+    crs = local_equal_area_crs(geometry)
+    # Densify first: a bbox's four corners would project to straight chords,
+    # while its parallels curve, and edge cells would land on the wrong side.
+    dense = shapely.segmentize(geometry, max_segment_length=EDGE_SEGMENT_DEGREES)
+    projected = gpd.GeoSeries([dense], crs=4326).to_crs(crs).iloc[0]
+    spacing = spacing_km * 1000
+    min_x, min_y, _, _ = projected.bounds
+    origin_x = min_x + rng.uniform(0, spacing)
+    origin_y = min_y + rng.uniform(0, spacing)
+
+    # One lattice, laid over each part's own envelope: far-apart parts
+    # would otherwise be charged for the empty space between them.
+    parts = shapely.get_parts(projected)
+    axes = [
+        (
+            _lattice_axis(origin_x, bounds[0], bounds[2], spacing),
+            _lattice_axis(origin_y, bounds[1], bounds[3], spacing),
+        )
+        for bounds in shapely.bounds(parts)
+    ]
+    if sum(len(xs) * len(ys) for xs, ys in axes) > MAX_LATTICE_NODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A {spacing_km} km grid is far too fine for the extent of this region.",
+        )
+
+    kept_x, kept_y = [], []
+    for part, (xs, ys) in zip(parts, axes, strict=True):
+        grid_x, grid_y = (axis.ravel() for axis in np.meshgrid(xs, ys))
+        inside = shapely.contains_xy(part, grid_x, grid_y)
+        kept_x.append(grid_x[inside])
+        kept_y.append(grid_y[inside])
+    xs_inside = np.concatenate(kept_x)
+    ys_inside = np.concatenate(kept_y)
+    num_points = len(xs_inside)
+
+    if num_points == 0:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"A {spacing_km} km grid leaves no points inside this region. "
+                f"Use a smaller spacing."
+            ),
+        )
+    if num_points > MAX_TASKS_PER_RUN:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"A {spacing_km} km grid over this region would create {num_points} tasks, "
+                f"more than the {MAX_TASKS_PER_RUN} allowed in one run. Use a larger spacing."
+            ),
+        )
+
+    points = list(
+        gpd.GeoSeries(gpd.points_from_xy(xs_inside, ys_inside), crs=crs).to_crs(epsg=4326)
+    )
     rng.shuffle(points)
 
     return points
@@ -290,11 +400,9 @@ def generate_random_points(
 def create_tasks_from_sampling_strategy(
     db: Session,
     campaign_id: int,
-    strategy_type: str,
-    num_samples: int,
+    strategy: RandomSamplingConfig | GridSamplingConfig,
     region_geometry: Polygon | MultiPolygon,
     task_set_id: int,
-    parameters: dict | None = None,
 ) -> int:
     """
     Create annotation tasks based on a sampling strategy.
@@ -302,32 +410,27 @@ def create_tasks_from_sampling_strategy(
     Args:
         db: Database session
         campaign_id: ID of campaign to create tasks for
-        strategy_type: Type of sampling ('random', 'stratified_random', etc.)
-        num_samples: Number of samples to generate
+        strategy: Validated configuration of the strategy to draw with
         region_geometry: Boundary geometry for sampling
         task_set_id: ID of task set to assign created tasks to
-        parameters: Additional strategy-specific parameters
 
     Returns:
         Number of tasks created
 
     Raises:
-        HTTPException: If strategy type is unsupported or generation fails
+        HTTPException: If sampling or task creation fails
     """
-    # Generate sample points based on strategy
-    if strategy_type == "random":
-        seed = parameters.get("seed") if parameters else None
-        sample_points = generate_random_points(region_geometry, num_samples, seed)
+    # One generator per request, shared by everything the strategy draws.
+    rng = np.random.default_rng(strategy.seed)
+
+    if isinstance(strategy, GridSamplingConfig):
+        sample_points = generate_grid_points(region_geometry, strategy.spacing_km, rng)
     else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported sampling strategy: {strategy_type}. "
-            f"Currently supported: ['random']",
-        )
+        sample_points = generate_random_points(region_geometry, strategy.num_samples, rng)
 
     geometry_wkts = [f"POINT({point.x} {point.y})" for point in sample_points]
     raw_source_data = [
-        {"sampling_strategy": strategy_type, "lon": point.x, "lat": point.y}
+        {"sampling_strategy": strategy.strategy_type, "lon": point.x, "lat": point.y}
         for point in sample_points
     ]
     num_created = insert_tasks(db, campaign_id, task_set_id, geometry_wkts, raw_source_data)

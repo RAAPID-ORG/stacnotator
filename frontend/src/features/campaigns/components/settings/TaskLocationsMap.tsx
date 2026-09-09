@@ -1,115 +1,107 @@
-import { memo, useEffect, useRef } from 'react';
-import L from 'leaflet';
+import { memo, useEffect, useRef, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
-import type { AnnotationTaskOut } from '~/api/client';
-import { formatTaskStatus, TASK_STATUS_CONFIG } from '~/shared/utils/taskStatus';
-import { extractCentroidFromWKT } from '~/shared/utils/utility';
+import { getTaskDensity, type TaskDensityCell } from '~/api/client';
+import {
+  formatTaskStatus,
+  TASK_STATUS_CONFIG,
+  TASK_STATUSES,
+  type TaskStatus,
+} from '~/shared/utils/taskStatus';
+import { handleError } from '~/shared/utils/errorHandler';
+import { DensityLegend } from '../review/DensityLegend';
+import {
+  drawDensityCells,
+  TARGET_CELLS,
+  useDensityViewport,
+  useHiddenKeys,
+} from '../review/densityMap';
 import { useLeafletMap } from '../review/useLeafletMap';
 
+/**
+ * Where a campaign's tasks are, by status.
+ *
+ * Aggregated into a grid in the database, so the payload grows with cells rather than
+ * with the number of tasks and the picture does not depend on the page the table below
+ * happens to be showing. Zooming in shrinks the cells until one holds a single task,
+ * which is drawn at that task's own position.
+ */
 interface TaskLocationsMapProps {
-  tasks: AnnotationTaskOut[];
-  bbox: {
-    west: number;
-    south: number;
-    east: number;
-    north: number;
-  };
+  /** Campaign-wide count per status, for the legend and the heading. */
+  statusCounts: Record<TaskStatus, number>;
+  totalTasks: number;
+  /** Restricts the grid to one task set, matching the scope bar above. */
+  taskSetId?: number;
+  campaignId: number;
+  bbox: { west: number; south: number; east: number; north: number };
 }
 
-export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(({ tasks, bbox }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
+const UNKNOWN_STATUS_COLOR = '#6B7280';
 
-  // Update markers when tasks change
-  useEffect(() => {
-    if (!mapRef.current || !markersLayerRef.current || !mapReady) return;
+export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(
+  ({ statusCounts, totalTasks, taskSetId, campaignId, bbox }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
+    const view = useDensityViewport(mapRef, mapReady);
+    const [cells, setCells] = useState<TaskDensityCell[]>([]);
+    const { hidden, toggle } = useHiddenKeys<TaskStatus>();
 
-    // Clear existing markers
-    markersLayerRef.current.clearLayers();
+    useEffect(() => {
+      if (!view) return;
+      let cancelled = false;
+      getTaskDensity({
+        path: { campaign_id: campaignId },
+        query: { bbox: view, target_cells: TARGET_CELLS, task_set_id: taskSetId },
+      })
+        .then((res) => {
+          if (!cancelled) setCells(res.data ?? []);
+        })
+        .catch((err) => {
+          if (!cancelled) handleError(err, 'Failed to load task locations');
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [campaignId, taskSetId, view]);
 
-    // Add markers for each task
-    tasks.forEach((task) => {
-      const centroid = extractCentroidFromWKT(task.geometry.geometry);
-      if (!centroid) return;
-      const coords: [number, number] = [centroid.lat, centroid.lon];
+    useEffect(() => {
+      if (!markersLayerRef.current || !mapReady) return;
+      // One dot per cell per status, so a cell holding both shows both.
+      const points = cells
+        .filter((cell) => !hidden.has(cell.task_status))
+        .map((cell) => ({
+          lon: cell.lon,
+          lat: cell.lat,
+          count: cell.count,
+          key: cell.task_status,
+        }));
+      drawDensityCells(
+        markersLayerRef.current,
+        points,
+        (status) => TASK_STATUS_CONFIG[status]?.color ?? UNKNOWN_STATUS_COLOR,
+        formatTaskStatus
+      );
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- map refs are stable, from useLeafletMap
+    }, [cells, hidden, mapReady]);
 
-      const taskStatus = task.task_status ?? 'pending';
-      const statusColor = TASK_STATUS_CONFIG[taskStatus]?.color ?? '#6B7280';
+    const legend = TASK_STATUSES.map((status) => ({
+      key: status,
+      name: TASK_STATUS_CONFIG[status].label,
+      color: TASK_STATUS_CONFIG[status].color,
+      count: statusCounts[status] ?? 0,
+    })).filter((entry) => entry.count > 0 || entry.key === 'pending');
 
-      const icon = L.divIcon({
-        html: `
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="8" cy="8" r="6" fill="${statusColor}" stroke="white" stroke-width="2"/>
-          </svg>
-        `,
-        className: 'task-marker',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
-      });
+    return (
+      <div>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-4">
+          Task Locations ({totalTasks} total)
+        </h2>
 
-      const marker = L.marker(coords, { icon });
+        <DensityLegend entries={legend} hidden={hidden} onToggle={toggle} />
 
-      // Add popup with task info
-      const assignments = task.assignments || [];
-      const assignedTo =
-        assignments.length > 0 ? assignments.map((a) => a.user_id).join(', ') : 'Unassigned';
-
-      marker.bindPopup(`
-        <div class="text-sm">
-          <div class="font-medium">Task #${task.annotation_number}</div>
-          <div class="text-neutral-500">Status: ${formatTaskStatus(taskStatus)}</div>
-          <div class="text-neutral-500">Assigned: ${assignedTo}</div>
-          <div class="text-neutral-500">Annotations: ${task.annotations.length}</div>
-        </div>
-      `);
-
-      markersLayerRef.current?.addLayer(marker);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mapRef/markersLayerRef are stable refs returned from useLeafletMap
-  }, [tasks, mapReady]);
-
-  const taskCounts = tasks.reduce(
-    (acc, task) => {
-      const status = task.task_status ?? 'pending';
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  return (
-    <div>
-      <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-        Task Locations ({tasks.length} total)
-      </h2>
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 mb-4 text-sm">
-        {Object.entries(TASK_STATUS_CONFIG).map(([status, config]) => {
-          const count = taskCounts[status] || 0;
-          if (count === 0 && status !== 'pending') return null;
-          return (
-            <div key={status} className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: config.color }} />
-              <span className="text-neutral-700">
-                {config.label} ({count})
-              </span>
-            </div>
-          );
-        })}
+        <div ref={containerRef} className="w-full h-80 rounded-lg border border-neutral-200" />
       </div>
-
-      {/* Map Container */}
-      <div ref={containerRef} className="w-full h-80 rounded-lg border border-neutral-200" />
-
-      <style>{`
-        .task-marker {
-          background: transparent !important;
-          border: none !important;
-        }
-      `}</style>
-    </div>
-  );
-});
+    );
+  }
+);
 
 TaskLocationsMap.displayName = 'TaskLocationsMap';

@@ -5,9 +5,9 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import String, delete, func, insert, select, update
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
-from src.annotation import claims
+from src.annotation import claims, spatial
 from src.annotation.completion import (
     attach_counts_toward_completion_flat,
     attach_counts_toward_completion_tree,
@@ -45,6 +45,7 @@ from src.annotation.schemas import (
     LabelFacet,
     SliceComment,
     TaskStatusOut,
+    compute_task_status_value,
     derive_assignment_status,
     normalize_slice_comments,
     task_status_inputs,
@@ -284,6 +285,79 @@ def get_annotation_tasks_for_campaign(
     _attach_has_embedding(db, tasks)
     attach_counts_toward_completion_tree(db, campaign, tasks)
     return tasks
+
+
+def _tasks_for_status(db: Session, campaign: Campaign) -> list[AnnotationTask]:
+    """Tasks carrying only what a status decision needs.
+
+    The full task read also loads geometries, annotators and embedding flags, none of
+    which a status costs. Status itself is still decided by the one shared function,
+    so this is a narrower query rather than a second copy of the rules.
+    """
+    tasks = list(
+        db.scalars(
+            select(AnnotationTask)
+            .where(AnnotationTask.campaign_id == campaign.id)
+            .options(
+                selectinload(AnnotationTask.assignments),
+                selectinload(AnnotationTask.annotations),
+            )
+        )
+        .unique()
+        .all()
+    )
+    attach_counts_toward_completion_tree(db, campaign, tasks)
+    return tasks
+
+
+def get_task_density(
+    db: Session,
+    campaign: Campaign,
+    target_cells: int = 48,
+    task_set_id: int | None = None,
+    bbox: tuple[float, float, float, float] | None = None,
+) -> list[dict]:
+    """Aggregate a campaign's tasks into a grid, split by status and by the label an
+    annotator gave them.
+
+    The campaign maps ask where tasks are and what state they are in, which a grid can
+    answer in a payload that grows with cells rather than with tasks. Status is not a
+    column - it follows from assignments, counting annotations and reviewer slots - so
+    it is derived here with the same function every other read path uses, and the
+    grouping happens in Python rather than as a second copy of those rules in SQL.
+    """
+    settings = campaign.settings
+    aoi = (
+        (settings.bbox_west, settings.bbox_south, settings.bbox_east, settings.bbox_north)
+        if settings
+        else None
+    )
+    grid = spatial.density_grid(aoi, target_cells, bbox)
+    centroids = spatial.task_centroids(db, campaign.id, task_set_id, bbox)
+    if not centroids:
+        return []
+
+    points = []
+    for task in _tasks_for_status(db, campaign):
+        point = centroids.get(task.id)
+        if point is None:
+            continue
+        annotations = task.annotations or []
+        assignment_list, annotation_list = task_status_inputs(task.assignments or [], annotations)
+        status = compute_task_status_value(assignment_list, annotation_list)
+        labelled = next((a for a in annotations if a.label_id is not None), None)
+        points.append((point[0], point[1], (status, labelled.label_id if labelled else None)))
+
+    return [
+        {
+            "lon": cell["lon"],
+            "lat": cell["lat"],
+            "task_status": cell["key"][0],
+            "label_id": cell["key"][1],
+            "count": cell["count"],
+        }
+        for cell in spatial.bin_density_cells(points, grid)
+    ]
 
 
 def claim_next_task(

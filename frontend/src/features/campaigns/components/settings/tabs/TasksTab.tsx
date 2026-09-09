@@ -3,6 +3,7 @@ import { TaskGenerationSection } from '~/features/campaigns/components/settings/
 import { Modal } from '~/shared/ui/Modal';
 import { TaskModeReview } from '~/features/campaigns/components/review/TaskModeReview';
 import Statistics from '~/features/campaigns/components/review/Statistics';
+import { countTasksByStatus } from '~/shared/utils/taskStatus';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
 import { TaskAssignmentsExportImport } from '~/features/campaigns/components/settings/TaskAssignmentsExportImport';
 import {
@@ -329,7 +330,13 @@ export const TasksTab: React.FC<Props> = ({
       <div>
         {!writingDesign && scopedTasks.length > 0 && bbox && (
           <section className={sectionCls}>
-            <TaskLocationsMap tasks={scopedTasks} bbox={bbox} />
+            <TaskLocationsMap
+              campaignId={campaignId}
+              taskSetId={taskScope === 'all' ? undefined : taskScope}
+              statusCounts={countTasksByStatus(scopedTasks)}
+              totalTasks={scopedTasks.length}
+              bbox={bbox}
+            />
           </section>
         )}
 

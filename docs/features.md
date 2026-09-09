@@ -198,7 +198,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 
 - CSV upload (id, lon, lat)
 - GeoJSON upload (Point, Polygon, MultiPolygon); GeoJSON annotation import into existing campaigns
-- Sampling design: random sampling within regions (stratified planned, currently disabled)
+- Sampling design: random sampling or systematic grid sampling (points a fixed distance apart, with a seeded random offset) within a region or the campaign bounding box
 - Region upload: shapefile (.zip) or GeoJSON with automatic CRS conversion
 - Task sets: named task groups per campaign with stats; generation, assignment, and annotation can be scoped to a set
 - Task assignment strategies: distribute evenly, fixed number per user, or explicit per-task; a task can have multiple assignees (redundant labeling), plus reviewer assignments (per task or percentage-based)
