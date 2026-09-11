@@ -1,5 +1,8 @@
 import type { CampaignCreate } from '~/api/client';
-import type { ImageryStepState } from '~/features/campaigns/components/imagery/types';
+import {
+  isPlanetSceneConfig,
+  type ImageryStepState,
+} from '~/features/campaigns/components/imagery/types';
 import { validateFormFields } from './formFields';
 
 export type FieldErrors = Record<string, string>;
@@ -96,6 +99,14 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
       }
     }
 
+    // Planet scene slices have no URLs until annotators search the archive, which
+    // mints their layers per viewport.
+    const sceneSeries = new Set(
+      source.generationSeries
+        .filter((series) => isPlanetSceneConfig(series.config))
+        .map((series) => series.id)
+    );
+
     if (source.collections.length === 0) {
       errors[`${prefix}_collections`] =
         `Source "${source.name || si + 1}": At least one collection is required.`;
@@ -108,7 +119,7 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
             `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Has no time slices.`;
         }
 
-        if (col.data.type === 'manual') {
+        if (col.data.type === 'manual' && !sceneSeries.has(col.generationSeriesId ?? '')) {
           const slicesWithMissing = col.slices.filter((sl) => {
             const urls = sl.vizUrls ?? [];
             return source.visualizations.some(
