@@ -390,11 +390,18 @@ class UpdateCampaignNameRequest(BaseModel):
 
 
 class CampaignDuplicateRequest(BaseModel):
-    """Tasks and annotations are deliberate decisions - no defaults."""
+    """Tasks and annotations are deliberate decisions - no defaults.
+
+    ``target_project_id`` copies into another project the caller administers.
+    Nothing naming a user comes along there - the target project need not have
+    those users - so task assignments and personal layouts are left behind and
+    asking for annotations is rejected.
+    """
 
     include_tasks: bool
     include_annotations: bool
     include_user_layouts: bool = True
+    target_project_id: int | None = None
 
 
 class UpdateCampaignGuideRequest(BaseModel):

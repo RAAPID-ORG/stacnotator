@@ -1085,8 +1085,9 @@ export const getCampaignSummaryOptions = (options: Options<GetCampaignSummaryDat
 /**
  * Duplicate Campaign
  *
- * Deep-copy the campaign's full setup within its project; tasks and
- * annotations are copied only when requested (campaign admin only).
+ * Deep-copy the campaign's full setup, into its own project or into
+ * another project the caller administers; tasks and annotations are copied
+ * only when requested (campaign admin only).
  */
 export const duplicateCampaignMutation = (options?: Partial<Options<DuplicateCampaignData>>): UseMutationOptions<DuplicateCampaignResponse, DuplicateCampaignError, Options<DuplicateCampaignData>> => {
     const mutationOptions: UseMutationOptions<DuplicateCampaignResponse, DuplicateCampaignError, Options<DuplicateCampaignData>> = {

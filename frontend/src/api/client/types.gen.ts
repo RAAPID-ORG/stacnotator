@@ -1251,6 +1251,11 @@ export type CampaignCreate = {
  * CampaignDuplicateRequest
  *
  * Tasks and annotations are deliberate decisions - no defaults.
+ *
+ * ``target_project_id`` copies into another project the caller administers.
+ * Nothing naming a user comes along there - the target project need not have
+ * those users - so task assignments and personal layouts are left behind and
+ * asking for annotations is rejected.
  */
 export type CampaignDuplicateRequest = {
     /**
@@ -1265,6 +1270,10 @@ export type CampaignDuplicateRequest = {
      * Include User Layouts
      */
     include_user_layouts?: boolean;
+    /**
+     * Target Project Id
+     */
+    target_project_id?: number | null;
 };
 
 /**
