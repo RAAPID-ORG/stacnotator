@@ -170,6 +170,32 @@ def create_campaign(
     return _campaign_out(created, db, user)
 
 
+def _duplicate_target(
+    db: Session, campaign: Campaign, req: CampaignDuplicateRequest, user: User
+) -> Project | None:
+    """The project a duplicate is asked to land in, vetted; None for a copy
+    inside the campaign's own project."""
+    if req.target_project_id is None or req.target_project_id == campaign.project_id:
+        return None
+
+    project = assert_project_admin(db, user, req.target_project_id)
+    if req.include_annotations:
+        raise HTTPException(
+            status_code=400,
+            detail="Annotations cannot be copied into another project",
+        )
+    unmet = duplication.unmet_org_requirements(db, campaign, project.organization)
+    if unmet:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Organization '{project.organization.name}' is not authorized to use "
+                f"{', '.join(unmet)}, which this campaign's imagery needs"
+            ),
+        )
+    return project
+
+
 @router.post("/{campaign_id}/duplicate", response_model=CampaignOut, status_code=201)
 def duplicate_campaign(
     campaign_id: int,
@@ -178,11 +204,13 @@ def duplicate_campaign(
     campaign: Campaign = Depends(require_campaign_admin),
     user: User = Depends(require_authenticated_user),
 ):
-    """Deep-copy the campaign's full setup within its project; tasks and
-    annotations are copied only when requested (campaign admin only)."""
+    """Deep-copy the campaign's full setup, into its own project or into
+    another project the caller administers; tasks and annotations are copied
+    only when requested (campaign admin only)."""
     dup = duplication.duplicate_campaign(
         db,
         campaign,
+        target_project=_duplicate_target(db, campaign, req, user),
         include_tasks=req.include_tasks,
         include_annotations=req.include_annotations,
         include_user_layouts=req.include_user_layouts,

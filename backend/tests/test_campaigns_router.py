@@ -7,9 +7,16 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
+from fastapi import HTTPException
+
 from src.campaigns import router as campaigns_router
 from src.campaigns.router import _with_viewer_roles
-from src.campaigns.schemas import CampaignOut, UpdateCampaignLabelsRequest
+from src.campaigns.schemas import (
+    CampaignDuplicateRequest,
+    CampaignOut,
+    UpdateCampaignLabelsRequest,
+)
 from src.projects.models import ProjectUser
 
 PROJECT_ID = 3
@@ -164,3 +171,60 @@ class TestMutationResponsesCarryViewerFlags:
         assert isinstance(out, CampaignOut)
         assert (out.viewer_is_admin, out.viewer_is_member) == (True, True)
         assert out.viewer_is_authoritative_reviewer is False
+
+
+class TestDuplicateTarget:
+    """The gate on copying a campaign into another project: who may, and what
+    that project's organization has to be able to serve."""
+
+    CAMPAIGN = SimpleNamespace(id=1, project_id=PROJECT_ID)
+
+    def _request(self, **overrides):
+        return CampaignDuplicateRequest(
+            **{"include_tasks": False, "include_annotations": False, **overrides}
+        )
+
+    def _target(self, monkeypatch, req, *, unmet=()):
+        project = SimpleNamespace(
+            id=99, organization=SimpleNamespace(id=5, name="Harvest", allowed_tiler_names=[])
+        )
+        monkeypatch.setattr(
+            campaigns_router, "assert_project_admin", lambda db, user, project_id: project
+        )
+        monkeypatch.setattr(
+            campaigns_router.duplication,
+            "unmet_org_requirements",
+            lambda db, campaign, organization: list(unmet),
+        )
+        return campaigns_router._duplicate_target(
+            MagicMock(), self.CAMPAIGN, req, _user(is_admin=False)
+        )
+
+    def test_no_target_is_a_plain_in_project_duplicate(self, monkeypatch):
+        assert self._target(monkeypatch, self._request()) is None
+
+    def test_the_campaigns_own_project_is_a_plain_in_project_duplicate(self, monkeypatch):
+        req = self._request(target_project_id=PROJECT_ID)
+
+        assert self._target(monkeypatch, req) is None
+
+    def test_another_project_is_resolved_through_the_admin_check(self, monkeypatch):
+        target = self._target(monkeypatch, self._request(target_project_id=99))
+
+        assert target is not None and target.id == 99
+
+    def test_annotations_across_projects_are_refused(self, monkeypatch):
+        req = self._request(target_project_id=99, include_annotations=True)
+
+        with pytest.raises(HTTPException) as exc:
+            self._target(monkeypatch, req)
+        assert exc.value.status_code == 400
+
+    def test_imagery_the_target_organization_cannot_serve_is_refused(self, monkeypatch):
+        """Copying anyway would land a campaign whose tiles never arrive."""
+        req = self._request(target_project_id=99)
+
+        with pytest.raises(HTTPException) as exc:
+            self._target(monkeypatch, req, unmet=["tiler 'mpc'"])
+        assert exc.value.status_code == 403
+        assert "mpc" in exc.value.detail

@@ -651,8 +651,9 @@ export const getCampaignSummary = <ThrowOnError extends boolean = false>(options
 /**
  * Duplicate Campaign
  *
- * Deep-copy the campaign's full setup within its project; tasks and
- * annotations are copied only when requested (campaign admin only).
+ * Deep-copy the campaign's full setup, into its own project or into
+ * another project the caller administers; tasks and annotations are copied
+ * only when requested (campaign admin only).
  */
 export const duplicateCampaign = <ThrowOnError extends boolean = false>(options: Options<DuplicateCampaignData, ThrowOnError>) => (options.client ?? client).post<DuplicateCampaignResponses, DuplicateCampaignErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

@@ -1,6 +1,8 @@
 """DB-free tests for the pure pieces of campaign duplication."""
 
-from src.campaigns.duplication import clone_row, remapped_layout_data
+from types import SimpleNamespace
+
+from src.campaigns.duplication import clone_row, plan_copy, remapped_layout_data
 from src.campaigns.models import TaskSet
 from src.imagery.models import ImagerySlice
 
@@ -58,3 +60,64 @@ class TestCloneRow:
         assert copy.id is None
         assert copy.campaign_id == 2
         assert copy.name == "Round 1"
+
+
+class TestPlanCopy:
+    def _campaign(self, project_id=1, organization_id=7):
+        return SimpleNamespace(
+            name="Sahel 2024",
+            project_id=project_id,
+            project=SimpleNamespace(id=project_id, organization_id=organization_id),
+        )
+
+    def _plan(self, target, **flags):
+        return plan_copy(
+            self._campaign(),
+            target,
+            **{
+                "include_tasks": True,
+                "include_annotations": True,
+                "include_user_layouts": True,
+                **flags,
+            },
+        )
+
+    def test_same_project_copies_everything_asked_for(self):
+        plan = self._plan(None)
+
+        assert (plan.project_id, plan.name) == (1, "Sahel 2024 (copy)")
+        assert (plan.tasks, plan.annotations, plan.assignments, plan.user_layouts) == (
+            True,
+            True,
+            True,
+            True,
+        )
+        assert plan.shared_api_keys is True
+
+    def test_the_campaigns_own_project_as_target_is_a_plain_duplicate(self):
+        plan = self._plan(SimpleNamespace(id=1, organization_id=7))
+
+        assert (plan.project_id, plan.name) == (1, "Sahel 2024 (copy)")
+        assert (plan.annotations, plan.assignments, plan.user_layouts) == (True, True, True)
+
+    def test_another_project_drops_everything_naming_a_user(self):
+        plan = self._plan(SimpleNamespace(id=2, organization_id=7))
+
+        assert plan.project_id == 2
+        assert (plan.annotations, plan.assignments, plan.user_layouts) == (False, False, False)
+
+    def test_another_project_keeps_the_name_and_the_tasks(self):
+        plan = self._plan(SimpleNamespace(id=2, organization_id=7), include_tasks=True)
+
+        assert (plan.name, plan.tasks) == ("Sahel 2024", True)
+
+    def test_tasks_stay_optional_across_projects(self):
+        plan = self._plan(SimpleNamespace(id=2, organization_id=7), include_tasks=False)
+
+        assert plan.tasks is False
+
+    def test_same_organization_keeps_the_shared_api_keys(self):
+        assert self._plan(SimpleNamespace(id=2, organization_id=7)).shared_api_keys is True
+
+    def test_another_organization_drops_the_shared_api_keys(self):
+        assert self._plan(SimpleNamespace(id=2, organization_id=8)).shared_api_keys is False

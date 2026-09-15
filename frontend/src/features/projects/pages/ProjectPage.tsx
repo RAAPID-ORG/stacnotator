@@ -62,12 +62,13 @@ export const ProjectPage = () => {
 
   if (!loading && !project) return null;
 
-  // Land in the copy's settings: the whole point of duplicating is tweaking
-  // the few remaining differences right away.
+  // Land in the copy's settings - the whole point of duplicating is tweaking
+  // the few remaining differences right away - which is in the project the
+  // copy went to, not necessarily this one.
   const handleDuplicated = (created: CampaignOut) => {
     setDuplicating(null);
     showAlert(`Campaign duplicated as "${created.name}"`, 'success');
-    navigate(campaignPath(projectId, created.id, 'settings'));
+    navigate(campaignPath(created.project_id, created.id, 'settings'));
   };
 
   const selectTab = (tab: ProjectTab) => {
