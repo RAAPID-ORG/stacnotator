@@ -13,6 +13,9 @@ dependencies = [
     "pyogrio>=0.9",
 ]
 
+[project.optional-dependencies]
+agent = ["mcp>=2.2,<3"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -21,6 +24,8 @@ dev = [
     "mypy>=1.13",
     "pandas-stubs>=2.0",
     "types-requests>=2.31",
+    # The agent MCP server is type-checked and tested with the rest of the SDK.
+    "mcp>=2.2,<3",
 ]
 
 [build-system]

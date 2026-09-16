@@ -218,6 +218,21 @@ class CampaignSamples(Dataset):
 loader = DataLoader(CampaignSamples(campaign.get_samples()), batch_size=64, shuffle=True)
 ```
 
+## Agentic labelling
+
+An MCP server lets a model (or a team of subagents) label a campaign's tasks from rendered
+imagery, as annotator agents you own:
+
+```bash
+pip install "./sdk[agent]"
+claude mcp add stacnotator -- python -m stacnotator.agent_mcp   # after snt.login(url)
+```
+
+Keep the campaign's Agents page open in a browser while agents work: it draws the images
+they look at. Hand the model [`skills/stacnotator-labelling/SKILL.md`](skills/stacnotator-labelling/SKILL.md),
+which covers the tools, how to choose context and detail views, and how to split work
+across subagents.
+
 ## API summary
 
 ```python

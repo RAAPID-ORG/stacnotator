@@ -16,6 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import src.models  # noqa: F401 -- side-effect import: ensures all ORM models are registered before any mapper configures  # isort: skip
 
 from src import perf
+from src.agents.router import router as agents_router
 from src.annotation.embeddings_service import EMBEDDING_RUN
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
@@ -379,4 +380,5 @@ app.include_router(stac_browser_router, prefix="/api")
 app.include_router(planet_router, prefix="/api")
 app.include_router(custom_layers_router, prefix="/api")
 app.include_router(visualizers_router, prefix="/api")
+app.include_router(agents_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

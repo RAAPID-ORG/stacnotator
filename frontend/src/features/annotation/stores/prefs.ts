@@ -21,7 +21,7 @@ export interface TimeseriesChartOptions {
   smoothing: SmoothingOptions;
 }
 
-const DEFAULT_TIMESERIES_CHART: TimeseriesChartOptions = {
+export const DEFAULT_TIMESERIES_CHART: TimeseriesChartOptions = {
   removeCloudy: true,
   showDots: true,
   smoothEnabled: false,

@@ -4,6 +4,8 @@ import requests
 
 from stacnotator.errors import ApiError, AuthenticationError
 
+DEFAULT_TIMEOUT_SECONDS = 120.0
+
 
 class TokenProvider(Protocol):
     def id_token(self) -> str | None: ...
@@ -28,8 +30,9 @@ class Http:
         json: Any = None,
         data: dict[str, Any] | None = None,
         files: dict[str, Any] | None = None,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> Any:
-        return self._request("POST", path, json=json, data=data, files=files)
+        return self._request("POST", path, json=json, data=data, files=files, timeout=timeout)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         response = self._send(method, path, **kwargs)
@@ -52,13 +55,19 @@ class Http:
                 "This does not look like the STACNotator API URL.",
             ) from exc
 
-    def _send(self, method: str, path: str, **kwargs: Any) -> requests.Response:
+    def _send(
+        self,
+        method: str,
+        path: str,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        **kwargs: Any,
+    ) -> requests.Response:
         headers = {}
         token = self._tokens.id_token()
         if token is not None:
             headers["Authorization"] = f"Bearer {token}"
         return self._session.request(
-            method, f"{self._base_url}/api{path}", headers=headers, timeout=120, **kwargs
+            method, f"{self._base_url}/api{path}", headers=headers, timeout=timeout, **kwargs
         )
 
 

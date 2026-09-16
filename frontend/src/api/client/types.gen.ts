@@ -96,6 +96,170 @@ export type AddUsersByEmailResult = {
 };
 
 /**
+ * AgentAnnotate
+ */
+export type AgentAnnotate = {
+    /**
+     * Label Id
+     */
+    label_id: number | null;
+    /**
+     * Comment
+     */
+    comment?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: number | null;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative?: boolean | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
+    /**
+     * Slice Comments
+     */
+    slice_comments?: Array<SliceComment> | null;
+    /**
+     * Form Values
+     */
+    form_values?: {
+        [key: string]: number | number | string | Array<number> | DateRangeValue;
+    } | null;
+    /**
+     * Active Ms
+     */
+    active_ms?: number | null;
+};
+
+/**
+ * AgentOut
+ */
+export type AgentOut = {
+    /**
+     * Agent Id
+     */
+    agent_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Render Host Path
+     */
+    render_host_path: string;
+    /**
+     * Assigned
+     */
+    assigned: number;
+    /**
+     * Remaining
+     */
+    remaining: number;
+    /**
+     * Host Seen At
+     */
+    host_seen_at: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * AgentRegister
+ */
+export type AgentRegister = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Task Count
+     */
+    task_count?: number;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
+    /**
+     * Default Views
+     */
+    default_views?: Array<ViewSpec> | null;
+};
+
+/**
+ * AgentRegistrationOut
+ */
+export type AgentRegistrationOut = {
+    agent: AgentOut;
+    context: CampaignContext;
+    /**
+     * Default Views
+     */
+    default_views: Array<ViewSpec>;
+};
+
+/**
+ * AgentTaskOut
+ */
+export type AgentTaskOut = {
+    /**
+     * Task Id
+     */
+    task_id: number;
+    /**
+     * Annotation Number
+     */
+    annotation_number: number;
+    /**
+     * Lat
+     */
+    lat: number;
+    /**
+     * Lon
+     */
+    lon: number;
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt: string;
+};
+
+/**
+ * AgentTasksRequest
+ */
+export type AgentTasksRequest = {
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
+};
+
+/**
  * AnnotationChangeOut
  *
  * One annotation another session created or edited, small enough to poll
@@ -1023,6 +1187,24 @@ export type BandInfo = {
 };
 
 /**
+ * BasemapContext
+ */
+export type BasemapContext = {
+    /**
+     * Basemap Id
+     */
+    basemap_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom: number | null;
+};
+
+/**
  * BasemapCreate
  */
 export type BasemapCreate = {
@@ -1220,6 +1402,73 @@ export type BulkUserActionResponse = {
      * Already In State
      */
     already_in_state: Array<UserOutDetailed>;
+};
+
+/**
+ * CampaignContext
+ */
+export type CampaignContext = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Mode
+     */
+    mode: string;
+    /**
+     * Bbox
+     */
+    bbox: [
+        number,
+        number,
+        number,
+        number
+    ];
+    /**
+     * Sample Extent Meters
+     */
+    sample_extent_meters: number | null;
+    /**
+     * Guide Markdown
+     */
+    guide_markdown: string | null;
+    /**
+     * Labels
+     */
+    labels: Array<LabelBase>;
+    /**
+     * Form Fields
+     */
+    form_fields: Array<({
+        type: 'category' | 'multicategory';
+    } & CategoryFormField) | ({
+        type: 'number';
+    } & NumberFormField) | ({
+        type: 'text';
+    } & TextFormField) | ({
+        type: 'date' | 'daterange';
+    } & DateFormField)>;
+    /**
+     * Imagery
+     */
+    imagery: Array<SourceContext>;
+    /**
+     * Basemaps
+     */
+    basemaps: Array<BasemapContext>;
+    /**
+     * Timeseries
+     */
+    timeseries: Array<TimeseriesContext>;
 };
 
 /**
@@ -1901,6 +2150,28 @@ export type ClaimTaskResponse = {
      * Holder Display Name
      */
     holder_display_name?: string | null;
+};
+
+/**
+ * CollectionContext
+ */
+export type CollectionContext = {
+    /**
+     * Collection Id
+     */
+    collection_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Cover Slice Id
+     */
+    cover_slice_id: number | null;
+    /**
+     * Slices
+     */
+    slices: Array<SliceContext>;
 };
 
 /**
@@ -3841,6 +4112,77 @@ export type RenderConfig = {
 };
 
 /**
+ * RenderJobOut
+ *
+ * What a render host needs to draw one view.
+ */
+export type RenderJobOut = {
+    /**
+     * Job Id
+     */
+    job_id: number;
+    /**
+     * Agent Id
+     */
+    agent_id: string;
+    task: AgentTaskOut;
+    view: ViewSpec;
+};
+
+/**
+ * RenderJobResult
+ */
+export type RenderJobResult = {
+    /**
+     * Mime Type
+     */
+    mime_type?: string | null;
+    /**
+     * Image Base64
+     */
+    image_base64?: string | null;
+    /**
+     * Meta
+     */
+    meta?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+};
+
+/**
+ * RenderedView
+ */
+export type RenderedView = {
+    view: ViewSpec;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Mime Type
+     */
+    mime_type?: string | null;
+    /**
+     * Image Base64
+     */
+    image_base64?: string | null;
+    /**
+     * Meta
+     */
+    meta?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+};
+
+/**
  * SamplingStrategy
  *
  * The strategy a client sends as a JSON string in the multipart form.
@@ -3941,6 +4283,28 @@ export type SliceComment = {
 };
 
 /**
+ * SliceContext
+ */
+export type SliceContext = {
+    /**
+     * Slice Id
+     */
+    slice_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+};
+
+/**
  * SliceTileUrlCreate
  */
 export type SliceTileUrlCreate = {
@@ -3978,6 +4342,40 @@ export type SliceTileUrlOut = {
      * Mosaic Id
      */
     mosaic_id?: string | null;
+};
+
+/**
+ * SourceContext
+ */
+export type SourceContext = {
+    /**
+     * Source Id
+     */
+    source_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * On Demand
+     */
+    on_demand: boolean;
+    /**
+     * Default Zoom
+     */
+    default_zoom: number;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom: number | null;
+    /**
+     * Visualizations
+     */
+    visualizations: Array<string>;
+    /**
+     * Collections
+     */
+    collections: Array<CollectionContext>;
 };
 
 /**
@@ -4184,6 +4582,21 @@ export type StacItemOut = {
      * Self Href
      */
     self_href?: string | null;
+};
+
+/**
+ * TaskBundleOut
+ */
+export type TaskBundleOut = {
+    task: AgentTaskOut | null;
+    /**
+     * Remaining
+     */
+    remaining: number;
+    /**
+     * Views
+     */
+    views: Array<RenderedView>;
 };
 
 /**
@@ -4485,6 +4898,40 @@ export type TimeseriesBulkCreateResponse = {
      * New Items
      */
     new_items: Array<TimeSeriesOut>;
+};
+
+/**
+ * TimeseriesContext
+ */
+export type TimeseriesContext = {
+    /**
+     * Timeseries Id
+     */
+    timeseries_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Group
+     */
+    group: string;
+    /**
+     * Data Source
+     */
+    data_source: string;
+    /**
+     * Index
+     */
+    index: string;
+    /**
+     * Start Ym
+     */
+    start_ym: string;
+    /**
+     * End Ym
+     */
+    end_ym: string;
 };
 
 /**
@@ -4924,6 +5371,78 @@ export type VectorOverlayOut = {
      * Color
      */
     color: string;
+};
+
+/**
+ * ViewCell
+ *
+ * One panel of a view: exactly one of a slice, a basemap or a time series chart.
+ */
+export type ViewCell = {
+    /**
+     * Slice Id
+     */
+    slice_id?: number | null;
+    /**
+     * Visualization
+     */
+    visualization?: string | null;
+    /**
+     * Basemap Id
+     */
+    basemap_id?: number | null;
+    /**
+     * Timeseries Ids
+     */
+    timeseries_ids?: Array<number> | null;
+    /**
+     * Remove Cloudy
+     */
+    remove_cloudy?: boolean;
+    /**
+     * Smoothed
+     */
+    smoothed?: boolean;
+    /**
+     * Zoom
+     */
+    zoom?: number | null;
+};
+
+/**
+ * ViewSpec
+ *
+ * One packed image: cells laid out in a grid, all at the same zoom around the task.
+ */
+export type ViewSpec = {
+    /**
+     * Cells
+     */
+    cells: Array<ViewCell>;
+    /**
+     * Columns
+     */
+    columns?: number;
+    /**
+     * Cell Px
+     */
+    cell_px?: number;
+    /**
+     * Zoom
+     */
+    zoom?: number;
+};
+
+/**
+ * ViewsRequest
+ *
+ * Views to render; the agent's default views when omitted.
+ */
+export type ViewsRequest = {
+    /**
+     * Views
+     */
+    views?: Array<ViewSpec> | null;
 };
 
 /**
@@ -10986,3 +11505,315 @@ export type GetVisualizerTilerTokenResponses = {
 };
 
 export type GetVisualizerTilerTokenResponse = GetVisualizerTilerTokenResponses[keyof GetVisualizerTilerTokenResponses];
+
+export type ListAgentsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/agents';
+};
+
+export type ListAgentsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAgentsError = ListAgentsErrors[keyof ListAgentsErrors];
+
+export type ListAgentsResponses = {
+    /**
+     * Response Listagents
+     *
+     * Successful Response
+     */
+    200: Array<AgentOut>;
+};
+
+export type ListAgentsResponse = ListAgentsResponses[keyof ListAgentsResponses];
+
+export type RegisterAgentData = {
+    body: AgentRegister;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/agents';
+};
+
+export type RegisterAgentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RegisterAgentError = RegisterAgentErrors[keyof RegisterAgentErrors];
+
+export type RegisterAgentResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentRegistrationOut;
+};
+
+export type RegisterAgentResponse = RegisterAgentResponses[keyof RegisterAgentResponses];
+
+export type GetAgentData = {
+    body?: never;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}';
+};
+
+export type GetAgentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAgentError = GetAgentErrors[keyof GetAgentErrors];
+
+export type GetAgentResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentOut;
+};
+
+export type GetAgentResponse = GetAgentResponses[keyof GetAgentResponses];
+
+export type GetAgentContextData = {
+    body?: never;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/context';
+};
+
+export type GetAgentContextErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAgentContextError = GetAgentContextErrors[keyof GetAgentContextErrors];
+
+export type GetAgentContextResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignContext;
+};
+
+export type GetAgentContextResponse = GetAgentContextResponses[keyof GetAgentContextResponses];
+
+export type RequestAgentTasksData = {
+    body: AgentTasksRequest;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/tasks';
+};
+
+export type RequestAgentTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestAgentTasksError = RequestAgentTasksErrors[keyof RequestAgentTasksErrors];
+
+export type RequestAgentTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentOut;
+};
+
+export type RequestAgentTasksResponse = RequestAgentTasksResponses[keyof RequestAgentTasksResponses];
+
+export type NextAgentTaskData = {
+    body: ViewsRequest;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/next';
+};
+
+export type NextAgentTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type NextAgentTaskError = NextAgentTaskErrors[keyof NextAgentTaskErrors];
+
+export type NextAgentTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskBundleOut;
+};
+
+export type NextAgentTaskResponse = NextAgentTaskResponses[keyof NextAgentTaskResponses];
+
+export type RenderAgentViewsData = {
+    body: ViewsRequest;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/tasks/{task_id}/views';
+};
+
+export type RenderAgentViewsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenderAgentViewsError = RenderAgentViewsErrors[keyof RenderAgentViewsErrors];
+
+export type RenderAgentViewsResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskBundleOut;
+};
+
+export type RenderAgentViewsResponse = RenderAgentViewsResponses[keyof RenderAgentViewsResponses];
+
+export type AnnotateAgentTaskData = {
+    body: AgentAnnotate;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/tasks/{task_id}/annotate';
+};
+
+export type AnnotateAgentTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnnotateAgentTaskError = AnnotateAgentTaskErrors[keyof AnnotateAgentTaskErrors];
+
+export type AnnotateAgentTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationTaskSubmitResponse;
+};
+
+export type AnnotateAgentTaskResponse = AnnotateAgentTaskResponses[keyof AnnotateAgentTaskResponses];
+
+export type ClaimAgentRenderJobData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/agents/render-jobs/claim';
+};
+
+export type ClaimAgentRenderJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimAgentRenderJobError = ClaimAgentRenderJobErrors[keyof ClaimAgentRenderJobErrors];
+
+export type ClaimAgentRenderJobResponses = {
+    /**
+     * Response Claimagentrenderjob
+     *
+     * Successful Response
+     */
+    200: RenderJobOut | null;
+};
+
+export type ClaimAgentRenderJobResponse = ClaimAgentRenderJobResponses[keyof ClaimAgentRenderJobResponses];
+
+export type CompleteAgentRenderJobData = {
+    body: RenderJobResult;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: number;
+    };
+    query?: never;
+    url: '/api/agents/render-jobs/{job_id}';
+};
+
+export type CompleteAgentRenderJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteAgentRenderJobError = CompleteAgentRenderJobErrors[keyof CompleteAgentRenderJobErrors];
+
+export type CompleteAgentRenderJobResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type CompleteAgentRenderJobResponse = CompleteAgentRenderJobResponses[keyof CompleteAgentRenderJobResponses];
