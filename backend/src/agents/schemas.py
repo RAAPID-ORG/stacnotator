@@ -58,6 +58,15 @@ class AgentRegister(BaseModel):
     task_count: int = Field(default=10, ge=0, le=1000)
     task_set_id: int | None = None
     default_views: list[ViewSpec] | None = Field(default=None, max_length=4)
+    takes_over_work: bool = False
+
+
+class AgentUpdate(BaseModel):
+    """Only the fields given change."""
+
+    takes_over_work: bool | None = None
+    # What next_task returns and what is drawn ahead for upcoming tasks.
+    default_views: list[ViewSpec] | None = Field(default=None, min_length=1, max_length=4)
 
 
 class AgentTasksRequest(BaseModel):
@@ -66,7 +75,7 @@ class AgentTasksRequest(BaseModel):
 
 
 class ViewsRequest(BaseModel):
-    """Views to render; the agent's default views when omitted."""
+    """Views to render once; the agent's default views when omitted."""
 
     views: list[ViewSpec] | None = Field(default=None, max_length=8)
 
@@ -84,6 +93,8 @@ class AgentOut(BaseModel):
     render_host_path: str
     assigned: int
     remaining: int
+    takes_over_work: bool
+    default_views: list[ViewSpec]
     host_seen_at: datetime | None
     created_at: datetime
 
@@ -144,6 +155,17 @@ class CampaignContext(BaseModel):
     imagery: list[SourceContext]
     basemaps: list[BasemapContext]
     timeseries: list[TimeseriesContext]
+
+
+class CampaignWorkOut(BaseModel):
+    """What there is to hand out before any agent is registered."""
+
+    campaign_id: int
+    name: str
+    total_tasks: int
+    # Neither assigned nor labelled: what new agents can be given.
+    open_tasks: int
+    agents: list[AgentOut]
 
 
 class AgentRegistrationOut(BaseModel):

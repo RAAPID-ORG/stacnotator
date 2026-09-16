@@ -172,6 +172,14 @@ export type AgentOut = {
      */
     remaining: number;
     /**
+     * Takes Over Work
+     */
+    takes_over_work: boolean;
+    /**
+     * Default Views
+     */
+    default_views: Array<ViewSpec>;
+    /**
      * Host Seen At
      */
     host_seen_at: string | null;
@@ -205,6 +213,10 @@ export type AgentRegister = {
      * Default Views
      */
     default_views?: Array<ViewSpec> | null;
+    /**
+     * Takes Over Work
+     */
+    takes_over_work?: boolean;
 };
 
 /**
@@ -257,6 +269,22 @@ export type AgentTasksRequest = {
      * Task Set Id
      */
     task_set_id?: number | null;
+};
+
+/**
+ * AgentUpdate
+ *
+ * Only the fields given change.
+ */
+export type AgentUpdate = {
+    /**
+     * Takes Over Work
+     */
+    takes_over_work?: boolean | null;
+    /**
+     * Default Views
+     */
+    default_views?: Array<ViewSpec> | null;
 };
 
 /**
@@ -1976,6 +2004,34 @@ export type CampaignSummaryOut = {
      */
     viewer_is_authoritative_reviewer?: boolean;
     settings: CampaignSettingsOut;
+};
+
+/**
+ * CampaignWorkOut
+ *
+ * What there is to hand out before any agent is registered.
+ */
+export type CampaignWorkOut = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Total Tasks
+     */
+    total_tasks: number;
+    /**
+     * Open Tasks
+     */
+    open_tasks: number;
+    /**
+     * Agents
+     */
+    agents: Array<AgentOut>;
 };
 
 /**
@@ -5436,7 +5492,7 @@ export type ViewSpec = {
 /**
  * ViewsRequest
  *
- * Views to render; the agent's default views when omitted.
+ * Views to render once; the agent's default views when omitted.
  */
 export type ViewsRequest = {
     /**
@@ -11568,6 +11624,36 @@ export type RegisterAgentResponses = {
 
 export type RegisterAgentResponse = RegisterAgentResponses[keyof RegisterAgentResponses];
 
+export type GetCampaignAgentWorkData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/agents/work';
+};
+
+export type GetCampaignAgentWorkErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCampaignAgentWorkError = GetCampaignAgentWorkErrors[keyof GetCampaignAgentWorkErrors];
+
+export type GetCampaignAgentWorkResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignWorkOut;
+};
+
+export type GetCampaignAgentWorkResponse = GetCampaignAgentWorkResponses[keyof GetCampaignAgentWorkResponses];
+
 export type GetAgentData = {
     body?: never;
     path: {
@@ -11597,6 +11683,36 @@ export type GetAgentResponses = {
 };
 
 export type GetAgentResponse = GetAgentResponses[keyof GetAgentResponses];
+
+export type UpdateAgentData = {
+    body: AgentUpdate;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}';
+};
+
+export type UpdateAgentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAgentError = UpdateAgentErrors[keyof UpdateAgentErrors];
+
+export type UpdateAgentResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentOut;
+};
+
+export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses];
 
 export type GetAgentContextData = {
     body?: never;
@@ -11659,7 +11775,7 @@ export type RequestAgentTasksResponses = {
 export type RequestAgentTasksResponse = RequestAgentTasksResponses[keyof RequestAgentTasksResponses];
 
 export type NextAgentTaskData = {
-    body: ViewsRequest;
+    body?: never;
     path: {
         /**
          * Agent Id

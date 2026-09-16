@@ -44,9 +44,8 @@ def test_next_task_returns_task_text_then_the_drawn_images():
         },
     )
 
-    text, image = agent_mcp.next_task(AGENT, views=[DETAIL_VIEW])
+    text, image = agent_mcp.next_task(AGENT)
 
-    assert json.loads(responses.calls[0].request.body) == {"views": [DETAIL_VIEW]}
     summary = json.loads(text)
     assert summary["task"] == task
     assert summary["remaining"] == 3

@@ -30,12 +30,15 @@ client cuts tool calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIM
 
 | tool | use |
 | --- | --- |
-| `register_agent(campaign_id, name, description?, task_count=10, task_set_id?, default_views?)` | create an agent, returns `agent.agent_id`, the campaign context and `render_host_url` |
+| `list_campaigns()` | campaigns you can access, to ask which one to label |
+| `campaign_work(campaign_id)` | total and open tasks plus your existing agents, to size the run |
+| `register_agent(campaign_id, name, description?, task_count=10, task_set_id?, default_views?, takes_over_work?)` | create an agent, returns `agent.agent_id`, the campaign context and `render_host_url` |
 | `campaign_context(agent_id)` | guide, labels, form fields, imagery slices, basemaps, time series |
 | `list_agents(campaign_id)` | your agents with assigned/remaining counts |
 | `request_tasks(agent_id, count, task_set_id?)` | assign more tasks |
-| `next_task(agent_id, views?)` | next open task + rendered views (defaults when `views` omitted) |
-| `get_views(agent_id, task_id, views)` | more views of the current task |
+| `next_task(agent_id)` | next open task + its default views |
+| `get_views(agent_id, task_id, views)` | one-off extra views of the current task |
+| `set_default_views(agent_id, views)` | change what every task comes with (and what is preloaded) |
 | `submit_label(agent_id, task_id, label_id, confidence?, comment?, form_values?, flagged_for_review?, flag_comment?)` | label it |
 | `skip_task(agent_id, task_id, comment)` | skip with a reason |
 
@@ -52,8 +55,11 @@ client cuts tool calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIM
    takes several seconds, and a date may hold nothing there (the cell caption then starts
    with `no image:`). Their collection covers are the cheapest way to see which periods have data.
 3. Loop:
-   - `next_task(agent_id)` - the views you ask for (defaults when omitted) are also drawn
-     ahead for your next two tasks, so asking for the same views every time is usually instant.
+   - `next_task(agent_id)` - returns the agent's **default views**. Those are also what gets
+     preloaded: whenever you call it, the browser draws the same views for your next two
+     tasks, so the next call is usually instant. The defaults come from `register_agent`
+     (built in when omitted) and can be replaced any time with `set_default_views`, e.g. once
+     the first tasks show which periods or zooms matter in this campaign.
    - Look. If the answer is clear, label. If not, `get_views` for exactly what would settle it.
    - `submit_label` or `skip_task`.
    - `task: null` means your assigned tasks are done. `request_tasks` if more work is wanted.
@@ -64,8 +70,9 @@ client cuts tool calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIM
 
 Start from the defaults, then drill in only where it is ambiguous:
 
-- **Default views**: one image with the cover of every period (up to 12) plus the time
-  series chart, and a basemap pair (wide context and close up).
+- **Default views**: one image with the covers of the first source's most recent periods
+  (up to 16) plus the cloud-free time series chart, and a basemap pair (wide context and
+  close up).
 - **Noisy time series?** Ask for the chart again with `"remove_cloudy": true` (drops the
   cloud-flagged observations, otherwise drawn as grey dots) and `"smoothed": true`
   (Savitzky-Golay line; `meta` then carries a `smoothed` column next to the raw values).
@@ -81,8 +88,9 @@ Start from the defaults, then drill in only where it is ambiguous:
 Every map cell is centred on the task. A point task gets a red box of the campaign's
 `sample_extent_meters` around it: label what is inside the box. When the box would be
 only a few pixels wide at that zoom, a crosshair marks the point instead, which is a hint
-to zoom in. Polygon tasks show their own outline. The caption says the source, date and zoom. The `meta` of each view describes every cell (`index`, `kind`,
-position, `caption`, `zoom`, `meters_per_pixel`, and raw values for time series cells).
+to zoom in. Polygon tasks show their own outline. The caption says the source, date and
+zoom. The `meta` of each view describes every cell (`index`, `kind`, position, `caption`,
+`zoom`, `meters_per_pixel`, and raw values for time series cells).
 
 ### Context views vs detail views
 
@@ -118,6 +126,8 @@ Zooming past a source's `max_native_zoom` only upsamples: no new detail. For 10 
   per cell, a 4x2 grid of 320 px cells arrives untouched. More cells means less detail per cell:
   use many cells for comparing dates, few big ones for fine detail.
 - Don't ask for what you already have. Every view costs context.
+- What you need for almost every task belongs in the default views (preloaded); what you
+  need now and then belongs in `get_views` (drawn on demand, a few seconds).
 
 ## View examples
 
@@ -175,14 +185,43 @@ the built-in overview for every task.
 
 ## Orchestrating subagents
 
-- Either register all agents yourself and hand each subagent its `agent_id`, or have each
-  subagent register its own with a distinct name. Split work with `task_count`
-  (and `task_set_id` if the campaign has task sets).
-- All subagents share one MCP server, so every call must pass that worker's `agent_id`.
+Users ask in plain words ("label 20 points of campaign 12 with 4 agents in parallel").
+Turn that into:
+
+1. **Fill in what is missing by asking, never by guessing.** Three inputs decide a run:
+   - **Campaign**: if not named, call `list_campaigns` and ask which one.
+   - **Points**: if not given, call `campaign_work` and ask how many to label, stating how
+     many are open (e.g. "240 open tasks - how many should I label? 20 is a good first run").
+   - **Agents**: if not given, recommend one agent per 5 points, at least 1 and at most 5
+     (one browser tab draws for all of them), and ask to confirm.
+   Ask for everything missing in one message, then wait for the answer.
+2. **Split** the points as evenly as possible over the agents (20 over 3 is 7, 7, 6), never
+   more than `open_tasks`, and never register an agent with no tasks.
+3. **Register** one agent per worker yourself, named after the campaign or role plus a
+   letter (`scout-a`, `scout-b`, ...), all with `takes_over_work: true` so a fast worker
+   picks up a slow one's queue. Tell the user the `render_host_url` once and ask them to
+   keep it open.
+4. **Launch** one subagent per agent, all in parallel, each with this brief filled in:
+
+   > You are labelling STACNotator campaign {id} as agent {agent_id}. Use the stacnotator
+   > MCP tools and always pass this agent_id. Labels: {id: name, ...}. Guide: {two or three
+   > line summary}. Loop: next_task, look at the default views, use get_views only when the
+   > point is still ambiguous (at most one or two per task), then submit_label with an
+   > honest confidence and a one line evidence comment, or skip_task with a reason. Stop
+   > when next_task returns task null. Reply with one line per task: task id, label,
+   > confidence, evidence. Do not describe the images.
+
+5. **Report** a table of agent, task, label and confidence, and point out skips, low
+   confidence and anything odd about the sample.
+
+Further rules:
+
+- All subagents share one MCP server, so every call passes that worker's `agent_id`.
   Never let two workers use the same `agent_id`: they would fight over the same next task.
-- Give each subagent this skill, its `agent_id`, the campaign guide summary, and a stopping
-  rule (e.g. "label until `task` is null, then report counts, skips and low-confidence tasks").
-  Images fill context fast, so a subagent should return a short summary, not what it saw.
+- Images fill context fast, so a subagent returns a short summary, not what it saw.
+- `takes_over_work` moves the last queued task of whichever of your other agents on the
+  campaign has the most left (never the one it is about to work on). The owner can flip it
+  per agent with the checkbox on the Agents page.
 - One browser tab draws the views for all of your agents on that campaign, so many workers
-  asking for heavy one-off views will queue up. Keep a steady `next_task` view set so it
-  stays prerendered, and use `get_views` sparingly.
+  asking for heavy one-off views will queue up. Put what you need every time in the
+  default views so it stays preloaded, and use `get_views` sparingly.

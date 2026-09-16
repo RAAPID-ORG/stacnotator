@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Index,
@@ -11,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -46,6 +48,9 @@ class LabellingAgent(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Shaped by agents.schemas.ViewSpec. Rendered ahead for upcoming tasks.
     default_views: Mapped[list] = mapped_column(JSONB, nullable=False)
+    # When its own tasks run out, take over tasks still waiting on its owner's other
+    # agents in the campaign.
+    takes_over_work: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
     # Last time a render host of the owner asked for work in this campaign.
     host_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

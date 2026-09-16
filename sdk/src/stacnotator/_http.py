@@ -24,6 +24,9 @@ class Http:
     def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         return self._request("GET", path, params=params)
 
+    def patch(self, path: str, json: Any = None) -> Any:
+        return self._request("PATCH", path, json=json)
+
     def post(
         self,
         path: str,

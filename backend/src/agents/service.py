@@ -18,7 +18,9 @@ from src.agents.schemas import (
     AgentOut,
     AgentRegister,
     AgentTaskOut,
+    AgentUpdate,
     CampaignContext,
+    CampaignWorkOut,
     RenderedView,
     RenderJobOut,
     RenderJobResult,
@@ -26,6 +28,7 @@ from src.agents.schemas import (
     ViewSpec,
 )
 from src.annotation import service as annotation_service
+from src.annotation.claims import is_free_work
 from src.annotation.models import (
     Annotation,
     AnnotationGeometry,
@@ -99,6 +102,7 @@ def register_agent(
         campaign_id=campaign.id,
         description=req.description,
         default_views=[v.model_dump(mode="json", exclude_none=True) for v in views],
+        takes_over_work=req.takes_over_work,
     )
     db.add(agent)
     db.commit()
@@ -162,6 +166,8 @@ def agent_out(db: Session, agent: LabellingAgent) -> AgentOut:
         render_host_path=f"/projects/{project_id}/campaigns/{agent.campaign_id}/agents",
         assigned=assigned or 0,
         remaining=_open_task_count(db, agent),
+        takes_over_work=agent.takes_over_work,
+        default_views=[ViewSpec.model_validate(v) for v in agent.default_views],
         host_seen_at=agent.host_seen_at,
         created_at=agent.created_at,
     )
@@ -232,21 +238,15 @@ def _host_alive(db: Session, agent: LabellingAgent) -> bool:
     return seen is not None and seen > datetime.now(UTC) - HOST_TIMEOUT
 
 
-def prepare_next(
-    db: Session, agent_id: UUID, owner: User, views: list[ViewSpec] | None
-) -> PendingBundle:
-    """Pick the agent's next open task, queue its views, and queue the same views for the
+def prepare_next(db: Session, agent_id: UUID, owner: User) -> PendingBundle:
+    """Pick the agent's next open task and queue its default views, for it and for the
     tasks after it so they are already drawn when the agent gets there."""
-    agent, campaign = get_agent(db, agent_id, owner)
-    _check_views(db, campaign, views)
-    requested = _views_or_default(agent, views)
+    agent, _ = get_agent(db, agent_id, owner)
+    requested = _views_or_default(agent, None)
 
-    upcoming = db.scalars(
-        _open_tasks_query(agent)
-        .options(joinedload(AnnotationTask.geometry))
-        .order_by(AnnotationTask.annotation_number)
-        .limit(PREFETCH_DEPTH + 1)
-    ).all()
+    upcoming = _upcoming_tasks(db, agent)
+    if not upcoming and agent.takes_over_work and _take_over_task(db, agent):
+        upcoming = _upcoming_tasks(db, agent)
     if not upcoming:
         return PendingBundle(None, 0, [], _host_alive(db, agent))
 
@@ -260,6 +260,85 @@ def prepare_next(
         _open_task_count(db, agent),
         jobs,
         _host_alive(db, agent),
+    )
+
+
+def _upcoming_tasks(db: Session, agent: LabellingAgent) -> list[AnnotationTask]:
+    return list(
+        db.scalars(
+            _open_tasks_query(agent)
+            .options(joinedload(AnnotationTask.geometry))
+            .order_by(AnnotationTask.annotation_number)
+            .limit(PREFETCH_DEPTH + 1)
+        ).all()
+    )
+
+
+def _take_over_task(db: Session, agent: LabellingAgent) -> bool:
+    """Move one task from the sibling agent with the most work left to this one.
+
+    A sibling keeps its next task, which it may be looking at right now, and gives up
+    its last one, which it would reach last. Siblings are the same owner's agents in the
+    same campaign, so an owner's agents only ever share their own work.
+    """
+    siblings = db.scalars(
+        select(LabellingAgent).where(
+            LabellingAgent.campaign_id == agent.campaign_id,
+            LabellingAgent.owner_user_id == agent.owner_user_id,
+            LabellingAgent.user_id != agent.user_id,
+        )
+    ).all()
+    for sibling in sorted(siblings, key=lambda s: _open_task_count(db, s), reverse=True):
+        open_ids = db.scalars(
+            _open_tasks_query(sibling)
+            .with_only_columns(AnnotationTask.id)
+            .order_by(AnnotationTask.annotation_number)
+        ).all()
+        for task_id in reversed(open_ids[1:]):
+            assignment = db.scalars(
+                select(AnnotationTaskAssignment)
+                .where(
+                    AnnotationTaskAssignment.task_id == task_id,
+                    AnnotationTaskAssignment.user_id == sibling.user_id,
+                )
+                .with_for_update(skip_locked=True)
+            ).first()
+            if assignment is None:
+                continue
+            assignment.user_id = agent.user_id
+            db.commit()
+            return True
+    return False
+
+
+def update_agent(db: Session, agent: LabellingAgent, campaign: Campaign, body: AgentUpdate) -> None:
+    if body.takes_over_work is not None:
+        agent.takes_over_work = body.takes_over_work
+    if body.default_views is not None:
+        _check_views(db, campaign, body.default_views)
+        agent.default_views = [
+            v.model_dump(mode="json", exclude_none=True) for v in body.default_views
+        ]
+    db.commit()
+
+
+def campaign_work(db: Session, campaign: Campaign, owner: User) -> CampaignWorkOut:
+    total = db.scalar(
+        select(func.count())
+        .select_from(AnnotationTask)
+        .where(AnnotationTask.campaign_id == campaign.id)
+    )
+    open_tasks = db.scalar(
+        select(func.count())
+        .select_from(AnnotationTask)
+        .where(AnnotationTask.campaign_id == campaign.id, is_free_work())
+    )
+    return CampaignWorkOut(
+        campaign_id=campaign.id,
+        name=campaign.name,
+        total_tasks=total or 0,
+        open_tasks=open_tasks or 0,
+        agents=list_agents(db, campaign.id, owner),
     )
 
 

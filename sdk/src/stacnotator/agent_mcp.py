@@ -54,7 +54,9 @@ server = MCPServer(
     instructions=(
         "Label STACNotator campaign tasks from rendered imagery. Register one agent per "
         "worker, read the campaign guide in its context, then loop next_task -> "
-        "(get_views) -> submit_label or skip_task, always passing your own agent_id."
+        "(get_views) -> submit_label or skip_task, always passing your own agent_id. "
+        "Asked for several parallel workers, register one agent per worker with the tasks "
+        "split evenly and takes_over_work on, then run one subagent per agent."
     ),
 )
 
@@ -74,6 +76,13 @@ def _get(path: str) -> Any:
 def _post(path: str, body: dict[str, Any], timeout: float = DEFAULT_TIMEOUT_SECONDS) -> Any:
     try:
         return _http().post(path, json=body, timeout=timeout)
+    except StacnotatorError as exc:
+        raise ToolError(str(exc)) from exc
+
+
+def _patch(path: str, body: dict[str, Any]) -> Any:
+    try:
+        return _http().patch(path, json=body)
     except StacnotatorError as exc:
         raise ToolError(str(exc)) from exc
 
@@ -124,14 +133,18 @@ def register_agent(
     task_count: int = 10,
     task_set_id: int | None = None,
     default_views: list[ViewSpec] | None = None,
+    takes_over_work: bool = False,
 ) -> str:
     """Create a labelling agent on a campaign and assign it task_count tasks.
 
     name: 1-20 chars of letters, digits, ".", "_" or "-". Register one agent per worker;
     never share an agent_id between workers.
-    default_views: up to 4 views rendered for every task when next_task is called without
-    views. Omit to get a sensible overview (every period's cover plus time series, and a
-    basemap context/detail pair).
+    default_views: up to 4 views next_task returns for every task, drawn ahead for upcoming
+    tasks; change them later with set_default_views. Omit for a sensible overview (recent
+    period covers plus the time series, and a basemap context/detail pair).
+    takes_over_work: when this agent runs out of tasks, next_task moves a task over from
+    your other agents on the campaign that still have work queued (the owner can also
+    toggle this per agent on the Agents page).
 
     Returns the agent (keep agent_id), the campaign context (guide, labels, form fields,
     imagery slices, basemaps, time series), the default views, and the render host URL.
@@ -146,6 +159,7 @@ def register_agent(
                 "task_count": task_count,
                 "task_set_id": task_set_id,
                 "default_views": default_views,
+                "takes_over_work": takes_over_work,
             }
         ),
     )
@@ -181,10 +195,33 @@ def request_tasks(agent_id: str, count: int, task_set_id: int | None = None) -> 
 
 
 @server.tool(structured_output=False)
-def next_task(agent_id: str, views: list[ViewSpec] | None = None) -> list[str | Image]:
-    """The agent's next open task with its views rendered, waiting up to ~2 minutes.
+def list_campaigns() -> str:
+    """Campaigns you can access (id, name, your role). Use it to ask the user which one to
+    label when they did not say."""
+    return _json(_get("/campaigns/")["items"])
 
-    views: up to 8 view specs; omit for the agent's default views (usually ready at once).
+
+@server.tool(structured_output=False)
+def campaign_work(campaign_id: int) -> str:
+    """How much work a campaign has for agents: total_tasks, open_tasks (neither assigned
+    nor labelled, which is what new agents can be given) and your existing agents. Read it
+    before registering agents to size the run."""
+    return _json(_get(f"/campaigns/{campaign_id}/agents/work"))
+
+
+@server.tool(structured_output=False)
+def set_default_views(agent_id: str, views: list[ViewSpec]) -> str:
+    """Replace the agent's default views (1-4): what next_task returns for every task and
+    what is drawn ahead for the tasks after it. Set them once the first tasks show what is
+    worth looking at in this campaign; one-off detail belongs in get_views."""
+    return _json(_patch(f"/agents/{agent_id}", {"default_views": views}))
+
+
+@server.tool(structured_output=False)
+def next_task(agent_id: str) -> list[str | Image]:
+    """The agent's next open task with its default views rendered, waiting up to ~2 minutes.
+    The defaults are drawn ahead for upcoming tasks, so this is usually instant.
+
     Returns JSON {task, remaining, views}, then the images. Each view entry has a status,
     its spec, and either image (1-based position among the returned images) with meta
     (per-cell captions, zoom, meters_per_pixel, time series values) or an error.
@@ -194,7 +231,7 @@ def next_task(agent_id: str, views: list[ViewSpec] | None = None) -> list[str | 
     return _bundle(
         _post(
             f"/agents/{agent_id}/next",
-            _without_none({"views": views}),
+            {},
             timeout=RENDER_TIMEOUT_SECONDS,
         )
     )

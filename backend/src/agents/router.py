@@ -12,7 +12,9 @@ from src.agents.schemas import (
     AgentRegister,
     AgentRegistrationOut,
     AgentTasksRequest,
+    AgentUpdate,
     CampaignContext,
+    CampaignWorkOut,
     RenderJobOut,
     RenderJobResult,
     TaskBundleOut,
@@ -60,6 +62,16 @@ def list_agents(
     return service.list_agents(db, campaign.id, user)
 
 
+@router.get("/campaigns/{campaign_id}/agents/work", response_model=CampaignWorkOut)
+def get_campaign_agent_work(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> CampaignWorkOut:
+    """Open and total tasks and the caller's agents, for sizing a labelling run."""
+    return service.campaign_work(db, campaign, user)
+
+
 @router.get("/agents/{agent_id}", response_model=AgentOut)
 def get_agent(
     agent_id: UUID,
@@ -67,6 +79,18 @@ def get_agent(
     user: User = Depends(require_authenticated_user),
 ) -> AgentOut:
     agent, _ = service.get_agent(db, agent_id, user)
+    return service.agent_out(db, agent)
+
+
+@router.patch("/agents/{agent_id}", response_model=AgentOut)
+def update_agent(
+    agent_id: UUID,
+    body: AgentUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+) -> AgentOut:
+    agent, campaign = service.get_agent(db, agent_id, user)
+    service.update_agent(db, agent, campaign, body)
     return service.agent_out(db, agent)
 
 
@@ -95,12 +119,12 @@ def request_agent_tasks(
 @router.post("/agents/{agent_id}/next", response_model=TaskBundleOut)
 async def next_agent_task(
     agent_id: UUID,
-    body: ViewsRequest,
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ) -> TaskBundleOut:
-    """The agent's next open task with its views, waiting for the render host to draw them."""
-    pending = await run_in_threadpool(service.prepare_next, db, agent_id, user, body.views)
+    """The agent's next open task with its default views, waiting for the render host to
+    draw them."""
+    pending = await run_in_threadpool(service.prepare_next, db, agent_id, user)
     release(db)
     return await service.await_bundle(pending)
 

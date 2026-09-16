@@ -29,6 +29,7 @@ def upgrade() -> None:
         sa.Column("campaign_id", sa.Integer(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("default_views", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("takes_over_work", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("host_seen_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False

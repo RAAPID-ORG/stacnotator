@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { claimAgentRenderJob, completeAgentRenderJob, type CampaignOutFull } from '~/api/client';
-import { getCampaignWithImageryWindowsOptions, listAgentsOptions } from '~/api/queries';
+import {
+  getCampaignWithImageryWindowsOptions,
+  listAgentsOptions,
+  listAgentsQueryKey,
+  updateAgentMutation,
+} from '~/api/queries';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
@@ -45,6 +50,12 @@ export const AgentHostPage = () => {
     meta: { errorMessage: 'Failed to load agents', showUser: false },
   });
   const agents = agentsQuery.data ?? [];
+  const queryClient = useQueryClient();
+  const updateAgent = useMutation({
+    ...updateAgentMutation(),
+    meta: { errorMessage: 'Failed to update agent' },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: listAgentsQueryKey({ path }) }),
+  });
 
   useCampaignBreadcrumbs(
     campaign?.project_id ?? routeProjectId,
@@ -129,6 +140,9 @@ export const AgentHostPage = () => {
                     <th>Description</th>
                     <th>Done</th>
                     <th>Remaining</th>
+                    <th title="When this agent runs out of tasks, it takes over tasks still waiting on your other agents">
+                      Takes over work
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -138,6 +152,20 @@ export const AgentHostPage = () => {
                       <td className="text-neutral-600">{agent.description}</td>
                       <td>{agent.assigned - agent.remaining}</td>
                       <td>{agent.remaining}</td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`${agent.name} takes over other agents' work`}
+                          checked={agent.takes_over_work}
+                          disabled={updateAgent.isPending}
+                          onChange={(event) =>
+                            updateAgent.mutate({
+                              path: { agent_id: agent.agent_id },
+                              body: { takes_over_work: event.target.checked },
+                            })
+                          }
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
