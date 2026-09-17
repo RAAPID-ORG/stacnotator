@@ -41,6 +41,7 @@ client cuts tool calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIM
 | `set_default_views(agent_id, views)` | change what every task comes with (and what is preloaded) |
 | `submit_label(agent_id, task_id, label_id, confidence?, comment?, form_values?, flagged_for_review?, flag_comment?)` | label it |
 | `skip_task(agent_id, task_id, comment)` | skip with a reason |
+| `release_tasks(agent_id? or campaign_id?)` | free unfinished tasks of one agent or all your agents |
 
 ## Workflow
 
@@ -211,7 +212,10 @@ Turn that into:
    > when next_task returns task null. Reply with one line per task: task id, label,
    > confidence, evidence. Do not describe the images.
 
-5. **Report** a table of agent, task, label and confidence, and point out skips, low
+5. **Stopping early** (the user cancels, a worker fails or a budget runs out): call
+   `release_tasks(campaign_id=...)` so unfinished tasks go back to the pool instead of
+   staying assigned to agents nobody runs.
+6. **Report** a table of agent, task, label and confidence, and point out skips, low
    confidence and anything odd about the sample.
 
 Further rules:

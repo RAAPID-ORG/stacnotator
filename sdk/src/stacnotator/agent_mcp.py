@@ -218,6 +218,21 @@ def set_default_views(agent_id: str, views: list[ViewSpec]) -> str:
 
 
 @server.tool(structured_output=False)
+def release_tasks(agent_id: str | None = None, campaign_id: int | None = None) -> str:
+    """Give unfinished tasks back to the campaign's open pool: those of one agent
+    (agent_id), or of all your agents on a campaign (campaign_id). Labelled and skipped
+    tasks are kept. Use it when a run is stopped before its agents finish."""
+    if (agent_id is None) == (campaign_id is None):
+        raise ToolError("Pass exactly one of agent_id or campaign_id.")
+    path = (
+        f"/agents/{agent_id}/release-tasks"
+        if agent_id is not None
+        else f"/campaigns/{campaign_id}/agents/release-tasks"
+    )
+    return _json(_post(path, {}))
+
+
+@server.tool(structured_output=False)
 def next_task(agent_id: str) -> list[str | Image]:
     """The agent's next open task with its default views rendered, waiting up to ~2 minutes.
     The defaults are drawn ahead for upcoming tasks, so this is usually instant.

@@ -4135,6 +4135,16 @@ export type RasterOverlayOut = {
 };
 
 /**
+ * ReleasedTasksOut
+ */
+export type ReleasedTasksOut = {
+    /**
+     * Released
+     */
+    released: number;
+};
+
+/**
  * RenderConfig
  */
 export type RenderConfig = {
@@ -11653,6 +11663,66 @@ export type GetCampaignAgentWorkResponses = {
 };
 
 export type GetCampaignAgentWorkResponse = GetCampaignAgentWorkResponses[keyof GetCampaignAgentWorkResponses];
+
+export type ReleaseAllAgentTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/agents/release-tasks';
+};
+
+export type ReleaseAllAgentTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReleaseAllAgentTasksError = ReleaseAllAgentTasksErrors[keyof ReleaseAllAgentTasksErrors];
+
+export type ReleaseAllAgentTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReleasedTasksOut;
+};
+
+export type ReleaseAllAgentTasksResponse = ReleaseAllAgentTasksResponses[keyof ReleaseAllAgentTasksResponses];
+
+export type ReleaseAgentTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/release-tasks';
+};
+
+export type ReleaseAgentTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReleaseAgentTasksError = ReleaseAgentTasksErrors[keyof ReleaseAgentTasksErrors];
+
+export type ReleaseAgentTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReleasedTasksOut;
+};
+
+export type ReleaseAgentTasksResponse = ReleaseAgentTasksResponses[keyof ReleaseAgentTasksResponses];
 
 export type GetAgentData = {
     body?: never;

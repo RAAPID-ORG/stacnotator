@@ -15,6 +15,7 @@ from src.agents.schemas import (
     AgentUpdate,
     CampaignContext,
     CampaignWorkOut,
+    ReleasedTasksOut,
     RenderJobOut,
     RenderJobResult,
     TaskBundleOut,
@@ -70,6 +71,27 @@ def get_campaign_agent_work(
 ) -> CampaignWorkOut:
     """Open and total tasks and the caller's agents, for sizing a labelling run."""
     return service.campaign_work(db, campaign, user)
+
+
+@router.post("/campaigns/{campaign_id}/agents/release-tasks", response_model=ReleasedTasksOut)
+def release_all_agent_tasks(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> ReleasedTasksOut:
+    """Free every unfinished task assigned to the caller's agents in this campaign."""
+    agents = service.owned_agents(db, campaign.id, user)
+    return ReleasedTasksOut(released=service.release_tasks(db, agents))
+
+
+@router.post("/agents/{agent_id}/release-tasks", response_model=ReleasedTasksOut)
+def release_agent_tasks(
+    agent_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+) -> ReleasedTasksOut:
+    agent, _ = service.get_agent(db, agent_id, user)
+    return ReleasedTasksOut(released=service.release_tasks(db, [agent]))
 
 
 @router.get("/agents/{agent_id}", response_model=AgentOut)

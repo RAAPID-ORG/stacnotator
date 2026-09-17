@@ -157,6 +157,10 @@ class CampaignContext(BaseModel):
     timeseries: list[TimeseriesContext]
 
 
+class ReleasedTasksOut(BaseModel):
+    released: int
+
+
 class CampaignWorkOut(BaseModel):
     """What there is to hand out before any agent is registered."""
 

@@ -3,10 +3,11 @@ import base64
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import delete, exists, func, or_, select, update
+from sqlalchemy import CursorResult, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, joinedload
 from starlette.concurrency import run_in_threadpool
@@ -140,13 +141,7 @@ def assign_tasks(db: Session, agent: LabellingAgent, count: int, task_set_id: in
 
 
 def list_agents(db: Session, campaign_id: int, owner: User) -> list[AgentOut]:
-    agents = db.scalars(
-        select(LabellingAgent)
-        .options(joinedload(LabellingAgent.user))
-        .where(LabellingAgent.campaign_id == campaign_id, LabellingAgent.owner_user_id == owner.id)
-        .order_by(LabellingAgent.created_at)
-    ).all()
-    return [agent_out(db, agent) for agent in agents]
+    return [agent_out(db, agent) for agent in owned_agents(db, campaign_id, owner)]
 
 
 def agent_out(db: Session, agent: LabellingAgent) -> AgentOut:
@@ -320,6 +315,41 @@ def update_agent(db: Session, agent: LabellingAgent, campaign: Campaign, body: A
             v.model_dump(mode="json", exclude_none=True) for v in body.default_views
         ]
     db.commit()
+
+
+def owned_agents(db: Session, campaign_id: int, owner: User) -> list[LabellingAgent]:
+    return list(
+        db.scalars(
+            select(LabellingAgent)
+            .options(joinedload(LabellingAgent.user))
+            .where(
+                LabellingAgent.campaign_id == campaign_id,
+                LabellingAgent.owner_user_id == owner.id,
+            )
+            .order_by(LabellingAgent.created_at)
+        ).all()
+    )
+
+
+def release_tasks(db: Session, agents: list[LabellingAgent]) -> int:
+    """Hand the agents' unfinished tasks back to the pool. What they labelled or skipped
+    stays theirs, and so do its assignments, so their finished work keeps counting."""
+    agent_ids = [agent.user_id for agent in agents]
+    if not agent_ids:
+        return 0
+    released = db.execute(
+        delete(AnnotationTaskAssignment).where(
+            AnnotationTaskAssignment.user_id.in_(agent_ids),
+            ~AnnotationTaskAssignment.is_review,
+            ~exists().where(
+                Annotation.annotation_task_id == AnnotationTaskAssignment.task_id,
+                Annotation.created_by_user_id == AnnotationTaskAssignment.user_id,
+            ),
+        )
+    )
+    db.execute(delete(AgentRenderJob).where(AgentRenderJob.agent_user_id.in_(agent_ids)))
+    db.commit()
+    return cast("CursorResult[Any]", released).rowcount
 
 
 def campaign_work(db: Session, campaign: Campaign, owner: User) -> CampaignWorkOut:

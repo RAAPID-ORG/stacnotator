@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { claimAgentRenderJob, completeAgentRenderJob, type CampaignOutFull } from '~/api/client';
+import {
+  claimAgentRenderJob,
+  completeAgentRenderJob,
+  type AgentOut,
+  type CampaignOutFull,
+} from '~/api/client';
 import {
   getCampaignWithImageryWindowsOptions,
   listAgentsOptions,
   listAgentsQueryKey,
+  releaseAgentTasksMutation,
+  releaseAllAgentTasksMutation,
   updateAgentMutation,
 } from '~/api/queries';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { Button } from '~/shared/ui/forms';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
@@ -56,6 +64,25 @@ export const AgentHostPage = () => {
     meta: { errorMessage: 'Failed to update agent' },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: listAgentsQueryKey({ path }) }),
   });
+  const [releaseTarget, setReleaseTarget] = useState<AgentOut | 'all' | null>(null);
+  const afterRelease = () => {
+    setReleaseTarget(null);
+    return queryClient.invalidateQueries({ queryKey: listAgentsQueryKey({ path }) });
+  };
+  const releaseOne = useMutation({
+    ...releaseAgentTasksMutation(),
+    meta: { errorMessage: 'Failed to free the agent tasks' },
+    onSuccess: afterRelease,
+  });
+  const releaseAll = useMutation({
+    ...releaseAllAgentTasksMutation(),
+    meta: { errorMessage: 'Failed to free the agent tasks' },
+    onSuccess: afterRelease,
+  });
+  const confirmRelease = () => {
+    if (releaseTarget === 'all') releaseAll.mutate({ path });
+    else if (releaseTarget) releaseOne.mutate({ path: { agent_id: releaseTarget.agent_id } });
+  };
 
   useCampaignBreadcrumbs(
     campaign?.project_id ?? routeProjectId,
@@ -123,9 +150,16 @@ export const AgentHostPage = () => {
 
         <section className="surface mb-6">
           <div className="surface-section">
-            <p className="text-sm" data-testid="agent-host-status">
-              {running ? 'Rendering' : 'Paused'} - {rendered} views drawn
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm" data-testid="agent-host-status">
+                {running ? 'Rendering' : 'Paused'} - {rendered} views drawn
+              </p>
+              {agents.some((agent) => agent.remaining > 0) && (
+                <Button variant="secondary" size="sm" onClick={() => setReleaseTarget('all')}>
+                  Free all agent tasks
+                </Button>
+              )}
+            </div>
             {agentsQuery.isLoading ? (
               <SkeletonRows count={3} />
             ) : agents.length === 0 ? (
@@ -143,6 +177,7 @@ export const AgentHostPage = () => {
                     <th title="When this agent runs out of tasks, it takes over tasks still waiting on your other agents">
                       Takes over work
                     </th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -165,6 +200,17 @@ export const AgentHostPage = () => {
                             })
                           }
                         />
+                      </td>
+                      <td className="text-right">
+                        {agent.remaining > 0 && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setReleaseTarget(agent)}
+                          >
+                            Free tasks
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -189,6 +235,20 @@ export const AgentHostPage = () => {
         )}
       </div>
       <div ref={stageRef} aria-hidden className="fixed -left-[10000px] top-0" />
+      <ConfirmDialog
+        isOpen={releaseTarget !== null}
+        title={
+          releaseTarget === 'all'
+            ? 'Free the unfinished tasks of all your agents?'
+            : `Free the unfinished tasks of ${releaseTarget?.name}?`
+        }
+        description="They go back to the campaign's open pool. Tasks already labelled or skipped stay as they are."
+        confirmText="Free tasks"
+        isDangerous
+        isLoading={releaseOne.isPending || releaseAll.isPending}
+        onConfirm={confirmRelease}
+        onCancel={() => setReleaseTarget(null)}
+      />
     </div>
   );
 };
