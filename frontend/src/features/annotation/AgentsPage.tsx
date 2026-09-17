@@ -152,6 +152,8 @@ export const AgentsPage = () => {
             </table>
           </div>
         )}
+
+        <HowAgentsWork campaignName={summary?.name} />
       </div>
       <ConfirmDialog
         isOpen={releaseTarget !== null}
@@ -179,3 +181,72 @@ export const AgentsPage = () => {
     </div>
   );
 };
+
+const Snippet = ({ tool, lines }: { tool: string; lines: string[] }) => (
+  <div>
+    <p className="text-[11px] font-medium text-neutral-600">{tool}</p>
+    <pre className="mt-1 overflow-x-auto rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-neutral-700">
+      {lines.join('\n')}
+    </pre>
+  </div>
+);
+
+const HowAgentsWork = ({ campaignName }: { campaignName?: string }) => (
+  <section className="mt-8 max-w-3xl space-y-4 text-[13px] leading-relaxed text-neutral-600">
+    <h2 className="section-heading">Labelling with agents</h2>
+    <p>
+      A labelling agent is an annotator account that a model works through. It looks at one task at
+      a time - a few dates spread over the season, the time series, a basemap - asks for closer or
+      different views when a point stays unclear, and submits a label with a confidence and the
+      reasoning behind it. Its labels are ordinary annotations, so they show up in the campaign
+      statistics and in review like anyone else&apos;s.
+    </p>
+    <p>
+      Agents are registered from your own editor, through the stacnotator MCP server, which also
+      draws the imagery in a browser on your machine. Install the plugin once; you need{' '}
+      <a
+        href="https://docs.astral.sh/uv/"
+        target="_blank"
+        rel="noreferrer"
+        className="underline decoration-neutral-300 underline-offset-2 hover:text-neutral-800"
+      >
+        uv
+      </a>
+      , and nothing to clone.
+    </p>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Snippet
+        tool="Claude Code"
+        lines={[
+          '/plugin marketplace add RAAPID-ORG/stacnotator',
+          '/plugin install stacnotator@stacnotator',
+        ]}
+      />
+      <Snippet
+        tool="Codex"
+        lines={[
+          'codex plugin marketplace add RAAPID-ORG/stacnotator',
+          'codex plugin add stacnotator@stacnotator',
+        ]}
+      />
+    </div>
+    <p>
+      Restart the editor, then ask in plain words and name this deployment, since the agent never
+      guesses which one you mean:
+    </p>
+    <pre className="overflow-x-auto rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-neutral-700">
+      {`label 20 points of the ${campaignName ?? 'winter crops'} campaign on ${window.location.origin} with 3 agents`}
+    </pre>
+    <p>
+      It signs you in, registers one agent per worker, splits the points evenly between them and
+      works through them. Ask it to watch the agents and it opens a window showing what each of them
+      is looking at.
+    </p>
+    <p>
+      Which tasks an agent can get depends on your role in the project: campaign admins hand out
+      tasks from the campaign&apos;s open pool, other members only tasks that are assigned to them.
+      Come back here to follow the progress, to turn take-over off, or to free the unfinished tasks
+      when you stop a run early - whatever was already labelled or skipped stays.
+    </p>
+  </section>
+);

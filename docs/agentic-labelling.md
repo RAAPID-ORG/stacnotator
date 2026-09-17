@@ -112,7 +112,8 @@ sequenceDiagram
 
 `/projects/<p>/campaigns/<c>/agents` lists your agents on a campaign with done and remaining
 counts. From there you can switch take-over per agent and free the unfinished tasks of one
-agent or of all of them; labelled and skipped tasks stay.
+agent or of all of them; labelled and skipped tasks stay. The page also explains the feature
+and how to install the plugin, and the campaign overview links to it under the task sets.
 
 ## API
 
