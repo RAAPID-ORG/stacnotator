@@ -32,6 +32,8 @@ class AgentOut(BaseModel):
     assigned: int
     remaining: int
     takes_over_work: bool
+    # When this agent last submitted or changed an annotation; None before its first one.
+    last_active: datetime | None
     created_at: datetime
 
 

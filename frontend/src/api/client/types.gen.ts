@@ -176,6 +176,10 @@ export type AgentOut = {
      */
     takes_over_work: boolean;
     /**
+     * Last Active
+     */
+    last_active: string | null;
+    /**
      * Created At
      */
     created_at: string;

@@ -82,6 +82,10 @@ sequenceDiagram
   it to the project and assigns it tasks with the normal assignment code. Labels, skips,
   statistics and review rows are ordinary annotations. `data.labelling_agents` only records
   the owner, campaign, description and the take-over setting.
+- **Agents are not members.** They hold a project membership row so assignments work, but a
+  run is temporary, so they are left out of the project members list, the users an admin can
+  add, and the campaign's `users.csv`. Their work still shows up wherever annotations are
+  attributed: statistics, the review page and the annotation exports.
 - **Nothing is rendered on the server.** The MCP server opens `/agent-render?campaign=<id>`
   of the app in its own browser context per agent (so agents do not share tile connections)
   and calls `window.stacnotatorAgent` on it. The page draws with the same catalog, tile URLs,
@@ -113,7 +117,7 @@ sequenceDiagram
 ## Agents page
 
 `/projects/<p>/campaigns/<c>/agents` lists your agents on a campaign with done and remaining
-counts. From there you can switch take-over per agent and free the unfinished tasks of one
+counts and when each last submitted a label, so a run that died is easy to spot. From there you can switch take-over per agent and free the unfinished tasks of one
 agent or of all of them; labelled and skipped tasks stay. The page also explains the feature
 and how to install the plugin, and the campaign overview links to it under the task sets.
 

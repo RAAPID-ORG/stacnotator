@@ -18,6 +18,7 @@ from src.projects.service import (
     add_users_by_ids,
     demote_admin,
     demote_authoritative_reviewer,
+    get_project_users,
     list_project_campaigns,
     make_admin,
     make_authoritative_reviewer,
@@ -451,3 +452,14 @@ class TestListProjectCampaigns:
         statement = str(db.scalars.call_args.args[0])
         assert "campaigns.project_id = " in statement
         assert statement.endswith("ORDER BY data.campaigns.created_at DESC")
+
+
+def test_member_list_leaves_labelling_agents_out():
+    """An agent holds a membership row so assignments work, but it is a temporary
+    worker of one member, not part of the project's people."""
+    db = _mock_db()
+
+    get_project_users(db, 7)
+
+    statement = str(db.scalars.call_args.args[0].compile(compile_kwargs={"literal_binds": True}))
+    assert "users.issuer != 'agent'" in statement

@@ -25,6 +25,7 @@ from src.annotation.models import (
     AnnotationTaskAssignment,
 )
 from src.annotation.schemas import AnnotationTaskSubmitResponse
+from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.assignments import assign_tasks_to_users
 from src.campaigns.dependencies import require_campaign_access
@@ -32,7 +33,6 @@ from src.campaigns.models import Campaign
 from src.campaigns.schemas import AssignTasksToUsersRequest
 from src.projects.models import ProjectUser
 
-AGENT_ISSUER = "agent"
 MAX_AGENTS_PER_OWNER = 20
 
 Role = Literal["admin", "member"]
@@ -203,6 +203,12 @@ def agent_out(db: Session, agent: LabellingAgent, project_id: int) -> AgentOut:
             AnnotationTaskAssignment.user_id == agent.user_id, ~AnnotationTaskAssignment.is_review
         )
     )
+    last_active = db.scalar(
+        select(func.max(Annotation.updated_at)).where(
+            Annotation.created_by_user_id == agent.user_id,
+            Annotation.campaign_id == agent.campaign_id,
+        )
+    )
     return AgentOut(
         agent_id=agent.user_id,
         name=agent.user.display_name or "",
@@ -212,6 +218,7 @@ def agent_out(db: Session, agent: LabellingAgent, project_id: int) -> AgentOut:
         assigned=assigned or 0,
         remaining=_open_task_count(db, agent),
         takes_over_work=agent.takes_over_work,
+        last_active=last_active,
         created_at=agent.created_at,
     )
 

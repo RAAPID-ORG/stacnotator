@@ -10,6 +10,7 @@ from sqlalchemy import CursorResult, Result, delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
+from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign, TaskSet
 from src.campaigns.schemas import (
@@ -581,7 +582,8 @@ def build_task_assignments_export(
         db.scalars(
             select(ProjectUser)
             .join(Campaign, Campaign.project_id == ProjectUser.project_id)
-            .where(Campaign.id == campaign_id)
+            .join(User, User.id == ProjectUser.user_id)
+            .where(Campaign.id == campaign_id, User.issuer != AGENT_ISSUER)
             .options(joinedload(ProjectUser.user))
         )
         .unique()

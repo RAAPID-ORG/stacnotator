@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.orm.attributes import flag_modified
 
 from src.annotation.geometries import delete_orphan_geometries
+from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import strip_anyone_kind
@@ -222,12 +223,15 @@ def delete_project(db: Session, project_id: int) -> None:
 
 
 def get_project_users(db: Session, project_id: int) -> list[ProjectUser]:
+    """The project's people. Labelling agents hold a membership row too, but they are a
+    temporary worker of one member, listed and freed on the campaign's agents page."""
     return list(
         db.scalars(
             select(ProjectUser)
             .where(ProjectUser.project_id == project_id)
             .options(joinedload(ProjectUser.user))
             .join(User, User.id == ProjectUser.user_id)
+            .where(User.issuer != AGENT_ISSUER)
             .order_by(func.lower(func.coalesce(User.display_name, User.email)))
         ).all()
     )

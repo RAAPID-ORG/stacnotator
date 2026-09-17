@@ -19,6 +19,7 @@ from src.auth.router import list_users
 from src.auth.service import (
     accept_terms,
     edit_user_info,
+    get_all_users,
     grant_admin,
     grant_admin_bulk,
     register_user,
@@ -447,3 +448,13 @@ class TestAcceptTerms:
         assert exc_info.value.status_code == 409
         assert user.terms_accepted_version is None
         db.commit.assert_not_called()
+
+
+def test_the_address_book_leaves_labelling_agents_out():
+    """/auth/users is what admins pick new members from, so agent users stay out of it."""
+    db = MagicMock()
+
+    get_all_users(db)
+
+    statement = str(db.scalars.call_args.args[0].compile(compile_kwargs={"literal_binds": True}))
+    assert "users.issuer != 'agent'" in statement

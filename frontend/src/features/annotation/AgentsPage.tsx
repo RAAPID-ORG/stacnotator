@@ -16,8 +16,26 @@ import { Button, Switch } from '~/shared/ui/forms';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
 
 const AGENTS_REFRESH_MS = 5000;
+// An agent working normally labels within minutes; longer than this and its run is
+// probably over, which is what makes its unfinished tasks worth freeing.
+const STALLED_MS = 5 * 60 * 1000;
 const headerCls =
   'px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider';
+
+const lastActive = (at: string | null | undefined) => {
+  if (!at) return 'not yet';
+  const minutes = Math.round((Date.now() - new Date(at).getTime()) / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 24 ? `${hours} h ago` : `${Math.round(hours / 24)} d ago`;
+};
+
+// Before its first label an agent is judged by how long ago it was registered, so one
+// still drawing its first views is not called stopped.
+const stalled = (agent: AgentOut) =>
+  agent.remaining > 0 &&
+  Date.now() - new Date(agent.last_active ?? agent.created_at).getTime() > STALLED_MS;
 
 /** The owner's labelling agents on a campaign: their progress and control over their work. */
 export const AgentsPage = () => {
@@ -88,6 +106,12 @@ export const AgentsPage = () => {
                   <th className={headerCls}>Progress</th>
                   <th
                     className={headerCls}
+                    title="When this agent last submitted or changed a label"
+                  >
+                    Last active
+                  </th>
+                  <th
+                    className={headerCls}
                     title="When this agent runs out of tasks, it takes over tasks still waiting on your other agents"
                   >
                     Takes over work
@@ -120,6 +144,19 @@ export const AgentsPage = () => {
                             {done} of {agent.assigned}
                           </span>
                         </div>
+                      </td>
+                      <td
+                        className={`px-4 py-3 text-xs ${
+                          stalled(agent) ? 'text-amber-700' : 'text-neutral-600'
+                        }`}
+                        title={
+                          agent.last_active
+                            ? new Date(agent.last_active).toLocaleString()
+                            : 'No labels submitted yet'
+                        }
+                      >
+                        {lastActive(agent.last_active)}
+                        {stalled(agent) && <span className="text-neutral-400"> (stopped?)</span>}
                       </td>
                       <td className="px-4 py-3">
                         <Switch
@@ -199,7 +236,8 @@ const HowAgentsWork = ({ campaignName }: { campaignName?: string }) => (
       a time - a few dates spread over the season, the time series, a basemap - asks for closer or
       different views when a point stays unclear, and submits a label with a confidence and the
       reasoning behind it. Its labels are ordinary annotations, so they show up in the campaign
-      statistics and in review like anyone else&apos;s.
+      statistics and in review like anyone else&apos;s. A run is temporary, so agents are not listed
+      among the project members; they live here.
     </p>
     <p>
       Agents are registered from your own editor, through the stacnotator MCP server, which also

@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.auth.constants import ROLE_ADMIN, TERMS_VERSION
+from src.auth.constants import AGENT_ISSUER, ROLE_ADMIN, TERMS_VERSION
 from src.auth.models import User, UserRole
 from src.auth.providers.base import AuthenticatedUser
 from src.auth.usernames import username_error
@@ -158,8 +158,13 @@ def register_user(
 
 
 def get_all_users(db: Session) -> list[User]:
-    """Retrieve all users in the system, sorted by display name (email fallback)."""
-    stmt = select(User).order_by(func.lower(func.coalesce(User.display_name, User.email)))
+    """Every person in the system, sorted by display name (email fallback). Labelling
+    agents are left out: this list is what admins pick members from."""
+    stmt = (
+        select(User)
+        .where(User.issuer != AGENT_ISSUER)
+        .order_by(func.lower(func.coalesce(User.display_name, User.email)))
+    )
     return list(db.scalars(stmt).all())
 
 
