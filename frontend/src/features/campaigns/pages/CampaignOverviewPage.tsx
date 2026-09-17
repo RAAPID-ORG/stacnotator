@@ -203,7 +203,22 @@ export const CampaignOverviewPage = () => {
 
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="section-heading">Task sets</h2>
+            <div className="flex items-baseline gap-2.5">
+              <h2 className="section-heading">Task sets</h2>
+              {isMember && (
+                <button
+                  type="button"
+                  onClick={() => navigate(campaignPath(projectId, campaignId, 'agents'))}
+                  className="text-[11px] text-neutral-500 underline decoration-neutral-300 underline-offset-2 transition-colors hover:text-neutral-700 hover:decoration-neutral-500"
+                >
+                  {agentCount == null
+                    ? 'Labelling agents'
+                    : agentCount === 0
+                      ? 'No labelling agents yet'
+                      : `${agentCount} labelling agent${agentCount === 1 ? '' : 's'}`}
+                </button>
+              )}
+            </div>
             {isAdmin && (
               <InlineAddAction
                 onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
@@ -264,21 +279,6 @@ export const CampaignOverviewPage = () => {
                 </MotionListItem>
               ))}
             </div>
-          )}
-          {isMember && (
-            <p className="mt-3 text-[11px] text-neutral-500">
-              <button
-                type="button"
-                onClick={() => navigate(campaignPath(projectId, campaignId, 'agents'))}
-                className="underline decoration-neutral-300 underline-offset-2 hover:text-neutral-700 hover:decoration-neutral-500 transition-colors"
-              >
-                {agentCount == null
-                  ? 'Labelling agents'
-                  : agentCount === 0
-                    ? 'No labelling agents yet'
-                    : `${agentCount} labelling agent${agentCount === 1 ? '' : 's'}`}
-              </button>
-            </p>
           )}
         </section>
 
