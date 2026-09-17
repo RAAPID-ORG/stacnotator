@@ -13,7 +13,7 @@ from geoalchemy2.elements import WKTElement
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
-from src.annotation.claims import _is_free_work, claim_next_task, claim_task
+from src.annotation.claims import claim_next_task, claim_task, is_free_work
 from src.annotation.constants import (
     CLAIM_TTL_MINUTES,
     DELETION_RETENTION,
@@ -1704,7 +1704,7 @@ class TestClaimTask:
     def test_free_work_means_neither_assigned_nor_worked(self):
         """Both halves matter and neither is checked anywhere else, so losing
         one would silently start handing out other people's tasks."""
-        sql = str(_compiled(select(AnnotationTask.id).where(_is_free_work())))
+        sql = str(_compiled(select(AnnotationTask.id).where(is_free_work())))
         assert "annotation_tasks_assignment" in sql
         assert "annotations" in sql
         assert sql.count("NOT (EXISTS") == 2

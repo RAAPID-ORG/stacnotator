@@ -218,6 +218,22 @@ class CampaignSamples(Dataset):
 loader = DataLoader(CampaignSamples(campaign.get_samples()), batch_size=64, shuffle=True)
 ```
 
+## Agentic labelling
+
+A plugin for Claude Code and Codex lets a model (or a team of subagents) label a campaign's
+tasks from rendered imagery, as annotator agents you own:
+
+```
+/plugin marketplace add RAAPID-ORG/stacnotator          # Claude Code
+/plugin install stacnotator@stacnotator
+
+codex plugin marketplace add RAAPID-ORG/stacnotator     # Codex
+codex plugin add stacnotator@stacnotator
+```
+
+It bundles the labelling skill and the MCP server (`stacnotator-mcp`, run through `uvx`).
+Setup for other clients and how it works: [docs/agentic-labelling.md](../docs/agentic-labelling.md).
+
 ## API summary
 
 ```python

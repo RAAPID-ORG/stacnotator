@@ -1,0 +1,19 @@
+{
+  "name": "stacnotator",
+  "description": "Label STACNotator campaigns with agents: MCP server and labelling skill.",
+  "version": "0.1.0",
+  "author": {
+    "name": "RAAPID"
+  },
+  "homepage": "https://github.com/RAAPID-ORG/stacnotator",
+  "mcpServers": {
+    "stacnotator": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "stacnotator-sdk[agent] @ ${CLAUDE_PLUGIN_ROOT}",
+        "stacnotator-mcp"
+      ]
+    }
+  }
+}

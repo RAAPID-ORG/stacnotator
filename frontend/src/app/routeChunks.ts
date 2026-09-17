@@ -3,6 +3,7 @@
 
 export const importCreateCampaign = () => import('~/features/campaigns/pages/CreateCampaignPage');
 export const importAnnotation = () => import('~/features/annotation/AnnotationPage');
+export const importAgents = () => import('~/features/annotation/AgentsPage');
 export const importCampaignOverview = () =>
   import('~/features/campaigns/pages/CampaignOverviewPage');
 export const importCampaignSettings = () =>

@@ -96,6 +96,180 @@ export type AddUsersByEmailResult = {
 };
 
 /**
+ * AgentAnnotate
+ */
+export type AgentAnnotate = {
+    /**
+     * Label Id
+     */
+    label_id: number | null;
+    /**
+     * Comment
+     */
+    comment?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: number | null;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative?: boolean | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
+    /**
+     * Slice Comments
+     */
+    slice_comments?: Array<SliceComment> | null;
+    /**
+     * Form Values
+     */
+    form_values?: {
+        [key: string]: number | number | string | Array<number> | DateRangeValue;
+    } | null;
+    /**
+     * Active Ms
+     */
+    active_ms?: number | null;
+};
+
+/**
+ * AgentOut
+ */
+export type AgentOut = {
+    /**
+     * Agent Id
+     */
+    agent_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Assigned
+     */
+    assigned: number;
+    /**
+     * Remaining
+     */
+    remaining: number;
+    /**
+     * Takes Over Work
+     */
+    takes_over_work: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * AgentRegister
+ */
+export type AgentRegister = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Task Count
+     */
+    task_count?: number;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
+    /**
+     * Takes Over Work
+     */
+    takes_over_work?: boolean;
+};
+
+/**
+ * AgentTaskOut
+ */
+export type AgentTaskOut = {
+    /**
+     * Task Id
+     */
+    task_id: number;
+    /**
+     * Annotation Number
+     */
+    annotation_number: number;
+    /**
+     * Lat
+     */
+    lat: number;
+    /**
+     * Lon
+     */
+    lon: number;
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt: string;
+};
+
+/**
+ * AgentUpdate
+ */
+export type AgentUpdate = {
+    /**
+     * Takes Over Work
+     */
+    takes_over_work: boolean;
+};
+
+/**
+ * AgentsOverviewOut
+ */
+export type AgentsOverviewOut = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Total Tasks
+     */
+    total_tasks: number;
+    /**
+     * Tasks From
+     */
+    tasks_from: 'open_pool' | 'own_assignments';
+    /**
+     * Open Tasks
+     */
+    open_tasks: number;
+    /**
+     * Agents
+     */
+    agents: Array<AgentOut>;
+};
+
+/**
  * AnnotationChangeOut
  *
  * One annotation another session created or edited, small enough to poll
@@ -2980,6 +3154,24 @@ export type NamedVizParamsCreate = {
 };
 
 /**
+ * NextTasksOut
+ */
+export type NextTasksOut = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Remaining
+     */
+    remaining: number;
+    /**
+     * Tasks
+     */
+    tasks: Array<AgentTaskOut>;
+};
+
+/**
  * NumberFormField
  */
 export type NumberFormField = {
@@ -3805,6 +3997,16 @@ export type RasterOverlayOut = {
      * Mlops Url
      */
     mlops_url: string | null;
+};
+
+/**
+ * ReleasedTasksOut
+ */
+export type ReleasedTasksOut = {
+    /**
+     * Released
+     */
+    released: number;
 };
 
 /**
@@ -10986,3 +11188,222 @@ export type GetVisualizerTilerTokenResponses = {
 };
 
 export type GetVisualizerTilerTokenResponse = GetVisualizerTilerTokenResponses[keyof GetVisualizerTilerTokenResponses];
+
+export type ListAgentsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/agents';
+};
+
+export type ListAgentsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAgentsError = ListAgentsErrors[keyof ListAgentsErrors];
+
+export type ListAgentsResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentsOverviewOut;
+};
+
+export type ListAgentsResponse = ListAgentsResponses[keyof ListAgentsResponses];
+
+export type RegisterAgentData = {
+    body: AgentRegister;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/agents';
+};
+
+export type RegisterAgentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RegisterAgentError = RegisterAgentErrors[keyof RegisterAgentErrors];
+
+export type RegisterAgentResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentOut;
+};
+
+export type RegisterAgentResponse = RegisterAgentResponses[keyof RegisterAgentResponses];
+
+export type ReleaseAgentTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Agent Id
+         */
+        agent_id?: string | null;
+    };
+    url: '/api/campaigns/{campaign_id}/agents/release-tasks';
+};
+
+export type ReleaseAgentTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReleaseAgentTasksError = ReleaseAgentTasksErrors[keyof ReleaseAgentTasksErrors];
+
+export type ReleaseAgentTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReleasedTasksOut;
+};
+
+export type ReleaseAgentTasksResponse = ReleaseAgentTasksResponses[keyof ReleaseAgentTasksResponses];
+
+export type GetAgentData = {
+    body?: never;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}';
+};
+
+export type GetAgentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAgentError = GetAgentErrors[keyof GetAgentErrors];
+
+export type GetAgentResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentOut;
+};
+
+export type GetAgentResponse = GetAgentResponses[keyof GetAgentResponses];
+
+export type UpdateAgentData = {
+    body: AgentUpdate;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}';
+};
+
+export type UpdateAgentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAgentError = UpdateAgentErrors[keyof UpdateAgentErrors];
+
+export type UpdateAgentResponses = {
+    /**
+     * Successful Response
+     */
+    200: AgentOut;
+};
+
+export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses];
+
+export type NextAgentTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/next';
+};
+
+export type NextAgentTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type NextAgentTasksError = NextAgentTasksErrors[keyof NextAgentTasksErrors];
+
+export type NextAgentTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: NextTasksOut;
+};
+
+export type NextAgentTasksResponse = NextAgentTasksResponses[keyof NextAgentTasksResponses];
+
+export type AnnotateAgentTaskData = {
+    body: AgentAnnotate;
+    path: {
+        /**
+         * Agent Id
+         */
+        agent_id: string;
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/agents/{agent_id}/tasks/{task_id}/annotate';
+};
+
+export type AnnotateAgentTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnnotateAgentTaskError = AnnotateAgentTaskErrors[keyof AnnotateAgentTaskErrors];
+
+export type AnnotateAgentTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationTaskSubmitResponse;
+};
+
+export type AnnotateAgentTaskResponse = AnnotateAgentTaskResponses[keyof AnnotateAgentTaskResponses];

@@ -12,7 +12,7 @@ import type { ImageryCatalog } from './imagery';
  * still covers the screen, which is all this file.
  */
 
-const isSceneSource = (source: ImagerySourceOut): boolean =>
+export const isSceneSource = (source: ImagerySourceOut): boolean =>
   (source.generation_series ?? []).some((series) => series.config.kind === 'planet_scenes');
 
 /** The source behind a collection when it is one of those, else null - which is what

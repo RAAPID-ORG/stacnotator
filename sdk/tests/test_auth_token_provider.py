@@ -85,8 +85,8 @@ def test_rejected_refresh_token_raises_authentication_error():
         provider.id_token()
 
 
-def test_none_provider_yields_no_token():
+def test_none_provider_yields_the_local_placeholder_token():
     provider = NoneTokenProvider()
-    assert provider.id_token() is None
+    assert provider.id_token() == "local-token"
     provider.invalidate()
-    assert provider.id_token() is None
+    assert provider.id_token() == "local-token"

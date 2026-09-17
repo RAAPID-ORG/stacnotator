@@ -82,7 +82,12 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['~/features/annotation/*', '!~/features/annotation/AnnotationPage'],
+              group: [
+                '~/features/annotation/*',
+                '!~/features/annotation/AnnotationPage',
+                '!~/features/annotation/AgentsPage',
+                '!~/features/annotation/AgentRenderPage',
+              ],
               message:
                 'Import the annotation feature through ~/features/annotation/AnnotationPage.',
             },
@@ -133,7 +138,11 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['~/features/annotation/*', '!~/features/annotation/AnnotationPage'],
+              group: [
+                '~/features/annotation/*',
+                '!~/features/annotation/AnnotationPage',
+                '!~/features/annotation/AgentsPage',
+              ],
               message:
                 'Import the annotation feature through ~/features/annotation/AnnotationPage.',
             },

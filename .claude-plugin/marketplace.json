@@ -1,0 +1,14 @@
+{
+  "name": "stacnotator",
+  "owner": {
+    "name": "RAAPID"
+  },
+  "description": "STACNotator plugins for Claude Code.",
+  "plugins": [
+    {
+      "name": "stacnotator",
+      "source": "./sdk",
+      "description": "Label STACNotator campaigns with agents: MCP server and labelling skill."
+    }
+  ]
+}

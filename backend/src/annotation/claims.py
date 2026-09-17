@@ -104,7 +104,7 @@ def claim_task(db: Session, campaign_id: int, task_id: int, user_id: UUID) -> Cl
     return ClaimOutcome(claimed=True, claimed_at=task.claimed_at, holder_user_id=user_id)
 
 
-def _is_free_work() -> ColumnElement[bool]:
+def is_free_work() -> ColumnElement[bool]:
     """Nobody assigned to the task, nobody has labelled or skipped it.
 
     One definition, used both to check a task the caller named and to pick one
@@ -118,7 +118,7 @@ def _is_free_work() -> ColumnElement[bool]:
 def _is_leasable(db: Session, task_id: int) -> bool:
     return (
         db.execute(
-            select(AnnotationTask.id).where(AnnotationTask.id == task_id, _is_free_work())
+            select(AnnotationTask.id).where(AnnotationTask.id == task_id, is_free_work())
         ).first()
         is not None
     )
@@ -146,7 +146,7 @@ def claim_next_task(
             AnnotationTask.claimed_by_user_id.is_(None),
             AnnotationTask.claimed_at <= now - timedelta(minutes=CLAIM_TTL_MINUTES),
         ),
-        _is_free_work(),
+        is_free_work(),
     )
     if task_set_id is not None:
         free = free.where(AnnotationTask.task_set_id == task_set_id)
