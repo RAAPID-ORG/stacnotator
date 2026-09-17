@@ -24,7 +24,7 @@ codex plugin marketplace add RAAPID-ORG/stacnotator
 codex plugin add stacnotator@stacnotator
 ```
 
-Then ask, e.g. "label 20 points of the Ukraine winter crop campaign on
+The agent always asks which STACNotator to use and needs its full URL. Then ask, e.g. "label 20 points of the Ukraine winter crop campaign on
 https://your-stacnotator.example.org with 4 agents". The agent signs you in through a
 browser tab the first time and asks once before downloading Chromium (about 150 MB), which
 draws the images. The first start takes a minute while uv installs the SDK.
@@ -72,6 +72,10 @@ sequenceDiagram
     S->>B: POST /agents/{id}/tasks/{task}/annotate
 ```
 
+- **Who can run agents.** Only project members. Campaign admins hand agents tasks from the
+  open pool; other members only the tasks assigned to themselves, and freeing an agent's
+  unfinished tasks gives them back to that member. At most 20 agents per person in a
+  campaign.
 - **Agents are annotators.** Registering creates a user owned by the signed-in account, adds
   it to the project and assigns it tasks with the normal assignment code. Labels, skips,
   statistics and review rows are ordinary annotations. `data.labelling_agents` only records

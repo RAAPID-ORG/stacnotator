@@ -3344,7 +3344,7 @@ export const registerAgentMutation = (options?: Partial<Options<RegisterAgentDat
 /**
  * Release Agent Tasks
  *
- * Free the unfinished tasks of one of the caller's agents, or of all of them.
+ * Take unfinished tasks off one of the caller's agents, or off all of them.
  */
 export const releaseAgentTasksMutation = (options?: Partial<Options<ReleaseAgentTasksData>>): UseMutationOptions<ReleaseAgentTasksResponse, ReleaseAgentTasksError, Options<ReleaseAgentTasksData>> => {
     const mutationOptions: UseMutationOptions<ReleaseAgentTasksResponse, ReleaseAgentTasksError, Options<ReleaseAgentTasksData>> = {

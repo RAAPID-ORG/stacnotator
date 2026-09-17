@@ -2122,7 +2122,7 @@ export const registerAgent = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Release Agent Tasks
  *
- * Free the unfinished tasks of one of the caller's agents, or of all of them.
+ * Take unfinished tasks off one of the caller's agents, or off all of them.
  */
 export const releaseAgentTasks = <ThrowOnError extends boolean = false>(options: Options<ReleaseAgentTasksData, ThrowOnError>) => (options.client ?? client).post<ReleaseAgentTasksResponses, ReleaseAgentTasksErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

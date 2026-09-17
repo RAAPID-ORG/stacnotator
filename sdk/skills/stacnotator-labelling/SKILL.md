@@ -5,7 +5,8 @@ description: Label STACNotator campaign tasks from satellite imagery through the
 
 # Labelling a STACNotator campaign
 
-Not signed in: ask the user for their STACNotator URL and call `login(url)`. A
+First ask the user for the full URL of the STACNotator to label on (`https://...`), every
+session, even if you used one before; never assume or complete one. Then `login(url)`. A
 `render_browser` note from `register_agent`: ask the user before `install_render_browsers`,
 then call `campaign_context`. Never register the same worker twice.
 
@@ -73,8 +74,10 @@ values are in `series[].rows`.
 
 ## Several agents
 
-1. Ask in one message for what is missing: campaign, number of points (say how many are
-   open), number of agents (suggest one per 5 points, at most 8).
+1. Ask in one message for what is missing: the full URL, campaign, number of points,
+   number of agents (suggest one per 5 points, at most 8). `list_agents` says how many
+   tasks you can hand out: campaign admins from the open pool, other project members only
+   their own assigned tasks.
 2. Register the agents one at a time with the workers' image limits, names like `scout-a`,
    tasks split evenly, `takes_over_work: true`.
 3. Start one subagent per agent in parallel (without subagents: work them yourself in turn,

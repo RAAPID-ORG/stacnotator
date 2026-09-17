@@ -1,11 +1,11 @@
 import secrets
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from geoalchemy2.shape import to_shape
-from sqlalchemy import CursorResult, delete, exists, func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import CursorResult, delete, exists, func, select, update
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from src.agents.models import LabellingAgent
 from src.agents.schemas import (
@@ -33,22 +33,49 @@ from src.campaigns.schemas import AssignTasksToUsersRequest
 from src.projects.models import ProjectUser
 
 AGENT_ISSUER = "agent"
+MAX_AGENTS_PER_OWNER = 20
+
+Role = Literal["admin", "member"]
 # The task to label now plus the ones after it the caller draws ahead.
 UPCOMING_TASKS = 3
 
 
-def get_agent(db: Session, agent_id: UUID, owner: User) -> tuple[LabellingAgent, Campaign]:
-    """The owner's agent and its campaign, checking the owner can still reach it."""
+def owner_role(db: Session, campaign: Campaign, user: User) -> Role:
+    """Agents act as project members, so only members run them. Campaign admins hand
+    them work from the open pool, which is what assigning tasks takes; other members only
+    their own assigned tasks."""
+    if user.is_admin:
+        return "admin"
+    membership = db.scalar(
+        select(ProjectUser).where(
+            ProjectUser.project_id == campaign.project_id, ProjectUser.user_id == user.id
+        )
+    )
+    if membership is None:
+        raise HTTPException(
+            status_code=403, detail="Only members of this project can run labelling agents"
+        )
+    return "admin" if membership.is_admin else "member"
+
+
+def get_agent(db: Session, agent_id: UUID, owner: User) -> tuple[LabellingAgent, Campaign, Role]:
+    """The owner's agent and its campaign, checking the owner may still run it."""
     agent = db.get(LabellingAgent, agent_id)
     if agent is None or agent.owner_user_id != owner.id:
         raise HTTPException(status_code=404, detail="Agent not found")
     campaign = require_campaign_access(agent.campaign_id, db, owner)
-    return agent, campaign
+    return agent, campaign, owner_role(db, campaign, owner)
 
 
 def register_agent(
     db: Session, campaign: Campaign, owner: User, req: AgentRegister
 ) -> LabellingAgent:
+    role = owner_role(db, campaign, owner)
+    if len(owned_agents(db, campaign.id, owner)) >= MAX_AGENTS_PER_OWNER:
+        raise HTTPException(
+            status_code=409,
+            detail=f"At most {MAX_AGENTS_PER_OWNER} agents per person in a campaign",
+        )
     if campaign.settings.sample_extent_meters is None and _has_point_tasks(db, campaign.id):
         raise HTTPException(
             status_code=409,
@@ -63,7 +90,7 @@ def register_agent(
             issuer=AGENT_ISSUER,
             external_uid=str(agent_uid),
             email=f"{agent_uid}@agents.stacnotator.invalid",
-            display_name=f"{req.name}-{secrets.token_hex(3)}",
+            display_name=_unique_name(db, req.name),
         )
     )
     db.flush()
@@ -78,9 +105,53 @@ def register_agent(
     db.add(agent)
     db.commit()
 
-    if req.task_count:
+    if req.task_count and role == "admin":
         assign_tasks(db, agent, req.task_count, req.task_set_id)
+    elif req.task_count:
+        _hand_over_own_tasks(db, owner, agent, req.task_count, req.task_set_id)
     return agent
+
+
+def _unique_name(db: Session, name: str) -> str:
+    """Usernames are unique; the suffix makes a clash rare and the check makes it harmless."""
+    while True:
+        candidate = f"{name}-{secrets.token_hex(3)}"
+        if db.scalar(select(User.id).where(User.display_name == candidate)) is None:
+            return candidate
+
+
+def _owner_open_assignments(db: Session, owner: User, campaign_id: int):
+    """The owner's own assignments in the campaign they have not labelled or skipped."""
+    return (
+        select(AnnotationTaskAssignment)
+        .join(AnnotationTask, AnnotationTask.id == AnnotationTaskAssignment.task_id)
+        .where(
+            AnnotationTask.campaign_id == campaign_id,
+            AnnotationTaskAssignment.user_id == owner.id,
+            ~AnnotationTaskAssignment.is_review,
+            ~exists().where(
+                Annotation.annotation_task_id == AnnotationTask.id,
+                Annotation.created_by_user_id == owner.id,
+            ),
+        )
+    )
+
+
+def _hand_over_own_tasks(
+    db: Session, owner: User, agent: LabellingAgent, count: int, task_set_id: int | None
+) -> int:
+    query = _owner_open_assignments(db, owner, agent.campaign_id)
+    if task_set_id is not None:
+        query = query.where(AnnotationTask.task_set_id == task_set_id)
+    assignments = db.scalars(
+        query.order_by(AnnotationTask.annotation_number)
+        .limit(count)
+        .with_for_update(of=AnnotationTaskAssignment, skip_locked=True)
+    ).all()
+    for assignment in assignments:
+        assignment.user_id = agent.user_id
+    db.commit()
+    return len(assignments)
 
 
 def _has_point_tasks(db: Session, campaign_id: int) -> bool:
@@ -145,20 +216,23 @@ def agent_out(db: Session, agent: LabellingAgent) -> AgentOut:
 
 
 def agents_overview(db: Session, campaign: Campaign, owner: User) -> AgentsOverviewOut:
+    role = owner_role(db, campaign, owner)
     total = db.scalar(
         select(func.count())
         .select_from(AnnotationTask)
         .where(AnnotationTask.campaign_id == campaign.id)
     )
-    open_tasks = db.scalar(
-        select(func.count())
-        .select_from(AnnotationTask)
-        .where(AnnotationTask.campaign_id == campaign.id, is_free_work())
+    handable = (
+        select(AnnotationTask.id).where(AnnotationTask.campaign_id == campaign.id, is_free_work())
+        if role == "admin"
+        else _owner_open_assignments(db, owner, campaign.id)
     )
+    open_tasks = db.scalar(select(func.count()).select_from(handable.subquery()))
     return AgentsOverviewOut(
         campaign_id=campaign.id,
         name=campaign.name,
         total_tasks=total or 0,
+        tasks_from="open_pool" if role == "admin" else "own_assignments",
         open_tasks=open_tasks or 0,
         agents=[agent_out(db, agent) for agent in owned_agents(db, campaign.id, owner)],
     )
@@ -198,7 +272,7 @@ def _task_out(task: AnnotationTask) -> AgentTaskOut:
 
 
 def next_tasks(db: Session, agent_id: UUID, owner: User) -> NextTasksOut:
-    agent, _ = get_agent(db, agent_id, owner)
+    agent, _, _ = get_agent(db, agent_id, owner)
     upcoming = _upcoming_tasks(db, agent)
     if not upcoming and agent.takes_over_work and _take_over_task(db, agent):
         upcoming = _upcoming_tasks(db, agent)
@@ -257,30 +331,42 @@ def _take_over_task(db: Session, agent: LabellingAgent) -> bool:
     return False
 
 
-def release_tasks(db: Session, agents: list[LabellingAgent]) -> int:
-    """Hand the agents' unfinished tasks back to the pool. What they labelled or skipped
-    stays theirs, and so do its assignments, so their finished work keeps counting."""
+def release_tasks(db: Session, owner: User, role: Role, agents: list[LabellingAgent]) -> int:
+    """Take the agents' unfinished tasks off them: back to the open pool for a campaign
+    admin, back to the owner for anyone else, who only ever handed out their own. What the
+    agents labelled or skipped stays theirs, so their finished work keeps counting."""
     agent_ids = [agent.user_id for agent in agents]
     if not agent_ids:
         return 0
-    released = db.execute(
-        delete(AnnotationTaskAssignment).where(
-            AnnotationTaskAssignment.user_id.in_(agent_ids),
-            ~AnnotationTaskAssignment.is_review,
-            ~exists().where(
-                Annotation.annotation_task_id == AnnotationTaskAssignment.task_id,
-                Annotation.created_by_user_id == AnnotationTaskAssignment.user_id,
-            ),
-        )
+    unfinished = (
+        AnnotationTaskAssignment.user_id.in_(agent_ids),
+        ~AnnotationTaskAssignment.is_review,
+        ~exists().where(
+            Annotation.annotation_task_id == AnnotationTaskAssignment.task_id,
+            Annotation.created_by_user_id == AnnotationTaskAssignment.user_id,
+        ),
     )
+    released = 0
+    if role == "member":
+        owners = aliased(AnnotationTaskAssignment)
+        owner_has_task = exists().where(
+            owners.task_id == AnnotationTaskAssignment.task_id, owners.user_id == owner.id
+        )
+        returned = db.execute(
+            update(AnnotationTaskAssignment)
+            .where(*unfinished, ~owner_has_task)
+            .values(user_id=owner.id)
+        )
+        released += cast("CursorResult[Any]", returned).rowcount
+    deleted = db.execute(delete(AnnotationTaskAssignment).where(*unfinished))
     db.commit()
-    return cast("CursorResult[Any]", released).rowcount
+    return released + cast("CursorResult[Any]", deleted).rowcount
 
 
 def submit_annotation(
     db: Session, agent_id: UUID, owner: User, task_id: int, body: AgentAnnotate
 ) -> AnnotationTaskSubmitResponse:
-    agent, campaign = get_agent(db, agent_id, owner)
+    agent, campaign, _ = get_agent(db, agent_id, owner)
     return annotation_service.submit_task_annotation(
         db=db, campaign=campaign, task_id=task_id, annotation_create=body, user_id=agent.user_id
     )

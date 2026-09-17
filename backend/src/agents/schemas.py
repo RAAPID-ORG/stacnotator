@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -53,7 +54,10 @@ class AgentsOverviewOut(BaseModel):
     campaign_id: int
     name: str
     total_tasks: int
-    # Neither assigned nor labelled: what new agents can be given.
+    # Campaign admins hand agents tasks from the open pool; other project members only
+    # the tasks assigned to themselves.
+    tasks_from: Literal["open_pool", "own_assignments"]
+    # How many tasks the caller can still hand to new agents.
     open_tasks: int
     agents: list[AgentOut]
 

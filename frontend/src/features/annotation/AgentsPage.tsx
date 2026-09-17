@@ -160,7 +160,11 @@ export const AgentsPage = () => {
             ? 'Free the unfinished tasks of all your agents?'
             : `Free the unfinished tasks of ${releaseTarget?.name}?`
         }
-        description="They go back to the campaign's open pool. Tasks already labelled or skipped stay as they are."
+        description={
+          overviewQuery.data?.tasks_from === 'own_assignments'
+            ? 'They are assigned back to you. Tasks already labelled or skipped stay as they are.'
+            : "They go back to the campaign's open pool. Tasks already labelled or skipped stay as they are."
+        }
         confirmText="Free tasks"
         isDangerous
         isLoading={release.isPending}

@@ -56,13 +56,14 @@ def release_agent_tasks(
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> ReleasedTasksOut:
-    """Free the unfinished tasks of one of the caller's agents, or of all of them."""
+    """Take unfinished tasks off one of the caller's agents, or off all of them."""
+    role = service.owner_role(db, campaign, user)
     agents = service.owned_agents(db, campaign.id, user)
     if agent_id is not None:
         agents = [agent for agent in agents if agent.user_id == agent_id]
         if not agents:
             raise HTTPException(status_code=404, detail="Agent not found")
-    return ReleasedTasksOut(released=service.release_tasks(db, agents))
+    return ReleasedTasksOut(released=service.release_tasks(db, user, role, agents))
 
 
 @router.get("/agents/{agent_id}", response_model=AgentOut)
@@ -71,7 +72,7 @@ def get_agent(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ) -> AgentOut:
-    agent, _ = service.get_agent(db, agent_id, user)
+    agent, _, _ = service.get_agent(db, agent_id, user)
     return service.agent_out(db, agent)
 
 
@@ -82,7 +83,7 @@ def update_agent(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ) -> AgentOut:
-    agent, _ = service.get_agent(db, agent_id, user)
+    agent, _, _ = service.get_agent(db, agent_id, user)
     agent.takes_over_work = body.takes_over_work
     db.commit()
     return service.agent_out(db, agent)

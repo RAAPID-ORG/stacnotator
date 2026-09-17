@@ -14,6 +14,7 @@ import json
 import subprocess
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlparse
 
 from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -73,23 +74,60 @@ _image_limits: dict[str, dict[str, float]] = {}
 _registering = asyncio.Lock()
 
 
-NOT_LOGGED_IN = "Not signed in: ask the user for their STACNotator URL and call login."
+# The deployment the user named in this session. A login saved earlier never picks one:
+# labelling on the wrong STACNotator writes real annotations there.
+_session_url: str | None = None
+NO_DEPLOYMENT = (
+    "No STACNotator deployment chosen in this session. Ask the user for the full URL to label "
+    "on (like https://stacnotator.example.org), never assume or reuse one, then call login(url)."
+)
+
+
+def _http() -> Http:
+    if _session_url is None:
+        raise ToolError(NO_DEPLOYMENT)
+    return _signed_in_http()
 
 
 @functools.cache
-def _http() -> Http:
+def _signed_in_http() -> Http:
     try:
         return Client()._http
     except NotLoggedInError as exc:
-        raise ToolError(NOT_LOGGED_IN) from exc
+        raise ToolError(NO_DEPLOYMENT) from exc
+
+
+def _browsers() -> RenderBrowsers:
+    if _session_url is None:
+        raise ToolError(NO_DEPLOYMENT)
+    return _render_browsers(_session_url)
 
 
 @functools.cache
-def _browsers() -> RenderBrowsers:
+def _render_browsers(app_url: str) -> RenderBrowsers:
+    return RenderBrowsers(app_url, lambda: asyncio.to_thread(_http().token))
+
+
+def _full_url(url: str) -> str:
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ToolError(
+            "login needs the full URL the user gave, with http:// or https:// "
+            "(like https://stacnotator.example.org). Ask the user for it."
+        )
+    return f"{parsed.scheme}://{parsed.netloc}{parsed.path.rstrip('/')}"
+
+
+def _sign_in(url: str) -> dict[str, Any]:
     creds = _credentials.load()
-    if creds is None:
-        raise ToolError(NOT_LOGGED_IN)
-    return RenderBrowsers(creds.url, lambda: asyncio.to_thread(_http().token))
+    if creds is not None and creds.url == url:
+        try:
+            me: dict[str, Any] = Client().whoami()
+            return me
+        except StacnotatorError:
+            pass
+    result: dict[str, Any] = sdk_login(url)
+    return result
 
 
 async def _api(call: Callable[..., Any], *args: Any) -> Any:
@@ -171,16 +209,23 @@ async def _bundle(
 
 @server.tool(structured_output=False)
 async def login(url: str) -> str:
-    """Sign in to a STACNotator deployment: url is the web app address the user opens in
-    their browser. Opens a browser tab for signing in when the deployment needs it; the
-    login is kept for later sessions, so call this only when another tool says so."""
+    """Choose the STACNotator deployment for this session and sign in to it. Required before
+    any other tool. url: the full web app address the user gave you (https://...). Always
+    ask the user which deployment to use; never assume one or reuse one from an earlier
+    session. Opens a browser tab to sign in when needed."""
+    global _session_url
+    url = _full_url(url)
+    _signed_in_http.cache_clear()
     try:
-        me = await asyncio.to_thread(sdk_login, url)
+        me = await asyncio.to_thread(_sign_in, url)
     except StacnotatorError as exc:
         raise ToolError(str(exc)) from exc
-    _http.cache_clear()
-    _browsers.cache_clear()
-    return _json({"signed_in_as": me.get("display_name") or me.get("email")})
+    if url != _session_url:
+        for state in (_agents, _default_views, _current_tasks, _image_limits):
+            state.clear()
+    _session_url = url
+    _signed_in_http.cache_clear()
+    return _json({"deployment": url, "signed_in_as": me.get("display_name") or me.get("email")})
 
 
 @server.tool(structured_output=False)

@@ -53,13 +53,14 @@ def browsers(monkeypatch):
     save(Credentials(url=BASE, auth={"mode": "none"}, api_url=BASE))
     fake = FakeBrowsers()
     monkeypatch.setattr(agent_mcp, "_browsers", lambda: fake)
-    agent_mcp._http.cache_clear()
+    monkeypatch.setattr(agent_mcp, "_session_url", BASE)
+    agent_mcp._signed_in_http.cache_clear()
     agent_mcp._agents.clear()
     agent_mcp._default_views.clear()
     agent_mcp._current_tasks.clear()
     agent_mcp._image_limits.clear()
     yield fake
-    agent_mcp._http.cache_clear()
+    agent_mcp._signed_in_http.cache_clear()
 
 
 @responses.activate
@@ -133,3 +134,27 @@ def test_registered_image_limits_reach_every_render(browsers):
 
     renders = [call for call in browsers.calls if call[0] == "render"]
     assert renders[0][3] == {"max_edge_px": 2000, "max_megapixels": 3.0}
+
+
+def test_tools_refuse_until_the_user_named_a_deployment(browsers, monkeypatch):
+    monkeypatch.setattr(agent_mcp, "_session_url", None)
+
+    with pytest.raises(ToolError, match="full URL"):
+        asyncio.run(agent_mcp.list_campaigns())
+
+
+@pytest.mark.parametrize("url", ["stacnotator.example.org", "app", "ftp://app.example.org"])
+def test_login_requires_a_full_url(browsers, url):
+    with pytest.raises(ToolError, match="full URL"):
+        asyncio.run(agent_mcp.login(url))
+
+
+@responses.activate
+def test_login_reuses_a_saved_login_for_the_same_deployment(browsers, monkeypatch):
+    monkeypatch.setattr(agent_mcp, "_session_url", None)
+    responses.get(f"{BASE}/api/auth/me", json={"display_name": "rohan"})
+
+    result = json.loads(asyncio.run(agent_mcp.login(BASE + "/")))
+
+    assert result == {"deployment": BASE, "signed_in_as": "rohan"}
+    assert agent_mcp._session_url == BASE

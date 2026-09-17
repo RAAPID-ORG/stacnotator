@@ -256,6 +256,10 @@ export type AgentsOverviewOut = {
      */
     total_tasks: number;
     /**
+     * Tasks From
+     */
+    tasks_from: 'open_pool' | 'own_assignments';
+    /**
      * Open Tasks
      */
     open_tasks: number;
