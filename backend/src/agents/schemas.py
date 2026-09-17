@@ -28,6 +28,7 @@ class AgentOut(BaseModel):
     name: str
     description: str | None
     campaign_id: int
+    project_id: int
     assigned: int
     remaining: int
     takes_over_work: bool

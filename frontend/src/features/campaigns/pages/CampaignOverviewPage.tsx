@@ -41,7 +41,7 @@ export const CampaignOverviewPage = () => {
     meta: { errorMessage: 'Failed to load annotation counts', showUser: false },
   });
   const annotationCount = facets?.total ?? null;
-  // Members only, so a 403 here is the normal answer for everyone else: no line.
+  // Only for the count next to the agents link, which is shown either way.
   const { data: agentsOverview } = useQuery({
     ...listAgentsOptions({ path: { campaign_id: campaignId } }),
     meta: { errorMessage: 'Failed to load labelling agents', showUser: false },
@@ -93,6 +93,8 @@ export const CampaignOverviewPage = () => {
   }
 
   const createdDate = campaign ? new Date(campaign.created_at).toLocaleDateString() : null;
+  const agentCount = agentsOverview?.agents.length ?? null;
+  const isMember = (campaign?.viewer_is_member ?? false) || isAdmin;
   const totalTasks = taskSets.reduce((sum, set) => sum + set.num_tasks, 0);
   const totalLabeled = taskSets.reduce((sum, set) => sum + set.num_labeled, 0);
   const hasTasks = totalTasks > 0;
@@ -263,16 +265,18 @@ export const CampaignOverviewPage = () => {
               ))}
             </div>
           )}
-          {agentsOverview && (
+          {isMember && (
             <p className="mt-3 text-[11px] text-neutral-500">
               <button
                 type="button"
                 onClick={() => navigate(campaignPath(projectId, campaignId, 'agents'))}
                 className="underline decoration-neutral-300 underline-offset-2 hover:text-neutral-700 hover:decoration-neutral-500 transition-colors"
               >
-                {agentsOverview.agents.length === 0
-                  ? 'No labelling agents yet'
-                  : `${agentsOverview.agents.length} labelling agent${agentsOverview.agents.length === 1 ? '' : 's'}`}
+                {agentCount == null
+                  ? 'Labelling agents'
+                  : agentCount === 0
+                    ? 'No labelling agents yet'
+                    : `${agentCount} labelling agent${agentCount === 1 ? '' : 's'}`}
               </button>
             </p>
           )}

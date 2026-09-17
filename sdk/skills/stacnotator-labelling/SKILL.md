@@ -11,17 +11,21 @@ its brief instead. Then `login(url)`. A
 `render_browser` note from `register_agent`: ask the user before `install_render_browsers`,
 then call `campaign_context`. Never register the same worker twice.
 
+Once the agents are registered, say in that same reply that a window on their screen is
+showing what the agents look at, and give them `agents_page` from `register_agent` to follow
+progress, switch take-over and free tasks.
+
 ## Tools
 
 | tool | use |
 | --- | --- |
 | `login(url)`, `list_campaigns()`, `list_agents(campaign_id)` | sign in; find the campaign; open tasks and your agents |
-| `register_agent(campaign_id, name, max_image_edge_px, max_image_megapixels, description?, task_count=10, task_set_id?, takes_over_work?, default_views?)` | one agent per worker; returns `agent_id`, context, default views |
+| `register_agent(campaign_id, name, max_image_edge_px, max_image_megapixels, description?, task_count=10, task_set_id?, takes_over_work?, default_views?)` | one agent per worker; returns `agent_id`, `agents_page`, context, default views |
 | `campaign_context(agent_id)` | guide, labels, form fields, imagery, basemaps, time series |
 | `next_task(agent_id)`, `get_views(agent_id, task_id, views)` | the current task with its first look; more views of it |
 | `set_default_views(agent_id, views)`, `set_image_limits(...)` | change the first look; restore limits after a restart |
 | `submit_label(agent_id, task_id, label_id, confidence, comment, form_values?, flagged_for_review?, flag_comment?)`, `skip_task(agent_id, task_id, comment)` | finish the task |
-| `release_tasks(campaign_id, agent_id?)`, `watch_agents()` | free unfinished tasks; watch window when the user asks |
+| `release_tasks(campaign_id, agent_id?)`, `watch_agents()` | free unfinished tasks; reopen the watch window the user closed |
 
 Image limits: the largest image your model takes in without downscaling. You know them.
 

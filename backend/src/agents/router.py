@@ -36,7 +36,7 @@ def register_agent(
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AgentOut:
     agent = service.register_agent(db, campaign, user, body)
-    return service.agent_out(db, agent)
+    return service.agent_out(db, agent, campaign.project_id)
 
 
 @router.get("/campaigns/{campaign_id}/agents", response_model=AgentsOverviewOut)
@@ -72,8 +72,8 @@ def get_agent(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ) -> AgentOut:
-    agent, _, _ = service.get_agent(db, agent_id, user)
-    return service.agent_out(db, agent)
+    agent, campaign, _ = service.get_agent(db, agent_id, user)
+    return service.agent_out(db, agent, campaign.project_id)
 
 
 @router.patch("/agents/{agent_id}", response_model=AgentOut)
@@ -83,10 +83,10 @@ def update_agent(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ) -> AgentOut:
-    agent, _, _ = service.get_agent(db, agent_id, user)
+    agent, campaign, _ = service.get_agent(db, agent_id, user)
     agent.takes_over_work = body.takes_over_work
     db.commit()
-    return service.agent_out(db, agent)
+    return service.agent_out(db, agent, campaign.project_id)
 
 
 @router.post("/agents/{agent_id}/next", response_model=NextTasksOut)

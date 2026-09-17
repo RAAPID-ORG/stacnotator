@@ -239,8 +239,8 @@ const HowAgentsWork = ({ campaignName }: { campaignName?: string }) => (
     </pre>
     <p>
       It signs you in, registers one agent per worker, splits the points evenly between them and
-      works through them. Ask it to watch the agents and it opens a window showing what each of them
-      is looking at.
+      works through them. A window opens on your screen showing what each agent is looking at;
+      closing it does not stop them, and this page keeps the progress either way.
     </p>
     <p>
       Which tasks an agent can get depends on your role in the project: campaign admins hand out

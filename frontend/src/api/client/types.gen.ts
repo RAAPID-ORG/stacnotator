@@ -160,6 +160,10 @@ export type AgentOut = {
      */
     campaign_id: number;
     /**
+     * Project Id
+     */
+    project_id: number;
+    /**
      * Assigned
      */
     assigned: number;

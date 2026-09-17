@@ -195,7 +195,7 @@ def owned_agents(db: Session, campaign_id: int, owner: User) -> list[LabellingAg
     )
 
 
-def agent_out(db: Session, agent: LabellingAgent) -> AgentOut:
+def agent_out(db: Session, agent: LabellingAgent, project_id: int) -> AgentOut:
     assigned = db.scalar(
         select(func.count())
         .select_from(AnnotationTaskAssignment)
@@ -208,6 +208,7 @@ def agent_out(db: Session, agent: LabellingAgent) -> AgentOut:
         name=agent.user.display_name or "",
         description=agent.description,
         campaign_id=agent.campaign_id,
+        project_id=project_id,
         assigned=assigned or 0,
         remaining=_open_task_count(db, agent),
         takes_over_work=agent.takes_over_work,
@@ -234,7 +235,10 @@ def agents_overview(db: Session, campaign: Campaign, owner: User) -> AgentsOverv
         total_tasks=total or 0,
         tasks_from="open_pool" if role == "admin" else "own_assignments",
         open_tasks=open_tasks or 0,
-        agents=[agent_out(db, agent) for agent in owned_agents(db, campaign.id, owner)],
+        agents=[
+            agent_out(db, agent, campaign.project_id)
+            for agent in owned_agents(db, campaign.id, owner)
+        ],
     )
 
 

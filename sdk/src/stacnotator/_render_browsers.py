@@ -24,10 +24,26 @@ _PAGE_READY_MS = 60_000
 _WATCH_HTML = """<!doctype html><title>STACNotator agents</title>
 <style>
   body { margin: 0; padding: 12px; font: 13px sans-serif; background: #1b1b1b; color: #eee; }
+  header { border-bottom: 1px solid #383838; padding-bottom: 10px; margin-bottom: 14px;
+           max-width: 70ch; }
+  h1 { font-size: 15px; margin: 0 0 6px; }
+  header p { margin: 0 0 6px; color: #b4b4b4; line-height: 1.5; }
+  code { color: #eee; }
   section { margin-bottom: 16px; }
   h2 { font-size: 14px; margin: 0 0 6px; }
   img { max-width: 100%; max-height: 80vh; margin: 0 8px 8px 0; vertical-align: top; }
 </style>
+<header>
+  <h1>Labelling agents at work</h1>
+  <p>One block per agent, showing the views it is looking at for the task named above them:
+  a few dates of the imagery around the point, the time series, a basemap. The agent reads
+  these, asks for closer views when the point is unclear, and submits a label to the
+  campaign like any other annotator.</p>
+  <p>This window only watches. Closing it does not stop the agents, and the images keep
+  coming while it is open.</p>
+  <p id="progress">Progress, take-over and freeing unfinished tasks live on the campaign's
+  Agents page.</p>
+</header>
 <p id="empty">Waiting for the agents' first views.</p>
 <script>
   window.show = ({ agent, task_id, images }) => {
@@ -81,7 +97,7 @@ class RenderBrowsers:
             "([method, args]) => window.stacnotatorAgent[method](...args)", [method, list(args)]
         )
 
-    async def open_watch_window(self) -> None:
+    async def open_watch_window(self, agents_url: str | None = None) -> None:
         if self._watch is not None and not self._watch.is_closed():
             await self._watch.bring_to_front()
             return
@@ -90,6 +106,15 @@ class RenderBrowsers:
         browser = await playwright.chromium.launch(headless=False)
         self._watch = await browser.new_page(no_viewport=True)
         await self._watch.set_content(_WATCH_HTML)
+        if agents_url:
+            # As text, not a link: this browser has no session, so a click would only
+            # land the user on a sign-in page.
+            await self._watch.evaluate(
+                "url => document.getElementById('progress').append(' Open it in your own "
+                "browser: ', Object.assign(document.createElement('code'), "
+                "{ textContent: url }))",
+                agents_url,
+            )
 
     async def show(self, agent: str, task_id: int, images: list[str]) -> None:
         """Put an agent's latest views in the watch window, when one is open."""

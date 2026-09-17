@@ -174,6 +174,10 @@ def _limits(max_image_edge_px: int, max_image_megapixels: float) -> dict[str, fl
     return {"max_edge_px": max_image_edge_px, "max_megapixels": max_image_megapixels}
 
 
+def _agents_page(agent: dict[str, Any]) -> str:
+    return f"{_session_url}/projects/{agent['project_id']}/campaigns/{agent['campaign_id']}/agents"
+
+
 def _json(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"))
 
@@ -253,6 +257,7 @@ async def register_agent(
     task_set_id: int | None = None,
     takes_over_work: bool = False,
     default_views: list[ViewSpec] | None = None,
+    watch_window: bool = True,
 ) -> str:
     """Create a labelling agent on a campaign and assign it task_count tasks.
 
@@ -265,10 +270,13 @@ async def register_agent(
     your other agents on the campaign that still have work queued.
     default_views: up to 4 views next_task returns for every task, drawn ahead for the
     tasks after it. Omit for a built-in overview; change later with set_default_views.
+    watch_window: open a window on the user's screen showing every agent's latest views.
+    On by default; pass false only when the user does not want it.
 
     Returns the agent (keep agent_id), the campaign context (guide, labels, form fields,
-    imagery slices, basemaps, time series) and the default views. When the render browser
-    cannot start, render_browser says why instead: follow it, and never register again.
+    imagery slices, basemaps, time series), the default views and agents_page, the URL to
+    give the user for following progress. When the render browser cannot start,
+    render_browser says why instead: follow it, and never register again.
     """
     limits = _limits(max_image_edge_px, max_image_megapixels)
     async with _registering:
@@ -290,14 +298,19 @@ async def register_agent(
     if default_views:
         _default_views[agent_id] = default_views
     _image_limits[agent_id] = limits
+    page = _agents_page(agent)
     try:
         context = await _on_page(agent_id, "context")
         views = await _views_of(agent_id)
     except ToolError as exc:
         # The agent exists either way: registering again would make a second one.
         note = f"{exc} Once that is solved, call campaign_context with this agent_id."
-        return _json({"agent": agent, "render_browser": note})
-    return _json({"agent": agent, "context": context, "default_views": views})
+        return _json({"agent": agent, "agents_page": page, "render_browser": note})
+    if watch_window:
+        # A machine without a screen, or a user who closed the window, must not fail a run.
+        with contextlib.suppress(Exception):
+            await _browsers().open_watch_window(page)
+    return _json({"agent": agent, "agents_page": page, "context": context, "default_views": views})
 
 
 @server.tool(structured_output=False)
@@ -432,8 +445,9 @@ async def release_tasks(campaign_id: int, agent_id: str | None = None) -> str:
 
 @server.tool(structured_output=False)
 async def watch_agents() -> str:
-    """Open a browser window on the user's screen showing the latest views of every agent
-    as they are drawn. Only when the user asks to watch."""
+    """Open the window on the user's screen showing the latest views of every agent as they
+    are drawn, or bring it to the front. register_agent opens it already, so this is for
+    reopening it after the user closed it."""
     try:
         await _browsers().open_watch_window()
     except ChromiumMissingError as exc:

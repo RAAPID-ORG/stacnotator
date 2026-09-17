@@ -13,7 +13,7 @@ from stacnotator._render_browsers import ChromiumMissingError
 
 BASE = "https://app.example.org"
 AGENT = "8f7c1f0e-0000-4000-8000-000000000001"
-AGENT_OUT = {"agent_id": AGENT, "name": "scout-a-1a2b3c", "campaign_id": 12}
+AGENT_OUT = {"agent_id": AGENT, "name": "scout-a-1a2b3c", "campaign_id": 12, "project_id": 3}
 IMAGE_BYTES = b"\xff\xd8\xfffake-jpeg"
 DEFAULT_VIEW = {"cells": [{"slice_id": 7}]}
 TASK = {"task_id": 5, "annotation_number": 1, "lat": 1.5, "lon": 30.0, "geometry_wkt": "POINT"}
@@ -24,6 +24,7 @@ class FakeBrowsers:
     def __init__(self):
         self.calls = []
         self.shown = []
+        self.watching = []
 
     async def call(self, agent_id, campaign_id, method, *args):
         self.calls.append((method, *args))
@@ -46,6 +47,9 @@ class FakeBrowsers:
 
     async def show(self, agent, task_id, images):
         self.shown.append((agent, task_id, len(images)))
+
+    async def open_watch_window(self, agents_url=None):
+        self.watching.append(agents_url)
 
 
 @pytest.fixture
@@ -117,6 +121,18 @@ def test_register_agent_keeps_the_agent_when_chromium_is_missing(browsers, monke
 
     assert result["agent"] == AGENT_OUT
     assert "install_render_browsers" in result["render_browser"]
+
+
+@responses.activate
+def test_registering_opens_the_watch_window_and_names_the_agents_page(browsers):
+    responses.post(f"{BASE}/api/campaigns/12/agents", json=AGENT_OUT)
+
+    result = json.loads(asyncio.run(agent_mcp.register_agent(12, "scout-a", 1000, 1.0)))
+    assert result["agents_page"] == f"{BASE}/projects/3/campaigns/12/agents"
+    assert browsers.watching == [result["agents_page"]]
+
+    asyncio.run(agent_mcp.register_agent(12, "scout-b", 1000, 1.0, watch_window=False))
+    assert len(browsers.watching) == 1
 
 
 @responses.activate

@@ -49,8 +49,10 @@ The skill asks for whatever is missing (campaign, number of points, number of ag
 2. launches one subagent per agent, each looping next task, extra views when needed, label or skip,
 3. reports a table of task, label, confidence and evidence.
 
-Ask it to watch the agents and it opens a window on your screen with each agent's latest
-views. If you stop a run early, ask it to free the agents' tasks, or use the Agents page.
+Registering also opens a window on your screen with each agent's latest views, which
+explains what you are looking at and where to follow progress; closing it does not stop the
+agents, and `watch_agents` reopens it. If you stop a run early, ask it to free the agents'
+tasks, or use the Agents page.
 
 ## How it works
 
