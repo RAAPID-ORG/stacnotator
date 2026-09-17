@@ -16,7 +16,7 @@ import type BaseLayer from 'ol/layer/Base';
 import TileLayer from 'ol/layer/Tile';
 import { fromLonLat } from 'ol/proj';
 import type TileSource from 'ol/source/Tile';
-import type { CampaignOutFull, RenderJobOut, RenderJobResult, ViewCell } from '~/api/client';
+import type { CampaignOutFull } from '~/api/client';
 import { basemapAttribution, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { createLayer, destroyLayer } from '~/shared/map/layers';
@@ -29,6 +29,14 @@ import { savitzkyGolay } from '../panels/Timeseries/smoothing';
 import { DEFAULT_TIMESERIES_CHART } from '../stores/prefs';
 import { metersPerPixel, packView, type CellRect } from './pack';
 import { withTaskScenes } from './scenes';
+import {
+  DEFAULT_CELL_PX,
+  DEFAULT_COLUMNS,
+  DEFAULT_ZOOM,
+  type AgentTask,
+  type ViewCell,
+  type ViewSpec,
+} from './view';
 
 Chart.register(
   LineController,
@@ -56,11 +64,17 @@ const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
 const SERIES_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
 
 export interface RenderInput {
-  job: RenderJobOut;
+  task: AgentTask;
+  view: ViewSpec;
   campaign: CampaignOutFull;
   catalog: ImageryCatalog;
   /** Where the offscreen maps are mounted: OpenLayers needs a laid-out element. */
   stage: HTMLElement;
+}
+
+export interface RenderedImage {
+  image_base64: string;
+  meta: Record<string, unknown>;
 }
 
 interface CellMeta {
@@ -74,14 +88,10 @@ interface CellMeta {
   [key: string]: unknown;
 }
 
-export async function renderView({
-  job,
-  campaign,
-  catalog,
-  stage,
-}: RenderInput): Promise<RenderJobResult> {
-  const { view, task } = job;
-  const packed = packView(view.cells, view.columns ?? 4, view.cell_px ?? 320);
+export async function renderView(input: RenderInput): Promise<RenderedImage> {
+  const { task, view, campaign, catalog } = input;
+  const cellPx = view.cell_px ?? DEFAULT_CELL_PX;
+  const packed = packView(view.cells, view.columns ?? DEFAULT_COLUMNS, cellPx);
   const canvas = document.createElement('canvas');
   canvas.width = packed.width;
   canvas.height = packed.height;
@@ -93,21 +103,21 @@ export async function renderView({
     catalog,
     view.cells,
     [task.lon, task.lat],
-    view.zoom ?? 15,
-    view.cell_px ?? 320
+    view.zoom ?? DEFAULT_ZOOM,
+    cellPx
   ).catch((err: unknown) => ({
     catalog,
     empty: new Set<number>(),
     errors: [`Planet scene search failed: ${extractErrorMessage(err, 'unknown error')}`],
   }));
-  const input = { job, campaign, catalog: scenes.catalog, stage };
+  const withScenes = { ...input, catalog: scenes.catalog };
   const cells = await Promise.all(
     packed.rects.map((rect) => {
       const cell = view.cells[rect.index];
       const rendering =
         cell.slice_id != null && scenes.empty.has(cell.slice_id)
           ? Promise.reject(new Error('no Planet scenes around this point on this date'))
-          : renderCell(cell, rect, input);
+          : renderCell(cell, rect, withScenes);
       return rendering.catch((err: unknown): { image: null; meta: CellMeta } => ({
         image: null,
         meta: {
@@ -128,7 +138,6 @@ export async function renderView({
   }
 
   return {
-    mime_type: 'image/jpeg',
     image_base64: await toBase64(canvas),
     meta: {
       task: { task_id: task.task_id, lat: task.lat, lon: task.lon },
@@ -151,14 +160,13 @@ async function renderCell(
   rect: CellRect,
   input: RenderInput
 ): Promise<{ image: HTMLCanvasElement; meta: CellMeta }> {
-  const { job, campaign, catalog, stage } = input;
-  const { task, view } = job;
+  const { task, view, campaign, catalog, stage } = input;
 
   if (cell.timeseries_ids != null) {
     return renderChart(cell, cell.timeseries_ids, rect, input);
   }
 
-  const zoom = cell.zoom ?? view.zoom ?? 15;
+  const zoom = cell.zoom ?? view.zoom ?? DEFAULT_ZOOM;
   const layers: LayerSpec[] = [];
   let kind: CellMeta['kind'];
   let caption: string;
@@ -348,9 +356,9 @@ async function renderChart(
   cell: ViewCell,
   ids: number[],
   rect: CellRect,
-  { job, campaign, stage }: RenderInput
+  { task, campaign, stage }: RenderInput
 ): Promise<{ image: HTMLCanvasElement; meta: CellMeta }> {
-  const { lat, lon } = job.task;
+  const { lat, lon } = task;
   const data = (await timeSeriesCache.get(ids, { lat, lon })) ?? {};
   const series = ids.map((id) => campaign.time_series.find((t) => t.id === id));
   const labels = collectSeriesLabels(ids, data);

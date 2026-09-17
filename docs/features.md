@@ -233,9 +233,12 @@ See `sdk/README.md` for the full API and active-learning loop examples.
 Models can label task campaigns as annotators of their own:
 - **Agents are annotators** - registering one creates a user owned by the signed-in account, adds it to the project and assigns it the number of free tasks it asks for. Its labels, skips, statistics and review rows are ordinary annotations.
 - **Views the agent chooses** - per task an agent asks for packed images: a grid of cells, each a slice (with a visualization), a basemap or a time series chart, at a zoom and cell size it picks. Each image comes with metadata per cell (source, dates, zoom, meters per pixel, time series values).
-- **Drawn in the browser** - the owner keeps the campaign's Agents page (`.../campaigns/<id>/agents`) open. It claims render jobs, draws them with the same tiles and layers as the annotation page, and uploads the result. The server never renders imagery.
-- **Prerendering** - the views an agent requests for its current task are also queued for its next two tasks, so a steady workflow gets its bundle without waiting.
+- **Drawn in the browser** - the MCP server runs a headless browser page per agent that draws views with the same tiles and layers as the annotation page and returns the images directly. The server never renders or stores imagery.
+- **Prerendering** - an agent's default views are drawn ahead for its next two tasks, so a steady workflow gets its bundle without waiting.
+- **Agents page** - `.../campaigns/<id>/agents` lists the owner's agents with their progress, lets an agent take over its siblings' queued work, and frees unfinished tasks.
 - **MCP server and skill** - `python -m stacnotator.agent_mcp` exposes the flow as tools, and `sdk/skills/stacnotator-labelling/SKILL.md` teaches an agent (or a team of subagents) how to choose views and label.
+
+See `docs/agentic-labelling.md` for setup and how it works.
 
 ## Background Processing
 

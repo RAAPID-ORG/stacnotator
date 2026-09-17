@@ -1,33 +1,20 @@
-import asyncio
-import base64
 import secrets
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import CursorResult, delete, exists, func, or_, select, update
-from sqlalchemy.dialects.postgresql import insert
+from geoalchemy2.shape import to_shape
+from sqlalchemy import CursorResult, delete, exists, func, select
 from sqlalchemy.orm import Session, joinedload
-from starlette.concurrency import run_in_threadpool
 
-from src.agents import views as agent_views
-from src.agents.models import AgentRenderJob, LabellingAgent
+from src.agents.models import LabellingAgent
 from src.agents.schemas import (
     AgentAnnotate,
     AgentOut,
     AgentRegister,
+    AgentsOverviewOut,
     AgentTaskOut,
-    AgentUpdate,
-    CampaignContext,
-    CampaignWorkOut,
-    RecentViewOut,
-    RenderedView,
-    RenderJobOut,
-    RenderJobResult,
-    TaskBundleOut,
-    ViewSpec,
+    NextTasksOut,
 )
 from src.annotation import service as annotation_service
 from src.annotation.claims import is_free_work
@@ -43,22 +30,11 @@ from src.campaigns.assignments import assign_tasks_to_users
 from src.campaigns.dependencies import require_campaign_access
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import AssignTasksToUsersRequest
-from src.campaigns.service import get_campaign_full
-from src.database import SessionLocal
 from src.projects.models import ProjectUser
 
 AGENT_ISSUER = "agent"
-# Tasks rendered ahead of the one being handed out.
-PREFETCH_DEPTH = 2
-# A host that has not polled for this long is treated as closed.
-HOST_TIMEOUT = timedelta(seconds=20)
-# A claimed job not reported back in this time goes to the next host that asks.
-RENDER_LEASE = timedelta(seconds=90)
-WAIT_TIMEOUT_SECONDS = 120.0
-POLL_SECONDS = 0.3
-FINISHED_JOB_RETENTION = timedelta(hours=2)
-# Drawn views kept per agent once used, so the owner can still watch the latest ones.
-RECENT_VIEWS_PER_AGENT = 3
+# The task to label now plus the ones after it the caller draws ahead.
+UPCOMING_TASKS = 3
 
 
 def get_agent(db: Session, agent_id: UUID, owner: User) -> tuple[LabellingAgent, Campaign]:
@@ -70,23 +46,15 @@ def get_agent(db: Session, agent_id: UUID, owner: User) -> tuple[LabellingAgent,
     return agent, campaign
 
 
-def campaign_context(db: Session, campaign_id: int) -> CampaignContext:
-    return agent_views.build_context(get_campaign_full(db, campaign_id))
-
-
 def register_agent(
     db: Session, campaign: Campaign, owner: User, req: AgentRegister
-) -> tuple[LabellingAgent, CampaignContext, list[ViewSpec]]:
-    context = campaign_context(db, campaign.id)
-    if context.sample_extent_meters is None and _has_point_tasks(db, campaign.id):
+) -> LabellingAgent:
+    if campaign.settings.sample_extent_meters is None and _has_point_tasks(db, campaign.id):
         raise HTTPException(
             status_code=409,
             detail="Set the campaign's sample extent before registering agents: it is the "
             "box drawn around each point so an agent knows what it is labelling.",
         )
-    views = req.default_views or agent_views.default_views(context)
-    for view in views:
-        agent_views.check_view(context, view)
 
     agent_uid = uuid4()
     db.add(
@@ -105,7 +73,6 @@ def register_agent(
         owner_user_id=owner.id,
         campaign_id=campaign.id,
         description=req.description,
-        default_views=[v.model_dump(mode="json", exclude_none=True) for v in views],
         takes_over_work=req.takes_over_work,
     )
     db.add(agent)
@@ -113,7 +80,7 @@ def register_agent(
 
     if req.task_count:
         assign_tasks(db, agent, req.task_count, req.task_set_id)
-    return agent, context, views
+    return agent
 
 
 def _has_point_tasks(db: Session, campaign_id: int) -> bool:
@@ -143,8 +110,18 @@ def assign_tasks(db: Session, agent: LabellingAgent, count: int, task_set_id: in
     ).total_assigned
 
 
-def list_agents(db: Session, campaign_id: int, owner: User) -> list[AgentOut]:
-    return [agent_out(db, agent) for agent in owned_agents(db, campaign_id, owner)]
+def owned_agents(db: Session, campaign_id: int, owner: User) -> list[LabellingAgent]:
+    return list(
+        db.scalars(
+            select(LabellingAgent)
+            .options(joinedload(LabellingAgent.user))
+            .where(
+                LabellingAgent.campaign_id == campaign_id,
+                LabellingAgent.owner_user_id == owner.id,
+            )
+            .order_by(LabellingAgent.created_at)
+        ).all()
+    )
 
 
 def agent_out(db: Session, agent: LabellingAgent) -> AgentOut:
@@ -155,19 +132,35 @@ def agent_out(db: Session, agent: LabellingAgent) -> AgentOut:
             AnnotationTaskAssignment.user_id == agent.user_id, ~AnnotationTaskAssignment.is_review
         )
     )
-    project_id = db.scalar(select(Campaign.project_id).where(Campaign.id == agent.campaign_id))
     return AgentOut(
         agent_id=agent.user_id,
         name=agent.user.display_name or "",
         description=agent.description,
         campaign_id=agent.campaign_id,
-        render_host_path=f"/projects/{project_id}/campaigns/{agent.campaign_id}/agents",
         assigned=assigned or 0,
         remaining=_open_task_count(db, agent),
         takes_over_work=agent.takes_over_work,
-        default_views=[ViewSpec.model_validate(v) for v in agent.default_views],
-        host_seen_at=agent.host_seen_at,
         created_at=agent.created_at,
+    )
+
+
+def agents_overview(db: Session, campaign: Campaign, owner: User) -> AgentsOverviewOut:
+    total = db.scalar(
+        select(func.count())
+        .select_from(AnnotationTask)
+        .where(AnnotationTask.campaign_id == campaign.id)
+    )
+    open_tasks = db.scalar(
+        select(func.count())
+        .select_from(AnnotationTask)
+        .where(AnnotationTask.campaign_id == campaign.id, is_free_work())
+    )
+    return AgentsOverviewOut(
+        campaign_id=campaign.id,
+        name=campaign.name,
+        total_tasks=total or 0,
+        open_tasks=open_tasks or 0,
+        agents=[agent_out(db, agent) for agent in owned_agents(db, campaign.id, owner)],
     )
 
 
@@ -192,72 +185,27 @@ def _open_task_count(db: Session, agent: LabellingAgent) -> int:
 
 
 def _task_out(task: AnnotationTask) -> AgentTaskOut:
-    lat, lon, wkt = agent_views.task_point(task)
+    """Polygons are placed at their centroid."""
+    shape = to_shape(task.geometry.geometry)
+    centroid = shape.centroid
     return AgentTaskOut(
         task_id=task.id,
         annotation_number=task.annotation_number,
-        lat=lat,
-        lon=lon,
-        geometry_wkt=wkt,
+        lat=centroid.y,
+        lon=centroid.x,
+        geometry_wkt=shape.wkt,
     )
 
 
-@dataclass(frozen=True)
-class PendingBundle:
-    """A task and the render jobs its bundle waits on, detached from any session."""
-
-    task: AgentTaskOut | None
-    remaining: int
-    jobs: list[tuple[int, ViewSpec]]
-    host_alive: bool
-
-
-def _views_or_default(agent: LabellingAgent, views: list[ViewSpec] | None) -> list[ViewSpec]:
-    return views or [ViewSpec.model_validate(v) for v in agent.default_views]
-
-
-def _check_views(db: Session, campaign: Campaign, views: list[ViewSpec] | None) -> None:
-    if not views:
-        return
-    context = campaign_context(db, campaign.id)
-    for view in views:
-        agent_views.check_view(context, view)
-
-
-def _host_alive(db: Session, agent: LabellingAgent) -> bool:
-    """A host polls for all of its owner's agents in a campaign, so one registered a
-    moment ago is covered by the host its siblings have already seen."""
-    seen = db.scalar(
-        select(func.max(LabellingAgent.host_seen_at)).where(
-            LabellingAgent.campaign_id == agent.campaign_id,
-            LabellingAgent.owner_user_id == agent.owner_user_id,
-        )
-    )
-    return seen is not None and seen > datetime.now(UTC) - HOST_TIMEOUT
-
-
-def prepare_next(db: Session, agent_id: UUID, owner: User) -> PendingBundle:
-    """Pick the agent's next open task and queue its default views, for it and for the
-    tasks after it so they are already drawn when the agent gets there."""
+def next_tasks(db: Session, agent_id: UUID, owner: User) -> NextTasksOut:
     agent, _ = get_agent(db, agent_id, owner)
-    requested = _views_or_default(agent, None)
-
     upcoming = _upcoming_tasks(db, agent)
     if not upcoming and agent.takes_over_work and _take_over_task(db, agent):
         upcoming = _upcoming_tasks(db, agent)
-    if not upcoming:
-        return PendingBundle(None, 0, [], _host_alive(db, agent))
-
-    jobs = _enqueue(db, agent, upcoming[0].id, requested, priority=0)
-    for task in upcoming[1:]:
-        _enqueue(db, agent, task.id, requested, priority=1)
-    _prune_finished(db, agent)
-    db.commit()
-    return PendingBundle(
-        _task_out(upcoming[0]),
-        _open_task_count(db, agent),
-        jobs,
-        _host_alive(db, agent),
+    return NextTasksOut(
+        campaign_id=agent.campaign_id,
+        remaining=_open_task_count(db, agent),
+        tasks=[_task_out(task) for task in upcoming],
     )
 
 
@@ -267,7 +215,7 @@ def _upcoming_tasks(db: Session, agent: LabellingAgent) -> list[AnnotationTask]:
             _open_tasks_query(agent)
             .options(joinedload(AnnotationTask.geometry))
             .order_by(AnnotationTask.annotation_number)
-            .limit(PREFETCH_DEPTH + 1)
+            .limit(UPCOMING_TASKS)
         ).all()
     )
 
@@ -309,31 +257,6 @@ def _take_over_task(db: Session, agent: LabellingAgent) -> bool:
     return False
 
 
-def update_agent(db: Session, agent: LabellingAgent, campaign: Campaign, body: AgentUpdate) -> None:
-    if body.takes_over_work is not None:
-        agent.takes_over_work = body.takes_over_work
-    if body.default_views is not None:
-        _check_views(db, campaign, body.default_views)
-        agent.default_views = [
-            v.model_dump(mode="json", exclude_none=True) for v in body.default_views
-        ]
-    db.commit()
-
-
-def owned_agents(db: Session, campaign_id: int, owner: User) -> list[LabellingAgent]:
-    return list(
-        db.scalars(
-            select(LabellingAgent)
-            .options(joinedload(LabellingAgent.user))
-            .where(
-                LabellingAgent.campaign_id == campaign_id,
-                LabellingAgent.owner_user_id == owner.id,
-            )
-            .order_by(LabellingAgent.created_at)
-        ).all()
-    )
-
-
 def release_tasks(db: Session, agents: list[LabellingAgent]) -> int:
     """Hand the agents' unfinished tasks back to the pool. What they labelled or skipped
     stays theirs, and so do its assignments, so their finished work keeps counting."""
@@ -350,318 +273,14 @@ def release_tasks(db: Session, agents: list[LabellingAgent]) -> int:
             ),
         )
     )
-    db.execute(delete(AgentRenderJob).where(AgentRenderJob.agent_user_id.in_(agent_ids)))
     db.commit()
     return cast("CursorResult[Any]", released).rowcount
-
-
-def campaign_work(db: Session, campaign: Campaign, owner: User) -> CampaignWorkOut:
-    total = db.scalar(
-        select(func.count())
-        .select_from(AnnotationTask)
-        .where(AnnotationTask.campaign_id == campaign.id)
-    )
-    open_tasks = db.scalar(
-        select(func.count())
-        .select_from(AnnotationTask)
-        .where(AnnotationTask.campaign_id == campaign.id, is_free_work())
-    )
-    return CampaignWorkOut(
-        campaign_id=campaign.id,
-        name=campaign.name,
-        total_tasks=total or 0,
-        open_tasks=open_tasks or 0,
-        agents=list_agents(db, campaign.id, owner),
-    )
-
-
-def prepare_views(
-    db: Session, agent_id: UUID, owner: User, task_id: int, views: list[ViewSpec] | None
-) -> PendingBundle:
-    agent, campaign = get_agent(db, agent_id, owner)
-    task = db.scalars(
-        _open_tasks_query(agent)
-        .options(joinedload(AnnotationTask.geometry))
-        .where(AnnotationTask.id == task_id)
-    ).first()
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task is not an open task of this agent")
-    _check_views(db, campaign, views)
-    jobs = _enqueue(db, agent, task.id, _views_or_default(agent, views), priority=0)
-    db.commit()
-    return PendingBundle(_task_out(task), _open_task_count(db, agent), jobs, _host_alive(db, agent))
-
-
-def _enqueue(
-    db: Session, agent: LabellingAgent, task_id: int, views: list[ViewSpec], priority: int
-) -> list[tuple[int, ViewSpec]]:
-    """Get-or-create one job per view. A failed job is retried, and a job an agent now
-    waits on jumps ahead of the ones rendered speculatively."""
-    keyed = {agent_views.view_key(view): view for view in views}
-    db.execute(
-        insert(AgentRenderJob)
-        .values(
-            [
-                {
-                    "agent_user_id": agent.user_id,
-                    "task_id": task_id,
-                    "view_key": key,
-                    "view": view.model_dump(mode="json", exclude_none=True),
-                    "priority": priority,
-                }
-                for key, view in keyed.items()
-            ]
-        )
-        .on_conflict_do_nothing()
-    )
-    in_views = (
-        AgentRenderJob.agent_user_id == agent.user_id,
-        AgentRenderJob.task_id == task_id,
-        AgentRenderJob.view_key.in_(keyed),
-    )
-    db.execute(
-        update(AgentRenderJob)
-        .where(*in_views, AgentRenderJob.status == "failed")
-        .values(status="pending", error=None, claimed_at=None)
-    )
-    if priority == 0:
-        db.execute(update(AgentRenderJob).where(*in_views).values(priority=0))
-    rows = db.execute(select(AgentRenderJob.view_key, AgentRenderJob.id).where(*in_views))
-    ids = {key: job_id for key, job_id in rows}
-    return [(ids[agent_views.view_key(view)], view) for view in views]
-
-
-def _prune_finished(db: Session, agent: LabellingAgent) -> None:
-    """Drop anything left from long ago, and every drawn view of a finished task except
-    the few most recent ones the owner's viewer shows."""
-    keep = (
-        select(AgentRenderJob.id)
-        .where(
-            AgentRenderJob.agent_user_id == agent.user_id,
-            AgentRenderJob.delivered_at.is_not(None),
-        )
-        .order_by(AgentRenderJob.delivered_at.desc())
-        .limit(RECENT_VIEWS_PER_AGENT)
-    )
-    finished_task = exists().where(
-        Annotation.annotation_task_id == AgentRenderJob.task_id,
-        Annotation.created_by_user_id == AgentRenderJob.agent_user_id,
-    )
-    db.execute(
-        delete(AgentRenderJob).where(
-            AgentRenderJob.agent_user_id == agent.user_id,
-            or_(
-                AgentRenderJob.created_at < datetime.now(UTC) - FINISHED_JOB_RETENTION,
-                finished_task & AgentRenderJob.id.not_in(keep.scalar_subquery()),
-            ),
-        )
-    )
-
-
-async def await_bundle(pending: PendingBundle) -> TaskBundleOut:
-    """Wait, without holding a connection, until every view is drawn or failed."""
-    job_ids = [job_id for job_id, _ in pending.jobs]
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + WAIT_TIMEOUT_SECONDS
-    while job_ids and pending.host_alive and loop.time() < deadline:
-        statuses = await run_in_threadpool(_job_statuses, job_ids)
-        if all(status in ("done", "failed") for status in statuses):
-            break
-        await asyncio.sleep(POLL_SECONDS)
-
-    rows = await run_in_threadpool(_read_jobs, job_ids)
-    views = []
-    for job_id, view in pending.jobs:
-        row = rows.get(job_id)
-        if row is not None and row.status == "done" and row.image is not None:
-            views.append(
-                RenderedView(
-                    view=view,
-                    status="done",
-                    mime_type=row.mime_type,
-                    image_base64=base64.b64encode(row.image).decode(),
-                    meta=row.meta,
-                )
-            )
-        else:
-            views.append(
-                RenderedView(
-                    view=view, status=row.status if row else "missing", error=_why(row, pending)
-                )
-            )
-    return TaskBundleOut(task=pending.task, remaining=pending.remaining, views=views)
-
-
-def _why(row: AgentRenderJob | None, pending: PendingBundle) -> str:
-    if row is not None and row.error:
-        return row.error
-    if not pending.host_alive:
-        return "No render host is open. Open the campaign's Agents page in a browser."
-    return "Timed out waiting for the render host"
-
-
-def _job_statuses(job_ids: list[int]) -> list[str]:
-    with SessionLocal() as db:
-        return list(db.scalars(select(AgentRenderJob.status).where(AgentRenderJob.id.in_(job_ids))))
-
-
-def _read_jobs(job_ids: list[int]) -> dict[int, AgentRenderJob]:
-    """The jobs as they are handed to the agent, stamping the drawn ones as delivered."""
-    with SessionLocal() as db:
-        db.execute(
-            update(AgentRenderJob)
-            .where(AgentRenderJob.id.in_(job_ids), AgentRenderJob.status == "done")
-            .values(delivered_at=func.now())
-        )
-        db.commit()
-        rows = db.scalars(select(AgentRenderJob).where(AgentRenderJob.id.in_(job_ids))).all()
-        return {row.id: row for row in rows}
-
-
-def claim_render_job(
-    db: Session, campaign: Campaign, owner: User, prefer_agent_id: UUID | None = None
-) -> RenderJobOut | None:
-    """Hand the owner's render host the most urgent job of their agents in this campaign.
-
-    A browser started for one agent asks for that agent's jobs first, which keeps its
-    tile cache on that agent's work, and helps the others when it has nothing to do.
-    """
-    now = datetime.now(UTC)
-    db.execute(
-        update(LabellingAgent)
-        .where(LabellingAgent.campaign_id == campaign.id, LabellingAgent.owner_user_id == owner.id)
-        .values(host_seen_at=func.now())
-    )
-    job = db.scalars(
-        select(AgentRenderJob)
-        .join(LabellingAgent, LabellingAgent.user_id == AgentRenderJob.agent_user_id)
-        .where(
-            LabellingAgent.campaign_id == campaign.id,
-            LabellingAgent.owner_user_id == owner.id,
-            or_(
-                AgentRenderJob.status == "pending",
-                (AgentRenderJob.status == "rendering")
-                & (AgentRenderJob.claimed_at < now - RENDER_LEASE),
-            ),
-        )
-        .order_by(
-            AgentRenderJob.agent_user_id != prefer_agent_id,
-            AgentRenderJob.priority,
-            AgentRenderJob.created_at,
-        )
-        .limit(1)
-        .with_for_update(of=AgentRenderJob, skip_locked=True)
-    ).first()
-    if job is None:
-        db.commit()
-        return None
-
-    job.status = "rendering"
-    job.claimed_at = now
-    task = db.scalars(
-        select(AnnotationTask)
-        .options(joinedload(AnnotationTask.geometry))
-        .where(AnnotationTask.id == job.task_id)
-    ).one()
-    out = RenderJobOut(
-        job_id=job.id,
-        agent_id=job.agent_user_id,
-        task=_task_out(task),
-        view=ViewSpec.model_validate(job.view),
-    )
-    db.commit()
-    return out
-
-
-def complete_render_job(db: Session, job_id: int, owner: User, result: RenderJobResult) -> None:
-    job = db.scalars(
-        select(AgentRenderJob)
-        .join(LabellingAgent, LabellingAgent.user_id == AgentRenderJob.agent_user_id)
-        .where(AgentRenderJob.id == job_id, LabellingAgent.owner_user_id == owner.id)
-    ).first()
-    if job is None:
-        raise HTTPException(status_code=404, detail="Render job not found")
-    if result.error is not None:
-        job.status = "failed"
-        job.error = result.error
-    else:
-        job.status = "done"
-        job.image = base64.b64decode(result.image_base64 or "", validate=True)
-        job.mime_type = result.mime_type
-    job.meta = result.meta
-    db.commit()
 
 
 def submit_annotation(
     db: Session, agent_id: UUID, owner: User, task_id: int, body: AgentAnnotate
 ) -> AnnotationTaskSubmitResponse:
     agent, campaign = get_agent(db, agent_id, owner)
-    response = annotation_service.submit_task_annotation(
+    return annotation_service.submit_task_annotation(
         db=db, campaign=campaign, task_id=task_id, annotation_create=body, user_id=agent.user_id
     )
-    db.execute(
-        delete(AgentRenderJob).where(
-            AgentRenderJob.agent_user_id == agent.user_id,
-            AgentRenderJob.task_id == task_id,
-            AgentRenderJob.status != "done",
-        )
-    )
-    _prune_finished(db, agent)
-    db.commit()
-    return response
-
-
-def recent_views(db: Session, campaign: Campaign, owner: User) -> list[RecentViewOut]:
-    ranked = (
-        select(
-            AgentRenderJob.id,
-            func.row_number()
-            .over(
-                partition_by=AgentRenderJob.agent_user_id,
-                order_by=AgentRenderJob.delivered_at.desc(),
-            )
-            .label("rank"),
-        )
-        .join(LabellingAgent, LabellingAgent.user_id == AgentRenderJob.agent_user_id)
-        .where(
-            LabellingAgent.campaign_id == campaign.id,
-            LabellingAgent.owner_user_id == owner.id,
-            AgentRenderJob.delivered_at.is_not(None),
-        )
-        .subquery()
-    )
-    rows = db.execute(
-        select(
-            AgentRenderJob.id,
-            AgentRenderJob.agent_user_id,
-            AgentRenderJob.task_id,
-            AgentRenderJob.delivered_at,
-            AgentRenderJob.meta,
-        )
-        .join(ranked, ranked.c.id == AgentRenderJob.id)
-        .where(ranked.c.rank <= RECENT_VIEWS_PER_AGENT)
-        .order_by(AgentRenderJob.delivered_at.desc())
-    ).all()
-    return [
-        RecentViewOut(
-            job_id=job_id,
-            agent_id=agent_id,
-            task_id=task_id,
-            delivered_at=delivered_at,
-            width=(meta or {}).get("width"),
-            height=(meta or {}).get("height"),
-            captions=[cell.get("caption", "") for cell in (meta or {}).get("cells", [])],
-        )
-        for job_id, agent_id, task_id, delivered_at, meta in rows
-    ]
-
-
-def render_job_image(db: Session, job_id: int, owner: User) -> tuple[bytes, str]:
-    row = db.execute(
-        select(AgentRenderJob.image, AgentRenderJob.mime_type)
-        .join(LabellingAgent, LabellingAgent.user_id == AgentRenderJob.agent_user_id)
-        .where(AgentRenderJob.id == job_id, LabellingAgent.owner_user_id == owner.id)
-    ).first()
-    if row is None or row.image is None:
-        raise HTTPException(status_code=404, detail="Rendered view not found")
-    return row.image, row.mime_type or "image/jpeg"

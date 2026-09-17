@@ -152,7 +152,7 @@ stacnotator/
 - **Tiler** (optional, separate repo: [stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler)): self-hosted TiTiler + GDAL tile server. Reads COGs from STAC catalogs into a pgstac index, composites mosaics, serves PNG tiles. Only needed for non-MPC catalogs or compositing/masking - MPC imagery with first-valid compositing is served directly by Planetary Computer.
 - **Database**: PostgreSQL 16 with PostGIS (spatial queries), pgvector (embeddings)
 
-More docs: [architecture](docs/architecture.md), [features](docs/features.md), [development workflow](docs/development.md), [tile serving](docs/tile-serving.md), [tilers](docs/tilers.md), [labelling policy](docs/labelling-policy.md).
+More docs: [architecture](docs/architecture.md), [features](docs/features.md), [development workflow](docs/development.md), [tile serving](docs/tile-serving.md), [tilers](docs/tilers.md), [labelling policy](docs/labelling-policy.md), [agentic labelling](docs/agentic-labelling.md).
 
 ## Development
 

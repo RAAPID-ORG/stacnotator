@@ -1,14 +1,10 @@
-import {
-  mintPlanetSceneLayers,
-  searchPlanetScenes,
-  type PlanetSceneSliceOut,
-  type ViewCell,
-} from '~/api/client';
+import { mintPlanetSceneLayers, searchPlanetScenes, type PlanetSceneSliceOut } from '~/api/client';
 import type { Bbox, LonLat } from '~/shared/map/types';
 import { squareAround } from '../campaign/annotation';
 import { withSceneLayers, type ImageryCatalog } from '../campaign/imagery';
 import { sceneSourceOf } from '../campaign/scenes';
 import { metersPerPixel } from './pack';
+import type { ViewCell } from './view';
 
 /** The same search and mint the annotation page runs for its viewport, run around the
  *  task instead. A search is kept per extent, so the views an agent asks for next and

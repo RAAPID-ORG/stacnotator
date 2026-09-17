@@ -15,7 +15,7 @@ import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { onIdle } from '~/shared/utils/idle';
 import { NotFoundPage, RouteErrorBoundary } from './RouteError';
 import {
-  importAgentHost,
+  importAgents,
   importAnnotation,
   importCreateCampaign,
   importCampaignOverview,
@@ -44,7 +44,7 @@ const lazyCreateCampaign = async () => ({
   Component: (await importCreateCampaign()).CreateCampaignPage,
 });
 const lazyAnnotation = async () => ({ Component: (await importAnnotation()).AnnotationPage });
-const lazyAgentHost = async () => ({ Component: (await importAgentHost()).AgentHostPage });
+const lazyAgents = async () => ({ Component: (await importAgents()).AgentsPage });
 const lazyCampaignOverview = async () => ({
   Component: (await importCampaignOverview()).CampaignOverviewPage,
 });
@@ -104,7 +104,7 @@ const router = createBrowserRouter(
             <Route path="settings" lazy={lazyCampaignSettings} />
             <Route path="tasks" lazy={lazyCampaignTasks} />
             <Route path="annotations" lazy={lazyReview} />
-            <Route path="agents" lazy={lazyAgentHost} />
+            <Route path="agents" lazy={lazyAgents} />
           </Route>
         </Route>
       </Route>

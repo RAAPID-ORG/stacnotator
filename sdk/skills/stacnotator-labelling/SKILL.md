@@ -19,39 +19,29 @@ claude mcp add stacnotator -- python -m stacnotator.agent_mcp
 
 Other MCP clients: run `python -m stacnotator.agent_mcp` over stdio.
 
-**Images are drawn by headless browsers the MCP server starts**, one per agent, up to a
-cap worked out from the machine's cores and memory (more agents than that share pages).
-The campaign's Agents page (`render_host_url` from `register_agent`, e.g.
-`https://.../projects/3/campaigns/12/agents`) is where the user watches what agents see.
-
-- **First run:** if the `render_browsers` note in the `register_agent` result says they are
-  not installed, ask the user whether to install them (a one-time Chromium download of
-  about 150 MB) and call `install_render_browsers` only after they agree.
-- **Without them** the user keeps the Agents page open with "Render in this tab" switched on.
-- With nothing drawing, views come back with `status` other than `done` and an `error`
-  saying so - stop and tell the user, don't label blind.
-
-`next_task`/`get_views` can wait up to ~2 minutes for drawing; if your client cuts tool
-calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIMEOUT`, ms).
+The MCP server draws the images in a headless browser page per agent and hands them straight
+to you; nothing is rendered on the server. The first time, `register_agent` may return a
+`render_browser` note instead of the context, saying Chromium is not installed: ask the user
+whether to install it (a one-time download of about 150 MB), call `install_render_browsers`
+only after they agree, then `campaign_context` with the same agent_id. Never register the
+agent again.
 
 ## Tools
 
 | tool | use |
 | --- | --- |
 | `list_campaigns()` | campaigns you can access, to ask which one to label |
-| `campaign_work(campaign_id)` | total and open tasks plus your existing agents, to size the run |
-| `register_agent(campaign_id, name, description?, task_count=10, task_set_id?, default_views?, takes_over_work?)` | create an agent, returns `agent.agent_id`, the campaign context and `render_host_url` |
+| `list_agents(campaign_id)` | total and open tasks plus your agents with assigned/remaining counts |
+| `register_agent(campaign_id, name, description?, task_count=10, task_set_id?, takes_over_work?, default_views?)` | create an agent, returns `agent.agent_id`, the campaign context and the default views |
 | `campaign_context(agent_id)` | guide, labels, form fields, imagery slices, basemaps, time series |
-| `list_agents(campaign_id)` | your agents with assigned/remaining counts |
-| `request_tasks(agent_id, count, task_set_id?)` | assign more tasks |
 | `next_task(agent_id)` | next open task + its default views |
 | `get_views(agent_id, task_id, views)` | one-off extra views of the current task |
 | `set_default_views(agent_id, views)` | change what every task comes with (and what is preloaded) |
 | `submit_label(agent_id, task_id, label_id, confidence?, comment?, form_values?, flagged_for_review?, flag_comment?)` | label it |
 | `skip_task(agent_id, task_id, comment)` | skip with a reason |
-| `release_tasks(agent_id? or campaign_id?)` | free unfinished tasks of one agent or all your agents |
-| `render_capacity()` | cores, memory and how many agents this machine can draw views for |
-| `install_render_browsers()` | download Chromium for the render browsers, only after the user agreed |
+| `release_tasks(campaign_id, agent_id?)` | free unfinished tasks of one agent or all your agents |
+| `watch_agents()` | open a window on the user's screen with every agent's latest views, only when asked |
+| `install_render_browsers()` | download Chromium, only after the user agreed |
 
 ## Workflow
 
@@ -70,10 +60,11 @@ calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIMEOUT`, ms).
      preloaded: whenever you call it, the browser draws the same views for your next two
      tasks, so the next call is usually instant. The defaults come from `register_agent`
      (built in when omitted) and can be replaced any time with `set_default_views`, e.g. once
-     the first tasks show which periods or zooms matter in this campaign.
+     the first tasks show which periods or zooms matter in this campaign. They live in the
+     MCP server process, so set them again after it restarts.
    - Look. If the answer is clear, label. If not, `get_views` for exactly what would settle it.
    - `submit_label` or `skip_task`.
-   - `task: null` means your assigned tasks are done. `request_tasks` if more work is wanted.
+   - `task: null` means your assigned tasks are done.
 
 `next_task` keeps returning the same task until you label or skip it.
 
@@ -81,9 +72,17 @@ calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIMEOUT`, ms).
 
 Start from the defaults, then drill in only where it is ambiguous:
 
-- **Default views**: one image with the covers of the first source's most recent periods
+- **Default views** (built in): one image with the covers of the first source's most recent periods
   (up to 16) plus the cloud-free time series chart, and a basemap pair (wide context and
   close up).
+- **Adapt the defaults to the campaign.** The built-in set is generic and often more than a
+  task needs. After reading the guide and the first task or two, decide what actually
+  settles a label and call `set_default_views` with only that: e.g. the two or three
+  periods that tell the classes apart (sowing, peak, harvest) instead of 16 covers, one
+  source instead of several, or the time series plus a single detail cell. Fewer dates and
+  cells mean less to draw, faster tasks and far less context used per task, which matters
+  over many tasks and many agents. Fetch the rest with `get_views` only for points that
+  stay unclear.
 - **Noisy time series?** Ask for the chart again with `"remove_cloudy": true` (drops the
   cloud-flagged observations, otherwise drawn as grey dots) and `"smoothed": true`
   (Savitzky-Golay line; `meta` then carries a `smoothed` column next to the raw values).
@@ -201,31 +200,34 @@ Turn that into:
 
 1. **Fill in what is missing by asking, never by guessing.** Three inputs decide a run:
    - **Campaign**: if not named, call `list_campaigns` and ask which one.
-   - **Points**: if not given, call `campaign_work` and ask how many to label, stating how
+   - **Points**: if not given, call `list_agents` and ask how many to label, stating how
      many are open (e.g. "240 open tasks - how many should I label? 20 is a good first run").
-   - **Agents**: if not given, call `render_capacity` and recommend one agent per 5 points,
-     at least 1 and at most its `recommended_max_agents`, whichever is smaller. Say why in
-     a short phrase ("this machine can draw for 6 agents at once") and ask to confirm.
+   - **Agents**: if not given, recommend one agent per 5 points, at most 8, and ask to confirm.
    Ask for everything missing in one message, then wait for the answer.
 2. **Split** the points as evenly as possible over the agents (20 over 3 is 7, 7, 6), never
    more than `open_tasks`, and never register an agent with no tasks.
 3. **Register** one agent per worker yourself, named after the campaign or role plus a
    letter (`scout-a`, `scout-b`, ...), all with `takes_over_work: true` so a fast worker
-   picks up a slow one's queue. Tell the user the `render_host_url` once as the place to
-   watch the agents, and handle the `render_browsers` note of the first registration (see
-   Setup) before launching anyone.
+   picks up a slow one's queue. Handle a `render_browser` note on the first registration
+   (see Setup) before launching anyone. Decide the default views once from the first
+   agent's context and guide (only the dates, sources and cells that tell the classes
+   apart, see "Adapt the defaults to the campaign"): set them on that first agent with
+   `set_default_views` and pass them as `default_views` to the remaining registrations, so
+   all workers start lean and consistent.
 4. **Launch** one subagent per agent, all in parallel, each with this brief filled in:
 
    > You are labelling STACNotator campaign {id} as agent {agent_id}. Use the stacnotator
    > MCP tools and always pass this agent_id. Labels: {id: name, ...}. Guide: {two or three
-   > line summary}. Loop: next_task, look at the default views, use get_views only when the
+   > line summary}. If the default views turn out to miss what separates the classes, or
+   > carry much you never use, adjust them once with set_default_views.
+   > Loop: next_task, look at the default views, use get_views only when the
    > point is still ambiguous (at most one or two per task), then submit_label with an
    > honest confidence and a one line evidence comment, or skip_task with a reason. Stop
    > when next_task returns task null. Reply with one line per task: task id, label,
    > confidence, evidence. Do not describe the images.
 
 5. **Stopping early** (the user cancels, a worker fails or a budget runs out): call
-   `release_tasks(campaign_id=...)` so unfinished tasks go back to the pool instead of
+   `release_tasks(campaign_id)` so unfinished tasks go back to the pool instead of
    staying assigned to agents nobody runs.
 6. **Report** a table of agent, task, label and confidence, and point out skips, low
    confidence and anything odd about the sample.
@@ -237,7 +239,6 @@ Further rules:
 - Images fill context fast, so a subagent returns a short summary, not what it saw.
 - `takes_over_work` moves the last queued task of whichever of your other agents on the
   campaign has the most left (never the one it is about to work on). The owner can flip it
-  per agent with the checkbox on the Agents page.
-- Render pages are shared once there are more agents than the cap, and every heavy one-off
-  view takes a page's time. Put what you need every time in the default views so it stays
-  preloaded, and use `get_views` sparingly.
+  per agent on the campaign's Agents page, which also shows progress and frees tasks.
+- Every agent has its own browser page, but they all share this machine. Put what you need
+  every time in the default views so it stays preloaded, and use `get_views` sparingly.

@@ -1,4 +1,4 @@
-import type { ViewCell } from '~/api/client';
+import type { ViewCell } from './view';
 
 export interface CellRect {
   index: number;

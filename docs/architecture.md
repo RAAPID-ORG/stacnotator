@@ -17,7 +17,7 @@ Self-hosted titiler-pgstac (FastAPI + GDAL/rasterio), maintained in the separate
 PostgreSQL 16 with PostGIS (task and annotation geometries) and pgvector (64-D AlphaEarth satellite embeddings from Earth Engine, used for KNN label validation and embedding-based sampling). Stores organizations, projects, users, campaigns, annotations, canvas layouts, timeseries, custom layers, and tile URLs. STAC items live in each tiler's own pgstac database, not here.
 
 ### Python SDK
-`sdk/` ships an active-learning client library: pull labelled samples into DataFrames, push prediction COGs back as campaign overlays.
+`sdk/` ships an active-learning client library: pull labelled samples into DataFrames, push prediction COGs back as campaign overlays. It also ships an MCP server for agentic labelling, which draws map views in headless browser pages it runs; see [agentic-labelling.md](agentic-labelling.md).
 
 ## Tile Flow
 
