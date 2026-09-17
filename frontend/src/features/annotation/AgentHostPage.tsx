@@ -1,57 +1,51 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type AgentOut, type RecentViewOut } from '~/api/client';
 import {
-  claimAgentRenderJob,
-  completeAgentRenderJob,
-  type AgentOut,
-  type CampaignOutFull,
-} from '~/api/client';
-import {
+  getAgentRenderJobImageOptions,
   getCampaignWithImageryWindowsOptions,
   listAgentsOptions,
   listAgentsQueryKey,
+  listRecentAgentViewsOptions,
   releaseAgentTasksMutation,
   releaseAllAgentTasksMutation,
   updateAgentMutation,
 } from '~/api/queries';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
+import { useCampaignSummary } from '~/features/campaigns/hooks/campaignQueries';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { Button } from '~/shared/ui/forms';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
-import { extractErrorMessage } from '~/shared/utils/errorHandler';
-import { buildImageryCatalog, type ImageryCatalog } from './campaign/imagery';
-import { renderView } from './agents/render';
+import { useRenderLoop } from './agents/useRenderLoop';
 
-const WORKERS = 2;
-const IDLE_POLL_MS = 1000;
 const AGENTS_REFRESH_MS = 5000;
-
-interface LastRender {
-  agentName: string;
-  taskId: number;
-  src: string | null;
-  error: string | null;
-  ms: number;
-}
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const VIEWS_REFRESH_MS = 3000;
+/** Longer than a render page's poll interval, with room for a slow claim. */
+const RENDERER_STALE_MS = 20_000;
 
 /**
- * The browser side of agentic labelling: while this page is open it draws the views the
- * owner's agents ask for, from the same tiles and layers the annotation page uses.
+ * Where the owner watches their agents: what each one was just shown, its progress, and
+ * the controls over its work. The views are drawn by headless render pages the SDK starts;
+ * this tab only draws them itself when asked to, for machines without those.
  */
 export const AgentHostPage = () => {
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
   const path = { campaign_id: campaignId };
 
+  const [renderHere, setRenderHere] = useState(false);
+  // The full campaign is only needed to draw; watching needs none of it.
   const campaignQuery = useQuery({
     ...getCampaignWithImageryWindowsOptions({ path }),
+    enabled: renderHere,
     meta: { errorMessage: 'Failed to load campaign', showUser: false },
   });
-  const campaign = campaignQuery.data;
+  const { stageRef, rendered, lastError } = useRenderLoop({
+    campaign: campaignQuery.data,
+    enabled: renderHere,
+  });
   const agentsQuery = useQuery({
     ...listAgentsOptions({ path }),
     refetchInterval: AGENTS_REFRESH_MS,
@@ -84,53 +78,22 @@ export const AgentHostPage = () => {
     else if (releaseTarget) releaseOne.mutate({ path: { agent_id: releaseTarget.agent_id } });
   };
 
+  const recentViews = useQuery({
+    ...listRecentAgentViewsOptions({ path }),
+    refetchInterval: VIEWS_REFRESH_MS,
+    meta: { errorMessage: 'Failed to load agent views', showUser: false },
+  }).data;
+
+  const { campaign: summary } = useCampaignSummary(campaignId);
   useCampaignBreadcrumbs(
-    campaign?.project_id ?? routeProjectId,
+    summary?.project_id ?? routeProjectId,
     campaignId,
-    campaign?.name,
+    summary?.name,
     'Agents'
   );
 
-  const catalog = useMemo(() => (campaign ? buildImageryCatalog(campaign) : null), [campaign]);
-  const [running, setRunning] = useState(true);
-  const [rendered, setRendered] = useState(0);
-  const [last, setLast] = useState<LastRender | null>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
-  const agentNames = useRef(new Map<string, string>());
-  agentNames.current = new Map(agents.map((a) => [a.agent_id, a.name]));
-
-  useEffect(() => {
-    if (!running || !campaign || !catalog || !stageRef.current) return;
-    const stage = stageRef.current;
-    let stopped = false;
-
-    const renderNext = async () => {
-      const { data: job } = await claimAgentRenderJob({ path: { campaign_id: campaignId } });
-      if (!job) return sleep(IDLE_POLL_MS);
-      const started = performance.now();
-      const result = await render(job, campaign, catalog, stage);
-      await completeAgentRenderJob({ path: { job_id: job.job_id }, body: result });
-      setRendered((n) => n + 1);
-      setLast({
-        agentName: agentNames.current.get(job.agent_id) ?? job.agent_id,
-        taskId: job.task.task_id,
-        src: result.image_base64 ? `data:${result.mime_type};base64,${result.image_base64}` : null,
-        error: result.error ?? null,
-        ms: Math.round(performance.now() - started),
-      });
-    };
-    const work = async () => {
-      while (!stopped) {
-        // A failed poll or upload is retried; a job left claimed goes back to the
-        // queue when its lease runs out.
-        await renderNext().catch(() => sleep(IDLE_POLL_MS));
-      }
-    };
-    for (let i = 0; i < WORKERS; i++) void work();
-    return () => {
-      stopped = true;
-    };
-  }, [running, campaign, catalog, campaignId]);
+  const lastPoll = Math.max(0, ...agents.map((a) => Date.parse(a.host_seen_at ?? '') || 0));
+  const renderersAlive = Date.now() - lastPoll < RENDERER_STALE_MS;
 
   return (
     <div className="flex-1 overflow-auto">
@@ -139,20 +102,30 @@ export const AgentHostPage = () => {
           <div>
             <h1 className="page-title">Labelling agents</h1>
             <p className="text-sm text-neutral-600">
-              Keep this page open while your agents work: it draws the imagery they request.
-              Rendering is slower when the tab is in the background.
+              What your agents are looking at, as they work.
             </p>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setRunning((r) => !r)}>
-            {running ? 'Pause rendering' : 'Resume rendering'}
-          </Button>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={renderHere}
+              onChange={(event) => setRenderHere(event.target.checked)}
+            />
+            Render in this tab
+          </label>
         </header>
 
         <section className="surface mb-6">
           <div className="surface-section">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm" data-testid="agent-host-status">
-                {running ? 'Rendering' : 'Paused'} - {rendered} views drawn
+                {renderersAlive
+                  ? 'Render browsers are running'
+                  : agents.some((agent) => agent.remaining > 0)
+                    ? 'No render browser is running: let the MCP server start them, or render in this tab'
+                    : 'Idle'}
+                {renderHere && ` - ${rendered} views drawn here`}
+                {renderHere && lastError && ` - ${lastError}`}
               </p>
               {agents.some((agent) => agent.remaining > 0) && (
                 <Button variant="secondary" size="sm" onClick={() => setReleaseTarget('all')}>
@@ -220,19 +193,7 @@ export const AgentHostPage = () => {
           </div>
         </section>
 
-        {last && (
-          <section className="surface">
-            <div className="surface-section">
-              <p className="text-sm mb-2">
-                Last view: {last.agentName}, task {last.taskId}, {last.ms} ms
-              </p>
-              {last.error && <p className="text-sm text-red-700">{last.error}</p>}
-              {last.src && (
-                <img src={last.src} alt="Last rendered agent view" className="max-w-full" />
-              )}
-            </div>
-          </section>
-        )}
+        <RecentViews agents={agents} views={recentViews ?? []} />
       </div>
       <div ref={stageRef} aria-hidden className="fixed -left-[10000px] top-0" />
       <ConfirmDialog
@@ -253,15 +214,53 @@ export const AgentHostPage = () => {
   );
 };
 
-async function render(
-  job: Parameters<typeof renderView>[0]['job'],
-  campaign: CampaignOutFull,
-  catalog: ImageryCatalog,
-  stage: HTMLElement
-) {
-  try {
-    return await renderView({ job, campaign, catalog, stage });
-  } catch (err) {
-    return { error: extractErrorMessage(err, 'Rendering failed') };
-  }
+function RecentViews({ agents, views }: { agents: AgentOut[]; views: RecentViewOut[] }) {
+  if (views.length === 0) return null;
+  return (
+    <>
+      {agents.map((agent) => {
+        const own = views.filter((view) => view.agent_id === agent.agent_id);
+        if (own.length === 0) return null;
+        return (
+          <section key={agent.agent_id} className="surface mb-6">
+            <div className="surface-section">
+              <p className="text-sm font-medium mb-2">
+                {agent.name} - task {own[0].task_id}
+              </p>
+              <div className="flex flex-wrap gap-3 items-start">
+                {own.map((view) => (
+                  <ViewImage key={view.job_id} view={view} />
+                ))}
+              </div>
+            </div>
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
+/** Fetched once per view: a drawn view never changes. */
+function ViewImage({ view }: { view: RecentViewOut }) {
+  const { data } = useQuery({
+    ...getAgentRenderJobImageOptions({ path: { job_id: view.job_id }, parseAs: 'blob' }),
+    staleTime: Infinity,
+    meta: { errorMessage: 'Failed to load an agent view', showUser: false },
+  });
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!(data instanceof Blob)) return;
+    const url = URL.createObjectURL(data);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [data]);
+
+  return (
+    <figure className="max-w-full" style={{ width: Math.min(view.width ?? 640, 640) }}>
+      {src && <img src={src} alt={`Agent view of task ${view.task_id}`} className="max-w-full" />}
+      <figcaption className="text-xs text-neutral-600 mt-1">
+        {new Date(view.delivered_at).toLocaleTimeString()} - {view.captions.length} cells
+      </figcaption>
+    </figure>
+  );
 }

@@ -60,6 +60,7 @@ def upgrade() -> None:
         sa.Column("mime_type", sa.String(length=32), nullable=True),
         sa.Column("meta", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
+        sa.Column("delivered_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),

@@ -8,14 +8,16 @@ takes the agent_id it acts for.
 import base64
 import functools
 import json
+import subprocess
 from typing import Any
 
 from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from typing_extensions import Required, TypedDict
 
-from stacnotator import _credentials
+from stacnotator import _credentials, _render_browsers
 from stacnotator._http import DEFAULT_TIMEOUT_SECONDS, Http
+from stacnotator._render_browsers import RenderBrowsers
 from stacnotator.client import Client
 from stacnotator.errors import StacnotatorError
 
@@ -56,7 +58,8 @@ server = MCPServer(
         "worker, read the campaign guide in its context, then loop next_task -> "
         "(get_views) -> submit_label or skip_task, always passing your own agent_id. "
         "Asked for several parallel workers, register one agent per worker with the tasks "
-        "split evenly and takes_over_work on, then run one subagent per agent."
+        "split evenly and takes_over_work on, then run one subagent per agent. Call "
+        "render_capacity before recommending how many agents to run."
     ),
 )
 
@@ -64,6 +67,40 @@ server = MCPServer(
 @functools.cache
 def _http() -> Http:
     return Client()._http
+
+
+@functools.cache
+def _render_browsers_manager() -> RenderBrowsers | None:
+    creds = _credentials.load()
+    if not _render_browsers.PLAYWRIGHT_INSTALLED or creds is None:
+        return None
+    return RenderBrowsers(creds.url, _http().token)
+
+
+@functools.cache
+def _campaign_of(agent_id: str) -> int:
+    campaign_id: int = _http().get(f"/agents/{agent_id}")["campaign_id"]
+    return campaign_id
+
+
+def _ensure_render_browser(agent_id: str, campaign_id: int | None = None) -> str | None:
+    """Start a headless render page for the agent. Browser trouble becomes a note for the
+    model, never a failed tool call: the Agents page can still draw the views."""
+    try:
+        browsers = _render_browsers_manager()
+        if browsers is None:
+            missing = not _render_browsers.PLAYWRIGHT_INSTALLED and campaign_id is not None
+            return _render_browsers.PIP_NOTE if missing else None
+        return browsers.ensure(
+            campaign_id if campaign_id is not None else _campaign_of(agent_id), agent_id
+        )
+    except _render_browsers.ChromiumMissingError as exc:
+        return str(exc) if campaign_id is not None else None
+    except Exception as exc:
+        return (
+            f"Could not start a headless render browser ({exc}). Views are drawn only while "
+            'the campaign\'s Agents page is open with "Render in this tab" switched on.'
+        )
 
 
 def _get(path: str) -> Any:
@@ -95,7 +132,7 @@ def _without_none(body: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in body.items() if value is not None}
 
 
-def _bundle(result: dict[str, Any]) -> list[str | Image]:
+def _bundle(result: dict[str, Any], render_note: str | None) -> list[str | Image]:
     """The task and one entry per requested view as text, then the drawn images in order.
     Each view entry names the image it corresponds to, since failed views have none."""
     images: list[str | Image] = []
@@ -122,6 +159,8 @@ def _bundle(result: dict[str, Any]) -> list[str | Image]:
     }
     if result["task"] is None:
         summary["note"] = "All assigned tasks are done. Call request_tasks to get more."
+    if render_note:
+        summary["render_browsers"] = render_note
     return [_json(summary), *images]
 
 
@@ -147,8 +186,10 @@ def register_agent(
     toggle this per agent on the Agents page).
 
     Returns the agent (keep agent_id), the campaign context (guide, labels, form fields,
-    imagery slices, basemaps, time series), the default views, and the render host URL.
-    Images are drawn by a browser tab the owner keeps open at render_host_url.
+    imagery slices, basemaps, time series), the default views, render_host_url (the
+    campaign's Agents page, where the user watches what agents see) and render_browsers,
+    a note on the headless browsers that draw the views. Follow that note when it asks you
+    to check with the user.
     """
     result = _post(
         f"/campaigns/{campaign_id}/agents",
@@ -166,6 +207,10 @@ def register_agent(
     creds = _credentials.load()
     if creds is not None:
         result["render_host_url"] = creds.url + result["agent"]["render_host_path"]
+    result["render_browsers"] = (
+        _ensure_render_browser(result["agent"]["agent_id"], campaign_id)
+        or "A headless render browser already draws this campaign's views."
+    )
     return _json(result)
 
 
@@ -243,12 +288,14 @@ def next_task(agent_id: str) -> list[str | Image]:
     task null means every assigned task is done. The same task is returned until it is
     labelled or skipped.
     """
+    render_note = _ensure_render_browser(agent_id)
     return _bundle(
         _post(
             f"/agents/{agent_id}/next",
             {},
             timeout=RENDER_TIMEOUT_SECONDS,
-        )
+        ),
+        render_note,
     )
 
 
@@ -256,12 +303,14 @@ def next_task(agent_id: str) -> list[str | Image]:
 def get_views(agent_id: str, task_id: int, views: list[ViewSpec]) -> list[str | Image]:
     """Render more views of the agent's open task: finer slices, higher zoom, other
     visualizations or basemaps. Up to 8 views; same return shape as next_task."""
+    render_note = _ensure_render_browser(agent_id)
     return _bundle(
         _post(
             f"/agents/{agent_id}/tasks/{task_id}/views",
             {"views": views},
             timeout=RENDER_TIMEOUT_SECONDS,
-        )
+        ),
+        render_note,
     )
 
 
@@ -312,6 +361,49 @@ def skip_task(agent_id: str, task_id: int, comment: str) -> str:
             {"label_id": None, "comment": comment},
         )
     )
+
+
+@server.tool(structured_output=False)
+def install_render_browsers() -> str:
+    """Download Chromium for the headless render browsers (about 150 MB, once).
+
+    Only call this after the user has approved the download. It can take a few minutes."""
+    if not _render_browsers.PLAYWRIGHT_INSTALLED:
+        raise ToolError(_render_browsers.PIP_NOTE)
+    try:
+        return _render_browsers.install_chromium()
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
+        raise ToolError(str(exc)) from exc
+
+
+@server.tool(structured_output=False)
+def render_capacity() -> str:
+    """How many agents this machine can draw views for: cpu cores, available memory, the
+    estimated number of parallel render pages, the cap in effect (STACNOTATOR_MAX_RENDER_BROWSERS
+    overrides it) and the pages running. recommended_max_agents is the cap, since each agent
+    gets its own page; more agents still work but share pages and wait for each other."""
+    cpu_count, memory_mb = _render_browsers.machine_resources()
+    browsers = _render_browsers_manager()
+    cap = browsers.max_pages if browsers else _render_browsers.render_page_cap()
+    result: dict[str, Any] = {
+        "cpu_cores": cpu_count,
+        "available_memory_mb": memory_mb,
+        "estimated_max_render_pages": _render_browsers.estimate_render_capacity(
+            cpu_count, memory_mb
+        ),
+        "render_page_cap": cap,
+        "render_pages_running": 0,
+        "recommended_max_agents": cap,
+    }
+    if not _render_browsers.PLAYWRIGHT_INSTALLED:
+        result["note"] = _render_browsers.PIP_NOTE
+    elif browsers is not None:
+        status = browsers.status()
+        result["render_pages_running"] = status["pages_running"]
+        result["pages"] = status["pages"]
+        if status["closed_after_error"]:
+            result["closed_after_error"] = status["closed_after_error"]
+    return _json(result)
 
 
 if __name__ == "__main__":

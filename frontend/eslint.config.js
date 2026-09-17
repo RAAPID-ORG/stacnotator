@@ -86,6 +86,7 @@ export default tseslint.config(
                 '~/features/annotation/*',
                 '!~/features/annotation/AnnotationPage',
                 '!~/features/annotation/AgentHostPage',
+                '!~/features/annotation/AgentRenderPage',
               ],
               message:
                 'Import the annotation feature through ~/features/annotation/AnnotationPage.',

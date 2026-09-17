@@ -19,11 +19,15 @@ _LOGIN_DONE_PAGE = b"""<!doctype html>
 </body></html>"""
 
 
-class NoneTokenProvider:
-    """No-auth deployments (AUTH_PROVIDER=local): requests carry no bearer token."""
+LOCAL_TOKEN = "local-token"  # noqa: S105 (a placeholder the local-auth backend ignores)
 
-    def id_token(self) -> str | None:
-        return None
+
+class NoneTokenProvider:
+    """Local-auth deployments (AUTH_PROVIDER=local) ignore the token's value, but their
+    routes still require a bearer header, so we send the same placeholder the web app does."""
+
+    def id_token(self) -> str:
+        return LOCAL_TOKEN
 
     def invalidate(self) -> None:
         pass
@@ -101,7 +105,9 @@ class _CallbackHandler(BaseHTTPRequestHandler):
 
 def _backend_accepts_unauthenticated(url: str) -> bool:
     try:
-        response = requests.get(f"{url}/api/auth/me", timeout=10)
+        response = requests.get(
+            f"{url}/api/auth/me", headers={"Authorization": f"Bearer {LOCAL_TOKEN}"}, timeout=10
+        )
     except requests.RequestException as exc:
         raise AuthenticationError(f"Could not reach {url}: {exc}") from exc
     if not response.ok:

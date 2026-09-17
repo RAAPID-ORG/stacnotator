@@ -45,6 +45,8 @@ const MAP_TIMEOUT_MS = 30_000;
 // runs. Rendering on a timer keeps a host in a hidden tab drawing, only slower.
 const RENDER_PUMP_MS = 200;
 const CAPTION_PX = 18;
+/** Pure red, the colour agents are told marks the task. */
+const FOCUS_COLOR = '#ff0000';
 const CROSSHAIR_PX = 24;
 const CROSSHAIR_GAP_PX = 4;
 /** Below this an extent box is unreadable, so the point gets a crosshair instead. */
@@ -222,7 +224,7 @@ function taskFootprint(wkt: string): LayerSpec | null {
     kind: 'features',
     id: 'task-footprint',
     features: [{ geometry: new GeoJSONFormat().writeGeometryObject(new WKT().readGeometry(wkt)) }],
-    style: { stroke: { color: '#ff0000', width: 2, dash: [6, 4] } },
+    style: { stroke: { color: FOCUS_COLOR, width: 3 } },
     zIndex: 5,
   };
 }
@@ -454,11 +456,11 @@ function drawFocus(ctx: CanvasRenderingContext2D, cell: CellMeta, extentMeters: 
   }
   const x = cell.x + (cell.width - side) / 2;
   const y = cell.y + (cell.height - side) / 2;
-  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth = 5;
   ctx.strokeRect(x, y, side, side);
-  ctx.strokeStyle = '#ff2020';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = FOCUS_COLOR;
+  ctx.lineWidth = 3;
   ctx.strokeRect(x, y, side, side);
 }
 
@@ -479,8 +481,8 @@ function drawCrosshair(ctx: CanvasRenderingContext2D, rect: CellMeta) {
   ctx.strokeStyle = 'rgba(0,0,0,0.7)';
   ctx.lineWidth = 4;
   ctx.stroke();
-  ctx.strokeStyle = '#ff2020';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = FOCUS_COLOR;
+  ctx.lineWidth = 2.5;
   ctx.stroke();
 }
 

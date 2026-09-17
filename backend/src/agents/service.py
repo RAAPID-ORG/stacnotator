@@ -22,6 +22,7 @@ from src.agents.schemas import (
     AgentUpdate,
     CampaignContext,
     CampaignWorkOut,
+    RecentViewOut,
     RenderedView,
     RenderJobOut,
     RenderJobResult,
@@ -56,6 +57,8 @@ RENDER_LEASE = timedelta(seconds=90)
 WAIT_TIMEOUT_SECONDS = 120.0
 POLL_SECONDS = 0.3
 FINISHED_JOB_RETENTION = timedelta(hours=2)
+# Drawn views kept per agent once used, so the owner can still watch the latest ones.
+RECENT_VIEWS_PER_AGENT = 3
 
 
 def get_agent(db: Session, agent_id: UUID, owner: User) -> tuple[LabellingAgent, Campaign]:
@@ -429,10 +432,28 @@ def _enqueue(
 
 
 def _prune_finished(db: Session, agent: LabellingAgent) -> None:
+    """Drop anything left from long ago, and every drawn view of a finished task except
+    the few most recent ones the owner's viewer shows."""
+    keep = (
+        select(AgentRenderJob.id)
+        .where(
+            AgentRenderJob.agent_user_id == agent.user_id,
+            AgentRenderJob.delivered_at.is_not(None),
+        )
+        .order_by(AgentRenderJob.delivered_at.desc())
+        .limit(RECENT_VIEWS_PER_AGENT)
+    )
+    finished_task = exists().where(
+        Annotation.annotation_task_id == AgentRenderJob.task_id,
+        Annotation.created_by_user_id == AgentRenderJob.agent_user_id,
+    )
     db.execute(
         delete(AgentRenderJob).where(
             AgentRenderJob.agent_user_id == agent.user_id,
-            AgentRenderJob.created_at < datetime.now(UTC) - FINISHED_JOB_RETENTION,
+            or_(
+                AgentRenderJob.created_at < datetime.now(UTC) - FINISHED_JOB_RETENTION,
+                finished_task & AgentRenderJob.id.not_in(keep.scalar_subquery()),
+            ),
         )
     )
 
@@ -485,13 +506,26 @@ def _job_statuses(job_ids: list[int]) -> list[str]:
 
 
 def _read_jobs(job_ids: list[int]) -> dict[int, AgentRenderJob]:
+    """The jobs as they are handed to the agent, stamping the drawn ones as delivered."""
     with SessionLocal() as db:
+        db.execute(
+            update(AgentRenderJob)
+            .where(AgentRenderJob.id.in_(job_ids), AgentRenderJob.status == "done")
+            .values(delivered_at=func.now())
+        )
+        db.commit()
         rows = db.scalars(select(AgentRenderJob).where(AgentRenderJob.id.in_(job_ids))).all()
         return {row.id: row for row in rows}
 
 
-def claim_render_job(db: Session, campaign: Campaign, owner: User) -> RenderJobOut | None:
-    """Hand the owner's render host the most urgent job of their agents in this campaign."""
+def claim_render_job(
+    db: Session, campaign: Campaign, owner: User, prefer_agent_id: UUID | None = None
+) -> RenderJobOut | None:
+    """Hand the owner's render host the most urgent job of their agents in this campaign.
+
+    A browser started for one agent asks for that agent's jobs first, which keeps its
+    tile cache on that agent's work, and helps the others when it has nothing to do.
+    """
     now = datetime.now(UTC)
     db.execute(
         update(LabellingAgent)
@@ -510,7 +544,11 @@ def claim_render_job(db: Session, campaign: Campaign, owner: User) -> RenderJobO
                 & (AgentRenderJob.claimed_at < now - RENDER_LEASE),
             ),
         )
-        .order_by(AgentRenderJob.priority, AgentRenderJob.created_at)
+        .order_by(
+            AgentRenderJob.agent_user_id != prefer_agent_id,
+            AgentRenderJob.priority,
+            AgentRenderJob.created_at,
+        )
         .limit(1)
         .with_for_update(of=AgentRenderJob, skip_locked=True)
     ).first()
@@ -563,8 +601,67 @@ def submit_annotation(
     )
     db.execute(
         delete(AgentRenderJob).where(
-            AgentRenderJob.agent_user_id == agent.user_id, AgentRenderJob.task_id == task_id
+            AgentRenderJob.agent_user_id == agent.user_id,
+            AgentRenderJob.task_id == task_id,
+            AgentRenderJob.status != "done",
         )
     )
+    _prune_finished(db, agent)
     db.commit()
     return response
+
+
+def recent_views(db: Session, campaign: Campaign, owner: User) -> list[RecentViewOut]:
+    ranked = (
+        select(
+            AgentRenderJob.id,
+            func.row_number()
+            .over(
+                partition_by=AgentRenderJob.agent_user_id,
+                order_by=AgentRenderJob.delivered_at.desc(),
+            )
+            .label("rank"),
+        )
+        .join(LabellingAgent, LabellingAgent.user_id == AgentRenderJob.agent_user_id)
+        .where(
+            LabellingAgent.campaign_id == campaign.id,
+            LabellingAgent.owner_user_id == owner.id,
+            AgentRenderJob.delivered_at.is_not(None),
+        )
+        .subquery()
+    )
+    rows = db.execute(
+        select(
+            AgentRenderJob.id,
+            AgentRenderJob.agent_user_id,
+            AgentRenderJob.task_id,
+            AgentRenderJob.delivered_at,
+            AgentRenderJob.meta,
+        )
+        .join(ranked, ranked.c.id == AgentRenderJob.id)
+        .where(ranked.c.rank <= RECENT_VIEWS_PER_AGENT)
+        .order_by(AgentRenderJob.delivered_at.desc())
+    ).all()
+    return [
+        RecentViewOut(
+            job_id=job_id,
+            agent_id=agent_id,
+            task_id=task_id,
+            delivered_at=delivered_at,
+            width=(meta or {}).get("width"),
+            height=(meta or {}).get("height"),
+            captions=[cell.get("caption", "") for cell in (meta or {}).get("cells", [])],
+        )
+        for job_id, agent_id, task_id, delivered_at, meta in rows
+    ]
+
+
+def render_job_image(db: Session, job_id: int, owner: User) -> tuple[bytes, str]:
+    row = db.execute(
+        select(AgentRenderJob.image, AgentRenderJob.mime_type)
+        .join(LabellingAgent, LabellingAgent.user_id == AgentRenderJob.agent_user_id)
+        .where(AgentRenderJob.id == job_id, LabellingAgent.owner_user_id == owner.id)
+    ).first()
+    if row is None or row.image is None:
+        raise HTTPException(status_code=404, detail="Rendered view not found")
+    return row.image, row.mime_type or "image/jpeg"

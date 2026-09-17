@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -15,6 +15,7 @@ from src.agents.schemas import (
     AgentUpdate,
     CampaignContext,
     CampaignWorkOut,
+    RecentViewOut,
     ReleasedTasksOut,
     RenderJobOut,
     RenderJobResult,
@@ -183,11 +184,39 @@ def annotate_agent_task(
     "/campaigns/{campaign_id}/agents/render-jobs/claim", response_model=RenderJobOut | None
 )
 def claim_agent_render_job(
+    agent_id: UUID | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> RenderJobOut | None:
-    return service.claim_render_job(db, campaign, user)
+    """`agent_id` puts that agent's jobs first; any of the caller's agents' jobs follow."""
+    return service.claim_render_job(db, campaign, user, agent_id)
+
+
+@router.get("/campaigns/{campaign_id}/agents/recent-views", response_model=list[RecentViewOut])
+def list_recent_agent_views(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> list[RecentViewOut]:
+    return service.recent_views(db, campaign, user)
+
+
+@router.get(
+    "/agents/render-jobs/{job_id}/image",
+    response_class=Response,
+    responses={200: {"content": {"image/jpeg": {}}}},
+)
+def get_agent_render_job_image(
+    job_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+) -> Response:
+    image, mime_type = service.render_job_image(db, job_id, user)
+    # A done job is never drawn again, so its image can be cached.
+    return Response(
+        image, media_type=mime_type, headers={"Cache-Control": "private, max-age=86400"}
+    )
 
 
 @router.put("/agents/render-jobs/{job_id}", status_code=204)

@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-agent = ["mcp>=2.2,<3"]
+agent = ["mcp>=2.2,<3", "playwright>=1.47"]
 
 [dependency-groups]
 dev = [
@@ -26,6 +26,7 @@ dev = [
     "types-requests>=2.31",
     # The agent MCP server is type-checked and tested with the rest of the SDK.
     "mcp>=2.2,<3",
+    "playwright>=1.47",
 ]
 
 [build-system]

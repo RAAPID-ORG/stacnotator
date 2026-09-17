@@ -210,6 +210,19 @@ class RenderJobOut(BaseModel):
     view: ViewSpec
 
 
+class RecentViewOut(BaseModel):
+    """A view an agent was just handed, for the owner to watch. The image itself is
+    fetched once per job from the image route."""
+
+    job_id: int
+    agent_id: UUID
+    task_id: int
+    delivered_at: datetime
+    width: int | None
+    height: int | None
+    captions: list[str]
+
+
 class RenderJobResult(BaseModel):
     mime_type: str | None = Field(default=None, pattern=r"^image/(png|jpeg|webp)$")
     image_base64: str | None = Field(default=None, max_length=12_000_000)

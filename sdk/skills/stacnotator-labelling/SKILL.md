@@ -19,12 +19,20 @@ claude mcp add stacnotator -- python -m stacnotator.agent_mcp
 
 Other MCP clients: run `python -m stacnotator.agent_mcp` over stdio.
 
-**Images are drawn by the user's browser, not the server.** The user must keep the
-campaign's Agents page open (`render_host_url` from `register_agent`, e.g.
-`https://.../projects/3/campaigns/12/agents`). With no page open, views come back with
-`status` other than `done` and an `error` saying so - stop and ask the user to open it,
-don't label blind. `next_task`/`get_views` can wait up to ~2 minutes for drawing; if your
-client cuts tool calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIMEOUT`, ms).
+**Images are drawn by headless browsers the MCP server starts**, one per agent, up to a
+cap worked out from the machine's cores and memory (more agents than that share pages).
+The campaign's Agents page (`render_host_url` from `register_agent`, e.g.
+`https://.../projects/3/campaigns/12/agents`) is where the user watches what agents see.
+
+- **First run:** if the `render_browsers` note in the `register_agent` result says they are
+  not installed, ask the user whether to install them (a one-time Chromium download of
+  about 150 MB) and call `install_render_browsers` only after they agree.
+- **Without them** the user keeps the Agents page open with "Render in this tab" switched on.
+- With nothing drawing, views come back with `status` other than `done` and an `error`
+  saying so - stop and tell the user, don't label blind.
+
+`next_task`/`get_views` can wait up to ~2 minutes for drawing; if your client cuts tool
+calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIMEOUT`, ms).
 
 ## Tools
 
@@ -42,6 +50,8 @@ client cuts tool calls off sooner, raise its timeout (Claude Code: `MCP_TOOL_TIM
 | `submit_label(agent_id, task_id, label_id, confidence?, comment?, form_values?, flagged_for_review?, flag_comment?)` | label it |
 | `skip_task(agent_id, task_id, comment)` | skip with a reason |
 | `release_tasks(agent_id? or campaign_id?)` | free unfinished tasks of one agent or all your agents |
+| `render_capacity()` | cores, memory and how many agents this machine can draw views for |
+| `install_render_browsers()` | download Chromium for the render browsers, only after the user agreed |
 
 ## Workflow
 
@@ -86,7 +96,7 @@ Start from the defaults, then drill in only where it is ambiguous:
   basemap at high zoom for sharper geometry.
 - **Unsure about the landscape?** A low zoom context view.
 
-Every map cell is centred on the task. A point task gets a red box of the campaign's
+Every map cell is centred on the task. A point task gets a bright red box of the campaign's
 `sample_extent_meters` around it: label what is inside the box. When the box would be
 only a few pixels wide at that zoom, a crosshair marks the point instead, which is a hint
 to zoom in. Polygon tasks show their own outline. The caption says the source, date and
@@ -193,15 +203,17 @@ Turn that into:
    - **Campaign**: if not named, call `list_campaigns` and ask which one.
    - **Points**: if not given, call `campaign_work` and ask how many to label, stating how
      many are open (e.g. "240 open tasks - how many should I label? 20 is a good first run").
-   - **Agents**: if not given, recommend one agent per 5 points, at least 1 and at most 5
-     (one browser tab draws for all of them), and ask to confirm.
+   - **Agents**: if not given, call `render_capacity` and recommend one agent per 5 points,
+     at least 1 and at most its `recommended_max_agents`, whichever is smaller. Say why in
+     a short phrase ("this machine can draw for 6 agents at once") and ask to confirm.
    Ask for everything missing in one message, then wait for the answer.
 2. **Split** the points as evenly as possible over the agents (20 over 3 is 7, 7, 6), never
    more than `open_tasks`, and never register an agent with no tasks.
 3. **Register** one agent per worker yourself, named after the campaign or role plus a
    letter (`scout-a`, `scout-b`, ...), all with `takes_over_work: true` so a fast worker
-   picks up a slow one's queue. Tell the user the `render_host_url` once and ask them to
-   keep it open.
+   picks up a slow one's queue. Tell the user the `render_host_url` once as the place to
+   watch the agents, and handle the `render_browsers` note of the first registration (see
+   Setup) before launching anyone.
 4. **Launch** one subagent per agent, all in parallel, each with this brief filled in:
 
    > You are labelling STACNotator campaign {id} as agent {agent_id}. Use the stacnotator
@@ -226,6 +238,6 @@ Further rules:
 - `takes_over_work` moves the last queued task of whichever of your other agents on the
   campaign has the most left (never the one it is about to work on). The owner can flip it
   per agent with the checkbox on the Agents page.
-- One browser tab draws the views for all of your agents on that campaign, so many workers
-  asking for heavy one-off views will queue up. Put what you need every time in the
-  default views so it stays preloaded, and use `get_views` sparingly.
+- Render pages are shared once there are more agents than the cap, and every heavy one-off
+  view takes a page's time. Put what you need every time in the default views so it stays
+  preloaded, and use `get_views` sparingly.

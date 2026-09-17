@@ -41,12 +41,12 @@ def test_trailing_slash_base_url_tolerated():
 
 
 @responses.activate
-def test_none_provider_sends_no_auth_header():
+def test_none_provider_sends_the_local_placeholder_token():
     responses.get(f"{BASE}/api/auth/me", json={})
     http = Http(BASE, NoneTokenProvider())
 
     http.get("/auth/me")
-    assert "Authorization" not in responses.calls[0].request.headers
+    assert responses.calls[0].request.headers["Authorization"] == "Bearer local-token"
 
 
 @responses.activate

@@ -21,6 +21,9 @@ class Http:
         self._tokens = token_provider
         self._session = requests.Session()
 
+    def token(self) -> str | None:
+        return self._tokens.id_token()
+
     def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         return self._request("GET", path, params=params)
 

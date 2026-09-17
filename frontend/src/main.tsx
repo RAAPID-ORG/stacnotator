@@ -14,6 +14,7 @@ import { visualizerSlugFromPath } from 'src/features/visualizers/route';
 import { queryClient } from 'src/api/queryClient';
 
 const LegalPage = lazy(() => import('src/features/legal/LegalPage'));
+const AgentRenderPage = lazy(() => import('src/features/annotation/AgentRenderPage'));
 const VisualizerPage = lazy(() =>
   import('src/features/visualizers/VisualizerPage').then((m) => ({ default: m.VisualizerPage }))
 );
@@ -41,6 +42,8 @@ setupClientInterceptors(client);
  */
 const legalKey = legalKeyFromPath(window.location.pathname);
 const visualizerSlug = visualizerSlugFromPath(window.location.pathname);
+// Opened by the SDK in a headless browser, which signs the page in itself.
+const isAgentRender = window.location.pathname.replace(/\/$/, '') === '/agent-render';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary FallbackComponent={RootErrorFallback}>
@@ -48,6 +51,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       {legalKey ? (
         <Suspense fallback={null}>
           <LegalPage doc={legalKey} />
+        </Suspense>
+      ) : isAgentRender ? (
+        <Suspense fallback={null}>
+          <AgentRenderPage />
         </Suspense>
       ) : visualizerSlug ? (
         <AuthProvider>

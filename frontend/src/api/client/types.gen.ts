@@ -4135,6 +4135,43 @@ export type RasterOverlayOut = {
 };
 
 /**
+ * RecentViewOut
+ *
+ * A view an agent was just handed, for the owner to watch. The image itself is
+ * fetched once per job from the image route.
+ */
+export type RecentViewOut = {
+    /**
+     * Job Id
+     */
+    job_id: number;
+    /**
+     * Agent Id
+     */
+    agent_id: string;
+    /**
+     * Task Id
+     */
+    task_id: number;
+    /**
+     * Delivered At
+     */
+    delivered_at: string;
+    /**
+     * Width
+     */
+    width: number | null;
+    /**
+     * Height
+     */
+    height: number | null;
+    /**
+     * Captions
+     */
+    captions: Array<string>;
+};
+
+/**
  * ReleasedTasksOut
  */
 export type ReleasedTasksOut = {
@@ -11950,7 +11987,12 @@ export type ClaimAgentRenderJobData = {
          */
         campaign_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Agent Id
+         */
+        agent_id?: string | null;
+    };
     url: '/api/campaigns/{campaign_id}/agents/render-jobs/claim';
 };
 
@@ -11973,6 +12015,66 @@ export type ClaimAgentRenderJobResponses = {
 };
 
 export type ClaimAgentRenderJobResponse = ClaimAgentRenderJobResponses[keyof ClaimAgentRenderJobResponses];
+
+export type ListRecentAgentViewsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/agents/recent-views';
+};
+
+export type ListRecentAgentViewsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListRecentAgentViewsError = ListRecentAgentViewsErrors[keyof ListRecentAgentViewsErrors];
+
+export type ListRecentAgentViewsResponses = {
+    /**
+     * Response Listrecentagentviews
+     *
+     * Successful Response
+     */
+    200: Array<RecentViewOut>;
+};
+
+export type ListRecentAgentViewsResponse = ListRecentAgentViewsResponses[keyof ListRecentAgentViewsResponses];
+
+export type GetAgentRenderJobImageData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: number;
+    };
+    query?: never;
+    url: '/api/agents/render-jobs/{job_id}/image';
+};
+
+export type GetAgentRenderJobImageErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAgentRenderJobImageError = GetAgentRenderJobImageErrors[keyof GetAgentRenderJobImageErrors];
+
+export type GetAgentRenderJobImageResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type CompleteAgentRenderJobData = {
     body: RenderJobResult;

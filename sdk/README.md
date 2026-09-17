@@ -228,8 +228,12 @@ pip install "./sdk[agent]"
 claude mcp add stacnotator -- python -m stacnotator.agent_mcp   # after snt.login(url)
 ```
 
-Keep the campaign's Agents page open in a browser while agents work: it draws the images
-they look at. Hand the model [`skills/stacnotator-labelling/SKILL.md`](skills/stacnotator-labelling/SKILL.md),
+The MCP server draws the images agents look at in headless Chromium pages, one per agent up
+to a cap from the machine's cores and memory (`STACNOTATOR_MAX_RENDER_BROWSERS` overrides it).
+The first time, the model asks before downloading Chromium (about 150 MB); you can also run
+`python -m playwright install chromium` yourself. Without it, keep the campaign's Agents page
+open with "Render in this tab" switched on. Either way the Agents page shows what each agent
+sees. Hand the model [`skills/stacnotator-labelling/SKILL.md`](skills/stacnotator-labelling/SKILL.md),
 which covers the tools, how to choose context and detail views, and how to split work
 across subagents.
 
