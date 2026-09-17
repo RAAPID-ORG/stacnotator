@@ -1,244 +1,90 @@
 ---
 name: stacnotator-labelling
-description: Label STACNotator campaign tasks from satellite imagery through the stacnotator MCP server - register labelling agents, pull tasks with rendered map views, choose what imagery to look at per point, and submit labels. Use when asked to label, annotate or classify points in a STACNotator campaign, or to run several labelling subagents over one.
+description: Label STACNotator campaign tasks from satellite imagery through the stacnotator MCP server - register labelling agents, look at each point step by step, and submit labels. Use when asked to label, annotate or classify points in a STACNotator campaign, or to run several labelling agents over one.
 ---
 
 # Labelling a STACNotator campaign
 
-You label the tasks (points) of a campaign as an agent. For each task you get images of
-the imagery around the point, decide what else you need to see, and submit a label. You
-choose the views - that choice is most of the job.
-
-## Setup (once, by the user)
-
-```bash
-pip install "./sdk[agent]"                 # from the stacnotator repo root
-python -c 'import stacnotator as snt; snt.login("https://your-stacnotator.example.org")'
-claude mcp add stacnotator -- python -m stacnotator.agent_mcp
-```
-
-Other MCP clients: run `python -m stacnotator.agent_mcp` over stdio.
-
-The MCP server draws the images in a headless browser page per agent and hands them straight
-to you; nothing is rendered on the server. The first time, `register_agent` may return a
-`render_browser` note instead of the context, saying Chromium is not installed: ask the user
-whether to install it (a one-time download of about 150 MB), call `install_render_browsers`
-only after they agree, then `campaign_context` with the same agent_id. Never register the
-agent again.
+Not signed in: ask the user for their STACNotator URL and call `login(url)`. A
+`render_browser` note from `register_agent`: ask the user before `install_render_browsers`,
+then call `campaign_context`. Never register the same worker twice.
 
 ## Tools
 
 | tool | use |
 | --- | --- |
-| `list_campaigns()` | campaigns you can access, to ask which one to label |
-| `list_agents(campaign_id)` | total and open tasks plus your agents with assigned/remaining counts |
-| `register_agent(campaign_id, name, description?, task_count=10, task_set_id?, takes_over_work?, default_views?)` | create an agent, returns `agent.agent_id`, the campaign context and the default views |
-| `campaign_context(agent_id)` | guide, labels, form fields, imagery slices, basemaps, time series |
-| `next_task(agent_id)` | next open task + its default views |
-| `get_views(agent_id, task_id, views)` | one-off extra views of the current task |
-| `set_default_views(agent_id, views)` | change what every task comes with (and what is preloaded) |
-| `submit_label(agent_id, task_id, label_id, confidence?, comment?, form_values?, flagged_for_review?, flag_comment?)` | label it |
-| `skip_task(agent_id, task_id, comment)` | skip with a reason |
-| `release_tasks(campaign_id, agent_id?)` | free unfinished tasks of one agent or all your agents |
-| `watch_agents()` | open a window on the user's screen with every agent's latest views, only when asked |
-| `install_render_browsers()` | download Chromium, only after the user agreed |
+| `login(url)`, `list_campaigns()`, `list_agents(campaign_id)` | sign in; find the campaign; open tasks and your agents |
+| `register_agent(campaign_id, name, max_image_edge_px, max_image_megapixels, description?, task_count=10, task_set_id?, takes_over_work?, default_views?)` | one agent per worker; returns `agent_id`, context, default views |
+| `campaign_context(agent_id)` | guide, labels, form fields, imagery, basemaps, time series |
+| `next_task(agent_id)`, `get_views(agent_id, task_id, views)` | the current task with its first look; more views of it |
+| `set_default_views(agent_id, views)`, `set_image_limits(...)` | change the first look; restore limits after a restart |
+| `submit_label(agent_id, task_id, label_id, confidence, comment, form_values?, flagged_for_review?, flag_comment?)`, `skip_task(agent_id, task_id, comment)` | finish the task |
+| `release_tasks(campaign_id, agent_id?)`, `watch_agents()` | free unfinished tasks; watch window when the user asks |
 
-## Workflow
+Image limits: the largest image your model takes in without downscaling. You know them.
 
-1. `register_agent` - one agent per worker, each with its own short name
-   (`[a-zA-Z0-9._-]`, max 20) and `task_count`. Keep the `agent_id`.
-2. Read the context: `guide_markdown` is the labelling protocol, `labels` gives the ids you
-   submit, `form_fields` lists extra questions (note `required`). Note what imagery exists:
-   sources -> collections (periods, e.g. months) -> slices (finer, e.g. weeks), each
-   collection's `cover_slice_id` (a composite of the period), `visualizations` per source,
-   `max_native_zoom`, basemaps and time series. Sources with `on_demand: true` (Planet
-   daily scenes) are searched around each task when you ask: the first view of a task
-   takes several seconds, and a date may hold nothing there (the cell caption then starts
-   with `no image:`). Their collection covers are the cheapest way to see which periods have data.
-3. Loop:
-   - `next_task(agent_id)` - returns the agent's **default views**. Those are also what gets
-     preloaded: whenever you call it, the browser draws the same views for your next two
-     tasks, so the next call is usually instant. The defaults come from `register_agent`
-     (built in when omitted) and can be replaced any time with `set_default_views`, e.g. once
-     the first tasks show which periods or zooms matter in this campaign. They live in the
-     MCP server process, so set them again after it restarts.
-   - Look. If the answer is clear, label. If not, `get_views` for exactly what would settle it.
-   - `submit_label` or `skip_task`.
-   - `task: null` means your assigned tasks are done.
+## Per point
 
-`next_task` keeps returning the same task until you label or skip it.
+Read the guide, `labels` and `form_fields` first. Then:
 
-## Deciding what to look at
+1. `next_task`: a first look - a few dates across the season zoomed on the point, the time
+   series, and a basemap pair (surroundings, close up).
+2. List everything still unclear and request it all in **one** `get_views` call, packed:
+   dates to compare side by side in one view at one zoom, context and close up in one view
+   via per-cell `zoom`, a second view only where cell size must differ. Repeat only for
+   something new. Typical needs: the months around a change in the time series (covers or
+   finer slices); higher zoom or a basemap close up for a small point; neighbouring dates
+   for clouds; another `visualization`; the chart with `remove_cloudy` and `smoothed`.
+3. `submit_label`, or `skip_task` with the reason when the imagery cannot tell.
 
-Start from the defaults, then drill in only where it is ambiguous:
+Views most points need belong in the first look (`set_default_views`), which is also drawn
+ahead for your next tasks. `task: null` means done.
 
-- **Default views** (built in): one image with the covers of the first source's most recent periods
-  (up to 16) plus the cloud-free time series chart, and a basemap pair (wide context and
-  close up).
-- **Adapt the defaults to the campaign.** The built-in set is generic and often more than a
-  task needs. After reading the guide and the first task or two, decide what actually
-  settles a label and call `set_default_views` with only that: e.g. the two or three
-  periods that tell the classes apart (sowing, peak, harvest) instead of 16 covers, one
-  source instead of several, or the time series plus a single detail cell. Fewer dates and
-  cells mean less to draw, faster tasks and far less context used per task, which matters
-  over many tasks and many agents. Fetch the rest with `get_views` only for points that
-  stay unclear.
-- **Noisy time series?** Ask for the chart again with `"remove_cloudy": true` (drops the
-  cloud-flagged observations, otherwise drawn as grey dots) and `"smoothed": true`
-  (Savitzky-Golay line; `meta` then carries a `smoothed` column next to the raw values).
-- **Ambiguous crop/phenology?** Look at the finer slices of the one or two periods that
-  matter (e.g. the weeks around green-up or harvest) and read the time series values in `meta`.
-- **Cloudy or hazy cover?** Try the individual slices of that period, or a neighbouring period.
-- **Can't tell the land cover from true colour?** Ask for another visualization
-  (false colour / NDVI style) if the source lists one.
-- **Unsure where the field or object boundary is?** A high zoom detail view, plus a
-  basemap at high zoom for sharper geometry.
-- **Unsure about the landscape?** A low zoom context view.
+## Views
 
-Every map cell is centred on the task. A point task gets a bright red box of the campaign's
-`sample_extent_meters` around it: label what is inside the box. When the box would be
-only a few pixels wide at that zoom, a crosshair marks the point instead, which is a hint
-to zoom in. Polygon tasks show their own outline. The caption says the source, date and
-zoom. The `meta` of each view describes every cell (`index`, `kind`, position, `caption`,
-`zoom`, `meters_per_pixel`, and raw values for time series cells).
-
-### Context views vs detail views
-
-- **Context**: lower zoom, several cells - 3-4 columns of 256-320 px. Shows landscape,
-  field patterns, roads, water, settlements.
-- **Detail**: high zoom, few big cells - 1-2 columns of 512-768 px, tightly around the point.
-- **Mixing**: `zoom` on a cell overrides the view's zoom for that cell, so one image can
-  hold a wide context cell next to close ups.
-
-Meters per pixel = 156543.03 * cos(lat) / 2^zoom. Width of a cell at the equator
-(multiply by cos(lat), about 0.7 at 45 degrees):
-
-| zoom | m/px | 320 px cell | 768 px cell |
-| --- | --- | --- | --- |
-| 12 | 38 | 12 km | 29 km |
-| 13 | 19 | 6.1 km | 15 km |
-| 14 | 9.6 | 3.1 km | 7.3 km |
-| 15 | 4.8 | 1.5 km | 3.7 km |
-| 16 | 2.4 | 760 m | 1.8 km |
-| 17 | 1.2 | 380 m | 920 m |
-| 18 | 0.6 | 190 m | 460 m |
-
-Zooming past a source's `max_native_zoom` only upsamples: no new detail. For 10 m imagery
-(e.g. Sentinel-2) z14-15 is already native; go higher on basemaps, not on the slices.
-
-### Packing
-
-- Prefer one dense image over many small calls: up to 36 cells in a view, 8 views per call.
-- `columns * cell_px <= 2048`. Cells fill left to right; a time series cell closes the current
-  row and takes a whole row of its own, `max(180, 0.75 * cell_px)` px high.
-- Images you receive are downscaled to roughly 1568 px on the long edge and about
-  1.15 megapixels. A 6x6 grid of 320 px cells (1920 px square) reaches you at under 200 px
-  per cell, a 4x2 grid of 320 px cells arrives untouched. More cells means less detail per cell:
-  use many cells for comparing dates, few big ones for fine detail.
-- Don't ask for what you already have. Every view costs context.
-- What you need for almost every task belongs in the default views (preloaded); what you
-  need now and then belongs in `get_views` (drawn on demand, a few seconds).
-
-## View examples
-
-Ids below are made up - take real ones from the context.
-
-Overview of six monthly covers plus two time series (NDVI and precipitation):
+`{"cells": [...], "columns": 4, "cell_px": 320, "zoom": 15}`; each cell is one of
+`{"slice_id", "visualization"?}`, `{"basemap_id"}`, `{"timeseries_ids": [...]}`, with an
+optional own `"zoom"`. At most 36 cells per view, 8 views per call; a chart takes a full row;
+`cell_px` shrinks to fit your limits.
 
 ```json
-[{"columns": 3, "cell_px": 384, "zoom": 15,
-  "cells": [{"slice_id": 101}, {"slice_id": 111}, {"slice_id": 121},
-            {"slice_id": 131}, {"slice_id": 141}, {"slice_id": 151},
-            {"timeseries_ids": [4, 5], "remove_cloudy": true, "smoothed": true}]}]
+[{"columns": 4, "cell_px": 384, "zoom": 17,
+  "cells": [{"slice_id": 132}, {"slice_id": 133}, {"slice_id": 134},
+            {"basemap_id": 2, "zoom": 13}]}]
 ```
 
-Detail of the three weekly slices of one month at z17, big cells:
+Meters per pixel = 156543 * cos(lat) / 2^zoom. Past `max_native_zoom` pixels only get bigger.
+`on_demand` sources search Planet around the point, so a date can be empty.
 
-```json
-[{"columns": 3, "cell_px": 512, "zoom": 17,
-  "cells": [{"slice_id": 132}, {"slice_id": 133}, {"slice_id": 134}]}]
-```
+Reading: the thin red box sits just outside the sample extent (a crosshair when too small);
+cells are labelled `#i date, zoom` and match `meta.cells[i]`; basemaps have no date and can be
+old; `inside_box` gives `mean_rgb`, `green_index` (above ~0.1 usually vegetation),
+`bright_share` (cloud), `no_data_share`; `(!)` and hatched grey mean no data; time series
+values are in `series[].rows`.
 
-Basemap context and detail in one image using per-cell zoom:
+## Labels
 
-```json
-[{"columns": 2, "cell_px": 768, "zoom": 17,
-  "cells": [{"basemap_id": 2, "zoom": 13}, {"basemap_id": 2}]}]
-```
+- `label_id` from the context, by the guide's definitions; fill required `form_values`
+  (keyed by field id).
+- `confidence` 0-5 honestly: 5 no doubt, 0 a guess.
+- `comment`: your reasoning - what the relevant dates and views showed, why that means this
+  label, what ruled out the close alternatives, what stays uncertain.
+- A label fits but a human should check: `flagged_for_review` with `flag_comment`.
 
-True colour vs false colour for the same periods (visualization names from the source):
+## Several agents
 
-```json
-[{"columns": 4, "cell_px": 320, "zoom": 15,
-  "cells": [{"slice_id": 131, "visualization": "True Color"},
-            {"slice_id": 141, "visualization": "True Color"},
-            {"slice_id": 131, "visualization": "False Color"},
-            {"slice_id": 141, "visualization": "False Color"}]}]
-```
+1. Ask in one message for what is missing: campaign, number of points (say how many are
+   open), number of agents (suggest one per 5 points, at most 8).
+2. Register the agents one at a time with the workers' image limits, names like `scout-a`,
+   tasks split evenly, `takes_over_work: true`.
+3. Start one subagent per agent in parallel (without subagents: work them yourself in turn,
+   or ask the user to open one session per agent) with this brief:
 
-Custom `default_views` passed to `register_agent` use the same shape (max 4) and replace
-the built-in overview for every task.
+   > Label STACNotator campaign {id} as agent {agent_id} with the stacnotator tools, always
+   > passing this agent_id. Labels: {id: name}. Guide: {two lines}. Per task: next_task, one
+   > packed get_views for everything unclear (again only if needed), then submit_label with
+   > confidence 0-5 and a comment explaining the decision, or skip_task with the reason.
+   > Stop at task null. Reply one line per task: id, label, confidence, short reason.
 
-## Labelling discipline
-
-- `label_id` must come from the context's `labels`. Follow the guide's definitions, not your own.
-- Fill every required form field. `form_values` is keyed by field id as a string: category
-  -> option id, multicategory -> list of option ids, number, text, date `"YYYY-MM-DD"`,
-  daterange `{"start": ..., "end": ...}`.
-- `confidence` 0-10, honestly. A 9 should mean you would bet on it.
-- `comment`: one or two lines of evidence ("green-up in May slices, harvested by August,
-  regular field boundaries at z17").
-- Can't decide from the imagery (clouds everywhere, no data, class not in the guide)?
-  `skip_task` with the reason. A skip is better than a guess.
-- Picked a label but a human should check it? `flagged_for_review: true` with a `flag_comment`.
-- A tool error (bad id, missing required field) comes back as a readable message: fix and retry.
-
-## Orchestrating subagents
-
-Users ask in plain words ("label 20 points of campaign 12 with 4 agents in parallel").
-Turn that into:
-
-1. **Fill in what is missing by asking, never by guessing.** Three inputs decide a run:
-   - **Campaign**: if not named, call `list_campaigns` and ask which one.
-   - **Points**: if not given, call `list_agents` and ask how many to label, stating how
-     many are open (e.g. "240 open tasks - how many should I label? 20 is a good first run").
-   - **Agents**: if not given, recommend one agent per 5 points, at most 8, and ask to confirm.
-   Ask for everything missing in one message, then wait for the answer.
-2. **Split** the points as evenly as possible over the agents (20 over 3 is 7, 7, 6), never
-   more than `open_tasks`, and never register an agent with no tasks.
-3. **Register** one agent per worker yourself, named after the campaign or role plus a
-   letter (`scout-a`, `scout-b`, ...), all with `takes_over_work: true` so a fast worker
-   picks up a slow one's queue. Handle a `render_browser` note on the first registration
-   (see Setup) before launching anyone. Decide the default views once from the first
-   agent's context and guide (only the dates, sources and cells that tell the classes
-   apart, see "Adapt the defaults to the campaign"): set them on that first agent with
-   `set_default_views` and pass them as `default_views` to the remaining registrations, so
-   all workers start lean and consistent.
-4. **Launch** one subagent per agent, all in parallel, each with this brief filled in:
-
-   > You are labelling STACNotator campaign {id} as agent {agent_id}. Use the stacnotator
-   > MCP tools and always pass this agent_id. Labels: {id: name, ...}. Guide: {two or three
-   > line summary}. If the default views turn out to miss what separates the classes, or
-   > carry much you never use, adjust them once with set_default_views.
-   > Loop: next_task, look at the default views, use get_views only when the
-   > point is still ambiguous (at most one or two per task), then submit_label with an
-   > honest confidence and a one line evidence comment, or skip_task with a reason. Stop
-   > when next_task returns task null. Reply with one line per task: task id, label,
-   > confidence, evidence. Do not describe the images.
-
-5. **Stopping early** (the user cancels, a worker fails or a budget runs out): call
-   `release_tasks(campaign_id)` so unfinished tasks go back to the pool instead of
-   staying assigned to agents nobody runs.
-6. **Report** a table of agent, task, label and confidence, and point out skips, low
-   confidence and anything odd about the sample.
-
-Further rules:
-
-- All subagents share one MCP server, so every call passes that worker's `agent_id`.
-  Never let two workers use the same `agent_id`: they would fight over the same next task.
-- Images fill context fast, so a subagent returns a short summary, not what it saw.
-- `takes_over_work` moves the last queued task of whichever of your other agents on the
-  campaign has the most left (never the one it is about to work on). The owner can flip it
-  per agent on the campaign's Agents page, which also shows progress and frees tasks.
-- Every agent has its own browser page, but they all share this machine. Put what you need
-  every time in the default views so it stays preloaded, and use `get_views` sparingly.
+4. Stopped early: `release_tasks(campaign_id)`. Report agent, task, label, confidence; point
+   out skips and low confidence.

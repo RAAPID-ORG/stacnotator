@@ -1,5 +1,6 @@
 import type { CampaignOutFull } from '~/api/client';
 import { isSceneSource } from '../campaign/scenes';
+import { metersPerPixel, packView } from './pack';
 
 /** What an agent can ask to see, and what it is told the campaign holds. The MCP server
  *  passes these through to the render page, so this file is their only definition. */
@@ -30,12 +31,28 @@ export interface ViewSpec {
   zoom?: number;
 }
 
+/** The largest image the agent's model takes in without shrinking it. Views are fitted
+ *  to it, so what the model sees is exactly what was drawn. */
+export interface ImageLimits {
+  max_edge_px: number;
+  max_megapixels: number;
+}
+
 export const DEFAULT_COLUMNS = 4;
 export const DEFAULT_CELL_PX = 320;
 export const DEFAULT_ZOOM = 15;
-const MAX_IMAGE_PX = 2048;
+const MIN_CELL_PX = 96;
 const MAX_CELLS = 36;
-const OVERVIEW_MAX_CELLS = 16;
+/** A first look, spread over the whole season: the agent asks for the dates in between. */
+const FIRST_LOOK_DATES = 4;
+const CHIP_PX = 384;
+/** A chip is zoomed so the sample extent spans about this share of it: big enough to read
+ *  its colour, with a field's worth of surroundings to read it against. */
+const EXTENT_SHARE_OF_CHIP = 1 / 6;
+const MAX_CHIP_ZOOM = 18;
+/** Past a source's native zoom only so far: a few upsampled pixels still read as
+ *  colour patches, many are just blur. */
+const ZOOM_PAST_NATIVE = 2;
 
 /** Throws a message the agent can act on. */
 export function checkView(view: ViewSpec): void {
@@ -44,9 +61,7 @@ export function checkView(view: ViewSpec): void {
   if (!view.cells?.length || view.cells.length > MAX_CELLS)
     throw new Error(`a view holds 1-${MAX_CELLS} cells`);
   if (columns < 1 || columns > 8) throw new Error('columns must be 1-8');
-  if (cellPx < 96 || cellPx > 1024) throw new Error('cell_px must be 96-1024');
-  if (columns * cellPx > MAX_IMAGE_PX)
-    throw new Error(`columns * cell_px must be at most ${MAX_IMAGE_PX}`);
+  if (cellPx < MIN_CELL_PX || cellPx > 1024) throw new Error('cell_px must be 96-1024');
   for (const cell of view.cells) {
     const kinds = [cell.slice_id, cell.basemap_id, cell.timeseries_ids].filter((v) => v != null);
     if (kinds.length !== 1)
@@ -55,6 +70,46 @@ export function checkView(view: ViewSpec): void {
       throw new Error('remove_cloudy and smoothed apply to time series cells only');
   }
 }
+
+/** The cell size to draw a view at: the one asked for, or the largest smaller one whose
+ *  image fits the model's limits. */
+export function fitCellPx(view: ViewSpec, limits: ImageLimits): number {
+  const columns = view.columns ?? DEFAULT_COLUMNS;
+  const fits = (cellPx: number) => {
+    const { width, height } = packView(view.cells, columns, cellPx);
+    return (
+      Math.max(width, height) <= limits.max_edge_px &&
+      width * height <= limits.max_megapixels * 1_000_000
+    );
+  };
+  let cellPx = view.cell_px ?? DEFAULT_CELL_PX;
+  while (!fits(cellPx)) {
+    if (cellPx <= MIN_CELL_PX)
+      throw new Error(
+        'this view does not fit your image limits even at cell_px 96: use fewer cells or columns'
+      );
+    cellPx = Math.max(MIN_CELL_PX, cellPx - 8);
+  }
+  return cellPx;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "May 2025" for a whole month, "3-10 May 2025", "28 Apr-5 May 2025", "12 May 2025". */
+export function shortDateRange(start: string, end: string): string {
+  const [ys, ms, ds] = start.slice(0, 10).split('-').map(Number);
+  const [ye, me, de] = end.slice(0, 10).split('-').map(Number);
+  const lastDay = new Date(Date.UTC(ye, me, 0)).getUTCDate();
+  if (ys === ye && ms === me && ds === 1 && de === lastDay) return `${MONTHS[ms - 1]} ${ys}`;
+  if (ys === ye && ms === me && ds === de) return `${ds} ${MONTHS[ms - 1]} ${ys}`;
+  if (ys === ye && ms === me) return `${ds}-${de} ${MONTHS[ms - 1]} ${ys}`;
+  if (ys === ye) return `${ds} ${MONTHS[ms - 1]}-${de} ${MONTHS[me - 1]} ${ys}`;
+  return `${ds} ${MONTHS[ms - 1]} ${ys}-${de} ${MONTHS[me - 1]} ${ye}`;
+}
+
+/** The zoom at which `meters` spans `px` pixels at this latitude. */
+const zoomForSpan = (lat: number, meters: number, px: number): number =>
+  Math.log2(metersPerPixel(lat, 0) / (meters / px));
 
 export function campaignContext(campaign: CampaignOutFull) {
   const { settings } = campaign;
@@ -121,14 +176,27 @@ export function campaignContext(campaign: CampaignOutFull) {
 
 export type CampaignContext = ReturnType<typeof campaignContext>;
 
-/** The most recent period covers of the first source with the time series, and a basemap
- *  pair at two zooms for the surroundings. The agent asks for detail from there. */
+/** A light first look: a few period covers spread over the season, zoomed onto the sample
+ *  extent, with the time series, and a basemap pair for the surroundings and the detail.
+ *  The agent asks for more of the same point from there. */
 export function defaultViews(context: CampaignContext): ViewSpec[] {
   const first = context.imagery[0];
-  const zoom = first?.default_zoom ?? DEFAULT_ZOOM;
-  const covers: ViewCell[] = (first?.collections ?? [])
-    .flatMap((c) => (c.cover_slice_id != null ? [{ slice_id: c.cover_slice_id }] : []))
-    .slice(-OVERVIEW_MAX_CELLS);
+  const sourceZoom = first?.default_zoom ?? DEFAULT_ZOOM;
+  const [, south, , north] = context.bbox;
+  const extent = context.sample_extent_meters;
+  const chipZoom = extent
+    ? Math.min(
+        MAX_CHIP_ZOOM,
+        (first?.max_native_zoom ?? MAX_CHIP_ZOOM) + ZOOM_PAST_NATIVE,
+        Math.floor(zoomForSpan((south + north) / 2, extent / EXTENT_SHARE_OF_CHIP, CHIP_PX))
+      )
+    : sourceZoom;
+  const allCovers = (first?.collections ?? []).flatMap((c) =>
+    c.cover_slice_id != null ? [c.cover_slice_id] : []
+  );
+  const covers: ViewCell[] = spreadOver(allCovers, FIRST_LOOK_DATES).map((slice_id) => ({
+    slice_id,
+  }));
   const series: ViewCell[] = context.timeseries.length
     ? [
         {
@@ -140,21 +208,35 @@ export function defaultViews(context: CampaignContext): ViewSpec[] {
 
   const views: ViewSpec[] = [];
   if (covers.length) {
-    views.push({ cells: [...covers, ...series], columns: Math.min(4, covers.length), zoom });
+    views.push({
+      cells: [...covers, ...series],
+      columns: Math.min(DEFAULT_COLUMNS, covers.length),
+      cell_px: CHIP_PX,
+      zoom: chipZoom,
+    });
   } else if (series.length) {
-    views.push({ cells: series, columns: 2, cell_px: 512, zoom });
+    views.push({ cells: series, columns: 2, cell_px: 512, zoom: chipZoom });
   }
   const basemap = context.basemaps[0];
   if (basemap) {
     views.push({
       cells: [
-        { basemap_id: basemap.basemap_id, zoom: Math.max(1, zoom - 3) },
-        { basemap_id: basemap.basemap_id, zoom: Math.min(22, zoom + 1) },
+        { basemap_id: basemap.basemap_id, zoom: Math.max(1, sourceZoom - 2) },
+        { basemap_id: basemap.basemap_id, zoom: Math.min(20, chipZoom + 1) },
       ],
       columns: 2,
       cell_px: 512,
-      zoom,
+      zoom: sourceZoom,
     });
   }
   return views;
+}
+
+/** `count` items evenly spaced from first to last. */
+function spreadOver<T>(items: T[], count: number): T[] {
+  if (items.length <= count) return items;
+  return Array.from(
+    { length: count },
+    (_, i) => items[Math.round((i * (items.length - 1)) / (count - 1))]
+  );
 }

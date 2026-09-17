@@ -30,7 +30,7 @@ class FakeBrowsers:
         if method == "defaultViews":
             return [DEFAULT_VIEW]
         if method == "render":
-            _, views = args
+            _, views, _limits = args
             return [
                 {"view": views[0], "error": "unknown slice 7"},
                 *(
@@ -57,6 +57,7 @@ def browsers(monkeypatch):
     agent_mcp._agents.clear()
     agent_mcp._default_views.clear()
     agent_mcp._current_tasks.clear()
+    agent_mcp._image_limits.clear()
     yield fake
     agent_mcp._http.cache_clear()
 
@@ -69,6 +70,9 @@ def test_next_task_draws_the_task_and_preloads_the_ones_after_it(browsers):
         json={"campaign_id": 12, "remaining": 3, "tasks": [TASK, NEXT_TASK]},
     )
 
+    limits = {"max_edge_px": 1000, "max_megapixels": 1.0}
+    asyncio.run(agent_mcp.set_image_limits(AGENT, 1000, 1.0))
+
     text, image = asyncio.run(agent_mcp.next_task(AGENT))
 
     summary = json.loads(text)
@@ -78,8 +82,8 @@ def test_next_task_draws_the_task_and_preloads_the_ones_after_it(browsers):
     assert summary["views"][1]["image"] == 1
     assert isinstance(image, Image)
     assert image.data == IMAGE_BYTES
-    assert ("render", TASK, [DEFAULT_VIEW]) in browsers.calls
-    assert ("preload", [NEXT_TASK], [DEFAULT_VIEW]) in browsers.calls
+    assert ("render", TASK, [DEFAULT_VIEW], limits) in browsers.calls
+    assert ("preload", [NEXT_TASK], [DEFAULT_VIEW], limits) in browsers.calls
     assert browsers.shown == [("scout-a-1a2b3c", 5, 1)]
 
 
@@ -97,7 +101,7 @@ def test_api_errors_reach_the_model_as_tool_errors(browsers):
     )
 
     with pytest.raises(ToolError, match="Crop stage"):
-        asyncio.run(agent_mcp.submit_label(AGENT, 9, label_id=1))
+        asyncio.run(agent_mcp.submit_label(AGENT, 9, label_id=1, confidence=4, comment="bare soil"))
 
 
 @responses.activate
@@ -108,7 +112,24 @@ def test_register_agent_keeps_the_agent_when_chromium_is_missing(browsers, monke
     monkeypatch.setattr(browsers, "call", missing)
     responses.post(f"{BASE}/api/campaigns/12/agents", json=AGENT_OUT)
 
-    result = json.loads(asyncio.run(agent_mcp.register_agent(12, "scout-a")))
+    result = json.loads(asyncio.run(agent_mcp.register_agent(12, "scout-a", 1000, 1.0)))
 
     assert result["agent"] == AGENT_OUT
     assert "install_render_browsers" in result["render_browser"]
+
+
+@responses.activate
+def test_registered_image_limits_reach_every_render(browsers):
+    responses.post(f"{BASE}/api/campaigns/12/agents", json=AGENT_OUT)
+    responses.post(
+        f"{BASE}/api/agents/{AGENT}/next",
+        json={"campaign_id": 12, "remaining": 1, "tasks": [TASK]},
+    )
+
+    asyncio.run(
+        agent_mcp.register_agent(12, "scout-a", max_image_edge_px=2000, max_image_megapixels=3.0)
+    )
+    asyncio.run(agent_mcp.next_task(AGENT))
+
+    renders = [call for call in browsers.calls if call[0] == "render"]
+    assert renders[0][3] == {"max_edge_px": 2000, "max_megapixels": 3.0}

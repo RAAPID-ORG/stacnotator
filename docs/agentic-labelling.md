@@ -7,21 +7,35 @@ other annotator.
 
 ## Setup
 
-```bash
-pip install "./sdk[agent]"                  # from the repo root: mcp + playwright
-python -c 'import stacnotator as snt; snt.login("https://your-stacnotator.example.org")'
-claude mcp add stacnotator -- python -m stacnotator.agent_mcp
+Install the plugin, which brings the labelling skill and the MCP server. You need
+[uv](https://docs.astral.sh/uv/); there is nothing to clone or run yourself.
+
+Claude Code:
+
+```
+/plugin marketplace add RAAPID-ORG/stacnotator
+/plugin install stacnotator@stacnotator
 ```
 
-Other MCP clients run `python -m stacnotator.agent_mcp` over stdio. Give the model the skill
-in [`sdk/skills/stacnotator-labelling/SKILL.md`](../sdk/skills/stacnotator-labelling/SKILL.md):
-it covers the tools, how to choose context and detail views, and how to split a run across
-subagents.
+Codex:
 
-Images are drawn in headless Chromium. The first time, the model asks before downloading it
-(about 150 MB, `install_render_browsers`); you can also run
-`python -m playwright install chromium` yourself. On a bare Linux machine Chromium may also
-need system libraries: `python -m playwright install-deps chromium` (needs sudo).
+```bash
+codex plugin marketplace add RAAPID-ORG/stacnotator
+codex plugin add stacnotator@stacnotator
+```
+
+Then ask, e.g. "label 20 points of the Ukraine winter crop campaign on
+https://your-stacnotator.example.org with 4 agents". The agent signs you in through a
+browser tab the first time and asks once before downloading Chromium (about 150 MB), which
+draws the images. The first start takes a minute while uv installs the SDK.
+
+Other MCP clients: run
+`uvx --from "stacnotator-sdk[agent] @ git+https://github.com/RAAPID-ORG/stacnotator#subdirectory=sdk" stacnotator-mcp`
+over stdio and give the model
+[`sdk/skills/stacnotator-labelling/SKILL.md`](../sdk/skills/stacnotator-labelling/SKILL.md).
+
+On a bare Linux machine Chromium may also need system libraries:
+`uvx playwright install-deps chromium` (needs sudo).
 
 A campaign with point tasks needs a sample extent set: it is the red box drawn around each
 point so the model knows what it is labelling.
@@ -72,8 +86,18 @@ sequenceDiagram
   and the guide.
 - **Views.** A view is a grid of cells, each a slice (with a visualization), a basemap or a
   time series chart (optionally cloud-free and smoothed), at a zoom and cell size the model
-  picks. The image is captioned per cell and comes with metadata: dates, zoom, meters per
-  pixel and the time series values.
+  picks. Each cell carries a short readable label (`#3 May 2025, z17`); the metadata adds
+  the exact dates, zoom, meters per pixel, the time series values and, for point tasks, the
+  pixels inside the sample extent as numbers (mean colour, a green index, the share of
+  bright and of missing pixels). Areas without tiles are hatched and flagged, and the red box
+  is drawn outside the extent so nothing inside it is covered.
+- **Image limits.** Models downscale large images before they see them, which silently
+  loses detail. The model states the largest image it takes in unchanged when it registers
+  an agent, and every view is fitted to that by shrinking its cells.
+- **Step by step per point.** `next_task` returns a light first look (a few dates spread over
+  the season, zoomed on the point, the time series and a basemap pair); the agent then calls
+  `get_views` on the same point as often as it needs for other dates, zooms, cell sizes,
+  visualizations or basemaps. Drawn views are cached, so asking again costs nothing.
 - **Preloading.** Every `next_task` draws the agent's default views for its next two tasks in
   the background, so a steady loop gets its images without waiting. Default views live in
   the MCP server's memory and reset when it restarts.

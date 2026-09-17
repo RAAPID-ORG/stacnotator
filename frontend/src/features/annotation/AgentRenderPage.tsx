@@ -11,6 +11,7 @@ import {
   defaultViews,
   type AgentTask,
   type CampaignContext,
+  type ImageLimits,
   type ViewSpec,
 } from './agents/view';
 
@@ -19,9 +20,9 @@ type RenderedView = { view: ViewSpec } & (RenderedImage | { error: string });
 interface AgentPageApi {
   context(): CampaignContext;
   defaultViews(): ViewSpec[];
-  render(task: AgentTask, views: ViewSpec[]): Promise<RenderedView[]>;
+  render(task: AgentTask, views: ViewSpec[], limits: ImageLimits): Promise<RenderedView[]>;
   /** Draws in the background, one view at a time, so a later render is instant. */
-  preload(tasks: AgentTask[], views: ViewSpec[]): void;
+  preload(tasks: AgentTask[], views: ViewSpec[], limits: ImageLimits): void;
 }
 
 declare global {
@@ -56,14 +57,14 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
   const context = campaignContext(campaign);
   const drawn = new Map<string, Promise<RenderedView>>();
 
-  const draw = (task: AgentTask, view: ViewSpec): Promise<RenderedView> => {
-    const key = `${task.task_id}|${JSON.stringify(view)}`;
+  const draw = (task: AgentTask, view: ViewSpec, limits: ImageLimits): Promise<RenderedView> => {
+    const key = `${task.task_id}|${JSON.stringify(view)}|${JSON.stringify(limits)}`;
     const cached = drawn.get(key);
     if (cached) return cached;
     const pending = Promise.resolve()
       .then(() => {
         checkView(view);
-        return renderView({ task, view, campaign, catalog, stage });
+        return renderView({ task, view, limits, campaign, catalog, stage });
       })
       .then(
         (image): RenderedView => ({ view, ...image }),
@@ -80,10 +81,10 @@ function createApi(campaign: CampaignOutFull, stage: HTMLElement): AgentPageApi 
   return {
     context: () => context,
     defaultViews: () => defaultViews(context),
-    render: (task, views) => Promise.all(views.map((view) => draw(task, view))),
-    preload: (tasks, views) => {
+    render: (task, views, limits) => Promise.all(views.map((view) => draw(task, view, limits))),
+    preload: (tasks, views, limits) => {
       void (async () => {
-        for (const task of tasks) for (const view of views) await draw(task, view);
+        for (const task of tasks) for (const view of views) await draw(task, view, limits);
       })();
     },
   };

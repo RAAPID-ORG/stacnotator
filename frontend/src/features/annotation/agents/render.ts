@@ -21,7 +21,7 @@ import { basemapAttribution, resolveBasemapUrl } from '~/shared/imagery/tileUrls
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { createLayer, destroyLayer } from '~/shared/map/layers';
 import type { LayerSpec } from '~/shared/map/types';
-import { sliceDateRange, type ImageryCatalog } from '../campaign/imagery';
+import type { ImageryCatalog } from '../campaign/imagery';
 import { sliceRaster } from '../campaign/tileUrls';
 import { collectSeriesLabels, formatDateLabel } from '../panels/Timeseries/chartData';
 import { timeSeriesCache } from '../panels/Timeseries/cache';
@@ -30,10 +30,12 @@ import { DEFAULT_TIMESERIES_CHART } from '../stores/prefs';
 import { metersPerPixel, packView, type CellRect } from './pack';
 import { withTaskScenes } from './scenes';
 import {
-  DEFAULT_CELL_PX,
   DEFAULT_COLUMNS,
   DEFAULT_ZOOM,
+  fitCellPx,
+  shortDateRange,
   type AgentTask,
+  type ImageLimits,
   type ViewCell,
   type ViewSpec,
 } from './view';
@@ -50,15 +52,16 @@ Chart.register(
 
 const MAP_TIMEOUT_MS = 30_000;
 // OpenLayers schedules frames with requestAnimationFrame, which a background tab never
-// runs. Rendering on a timer keeps a host in a hidden tab drawing, only slower.
+// runs. Rendering on a timer keeps a page in a hidden tab drawing, only slower.
 const RENDER_PUMP_MS = 200;
-const CAPTION_PX = 18;
 /** Pure red, the colour agents are told marks the task. */
 const FOCUS_COLOR = '#ff0000';
-const CROSSHAIR_PX = 24;
-const CROSSHAIR_GAP_PX = 4;
+const FOCUS_LINE_PX = 2;
 /** Below this an extent box is unreadable, so the point gets a crosshair instead. */
 const MIN_BOX_PX = 6;
+const CROSSHAIR_ARM_PX = 10;
+/** Anything this bright in every channel is cloud, haze, snow or glare. */
+const BRIGHT_CHANNEL_MIN = 200;
 const JPEG_QUALITY = 0.9;
 const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
 const SERIES_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
@@ -66,6 +69,7 @@ const SERIES_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#
 export interface RenderInput {
   task: AgentTask;
   view: ViewSpec;
+  limits: ImageLimits;
   campaign: CampaignOutFull;
   catalog: ImageryCatalog;
   /** Where the offscreen maps are mounted: OpenLayers needs a laid-out element. */
@@ -78,26 +82,40 @@ export interface RenderedImage {
 }
 
 interface CellMeta {
-  index: number;
+  i: number;
+  row: number;
+  col: number;
   kind: 'imagery' | 'basemap' | 'timeseries';
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  caption: string;
+  /** Printed on the image, large enough to read at the size the model sees it. */
+  label: string;
+  warning?: string;
   [key: string]: unknown;
 }
 
+interface DrawnCell {
+  image: HTMLCanvasElement | null;
+  rect: CellRect;
+  meta: CellMeta;
+  metersPerPixel?: number;
+}
+
+type Place = Pick<CellMeta, 'i' | 'row' | 'col'>;
+
+/**
+ * One packed image and the metadata the agent reads it with. The image is fitted to the
+ * model's limits so nothing is lost to downscaling, every cell carries a short label the
+ * model can read, and every map cell of a point task reports the pixels inside the sample
+ * extent as numbers, so an answer never hangs on a few pixels alone.
+ */
 export async function renderView(input: RenderInput): Promise<RenderedImage> {
-  const { task, view, campaign, catalog } = input;
-  const cellPx = view.cell_px ?? DEFAULT_CELL_PX;
-  const packed = packView(view.cells, view.columns ?? DEFAULT_COLUMNS, cellPx);
+  const { task, view, campaign, catalog, limits } = input;
+  const cellPx = fitCellPx(view, limits);
+  const columns = view.columns ?? DEFAULT_COLUMNS;
+  const packed = packView(view.cells, columns, cellPx);
   const canvas = document.createElement('canvas');
   canvas.width = packed.width;
   canvas.height = packed.height;
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#111';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const scenes = await withTaskScenes(
     catalog,
@@ -111,40 +129,57 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
     errors: [`Planet scene search failed: ${extractErrorMessage(err, 'unknown error')}`],
   }));
   const withScenes = { ...input, catalog: scenes.catalog };
-  const cells = await Promise.all(
+  const rowTops = [...new Set(packed.rects.map((r) => r.y))];
+  const place = (rect: CellRect): Place => ({
+    i: rect.index,
+    row: rowTops.indexOf(rect.y),
+    col: Math.round(rect.x / cellPx),
+  });
+
+  const isPoint = task.geometry_wkt.startsWith('POINT');
+  const extentMeters = isPoint ? (campaign.settings.sample_extent_meters ?? null) : null;
+  const cells: DrawnCell[] = await Promise.all(
     packed.rects.map((rect) => {
       const cell = view.cells[rect.index];
-      const rendering =
+      const drawing =
         cell.slice_id != null && scenes.empty.has(cell.slice_id)
           ? Promise.reject(new Error('no Planet scenes around this point on this date'))
-          : renderCell(cell, rect, withScenes);
-      return rendering.catch((err: unknown): { image: null; meta: CellMeta } => ({
-        image: null,
-        meta: {
-          ...rectMeta(rect),
-          kind: kindOf(cell),
-          caption: `no image: ${err instanceof Error ? err.message : String(err)}`,
-        },
-      }));
+          : drawCell(cell, rect, place(rect), withScenes);
+      return drawing.catch(
+        (err: unknown): DrawnCell => ({
+          image: null,
+          rect,
+          meta: {
+            ...place(rect),
+            kind: kindOf(cell),
+            label: 'no image',
+            warning: err instanceof Error ? err.message : String(err),
+          },
+        })
+      );
     })
   );
 
-  const isPoint = task.geometry_wkt.startsWith('POINT');
-  const extentMeters = campaign.settings.sample_extent_meters ?? null;
-  for (const { image, meta } of cells) {
-    if (image) ctx.drawImage(image, meta.x, meta.y);
-    if (image && isPoint && meta.kind !== 'timeseries') drawFocus(ctx, meta, extentMeters);
-    drawCaption(ctx, meta);
+  for (const { image, rect, meta, metersPerPixel: mpp } of cells) {
+    if (meta.kind !== 'timeseries') drawNoData(ctx, rect);
+    if (image) ctx.drawImage(image, rect.x, rect.y);
+    if (image && mpp && isPoint) {
+      const sidePx = extentMeters ? extentMeters / mpp : 0;
+      if (extentMeters) meta.inside_box = boxStats(image, sidePx);
+      drawFocus(ctx, rect, sidePx);
+    }
+    drawLabel(ctx, rect, meta);
   }
 
   return {
     image_base64: await toBase64(canvas),
     meta: {
       task: { task_id: task.task_id, lat: task.lat, lon: task.lon },
-      width: packed.width,
-      height: packed.height,
-      cells: cells.map((c) => c.meta),
-      ...(isPoint && extentMeters ? { sample_extent_meters: extentMeters } : {}),
+      size: [packed.width, packed.height],
+      grid: { columns, cell_px: cellPx },
+      ...(view.cell_px && cellPx !== view.cell_px ? { cell_px_asked: view.cell_px } : {}),
+      ...(extentMeters ? { sample_extent_meters: extentMeters } : {}),
+      ...hoistShared(cells.map((c) => c.meta)),
       ...(scenes.errors.length ? { planet_errors: scenes.errors } : {}),
     },
   };
@@ -153,35 +188,45 @@ export async function renderView(input: RenderInput): Promise<RenderedImage> {
 const kindOf = (cell: ViewCell): CellMeta['kind'] =>
   cell.timeseries_ids != null ? 'timeseries' : cell.basemap_id != null ? 'basemap' : 'imagery';
 
-const rectMeta = ({ index, x, y, width, height }: CellRect) => ({ index, x, y, width, height });
+/** Source and visualization are usually the same for every cell: say them once. */
+function hoistShared(cells: CellMeta[]): Record<string, unknown> {
+  const shared: Record<string, unknown> = {};
+  const imagery = cells.filter((c) => c.kind === 'imagery' && c.source !== undefined);
+  for (const key of ['source', 'visualization']) {
+    if (imagery.length > 1 && new Set(imagery.map((c) => c[key])).size === 1) {
+      shared[key] = imagery[0][key];
+      for (const cell of imagery) delete cell[key];
+    }
+  }
+  return { ...shared, cells };
+}
 
-async function renderCell(
+async function drawCell(
   cell: ViewCell,
   rect: CellRect,
+  place: Place,
   input: RenderInput
-): Promise<{ image: HTMLCanvasElement; meta: CellMeta }> {
+): Promise<DrawnCell> {
   const { task, view, campaign, catalog, stage } = input;
 
   if (cell.timeseries_ids != null) {
-    return renderChart(cell, cell.timeseries_ids, rect, input);
+    return drawChart(cell, cell.timeseries_ids, rect, place, input);
   }
 
   const zoom = cell.zoom ?? view.zoom ?? DEFAULT_ZOOM;
   const layers: LayerSpec[] = [];
   let kind: CellMeta['kind'];
-  let caption: string;
+  let label: string;
   let details: Record<string, unknown>;
   if (cell.slice_id != null) {
     kind = 'imagery';
     const target = resolveSlice(catalog, cell.slice_id, cell.visualization ?? null);
     layers.push({ kind: 'raster', ...sliceRaster(catalog, target.address) });
-    caption = `${target.sourceName} | ${target.dates} | ${target.vizName}`;
+    label = target.dates + (cell.visualization ? `, ${target.vizName}` : '');
     details = {
       slice_id: cell.slice_id,
+      dates: target.isoDates,
       source: target.sourceName,
-      collection: target.collectionName,
-      slice_name: target.sliceName,
-      dates: target.dates,
       visualization: target.vizName,
     };
   } else {
@@ -196,8 +241,8 @@ async function renderCell(
       attribution: basemapAttribution(basemap.url),
     });
     kind = 'basemap';
-    caption = basemap.name;
-    details = { basemap_id: basemap.id, name: basemap.name };
+    label = `${basemap.name}, date unknown`;
+    details = { basemap_id: basemap.id, name: basemap.name, dates: 'unknown' };
   }
 
   const footprint = taskFootprint(task.geometry_wkt);
@@ -211,17 +256,23 @@ async function renderCell(
     zoom,
     rect.width
   );
+  const warning = !complete
+    ? 'tiles still missing when drawn: hatched areas are no data'
+    : tileErrors
+      ? `${tileErrors} tiles failed: hatched areas are no data`
+      : undefined;
   return {
     image,
+    rect,
+    metersPerPixel: mpp,
     meta: {
-      ...rectMeta(rect),
-      ...details,
+      ...place,
       kind,
-      caption: `${caption} | z${zoom} | ${formatMeters(mpp * rect.width)} across`,
+      label: `${label}, z${Math.round(zoom)}`,
+      ...details,
       zoom,
-      meters_per_pixel: Number(mpp.toFixed(3)),
-      tile_errors: tileErrors,
-      complete,
+      m_per_px: Number(mpp.toFixed(2)),
+      ...(warning ? { warning } : {}),
     },
   };
 }
@@ -232,7 +283,7 @@ function taskFootprint(wkt: string): LayerSpec | null {
     kind: 'features',
     id: 'task-footprint',
     features: [{ geometry: new GeoJSONFormat().writeGeometryObject(new WKT().readGeometry(wkt)) }],
-    style: { stroke: { color: FOCUS_COLOR, width: 3 } },
+    style: { stroke: { color: FOCUS_COLOR, width: FOCUS_LINE_PX } },
     zIndex: 5,
   };
 }
@@ -240,10 +291,9 @@ function taskFootprint(wkt: string): LayerSpec | null {
 interface SliceTarget {
   address: { sourceId: number; collectionId: number; sliceIndex: number; vizId: string };
   sourceName: string;
-  collectionName: string;
-  sliceName: string;
-  dates: string;
   vizName: string;
+  dates: string;
+  isoDates: string;
 }
 
 function resolveSlice(cat: ImageryCatalog, sliceId: number, vizName: string | null): SliceTarget {
@@ -264,10 +314,9 @@ function resolveSlice(cat: ImageryCatalog, sliceId: number, vizName: string | nu
         vizId: String(viz.id),
       },
       sourceName: source.name,
-      collectionName: collection.name,
-      sliceName: slice.name,
-      dates: sliceDateRange(slice),
       vizName: viz.name,
+      dates: shortDateRange(slice.start_date, slice.end_date),
+      isoDates: `${slice.start_date.slice(0, 10)}/${slice.end_date.slice(0, 10)}`,
     };
   }
   throw new Error(`unknown slice ${sliceId}`);
@@ -327,7 +376,7 @@ function composite(target: HTMLElement, size: number): HTMLCanvasElement {
   const out = document.createElement('canvas');
   out.width = size;
   out.height = size;
-  const ctx = out.getContext('2d')!;
+  const ctx = out.getContext('2d', { willReadFrequently: true })!;
   for (const layerCanvas of target.querySelectorAll<HTMLCanvasElement>('.ol-layer canvas')) {
     if (layerCanvas.width === 0) continue;
     const parent = layerCanvas.parentElement;
@@ -352,24 +401,53 @@ function composite(target: HTMLElement, size: number): HTMLCanvasElement {
   return out;
 }
 
-async function renderChart(
+/** The pixels inside the sample extent as drawn, before anything is put on top. At least
+ *  the centre pixel is read, however small the extent is at this zoom. */
+function boxStats(image: HTMLCanvasElement, sidePx: number) {
+  const side = Math.max(1, Math.round(sidePx));
+  const x0 = Math.round((image.width - side) / 2);
+  const y0 = Math.round((image.height - side) / 2);
+  const { data } = image.getContext('2d')!.getImageData(x0, y0, side, side);
+  let [r, g, b, seen, bright] = [0, 0, 0, 0, 0];
+  for (let p = 0; p < data.length; p += 4) {
+    if (data[p + 3] === 0) continue;
+    seen += 1;
+    r += data[p];
+    g += data[p + 1];
+    b += data[p + 2];
+    if (Math.min(data[p], data[p + 1], data[p + 2]) >= BRIGHT_CHANNEL_MIN) bright += 1;
+  }
+  if (seen === 0) return { no_data_share: 1 };
+  const [mr, mg, mb] = [r / seen, g / seen, b / seen].map(Math.round);
+  return {
+    mean_rgb: [mr, mg, mb],
+    // Excess green of the drawn colours, -1..1: above about 0.1 usually means living
+    // vegetation in a true colour rendering.
+    green_index: Number(((2 * mg - mr - mb) / Math.max(1, 2 * mg + mr + mb)).toFixed(2)),
+    bright_share: Number((bright / seen).toFixed(2)),
+    no_data_share: Number((1 - (seen * 4) / data.length).toFixed(2)),
+  };
+}
+
+async function drawChart(
   cell: ViewCell,
   ids: number[],
   rect: CellRect,
+  place: Place,
   { task, campaign, stage }: RenderInput
-): Promise<{ image: HTMLCanvasElement; meta: CellMeta }> {
+): Promise<DrawnCell> {
   const { lat, lon } = task;
   const data = (await timeSeriesCache.get(ids, { lat, lon })) ?? {};
   const series = ids.map((id) => campaign.time_series.find((t) => t.id === id));
-  const labels = collectSeriesLabels(ids, data);
+  const times = collectSeriesLabels(ids, data);
   const { smoothing } = DEFAULT_TIMESERIES_CHART;
   const lines = ids.map((id) => {
     const byTime = new Map((data[id] ?? []).map((row) => [row.time, row]));
-    const raw = labels.map((time) => {
+    const raw = times.map((time) => {
       const row = byTime.get(time);
       return !row || (cell.remove_cloudy && row.cloud === 1) ? null : row.values;
     });
-    const cloudy = labels.map((time) => byTime.get(time)?.cloud === 1);
+    const cloudy = times.map((time) => byTime.get(time)?.cloud === 1);
     return {
       raw,
       cloudy,
@@ -386,7 +464,7 @@ async function renderChart(
   const chart = new Chart(canvas, {
     type: 'line',
     data: {
-      labels: labels.map(formatDateLabel),
+      labels: times.map(formatDateLabel),
       datasets: ids.map((id, i) => {
         const color = SERIES_COLORS[i % SERIES_COLORS.length];
         const pointColors = lines[i].cloudy.map((cloudy) => (cloudy ? CLOUDY_DOT_COLOR : color));
@@ -406,7 +484,7 @@ async function renderChart(
       animation: false,
       responsive: false,
       devicePixelRatio: 1,
-      layout: { padding: { top: CAPTION_PX + 4, right: 8, left: 4, bottom: 4 } },
+      layout: { padding: { top: labelHeight(rect) + 4, right: 8, left: 4, bottom: 4 } },
       plugins: { legend: { position: 'top', align: 'end' } },
     },
   });
@@ -421,30 +499,25 @@ async function renderChart(
   chart.destroy();
   canvas.remove();
 
+  const columns = ['date', 'value', 'cloudy', ...(cell.smoothed ? ['smoothed'] : [])];
   return {
     image,
+    rect,
     meta: {
-      ...rectMeta(rect),
+      ...place,
       kind: 'timeseries',
-      caption: [
-        `Time series at ${lat.toFixed(5)}, ${lon.toFixed(5)}`,
-        cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy',
-        ...(cell.smoothed ? ['smoothed'] : []),
-      ].join(' | '),
-      remove_cloudy: !!cell.remove_cloudy,
-      smoothed: !!cell.smoothed,
+      label: ['time series', cell.remove_cloudy ? 'cloudy removed' : 'grey dots cloudy']
+        .concat(cell.smoothed ? ['smoothed'] : [])
+        .join(', '),
       series: ids.map((id, i) => ({
         timeseries_id: id,
         name: series[i]?.name,
         index: series[i]?.ts_type,
-        data_source: series[i]?.data_source,
-        columns: cell.smoothed
-          ? ['time', 'value', 'cloudy', 'smoothed']
-          : ['time', 'value', 'cloudy'],
-        values: labels.flatMap((time, t) => {
+        columns,
+        rows: times.flatMap((time, t) => {
           const value = lines[i].raw[t];
           if (value == null) return [];
-          const row = [time, round(value), lines[i].cloudy[t] ? 1 : 0];
+          const row = [time.slice(0, 10), round(value), lines[i].cloudy[t] ? 1 : 0];
           const smooth = lines[i].shown[t];
           return [cell.smoothed && smooth != null ? [...row, round(smooth)] : row];
         }),
@@ -453,62 +526,72 @@ async function renderChart(
   };
 }
 
-/** The sample extent as a box around a point task, the way the annotation page frames
- *  it. A polygon task carries its own outline, drawn as a map layer. */
-function drawFocus(ctx: CanvasRenderingContext2D, cell: CellMeta, extentMeters: number | null) {
-  if (typeof cell.meters_per_pixel !== 'number') return;
-  const side = extentMeters ? extentMeters / cell.meters_per_pixel : 0;
-  if (side < MIN_BOX_PX) {
-    drawCrosshair(ctx, cell);
-    return;
+/** What no tile covers stays transparent in a map cell: hatched underneath, so a gap
+ *  cannot pass for dark water or shadow. */
+function drawNoData(ctx: CanvasRenderingContext2D, rect: CellRect) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.width, rect.height);
+  ctx.clip();
+  ctx.fillStyle = '#6b6b6b';
+  ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+  ctx.strokeStyle = '#8f8f8f';
+  ctx.lineWidth = 4;
+  for (let d = -rect.height; d < rect.width; d += 16) {
+    ctx.beginPath();
+    ctx.moveTo(rect.x + d, rect.y + rect.height);
+    ctx.lineTo(rect.x + d + rect.height, rect.y);
+    ctx.stroke();
   }
-  const x = cell.x + (cell.width - side) / 2;
-  const y = cell.y + (cell.height - side) / 2;
-  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-  ctx.lineWidth = 5;
-  ctx.strokeRect(x, y, side, side);
-  ctx.strokeStyle = FOCUS_COLOR;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(x, y, side, side);
+  ctx.restore();
 }
 
-function drawCrosshair(ctx: CanvasRenderingContext2D, rect: CellMeta) {
+/** The sample extent as a box drawn just outside it, so every pixel inside stays visible.
+ *  A polygon task carries its own outline, drawn as a map layer. */
+function drawFocus(ctx: CanvasRenderingContext2D, rect: CellRect, sidePx: number) {
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
-  const [inner, outer] = [CROSSHAIR_GAP_PX, CROSSHAIR_PX / 2];
-  ctx.beginPath();
-  for (const [dx, dy] of [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-  ]) {
-    ctx.moveTo(cx + dx * inner, cy + dy * inner);
-    ctx.lineTo(cx + dx * outer, cy + dy * outer);
-  }
-  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-  ctx.lineWidth = 4;
-  ctx.stroke();
+  ctx.save();
+  ctx.lineWidth = FOCUS_LINE_PX;
   ctx.strokeStyle = FOCUS_COLOR;
-  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  if (sidePx >= MIN_BOX_PX) {
+    const half = sidePx / 2 + FOCUS_LINE_PX / 2;
+    ctx.rect(cx - half, cy - half, 2 * half, 2 * half);
+  } else {
+    const gap = Math.max(4, sidePx / 2 + 3);
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      ctx.moveTo(cx + dx * gap, cy + dy * gap);
+      ctx.lineTo(cx + dx * (gap + CROSSHAIR_ARM_PX), cy + dy * (gap + CROSSHAIR_ARM_PX));
+    }
+  }
   ctx.stroke();
+  ctx.restore();
 }
 
-function drawCaption(ctx: CanvasRenderingContext2D, cell: CellMeta) {
-  const text = `#${cell.index} ${cell.caption}`;
-  ctx.font = '12px sans-serif';
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(cell.x, cell.y, Math.min(cell.width, ctx.measureText(text).width + 8), CAPTION_PX);
+const fontPx = (rect: CellRect) => Math.max(13, Math.min(22, Math.round(rect.width * 0.07)));
+const labelHeight = (rect: CellRect) => Math.round(fontPx(rect) * 1.4);
+
+function drawLabel(ctx: CanvasRenderingContext2D, rect: CellRect, meta: CellMeta) {
+  const text = `#${meta.i} ${meta.label}${meta.warning ? ' (!)' : ''}`;
+  const height = labelHeight(rect);
+  ctx.save();
+  ctx.font = `bold ${fontPx(rect)}px sans-serif`;
+  ctx.fillStyle = meta.warning ? 'rgba(160,0,0,0.85)' : 'rgba(0,0,0,0.75)';
+  ctx.fillRect(rect.x, rect.y, Math.min(rect.width, ctx.measureText(text).width + 10), height);
   ctx.fillStyle = '#fff';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, cell.x + 4, cell.y + CAPTION_PX / 2, cell.width - 8);
+  ctx.fillText(text, rect.x + 5, rect.y + height / 2, rect.width - 10);
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 1;
-  ctx.strokeRect(cell.x + 0.5, cell.y + 0.5, cell.width - 1, cell.height - 1);
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
+  ctx.restore();
 }
-
-const formatMeters = (m: number): string =>
-  m >= 1000 ? `${(m / 1000).toFixed(m >= 10_000 ? 0 : 1)} km` : `${Math.round(m)} m`;
 
 const round = (value: number): number => Math.round(value * 1000) / 1000;
 

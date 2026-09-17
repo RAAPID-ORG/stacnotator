@@ -220,22 +220,19 @@ loader = DataLoader(CampaignSamples(campaign.get_samples()), batch_size=64, shuf
 
 ## Agentic labelling
 
-An MCP server lets a model (or a team of subagents) label a campaign's tasks from rendered
-imagery, as annotator agents you own:
+A plugin for Claude Code and Codex lets a model (or a team of subagents) label a campaign's
+tasks from rendered imagery, as annotator agents you own:
 
-```bash
-pip install "./sdk[agent]"
-claude mcp add stacnotator -- python -m stacnotator.agent_mcp   # after snt.login(url)
+```
+/plugin marketplace add RAAPID-ORG/stacnotator          # Claude Code
+/plugin install stacnotator@stacnotator
+
+codex plugin marketplace add RAAPID-ORG/stacnotator     # Codex
+codex plugin add stacnotator@stacnotator
 ```
 
-The MCP server draws the images agents look at in a headless Chromium page per agent and
-hands them straight to the model; nothing is rendered on the server. The first time, the
-model asks before downloading Chromium (about 150 MB); you can also run
-`python -m playwright install chromium` yourself. Ask the model to watch the agents and it
-opens a window with each agent's latest views. Hand the model
-[`skills/stacnotator-labelling/SKILL.md`](skills/stacnotator-labelling/SKILL.md), which covers
-the tools, how to choose context and detail views, and how to split work across subagents.
-Setup and how it works: [docs/agentic-labelling.md](../docs/agentic-labelling.md).
+It bundles the labelling skill and the MCP server (`stacnotator-mcp`, run through `uvx`).
+Setup for other clients and how it works: [docs/agentic-labelling.md](../docs/agentic-labelling.md).
 
 ## API summary
 

@@ -1,7 +1,7 @@
 """MCP server that lets a model work through a STACNotator campaign as a labelling agent.
 
-Log in once with `stacnotator.login(url)`, then run `python -m stacnotator.agent_mcp`
-(stdio). One server process can drive many agents, so every tool after registration
+Run `stacnotator-mcp` (or `python -m stacnotator.agent_mcp`) over stdio; the model signs in
+with the `login` tool. One server process can drive many agents, so every tool after registration
 takes the agent_id it acts for. Views are drawn by a headless browser page per agent that
 this process runs; nothing is rendered on the server.
 """
@@ -23,7 +23,8 @@ from stacnotator import _credentials
 from stacnotator._http import Http
 from stacnotator._render_browsers import ChromiumMissingError, RenderBrowsers, install_chromium
 from stacnotator.client import Client
-from stacnotator.errors import StacnotatorError
+from stacnotator.client import login as sdk_login
+from stacnotator.errors import NotLoggedInError, StacnotatorError
 
 
 class ViewCell(TypedDict, total=False):
@@ -44,7 +45,7 @@ class ViewCell(TypedDict, total=False):
 class ViewSpec(TypedDict, total=False):
     """One packed image: cells in a grid, each centred on the task point.
     columns 1-8 (default 4), cell_px 96-1024 (default 320), zoom 1-22 (default 15),
-    columns * cell_px <= 2048, at most 36 cells."""
+    at most 36 cells. Cells shrink until the image fits the agent's image limits."""
 
     cells: Required[list[ViewCell]]
     columns: int
@@ -66,21 +67,28 @@ server = MCPServer(
 _agents: dict[str, dict[str, Any]] = {}
 _default_views: dict[str, list[ViewSpec]] = {}
 _current_tasks: dict[str, dict[str, Any]] = {}
+_image_limits: dict[str, dict[str, float]] = {}
 # Task assignment locks the campaign's whole open pool, so a registration running alongside
 # another would find every task taken and get none.
 _registering = asyncio.Lock()
 
 
+NOT_LOGGED_IN = "Not signed in: ask the user for their STACNotator URL and call login."
+
+
 @functools.cache
 def _http() -> Http:
-    return Client()._http
+    try:
+        return Client()._http
+    except NotLoggedInError as exc:
+        raise ToolError(NOT_LOGGED_IN) from exc
 
 
 @functools.cache
 def _browsers() -> RenderBrowsers:
     creds = _credentials.load()
     if creds is None:
-        raise ToolError("Not logged in: run stacnotator.login(url) first.")
+        raise ToolError(NOT_LOGGED_IN)
     return RenderBrowsers(creds.url, lambda: asyncio.to_thread(_http().token))
 
 
@@ -111,6 +119,21 @@ async def _views_of(agent_id: str) -> list[ViewSpec]:
     if agent_id not in _default_views:
         _default_views[agent_id] = await _on_page(agent_id, "defaultViews")
     return _default_views[agent_id]
+
+
+def _limits_of(agent_id: str) -> dict[str, float]:
+    if agent_id not in _image_limits:
+        raise ToolError(
+            "This agent's image limits are not known to this MCP server (it was registered "
+            "before a restart): call set_image_limits first."
+        )
+    return _image_limits[agent_id]
+
+
+def _limits(max_image_edge_px: int, max_image_megapixels: float) -> dict[str, float]:
+    if max_image_edge_px < 96 or max_image_megapixels <= 0:
+        raise ToolError("Image limits must be at least 96 px and more than 0 megapixels.")
+    return {"max_edge_px": max_image_edge_px, "max_megapixels": max_image_megapixels}
 
 
 def _json(value: Any) -> str:
@@ -147,6 +170,20 @@ async def _bundle(
 
 
 @server.tool(structured_output=False)
+async def login(url: str) -> str:
+    """Sign in to a STACNotator deployment: url is the web app address the user opens in
+    their browser. Opens a browser tab for signing in when the deployment needs it; the
+    login is kept for later sessions, so call this only when another tool says so."""
+    try:
+        me = await asyncio.to_thread(sdk_login, url)
+    except StacnotatorError as exc:
+        raise ToolError(str(exc)) from exc
+    _http.cache_clear()
+    _browsers.cache_clear()
+    return _json({"signed_in_as": me.get("display_name") or me.get("email")})
+
+
+@server.tool(structured_output=False)
 async def list_campaigns() -> str:
     """Campaigns you can access (id, name, your role). Use it to ask the user which one to
     label when they did not say."""
@@ -164,6 +201,8 @@ async def list_agents(campaign_id: int) -> str:
 async def register_agent(
     campaign_id: int,
     name: str,
+    max_image_edge_px: int,
+    max_image_megapixels: float,
     description: str | None = None,
     task_count: int = 10,
     task_set_id: int | None = None,
@@ -174,6 +213,9 @@ async def register_agent(
 
     name: 1-20 chars of letters, digits, ".", "_" or "-". Register one agent per worker;
     never share an agent_id between workers.
+    max_image_edge_px, max_image_megapixels: the largest image the model doing the labelling
+    takes in without downscaling it, from what that model knows about itself. Every image is
+    fitted to them, so no detail is lost to downscaling.
     takes_over_work: when this agent runs out of tasks, next_task moves a task over from
     your other agents on the campaign that still have work queued.
     default_views: up to 4 views next_task returns for every task, drawn ahead for the
@@ -183,6 +225,7 @@ async def register_agent(
     imagery slices, basemaps, time series) and the default views. When the render browser
     cannot start, render_browser says why instead: follow it, and never register again.
     """
+    limits = _limits(max_image_edge_px, max_image_megapixels)
     async with _registering:
         agent = await _api(
             _http().post,
@@ -201,6 +244,7 @@ async def register_agent(
     _agents[agent_id] = agent
     if default_views:
         _default_views[agent_id] = default_views
+    _image_limits[agent_id] = limits
     try:
         context = await _on_page(agent_id, "context")
         views = await _views_of(agent_id)
@@ -231,6 +275,16 @@ async def set_default_views(agent_id: str, views: list[ViewSpec]) -> str:
 
 
 @server.tool(structured_output=False)
+async def set_image_limits(
+    agent_id: str, max_image_edge_px: int, max_image_megapixels: float
+) -> str:
+    """Set the largest image the agent's model takes in without downscaling it. Needed only
+    for an agent registered before the MCP server restarted."""
+    _image_limits[agent_id] = _limits(max_image_edge_px, max_image_megapixels)
+    return _json(_image_limits[agent_id])
+
+
+@server.tool(structured_output=False)
 async def next_task(agent_id: str) -> list[str | Image]:
     """The agent's next open task with its default views drawn. The same views are drawn
     ahead for the tasks after it, so this is usually quick.
@@ -247,21 +301,23 @@ async def next_task(agent_id: str) -> list[str | Image]:
     task, *upcoming = result["tasks"]
     _current_tasks[agent_id] = task
     views = await _views_of(agent_id)
-    rendered = await _on_page(agent_id, "render", task, views)
-    await _on_page(agent_id, "preload", upcoming, views)
+    limits = _limits_of(agent_id)
+    rendered = await _on_page(agent_id, "render", task, views, limits)
+    await _on_page(agent_id, "preload", upcoming, views, limits)
     return await _bundle(agent_id, {"task": task, "remaining": result["remaining"]}, rendered)
 
 
 @server.tool(structured_output=False)
 async def get_views(agent_id: str, task_id: int, views: list[ViewSpec]) -> list[str | Image]:
-    """Draw more views of the agent's current task: finer slices, higher zoom, other
-    visualizations or basemaps. Up to 8 views; same return shape as next_task."""
+    """Draw more views of the agent's current task: other dates, finer slices, higher zoom,
+    other visualizations or basemaps. Pack everything you need next into this one call, up
+    to 8 views; same return shape as next_task."""
     task = _current_tasks.get(agent_id)
     if task is None or task["task_id"] != task_id:
         raise ToolError(f"Task {task_id} is not this agent's current task: call next_task.")
     if not 1 <= len(views) <= 8:
         raise ToolError("Pass 1-8 views.")
-    rendered = await _on_page(agent_id, "render", task, views)
+    rendered = await _on_page(agent_id, "render", task, views, _limits_of(agent_id))
     return await _bundle(agent_id, {"task": task}, rendered)
 
 
@@ -270,21 +326,24 @@ async def submit_label(
     agent_id: str,
     task_id: int,
     label_id: int,
-    confidence: int | None = None,
-    comment: str | None = None,
+    confidence: int,
+    comment: str,
     form_values: dict[str, Any] | None = None,
     flagged_for_review: bool = False,
     flag_comment: str | None = None,
 ) -> str:
     """Label a task.
 
-    label_id: an id from the context's labels. confidence: 0-10, honest.
-    comment: short note on the evidence used (which views, dates, cues).
+    label_id: an id from the context's labels. confidence: 0-5, honest.
+    comment: your reasoning for the decision: the evidence per date or view, what ruled out
+    the other labels, and what stayed uncertain.
     form_values: keyed by form field id as a string; category -> option id,
     multicategory -> list of option ids, number, text, date "YYYY-MM-DD",
     daterange {"start", "end"}. Required fields must be filled.
     flagged_for_review: set when a human should check this label, with flag_comment.
     """
+    if not 0 <= confidence <= 5:
+        raise ToolError("confidence is 0-5.")
     return await _annotate(
         agent_id,
         task_id,
@@ -350,5 +409,9 @@ async def install_render_browsers() -> str:
         raise ToolError(str(exc)) from exc
 
 
-if __name__ == "__main__":
+def main() -> None:
     server.run()
+
+
+if __name__ == "__main__":
+    main()

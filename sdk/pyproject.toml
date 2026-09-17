@@ -16,6 +16,9 @@ dependencies = [
 [project.optional-dependencies]
 agent = ["mcp>=2.2,<3", "playwright>=1.47"]
 
+[project.scripts]
+stacnotator-mcp = "stacnotator.agent_mcp:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
