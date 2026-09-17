@@ -6,7 +6,8 @@ description: Label STACNotator campaign tasks from satellite imagery through the
 # Labelling a STACNotator campaign
 
 First ask the user for the full URL of the STACNotator to label on (`https://...`), every
-session, even if you used one before; never assume or complete one. Then `login(url)`. A
+session, even if you used one before; never assume or complete one. A subagent takes it from
+its brief instead. Then `login(url)`. A
 `render_browser` note from `register_agent`: ask the user before `install_render_browsers`,
 then call `campaign_context`. Never register the same worker twice.
 
@@ -83,8 +84,8 @@ values are in `series[].rows`.
 3. Start one subagent per agent in parallel (without subagents: work them yourself in turn,
    or ask the user to open one session per agent) with this brief:
 
-   > Label STACNotator campaign {id} as agent {agent_id} with the stacnotator tools, always
-   > passing this agent_id. Labels: {id: name}. Guide: {two lines}. Per task: next_task, one
+   > Label STACNotator campaign {id} on {full URL} as agent {agent_id} with the stacnotator
+   > tools: call login with that URL first, and always pass this agent_id. Labels: {id: name}. Guide: {two lines}. Per task: next_task, one
    > packed get_views for everything unclear (again only if needed), then submit_label with
    > confidence 0-5 and a comment explaining the decision, or skip_task with the reason.
    > Stop at task null. Reply one line per task: id, label, confidence, short reason.
