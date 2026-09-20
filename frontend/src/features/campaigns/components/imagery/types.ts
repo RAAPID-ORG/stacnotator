@@ -231,14 +231,8 @@ export const emptyBasemap = (): Basemap => ({
   url: '',
 });
 
-/** Default basemaps matching the annotation view */
+/** XYZ basemaps added to every new campaign and visualizer. */
 export const DEFAULT_BASEMAPS: Basemap[] = [
-  {
-    id: 'carto-light',
-    name: 'CartoDB Light',
-    url: 'https://{a-c}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-    maxNativeZoom: 20,
-  },
   {
     id: 'esri-world-imagery',
     name: 'ESRI World Imagery',
