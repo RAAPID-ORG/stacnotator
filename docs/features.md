@@ -67,7 +67,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Multi-monitor pop-out: canvas cards can be sent to secondary browser windows, one grid per screen, persisted per user + campaign and restored with one click
 
 ### Basemaps
-- Multiple basemaps per campaign (CartoDB, ESRI, OpenTopoMap, custom)
+- Multiple basemaps per campaign (ESRI, OpenTopoMap, Bing, custom)
 - API-key-protected basemaps/XYZ sources: keys stored encrypted, tiles fetched through a backend proxy so the key never reaches the client
 - Entering a key by hand requires confirming it is read-only and least-privilege (`shared/ui/ReadOnlyKeyConsent`) - the backend only ever reads imagery with it, so nothing more is needed
 - Toggle via keyboard shortcut or layer selector
