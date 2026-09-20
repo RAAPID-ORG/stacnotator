@@ -1434,11 +1434,9 @@ export type CampaignCreate = {
  *
  * Tasks and annotations are deliberate decisions - no defaults.
  *
- * ``include_assignments`` and ``include_agent_assignments`` follow the tasks:
- * who each task is handed to, and whether the tasks a labelling agent still
- * holds come with it. An agent is registered for one campaign, so the copy's
- * own run registers its own agents; those assignments are kept only when the
- * caller asks.
+ * ``include_assignments`` follows the tasks: who each task is handed to. What
+ * a labelling agent holds is never copied - an agent is registered for one
+ * campaign - so those tasks arrive free in the copy.
  *
  * ``target_project_id`` copies into another project the caller administers.
  * Nothing naming a user comes along there - the target project need not have
@@ -1458,10 +1456,6 @@ export type CampaignDuplicateRequest = {
      * Include Assignments
      */
     include_assignments?: boolean;
-    /**
-     * Include Agent Assignments
-     */
-    include_agent_assignments?: boolean;
     /**
      * Include User Layouts
      */

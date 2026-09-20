@@ -53,7 +53,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 ### Campaign duplication
 - Duplicate a campaign from the project campaign list (admin): full setup copy (imagery, views, layouts, labels, forms, policy, time series, basemaps, custom maps, vector layers, embeddings)
 - Tasks (with task sets, reset to pending), annotations, and personal user layouts are each copied only on explicit opt-in; task-linked annotations require the tasks to be copied too
-- Copying tasks asks two follow-ups: whether the explicit assignments come along, and whether that includes the tasks labelling agents still hold (off by default, since an agent is registered for one campaign and cannot work the copy)
+- Copying tasks asks whether the explicit assignments come along; tasks a labelling agent holds are always freed in the copy, since an agent is registered for one campaign and cannot work another
 - The copy can land in another project the user administers ("Copy into" in the duplicate dialog). Nothing naming a user travels there - annotations, task assignments and personal layouts are left behind, since the target project need not have those people - and tasks (locations and sets, unassigned) stay the one opt-in
 - Across organizations the copy also drops the sources' pointers at the source organization's shared API keys, and is refused outright when the target organization may not use a tiler or the internal storage the campaign's imagery needs
 

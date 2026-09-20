@@ -87,7 +87,6 @@ export const DuplicateCampaignModal = ({
   const [includeTasks, setIncludeTasks] = useState<Choice>(null);
   const [includeAnnotations, setIncludeAnnotations] = useState<Choice>(null);
   const [includeAssignments, setIncludeAssignments] = useState(true);
-  const [includeAgentAssignments, setIncludeAgentAssignments] = useState(false);
   const [includeUserLayouts, setIncludeUserLayouts] = useState(true);
   const queryClient = useQueryClient();
 
@@ -130,8 +129,6 @@ export const DuplicateCampaignModal = ({
         // Everything that names a user stays behind in another project.
         include_annotations: !crossProject && includeAnnotations === true,
         include_assignments: !crossProject && includeTasks && includeAssignments,
-        include_agent_assignments:
-          !crossProject && includeTasks && includeAssignments && includeAgentAssignments,
         include_user_layouts: !crossProject && includeUserLayouts,
         target_project_id: targetProjectId,
       },
@@ -209,7 +206,7 @@ export const DuplicateCampaignModal = ({
           </Question>
 
           {!crossProject && includeTasks === true && (
-            <div className="ml-4 space-y-3 border-l-2 border-neutral-100 pl-3">
+            <div className="ml-4 border-l-2 border-neutral-100 pl-3">
               <Question
                 title="Keep who each task is assigned to?"
                 value={includeAssignments}
@@ -217,20 +214,9 @@ export const DuplicateCampaignModal = ({
                 testId="duplicate-assignments"
               >
                 Copies the explicit assignments to annotators. Without them every task in the copy
-                is open for anyone to pick up.
+                is open for anyone to pick up. Tasks a labelling agent holds always arrive free: an
+                agent is registered for one campaign and cannot work the copy.
               </Question>
-
-              {includeAssignments && (
-                <Question
-                  title="Including tasks labelling agents hold?"
-                  value={includeAgentAssignments}
-                  onChange={setIncludeAgentAssignments}
-                  testId="duplicate-agent-assignments"
-                >
-                  An agent is registered for one campaign, so in the copy these tasks sit with
-                  accounts that will never work them until you free or reassign them.
-                </Question>
-              )}
             </div>
           )}
 

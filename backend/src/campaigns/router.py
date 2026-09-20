@@ -215,7 +215,6 @@ def duplicate_campaign(
         include_annotations=req.include_annotations,
         include_user_layouts=req.include_user_layouts,
         include_assignments=req.include_assignments,
-        include_agent_assignments=req.include_agent_assignments,
     )
     return _campaign_out(service.get_campaign_full(db, dup.id), db, user)
 

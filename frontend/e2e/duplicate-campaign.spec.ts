@@ -3,7 +3,7 @@
  *
  * Verifies:
  * - The row button opens the modal; both include switches are mandatory
- * - Copying tasks follows up on assignments, and on what agents hold
+ * - Copying tasks follows up on whether the assignments come along
  * - Cross-option hint when annotations are copied without tasks
  * - The request carries the chosen options and success navigates to the
  *   new campaign's settings
@@ -41,7 +41,7 @@ test.describe('Duplicate campaign', () => {
     await expect(confirm).toBeEnabled();
   });
 
-  test('the assignment questions only come up once tasks are copied', async ({ appPage }) => {
+  test('the assignment question only comes up once tasks are copied', async ({ appPage }) => {
     await openCampaignsList(appPage);
     await appPage.getByTestId('duplicate-campaign').click();
 
@@ -49,12 +49,7 @@ test.describe('Duplicate campaign', () => {
     await expect(appPage.getByTestId('duplicate-assignments')).toBeHidden();
 
     await appPage.getByTestId('duplicate-tasks').getByRole('radio', { name: 'Yes' }).click();
-    const agents = appPage.getByTestId('duplicate-agent-assignments');
-    await expect(agents).toBeVisible();
-
-    // What agents hold is a question about the assignments, so it goes with them.
-    await appPage.getByTestId('duplicate-assignments').getByRole('radio', { name: 'No' }).click();
-    await expect(agents).toBeHidden();
+    await expect(appPage.getByTestId('duplicate-assignments')).toBeVisible();
   });
 
   test('annotations without tasks surfaces the open-mode-only hint', async ({ appPage }) => {
@@ -81,10 +76,7 @@ test.describe('Duplicate campaign', () => {
     await appPage.getByTestId('duplicate-campaign').click();
     await appPage.getByTestId('duplicate-tasks').getByRole('radio', { name: 'Yes' }).click();
     await appPage.getByTestId('duplicate-annotations').getByRole('radio', { name: 'No' }).click();
-    await appPage
-      .getByTestId('duplicate-agent-assignments')
-      .getByRole('radio', { name: 'Yes' })
-      .click();
+    await appPage.getByTestId('duplicate-assignments').getByRole('radio', { name: 'No' }).click();
 
     await Promise.all([
       appPage.waitForResponse(/\/api\/campaigns\/42\/duplicate$/),
@@ -94,8 +86,7 @@ test.describe('Duplicate campaign', () => {
     expect(duplicateBody).toEqual({
       include_tasks: true,
       include_annotations: false,
-      include_assignments: true,
-      include_agent_assignments: true,
+      include_assignments: false,
       include_user_layouts: true,
       target_project_id: MOCK_PROJECT.id,
     });
@@ -138,7 +129,6 @@ test.describe('Duplicate campaign', () => {
       include_tasks: true,
       include_annotations: false,
       include_assignments: false,
-      include_agent_assignments: false,
       include_user_layouts: false,
       target_project_id: OTHER_PROJECT.id,
     });
