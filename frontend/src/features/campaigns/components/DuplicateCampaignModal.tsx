@@ -208,7 +208,7 @@ export const DuplicateCampaignModal = ({
           {!crossProject && includeTasks === true && (
             <div className="ml-4 border-l-2 border-neutral-100 pl-3">
               <Question
-                title="Keep who each task is assigned to?"
+                title="Keep task assignments?"
                 value={includeAssignments}
                 onChange={setIncludeAssignments}
                 testId="duplicate-assignments"
