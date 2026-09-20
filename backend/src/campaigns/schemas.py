@@ -392,6 +392,12 @@ class UpdateCampaignNameRequest(BaseModel):
 class CampaignDuplicateRequest(BaseModel):
     """Tasks and annotations are deliberate decisions - no defaults.
 
+    ``include_assignments`` and ``include_agent_assignments`` follow the tasks:
+    who each task is handed to, and whether the tasks a labelling agent still
+    holds come with it. An agent is registered for one campaign, so the copy's
+    own run registers its own agents; those assignments are kept only when the
+    caller asks.
+
     ``target_project_id`` copies into another project the caller administers.
     Nothing naming a user comes along there - the target project need not have
     those users - so task assignments and personal layouts are left behind and
@@ -400,6 +406,8 @@ class CampaignDuplicateRequest(BaseModel):
 
     include_tasks: bool
     include_annotations: bool
+    include_assignments: bool = True
+    include_agent_assignments: bool = False
     include_user_layouts: bool = True
     target_project_id: int | None = None
 

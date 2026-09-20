@@ -250,11 +250,14 @@ def agents_overview(db: Session, campaign: Campaign, owner: User) -> AgentsOverv
 
 
 def _open_tasks_query(agent: LabellingAgent):
-    """The agent's assigned tasks it has not labelled or skipped yet."""
+    """The agent's assigned tasks it has not labelled or skipped yet. Scoped to its own
+    campaign: a duplicated campaign can carry the same assignment into a campaign whose
+    imagery this agent was never set up for."""
     return (
         select(AnnotationTask)
         .join(AnnotationTaskAssignment, AnnotationTaskAssignment.task_id == AnnotationTask.id)
         .where(
+            AnnotationTask.campaign_id == agent.campaign_id,
             AnnotationTaskAssignment.user_id == agent.user_id,
             ~AnnotationTaskAssignment.is_review,
             ~exists().where(

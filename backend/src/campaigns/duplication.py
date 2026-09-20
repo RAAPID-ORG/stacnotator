@@ -26,6 +26,8 @@ from src.annotation.models import (
     AnnotationTaskAssignment,
     Embedding,
 )
+from src.auth.constants import AGENT_ISSUER
+from src.auth.models import User
 from src.campaigns.models import Campaign, TaskSet
 from src.canvas.models import CanvasLayout
 from src.custom_layers.models import CustomMap
@@ -60,6 +62,9 @@ class CopyPlan:
     tasks: bool
     annotations: bool
     assignments: bool
+    # Assignments held by labelling agents: temporary workers of one member, registered
+    # per campaign, so the copy's own run registers its own.
+    agent_assignments: bool
     user_layouts: bool
     shared_api_keys: bool
 
@@ -71,17 +76,22 @@ def plan_copy(
     include_tasks: bool,
     include_annotations: bool,
     include_user_layouts: bool,
+    include_assignments: bool = True,
+    include_agent_assignments: bool = False,
 ) -> CopyPlan:
     """``target_project`` None (or the campaign's own project) is a plain
-    in-project duplicate."""
+    in-project duplicate. Assignments only ever ride along with the tasks they
+    are on."""
     if target_project is None or target_project.id == campaign.project_id:
+        assignments = include_tasks and include_assignments
         return CopyPlan(
             project_id=campaign.project_id,
             # Only a same-project copy needs to be told apart from its original.
             name=f"{campaign.name} (copy)",
             tasks=include_tasks,
             annotations=include_annotations,
-            assignments=include_tasks,
+            assignments=assignments,
+            agent_assignments=assignments and include_agent_assignments,
             user_layouts=include_user_layouts,
             shared_api_keys=True,
         )
@@ -91,6 +101,7 @@ def plan_copy(
         tasks=include_tasks,
         annotations=False,
         assignments=False,
+        agent_assignments=False,
         user_layouts=False,
         shared_api_keys=target_project.organization_id == campaign.project.organization_id,
     )
@@ -308,6 +319,8 @@ def duplicate_campaign(
     include_tasks: bool,
     include_annotations: bool,
     include_user_layouts: bool,
+    include_assignments: bool = True,
+    include_agent_assignments: bool = False,
 ) -> Campaign:
     """Create the duplicate in one transaction and commit. Returns the new
     campaign row. Annotations linked to a task are only copied when the tasks
@@ -323,6 +336,8 @@ def duplicate_campaign(
         include_tasks=include_tasks,
         include_annotations=include_annotations,
         include_user_layouts=include_user_layouts,
+        include_assignments=include_assignments,
+        include_agent_assignments=include_agent_assignments,
     )
     dup = Campaign(
         name=plan.name,
@@ -425,12 +440,14 @@ def duplicate_campaign(
 
         task_ids = list(task_map)
         if plan.assignments:
-            assignments = db.scalars(
-                select(AnnotationTaskAssignment).where(
-                    AnnotationTaskAssignment.task_id.in_(task_ids)
+            query = select(AnnotationTaskAssignment).where(
+                AnnotationTaskAssignment.task_id.in_(task_ids)
+            )
+            if not plan.agent_assignments:
+                query = query.join(User, User.id == AnnotationTaskAssignment.user_id).where(
+                    User.issuer != AGENT_ISSUER
                 )
-            ).all()
-            for assignment in assignments:
+            for assignment in db.scalars(query).all():
                 # An assignment is setup, so it is copied with the tasks.
                 # Progress rides on the annotations, which means it comes along
                 # only when they do.

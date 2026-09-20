@@ -94,6 +94,20 @@ class TestPlanCopy:
         )
         assert plan.shared_api_keys is True
 
+    def test_assignments_can_be_left_behind_while_the_tasks_come_along(self):
+        plan = self._plan(None, include_assignments=False)
+
+        assert (plan.tasks, plan.assignments, plan.agent_assignments) == (True, False, False)
+
+    def test_assignments_need_the_tasks_they_sit_on(self):
+        plan = self._plan(None, include_tasks=False)
+
+        assert (plan.assignments, plan.agent_assignments) == (False, False)
+
+    def test_what_labelling_agents_hold_is_dropped_unless_asked_for(self):
+        assert self._plan(None).agent_assignments is False
+        assert self._plan(None, include_agent_assignments=True).agent_assignments is True
+
     def test_the_campaigns_own_project_as_target_is_a_plain_duplicate(self):
         plan = self._plan(SimpleNamespace(id=1, organization_id=7))
 
@@ -105,6 +119,7 @@ class TestPlanCopy:
 
         assert plan.project_id == 2
         assert (plan.annotations, plan.assignments, plan.user_layouts) == (False, False, False)
+        assert plan.agent_assignments is False
 
     def test_another_project_keeps_the_name_and_the_tasks(self):
         plan = self._plan(SimpleNamespace(id=2, organization_id=7), include_tasks=True)

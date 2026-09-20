@@ -86,6 +86,8 @@ export const DuplicateCampaignModal = ({
   const [targetProjectId, setTargetProjectId] = useState(campaign.project_id);
   const [includeTasks, setIncludeTasks] = useState<Choice>(null);
   const [includeAnnotations, setIncludeAnnotations] = useState<Choice>(null);
+  const [includeAssignments, setIncludeAssignments] = useState(true);
+  const [includeAgentAssignments, setIncludeAgentAssignments] = useState(false);
   const [includeUserLayouts, setIncludeUserLayouts] = useState(true);
   const queryClient = useQueryClient();
 
@@ -127,6 +129,9 @@ export const DuplicateCampaignModal = ({
         include_tasks: includeTasks,
         // Everything that names a user stays behind in another project.
         include_annotations: !crossProject && includeAnnotations === true,
+        include_assignments: !crossProject && includeTasks && includeAssignments,
+        include_agent_assignments:
+          !crossProject && includeTasks && includeAssignments && includeAgentAssignments,
         include_user_layouts: !crossProject && includeUserLayouts,
         target_project_id: targetProjectId,
       },
@@ -200,8 +205,34 @@ export const DuplicateCampaignModal = ({
           >
             {crossProject
               ? 'Copies all task locations and task sets. They arrive unassigned, with no progress.'
-              : 'Copies all task locations, task sets and explicit user assignments. Task progress starts fresh unless annotations are copied too.'}
+              : 'Copies all task locations and task sets. Task progress starts fresh unless annotations are copied too.'}
           </Question>
+
+          {!crossProject && includeTasks === true && (
+            <div className="ml-4 space-y-3 border-l-2 border-neutral-100 pl-3">
+              <Question
+                title="Keep who each task is assigned to?"
+                value={includeAssignments}
+                onChange={setIncludeAssignments}
+                testId="duplicate-assignments"
+              >
+                Copies the explicit assignments to annotators. Without them every task in the copy
+                is open for anyone to pick up.
+              </Question>
+
+              {includeAssignments && (
+                <Question
+                  title="Including tasks labelling agents hold?"
+                  value={includeAgentAssignments}
+                  onChange={setIncludeAgentAssignments}
+                  testId="duplicate-agent-assignments"
+                >
+                  An agent is registered for one campaign, so in the copy these tasks sit with
+                  accounts that will never work them until you free or reassign them.
+                </Question>
+              )}
+            </div>
+          )}
 
           {!crossProject && (
             <>
