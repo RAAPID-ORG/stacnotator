@@ -165,7 +165,10 @@ to switch to asymetric keys.
    - GCS: attach a service account with read on the prediction bucket; leave
      `GCS_SIGNER_SERVICE_ACCOUNT` unset to auto-detect it.
    - Azure: set `AZURE_SIGNING_ENABLED=true` on the custom-map tiler and have each project's admin
-     grant the tiler's managed identity `Storage Blob Data Reader` on their storage account. What's
+     grant the tiler's managed identity `Storage Blob Data Reader` on their storage account. If
+     they scope that grant to a single container instead, they must also assign
+     `Storage Blob Delegator` on the account: the tiler signs reads with a user-delegation key,
+     which is an account-level action, so a container-only grant fails every read with 403. What's
      readable is the union of those grants; who can trigger a read is gated by the organization's
      `allows_internal_storage` flag. The `custom-maps` container and the apps managed identity are
      provisioned in `raapid-infra` (`modules/project-capabilities/blob-storage`).
