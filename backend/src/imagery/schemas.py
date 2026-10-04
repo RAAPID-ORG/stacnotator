@@ -169,24 +169,20 @@ class BasemapOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ApiKeyUpdate(BaseModel):
-    """Where this layer's provider key comes from: a literal value to encrypt
-    and keep on the row, or one of the owning organization's shared keys.
-    Write-only either way - a stored value is never read back."""
+class ProviderKeyCreate(BaseModel):
+    """Where a layer's provider key comes from, set in the same save as the layer:
+    one of the owning organization's shared keys, or a value encrypted on arrival.
+    Write-only - a stored value is never read back, so an entry naming neither
+    keeps whatever key the layer already has."""
 
-    value: str | None = Field(default=None, min_length=1)
     organization_api_key_id: int | None = None
+    api_key: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
-    def exactly_one_source(self) -> "ApiKeyUpdate":
-        if (self.value is None) == (self.organization_api_key_id is None):
-            raise ValueError("Set exactly one of value or organization_api_key_id")
+    def one_key_source_at_most(self) -> "ProviderKeyCreate":
+        if self.api_key is not None and self.organization_api_key_id is not None:
+            raise ValueError("Set at most one of api_key or organization_api_key_id")
         return self
-
-
-class ApiKeyStatusOut(BaseModel):
-    has_api_key: bool
-    organization_api_key_id: int | None = None
 
 
 class ImageryViewOut(BaseModel):
@@ -308,28 +304,16 @@ class VisualizationTemplateCreate(BaseModel):
     name: str
 
 
-class ImagerySourceCreate(BaseModel):
+class ImagerySourceCreate(ProviderKeyCreate):
     id: int | None = None
     name: str
     # Reaches the frontend as a colour, so it stays six hex digits and nothing else.
     crosshair_hex6: str = Field(default="ff0000", pattern=r"^[0-9a-fA-F]{6}$")
     default_zoom: int = 15
     max_native_zoom: int | None = Field(default=None, ge=0, le=22)
-    # Where this source's provider key comes from, honoured on create only, so a source
-    # added through the wizard renders without a second trip to settings: one of the
-    # organization's shared keys, or a write-only value encrypted on arrival. Changing or
-    # clearing the key afterwards stays on the dedicated key endpoint.
-    organization_api_key_id: int | None = None
-    api_key: str | None = Field(default=None, min_length=1)
     visualizations: list[VisualizationTemplateCreate]
     generation_series: list[ImageryGenerationSeriesCreate] = []
     collections: list[ImageryCollectionCreate]
-
-    @model_validator(mode="after")
-    def one_key_source_at_most(self) -> "ImagerySourceCreate":
-        if self.api_key is not None and self.organization_api_key_id is not None:
-            raise ValueError("Set at most one of api_key or organization_api_key_id")
-        return self
 
     @field_validator("visualizations")
     @classmethod
@@ -369,7 +353,7 @@ class ImagerySourceCreate(BaseModel):
         return self
 
 
-class BasemapCreate(BaseModel):
+class BasemapCreate(ProviderKeyCreate):
     id: int | None = None
     name: str
     url: str

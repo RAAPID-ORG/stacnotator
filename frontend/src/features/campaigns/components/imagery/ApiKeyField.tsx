@@ -1,25 +1,26 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { type ApiKeyUpdate, type OrganizationApiKeyOut } from '~/api/client';
-import { listCampaignOrganizationKeysOptions } from '~/api/queries';
+import { type OrganizationApiKeyOut } from '~/api/client';
+import { getProjectOrganizationKeysOptions } from '~/api/queries';
 import { useProject } from '~/app/projectRoute';
 import { Input, Select } from '~/shared/ui/forms';
 import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
 import { SharedKeyAudience } from './SharedKeyAudience';
 
+export interface ProviderKeyChoice {
+  organizationApiKeyId: number | null;
+  /** A typed key, set only once its owner confirmed it is read-only. */
+  apiKey?: string;
+}
+
 interface ApiKeyFieldProps {
-  /** Absent in the create wizard - there is no campaign to scope keys to yet. */
-  campaignId?: number | null;
-  /** Owning project. Only used to say who a shared key would be spent by. */
-  projectId?: number | null;
-  /** False in the create wizard (entity not saved yet) - the key can't be set until saved. */
-  persisted: boolean;
-  /** Whether a key is already configured server-side. */
-  hasApiKey?: boolean;
-  /** Set when the layer uses one of the organization's shared keys. */
+  projectId: number;
+  /** Whether the saved layer already has a key server-side. */
+  configured?: boolean;
   organizationApiKeyId?: number | null;
-  /** Persist the choice. Resolves true on success. */
-  onSave: (body: ApiKeyUpdate) => Promise<boolean>;
+  /** A typed key not saved yet. */
+  apiKey?: string;
+  onChange: (choice: ProviderKeyChoice) => void;
 }
 
 const MANUAL = 'manual';
@@ -28,82 +29,60 @@ const NO_KEYS: OrganizationApiKeyOut[] = [];
 
 /**
  * Where this layer's provider key comes from: one of the organization's shared
- * keys, or a value typed here. Typed values are write-only - they go straight
- * to the backend (encrypted at rest) and are never read back, so the control
- * only ever reports whether a key is configured.
+ * keys, or a value typed here. The choice is part of the imagery being edited and
+ * is saved with it. Typed values are write-only - encrypted on the server and never
+ * read back - so for a saved layer the control only reports that a key exists.
  */
 export const ApiKeyField = ({
-  campaignId,
   projectId,
-  persisted,
-  hasApiKey,
+  configured,
   organizationApiKeyId,
-  onSave,
+  apiKey,
+  onChange,
 }: ApiKeyFieldProps) => {
-  const [value, setValue] = useState('');
-  const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
-  const [configured, setConfigured] = useState(!!hasApiKey);
-  const [orgKeyId, setOrgKeyId] = useState<number | null>(organizationApiKeyId ?? null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [value, setValue] = useState(apiKey ?? '');
+  const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(!!apiKey);
+  const [lastApiKey, setLastApiKey] = useState(apiKey);
 
-  const { project } = useProject(projectId ?? null);
+  // A confirmed key that leaves the draft was saved or discarded, so the input
+  // lets go of it too.
+  if (apiKey !== lastApiKey) {
+    setLastApiKey(apiKey);
+    if (apiKey === undefined && readOnlyConfirmed && value.trim() === lastApiKey) {
+      setValue('');
+      setReadOnlyConfirmed(false);
+    }
+  }
+
+  const { project } = useProject(projectId);
   const projectIsPublic = project?.visibility === 'public';
 
   const { data: orgKeysData } = useQuery({
-    ...listCampaignOrganizationKeysOptions({ path: { campaign_id: campaignId ?? 0 } }),
-    enabled: persisted && campaignId != null,
+    ...getProjectOrganizationKeysOptions({ path: { project_id: projectId } }),
     // Without the shared keys the field still takes a typed value, so a
     // failure here narrows the choice rather than breaking the form.
     meta: { errorMessage: 'Failed to load organization keys', showUser: false },
   });
   const orgKeys = orgKeysData?.items ?? NO_KEYS;
+  const orgKeyId = organizationApiKeyId ?? null;
 
-  const explainer = (
-    <p className="text-[11px] text-neutral-500 leading-snug">
-      This provider needs an API key to serve its tiles. The key is encrypted on the server and used
-      only to load tiles on each annotator&apos;s behalf - it is never sent to their browser, shown
-      in tile links, or visible to them. You can update or replace it any time.
-    </p>
-  );
-
-  if (!persisted) {
-    return (
-      <div className="mt-1 space-y-1">
-        {explainer}
-        <p className="text-[11px] text-neutral-400 italic">
-          Save imagery first, then set the key here.
-        </p>
-      </div>
-    );
-  }
-
-  const save = async (body: ApiKeyUpdate) => {
-    setSaving(true);
-    setError(null);
-    const ok = await onSave(body);
-    setSaving(false);
-    if (!ok) {
-      setError('Failed to save key');
-      return;
-    }
-    setConfigured(true);
-    setValue('');
-    setReadOnlyConfirmed(false);
+  const emitTyped = (nextValue: string, nextConfirmed: boolean) => {
+    const key = nextValue.trim();
+    onChange({ organizationApiKeyId: null, apiKey: key && nextConfirmed ? key : undefined });
   };
 
-  const pickOrgKey = async (raw: string) => {
+  const pickSource = (raw: string) => {
     if (raw === MANUAL) {
-      setOrgKeyId(null);
+      emitTyped(value, readOnlyConfirmed);
       return;
     }
-    const id = Number(raw);
-    setOrgKeyId(id);
-    await save({ organization_api_key_id: id });
+    onChange({ organizationApiKeyId: Number(raw) });
   };
 
-  const status = error ? (
-    <span className="text-[11px] text-red-600">{error}</span>
+  const status = apiKey ? (
+    <span className="text-[11px] text-emerald-600">Saved with the imagery</span>
+  ) : value.trim() && !readOnlyConfirmed ? (
+    <span className="text-[11px] text-amber-600">Confirm the key is read-only</span>
   ) : configured ? (
     <span className="text-[11px] text-emerald-600">Key configured ✓</span>
   ) : (
@@ -112,53 +91,56 @@ export const ApiKeyField = ({
 
   return (
     <div className="mt-1 space-y-1.5">
-      {explainer}
+      <p className="text-[11px] text-neutral-500 leading-snug">
+        This provider needs an API key to serve its tiles. The key is encrypted on the server and
+        used only to load tiles on each annotator&apos;s behalf - it is never sent to their browser,
+        shown in tile links, or visible to them. You can update or replace it any time.
+      </p>
       {orgKeys.length > 0 && (
-        <div className="flex items-center gap-2">
-          <Select
-            size="sm"
-            value={orgKeyId === null ? MANUAL : String(orgKeyId)}
-            onChange={(e) => void pickOrgKey(e.target.value)}
-            disabled={saving}
-            className="!w-56 text-[11px]"
-            aria-label="Provider key source"
-            data-testid="org-key-select"
-          >
-            <option value={MANUAL}>Enter a key for this campaign</option>
-            {orgKeys.map((key) => (
-              <option key={key.id} value={key.id}>
-                {key.name} (organization)
-              </option>
-            ))}
-          </Select>
-          {orgKeyId !== null && status}
-        </div>
+        <Select
+          size="sm"
+          value={orgKeyId === null ? MANUAL : String(orgKeyId)}
+          onChange={(e) => pickSource(e.target.value)}
+          className="!w-56 text-[11px]"
+          aria-label="Provider key source"
+          data-testid="org-key-select"
+        >
+          <option value={MANUAL}>Enter a key for this campaign</option>
+          {orgKeys.map((key) => (
+            <option key={key.id} value={key.id}>
+              {key.name} (organization)
+            </option>
+          ))}
+        </Select>
       )}
-      {orgKeyId !== null && <SharedKeyAudience projectIsPublic={projectIsPublic} />}
-      {orgKeyId === null && (
-        <ReadOnlyKeyConsent confirmed={readOnlyConfirmed} onChange={setReadOnlyConfirmed} />
-      )}
-      {orgKeyId === null && (
-        <div className="flex items-center gap-2">
-          <Input
-            size="sm"
-            type="password"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={configured ? 'Replace API key' : 'Paste provider API key'}
-            autoComplete="off"
-            className="!w-56 text-[11px] font-mono"
+      {orgKeyId !== null ? (
+        <SharedKeyAudience projectIsPublic={projectIsPublic} />
+      ) : (
+        <>
+          <ReadOnlyKeyConsent
+            confirmed={readOnlyConfirmed}
+            onChange={(confirmed) => {
+              setReadOnlyConfirmed(confirmed);
+              emitTyped(value, confirmed);
+            }}
           />
-          <button
-            type="button"
-            onClick={() => void save({ value: value.trim() })}
-            disabled={saving || !value.trim() || !readOnlyConfirmed}
-            className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Saving…' : 'Save key'}
-          </button>
-          {status}
-        </div>
+          <div className="flex items-center gap-2">
+            <Input
+              size="sm"
+              type="password"
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value);
+                emitTyped(e.target.value, readOnlyConfirmed);
+              }}
+              placeholder={configured ? 'Replace API key' : 'Paste provider API key'}
+              autoComplete="off"
+              aria-label="Provider API key"
+              className="!w-56 text-[11px] font-mono"
+            />
+            {status}
+          </div>
+        </>
       )}
     </div>
   );

@@ -14,8 +14,6 @@ from src.database import get_db, release
 from src.imagery import registration, service
 from src.imagery.models import ImagerySource
 from src.imagery.schemas import (
-    ApiKeyStatusOut,
-    ApiKeyUpdate,
     ImageryEditorStateCreate,
     ImageryViewCreate,
     ImageryViewOrderUpdate,
@@ -26,7 +24,6 @@ from src.imagery.schemas import (
     PlanetSceneSearchOut,
 )
 from src.layers import LayerOwner
-from src.organizations.schemas import OrganizationApiKeyOut, OrganizationApiKeysResponse
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -298,60 +295,3 @@ def delete_imagery_view(
 ):
     """Delete a view and its canvas layouts (campaign admin only)."""
     service.delete_view(db, campaign, view_id)
-
-
-@router.get("/{campaign_id}/imagery/organization-keys", response_model=OrganizationApiKeysResponse)
-def list_campaign_organization_keys(
-    campaign_id: int,
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """The shared provider keys this campaign's organization has set up, so the
-    imagery editor can offer them instead of asking for the secret again."""
-    return OrganizationApiKeysResponse(
-        items=[
-            OrganizationApiKeyOut.model_validate(key) for key in service.organization_keys(campaign)
-        ]
-    )
-
-
-@router.put("/{campaign_id}/imagery/basemaps/{basemap_id}/key", response_model=ApiKeyStatusOut)
-def set_basemap_api_key(
-    campaign_id: int,
-    basemap_id: int,
-    body: ApiKeyUpdate,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Point a basemap at a provider key: a literal one (encrypted here) or one
-    of the organization's shared keys. Campaign admin only, write-only."""
-    basemap = service.set_basemap_api_key(
-        db,
-        campaign,
-        basemap_id,
-        value=body.value,
-        organization_api_key_id=body.organization_api_key_id,
-    )
-    db.commit()
-    return ApiKeyStatusOut(
-        has_api_key=True, organization_api_key_id=basemap.organization_api_key_id
-    )
-
-
-@router.put("/{campaign_id}/imagery/sources/{source_id}/key", response_model=ApiKeyStatusOut)
-def set_source_api_key(
-    campaign_id: int,
-    source_id: int,
-    body: ApiKeyUpdate,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """As above, for an imagery source."""
-    source = service.set_source_api_key(
-        db,
-        campaign,
-        source_id,
-        value=body.value,
-        organization_api_key_id=body.organization_api_key_id,
-    )
-    db.commit()
-    return ApiKeyStatusOut(has_api_key=True, organization_api_key_id=source.organization_api_key_id)

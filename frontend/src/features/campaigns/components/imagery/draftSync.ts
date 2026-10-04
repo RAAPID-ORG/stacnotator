@@ -142,7 +142,6 @@ export function sourceToBackend(src: ImagerySource): ImagerySourceCreate {
     crosshair_hex6: src.crosshairHex6,
     default_zoom: src.defaultZoom,
     max_native_zoom: src.maxNativeZoom ?? null,
-    // Both honoured on create only; rotating a key goes through the key endpoint.
     organization_api_key_id: src.organizationApiKeyId ?? null,
     api_key: src.apiKey || null,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
@@ -168,6 +167,8 @@ export function basemapToBackend(b: Basemap): BasemapCreate {
     name: b.name,
     url: b.url,
     max_native_zoom: b.maxNativeZoom ?? null,
+    organization_api_key_id: b.organizationApiKeyId ?? null,
+    api_key: b.apiKey || null,
   };
 }
 

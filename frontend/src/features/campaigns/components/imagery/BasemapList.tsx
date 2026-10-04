@@ -5,8 +5,6 @@ import type { Basemap } from './types';
 import { emptyBasemap } from './types';
 import type { ImageryController } from './controller';
 import { ApiKeyField } from './ApiKeyField';
-import { isRealId } from './draftSync';
-import { setBasemapApiKey } from '~/api/client';
 
 interface BasemapListProps {
   controller: ImageryController;
@@ -27,7 +25,7 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
         <div>
           <h3 className="section-heading flex items-center gap-1">
             Basemaps
-            <Tooltip text="If a provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.planet.com/basemaps/v1/planet-tiles/global_monthly_2024_01_mosaic/gmap/{z}/{x}/{y}.png?api_key={api_key}. Save the basemap, then enter the key below - it is stored encrypted on the server and attached when tiles are fetched through the backend (never exposed to annotators)." />
+            <Tooltip text="If a provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.planet.com/basemaps/v1/planet-tiles/global_monthly_2024_01_mosaic/gmap/{z}/{x}/{y}.png?api_key={api_key}. Then enter the key below - it is saved with the basemap, stored encrypted on the server and attached when tiles are fetched through the backend (never exposed to annotators)." />
           </h3>
           <p className="section-description">
             Background reference layers shown beneath imagery in every view. Use{' '}
@@ -93,19 +91,11 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
               </div>
               {bm.url.includes('{api_key}') && (
                 <ApiKeyField
-                  campaignId={controller.campaignId}
                   projectId={controller.projectId}
-                  persisted={controller.campaignId != null && isRealId(bm.id)}
-                  hasApiKey={bm.hasApiKey}
+                  configured={bm.hasApiKey}
                   organizationApiKeyId={bm.organizationApiKeyId}
-                  onSave={async (body) => {
-                    if (controller.campaignId == null) return false;
-                    const { error } = await setBasemapApiKey({
-                      path: { campaign_id: controller.campaignId, basemap_id: Number(bm.id) },
-                      body,
-                    });
-                    return !error;
-                  }}
+                  apiKey={bm.apiKey}
+                  onChange={(choice) => updateBasemap(bm.id, choice)}
                 />
               )}
             </li>

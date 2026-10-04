@@ -1,4 +1,4 @@
-"""Set-key endpoints + tile proxy, via TestClient with mocked DB/httpx (no real PG/network)."""
+"""Tile proxy key handling, via TestClient with mocked DB/httpx (no real PG/network)."""
 
 import base64
 from types import SimpleNamespace
@@ -8,12 +8,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import crypto
-from src.auth.dependencies import require_authenticated_user
-from src.campaigns.dependencies import require_campaign_admin
-from src.database import get_db
 from src.imagery import proxy_router
 from src.imagery.models import Basemap
-from src.imagery.router import bearer
 from src.main import app
 from src.organizations.models import OrganizationApiKey
 from src.tilers import tokens as tiler_token
@@ -35,90 +31,8 @@ def client():
     return TestClient(app)
 
 
-def _campaign_with_keys(keys):
-    return SimpleNamespace(
-        id=CAMPAIGN_ID,
-        project=SimpleNamespace(organization=SimpleNamespace(api_keys=keys)),
-    )
-
-
-def _override_admin_auth(db, campaign=None):
-    app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(id="u1")
-    app.dependency_overrides[require_campaign_admin] = lambda: (
-        campaign or SimpleNamespace(id=CAMPAIGN_ID)
-    )
-    app.dependency_overrides[bearer] = lambda: None
-
-
 def teardown_function():
     app.dependency_overrides.clear()
-
-
-# --- set-key endpoint -----------------------------------------------------------
-
-
-def test_set_basemap_key_stores_ciphertext(client, crypto_key):
-    basemap = Basemap(id=3, campaign_id=CAMPAIGN_ID, name="planet", url="x")
-    db = MagicMock()
-    db.get.return_value = basemap
-    _override_admin_auth(db)
-
-    resp = client.put(f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/key", json={"value": "planet-secret"})
-
-    assert resp.status_code == 200
-    assert resp.json() == {"has_api_key": True, "organization_api_key_id": None}
-    # Stored value is ciphertext, not the plaintext key, and round-trips.
-    assert basemap.encrypted_api_key != "planet-secret"
-    assert crypto.decrypt(basemap.encrypted_api_key) == "planet-secret"
-    assert "planet-secret" not in resp.text
-
-
-def test_set_basemap_key_can_point_at_an_organization_key(client, crypto_key):
-    """Choosing a shared key drops any literal one, so only one of the two ever
-    applies."""
-    basemap = Basemap(id=3, campaign_id=CAMPAIGN_ID, name="planet", url="x")
-    basemap.encrypted_api_key = crypto.encrypt("old-literal-key")
-    db = MagicMock()
-    db.get.return_value = basemap
-    _override_admin_auth(db, campaign=_campaign_with_keys([SimpleNamespace(id=11, name="Planet")]))
-
-    resp = client.put(
-        f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/key", json={"organization_api_key_id": 11}
-    )
-
-    assert resp.status_code == 200
-    assert resp.json() == {"has_api_key": True, "organization_api_key_id": 11}
-    assert basemap.encrypted_api_key is None
-    assert basemap.organization_api_key_id == 11
-
-
-def test_set_basemap_key_rejects_a_key_from_another_organization(client, crypto_key):
-    basemap = Basemap(id=3, campaign_id=CAMPAIGN_ID, name="planet", url="x")
-    db = MagicMock()
-    db.get.return_value = basemap
-    _override_admin_auth(db, campaign=_campaign_with_keys([]))
-
-    resp = client.put(
-        f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/key", json={"organization_api_key_id": 11}
-    )
-    assert resp.status_code == 404
-
-
-def test_set_basemap_key_needs_exactly_one_of_the_two(client, crypto_key):
-    _override_admin_auth(MagicMock())
-    resp = client.put(f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/key", json={})
-    assert resp.status_code == 422
-
-
-def test_set_basemap_key_404_on_wrong_campaign(client, crypto_key):
-    basemap = Basemap(id=3, campaign_id=999, name="planet", url="x")
-    db = MagicMock()
-    db.get.return_value = basemap
-    _override_admin_auth(db)
-
-    resp = client.put(f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/key", json={"value": "v"})
-    assert resp.status_code == 404
 
 
 # --- tile proxy auth ------------------------------------------------------------

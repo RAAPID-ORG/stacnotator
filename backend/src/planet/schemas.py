@@ -7,7 +7,7 @@ class PlanetCredentials(BaseModel):
     """Which Planet key to browse with, and for which project.
 
     Sent in a request body rather than a query string: a pasted key is a secret, and
-    query strings end up in access logs. Same either/or as ``ApiKeyUpdate`` - the
+    query strings end up in access logs. Same either/or as ``ProviderKeyCreate`` - the
     organization's shared key, or one this person is providing for their own campaign.
     """
 
