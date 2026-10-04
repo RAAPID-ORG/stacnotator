@@ -160,9 +160,8 @@ export interface ImagerySource {
   hasApiKey?: boolean;
   /** Set when that key is one of the organization's shared ones. */
   organizationApiKeyId?: number | null;
-  /** A key provided for this source alone, carried only as far as the create call -
-   *  it is encrypted server-side and never read back. Rotation goes through the key
-   *  endpoint, so this stays empty for anything loaded from the server. */
+  /** A key typed for this source, carried only as far as the next save - it is
+   *  encrypted server-side and never read back, so anything loaded has none. */
   apiKey?: string;
   /** Registration, as the server sees it: how many of this source's slices
    *  actually have tiles, and whether its STAC search can be re-run. */
@@ -181,6 +180,8 @@ export interface Basemap {
   hasApiKey?: boolean;
   /** Set when that key is one of the organization's shared ones. */
   organizationApiKeyId?: number | null;
+  /** A key typed for this basemap, carried only as far as the next save. */
+  apiKey?: string;
 }
 
 export interface ImageryStepState {

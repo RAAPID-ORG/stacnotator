@@ -1044,38 +1044,6 @@ export type AnnotatorInfo = {
 };
 
 /**
- * ApiKeyStatusOut
- */
-export type ApiKeyStatusOut = {
-    /**
-     * Has Api Key
-     */
-    has_api_key: boolean;
-    /**
-     * Organization Api Key Id
-     */
-    organization_api_key_id?: number | null;
-};
-
-/**
- * ApiKeyUpdate
- *
- * Where this layer's provider key comes from: a literal value to encrypt
- * and keep on the row, or one of the owning organization's shared keys.
- * Write-only either way - a stored value is never read back.
- */
-export type ApiKeyUpdate = {
-    /**
-     * Value
-     */
-    value?: string | null;
-    /**
-     * Organization Api Key Id
-     */
-    organization_api_key_id?: number | null;
-};
-
-/**
  * AssetInfo
  */
 export type AssetInfo = {
@@ -1208,6 +1176,14 @@ export type BandInfo = {
  * BasemapCreate
  */
 export type BasemapCreate = {
+    /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
+    /**
+     * Api Key
+     */
+    api_key?: string | null;
     /**
      * Id
      */
@@ -2784,6 +2760,14 @@ export type ImagerySliceOut = {
  */
 export type ImagerySourceCreate = {
     /**
+     * Organization Api Key Id
+     */
+    organization_api_key_id?: number | null;
+    /**
+     * Api Key
+     */
+    api_key?: string | null;
+    /**
      * Id
      */
     id?: number | null;
@@ -2803,14 +2787,6 @@ export type ImagerySourceCreate = {
      * Max Native Zoom
      */
     max_native_zoom?: number | null;
-    /**
-     * Organization Api Key Id
-     */
-    organization_api_key_id?: number | null;
-    /**
-     * Api Key
-     */
-    api_key?: string | null;
     /**
      * Visualizations
      */
@@ -3499,7 +3475,7 @@ export type PairwiseAgreement = {
  * Which Planet key to browse with, and for which project.
  *
  * Sent in a request body rather than a query string: a pasted key is a secret, and
- * query strings end up in access logs. Same either/or as ``ApiKeyUpdate`` - the
+ * query strings end up in access logs. Same either/or as ``ProviderKeyCreate`` - the
  * organization's shared key, or one this person is providing for their own campaign.
  */
 export type PlanetCredentials = {
@@ -9826,104 +9802,6 @@ export type UpdateImageryViewResponses = {
 };
 
 export type UpdateImageryViewResponse = UpdateImageryViewResponses[keyof UpdateImageryViewResponses];
-
-export type ListCampaignOrganizationKeysData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/organization-keys';
-};
-
-export type ListCampaignOrganizationKeysErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListCampaignOrganizationKeysError = ListCampaignOrganizationKeysErrors[keyof ListCampaignOrganizationKeysErrors];
-
-export type ListCampaignOrganizationKeysResponses = {
-    /**
-     * Successful Response
-     */
-    200: OrganizationApiKeysResponse;
-};
-
-export type ListCampaignOrganizationKeysResponse = ListCampaignOrganizationKeysResponses[keyof ListCampaignOrganizationKeysResponses];
-
-export type SetBasemapApiKeyData = {
-    body: ApiKeyUpdate;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Basemap Id
-         */
-        basemap_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/basemaps/{basemap_id}/key';
-};
-
-export type SetBasemapApiKeyErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type SetBasemapApiKeyError = SetBasemapApiKeyErrors[keyof SetBasemapApiKeyErrors];
-
-export type SetBasemapApiKeyResponses = {
-    /**
-     * Successful Response
-     */
-    200: ApiKeyStatusOut;
-};
-
-export type SetBasemapApiKeyResponse = SetBasemapApiKeyResponses[keyof SetBasemapApiKeyResponses];
-
-export type SetSourceApiKeyData = {
-    body: ApiKeyUpdate;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Source Id
-         */
-        source_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/key';
-};
-
-export type SetSourceApiKeyErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type SetSourceApiKeyError = SetSourceApiKeyErrors[keyof SetSourceApiKeyErrors];
-
-export type SetSourceApiKeyResponses = {
-    /**
-     * Successful Response
-     */
-    200: ApiKeyStatusOut;
-};
-
-export type SetSourceApiKeyResponse = SetSourceApiKeyResponses[keyof SetSourceApiKeyResponses];
 
 export type ProxyBasemapTileData = {
     body?: never;

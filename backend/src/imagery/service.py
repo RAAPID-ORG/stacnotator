@@ -41,72 +41,27 @@ from src.imagery.schemas import (
     ImageryViewUpdate,
     PlanetSceneSearchOut,
     PlanetSceneSliceOut,
+    ProviderKeyCreate,
 )
 from src.imagery.tile_urls import update_collection_viz_params
 from src.layers import LayerOwner
-from src.organizations.models import Organization, OrganizationApiKey
+from src.organizations.models import Organization
 from src.planet import client as planet_client
 from src.planet import scenes as planet_scenes
 from src.planet.schemas import PlanetScenesGenerationConfigV1
 from src.tilers import providers, registry
 
 
-def organization_keys(campaign: Campaign) -> list[OrganizationApiKey]:
-    """The shared keys this campaign may point its imagery at: its own
-    organization's, and only those."""
-    return sorted(campaign.project.organization.api_keys, key=lambda k: k.name.lower())
-
-
-def _apply_api_key(
-    target: Basemap | ImagerySource,
-    campaign: Campaign,
-    value: str | None,
-    organization_api_key_id: int | None,
-) -> None:
-    """Point the layer at one key source and clear the other, so there is never
-    a question of which of the two applies."""
-    if organization_api_key_id is not None:
-        if all(k.id != organization_api_key_id for k in organization_keys(campaign)):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Organization API key not found"
-            )
+def _apply_provider_key(target: Basemap | ImagerySource, incoming: ProviderKeyCreate) -> None:
+    """Point the layer at the key its entry names and clear the other, so there is
+    never a question of which of the two applies. An entry naming neither keeps the
+    layer's key: it is never read back, so a saved layer always arrives that way."""
+    if incoming.organization_api_key_id is not None:
         target.encrypted_api_key = None
-        target.organization_api_key_id = organization_api_key_id
-        return
-    target.encrypted_api_key = encrypt(value or "")
-    target.organization_api_key_id = None
-
-
-def set_basemap_api_key(
-    db: Session,
-    campaign: Campaign,
-    basemap_id: int,
-    *,
-    value: str | None,
-    organization_api_key_id: int | None,
-) -> Basemap:
-    """Set where a basemap's provider key comes from (campaign-scoped lookup)."""
-    basemap = db.get(Basemap, basemap_id)
-    if basemap is None or basemap.campaign_id != campaign.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Basemap not found")
-    _apply_api_key(basemap, campaign, value, organization_api_key_id)
-    return basemap
-
-
-def set_source_api_key(
-    db: Session,
-    campaign: Campaign,
-    source_id: int,
-    *,
-    value: str | None,
-    organization_api_key_id: int | None,
-) -> ImagerySource:
-    """Set where an imagery source's provider key comes from."""
-    source = db.get(ImagerySource, source_id)
-    if source is None or source.campaign_id != campaign.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
-    _apply_api_key(source, campaign, value, organization_api_key_id)
-    return source
+        target.organization_api_key_id = incoming.organization_api_key_id
+    elif incoming.api_key is not None:
+        target.encrypted_api_key = encrypt(incoming.api_key)
+        target.organization_api_key_id = None
 
 
 def _registration_spec(
@@ -267,12 +222,11 @@ def _resolve_tilers(org: Organization, editor_state: ImageryEditorStateCreate) -
 def _validate_organization_keys(org: Organization, editor_state: ImageryEditorStateCreate) -> None:
     """Reject an unknown shared key before any writes, the way tiler pinning is checked.
 
-    A source names a key only when it is created; the key can never be read back through
-    this payload, so there is nothing to leak by naming one.
+    Naming a key leaks nothing: it can never be read back through this payload.
     """
     known = {key.id for key in org.api_keys}
-    for src in editor_state.sources:
-        if src.organization_api_key_id is not None and src.organization_api_key_id not in known:
+    for layer in [*editor_state.sources, *editor_state.basemaps]:
+        if layer.organization_api_key_id is not None and layer.organization_api_key_id not in known:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Organization API key not found"
             )
@@ -403,11 +357,8 @@ def save_imagery_editor_state(
             added_collection_ids=sorted(new_eligible - prev_eligible.get(view.id, set())),
         )
 
-    # Basemaps: replace wholesale (small list, no inbound FKs).
-    db.execute(delete(Basemap).where(Basemap.campaign_id == campaign.id))
-    db.flush()
-    created_basemaps = _create_basemaps(
-        db, LayerOwner(campaign_id=campaign.id), editor_state.basemaps
+    saved_basemaps = _save_basemaps(
+        db, LayerOwner(campaign_id=campaign.id), campaign.basemaps, editor_state.basemaps
     )
 
     db.flush()
@@ -415,7 +366,7 @@ def save_imagery_editor_state(
     return {
         "sources": campaign.imagery_sources,
         "views": campaign.imagery_views,
-        "basemaps": created_basemaps,
+        "basemaps": saved_basemaps,
         "registrations": pending_registrations,
         "bbox": bbox,
     }
@@ -601,19 +552,12 @@ def save_visualizer_imagery(
 
 
 def save_visualizer_basemaps(db: Session, *, visualizer, basemaps: list[BasemapCreate]) -> None:
-    """Replace a visualizer's backdrops wholesale, exactly as a campaign's are.
-
-    A basemap is a name, a URL and a zoom cap; there is no per-row state worth
-    reconciling in place, which is why both owners replace rather than merge.
-    Does not commit.
-    """
+    """Reconcile a visualizer's backdrops, exactly as a campaign's are. Does not commit."""
     _validate_organization_keys(
         visualizer.project.organization,
         ImageryEditorStateCreate(sources=[], basemaps=basemaps),
     )
-    db.execute(delete(Basemap).where(Basemap.visualizer_id == visualizer.id))
-    db.flush()
-    _create_basemaps(db, LayerOwner(visualizer_id=visualizer.id), basemaps)
+    _save_basemaps(db, LayerOwner(visualizer_id=visualizer.id), visualizer.basemaps, basemaps)
     db.flush()
 
 
@@ -631,6 +575,7 @@ def _update_source_in_place(
     db_src.default_zoom = src_create.default_zoom
     db_src.max_native_zoom = src_create.max_native_zoom
     db_src.display_order = src_idx
+    _apply_provider_key(db_src, src_create)
 
     # Reconcile visualization templates by name.
     existing_viz = {v.name: v for v in db_src.visualizations}
@@ -901,11 +846,9 @@ def _create_source(
         crosshair_hex6=src.crosshair_hex6,
         default_zoom=src.default_zoom,
         max_native_zoom=src.max_native_zoom,
-        # The schema allows at most one of the two, so these never conflict.
-        encrypted_api_key=encrypt(src.api_key) if src.api_key else None,
-        organization_api_key_id=src.organization_api_key_id,
         display_order=src_idx,
     )
+    _apply_provider_key(source, src)
     db.add(source)
     db.flush()
 
@@ -1019,22 +962,32 @@ def _create_collection_record(
     return collection, pending_entry
 
 
-def _create_basemaps(
+def _save_basemaps(
     db: Session,
     owner: LayerOwner,
+    existing: list[Basemap],
     basemaps: list[BasemapCreate],
 ) -> list[Basemap]:
-    created = []
+    """Update by id, create the rest, delete what the payload dropped. In place rather
+    than replaced, because a basemap's key is never sent back and must survive the save."""
+    by_id = {bm.id: bm for bm in existing}
+    keep = {bm.id for bm in basemaps if bm.id is not None}
+    for basemap_id, basemap in by_id.items():
+        if basemap_id not in keep:
+            db.delete(basemap)
+    saved = []
     for bm in basemaps:
-        obj = Basemap(
-            **owner.as_columns(),
-            name=bm.name,
-            url=bm.url,
-            max_native_zoom=bm.max_native_zoom,
-        )
-        db.add(obj)
-        created.append(obj)
-    return created
+        obj = by_id.get(bm.id) if bm.id is not None else None
+        if obj is None:
+            obj = Basemap(**owner.as_columns())
+            db.add(obj)
+        obj.name = bm.name
+        obj.url = bm.url
+        obj.max_native_zoom = bm.max_native_zoom
+        _apply_provider_key(obj, bm)
+        saved.append(obj)
+    db.flush()
+    return saved
 
 
 logger = logging.getLogger(__name__)

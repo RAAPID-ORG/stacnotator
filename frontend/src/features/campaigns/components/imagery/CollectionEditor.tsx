@@ -279,7 +279,7 @@ export const CollectionEditor = ({
             <div key={vizName} className="space-y-0.5">
               <label className="text-[11px] text-neutral-500 flex items-center gap-1">
                 {vizName || '(unnamed)'} URL
-                <Tooltip text="If this provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.example.com/{z}/{x}/{y}.png?api_key={api_key}. Users enter their key value once when they first open the campaign." />
+                <Tooltip text="If this provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.example.com/{z}/{x}/{y}.png?api_key={api_key}. Then set the key under the source's Provider API key - it is stored encrypted and never reaches annotators." />
               </label>
               <Input
                 size="sm"

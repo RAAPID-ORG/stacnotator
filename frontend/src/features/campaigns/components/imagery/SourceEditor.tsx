@@ -20,8 +20,6 @@ import type { BulkFocus } from './BulkApplyModal';
 import type { ImageryController } from './controller';
 import { sourceRegistration } from './controller';
 import { ApiKeyField } from './ApiKeyField';
-import { isRealId } from './draftSync';
-import { setSourceApiKey } from '~/api/client';
 import {
   editableGenerationSeries,
   retainMatchingIds,
@@ -474,22 +472,14 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
           <div className="space-y-1">
             <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
               Provider API key
-              <Tooltip text="A manual collection URL in this source uses {api_key}. Save imagery, then set the key here - it is stored encrypted server-side and attached when tiles are proxied through the backend (never exposed to annotators)." />
+              <Tooltip text="A manual collection URL in this source uses {api_key}. Set the key here - it is saved with the imagery, stored encrypted server-side and attached when tiles are proxied through the backend (never exposed to annotators)." />
             </label>
             <ApiKeyField
-              campaignId={controller.campaignId}
               projectId={controller.projectId}
-              persisted={controller.campaignId != null && isRealId(source.id)}
-              hasApiKey={source.hasApiKey}
+              configured={source.hasApiKey}
               organizationApiKeyId={source.organizationApiKeyId}
-              onSave={async (body) => {
-                if (controller.campaignId == null) return false;
-                const { error } = await setSourceApiKey({
-                  path: { campaign_id: controller.campaignId, source_id: Number(source.id) },
-                  body,
-                });
-                return !error;
-              }}
+              apiKey={source.apiKey}
+              onChange={(choice) => void updateSource(choice)}
             />
           </div>
         )}

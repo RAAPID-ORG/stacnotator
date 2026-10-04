@@ -129,9 +129,9 @@ def get_project_organization_keys(
 ):
     """The owning organization's shared provider keys, by name.
 
-    The campaign-scoped listing cannot serve the create wizard, which has to browse a
-    provider (Planet) before any campaign exists. Keys belong to the organization, and
-    the project is what identifies it."""
+    Scoped to the project rather than a campaign because the imagery editor offers them
+    before any campaign exists. Keys belong to the organization, and the project is what
+    identifies it."""
     return OrganizationApiKeysResponse(
         items=[
             OrganizationApiKeyOut.model_validate(key)
