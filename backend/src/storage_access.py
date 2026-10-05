@@ -159,6 +159,30 @@ def stored(row: _HasStorageColumns | None) -> StorageAccess | None:
     )
 
 
+@dataclass(frozen=True)
+class Held:
+    """A stored access as its encrypted columns, to hand on without decrypting it."""
+
+    kind: str
+    encrypted_secret: str
+    expires_at: datetime | None
+
+
+def held(row: _HasStorageColumns | None) -> Held | None:
+    if row is None or not row.storage_auth or not row.encrypted_storage_secret:
+        return None
+    return Held(row.storage_auth, row.encrypted_storage_secret, row.storage_secret_expires_at)
+
+
+def inherit(row: _HasStorageColumns, access: Held | None) -> None:
+    """Give a row without an access of its own one already stored for its catalog."""
+    if access is None or row.storage_auth:
+        return
+    row.storage_auth = access.kind
+    row.encrypted_storage_secret = access.encrypted_secret
+    row.storage_secret_expires_at = access.expires_at
+
+
 def described(row: _HasStorageColumns | None) -> StorageAccessOut | None:
     if row is None or not row.storage_auth:
         return None

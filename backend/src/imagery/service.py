@@ -75,6 +75,22 @@ def _store_storage_access(row: CollectionStacConfig, incoming: CollectionStacCon
     return storage_access.store(row, incoming.storage_access)
 
 
+def _held_storage_access(source: ImagerySource) -> dict[str, storage_access.Held]:
+    """The private-catalog access each of a source's catalogs is read with, by catalog URL.
+
+    Taken before a save deletes anything: a series regenerated in the editor replaces its
+    collections with new ones the browser never had the access for, and those carry on
+    with the access their catalog already has.
+    """
+    out: dict[str, storage_access.Held] = {}
+    for collection in source.collections:
+        config = collection.stac_config
+        access = storage_access.held(config)
+        if config is not None and config.catalog_url and access is not None:
+            out[config.catalog_url] = access
+    return out
+
+
 def _registration_spec(
     collection: ImageryCollection,
     col_create: ImageryCollectionCreate,
@@ -299,6 +315,7 @@ def save_imagery_editor_state(
     ]
 
     existing_sources: dict[int, ImagerySource] = {s.id: s for s in campaign.imagery_sources}
+    held_access = {s_id: _held_storage_access(s) for s_id, s in existing_sources.items()}
 
     payload_source_ids = {s.id for s in editor_state.sources if s.id is not None}
 
@@ -346,7 +363,9 @@ def save_imagery_editor_state(
     for src_idx, src_create in enumerate(editor_state.sources):
         if src_create.id and src_create.id in existing_sources:
             db_src = existing_sources[src_create.id]
-            pending = _update_source_in_place(db, db_src, src_create, src_idx, bbox)
+            pending = _update_source_in_place(
+                db, db_src, src_create, src_idx, bbox, held_access.get(db_src.id)
+            )
         else:
             db_src, pending = _create_source(
                 db, LayerOwner(campaign_id=campaign.id), src_create, src_idx, bbox
@@ -589,6 +608,7 @@ def _update_source_in_place(
     src_create: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
+    held_access: dict[str, storage_access.Held] | None = None,
 ) -> list[StacRegistrationSpec]:
     """Update source metadata + viz templates, then reconcile collections.
     Returns pending STAC registrations from any new or re-registered collections."""
@@ -665,6 +685,7 @@ def _update_source_in_place(
                     if col_create.generation_series_key is not None
                     else None
                 ),
+                held_access,
             )
             if pending_entry:
                 pending.append(pending_entry)
@@ -922,6 +943,7 @@ def _create_collection_record(
     col_idx: int,
     bbox: list[float],
     generation_series_id: int | None,
+    held_access: dict[str, storage_access.Held] | None = None,
 ) -> tuple[ImageryCollection, StacRegistrationSpec | None]:
     """Persist a single collection (stac_config, slices, tile_urls) for a source.
 
@@ -955,6 +977,7 @@ def _create_collection_record(
             internal_storage=col_create.stac_config.internal_storage,
         )
         _store_storage_access(stac_row, col_create.stac_config)
+        storage_access.inherit(stac_row, (held_access or {}).get(stac_row.catalog_url or ""))
         db.add(stac_row)
         _upsert_viz_configs(db, collection.id, col_create.stac_config.visualizations, has_cover)
 

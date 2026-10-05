@@ -261,3 +261,21 @@ def test_a_visualizer_cannot_register_a_private_catalog_of_its_own():
             None, visualizer=None, sources=[source], bbox=[0, 0, 1, 1]
         )
     assert exc.value.status_code == 400
+
+
+def test_a_regenerated_collection_carries_on_with_its_catalogs_access():
+    from src.imagery.models import ImageryCollection, ImagerySource
+    from src.imagery.service import _held_storage_access
+
+    old = _row()
+    storage_access.store(old, storage_access.AzureSasAccess(kind=AZURE_SAS, secret=SAS))
+    source = ImagerySource(collections=[ImageryCollection(stac_config=old)])
+    held = _held_storage_access(source)
+
+    new = _row()
+    storage_access.inherit(new, held.get(CATALOG))
+    assert storage_access.stored(new).secret == SAS
+
+    other = CollectionStacConfig(catalog_url="https://other.blob.core.windows.net/c/catalog.json")
+    storage_access.inherit(other, held.get(other.catalog_url))
+    assert storage_access.stored(other) is None
