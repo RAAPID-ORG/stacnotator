@@ -1,4 +1,5 @@
-import { Input } from '~/shared/ui/forms';
+import { InfoPopover } from '~/shared/ui/InfoPopover';
+import { SecretInput, SecretStatus } from '~/shared/ui/SecretInput';
 import { describeExpiry, expiresSoon, readSasToken } from './sasToken';
 
 interface SasTokenFieldProps {
@@ -15,31 +16,35 @@ export const SasTokenField = ({
   placeholder = 'sv=...&sp=r&se=...&sig=...',
 }: SasTokenFieldProps) => {
   const reading = value.trim() ? readSasToken(value) : null;
+  const status =
+    reading === null ? undefined : 'error' in reading ? (
+      <SecretStatus tone="error">Not accepted</SecretStatus>
+    ) : (
+      <SecretStatus tone={expiresSoon(reading.expiresAt) ? 'warn' : 'ok'}>Read-only ✓</SecretStatus>
+    );
   return (
     <div className="space-y-1">
-      <Input
-        size="sm"
-        type="password"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        autoComplete="off"
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs font-medium text-neutral-700">SAS token</span>
+        <InfoPopover>
+          A read-only SAS token for the container (or folder) holding the catalog. It is encrypted
+          on the server, used only to read this catalog and its imagery, and never sent to
+          annotators. When it expires, replace it in the source settings.
+        </InfoPopover>
+      </div>
+      <SecretInput
         aria-label="SAS token"
-        className="text-[11px] font-mono"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        status={status}
       />
       {reading && 'error' in reading && <p className="text-[11px] text-red-600">{reading.error}</p>}
       {reading && 'expiresAt' in reading && (
-        <p
-          className={`text-[11px] ${expiresSoon(reading.expiresAt) ? 'text-amber-600' : 'text-emerald-600'}`}
-        >
+        <p className="text-[11px] text-neutral-500">
           Read-only access, {describeExpiry(reading.expiresAt)}
         </p>
       )}
-      <p className="text-[11px] text-neutral-500 leading-snug">
-        A read-only SAS token for the container (or folder) holding the catalog. It is encrypted on
-        the server, used only to read this catalog and its imagery, and never sent to annotators.
-        When it expires, replace it in the source settings.
-      </p>
     </div>
   );
 };

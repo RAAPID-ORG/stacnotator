@@ -5,10 +5,8 @@ import {
   type OrganizationApiKeyOut,
   type PlanetCredentials,
 } from '~/api/client';
-import { Input, Select } from '~/shared/ui/forms';
-import { ReadOnlyKeyConsent } from '~/shared/ui/ReadOnlyKeyConsent';
-import { SharedKeyAudience } from './SharedKeyAudience';
 import { handleError } from '~/shared/utils/errorHandler';
+import { KeySourcePicker, type ProviderKeyChoice } from './KeySourcePicker';
 
 interface PlanetKeyConnectProps {
   projectId: number;
@@ -17,17 +15,13 @@ interface PlanetKeyConnectProps {
   onChange: (credentials: PlanetCredentials | null) => void;
 }
 
-const OWN_KEY = 'own';
-
 /** Long enough that a pasted key is not sent character by character. */
 const TYPING_SETTLES_MS = 250;
 
 /** Pick which Planet key to browse with, shared by both Planet flows. */
 export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps) => {
-  const [keys, setKeys] = useState<OrganizationApiKeyOut[] | null>(null);
-  const [keyId, setKeyId] = useState<number | null>(null);
-  const [ownKey, setOwnKey] = useState('');
-  const [readOnlyConfirmed, setReadOnlyConfirmed] = useState(false);
+  const [keys, setKeys] = useState<OrganizationApiKeyOut[]>([]);
+  const [choice, setChoice] = useState<ProviderKeyChoice>({ organizationApiKeyId: null });
   const [projectIsPublic, setProjectIsPublic] = useState(false);
 
   // Callers pass an inline handler; keeping it out of the effect below is what
@@ -41,12 +35,9 @@ export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps)
         const items = data?.items ?? [];
         setKeys(items);
         // A shared key is the better default when the organization has one.
-        setKeyId(items[0]?.id ?? null);
+        if (items[0]) setChoice({ organizationApiKeyId: items[0].id });
       })
-      .catch((err) => {
-        setKeys([]);
-        handleError(err, 'Failed to load organization keys', { showUser: false });
-      });
+      .catch((err) => handleError(err, 'Failed to load organization keys', { showUser: false }));
   }, [projectId]);
 
   useEffect(() => {
@@ -58,12 +49,12 @@ export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps)
   }, [projectId]);
 
   useEffect(() => {
-    if (keyId !== null) {
-      emit.current({ project_id: projectId, organization_api_key_id: keyId });
+    if (choice.organizationApiKeyId !== null) {
+      emit.current({ project_id: projectId, organization_api_key_id: choice.organizationApiKeyId });
       return;
     }
-    const key = ownKey.trim();
-    if (!key || !readOnlyConfirmed) {
+    const key = choice.apiKey;
+    if (!key) {
       emit.current(null);
       return;
     }
@@ -72,46 +63,23 @@ export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps)
       TYPING_SETTLES_MS
     );
     return () => clearTimeout(timer);
-  }, [projectId, keyId, ownKey, readOnlyConfirmed]);
+  }, [projectId, choice]);
 
   return (
-    <div className="space-y-1.5">
-      <label className="text-xs text-neutral-700 font-medium">Planet API key</label>
-      <p className="text-[11px] text-neutral-500 leading-snug">
-        Use one of your organization&apos;s shared keys, or provide a key for this campaign. The key
-        is encrypted on the server and used only to fetch tiles on each annotator&apos;s behalf - it
-        never reaches their browser.
-      </p>
-      <Select
-        size="sm"
-        value={keyId === null ? OWN_KEY : String(keyId)}
-        onChange={(e) => setKeyId(e.target.value === OWN_KEY ? null : Number(e.target.value))}
-        aria-label="Planet key source"
-      >
-        {(keys ?? []).map((key) => (
-          <option key={key.id} value={key.id}>
-            {key.name} (organization)
-          </option>
-        ))}
-        <option value={OWN_KEY}>Enter a key for this campaign</option>
-      </Select>
-
-      {keyId !== null && <SharedKeyAudience projectIsPublic={projectIsPublic} />}
-
-      {keyId === null && (
+    <KeySourcePicker
+      label="Planet API key"
+      explainer={
         <>
-          <Input
-            size="sm"
-            type="password"
-            value={ownKey}
-            onChange={(e) => setOwnKey(e.target.value)}
-            placeholder="Paste your Planet API key"
-            autoComplete="off"
-            className="text-[11px] font-mono"
-          />
-          <ReadOnlyKeyConsent confirmed={readOnlyConfirmed} onChange={setReadOnlyConfirmed} />
+          Used to browse Planet and to load its tiles on each annotator&apos;s behalf. The key is
+          encrypted on the server and never reaches their browser.
         </>
-      )}
-    </div>
+      }
+      orgKeys={keys}
+      projectIsPublic={projectIsPublic}
+      organizationApiKeyId={choice.organizationApiKeyId}
+      apiKey={choice.apiKey}
+      placeholder="Paste your Planet API key"
+      onChange={setChoice}
+    />
   );
 };

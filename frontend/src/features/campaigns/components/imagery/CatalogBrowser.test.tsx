@@ -42,7 +42,7 @@ describe('CatalogBrowser, private catalogs', () => {
   it('lists a private catalog with its SAS token, never through the public listing', async () => {
     open(true);
     await userEvent.type(await screen.findByPlaceholderText(/earth-search/), CATALOG);
-    await userEvent.click(await screen.findByTestId('private-catalog-toggle'));
+    await userEvent.click(await screen.findByRole('radio', { name: /Private Azure container/ }));
     const load = screen.getByRole('button', { name: 'Load' });
 
     await userEvent.type(screen.getByLabelText('SAS token'), 'sv=1&sp=rw&sig=x');
@@ -65,6 +65,6 @@ describe('CatalogBrowser, private catalogs', () => {
   it('is not offered where imagery gets published', async () => {
     open(false);
     await screen.findByPlaceholderText(/earth-search/);
-    expect(screen.queryByTestId('private-catalog-toggle')).toBeNull();
+    expect(screen.queryByRole('radio', { name: /Private Azure container/ })).toBeNull();
   });
 });

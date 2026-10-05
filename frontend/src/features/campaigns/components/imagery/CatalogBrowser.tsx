@@ -1,6 +1,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { Modal } from '~/shared/ui/Modal';
-import { IconPlus } from '~/shared/ui/Icons';
+import { IconGlobe, IconLock, IconPlus } from '~/shared/ui/Icons';
+import { SegmentedControl } from '~/shared/ui/SegmentedControl';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
 import { listCatalogs, getCollections, getPrivateCollections, search } from '~/api/client';
@@ -1238,16 +1239,16 @@ export const CatalogBrowser = ({
                     </Button>
                   </div>
                   {allowPrivateCatalogs && hasIngestTiler && (
-                    <div className="mt-2 space-y-1.5">
-                      <label className="flex items-center gap-1.5 text-[11px] text-neutral-600">
-                        <input
-                          type="checkbox"
-                          checked={customCatalogIsPrivate}
-                          onChange={(e) => setCustomCatalogIsPrivate(e.target.checked)}
-                          data-testid="private-catalog-toggle"
-                        />
-                        This catalog is in a private Azure container
-                      </label>
+                    <div className="mt-2 space-y-2">
+                      <SegmentedControl
+                        aria-label="Catalog access"
+                        value={customCatalogIsPrivate ? 'private' : 'public'}
+                        onChange={(access) => setCustomCatalogIsPrivate(access === 'private')}
+                        segments={[
+                          { value: 'public', label: 'Public', Icon: IconGlobe },
+                          { value: 'private', label: 'Private Azure container', Icon: IconLock },
+                        ]}
+                      />
                       {customCatalogIsPrivate && (
                         <SasTokenField value={sasInput} onChange={setSasInput} />
                       )}

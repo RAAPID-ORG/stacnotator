@@ -37,13 +37,16 @@ export const PrivateCatalogAccess = ({
 
   return (
     <div className="space-y-1" data-testid="private-catalog-access">
-      <label className="text-xs text-neutral-700 font-medium">Private catalog access</label>
-      {expiry && (
+      <SasTokenField
+        value={value}
+        onChange={replace}
+        placeholder="Paste a new token to replace it"
+      />
+      {expiry && !value.trim() && (
         <p className={`text-[11px] ${expiresSoon(expiry) ? 'text-amber-600' : 'text-neutral-500'}`}>
-          SAS token {describeExpiry(expiry)}
+          Current token {describeExpiry(expiry)}
         </p>
       )}
-      <SasTokenField value={value} onChange={replace} placeholder="Paste a new SAS token" />
     </div>
   );
 };

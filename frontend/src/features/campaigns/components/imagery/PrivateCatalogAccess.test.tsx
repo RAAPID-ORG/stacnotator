@@ -61,7 +61,7 @@ describe('PrivateCatalogAccess', () => {
     const controller = controllerFor();
     render(<PrivateCatalogAccess source={src} controller={controller} />);
 
-    expect(screen.getByText(/SAS token expires/)).toBeTruthy();
+    expect(screen.getByText(/Current token expires/)).toBeTruthy();
     await userEvent.type(screen.getByLabelText('SAS token'), SAS);
 
     const patched = controller.updateCollection.mock.calls.slice(-2);

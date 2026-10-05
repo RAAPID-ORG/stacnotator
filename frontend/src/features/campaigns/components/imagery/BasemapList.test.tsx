@@ -59,8 +59,8 @@ describe('BasemapList provider key', () => {
   it("points the basemap at one of the organization's keys instead", async () => {
     const saved = renderDraft();
 
-    const select = await screen.findByTestId('org-key-select');
-    await userEvent.selectOptions(select, '11');
+    await userEvent.click(await screen.findByRole('radio', { name: /Organization key/ }));
+    expect(screen.getByText('Planet')).toBeTruthy();
 
     await waitFor(() =>
       expect(basemapToBackend(saved.basemaps[0])).toMatchObject({
