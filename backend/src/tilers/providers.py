@@ -10,6 +10,7 @@ Two providers:
                  can ingest come from config only.
 """
 
+from dataclasses import dataclass
 from urllib.parse import urlencode
 
 import httpx
@@ -185,6 +186,14 @@ def _register_base(tiler: TilerCfg) -> str:
     return (tiler.internal_url or tiler.url).rstrip("/")
 
 
+@dataclass(frozen=True)
+class Ingested:
+    # The tiler's pgstac collection the items went into; a private catalog's differs from
+    # the catalog's own id, and searches have to name this one.
+    collection: str
+    count: int
+
+
 def ingest_on_tiler(
     tiler: TilerCfg,
     catalog_url: str,
@@ -193,17 +202,19 @@ def ingest_on_tiler(
     datetime_range: str | None,
     max_cloud: float | None = None,
     limit: int = 500,
-) -> int:
+    storage_access: dict | None = None,
+) -> Ingested:
     """Trigger an AOI ingest on a hosted tiler (its decoupled `POST /ingest`).
 
     The tiler runs the STAC-API search and upserts into its own pgstac; the backend never
-    writes to the tiler DB. Returns the number of items ingested. Raises if the configured
-    tiler doesn't allow ingest.
+    writes to the tiler DB. ``storage_access`` (a private catalog's ``{kind, secret}``) is
+    what the tiler reads the catalog with. Raises if the configured tiler doesn't allow
+    ingest.
     """
     if not tiler.allows_ingest:
         raise ValueError("Configured tiler does not allow STAC-API ingest")
     assert_public_url(catalog_url)
-    body = {
+    body: dict = {
         "catalog_url": catalog_url,
         "collection": collection,
         "bbox": bbox,
@@ -211,6 +222,8 @@ def ingest_on_tiler(
         "max_cloud": max_cloud,
         "limit": limit,
     }
+    if storage_access is not None:
+        body["storage_access"] = storage_access
     token = mint_tiler_token("backend", [], scope=["searches:write"], ttl=300)
     resp = httpx.post(
         f"{_register_base(tiler)}/ingest",
@@ -219,8 +232,8 @@ def ingest_on_tiler(
         timeout=300,
     )
     resp.raise_for_status()
-    ingested: int = resp.json()["ingested"]
-    return ingested
+    result = resp.json()
+    return Ingested(collection=result.get("collection", collection), count=result["ingested"])
 
 
 def register_cog_on_tiler(
@@ -258,21 +271,28 @@ ASSET_SIGNER_MANAGED_IDENTITY = "azure_managed_identity"
 
 
 def register_on_tiler(
-    tiler: TilerCfg, search_body: dict, tile_scope: str, internal_storage: bool = False
+    tiler: TilerCfg,
+    search_body: dict,
+    tile_scope: str,
+    internal_storage: bool = False,
+    sealed_storage_access: dict | None = None,
 ) -> str:
     """Register a search (CQL2 body) on a hosted titiler-pgstac tiler.
 
     ``search_body`` must already have bbox/datetime resolved. We stamp the campaign id into
     the search metadata (the tiler enforces campaign access from it), plus an ``asset_signer``
-    marker when the collection is internal storage, and authenticate with a short-lived
-    ``searches:write`` token. Returns the search id.
+    marker when the collection is internal storage, or the private catalog's sealed access
+    (``storage_access.seal_for_tiler``) its assets are read with. Authenticates with a
+    short-lived ``searches:write`` token. Returns the search id.
     """
     # The tiler matches this string against the browser token's `campaigns`
     # claim; it never parses it, which is what lets a visualizer own a scope of
     # its own without the tiler knowing visualizers exist.
-    metadata = {"campaign_id": tile_scope}
+    metadata: dict = {"campaign_id": tile_scope}
     if internal_storage:
         metadata["asset_signer"] = ASSET_SIGNER_MANAGED_IDENTITY
+    if sealed_storage_access is not None:
+        metadata["storage_access"] = sealed_storage_access
     body = {**search_body, "metadata": metadata}
     token = mint_tiler_token("backend", [], scope=["searches:write"], ttl=300)
     resp = httpx.post(

@@ -1159,6 +1159,20 @@ export type AssignTasksToUsersResult = {
 };
 
 /**
+ * AzureSasAccess
+ */
+export type AzureSasAccess = {
+    /**
+     * Kind
+     */
+    kind: 'azure_sas';
+    /**
+     * Secret
+     */
+    secret: string;
+};
+
+/**
  * BandInfo
  */
 export type BandInfo = {
@@ -2109,6 +2123,12 @@ export type CollectionStacConfigCreate = {
      * Internal Storage
      */
     internal_storage?: boolean;
+    /**
+     * Storage Access
+     */
+    storage_access?: ({
+        kind: 'azure_sas';
+    } & AzureSasAccess) | null;
 };
 
 /**
@@ -2151,6 +2171,7 @@ export type CollectionStacConfigOut = {
      * Internal Storage
      */
     internal_storage?: boolean;
+    storage_access?: StorageAccessOut | null;
 };
 
 /**
@@ -3442,7 +3463,7 @@ export type OverlayOptionOut = {
     /**
      * Restriction
      */
-    restriction: 'api_key' | 'internal_storage' | null;
+    restriction: 'api_key' | 'internal_storage' | 'storage_access' | null;
 };
 
 /**
@@ -3781,6 +3802,25 @@ export type PolicyAudience = {
 };
 
 /**
+ * PrivateCollectionsRequest
+ *
+ * Listing a private catalog: in a body rather than the query string, since its
+ * access is a secret and query strings end up in access logs.
+ */
+export type PrivateCollectionsRequest = {
+    /**
+     * Catalog Url
+     */
+    catalog_url: string;
+    /**
+     * Storage Access
+     */
+    storage_access: {
+        kind: 'azure_sas';
+    } & AzureSasAccess;
+};
+
+/**
  * ProjectCreate
  */
 export type ProjectCreate = {
@@ -4073,6 +4113,12 @@ export type SearchRequest = {
      * Offset
      */
     offset?: number;
+    /**
+     * Storage Access
+     */
+    storage_access?: ({
+        kind: 'azure_sas';
+    } & AzureSasAccess) | null;
 };
 
 /**
@@ -4209,7 +4255,7 @@ export type SourceOptionOut = {
     /**
      * Restriction
      */
-    restriction: 'api_key' | 'internal_storage' | null;
+    restriction: 'api_key' | 'internal_storage' | 'storage_access' | null;
 };
 
 /**
@@ -4378,6 +4424,20 @@ export type StacItemOut = {
      * Self Href
      */
     self_href?: string | null;
+};
+
+/**
+ * StorageAccessOut
+ */
+export type StorageAccessOut = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
 };
 
 /**
@@ -10108,6 +10168,40 @@ export type GetCollectionsResponses = {
 };
 
 export type GetCollectionsResponse = GetCollectionsResponses[keyof GetCollectionsResponses];
+
+export type GetPrivateCollectionsData = {
+    body: PrivateCollectionsRequest;
+    path?: never;
+    query: {
+        /**
+         * Project Id
+         *
+         * Project the wizard is configuring imagery for
+         */
+        project_id: number;
+    };
+    url: '/api/stac/collections';
+};
+
+export type GetPrivateCollectionsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPrivateCollectionsError = GetPrivateCollectionsErrors[keyof GetPrivateCollectionsErrors];
+
+export type GetPrivateCollectionsResponses = {
+    /**
+     * Response Getprivatecollections
+     *
+     * Successful Response
+     */
+    200: Array<StacCollectionOut>;
+};
+
+export type GetPrivateCollectionsResponse = GetPrivateCollectionsResponses[keyof GetPrivateCollectionsResponses];
 
 export type SearchData = {
     body: SearchRequest;

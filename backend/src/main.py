@@ -36,6 +36,7 @@ from src.imagery.router import router as imagery_router
 from src.organizations.router import router as organizations_router
 from src.planet.router import router as planet_router
 from src.projects.router import router as projects_router
+from src.redact import install_log_redaction
 from src.routing import generate_unique_id
 from src.sampling_design.router import router as sampling_design_router
 from src.stac_browser.router import router as stac_browser_router
@@ -53,6 +54,7 @@ logging.config.fileConfig(
     LOGGING_CONFIG,
     disable_existing_loggers=False,
 )
+install_log_redaction()
 
 logger = logging.getLogger(__name__)
 

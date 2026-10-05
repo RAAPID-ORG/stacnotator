@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
+from src import storage_access
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.database import get_db, release
@@ -21,11 +22,13 @@ from src.stac_browser.catalogs import (
 from src.stac_browser.client import list_collections as _list_collections
 from src.stac_browser.client import search_items
 from src.stac_browser.schemas import (
+    PrivateCollectionsRequest,
     SearchRequest,
     SearchResponse,
     StacCatalogOut,
     StacCollectionOut,
 )
+from src.storage_access import AzureSasAccess, StorageAccess
 from src.tilers import registry
 
 logger = logging.getLogger(__name__)
@@ -147,6 +150,41 @@ def get_collections(
     return data
 
 
+def _private_access(catalog_url: str, incoming: AzureSasAccess) -> StorageAccess:
+    try:
+        storage_access.check_catalog(catalog_url)
+    except storage_access.InvalidStorageAccess as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return StorageAccess.of(incoming)
+
+
+@router.post("/collections", response_model=list[StacCollectionOut])
+def get_private_collections(
+    request: PrivateCollectionsRequest,
+    project_id: int = Query(..., description="Project the wizard is configuring imagery for"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+):
+    """List collections from a private catalog, read with the access the admin provided.
+
+    Never cached: the shared cache is keyed by catalog URL alone, and would hand this
+    listing to anyone who typed the same URL without the access.
+    """
+    require_project_access(project_id=project_id, db=db, user=user)
+    assert_catalog_url_safe(request.catalog_url)
+    access = _private_access(request.catalog_url, request.storage_access)
+    release(db)
+    try:
+        return _list_collections(request.catalog_url, access)
+    except Exception as e:
+        logger.error("private collections fetch FAILED catalog=%s err=%s", request.catalog_url, e)
+        raise HTTPException(
+            status_code=502,
+            detail="Could not read the catalog with this SAS token. Check that it is valid, "
+            "not expired, and grants read on the container holding the catalog.",
+        ) from e
+
+
 @router.post("/search", response_model=SearchResponse)
 def search(
     request: SearchRequest,
@@ -159,6 +197,11 @@ def search(
         request.catalog_url, require_project_access(project_id=project_id, db=db, user=user)
     )
     assert_catalog_url_safe(request.catalog_url)
+    access = (
+        _private_access(request.catalog_url, request.storage_access)
+        if request.storage_access
+        else None
+    )
     # See get_collections: the search below is a network call, not a query.
     release(db)
     try:
@@ -169,6 +212,7 @@ def search(
             datetime_range=request.datetime_range,
             limit=request.limit,
             offset=request.offset,
+            access=access,
         )
         return {"items": items, "count": len(items), "next_offset": next_offset}
     except Exception as e:

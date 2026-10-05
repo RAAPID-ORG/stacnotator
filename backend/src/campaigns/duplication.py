@@ -144,6 +144,16 @@ def unmet_org_requirements(
         )
     ):
         missing.append("internal storage")
+    # A private catalog's SAS token was given to this organization; it does not travel.
+    if organization.id != campaign.project.organization_id and db.scalar(
+        select(
+            exists().where(
+                CollectionStacConfig.collection_id.in_(collections),
+                CollectionStacConfig.storage_auth.is_not(None),
+            )
+        )
+    ):
+        missing.append("a private catalog's SAS token")
     return missing
 
 

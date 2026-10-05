@@ -23,7 +23,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src import background
+from src import background, storage_access
 from src.campaigns.models import Campaign
 from src.config import get_settings
 from src.imagery.models import (
@@ -35,6 +35,8 @@ from src.imagery.models import (
 from src.imagery.schemas import CollectionStacConfigCreate
 from src.imagery.tile_urls import _slice_viz_params
 from src.layers import LayerOwner
+from src.redact import redact_urls
+from src.storage_access import StorageAccess
 from src.tilers import providers
 from src.visualizers.models import Visualizer
 
@@ -49,7 +51,7 @@ def sanitize_error_message(exc: Exception, *, fallback: str) -> str:
     Only exposes the exception type + first line, never internal paths,
     credentials, or stack traces.
     """
-    msg = str(exc).split("\n")[0]
+    msg = redact_urls(str(exc)).split("\n")[0]
     if "/" in msg and ("site-packages" in msg or "/app/" in msg):
         return f"{fallback} ({type(exc).__name__})"
     return msg[:200] if msg else f"{fallback} ({type(exc).__name__})"
@@ -103,6 +105,8 @@ class StacRegistrationSpec:
     has_dedicated_cover: bool
     cover_slice_index: int
     source_viz_names: list[str]
+    # A private catalog's access, decrypted from the collection's stored one.
+    storage_access: StorageAccess | None = None
 
 
 def _register_all_stac_browser_collections(
@@ -195,6 +199,7 @@ def _register_all_stac_browser_collections(
                     "any_needs_hosted": any_needs_hosted,
                     "collection_name": spec.collection_name,
                     "tiler_name": stac.tiler or get_settings().DEFAULT_TILER,
+                    "storage_access": spec.storage_access,
                     "search_query": cover_search_query
                     if (is_cover and cover_search_query)
                     else search_query,
@@ -283,6 +288,7 @@ def _register_all_stac_browser_collections(
                     custom_query,
                     tile_scope,
                     tilers_by_name[task["tiler_name"]],
+                    task["storage_access"],
                 ),
                 "Hosted tiler",
             )
@@ -501,13 +507,45 @@ def _register_mpc_slice(stac, db_slice, bbox: list[float], search_query: dict | 
     return search_id
 
 
-def _register_hosted_slice(stac, db_slice, bbox, search_query, tile_scope: str, tiler) -> str:
+def _register_hosted_slice(
+    stac,
+    db_slice,
+    bbox,
+    search_query,
+    tile_scope: str,
+    tiler,
+    access: StorageAccess | None = None,
+) -> str:
     """Ingest the slice's AOI into the hosted tiler's pgstac, then register the search.
 
     Returns the tiler's search id. The tiler runs the ingest server-side (the backend never
     writes to the tiler DB); ingest is skipped for tilers that serve only pre-loaded data.
+
+    A private catalog (``access``) is ingested with its access into a pgstac collection of
+    its own, so the search is pointed at that collection and carries the access, sealed,
+    for the tiler to read its assets with.
     """
     dt_range = f"{db_slice.start_date}T00:00:00Z/{db_slice.end_date}T23:59:59Z"
+    body = _resolved_search_body(search_query, bbox, db_slice)
+    if access is not None:
+        if not tiler.allows_ingest:
+            raise ValueError("A private catalog needs a tiler that can ingest it")
+        ingested = providers.ingest_on_tiler(
+            tiler,
+            stac.catalog_url,
+            stac.stac_collection_id,
+            bbox,
+            dt_range,
+            stac.max_cloud_cover,
+            storage_access=access.tiler_body(),
+        )
+        body["collections"] = [ingested.collection]
+        return providers.register_on_tiler(
+            tiler,
+            body,
+            tile_scope,
+            sealed_storage_access=storage_access.seal_for_tiler(access, stac.catalog_url),
+        )
     if tiler.allows_ingest:
         providers.ingest_on_tiler(
             tiler,
@@ -517,7 +555,6 @@ def _register_hosted_slice(stac, db_slice, bbox, search_query, tile_scope: str, 
             dt_range,
             stac.max_cloud_cover,
         )
-    body = _resolved_search_body(search_query, bbox, db_slice)
     return providers.register_on_tiler(
         tiler, body, tile_scope, internal_storage=stac.internal_storage
     )
@@ -595,6 +632,7 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
                                 custom_query,
                                 str(campaign_id),
                                 providers.resolve_tiler(provider),
+                                storage_access.stored(stac),
                             )
                     except Exception:
                         logger.warning(
@@ -705,6 +743,7 @@ def refresh_collection_imagery(
             continue
 
         dt_range = f"{sl.start_date}T00:00:00Z/{sl.end_date}T23:59:59Z"
+        access = storage_access.stored(stac)
         try:
             providers.ingest_on_tiler(
                 tiler,
@@ -713,6 +752,7 @@ def refresh_collection_imagery(
                 bbox,
                 dt_range,
                 stac.max_cloud_cover,
+                storage_access=access.tiler_body() if access else None,
             )
             refreshed_count += 1
         except Exception:

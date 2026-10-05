@@ -5,6 +5,7 @@ from math import isfinite
 from pydantic import BaseModel, Field, field_validator
 
 from src.stac_browser.client import parse_datetime
+from src.storage_access import StorageAccessCreate
 
 
 class StacCatalogOut(BaseModel):
@@ -52,6 +53,14 @@ class StacCollectionOut(BaseModel):
     unavailable_reason: str | None = None  # Reason for selectable
 
 
+class PrivateCollectionsRequest(BaseModel):
+    """Listing a private catalog: in a body rather than the query string, since its
+    access is a secret and query strings end up in access logs."""
+
+    catalog_url: str = Field(min_length=1, max_length=2048)
+    storage_access: StorageAccessCreate
+
+
 MAX_SEARCH_LIMIT = 500
 
 
@@ -63,6 +72,8 @@ class SearchRequest(BaseModel):
     limit: int = Field(default=50, ge=1, le=MAX_SEARCH_LIMIT)
     # Cursor for paging static catalogs: resume the item-link crawl from here.
     offset: int = Field(default=0, ge=0)
+    # A private catalog's access (see src/storage_access.py). Used for this request only.
+    storage_access: StorageAccessCreate | None = None
 
     @field_validator("bbox")
     @classmethod
