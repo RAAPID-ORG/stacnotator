@@ -23,6 +23,7 @@ const controllerWith = (sources: ImagerySource[], campaignId?: number) =>
     pending: false,
     campaignId,
     projectId: 1,
+    allowsPrivateCatalogs: true,
     isDirty: false,
     save: vi.fn(),
     discard: vi.fn(),

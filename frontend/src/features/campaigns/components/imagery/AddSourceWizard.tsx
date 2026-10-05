@@ -103,6 +103,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
         projectId={controller.projectId}
         initialMode="mosaic"
         campaignBbox={controller.campaignBbox}
+        allowPrivateCatalogs={controller.allowsPrivateCatalogs}
         onAdd={(result) => {
           const { collections: cols } = result;
           const fallback =

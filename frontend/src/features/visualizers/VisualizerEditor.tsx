@@ -259,7 +259,9 @@ export function VisualizerEditor({
                         }
                         title={source.name}
                         note={sourceNote(source)}
-                        disabled={source.step_count === 0}
+                        disabled={
+                          source.step_count === 0 || source.restriction === 'storage_access'
+                        }
                       />
                     ))
                   }
@@ -508,6 +510,8 @@ const Section = ({
 /** A source that carries covers over a coarser period than its slices arrives
  *  as two entries in the viewer, which is worth knowing before ticking it. */
 const sourceNote = (source: SourceOptionOut) => {
+  if (source.restriction === 'storage_access')
+    return "Read from a private catalog with its SAS token - can't be published";
   if (source.step_count === 0) return 'No registered imagery yet';
   const span =
     source.start_date && source.end_date ? `, ${source.start_date} to ${source.end_date}` : '';

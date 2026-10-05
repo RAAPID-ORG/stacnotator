@@ -38,6 +38,9 @@ export interface ImageryController {
   /** Owning project. Scopes tiler discovery and STAC catalog listing, which are
    *  organization-level capabilities rather than per-user ones. */
   readonly projectId: number;
+  /** Whether a catalog in private storage may be added with its SAS token. Not in a
+   *  visualizer: whatever it shows is published. */
+  readonly allowsPrivateCatalogs: boolean;
 
   /** Persisted mode only: true when local state differs from server truth. */
   readonly isDirty: boolean;
@@ -137,6 +140,7 @@ export interface DraftControllerOptions {
   state: ImageryStepState;
   setState: (next: ImageryStepState) => void;
   campaignBbox?: number[] | null;
+  allowsPrivateCatalogs?: boolean;
 }
 
 export function useDraftController({
@@ -144,6 +148,7 @@ export function useDraftController({
   state,
   setState,
   campaignBbox = null,
+  allowsPrivateCatalogs = true,
 }: DraftControllerOptions): ImageryController {
   // Read freshest state on writes - without this, queued setState calls
   // would clobber each other via stale closures.
@@ -174,6 +179,7 @@ export function useDraftController({
       state,
       campaignBbox,
       projectId,
+      allowsPrivateCatalogs,
       mode: 'draft',
       pending: false,
       // Draft mode persists at form submit; controller-level save/dirty are
@@ -224,7 +230,7 @@ export function useDraftController({
         update({ ...stateRef.current, basemaps });
       },
     }),
-    [state, campaignBbox, projectId, update, patchSource]
+    [state, campaignBbox, projectId, allowsPrivateCatalogs, update, patchSource]
   );
 }
 
@@ -313,6 +319,9 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
       searchQuery: (sc.search_query as Record<string, unknown>) ?? undefined,
       coverSearchQuery: (sc.cover_search_query as Record<string, unknown>) ?? undefined,
       internalStorage: sc.internal_storage ?? false,
+      storageAccess: sc.storage_access
+        ? { kind: sc.storage_access.kind, expiresAt: sc.storage_access.expires_at ?? null }
+        : null,
       vizUrls,
     };
   } else {
@@ -500,6 +509,7 @@ export function usePersistedController({
       state,
       campaignBbox,
       projectId,
+      allowsPrivateCatalogs: true,
       mode: 'persisted',
       pending,
       isDirty,

@@ -83,6 +83,7 @@ const controller = {
   mode: 'draft',
   pending: false,
   projectId: 1,
+  allowsPrivateCatalogs: true,
   isDirty: false,
   save: vi.fn(),
   discard: vi.fn(),

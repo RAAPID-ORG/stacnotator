@@ -20,6 +20,7 @@ import type { BulkFocus } from './BulkApplyModal';
 import type { ImageryController } from './controller';
 import { sourceRegistration } from './controller';
 import { ApiKeyField } from './ApiKeyField';
+import { PrivateCatalogAccess } from './PrivateCatalogAccess';
 import {
   editableGenerationSeries,
   retainMatchingIds,
@@ -273,6 +274,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
         initialMode="mosaic"
         campaignBbox={controller.campaignBbox}
         initialAdvanced={controller.mode === 'persisted'}
+        allowPrivateCatalogs={controller.allowsPrivateCatalogs}
         onAdd={(result) => void addCollectionsFromCatalog(result)}
         onClose={() => setAddStep(null)}
       />
@@ -467,6 +469,8 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
         </div>
 
         <SourceRegistration controller={controller} source={source} />
+
+        <PrivateCatalogAccess source={source} controller={controller} />
 
         {sourceNeedsApiKey && (
           <div className="space-y-1">
