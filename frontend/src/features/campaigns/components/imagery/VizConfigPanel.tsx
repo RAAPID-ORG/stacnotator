@@ -3,11 +3,13 @@ import {
   COLLECTION_PRESETS,
   KNOWN_RESCALE,
   COLORMAPS,
+  decodeChannels,
+  encodeChannels,
   getRasterAssets,
   isPreRenderedRGB,
   guessRescale,
 } from './collectionPresets';
-import type { BandPreset, AssetInfo } from './collectionPresets';
+import type { BandPreset, AssetInfo, Channel } from './collectionPresets';
 import type { VizParams } from './types';
 import { normalizeColorFormula, validateColorFormula } from './vizValidation';
 import { COMPOSITING_METHODS, NO_TILER_NOTE } from './tilerCapabilities';
@@ -125,24 +127,30 @@ export const VizConfigPanel = ({
 
   const rasterAssets = getRasterAssets(availableAssets);
 
-  // Band mode: a single asset that holds many bands (e.g. an 8-band COG exposed as one
-  // "data" asset). The tiler can't subset bands via asset_bidx, so we let the user pick
-  // bands by 1-based index (vizParams.bidx) and the tiler slices the output. This is
-  // mutually exclusive with multi-asset selection - we show bands OR assets, never both.
-  const multibandAsset =
-    rasterAssets.length === 1 && (rasterAssets[0][1].bands?.length ?? 0) > 1
-      ? rasterAssets[0]
-      : null;
-  const bandMode = multibandAsset !== null;
-  const bandChoices = multibandAsset
-    ? (multibandAsset[1].bands ?? [])
-        .map((b, i) => ({ name: b.name, idx: i + 1 }))
+  // Up to 3 output channels, each a band of some asset: a single-band asset is picked
+  // directly, a multiband one opens its band list. A multiband asset saved without bidx
+  // (e.g. a pre-rendered `visual` preset) renders whole and is shown as such.
+  const isMultiband = (key: string) => (availableAssets[key]?.bands?.length ?? 0) > 1;
+  const wholeAsset =
+    !vizParams.bidx?.length && vizParams.assets.length === 1 && isMultiband(vizParams.assets[0])
+      ? vizParams.assets[0]
+      : undefined;
+  const channels = wholeAsset
+    ? []
+    : decodeChannels(vizParams.assets, vizParams.bidx, availableAssets);
+  const [openAsset, setOpenAsset] = useState(
+    () => wholeAsset ?? channels.find((c) => isMultiband(c.asset))?.asset
+  );
+  const bandChoices = openAsset
+    ? (availableAssets[openAsset]?.bands ?? [])
+        .map((b, i) => ({ name: b.name, band: i + 1 }))
         // Alpha is a transparency mask, not a display band - exclude it from the picker.
         .filter((b) => b.name.toLowerCase() !== 'alpha')
     : [];
-  const selBidx = vizParams.bidx ?? [];
+  const channelName = ({ asset, band }: Channel) =>
+    isMultiband(asset) ? `${asset}/${availableAssets[asset].bands![band - 1].name}` : asset;
   // How many output bands are selected (drives RGB-vs-single-band / colormap logic).
-  const selCount = bandMode ? selBidx.length : vizParams.assets.length;
+  const selCount = wholeAsset ? 1 : channels.length;
 
   // Best-NDVI needs red/NIR bands to rank pixels by, so it is only meaningful on the
   // collections we know carry them.
@@ -176,37 +184,21 @@ export const VizConfigPanel = ({
     [vizParams.colorFormula]
   );
 
-  const toggleBand = (band: string) => {
-    const prev = vizParams.assets;
-    let next: string[];
-    if (prev.includes(band)) {
-      next = prev.filter((b) => b !== band);
-    } else if (prev.length < 3) {
-      next = [...prev, band];
-    } else {
-      next = prev;
-    }
-    onChange({
-      ...vizParams,
-      assets: next,
-      assetAsBand: next.length === 3,
-    });
+  const channelIndex = (asset: string, band: number) =>
+    channels.findIndex((c) => c.asset === asset && c.band === band);
+
+  const toggleChannel = (channel: Channel) => {
+    const pos = channelIndex(channel.asset, channel.band);
+    let next = channels;
+    if (pos >= 0) next = channels.filter((_, i) => i !== pos);
+    else if (channels.length < 3) next = [...channels, channel];
+    const { assets, bidx } = encodeChannels(next, availableAssets);
+    onChange({ ...vizParams, assets, bidx, assetAsBand: !bidx && assets.length === 3 });
   };
 
-  // Band-mode toggle: select up to 3 bands by 1-based index. `assets` is pinned to the
-  // single multiband asset so the tiler reads it, and bidx selects which bands to output.
-  const toggleBidx = (idx: number) => {
-    const prev = selBidx;
-    let next: number[];
-    if (prev.includes(idx)) next = prev.filter((b) => b !== idx);
-    else if (prev.length < 3) next = [...prev, idx];
-    else next = prev;
-    onChange({
-      ...vizParams,
-      assets: next.length ? [multibandAsset![0]] : [],
-      bidx: next,
-      assetAsBand: false,
-    });
+  const clickAsset = (key: string) => {
+    if (isMultiband(key)) setOpenAsset(openAsset === key ? undefined : key);
+    else toggleChannel({ asset: key, band: 1 });
   };
 
   const applyPreset = (preset: BandPreset) => {
@@ -309,112 +301,102 @@ export const VizConfigPanel = ({
         </div>
       )}
 
-      {/* Band picker. Three cases: (1) one multiband asset -> pick bands by index;
-          (2) per-band assets (MPC-style) -> pick assets; (3) no STAC metadata -> text
-          input (e.g. editing a saved collection without re-fetching). */}
-      {bandMode ? (
-        <div className="space-y-1.5">
-          <label className="text-xs text-neutral-700 font-medium">
-            Bands{' '}
-            <span className="font-normal text-neutral-500">Select 1 (colorized) or 3 (RGB)</span>
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {bandChoices.map(({ name, idx }) => {
-              const pos = selBidx.indexOf(idx);
-              const selected = pos >= 0;
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => toggleBidx(idx)}
-                  title={`band ${idx}: ${name}`}
-                  className={`relative text-xs px-2 py-1 rounded border transition-colors cursor-pointer ${
-                    selected
-                      ? bandColorClass(pos)
-                      : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                  }`}
-                >
-                  {selected && (
-                    <span className="absolute -top-1.5 -left-1 text-[9px] font-bold leading-none">
-                      {bandLabel(pos)}
-                    </span>
-                  )}
-                  {name}
-                </button>
-              );
-            })}
+      {/* Channel picker; without STAC metadata it falls back to a text input (e.g. editing
+          a saved collection without re-fetching). */}
+      {rasterAssets.length > 0 ? (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs text-neutral-700 font-medium">
+              Bands{' '}
+              <span className="font-normal text-neutral-500">
+                Select 1 (colorized) or 3 (RGB); open a multiband asset to pick its bands
+              </span>
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {rasterAssets.map(([key, info]) => {
+                const multiband = isMultiband(key);
+                const positions = channels.flatMap((c, i) => (c.asset === key ? [i] : []));
+                const used = positions.length > 0 || wholeAsset === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => clickAsset(key)}
+                    aria-expanded={multiband ? openAsset === key : undefined}
+                    title={info.title || key}
+                    className={`relative text-xs px-2 py-1 rounded border transition-colors cursor-pointer ${
+                      !used
+                        ? 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                        : multiband
+                          ? 'border-brand-600 bg-brand-50 text-brand-700'
+                          : bandColorClass(positions[0])
+                    } ${openAsset === key ? 'ring-1 ring-brand-400' : ''}`}
+                  >
+                    {positions.length > 0 && (
+                      <span className="absolute -top-1.5 -left-1 text-[9px] font-bold leading-none">
+                        {positions.map(bandLabel).join('')}
+                      </span>
+                    )}
+                    {info.title || key}
+                    {multiband && (
+                      <span className="ml-1 text-neutral-500">
+                        {info.bands!.length} bands {openAsset === key ? '-' : '+'}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="text-[11px] text-neutral-500">
-            {selBidx.length === 0 && 'No bands selected'}
-            {selBidx.length === 1 &&
-              `Single band: ${bandChoices.find((b) => b.idx === selBidx[0])?.name ?? selBidx[0]} (colorized)`}
-            {selBidx.length === 2 && 'Select a 3rd band for RGB, or remove one'}
-            {selBidx.length === 3 && (
-              <>
-                RGB:{' '}
-                <span className="text-red-600">
-                  {bandChoices.find((b) => b.idx === selBidx[0])?.name}
-                </span>{' '}
-                /{' '}
-                <span className="text-green-600">
-                  {bandChoices.find((b) => b.idx === selBidx[1])?.name}
-                </span>{' '}
-                /{' '}
-                <span className="text-blue-600">
-                  {bandChoices.find((b) => b.idx === selBidx[2])?.name}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      ) : rasterAssets.length > 0 ? (
-        <div className="space-y-1.5">
-          <label className="text-xs text-neutral-700 font-medium">
-            Bands{' '}
-            <span className="font-normal text-neutral-500">Select 1 (colorized) or 3 (RGB)</span>
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {rasterAssets.map(([key, info]) => {
-              const idx = vizParams.assets.indexOf(key);
-              const selected = idx >= 0;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => toggleBand(key)}
-                  title={info.title || key}
-                  className={`relative text-xs px-2 py-1 rounded border transition-colors cursor-pointer ${
-                    selected
-                      ? bandColorClass(idx)
-                      : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                  }`}
-                >
-                  {selected && (
-                    <span className="absolute -top-1.5 -left-1 text-[9px] font-bold leading-none">
-                      {bandLabel(idx)}
-                    </span>
-                  )}
-                  {info.title || key}
-                </button>
-              );
-            })}
-          </div>
+          {openAsset && bandChoices.length > 0 && (
+            <div className="space-y-1.5 pl-2 border-l-2 border-brand-200">
+              <label className="text-xs text-neutral-700 font-medium">Bands of {openAsset}</label>
+              <div className="flex flex-wrap gap-1.5">
+                {bandChoices.map(({ name, band }) => {
+                  const pos = channelIndex(openAsset, band);
+                  return (
+                    <button
+                      key={band}
+                      type="button"
+                      onClick={() => toggleChannel({ asset: openAsset, band })}
+                      title={`band ${band}: ${name}`}
+                      className={`relative text-xs px-2 py-1 rounded border transition-colors cursor-pointer ${
+                        pos >= 0
+                          ? bandColorClass(pos)
+                          : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                      }`}
+                    >
+                      {pos >= 0 && (
+                        <span className="absolute -top-1.5 -left-1 text-[9px] font-bold leading-none">
+                          {bandLabel(pos)}
+                        </span>
+                      )}
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="text-[11px] text-neutral-500">
             {vizParams.expression ? (
               <>Expression inputs (colorized by the expression below)</>
+            ) : wholeAsset ? (
+              isRgbAsset ? (
+                `Pre-rendered RGB: ${wholeAsset}`
+              ) : (
+                `All bands of ${wholeAsset}`
+              )
             ) : (
               <>
-                {vizParams.assets.length === 0 && 'No bands selected'}
-                {vizParams.assets.length === 1 &&
-                  (isRgbAsset
-                    ? `Pre-rendered RGB: ${vizParams.assets[0]}`
-                    : `Single band: ${vizParams.assets[0]} (colorized)`)}
-                {vizParams.assets.length === 2 && 'Select a 3rd band for RGB, or remove one'}
-                {vizParams.assets.length === 3 && (
+                {channels.length === 0 && 'No bands selected'}
+                {channels.length === 1 && `Single band: ${channelName(channels[0])} (colorized)`}
+                {channels.length === 2 && 'Select a 3rd band for RGB, or remove one'}
+                {channels.length === 3 && (
                   <>
-                    RGB: <span className="text-red-600">{vizParams.assets[0]}</span> /{' '}
-                    <span className="text-green-600">{vizParams.assets[1]}</span> /{' '}
-                    <span className="text-blue-600">{vizParams.assets[2]}</span>
+                    RGB: <span className="text-red-600">{channelName(channels[0])}</span> /{' '}
+                    <span className="text-green-600">{channelName(channels[1])}</span> /{' '}
+                    <span className="text-blue-600">{channelName(channels[2])}</span>
                   </>
                 )}
               </>

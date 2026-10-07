@@ -262,3 +262,43 @@ export function getRasterAssets(assets: Record<string, AssetInfo>): [string, Ass
     );
   });
 }
+
+/** One output channel: a 1-based band within an asset. */
+export interface Channel {
+  asset: string;
+  band: number;
+}
+
+/** Bands an asset contributes to a read. Without band metadata it counts as one. */
+const bandCount = (info?: AssetInfo) => Math.max(info?.bands?.length ?? 0, 1);
+
+/** Channels as the tiler takes them. It stacks every band of the listed assets in order and
+ *  `bidx` slices that stack, so bands from different assets (an 8-band reflectance COG, or
+ *  R/G/B tifs that each carry a QA band) combine by offset. When every pick is a whole
+ *  single-band asset, no slicing is needed and `bidx` is left out. */
+export function encodeChannels(
+  channels: Channel[],
+  available: Record<string, AssetInfo>
+): { assets: string[]; bidx?: number[] } {
+  const assets = [...new Set(channels.map((c) => c.asset))];
+  if (channels.every((c) => bandCount(available[c.asset]) === 1)) return { assets };
+  const offsets = new Map<string, number>();
+  let offset = 0;
+  for (const asset of assets) {
+    offsets.set(asset, offset);
+    offset += bandCount(available[asset]);
+  }
+  return { assets, bidx: channels.map((c) => offsets.get(c.asset)! + c.band) };
+}
+
+export function decodeChannels(
+  assets: string[],
+  bidx: number[] | undefined,
+  available: Record<string, AssetInfo>
+): Channel[] {
+  if (!bidx?.length) return assets.map((asset) => ({ asset, band: 1 }));
+  const stack = assets.flatMap((asset) =>
+    Array.from({ length: bandCount(available[asset]) }, (_, i) => ({ asset, band: i + 1 }))
+  );
+  return bidx.flatMap((i) => stack[i - 1] ?? []);
+}
