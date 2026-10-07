@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { listPlannedTaskSets } from './api';
+import { AREA_ESTIMATION_ENABLED } from './enabled';
 
 export const LOCKED_TASK_SET_REASON =
   'This set is managed by an area estimation design. Adding, importing or moving tasks into it would break the inclusion probabilities the estimate depends on.';
@@ -19,7 +20,7 @@ export const useAreaEstimationTaskSets = (campaignId: number | null) => {
   const [taskSetIds, setTaskSetIds] = useState<ReadonlySet<number>>(new Set());
 
   const reload = useCallback(() => {
-    if (campaignId === null) return;
+    if (campaignId === null || !AREA_ESTIMATION_ENABLED) return;
     void listPlannedTaskSets(campaignId).then((ids) => setTaskSetIds(new Set(ids)));
   }, [campaignId]);
 

@@ -2,6 +2,9 @@ import { test, expect } from './fixtures/annotator-fixture';
 import type { Page, Route } from '@playwright/test';
 import { MOCK_CAMPAIGN } from './fixtures/mock-data';
 
+// Off with the feature (AREA_ESTIMATION_ENABLED in src/features/areaEstimation/enabled.ts).
+test.skip(true, 'area estimation is disabled until its backend exists');
+
 const SAMPLE_SET_ID = 99;
 const SAMPLE_SET_NAME = 'Winter crops 2025';
 

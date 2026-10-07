@@ -20,6 +20,7 @@ import { campaignPath } from '~/app/routes';
 import { InlineAddAction } from '~/shared/ui/InlineAddAction';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import {
+  AREA_ESTIMATION_ENABLED,
   AreaEstimationPanel,
   createAreaEstimationPlan,
   useAreaEstimationTaskSets,
@@ -284,7 +285,7 @@ export const CampaignOverviewPage = () => {
 
         {/* mt-8, not mb-6: this section used to sit above task sets, where its bottom
             margin did the separating. Below them it needs the space on top. */}
-        {(estimateSets.length > 0 || isAdmin) && (
+        {AREA_ESTIMATION_ENABLED && (estimateSets.length > 0 || isAdmin) && (
           <section className="mt-8 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="section-heading">Area estimates</h2>
