@@ -13,7 +13,8 @@ from pystac_client import CollectionClient
 from pystac_client.exceptions import APIError
 from pystac_client.stac_api_io import StacApiIO
 
-from src import net_guard
+from src import net_guard, storage_access
+from src.storage_access import StorageAccess
 from src.tilers.registry import is_mpc_url
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,12 @@ class GuardedStacIO(StacApiIO):
         timeout=STAC_READ_TIMEOUT, follow_redirects=True, headers={"Accept": "application/json"}
     )
 
+    def __init__(self, catalog_url: str = "", access: StorageAccess | None = None):
+        super().__init__()
+        # A private catalog's access, added to reads of the catalog's own host only.
+        self._catalog_url = catalog_url
+        self._access = access
+
     def read_text(self, source, *args, **kwargs) -> str:
         href = source.to_dict()["href"] if isinstance(source, pystac.link.Link) else str(source)
         if not href.lower().startswith(("http://", "https://")):
@@ -60,11 +67,12 @@ class GuardedStacIO(StacApiIO):
         return super().read_text(source, *args, **kwargs)
 
     def request(self, href, method=None, headers=None, parameters=None) -> str:
+        url = storage_access.apply(href, self._catalog_url, self._access)
         try:
             if method == "POST":
-                resp = self._http.post(href, json=parameters, headers=headers)
+                resp = self._http.post(url, json=parameters, headers=headers)
             else:
-                resp = self._http.get(href, params=parameters or None, headers=headers)
+                resp = self._http.get(url, params=parameters or None, headers=headers)
         except Exception as err:
             logger.debug("STAC read failed: %s %s", href, err)
             raise APIError(str(err)) from err
@@ -75,7 +83,9 @@ class GuardedStacIO(StacApiIO):
         return resp.content.decode("utf-8")
 
 
-def get_client(catalog_url: str, sign: bool = True) -> pystac_client.Client:
+def get_client(
+    catalog_url: str, sign: bool = True, access: StorageAccess | None = None
+) -> pystac_client.Client:
     """Get a pystac Client for the given catalog URL.
 
     For MPC, applies the planetary_computer modifier so that
@@ -87,7 +97,9 @@ def get_client(catalog_url: str, sign: bool = True) -> pystac_client.Client:
     kwargs = {}
     if sign and is_mpc_url(catalog_url):
         kwargs["modifier"] = pc.sign_inplace
-    return pystac_client.Client.open(catalog_url, stac_io=GuardedStacIO(), **kwargs)
+    return pystac_client.Client.open(
+        catalog_url, stac_io=GuardedStacIO(catalog_url, access), **kwargs
+    )
 
 
 def _asset_defs_from_item(item: pystac.Item) -> dict:
@@ -294,15 +306,15 @@ def _fill_sampled_assets(pending: list[tuple[dict, "CollectionClient"]]) -> None
         pool.shutdown(wait=False, cancel_futures=True)
 
 
-def list_collections(catalog_url: str) -> list[dict]:
+def list_collections(catalog_url: str, access: StorageAccess | None = None) -> list[dict]:
     """List collections from a STAC API catalog.
 
     Each collection is parsed independently: one with malformed STAC metadata is
     returned as an unselectable entry (with a reason) rather than aborting the whole
-    listing. Collections are never silently dropped.
+    listing. Collections are never silently dropped. ``access`` reads a private catalog.
     """
     t0 = time.time()
-    client = get_client(catalog_url, sign=False)
+    client = get_client(catalog_url, sign=False, access=access)
     raw_cols = _raw_collections(client)
 
     results = []
@@ -340,8 +352,12 @@ def list_collections(catalog_url: str) -> list[dict]:
 STATIC_SCAN_CAP = 2000
 
 
-def _simplify_item(item) -> dict:
-    """Reduce a pystac Item to the wizard's result shape."""
+def _simplify_item(item, private: bool = False) -> dict:
+    """Reduce a pystac Item to the wizard's result shape.
+
+    A private catalog's thumbnails are left out: the browser could not load them without
+    the catalog's access, and that never leaves the server.
+    """
     thumbnail = None
     fallback = None
     for thumb_key in ("rendered_preview", "thumbnail", "preview"):
@@ -356,6 +372,8 @@ def _simplify_item(item) -> dict:
             fallback = asset.href
     if not thumbnail:
         thumbnail = fallback
+    if private:
+        thumbnail = None
 
     assets_info = {}
     for key, asset in item.assets.items():
@@ -445,27 +463,32 @@ def _search_via_api(
     bbox: list[float] | None,
     datetime_range: str | None,
     limit: int,
+    private: bool = False,
 ) -> list[dict]:
     search_kwargs: dict = {"collections": [collection_id], "max_items": limit}
     if bbox:
         search_kwargs["bbox"] = bbox
     if datetime_range:
         search_kwargs["datetime"] = datetime_range
-    return [_simplify_item(item) for item in client.search(**search_kwargs).items()]
+    return [_simplify_item(item, private) for item in client.search(**search_kwargs).items()]
 
 
 MAX_STATIC_FETCH_WORKERS = 32
 
 
-def _fetch_item(http: httpx.Client, href: str) -> pystac.Item | None:
+def _fetch_item(
+    http: httpx.Client, href: str, catalog_url: str = "", access: StorageAccess | None = None
+) -> pystac.Item | None:
     """Fetch and parse a single static-catalog item file. None on any failure."""
     try:
-        resp = http.get(href)
+        resp = http.get(storage_access.apply(href, catalog_url, access))
         resp.raise_for_status()
-        return pystac.Item.from_dict(resp.json())
+        item = pystac.Item.from_dict(resp.json())
     except Exception:
         logger.debug("failed to fetch static item %s", href, exc_info=True)
         return None
+    item.set_self_href(href)
+    return item
 
 
 def _walk_items_sequential(
@@ -475,6 +498,7 @@ def _walk_items_sequential(
     end: datetime | None,
     bbox: list[float] | None,
     limit: int,
+    private: bool = False,
 ) -> list[dict]:
     """Fallback for nested catalogs (items reached via child subcatalogs): let pystac
     crawl recursively. Sequential, so only used when there are no direct item links."""
@@ -493,7 +517,7 @@ def _walk_items_sequential(
             continue
         if not datetime_in_range(item.datetime, start, end):
             continue
-        results.append(_simplify_item(item))
+        results.append(_simplify_item(item, private))
         if len(results) >= limit:
             break
     return results
@@ -512,6 +536,8 @@ def _search_via_walk(
     datetime_range: str | None,
     limit: int,
     offset: int,
+    catalog_url: str = "",
+    access: StorageAccess | None = None,
 ) -> tuple[list[dict], int | None]:
     """Static-catalog fallback: no /search endpoint, so read the collection's item
     links and crawl them a page at a time from `offset`, fetching each page's item
@@ -530,7 +556,10 @@ def _search_via_walk(
     ]
     if not item_hrefs:
         # Items are nested under subcatalogs (or none) - crawl recursively via pystac.
-        return _walk_items_sequential(collection, collection_id, start, end, bbox, limit), None
+        items = _walk_items_sequential(
+            collection, collection_id, start, end, bbox, limit, access is not None
+        )
+        return items, None
 
     total = len(item_hrefs)
     results: list[dict] = []
@@ -546,7 +575,7 @@ def _search_via_walk(
     ):
         while idx < total and len(results) < limit and fetched < STATIC_PAGE_FETCH_BUDGET:
             window = item_hrefs[idx : idx + MAX_STATIC_FETCH_WORKERS]
-            page = list(pool.map(lambda href: _fetch_item(http, href), window))
+            page = list(pool.map(lambda href: _fetch_item(http, href, catalog_url, access), window))
             consumed = 0
             for item in page:  # preserve the collection's item order
                 consumed += 1
@@ -556,7 +585,7 @@ def _search_via_walk(
                     continue
                 if not datetime_in_range(item.datetime, start, end):
                     continue
-                results.append(_simplify_item(item))
+                results.append(_simplify_item(item, access is not None))
                 if len(results) >= limit:
                     break
             idx += consumed
@@ -573,6 +602,7 @@ def search_items(
     datetime_range: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    access: StorageAccess | None = None,
 ) -> tuple[list[dict], int | None]:
     """Search STAC items and return (items, next_offset).
 
@@ -581,7 +611,12 @@ def search_items(
     search endpoint) crawl the collection's item links a page at a time and return a
     cursor so the caller can load more.
     """
-    client = get_client(catalog_url)
+    client = get_client(catalog_url, access=access)
     if _conforms_to_item_search(client):
-        return _search_via_api(client, collection_id, bbox, datetime_range, limit), None
-    return _search_via_walk(client, collection_id, bbox, datetime_range, limit, offset)
+        items = _search_via_api(
+            client, collection_id, bbox, datetime_range, limit, access is not None
+        )
+        return items, None
+    return _search_via_walk(
+        client, collection_id, bbox, datetime_range, limit, offset, catalog_url, access
+    )

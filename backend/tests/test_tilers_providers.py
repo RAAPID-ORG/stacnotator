@@ -104,9 +104,34 @@ def test_ingest_on_tiler_posts_aoi(monkeypatch):
         max_cloud=20,
         limit=100,
     )
-    assert n == 7
+    assert n == providers.Ingested(collection="sentinel-2-l2a", count=7)
     assert captured["url"] == "https://tiler-one.example.com/ingest"
     assert captured["json"]["collection"] == "sentinel-2-l2a"
+    assert "storage_access" not in captured["json"]
+
+
+def test_private_catalog_ingest_carries_its_access_and_reports_where_it_landed(monkeypatch):
+    captured = _fake_post(monkeypatch, {"collection": "imagery-0123abcd", "ingested": 2})
+    access = {"kind": "azure_sas", "secret": "sv=1&sig=S"}
+    out = providers.ingest_on_tiler(
+        TILER,
+        "https://acct.blob.core.windows.net/c/catalog.json",
+        "imagery",
+        None,
+        None,
+        storage_access=access,
+    )
+    assert out.collection == "imagery-0123abcd"
+    assert captured["json"]["storage_access"] == access
+
+
+def test_register_on_tiler_carries_a_sealed_storage_access(monkeypatch):
+    captured = _fake_post(monkeypatch, {"id": "s"})
+    sealed = {"kind": "azure_sas", "host": "acct.blob.core.windows.net", "secret": "c2VhbGVk"}
+    providers.register_on_tiler(
+        TILER, {"collections": ["c"]}, tile_scope="42", sealed_storage_access=sealed
+    )
+    assert captured["json"]["metadata"]["storage_access"] == sealed
 
 
 def test_ingest_rejected_when_tiler_disallows():

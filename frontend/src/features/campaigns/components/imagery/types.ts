@@ -129,7 +129,18 @@ export interface StacBrowserCollectionData {
   coverSearchQuery?: Record<string, unknown>;
   /** Assets are in internal storage the tiler reads with its managed identity (internal users only). */
   internalStorage?: boolean;
+  /** A private catalog's SAS token, typed in the wizard and carried only as far as the next
+   *  save - it is encrypted server-side and never read back. */
+  sasToken?: string;
+  /** Set when the saved collection reads its catalog with a SAS token. */
+  storageAccess?: StorageAccess | null;
   vizUrls: VisualizationUrl[];
+}
+
+export interface StorageAccess {
+  kind: string;
+  /** ISO timestamp, or null when the access does not expire. */
+  expiresAt: string | null;
 }
 
 export interface CollectionItem {

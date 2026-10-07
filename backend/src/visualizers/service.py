@@ -281,6 +281,9 @@ def _replace_layers(
     )
     if len(set(source_ids)) != len(source_ids):
         raise HTTPException(status_code=400, detail="An imagery source is listed twice")
+    linked = db.scalars(select(ImagerySource).where(ImagerySource.id.in_(source_ids)))
+    if any(_reads_private_catalog(source) for source in linked):
+        raise HTTPException(status_code=400, detail=PRIVATE_CATALOG_NOT_PUBLISHABLE)
 
     # Reconciled in place rather than replaced wholesale. Assigning a fresh list makes
     # SQLAlchemy delete every existing row and insert new ones in the same flush, and it
@@ -636,13 +639,25 @@ def _source_option(source: ImagerySource) -> SourceOptionOut:
     )
 
 
+def _reads_private_catalog(source: ImagerySource) -> bool:
+    return any(c.stac_config is not None and c.stac_config.storage_auth for c in source.collections)
+
+
+PRIVATE_CATALOG_NOT_PUBLISHABLE = (
+    "Imagery read from a private catalog with its SAS token can't be published in a visualizer"
+)
+
+
 def source_restriction(source: ImagerySource) -> LayerRestriction | None:
     """Whether serving this source's tiles spends something the organization owns.
 
     A key-proxied source is fetched with the org's provider credential, and an
     internal-storage one with the tiler's managed identity. Either way, publishing
-    it points anonymous traffic at a credential rather than at open imagery.
+    it points anonymous traffic at a credential rather than at open imagery. One read
+    from a private catalog with the customer's own SAS token cannot be published at all.
     """
+    if _reads_private_catalog(source):
+        return "storage_access"
     if source.has_api_key:
         return "api_key"
     if any(

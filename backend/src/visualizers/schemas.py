@@ -184,7 +184,7 @@ class VisualizerConfigOut(BaseModel):
 
 # Why a layer is not simply public imagery. Publishing one points anonymous
 # traffic at a credential the organization owns.
-LayerRestriction = Literal["api_key", "internal_storage"]
+LayerRestriction = Literal["api_key", "internal_storage", "storage_access"]
 
 
 class SourceOptionOut(BaseModel):

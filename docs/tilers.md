@@ -33,6 +33,7 @@ read URL per asset at render time, dispatched by host. This lives in the tiler r
 |---|---|---|
 | **GCS** (`gs://`, `storage.googleapis.com`) | Keyless V4 signed URL via IAM `signBlob` (`gcp.py`). | The tiler's **GCP service account** (needs read on the bucket + `serviceAccountTokenCreator` on itself). |
 | **Azure Blob** (internal-storage COGs) | Keyless read-only **user-delegation SAS** (`azure.py`), applied only to searches stamped `asset_signer: "azure_managed_identity"`. | The tiler's **Azure managed identity** (needs `Storage Blob Data Reader` on the owner's account, granted in Azure - not configured here). |
+| **A customer's private catalog** (Azure Blob, their own SAS) | The SAS the admin pasted for that catalog, applied first and only to hrefs on the catalog's own host (`storage_access.py`). | **The customer's** - never the tiler's own identity. |
 | **MPC** (`planetarycomputer.microsoft.com` and its `*.blob.core.windows.net` data assets) | Short-lived SAS via `planetary_computer.sign`. | **None of the tiler's** - MPC's public token API, which only mints a SAS for accounts MPC manages. |
 | **Anything else** (e.g. public AWS `sentinel-cogs`) | Passed through unsigned; GDAL reads it directly. | None. |
 
@@ -80,6 +81,31 @@ project's storage with that project's own SAS/identity), which removes the share
 > Separately, `cog_url` is otherwise unvalidated, so a user who may register custom maps can also
 > make the tiler issue GET requests to arbitrary hosts (SSRF from the tiler's network position).
 > Host/scheme allowlisting of `cog_url` on the backend is tracked separately.
+
+### Private catalogs read with the customer's own SAS token
+
+A custom STAC catalog can sit in a private Azure container. In the imagery wizard's "Any STAC
+catalog URL" step the admin ticks *This catalog is in a private Azure container* and pastes a
+SAS token for it; that one token is used for everything in the catalog:
+
+- **Accepted** only read (optionally list), HTTPS-only, with an expiry, and never an account SAS
+  (`backend/src/storage_access.py`, checked again server-side).
+- **Stored** encrypted on the collection's STAC config (`storage_auth`,
+  `encrypted_storage_secret`, `storage_secret_expires_at`), write-only like a provider key: the API
+  reports only its kind and expiry.
+- **Sent** only to the storage host the catalog URL is on - never to anything else the catalog
+  links to - when the backend browses the catalog (`POST /stac/collections`, never cached), when
+  the tiler ingests it (`/ingest` with `storage_access`, into a pgstac collection of its own), and
+  for tiles: the backend seals it into the search metadata under a key derived from
+  `TILER_TOKEN_SECRET`, and the tiler opens it per search and applies it before any other signer.
+- **Expiry**: the source editor shows it and takes a replacement (saved with the imagery, which
+  re-registers the collection); the sources list warns three days ahead, and the tiler answers
+  tiles of an expired token with a 403 that says so.
+- **Not** publishable in a visualizer, and not carried into another organization by campaign
+  duplication.
+
+`storage_auth` names the kind of access so that other ways of reading private storage can be
+added beside the SAS without changing the columns, the API shape or the tiler contract.
 
 ## Tilers and their flags
 

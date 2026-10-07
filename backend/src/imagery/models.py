@@ -1,7 +1,9 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    TIMESTAMP,
     Boolean,
     CheckConstraint,
     ForeignKey,
@@ -17,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 from src.layers import LayerOwner
+from src.storage_access import StorageAccessOut, described
 
 if TYPE_CHECKING:
     from src.campaigns.models import Campaign
@@ -301,12 +304,23 @@ class CollectionStacConfig(Base):
     # Assets live in internal storage the tiler reads with its managed identity. Only internal
     # users may enable this (enforced in the router); drives the tiler's asset_signer marker.
     internal_storage: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
+    # A private catalog's own access, provided by the customer (see src/storage_access.py):
+    # its kind ("azure_sas"), the secret encrypted like a provider key, and when it expires.
+    storage_auth: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    encrypted_storage_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    storage_secret_expires_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
 
     collection: Mapped["ImageryCollection"] = relationship(back_populates="stac_config")
 
     @property
     def viz_configs(self):
         return self.collection.viz_configs if self.collection else []
+
+    @property
+    def storage_access(self) -> StorageAccessOut | None:
+        return described(self)
 
 
 class ImagerySlice(Base):

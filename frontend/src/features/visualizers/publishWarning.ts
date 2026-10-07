@@ -28,6 +28,7 @@ export interface RestrictedLayer {
 export const RESTRICTION_TEXT: Record<LayerRestriction, string> = {
   api_key: "served with your organization's provider key",
   internal_storage: 'read from internal storage',
+  storage_access: "read from a private catalog with its SAS token, which can't be published",
 };
 
 export function restrictedSelection(

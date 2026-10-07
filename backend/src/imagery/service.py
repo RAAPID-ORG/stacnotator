@@ -8,6 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from src import storage_access
 from src.campaigns.models import Campaign
 from src.canvas.service import (
     default_main_layout_data,
@@ -64,10 +65,37 @@ def _apply_provider_key(target: Basemap | ImagerySource, incoming: ProviderKeyCr
         target.organization_api_key_id = None
 
 
+def _store_storage_access(row: CollectionStacConfig, incoming: CollectionStacConfigCreate) -> bool:
+    """Keep a newly provided private-catalog access on the row; returns whether it changed."""
+    if incoming.storage_access is not None:
+        try:
+            storage_access.check_catalog(incoming.catalog_url or row.catalog_url)
+        except storage_access.InvalidStorageAccess as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return storage_access.store(row, incoming.storage_access)
+
+
+def _held_storage_access(source: ImagerySource) -> dict[str, storage_access.Held]:
+    """The private-catalog access each of a source's catalogs is read with, by catalog URL.
+
+    Taken before a save deletes anything: a series regenerated in the editor replaces its
+    collections with new ones the browser never had the access for, and those carry on
+    with the access their catalog already has.
+    """
+    out: dict[str, storage_access.Held] = {}
+    for collection in source.collections:
+        config = collection.stac_config
+        access = storage_access.held(config)
+        if config is not None and config.catalog_url and access is not None:
+            out[config.catalog_url] = access
+    return out
+
+
 def _registration_spec(
     collection: ImageryCollection,
     col_create: ImageryCollectionCreate,
     src_create: ImagerySourceCreate,
+    stac_row: CollectionStacConfig,
 ) -> StacRegistrationSpec:
     """Snapshot the plain fields `_register_all_stac_browser_collections` needs
     for one collection, decoupling the deferred registration from the ORM
@@ -80,6 +108,7 @@ def _registration_spec(
         has_dedicated_cover=col_create.has_dedicated_cover,
         cover_slice_index=col_create.cover_slice_index,
         source_viz_names=[v.name for v in src_create.visualizations],
+        storage_access=storage_access.stored(stac_row),
     )
 
 
@@ -286,6 +315,7 @@ def save_imagery_editor_state(
     ]
 
     existing_sources: dict[int, ImagerySource] = {s.id: s for s in campaign.imagery_sources}
+    held_access = {s_id: _held_storage_access(s) for s_id, s in existing_sources.items()}
 
     payload_source_ids = {s.id for s in editor_state.sources if s.id is not None}
 
@@ -333,7 +363,9 @@ def save_imagery_editor_state(
     for src_idx, src_create in enumerate(editor_state.sources):
         if src_create.id and src_create.id in existing_sources:
             db_src = existing_sources[src_create.id]
-            pending = _update_source_in_place(db, db_src, src_create, src_idx, bbox)
+            pending = _update_source_in_place(
+                db, db_src, src_create, src_idx, bbox, held_access.get(db_src.id)
+            )
         else:
             db_src, pending = _create_source(
                 db, LayerOwner(campaign_id=campaign.id), src_create, src_idx, bbox
@@ -515,6 +547,15 @@ def save_visualizer_imagery(
     ``spawn_background_registration`` so the provider calls run off the request
     path.
     """
+    if any(
+        collection.stac_config and collection.stac_config.storage_access
+        for source in sources
+        for collection in source.collections
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A private catalog read with a SAS token can't be published in a visualizer",
+        )
     editor_state = ImageryEditorStateCreate(sources=sources, basemaps=[])
     organization = visualizer.project.organization
     _resolve_tilers(organization, editor_state)
@@ -567,6 +608,7 @@ def _update_source_in_place(
     src_create: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
+    held_access: dict[str, storage_access.Held] | None = None,
 ) -> list[StacRegistrationSpec]:
     """Update source metadata + viz templates, then reconcile collections.
     Returns pending STAC registrations from any new or re-registered collections."""
@@ -643,6 +685,7 @@ def _update_source_in_place(
                     if col_create.generation_series_key is not None
                     else None
                 ),
+                held_access,
             )
             if pending_entry:
                 pending.append(pending_entry)
@@ -712,23 +755,27 @@ def _update_collection_in_place(
     if col_create.stac_config:
         if db_col.stac_config is None:
             # Collection just gained a stac_config (unusual).
-            db.add(
-                CollectionStacConfig(
-                    collection_id=db_col.id,
-                    catalog_url=col_create.stac_config.catalog_url,
-                    stac_collection_id=col_create.stac_config.stac_collection_id,
-                    tile_provider=col_create.stac_config.tiler,
-                    max_cloud_cover=col_create.stac_config.max_cloud_cover,
-                    search_query=col_create.stac_config.search_query,
-                    cover_search_query=(
-                        col_create.stac_config.cover_search_query if has_cover else None
-                    ),
-                    internal_storage=col_create.stac_config.internal_storage,
-                )
+            stac_row = CollectionStacConfig(
+                collection_id=db_col.id,
+                catalog_url=col_create.stac_config.catalog_url,
+                stac_collection_id=col_create.stac_config.stac_collection_id,
+                tile_provider=col_create.stac_config.tiler,
+                max_cloud_cover=col_create.stac_config.max_cloud_cover,
+                search_query=col_create.stac_config.search_query,
+                cover_search_query=(
+                    col_create.stac_config.cover_search_query if has_cover else None
+                ),
+                internal_storage=col_create.stac_config.internal_storage,
             )
+            _store_storage_access(stac_row, col_create.stac_config)
+            db.add(stac_row)
             needs_reregistration = True
         else:
             if _stac_config_changed(db_col.stac_config, col_create.stac_config):
+                needs_reregistration = True
+            # Searches carry the access they were registered with, so a new one means
+            # registering them again.
+            if _store_storage_access(db_col.stac_config, col_create.stac_config):
                 needs_reregistration = True
             db_col.stac_config.tile_provider = col_create.stac_config.tiler
             db_col.stac_config.max_cloud_cover = col_create.stac_config.max_cloud_cover
@@ -815,7 +862,8 @@ def _update_collection_in_place(
             for tu in list(sl.tile_urls):
                 db.delete(tu)
         db.flush()
-        return _registration_spec(db_col, col_create, src_create)
+        assert db_col.stac_config is not None  # noqa: S101
+        return _registration_spec(db_col, col_create, src_create, db_col.stac_config)
 
     # No search/slice changes - just rebake viz params into existing URLs.
     viz_by_name = {
@@ -895,6 +943,7 @@ def _create_collection_record(
     col_idx: int,
     bbox: list[float],
     generation_series_id: int | None,
+    held_access: dict[str, storage_access.Held] | None = None,
 ) -> tuple[ImageryCollection, StacRegistrationSpec | None]:
     """Persist a single collection (stac_config, slices, tile_urls) for a source.
 
@@ -915,21 +964,21 @@ def _create_collection_record(
 
     has_cover = bool(col_create.has_dedicated_cover)
 
+    stac_row: CollectionStacConfig | None = None
     if col_create.stac_config:
-        db.add(
-            CollectionStacConfig(
-                collection_id=collection.id,
-                catalog_url=col_create.stac_config.catalog_url,
-                stac_collection_id=col_create.stac_config.stac_collection_id,
-                tile_provider=col_create.stac_config.tiler,
-                max_cloud_cover=col_create.stac_config.max_cloud_cover,
-                search_query=col_create.stac_config.search_query,
-                cover_search_query=(
-                    col_create.stac_config.cover_search_query if has_cover else None
-                ),
-                internal_storage=col_create.stac_config.internal_storage,
-            )
+        stac_row = CollectionStacConfig(
+            collection_id=collection.id,
+            catalog_url=col_create.stac_config.catalog_url,
+            stac_collection_id=col_create.stac_config.stac_collection_id,
+            tile_provider=col_create.stac_config.tiler,
+            max_cloud_cover=col_create.stac_config.max_cloud_cover,
+            search_query=col_create.stac_config.search_query,
+            cover_search_query=(col_create.stac_config.cover_search_query if has_cover else None),
+            internal_storage=col_create.stac_config.internal_storage,
         )
+        _store_storage_access(stac_row, col_create.stac_config)
+        storage_access.inherit(stac_row, (held_access or {}).get(stac_row.catalog_url or ""))
+        db.add(stac_row)
         _upsert_viz_configs(db, collection.id, col_create.stac_config.visualizations, has_cover)
 
     for sl_idx, sl_create in enumerate(col_create.slices):
@@ -953,12 +1002,13 @@ def _create_collection_record(
 
     pending_entry: StacRegistrationSpec | None = None
     if (
-        col_create.stac_config
+        stac_row is not None
+        and col_create.stac_config
         and col_create.stac_config.catalog_url
         and col_create.stac_config.stac_collection_id
         and col_create.slices
     ):
-        pending_entry = _registration_spec(collection, col_create, src_create)
+        pending_entry = _registration_spec(collection, col_create, src_create, stac_row)
     return collection, pending_entry
 
 

@@ -3,6 +3,7 @@ import { IconCheck, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import type { ImageryController } from './controller';
 import { sourceRegistration } from './controller';
 import { AddSourceWizard } from './AddSourceWizard';
+import { describeExpiry, expiresSoon, sourceAccessExpiry } from './sasToken';
 
 interface SourcesTabProps {
   controller: ImageryController;
@@ -14,6 +15,10 @@ export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
   const [wizardOpen, setWizardOpen] = useState(false);
 
   const sources = controller.state.sources;
+  const expiring = sources.flatMap((source) => {
+    const expiry = sourceAccessExpiry(source);
+    return expiry && expiresSoon(expiry) ? [{ source, expiry }] : [];
+  });
 
   return (
     <>
@@ -65,6 +70,21 @@ export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
           <span className="text-[11px] text-neutral-500 ml-1">Create source</span>
         </button>
       </div>
+
+      {expiring.length > 0 && (
+        <div
+          className="mt-3 space-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800"
+          data-testid="sas-expiry-warning"
+        >
+          {expiring.map(({ source, expiry }) => (
+            <p key={source.id}>
+              The SAS token of <strong>{source.name || 'Untitled'}</strong> {describeExpiry(expiry)}
+              . Once it has expired its imagery stops loading - replace it in the source&apos;s
+              settings.
+            </p>
+          ))}
+        </div>
+      )}
 
       {wizardOpen && (
         <AddSourceWizard

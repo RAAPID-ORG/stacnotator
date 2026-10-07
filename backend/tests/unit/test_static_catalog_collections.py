@@ -49,7 +49,7 @@ def test_unreachable_child_does_not_abort_the_listing():
 
 
 def test_child_catalog_is_surfaced_as_unavailable(monkeypatch):
-    monkeypatch.setattr(client_mod, "get_client", lambda url, sign=True: None)
+    monkeypatch.setattr(client_mod, "get_client", lambda url, sign=True, access=None: None)
     monkeypatch.setattr(
         client_mod,
         "_raw_collections",

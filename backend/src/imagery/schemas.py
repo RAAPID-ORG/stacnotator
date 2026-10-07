@@ -13,6 +13,7 @@ from pydantic import (
 
 from src.canvas.schemas import CanvasLayoutOut
 from src.planet.schemas import PlanetScenesGenerationConfigV1
+from src.storage_access import StorageAccessCreate, StorageAccessOut
 
 # ============================================================================
 # Slice / Collection / Source - Output Schemas
@@ -62,6 +63,8 @@ class CollectionStacConfigOut(BaseModel):
     search_query: dict | None = None
     cover_search_query: dict | None = None
     internal_storage: bool = False
+    # The private catalog's access, as its kind and expiry only - never the secret.
+    storage_access: StorageAccessOut | None = None
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -276,6 +279,8 @@ class CollectionStacConfigCreate(BaseModel):
     search_query: dict | None = None
     cover_search_query: dict | None = None
     internal_storage: bool = False
+    # A private catalog's access, write-only. Left out, a saved collection keeps its own.
+    storage_access: StorageAccessCreate | None = None
 
 
 class ImageryCollectionCreate(BaseModel):

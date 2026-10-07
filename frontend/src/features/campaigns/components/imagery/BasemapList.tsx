@@ -90,13 +90,15 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
                 </button>
               </div>
               {bm.url.includes('{api_key}') && (
-                <ApiKeyField
-                  projectId={controller.projectId}
-                  configured={bm.hasApiKey}
-                  organizationApiKeyId={bm.organizationApiKeyId}
-                  apiKey={bm.apiKey}
-                  onChange={(choice) => updateBasemap(bm.id, choice)}
-                />
+                <div className="mt-2 max-w-sm">
+                  <ApiKeyField
+                    projectId={controller.projectId}
+                    configured={bm.hasApiKey}
+                    organizationApiKeyId={bm.organizationApiKeyId}
+                    apiKey={bm.apiKey}
+                    onChange={(choice) => updateBasemap(bm.id, choice)}
+                  />
+                </div>
               )}
             </li>
           ))}

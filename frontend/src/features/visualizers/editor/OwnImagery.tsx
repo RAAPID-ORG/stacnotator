@@ -54,6 +54,7 @@ export function VisualizerBasemaps({
     state,
     setState: onChange,
     campaignBbox: area ? [area.west, area.south, area.east, area.north] : null,
+    allowsPrivateCatalogs: false,
   });
   return <BasemapList controller={controller} />;
 }
@@ -75,6 +76,7 @@ export function OwnImagery({
     state,
     setState: onChange,
     campaignBbox: bbox,
+    allowsPrivateCatalogs: false,
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const editing = editingId ? (state.sources.find((s) => s.id === editingId) ?? null) : null;

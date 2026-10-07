@@ -6,3 +6,4 @@ export { AreaEstimationSetup } from './components/AreaEstimationSetup';
 export { AreaEstimationPanel } from './components/AreaEstimationPanel';
 export { LOCKED_TASK_SET_REASON, useAreaEstimationTaskSets } from './taskSet';
 export { createPlan as createAreaEstimationPlan } from './api';
+export { AREA_ESTIMATION_ENABLED } from './enabled';

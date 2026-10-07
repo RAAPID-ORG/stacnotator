@@ -129,6 +129,9 @@ export function collectionToBackend(
               search_query: data.searchQuery ?? null,
               cover_search_query: data.coverSearchQuery ?? null,
               internal_storage: data.internalStorage ?? false,
+              storage_access: data.sasToken
+                ? { kind: 'azure_sas' as const, secret: data.sasToken }
+                : null,
             };
           })()
         : null,

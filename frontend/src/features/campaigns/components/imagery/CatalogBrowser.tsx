@@ -1,9 +1,10 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { Modal } from '~/shared/ui/Modal';
-import { IconPlus } from '~/shared/ui/Icons';
+import { IconGlobe, IconLock, IconPlus } from '~/shared/ui/Icons';
+import { SegmentedControl } from '~/shared/ui/SegmentedControl';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
-import { listCatalogs, getCollections, search } from '~/api/client';
+import { listCatalogs, getCollections, getPrivateCollections, search } from '~/api/client';
 import type { StacCatalogOut, StacCollectionOut, StacItemOut, AssetInfo } from '~/api/client';
 import type {
   CollectionItem,
@@ -23,6 +24,8 @@ import { CoverSearchParams } from './CoverSearchParams';
 import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
 import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
+import { SasTokenField } from './SasTokenField';
+import { readSasToken } from './sasToken';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
@@ -133,6 +136,8 @@ interface CatalogBrowserProps {
    * collection selection stay fixed; onAdd returns the replacement series. */
   initialGeneration?: ImageryGenerationConfig;
   generationSeriesId?: string;
+  /** Offer reading a catalog URL in private Azure storage with a SAS token. */
+  allowPrivateCatalogs?: boolean;
 }
 
 export interface CatalogBrowserResult {
@@ -196,6 +201,7 @@ export const CatalogBrowser = ({
   initialAdvanced = false,
   initialGeneration,
   generationSeriesId,
+  allowPrivateCatalogs = false,
 }: CatalogBrowserProps) => {
   const [step, setStep] = useState<Step>(initialGeneration ? 'configure' : 'catalog');
   const [catalogs, setCatalogs] = useState<StacCatalogOut[]>([]);
@@ -232,6 +238,14 @@ export const CatalogBrowser = ({
 
   const [query, setQuery] = useState('');
   const [customCatalogUrl, setCustomCatalogUrl] = useState('');
+  const [customCatalogIsPrivate, setCustomCatalogIsPrivate] = useState(false);
+  const [sasInput, setSasInput] = useState('');
+  /** The SAS token the selected catalog is read with; null for every other catalog. */
+  const [catalogSas, setCatalogSas] = useState<string | null>(null);
+  const sasReading = customCatalogIsPrivate && sasInput.trim() ? readSasToken(sasInput) : null;
+  const customCatalogReady =
+    !!customCatalogUrl.trim() &&
+    (!customCatalogIsPrivate || (sasReading !== null && 'token' in sasReading));
   const { tilers } = useProjectTilers(projectId);
   // A catalog can only be offered if some tiler the organization may use can render it,
   // and that same tiler decides which compositing methods are on the table.
@@ -461,15 +475,22 @@ export const CatalogBrowser = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const selectCatalog = (cat: StacCatalogOut) => {
+  const selectCatalog = (cat: StacCatalogOut, sas: string | null = null) => {
     if (cat.auth_required) return;
     setSelectedCatalog(cat);
+    setCatalogSas(sas);
     setStep('collection');
     setQuery('');
     setCollections([]);
     setLoading(true);
     setError('');
-    getCollections({ query: { catalog_url: cat.url, project_id: projectId } })
+    const listing = sas
+      ? getPrivateCollections({
+          query: { project_id: projectId },
+          body: { catalog_url: cat.url, storage_access: { kind: 'azure_sas', secret: sas } },
+        })
+      : getCollections({ query: { catalog_url: cat.url, project_id: projectId } });
+    listing
       .then(({ data, error }) => {
         if (error) {
           const detail =
@@ -484,16 +505,16 @@ export const CatalogBrowser = ({
   };
 
   const loadCustomCatalog = () => {
-    if (!customCatalogUrl.trim()) return;
+    if (!customCatalogReady) return;
     const cat: StacCatalogOut = {
       id: 'custom',
       title: customCatalogUrl,
       url: customCatalogUrl.trim(),
-      summary: 'Custom STAC catalog',
+      summary: customCatalogIsPrivate ? 'Private STAC catalog' : 'Custom STAC catalog',
       is_mpc: false,
       auth_required: false,
     };
-    selectCatalog(cat);
+    selectCatalog(cat, sasReading && 'token' in sasReading ? sasReading.token : null);
   };
 
   /** Build pre-configured visualizations from known collection presets.
@@ -619,6 +640,7 @@ export const CatalogBrowser = ({
           datetime_range: dtRange ?? null,
           limit: 30,
           offset,
+          storage_access: catalogSas ? { kind: 'azure_sas', secret: catalogSas } : null,
         },
       });
       if (error) throw new Error('Search failed');
@@ -839,6 +861,7 @@ export const CatalogBrowser = ({
           searchQuery: effectiveQuery ?? undefined,
           coverSearchQuery: coverMode === 'custom' ? (effectiveCoverQuery ?? undefined) : undefined,
           internalStorage: initialGeneration?.internalStorage,
+          sasToken: catalogSas ?? undefined,
           vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
         },
       });
@@ -873,6 +896,7 @@ export const CatalogBrowser = ({
         itemHref: item.self_href || undefined,
         maxCloudCover: selectedCollection.has_cloud_cover ? maxCloudCover : undefined,
         visualizations,
+        sasToken: catalogSas ?? undefined,
         vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
       },
     };
@@ -1209,11 +1233,27 @@ export const CatalogBrowser = ({
                       variant="primary"
                       size="sm"
                       onClick={loadCustomCatalog}
-                      disabled={!hasIngestTiler || !customCatalogUrl.trim()}
+                      disabled={!hasIngestTiler || !customCatalogReady}
                     >
                       Load
                     </Button>
                   </div>
+                  {allowPrivateCatalogs && hasIngestTiler && (
+                    <div className="mt-2 space-y-2">
+                      <SegmentedControl
+                        aria-label="Catalog access"
+                        value={customCatalogIsPrivate ? 'private' : 'public'}
+                        onChange={(access) => setCustomCatalogIsPrivate(access === 'private')}
+                        segments={[
+                          { value: 'public', label: 'Public', Icon: IconGlobe },
+                          { value: 'private', label: 'Private Azure container', Icon: IconLock },
+                        ]}
+                      />
+                      {customCatalogIsPrivate && (
+                        <SasTokenField value={sasInput} onChange={setSasInput} />
+                      )}
+                    </div>
+                  )}
                   {!hasIngestTiler && (
                     <p className="text-[11px] text-amber-600 mt-1.5">{NO_TILER_NOTE}</p>
                   )}

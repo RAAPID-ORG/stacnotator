@@ -20,6 +20,7 @@ import type { BulkFocus } from './BulkApplyModal';
 import type { ImageryController } from './controller';
 import { sourceRegistration } from './controller';
 import { ApiKeyField } from './ApiKeyField';
+import { PrivateCatalogAccess } from './PrivateCatalogAccess';
 import {
   editableGenerationSeries,
   retainMatchingIds,
@@ -273,6 +274,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
         initialMode="mosaic"
         campaignBbox={controller.campaignBbox}
         initialAdvanced={controller.mode === 'persisted'}
+        allowPrivateCatalogs={controller.allowsPrivateCatalogs}
         onAdd={(result) => void addCollectionsFromCatalog(result)}
         onClose={() => setAddStep(null)}
       />
@@ -468,20 +470,16 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
 
         <SourceRegistration controller={controller} source={source} />
 
+        <PrivateCatalogAccess source={source} controller={controller} />
+
         {sourceNeedsApiKey && (
-          <div className="space-y-1">
-            <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-              Provider API key
-              <Tooltip text="A manual collection URL in this source uses {api_key}. Set the key here - it is saved with the imagery, stored encrypted server-side and attached when tiles are proxied through the backend (never exposed to annotators)." />
-            </label>
-            <ApiKeyField
-              projectId={controller.projectId}
-              configured={source.hasApiKey}
-              organizationApiKeyId={source.organizationApiKeyId}
-              apiKey={source.apiKey}
-              onChange={(choice) => void updateSource(choice)}
-            />
-          </div>
+          <ApiKeyField
+            projectId={controller.projectId}
+            configured={source.hasApiKey}
+            organizationApiKeyId={source.organizationApiKeyId}
+            apiKey={source.apiKey}
+            onChange={(choice) => void updateSource(choice)}
+          />
         )}
 
         <div className="flex items-center gap-4">
