@@ -22,7 +22,12 @@ def install_log_redaction() -> None:
 
     def factory(*args, **kwargs) -> logging.LogRecord:
         record = make_record(*args, **kwargs)
-        message = record.getMessage()
+        try:
+            message = record.getMessage()
+        except Exception:
+            # A call whose args don't fit its format: leave it for the handler to report,
+            # as logging always has, rather than raise at the caller.
+            return record
         redacted = redact_urls(message)
         if redacted != message:
             record.msg, record.args = redacted, None

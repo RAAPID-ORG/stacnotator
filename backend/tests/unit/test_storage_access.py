@@ -279,3 +279,14 @@ def test_a_regenerated_collection_carries_on_with_its_catalogs_access():
     other = CollectionStacConfig(catalog_url="https://other.blob.core.windows.net/c/catalog.json")
     storage_access.inherit(other, held.get(other.catalog_url))
     assert storage_access.stored(other) is None
+
+
+def test_a_malformed_log_call_still_does_not_raise_at_the_caller():
+    previous = logging.getLogRecordFactory()
+    install_log_redaction()
+    try:
+        factory = logging.getLogRecordFactory()
+        record = factory("test.redact", logging.ERROR, __file__, 1, "two %s %s", ("one",), None)
+    finally:
+        logging.setLogRecordFactory(previous)
+    assert record.msg == "two %s %s"
