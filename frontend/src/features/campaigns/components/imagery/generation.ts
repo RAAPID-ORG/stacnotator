@@ -13,6 +13,13 @@ export interface EditableGenerationSeries {
   collections: CollectionItem[];
   otherCollections: CollectionItem[];
   config: ImageryGenerationConfig;
+  /** Set when the series reads a private catalog. Its SAS is write-only once saved, so the
+   *  editor asks for it again; only an unsaved series still holds the typed `sasToken`. */
+  privateCatalog?: PrivateCatalog;
+}
+
+export interface PrivateCatalog {
+  sasToken?: string;
 }
 
 const regularSlices = (collection: CollectionItem): ImagerySlice[] =>
@@ -61,6 +68,10 @@ export function editableGenerationSeries(source: ImagerySource): EditableGenerat
         collections: earliest(candidates),
         otherCollections: source.collections.filter((c) => !candidateIds.has(c.id)),
         config,
+        privateCatalog:
+          currentData.storageAccess || currentData.sasToken
+            ? { sasToken: currentData.sasToken }
+            : undefined,
       },
     ];
   });

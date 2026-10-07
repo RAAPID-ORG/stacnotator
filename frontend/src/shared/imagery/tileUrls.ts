@@ -9,6 +9,13 @@ export function isProxiedTileUrl(url: string): boolean {
   return /\/imagery\/(?:basemaps|slices|sources)\/[^/]+\/(?:tiles|planet-layers)\//.test(url);
 }
 
+/** True for one of our titiler-pgstac tilers, which need cookie auth.
+ *  `provider` is "mpc" for MPC-direct, null for a direct URL, or a configured
+ *  tiler name for ours. */
+export function isSelfHostedTiler(provider?: string | null): boolean {
+  return !!provider && provider !== 'mpc';
+}
+
 /** Where a key-protected basemap's tiles are fetched from: the provider
  *  directly, or our proxy when the template needs a key we hold. */
 export function resolveBasemapUrl(campaignId: number, basemap: { id: number; url: string }) {

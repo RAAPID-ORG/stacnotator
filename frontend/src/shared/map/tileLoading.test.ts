@@ -4,12 +4,8 @@ import type Tile from 'ol/Tile';
 vi.mock('~/api/tilerToken', () => ({ ensureTilerSession: vi.fn() }));
 
 import { ensureTilerSession } from '~/api/tilerToken';
-import {
-  crossOriginForTile,
-  ensureSessionFor,
-  foregroundTileLoader,
-  isSelfHostedTiler,
-} from './tileLoading';
+import { crossOriginForTile, ensureSessionFor, foregroundTileLoader } from './tileLoading';
+import { isSelfHostedTiler } from '~/shared/imagery/tileUrls';
 
 describe('isSelfHostedTiler', () => {
   it('treats any provider that is not "mpc"/null as one of our tilers', () => {

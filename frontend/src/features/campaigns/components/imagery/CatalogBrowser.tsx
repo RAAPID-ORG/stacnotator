@@ -26,6 +26,7 @@ import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
 import { SasTokenField } from './SasTokenField';
 import { readSasToken } from './sasToken';
+import type { PrivateCatalog } from './generation';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
@@ -136,6 +137,8 @@ interface CatalogBrowserProps {
    * collection selection stay fixed; onAdd returns the replacement series. */
   initialGeneration?: ImageryGenerationConfig;
   generationSeriesId?: string;
+  /** The reopened series reads a private catalog; see `EditableGenerationSeries`. */
+  privateCatalog?: PrivateCatalog;
   /** Offer reading a catalog URL in private Azure storage with a SAS token. */
   allowPrivateCatalogs?: boolean;
 }
@@ -200,6 +203,7 @@ export const CatalogBrowser = ({
   preset = null,
   initialAdvanced = false,
   initialGeneration,
+  privateCatalog,
   generationSeriesId,
   allowPrivateCatalogs = false,
 }: CatalogBrowserProps) => {
@@ -241,11 +245,13 @@ export const CatalogBrowser = ({
   const [customCatalogIsPrivate, setCustomCatalogIsPrivate] = useState(false);
   const [sasInput, setSasInput] = useState('');
   /** The SAS token the selected catalog is read with; null for every other catalog. */
-  const [catalogSas, setCatalogSas] = useState<string | null>(null);
-  const sasReading = customCatalogIsPrivate && sasInput.trim() ? readSasToken(sasInput) : null;
+  const [catalogSas, setCatalogSas] = useState<string | null>(privateCatalog?.sasToken ?? null);
+  const sasReading = sasInput.trim() ? readSasToken(sasInput) : null;
+  const typedSas = sasReading && 'token' in sasReading ? sasReading.token : null;
   const customCatalogReady =
-    !!customCatalogUrl.trim() &&
-    (!customCatalogIsPrivate || (sasReading !== null && 'token' in sasReading));
+    !!customCatalogUrl.trim() && (!customCatalogIsPrivate || typedSas !== null);
+  // A saved private series must be read with its SAS, which never comes back from the server.
+  const needsSavedSas = !!privateCatalog && catalogSas === null;
   const { tilers } = useProjectTilers(projectId);
   // A catalog can only be offered if some tiler the organization may use can render it,
   // and that same tiler decides which compositing methods are on the table.
@@ -377,29 +383,41 @@ export const CatalogBrowser = ({
   const [activeVizIndex, setActiveVizIndex] = useState(0);
   const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
 
+  /** Refresh only the catalog metadata the band picker needs. Saved generator inputs
+   *  remain untouched even when the upstream catalog is temporarily unavailable. */
+  const loadSavedMetadata = (generation: ImageryGenerationConfig, sas: string | null) => {
+    setLoading(true);
+    setError('');
+    const listing = sas
+      ? getPrivateCollections({
+          query: { project_id: projectId },
+          body: {
+            catalog_url: generation.catalogUrl,
+            storage_access: { kind: 'azure_sas', secret: sas },
+          },
+        })
+      : getCollections({ query: { catalog_url: generation.catalogUrl, project_id: projectId } });
+    listing
+      .then(({ data, error }) => {
+        if (error) throw new Error('Failed to refresh collection metadata');
+        setCatalogSas(sas);
+        const match = data?.find((c) => c.id === generation.stacCollectionId);
+        if (!match) return;
+        setSelectedCollection(match);
+        setAvailableAssets(match.item_assets ?? {});
+      })
+      .catch((e: unknown) => {
+        setError(
+          `Saved settings loaded, but current catalog metadata is unavailable: ${extractErrorMessage(e)}`
+        );
+      })
+      .finally(() => setLoading(false));
+  };
+
   // Load catalogs on mount (skip if preset provided)
   useEffect(() => {
     if (initialGeneration) {
-      // Refresh only catalog metadata needed by the band picker. Saved
-      // generator inputs remain untouched even when the upstream catalog is
-      // temporarily unavailable.
-      setLoading(true);
-      getCollections({
-        query: { catalog_url: initialGeneration.catalogUrl, project_id: projectId },
-      })
-        .then(({ data, error }) => {
-          if (error) throw new Error('Failed to refresh collection metadata');
-          const match = data?.find((c) => c.id === initialGeneration.stacCollectionId);
-          if (!match) return;
-          setSelectedCollection(match);
-          setAvailableAssets(match.item_assets ?? {});
-        })
-        .catch((e: unknown) => {
-          setError(
-            `Saved settings loaded, but current catalog metadata is unavailable: ${extractErrorMessage(e)}`
-          );
-        })
-        .finally(() => setLoading(false));
+      if (!needsSavedSas) loadSavedMetadata(initialGeneration, catalogSas);
       return;
     }
     if (preset) {
@@ -514,7 +532,7 @@ export const CatalogBrowser = ({
       is_mpc: false,
       auth_required: false,
     };
-    selectCatalog(cat, sasReading && 'token' in sasReading ? sasReading.token : null);
+    selectCatalog(cat, customCatalogIsPrivate ? typedSas : null);
   };
 
   /** Build pre-configured visualizations from known collection presets.
@@ -1188,6 +1206,27 @@ export const CatalogBrowser = ({
                 onChange={(e) => setQuery(e.target.value)}
                 autoFocus
               />
+            )}
+
+            {initialGeneration && needsSavedSas && (
+              <div
+                className="space-y-2 rounded-md border border-neutral-200 p-3"
+                data-testid="saved-catalog-sas"
+              >
+                <p className="text-xs text-neutral-600">
+                  This series reads a private catalog. Paste its SAS token to load the catalog's
+                  bands. It replaces the saved token when you save.
+                </p>
+                <SasTokenField value={sasInput} onChange={setSasInput} />
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={!typedSas || loading}
+                  onClick={() => loadSavedMetadata(initialGeneration, typedSas)}
+                >
+                  Load catalog
+                </Button>
+              </div>
             )}
 
             {error && (

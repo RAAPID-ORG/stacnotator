@@ -24,6 +24,7 @@ vi.mock('~/api/client/sdk.gen', async () => {
 import { getCollections, getPrivateCollections } from '~/api/client/sdk.gen';
 import { renderWithQuery } from '~/shared/testing/renderWithQuery';
 import { CatalogBrowser } from './CatalogBrowser';
+import type { ImageryGenerationConfig } from './types';
 
 const CATALOG = 'https://acct.blob.core.windows.net/imagery/catalog.json';
 const SAS = 'sv=2024-11-04&sr=c&sp=r&se=2099-01-01T00:00:00Z&spr=https&sig=SECRET';
@@ -66,5 +67,49 @@ describe('CatalogBrowser, private catalogs', () => {
     open(false);
     await screen.findByPlaceholderText(/earth-search/);
     expect(screen.queryByRole('radio', { name: /Private Azure container/ })).toBeNull();
+  });
+
+  it('asks again for the SAS before reading a saved private series', async () => {
+    const saved: ImageryGenerationConfig = {
+      version: 1,
+      catalogUrl: CATALOG,
+      stacCollectionId: 'monthly',
+      collectionTitle: 'Monthly',
+      isMpc: false,
+      hasCloudCover: false,
+      tiler: 'hosted',
+      startDate: '2025-01',
+      endDate: '2025-12',
+      collectionPeriodInterval: 1,
+      collectionPeriodUnit: 'months',
+      slicePeriodInterval: 1,
+      slicePeriodUnit: 'months',
+      coverMode: 'nth',
+      coverSliceNth: 1,
+      maxCloudCover: 100,
+      itemSort: 'date_desc',
+      coverMaxCloudCover: 100,
+      coverItemSort: 'date_desc',
+      visualizations: [],
+      coverVisualizations: [],
+    };
+    renderWithQuery(
+      <CatalogBrowser
+        projectId={3}
+        onAdd={vi.fn()}
+        onClose={vi.fn()}
+        initialGeneration={saved}
+        privateCatalog={{}}
+      />
+    );
+
+    await userEvent.type(await screen.findByLabelText('SAS token'), SAS);
+    await userEvent.click(screen.getByRole('button', { name: 'Load catalog' }));
+
+    await waitFor(() => expect(getPrivateCollections).toHaveBeenCalled());
+    expect(vi.mocked(getPrivateCollections).mock.calls.at(-1)![0]).toMatchObject({
+      body: { catalog_url: CATALOG, storage_access: { kind: 'azure_sas', secret: SAS } },
+    });
+    expect(getCollections).not.toHaveBeenCalled();
   });
 });

@@ -289,6 +289,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
         campaignBbox={controller.campaignBbox}
         initialAdvanced={controller.mode === 'persisted'}
         initialGeneration={activeGenerationSeries.config}
+        privateCatalog={activeGenerationSeries.privateCatalog}
         generationSeriesId={activeGenerationSeries.id}
         onAdd={(result) => void replaceGeneratedSeries(result, activeGenerationSeries)}
         onClose={() => setGenerationStep(null)}

@@ -112,6 +112,18 @@ describe('sliceRaster', () => {
     expect(sliceRaster(cat, address).maxZoom).toBeUndefined();
   });
 
+  it('sends the tiler cookie to our self-hosted tiler', () => {
+    const hosted = structuredClone(source);
+    hosted.collections[0].slices[0].tile_urls[0].tile_provider = 'default';
+    const spec = sliceRaster(buildImageryCatalog(makeCampaign({ imagery_sources: [hosted] })), {
+      sourceId: 1,
+      collectionId: 10,
+      sliceIndex: 0,
+      vizId: '1000',
+    });
+    expect(spec.auth).toBe('cookie');
+  });
+
   it('rewrites an {api_key} template to a proxy path', () => {
     const spec = sliceRaster(cat, { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1001' });
     expect(spec.url).toBe('/api/7/imagery/slices/100/tiles/Needs%20Key/{z}/{x}/{y}');

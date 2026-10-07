@@ -1,6 +1,7 @@
 import {
   campaignProxyBase,
   isProxiedTileUrl,
+  isSelfHostedTiler,
   needsKeyProxy,
   sliceProxyUrl,
 } from '~/shared/imagery/tileUrls';
@@ -46,7 +47,7 @@ export function sliceRaster(
   return {
     id: `slice-${slice.id}-${viz.id}`,
     url,
-    auth: isProxiedTileUrl(url) ? 'cookie' : 'none',
+    auth: isProxiedTileUrl(url) || isSelfHostedTiler(entry.tile_provider) ? 'cookie' : 'none',
     maxZoom: source.max_native_zoom ?? undefined,
   };
 }

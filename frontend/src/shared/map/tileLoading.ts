@@ -14,16 +14,9 @@ import type VectorTile from 'ol/VectorTile';
 import { unByKey } from 'ol/Observable';
 import { ensureTilerSession } from '~/api/tilerToken';
 import { authManager } from '~/features/auth/index';
-import { isProxiedTileUrl } from '~/shared/imagery/tileUrls';
+import { isProxiedTileUrl, isSelfHostedTiler } from '~/shared/imagery/tileUrls';
 
 export type CrossOrigin = 'anonymous' | 'use-credentials';
-
-/** True for one of our titiler-pgstac tilers, which need cookie auth.
- *  `provider` is "mpc" for MPC-direct, null for a direct URL, or a configured
- *  tiler name for ours. */
-export function isSelfHostedTiler(provider?: string | null): boolean {
-  return !!provider && provider !== 'mpc';
-}
 
 /** Credentialed for our self-hosted tilers and for our backend key-proxy URLs
  *  (both authenticate via the tiler cookie); anonymous for MPC and public. */
