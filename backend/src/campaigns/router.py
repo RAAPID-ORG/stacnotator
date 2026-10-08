@@ -492,7 +492,9 @@ def delete_annotation_tasks(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     """Delete multiple annotation tasks from a campaign"""
-    deleted_count = service.delete_annotation_tasks(db, campaign_id, req.task_ids)
+    deleted_count = service.delete_annotation_tasks(
+        db, campaign_id, req.task_ids, req.delete_annotations
+    )
     return {"message": f"Successfully deleted {deleted_count} task(s)"}
 
 

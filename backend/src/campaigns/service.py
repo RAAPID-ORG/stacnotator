@@ -10,6 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from src import background
 from src.annotation import embeddings_service
+from src.annotation import service as annotation_service
 from src.annotation.geometries import (
     delete_orphan_geometries,
     delete_rows_and_orphan_geometries,
@@ -633,16 +634,20 @@ def update_embedding_year(
     }
 
 
-def delete_annotation_tasks(db: Session, campaign_id: int, task_ids: list[int]) -> int:
+def delete_annotation_tasks(
+    db: Session, campaign_id: int, task_ids: list[int], delete_annotations: bool = False
+) -> int:
     """
     Delete multiple annotation tasks from a campaign.
 
-    This will also delete any annotations associated with these tasks.
+    Their annotations are detached (annotation_task_id SET NULL) and kept, or
+    deleted with them when ``delete_annotations`` is set.
 
     Args:
         db: Database session
         campaign_id: ID of the campaign
         task_ids: List of task IDs to delete
+        delete_annotations: Also delete the annotations made on these tasks
 
     Returns:
         Number of tasks deleted
@@ -660,7 +665,17 @@ def delete_annotation_tasks(db: Session, campaign_id: int, task_ids: list[int]) 
         )
     ).all()
 
-    # Deleting a task detaches its annotations (annotation_task_id SET NULL).
+    if delete_annotations:
+        annotations = db.scalars(
+            select(Annotation).where(Annotation.annotation_task_id.in_(task_ids))
+        ).all()
+        if annotations:
+            delete_rows_and_orphan_geometries(db, annotations)
+            annotation_service.record_annotation_deletions(
+                db, campaign_id, [a.id for a in annotations]
+            )
+            annotation_service.bump_campaign_annotations_version(db, campaign_id)
+
     delete_rows_and_orphan_geometries(db, tasks)
 
     db.commit()

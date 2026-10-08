@@ -559,6 +559,14 @@ class AnnotationChangesOut(BaseModel):
     truncated: bool = False
 
 
+class AnnotationTaskChangesOut(BaseModel):
+    """Tasks somebody annotated since a cursor, re-read whole, plus the cursor
+    for the next poll. Same clock as :class:`AnnotationChangesOut`."""
+
+    server_time: datetime
+    tasks: list[AnnotationTaskOut]
+
+
 class BatchDeleteAnnotationsRequest(BaseModel):
     annotation_ids: list[int]
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from './forms';
 import { AnimatedDialog } from './motion';
 import { Spinner } from './Spinner';
@@ -12,6 +12,8 @@ export interface ConfirmDialogProps {
   isDangerous?: boolean;
   isLoading?: boolean;
   showDontAskAgain?: boolean;
+  /** Extra options shown under the description, owned by the caller. */
+  children?: ReactNode;
   onConfirm: (dontAskAgain?: boolean) => void | Promise<void>;
   onCancel: () => void;
 }
@@ -25,6 +27,7 @@ export const ConfirmDialog = ({
   isDangerous = false,
   isLoading = false,
   showDontAskAgain = false,
+  children,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) => {
@@ -51,6 +54,7 @@ export const ConfirmDialog = ({
         {description && (
           <p className="text-sm text-neutral-600 mb-5 leading-relaxed">{description}</p>
         )}
+        {children}
         {showDontAskAgain && (
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input

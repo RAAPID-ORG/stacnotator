@@ -222,7 +222,7 @@ const alert = (message: string, kind: 'error' | 'success') =>
   useGlobalLayoutStore.getState().showAlert(message, kind);
 
 /**
- * How often other annotators' work is picked up.
+ * How often other annotators' work is picked up, annotations and tasks alike.
  *
  * Sized against the deployment: one backend replica (4 workers, pool 10+10)
  * over a 2-vCore Postgres. A hundred annotators at this interval is 20 polls a
@@ -730,21 +730,21 @@ export function useSavedAnnotations(
   );
 }
 
-/** Pick up other annotators' work while this campaign is open. Null in task
- *  mode, which draws no saved annotations to be out of date about; the id is
- *  what restarts the poll when the page moves to another campaign. */
-export function useAnnotationSync(campaignId: number | null): void {
+/** Keep up with other annotators' work while this campaign is open, through
+ *  `sync`, which polls from its own cursor. The id is what restarts the poll
+ *  when the page moves to another campaign. */
+export function useRemoteSync(campaignId: number | null, sync: () => Promise<void>): void {
   useEffect(() => {
     if (campaignId === null) return;
     // Straight away, so the cursor starts where the campaign load left off
     // rather than one interval later.
-    void useWorkStore.getState().syncRemoteAnnotations();
+    void sync();
     const timer = setInterval(() => {
       // A tab nobody is looking at catches up when it comes back: the cursor
       // stays where it was, and the poll that resumes covers the whole gap.
       if (document.hidden) return;
-      void useWorkStore.getState().syncRemoteAnnotations();
+      void sync();
     }, REMOTE_POLL_MS);
     return () => clearInterval(timer);
-  }, [campaignId]);
+  }, [campaignId, sync]);
 }
