@@ -160,6 +160,24 @@ def get_deleted_annotation_ids(db: Session, campaign_id: int, since: datetime) -
     return list(rows)
 
 
+def get_changed_task_ids(db: Session, campaign_id: int, since: datetime) -> list[int]:
+    """Tasks whose annotations were written since ``since``, for the task poll.
+
+    A task's status is derived from its annotations, so a write to one of them
+    is what changes it.
+    """
+    rows = db.scalars(
+        select(Annotation.annotation_task_id)
+        .where(
+            Annotation.campaign_id == campaign_id,
+            Annotation.annotation_task_id.is_not(None),
+            Annotation.updated_at >= since - CHANGES_OVERLAP,
+        )
+        .distinct()
+    ).all()
+    return [task_id for task_id in rows if task_id is not None]
+
+
 def bump_campaign_annotations_version(db: Session, campaign_id: int) -> None:
     """Increment the campaign's annotation version counter.
 
@@ -254,6 +272,7 @@ def get_annotation_task_by_id(
 def get_annotation_tasks_for_campaign(
     db: Session,
     campaign: Campaign,
+    task_ids: Sequence[int] | None = None,
 ) -> list[AnnotationTask]:
     """
     Retrieve all annotation tasks for a campaign with eager loading
@@ -265,6 +284,7 @@ def get_annotation_tasks_for_campaign(
     Args:
         db: Database session
         campaign: The campaign whose tasks to load.
+        task_ids: Load only these tasks instead of all of them.
 
     Returns:
         List of annotation task items with all relationships loaded
@@ -280,6 +300,8 @@ def get_annotation_tasks_for_campaign(
         )
         .order_by(AnnotationTask.annotation_number)
     )
+    if task_ids is not None:
+        stmt = stmt.where(AnnotationTask.id.in_(task_ids))
 
     tasks = list(db.scalars(stmt).unique().all())
     _attach_has_embedding(db, tasks)

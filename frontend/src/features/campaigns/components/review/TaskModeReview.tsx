@@ -75,7 +75,7 @@ interface TaskModeReviewProps {
   headerActions?: ReactNode;
   /** Enables row selection and the management action bar (delete/unassign/move/bulk-assign). */
   selectable?: boolean;
-  onDeleteTasks?: (taskIds: number[]) => Promise<void>;
+  onDeleteTasks?: (taskIds: number[], deleteAnnotations: boolean) => Promise<void>;
   onBatchUnassignTasks?: (taskIds: number[]) => Promise<void>;
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
   /** Task sets owned by another feature: tasks may not be moved in or out of them. */
@@ -129,6 +129,7 @@ export const TaskModeReview = ({
   const formFields = campaign?.settings.form_fields ?? [];
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteAnnotations, setDeleteAnnotations] = useState(false);
   const [isBatchUnassigning, setIsBatchUnassigning] = useState(false);
   const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
@@ -356,13 +357,23 @@ export const TaskModeReview = ({
     if (!onDeleteTasks || selectedTasks.size === 0) return;
     try {
       setIsDeleting(true);
-      await onDeleteTasks(Array.from(selectedTasks));
+      await onDeleteTasks(Array.from(selectedTasks), deleteAnnotations);
       setSelectedTasks(new Set());
     } finally {
       setIsDeleting(false);
-      setConfirmDelete(false);
+      closeConfirmDelete();
     }
   };
+
+  const closeConfirmDelete = () => {
+    setConfirmDelete(false);
+    setDeleteAnnotations(false);
+  };
+
+  const selectedAnnotationCount = filteredTasks.reduce(
+    (count, t) => (selectedTasks.has(t.id) ? count + (t.annotations?.length ?? 0) : count),
+    0
+  );
 
   const selectedTasksHaveAssignments = filteredTasks.some(
     (t) => selectedTasks.has(t.id) && t.assignments && t.assignments.length > 0
@@ -1184,14 +1195,33 @@ export const TaskModeReview = ({
             <ConfirmDialog
               isOpen={confirmDelete}
               title="Delete selected tasks?"
-              description={`This will permanently delete ${selectedTasks.size} selected task(s) and their existing annotations. This action cannot be undone.`}
+              description={`This will permanently delete ${selectedTasks.size} selected task(s). ${
+                deleteAnnotations
+                  ? 'Their annotations are deleted with them.'
+                  : 'Their annotations are kept, no longer linked to a task.'
+              } This action cannot be undone.`}
               confirmText="Delete"
               cancelText="Cancel"
               isDangerous
               isLoading={isDeleting}
               onConfirm={handleDeleteSelected}
-              onCancel={() => setConfirmDelete(false)}
-            />
+              onCancel={closeConfirmDelete}
+            >
+              {selectedAnnotationCount > 0 && (
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={deleteAnnotations}
+                    onChange={(e) => setDeleteAnnotations(e.target.checked)}
+                    className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer"
+                    data-testid="delete-task-annotations"
+                  />
+                  <span className="text-xs text-neutral-600">
+                    Also delete their {selectedAnnotationCount} annotation(s)
+                  </span>
+                </label>
+              )}
+            </ConfirmDialog>
 
             <ConfirmDialog
               isOpen={confirmBatchUnassign}

@@ -21,6 +21,7 @@ from src.campaigns.assignments import (
 from src.campaigns.form_fields import CategoryFormField, TextFormField
 from src.campaigns.schemas import AssignTasksToUsersRequest
 from src.campaigns.service import (
+    delete_annotation_tasks,
     delete_campaign,
     list_campaigns_with_user_roles,
     update_campaign_bbox,
@@ -1073,3 +1074,35 @@ class TestResearchSharing:
             update_research_sharing(db, 1, True)
 
         assert exc_info.value.status_code == 404
+
+
+class TestDeleteAnnotationTasks:
+    """Deleting tasks keeps their annotations unless the admin asks otherwise."""
+
+    def _db(self, tasks, annotations):
+        db = MagicMock()
+        db.scalars.return_value.all.side_effect = [tasks, annotations]
+        return db
+
+    @patch("src.campaigns.service.assignments._verify_tasks_in_campaign")
+    def test_keeps_annotations_by_default(self, _verify):
+        task = MagicMock(id=1, geometry_id=11)
+        db = self._db([task], [])
+
+        assert delete_annotation_tasks(db, 1, [1]) == 1
+
+        db.delete.assert_called_once_with(task)
+        assert db.scalars.call_count == 1
+
+    @patch("src.campaigns.service.annotation_service.record_annotation_deletions")
+    @patch("src.campaigns.service.assignments._verify_tasks_in_campaign")
+    def test_deletes_annotations_when_asked(self, _verify, record_deletions):
+        task = MagicMock(id=1, geometry_id=11)
+        annotation = MagicMock(id=7, geometry_id=11)
+        db = self._db([task], [annotation])
+
+        delete_annotation_tasks(db, 1, [1], delete_annotations=True)
+
+        assert [c.args[0] for c in db.delete.call_args_list] == [annotation, task]
+        record_deletions.assert_called_once_with(db, 1, [7])
+        db.commit.assert_called_once()

@@ -75,8 +75,8 @@ export const CampaignTasksPage = () => {
 
   useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Tasks');
 
-  const { tasks: annotationTasks } = useCampaignTasks(campaignId);
-  const { taskSets } = useCampaignTaskSets(campaignId);
+  const { tasks: annotationTasks, loading: tasksLoading } = useCampaignTasks(campaignId);
+  const { taskSets, loading: taskSetsLoading } = useCampaignTaskSets(campaignId);
 
   // Assignable users are the owning project's members, so this waits for the
   // campaign to say which project to ask about.
@@ -148,11 +148,12 @@ export const CampaignTasksPage = () => {
     deleteTasks.isPending;
 
   // Without a URL param the scope starts on the campaign's first (default) set;
-  // "All tasks" is an explicit choice carried as taskSet=all.
+  // "All tasks" is an explicit choice carried as taskSet=all. The requested set is
+  // trusted until the sets load, so the scope does not flash to "All tasks" first.
   const taskSetParam = searchParams.get('taskSet');
   const requestedSetId = taskSetParam !== null ? Number(taskSetParam) : null;
   const taskScope: TaskScope =
-    requestedSetId !== null && taskSets.some((s) => s.id === requestedSetId)
+    requestedSetId !== null && (taskSetsLoading || taskSets.some((s) => s.id === requestedSetId))
       ? requestedSetId
       : taskSetParam === 'all' || taskSets.length === 0
         ? 'all'
@@ -305,12 +306,15 @@ export const CampaignTasksPage = () => {
     showAlert(`Unassigned all users from ${taskIds.length} task(s)`, 'success');
   };
 
-  const handleDeleteTasks = async (taskIds: number[]) => {
+  const handleDeleteTasks = async (taskIds: number[], deleteAnnotations: boolean) => {
     if (taskIds.length === 0) {
       showAlert('No tasks selected', 'error');
       return;
     }
-    await deleteTasks.mutateAsync({ path, body: { task_ids: taskIds } });
+    await deleteTasks.mutateAsync({
+      path,
+      body: { task_ids: taskIds, delete_annotations: deleteAnnotations },
+    });
     showAlert(`${taskIds.length} task(s) deleted successfully`, 'success');
   };
 
@@ -356,6 +360,7 @@ export const CampaignTasksPage = () => {
                     campaign={campaign}
                     canManage={isAdmin}
                     scopedTasks={scopedAnnotationTasks}
+                    loadingTasks={tasksLoading || taskSetsLoading}
                     totalTasks={annotationTasks.length}
                     taskFile={taskFile}
                     setTaskFile={setTaskFile}

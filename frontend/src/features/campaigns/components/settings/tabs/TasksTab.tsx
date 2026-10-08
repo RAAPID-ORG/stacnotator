@@ -21,6 +21,8 @@ import { Tooltip } from '~/shared/ui/Tooltip';
 import { FileInput } from '~/shared/ui/FileInput';
 import { IconChevronLeft, IconImportExport, IconPlus } from '~/shared/ui/Icons';
 import { AreaEstimationSetup } from '~/features/areaEstimation/AreaEstimation';
+import { Delayed } from '~/shared/ui/Delayed';
+import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 
 interface Props {
   campaign: CampaignSummaryOut;
@@ -28,6 +30,7 @@ interface Props {
   canManage: boolean;
   // Already filtered to the active scope by the page (single source of truth).
   scopedTasks: AnnotationTaskOut[];
+  loadingTasks: boolean;
   totalTasks: number;
   taskFile: File | null;
   setTaskFile: (f: File | null) => void;
@@ -40,7 +43,7 @@ interface Props {
   onOpenReviewerAssign: () => void;
   onAssignSelected: (taskIds: number[]) => void;
   handleBatchUnassignTasks: (taskIds: number[]) => Promise<void>;
-  handleDeleteTasks: (taskIds: number[]) => Promise<void>;
+  handleDeleteTasks: (taskIds: number[], deleteAnnotations: boolean) => Promise<void>;
   onAssignmentsImported: () => Promise<void>;
   taskSets: TaskSetOut[];
   taskScope: TaskScope;
@@ -63,6 +66,7 @@ export const TasksTab: React.FC<Props> = ({
   campaign,
   canManage,
   scopedTasks,
+  loadingTasks,
   totalTasks,
   taskFile,
   setTaskFile,
@@ -328,7 +332,19 @@ export const TasksTab: React.FC<Props> = ({
       {/* The wrapper makes `first:` strip the border of whichever section comes
           right below the scope bar, which already draws its own bottom line. */}
       <div>
-        {!writingDesign && scopedTasks.length > 0 && bbox && (
+        {loadingTasks && (
+          <Delayed>
+            <section className={sectionCls}>
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-80 w-full" />
+            </section>
+            <section className={sectionCls}>
+              <SkeletonRows />
+            </section>
+          </Delayed>
+        )}
+
+        {!loadingTasks && !writingDesign && scopedTasks.length > 0 && bbox && (
           <section className={sectionCls}>
             <TaskLocationsMap
               campaignId={campaignId}
@@ -340,7 +356,7 @@ export const TasksTab: React.FC<Props> = ({
           </section>
         )}
 
-        {!writingDesign && scopedTasks.length > 0 && (
+        {!loadingTasks && !writingDesign && scopedTasks.length > 0 && (
           <section className={sectionCls}>
             <Statistics
               campaignId={campaignId}
@@ -351,7 +367,7 @@ export const TasksTab: React.FC<Props> = ({
 
         {taskScope !== 'all' && scopeIsLocked && areaEstimationSection}
 
-        {!writingDesign && tasksTable}
+        {!loadingTasks && !writingDesign && tasksTable}
       </div>
 
       {openDialog === 'add-tasks' && (

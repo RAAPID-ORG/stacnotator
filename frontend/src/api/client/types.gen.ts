@@ -796,6 +796,23 @@ export type AnnotationTaskAssignmentOut = {
 };
 
 /**
+ * AnnotationTaskChangesOut
+ *
+ * Tasks somebody annotated since a cursor, re-read whole, plus the cursor
+ * for the next poll. Same clock as :class:`AnnotationChangesOut`.
+ */
+export type AnnotationTaskChangesOut = {
+    /**
+     * Server Time
+     */
+    server_time: string;
+    /**
+     * Tasks
+     */
+    tasks: Array<AnnotationTaskOut>;
+};
+
+/**
  * AnnotationTaskListOut
  */
 export type AnnotationTaskListOut = {
@@ -2383,12 +2400,19 @@ export type DateRangeValue = {
  * DeleteAnnotationTasksRequest
  *
  * Request to delete multiple annotation tasks.
+ *
+ * The tasks' annotations are kept, detached from their task, unless
+ * ``delete_annotations`` asks for them to go too.
  */
 export type DeleteAnnotationTasksRequest = {
     /**
      * Task Ids
      */
     task_ids: Array<number>;
+    /**
+     * Delete Annotations
+     */
+    delete_annotations?: boolean;
 };
 
 /**
@@ -8466,6 +8490,41 @@ export type GetCampaignStatisticsEndpointResponses = {
 };
 
 export type GetCampaignStatisticsEndpointResponse = GetCampaignStatisticsEndpointResponses[keyof GetCampaignStatisticsEndpointResponses];
+
+export type GetAnnotationTaskChangesData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Since
+         */
+        since?: string | null;
+    };
+    url: '/api/campaigns/{campaign_id}/annotation-tasks/changes';
+};
+
+export type GetAnnotationTaskChangesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationTaskChangesError = GetAnnotationTaskChangesErrors[keyof GetAnnotationTaskChangesErrors];
+
+export type GetAnnotationTaskChangesResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationTaskChangesOut;
+};
+
+export type GetAnnotationTaskChangesResponse = GetAnnotationTaskChangesResponses[keyof GetAnnotationTaskChangesResponses];
 
 export type CompleteAnnotationTaskData = {
     body: AnnotationFromTaskCreate;

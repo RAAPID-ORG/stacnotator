@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
+import { getAnnotationTaskChanges, type AnnotationTaskOut, type TaskSetOut } from '~/api/client';
 import { geometryCentroid, squareAround, wktToGeometry } from '../campaign/annotation';
 import type { ImageryCatalog } from '../campaign/imagery';
 import {
@@ -11,7 +11,7 @@ import {
 } from '../campaign/tasks';
 import { taskLandingCollectionId } from '../campaign/imageryNav';
 import type { GeoFeature, LonLat } from '~/shared/map/types';
-import { useCampaignStore } from './campaign';
+import { campaignState, useCampaignStore } from './campaign';
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';
 import { useWorkStore } from './work';
@@ -53,6 +53,8 @@ export interface TasksState {
    *  button and the hotkey read the same live value. */
   knnValidationEnabled: boolean;
   focus: MapFocus | null;
+  /** Database clock the next task poll asks for changes since. */
+  syncCursor: string | null;
 
   initialize: (options: {
     tasks: AnnotationTaskOut[];
@@ -67,6 +69,11 @@ export interface TasksState {
   next: (catalog: ImageryCatalog) => void;
   previous: (catalog: ImageryCatalog) => void;
   replaceTask: (updated: AnnotationTaskOut, catalog: ImageryCatalog) => void;
+  /** Swap in newer copies of tasks without re-filtering, so work others
+   *  finished counts toward progress without pulling the current task away. */
+  mergeTasks: (updated: AnnotationTaskOut[], catalog: ImageryCatalog) => void;
+  /** Pick up tasks other annotators have worked since the last poll. */
+  syncRemoteTasks: () => Promise<void>;
   adoptTask: (claimed: AnnotationTaskOut, catalog: ImageryCatalog) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
@@ -83,6 +90,7 @@ const initialState = {
   isSubmitting: false,
   knnValidationEnabled: false,
   focus: null as MapFocus | null,
+  syncCursor: null as string | null,
 };
 
 const currentOf = (state: TasksState) => state.visibleTasks[state.currentIndex] ?? null;
@@ -192,6 +200,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       currentIndex: suggestedIndex,
       filter: effective,
       loaded: true,
+      syncCursor: null,
     });
     publishSelection(catalog);
   },
@@ -222,11 +231,34 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     publishSelection(catalog);
   },
 
-  replaceTask: (updated, catalog) => {
-    const swap = (tasks: AnnotationTaskOut[]) =>
-      tasks.map((task) => (task.id === updated.id ? updated : task));
-    set((s) => ({ allTasks: swap(s.allTasks), visibleTasks: swap(s.visibleTasks) }));
+  replaceTask: (updated, catalog) => get().mergeTasks([updated], catalog),
+
+  mergeTasks: (updated, catalog) => {
+    const byId = new Map(updated.map((task) => [task.id, task]));
+    const swap = (tasks: AnnotationTaskOut[]) => tasks.map((task) => byId.get(task.id) ?? task);
+    set((s) => {
+      const known = new Set(s.allTasks.map((task) => task.id));
+      const added = updated.filter((task) => !known.has(task.id));
+      return { allTasks: [...swap(s.allTasks), ...added], visibleTasks: swap(s.visibleTasks) };
+    });
     publishSelection(catalog);
+  },
+
+  syncRemoteTasks: async () => {
+    try {
+      const { campaign, catalog } = campaignState();
+      const result = await getAnnotationTaskChanges({
+        path: { campaign_id: campaign.id },
+        query: { since: get().syncCursor },
+      });
+      const data = result.data;
+      // The campaign can change under the request; its tasks are not this one's.
+      if (!data || useCampaignStore.getState().campaign?.id !== campaign.id) return;
+      set({ syncCursor: data.server_time });
+      if (data.tasks.length > 0) get().mergeTasks(data.tasks, catalog);
+    } catch {
+      // A missed poll is picked up by the next one.
+    }
   },
 
   adoptTask: (claimed, catalog) => {

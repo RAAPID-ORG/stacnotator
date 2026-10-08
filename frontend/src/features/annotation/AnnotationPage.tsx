@@ -63,7 +63,7 @@ import {
   resetTaskTiming,
   setTaskTimingVisible,
 } from './taskTiming';
-import { useAnnotationSync, useWorkStore } from './stores/work';
+import { useRemoteSync, useWorkStore } from './stores/work';
 
 type LoadState = 'loading' | 'ready' | 'failed';
 
@@ -249,9 +249,14 @@ export function AnnotationPage() {
   );
   useHotkeys(bindings, [bindings]);
 
-  // Explore draws everyone's annotations, so it keeps up with everyone's work.
-  // Tasks mode draws none, and has nothing to be out of date about.
-  useAnnotationSync(workMode === 'explore' ? (campaign?.id ?? null) : null);
+  // Explore draws everyone's annotations; tasks mode counts everyone's
+  // progress. Each keeps up with what it shows.
+  useRemoteSync(
+    campaign?.id ?? null,
+    workMode === 'explore'
+      ? useWorkStore.getState().syncRemoteAnnotations
+      : useTasksStore.getState().syncRemoteTasks
+  );
 
   // A deep link can seed a mode the campaign's policy does not allow this
   // user. The toolbar switch is disabled for them, which alone would strand

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AnnotationTaskOut } from '~/api/client';
 import { buildImageryCatalog } from '../campaign/imagery';
+import { computeTaskProgress } from '../campaign/tasks';
 import {
   makeCampaign,
   makeCollection,
@@ -283,5 +284,25 @@ describe('task session sample extent', () => {
         ],
       ],
     });
+  });
+});
+
+describe('task session remote progress', () => {
+  it("mergeTasks() counts another annotator's work without moving the current task", () => {
+    initialize([TASK_A, TASK_B]);
+    const TASK_C = task(3, 3, 20, 20);
+
+    useTasksStore.getState().mergeTasks(
+      [
+        { ...TASK_B, task_status: 'done' },
+        { ...TASK_C, task_status: 'done' },
+      ],
+      CATALOG
+    );
+
+    const state = useTasksStore.getState();
+    expect(computeTaskProgress(state.allTasks, [])).toEqual({ total: 3, completed: 2 });
+    expect(state.visibleTasks.map((t) => t.id)).toEqual([1, 2]);
+    expect(state.visibleTasks[state.currentIndex].id).toBe(1);
   });
 });

@@ -521,9 +521,13 @@ class AssignReviewersRequest(BaseModel):
 class DeleteAnnotationTasksRequest(BaseModel):
     """
     Request to delete multiple annotation tasks.
+
+    The tasks' annotations are kept, detached from their task, unless
+    ``delete_annotations`` asks for them to go too.
     """
 
     task_ids: list[int]
+    delete_annotations: bool = False
 
 
 class UnassignTasksRequest(BaseModel):

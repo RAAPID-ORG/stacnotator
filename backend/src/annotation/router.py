@@ -33,6 +33,7 @@ from src.annotation.schemas import (
     AnnotationsExtentOut,
     AnnotationSort,
     AnnotationsPageOut,
+    AnnotationTaskChangesOut,
     AnnotationTaskListOut,
     AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
@@ -80,6 +81,27 @@ def get_all_annotation_tasks(
 ):
     tasks = service.get_annotation_tasks_for_campaign(db, campaign)
     return AnnotationTaskListOut(campaign_id=campaign.id, tasks=tasks)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/annotation-tasks/changes",
+    response_model=AnnotationTaskChangesOut,
+)
+def get_annotation_task_changes(
+    campaign_id: int,
+    since: datetime | None = None,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> AnnotationTaskChangesOut:
+    """Tasks annotated since ``since``, so one annotator's progress reflects
+    everyone's without reloading the whole task list. Without ``since`` it only
+    hands back the cursor, like the annotation changes poll."""
+    now = spatial.server_now(db)
+    if since is None:
+        return AnnotationTaskChangesOut(server_time=now, tasks=[])
+    task_ids = service.get_changed_task_ids(db, campaign.id, since)
+    tasks = service.get_annotation_tasks_for_campaign(db, campaign, task_ids) if task_ids else []
+    return AnnotationTaskChangesOut(server_time=now, tasks=tasks)
 
 
 @router.post(

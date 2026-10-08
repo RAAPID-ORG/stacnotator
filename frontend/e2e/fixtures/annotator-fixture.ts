@@ -771,6 +771,11 @@ export const test = base.extend<AnnotatorFixtures>({
       });
     });
 
+    // GET task changes -> the poll that keeps task progress current.
+    await page.route('**/api/campaigns/*/annotation-tasks/changes*', async (route) => {
+      await route.fulfill({ json: { server_time: '2024-01-01T00:00:00Z', tasks: [] } });
+    });
+
     // GET /api/campaigns/:id/:taskId/validate  (KNN validation)
     await page.route('**/api/campaigns/*/*/validate*', async (route) => {
       await route.fulfill({ json: { status: 'ok' } });

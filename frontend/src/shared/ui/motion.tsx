@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 const EXIT_DURATION_MS = 120;
 
@@ -59,14 +60,17 @@ export const AnimatedDialog = ({
 }) => {
   const mounted = useDelayedUnmount(open);
   if (!mounted) return null;
-  return (
+  // Portaled so an animated or positioned ancestor cannot trap the backdrop in
+  // its stacking context, where a map beside it paints over the dialog.
+  return createPortal(
     <div
       className={`${open ? 'motion-backdrop-in' : 'motion-backdrop-out'} ${backdropClassName ?? ''}`}
     >
       <div className={`${open ? 'motion-panel-in' : 'motion-panel-out'} ${panelClassName ?? ''}`}>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
