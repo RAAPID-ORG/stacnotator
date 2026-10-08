@@ -921,6 +921,14 @@ export const TaskModeReview = ({
                               )}
                               <td className="px-4 py-3 text-neutral-900 font-medium">
                                 {task.annotation_number}
+                                {(task.nearby_annotation_count ?? 0) > 0 && (
+                                  <span
+                                    className="ml-1.5 px-1.5 py-0.5 text-xs font-normal rounded bg-red-50 text-red-700 tabular-nums"
+                                    title="Extra annotations drawn near this task from Explore"
+                                  >
+                                    +{task.nearby_annotation_count} nearby
+                                  </span>
+                                )}
                               </td>
                               <td className="px-4 py-3">
                                 <span

@@ -5,7 +5,7 @@ export interface StyleSpec {
   circle?: { radius: number; stroke?: { color: string; width: number }; fill?: { color: string } };
   /** Two crossing lines spanning `size` pixels, centred on the point. */
   cross?: { size: number; stroke: { color: string; width: number } };
-  text?: { label: string; color: string; haloColor?: string };
+  text?: { label: string; color: string; haloColor?: string; offsetY?: number };
 }
 
 export type LayerId = string;

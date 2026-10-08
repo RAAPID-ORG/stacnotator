@@ -107,6 +107,7 @@ class AnnotationOut(AnnotationFromTaskOut):
     # Origin: set for task-bound annotations, None for standalone (explore)
     # ones. Lets the annotations page open the matching work mode on "View".
     annotation_task_id: int | None = None
+    origin_task_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -377,6 +378,8 @@ class AnnotationTaskOut(BaseModel):
     # the task list/fetch query (extra attribute on the ORM instance). Used by
     # the frontend to show why KNN label validation is unavailable on a task.
     has_embedding: bool = False
+    # Standalone annotations drawn after leaving this task for Explore.
+    nearby_annotation_count: int = 0
 
     @model_validator(mode="before")
     @classmethod
@@ -497,6 +500,8 @@ class AnnotationCreate(BaseModel):
     imagery_end_date: str | None = None
     slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
     form_values: dict[str, FormValue] | None = None
+    # The task the annotator was on when they drew this standalone annotation.
+    origin_task_id: int | None = None
 
 
 class AnnotationsExtentOut(BaseModel):

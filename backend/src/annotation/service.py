@@ -265,6 +265,7 @@ def get_annotation_task_by_id(
     task = db.scalars(stmt).unique().first()
     if task is not None:
         _attach_has_embedding(db, [task])
+        _attach_nearby_annotation_counts(db, [task])
         attach_counts_toward_completion_tree(db, campaign, [task])
     return task
 
@@ -305,6 +306,7 @@ def get_annotation_tasks_for_campaign(
 
     tasks = list(db.scalars(stmt).unique().all())
     _attach_has_embedding(db, tasks)
+    _attach_nearby_annotation_counts(db, tasks)
     attach_counts_toward_completion_tree(db, campaign, tasks)
     return tasks
 
@@ -425,6 +427,21 @@ def _attach_has_embedding(db: Session, tasks: list[AnnotationTask]) -> None:
         task.has_embedding = task.id in embedded_ids
 
 
+def _attach_nearby_annotation_counts(db: Session, tasks: list[AnnotationTask]) -> None:
+    """Set `nearby_annotation_count`: the standalone annotations drawn after
+    leaving this task for Explore."""
+    if not tasks:
+        return
+    rows = db.execute(
+        select(Annotation.origin_task_id, func.count())
+        .where(Annotation.origin_task_id.in_([t.id for t in tasks]))
+        .group_by(Annotation.origin_task_id)
+    )
+    counts = {task_id: count for task_id, count in rows}
+    for task in tasks:
+        task.nearby_annotation_count = counts.get(task.id, 0)
+
+
 def get_annotation_task_id_for_annotation(
     db: Session,
     annotation_id: int,
@@ -488,6 +505,22 @@ def annotation_values(
     return values
 
 
+def _validate_origin_tasks(db: Session, campaign: Campaign, items: list[AnnotationCreate]) -> None:
+    """Reject origin tasks that are not in this campaign (one query for the batch)."""
+    ids = {a.origin_task_id for a in items if a.origin_task_id is not None}
+    if not ids:
+        return
+    found = set(
+        db.execute(
+            select(AnnotationTask.id).where(
+                AnnotationTask.campaign_id == campaign.id, AnnotationTask.id.in_(ids)
+            )
+        ).scalars()
+    )
+    if found != ids:
+        raise HTTPException(status_code=400, detail="Origin task not found in this campaign")
+
+
 def _standalone_annotation(
     geometry_id: int,
     campaign: Campaign,
@@ -503,6 +536,7 @@ def _standalone_annotation(
         campaign_id=campaign.id,
         created_by_user_id=user_id,
         annotation_task_id=None,  # Standalone annotation
+        origin_task_id=item.origin_task_id,
         imagery_slice_id=item.imagery_slice_id,
         imagery_source_name=item.imagery_source_name,
         imagery_start_date=item.imagery_start_date,
@@ -704,6 +738,7 @@ def create_annotation(
         HTTPException: If geometry is invalid or creation fails
     """
     _require_explore_access(db, campaign, user_id)
+    _validate_origin_tasks(db, campaign, [annotation_create])
 
     if annotation_create.label_id is not None:
         validate_label_id(campaign, annotation_create.label_id)
@@ -752,6 +787,7 @@ def create_annotations_bulk(
         return 0
 
     _require_explore_access(db, campaign, user_id)
+    _validate_origin_tasks(db, campaign, annotations_create)
 
     # Validate the distinct labels once rather than per-annotation.
     for label_id in {a.label_id for a in annotations_create if a.label_id is not None}:

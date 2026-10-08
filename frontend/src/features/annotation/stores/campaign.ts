@@ -24,8 +24,17 @@ import { viewWindows, type LayoutItem } from '../canvas/grid';
 import { useImageryStore } from './imagery';
 import { useLayoutStore } from './layout';
 import { usePrefsStore } from './prefs';
+import type { LonLat } from '~/shared/map/types';
 
 export type WorkMode = 'tasks' | 'explore';
+
+/** The task the annotator left for Explore. What they draw there is saved as
+ *  found near it, until they clear it or go back to Tasks. */
+export interface OriginTask {
+  id: number;
+  annotationNumber: number;
+  center: LonLat;
+}
 
 /**
  * What the whole page is currently pointed at. Everything else - the panels,
@@ -43,9 +52,11 @@ interface CampaignState {
   currentUserId: string | null;
   /** Resolved start collection for task navigation in the selected view. */
   taskStartCollectionId: number | null;
+  originTask: OriginTask | null;
 
   setCampaign: (campaign: CampaignOutFull) => void;
   setWorkMode: (mode: WorkMode) => void;
+  setOriginTask: (originTask: OriginTask | null) => void;
   setReviewMode: (isReviewMode: boolean) => void;
   setMobile: (isMobile: boolean) => void;
   setTaskStartCollection: (collectionId: number) => void;
@@ -88,6 +99,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   isMobile: false,
   currentUserId: null,
   taskStartCollectionId: null,
+  originTask: null,
 
   setCampaign: (campaign) => {
     const catalog = buildImageryCatalog(campaign);
@@ -108,7 +120,11 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
   setWorkMode: (workMode) => {
     // Review is a Tasks-only concept; carrying it into Explore would trap the
     // UI in it with no way back short of a reload.
-    set((s) => ({ workMode, isReviewMode: workMode === 'explore' ? false : s.isReviewMode }));
+    set((s) => ({
+      workMode,
+      isReviewMode: workMode === 'explore' ? false : s.isReviewMode,
+      originTask: workMode === 'explore' ? s.originTask : null,
+    }));
     const imagery = useImageryStore.getState();
     // Crosshair on for Tasks (point placement), off for Explore (free drawing).
     imagery.setCrosshair(workMode === 'tasks');
@@ -126,6 +142,7 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     if (catalog) set({ catalog: withSceneLayers(catalog, sourceId, vizName, minted) });
   },
 
+  setOriginTask: (originTask) => set({ originTask }),
   setReviewMode: (isReviewMode) => set({ isReviewMode }),
   setMobile: (isMobile) => set({ isMobile }),
   setTaskStartCollection: (taskStartCollectionId) => set({ taskStartCollectionId }),
@@ -139,6 +156,10 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     set({ view, taskStartCollectionId: start });
   },
 }));
+
+/** Sent with every Explore create, linking the shape to the task it was found
+ *  near. */
+export const originTaskId = (): number | undefined => useCampaignStore.getState().originTask?.id;
 
 /** The loaded campaign. The page gates on the load, so every panel below it
  *  can treat this as present. */

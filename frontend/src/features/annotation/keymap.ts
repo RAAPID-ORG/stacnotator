@@ -29,7 +29,7 @@ import {
 } from './stores/campaign';
 import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useImageryStore } from './stores/imagery';
-import { useTasksStore } from './stores/tasks';
+import { currentTask, useTasksStore } from './stores/tasks';
 import { useWorkStore, type Tool } from './stores/work';
 import {
   advance,
@@ -655,7 +655,13 @@ export async function switchWorkMode(mode: WorkMode): Promise<void> {
       );
     return;
   }
-  useCampaignStore.getState().setWorkMode(mode);
+  const campaignStore = useCampaignStore.getState();
+  campaignStore.setWorkMode(mode);
+  const task = currentTask();
+  const center = useTasksStore.getState().focus?.center;
+  if (mode === 'explore' && task && center) {
+    campaignStore.setOriginTask({ id: task.id, annotationNumber: task.annotation_number, center });
+  }
 }
 
 /** Tasks needs tasks to work through; Explore needs the campaign to allow it. */

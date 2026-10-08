@@ -1,7 +1,7 @@
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import { useCampaignStore } from '../../stores/campaign';
 import { switchWorkMode } from '../../keymap';
-import { IconEyeFilled } from '~/shared/ui/Icons';
+import { IconClose, IconEyeFilled } from '~/shared/ui/Icons';
 import type { CampaignOutFull } from '~/api/client';
 import { reviewFilterPatch, type TaskFilter } from '../../campaign/tasks';
 
@@ -62,6 +62,33 @@ export function ModeSwitch({ campaign, hasTasks, policy }: ModeSwitchProps) {
         }`}
       >
         Explore
+      </button>
+    </div>
+  );
+}
+
+/** Which task Explore's new shapes get linked to, with a way to drop the link
+ *  once the annotator has wandered somewhere unrelated. */
+export function OriginTaskChip() {
+  const workMode = useCampaignStore((s) => s.workMode);
+  const originTask = useCampaignStore((s) => s.originTask);
+  if (workMode !== 'explore' || !originTask) return null;
+
+  return (
+    <div
+      className="flex items-center gap-1 pl-2 pr-1 py-0.5 text-xs rounded-md bg-red-50 text-red-700"
+      title="New annotations are saved as found near this task"
+      data-testid="origin-task-chip"
+    >
+      <span>Near task #{originTask.annotationNumber}</span>
+      <button
+        type="button"
+        onClick={() => useCampaignStore.getState().setOriginTask(null)}
+        className="p-0.5 rounded hover:bg-red-100"
+        aria-label="Unlink from task"
+        title="Unlink from task"
+      >
+        <IconClose className="h-3 w-3" />
       </button>
     </div>
   );

@@ -89,8 +89,9 @@ class AnnotationTask(Base):
 
     if TYPE_CHECKING:
         # Not a column: attached per request by annotation/service.py, which
-        # looks the embeddings up in one query rather than per task.
+        # looks each up in one query rather than per task.
         has_embedding: bool
+        nearby_annotation_count: int
 
     __tablename__ = "annotation_tasks"
     __table_args__ = (
@@ -242,6 +243,11 @@ class Annotation(Base):
     __table_args__ = (
         Index("idx_annotations_campaign_id", "campaign_id"),
         Index("idx_annotations_task_id", "annotation_task_id"),
+        Index("idx_annotations_origin_task_id", "origin_task_id"),
+        CheckConstraint(
+            "annotation_task_id IS NULL OR origin_task_id IS NULL",
+            name="annotations_origin_only_standalone",
+        ),
         Index("idx_annotations_geometry_id", "geometry_id"),
         Index("idx_annotations_created_by_user_id", "created_by_user_id"),
         Index("idx_annotations_imagery_slice_id", "imagery_slice_id"),
@@ -294,6 +300,13 @@ class Annotation(Base):
 
     # Optional: set if annotation was created from a task
     annotation_task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.annotation_tasks.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # The task the annotator was on when they drew this standalone annotation;
+    # never set on a task's own annotation.
+    origin_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.annotation_tasks.id", ondelete="SET NULL"),
         nullable=True,
     )
@@ -358,8 +371,10 @@ class Annotation(Base):
     campaign: Mapped["Campaign"] = relationship(back_populates="annotations")
     geometry: Mapped[AnnotationGeometry] = relationship()
     annotation_task: Mapped["AnnotationTask | None"] = relationship(
+        foreign_keys=[annotation_task_id],
         back_populates="annotations",
     )
+    origin_task: Mapped["AnnotationTask | None"] = relationship(foreign_keys=[origin_task_id])
     creator: Mapped["User"] = relationship()
 
 
