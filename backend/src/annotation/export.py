@@ -129,6 +129,8 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_task_id",
     "stacnotator_task_status",
     "stacnotator_counts_toward_completion",
+    "stacnotator_origin_task_id",
+    "stacnotator_origin_annotation_number",
     "stacnotator_label_id",
     "stacnotator_label_name",
     "stacnotator_annotator_count",
@@ -283,6 +285,12 @@ def _build_export_record_for_annotation(
         record["stacnotator_annotation_number"] = task.annotation_number
         record["stacnotator_task_status"] = task_status
         record["stacnotator_counts_toward_completion"] = annotation.counts_toward_completion
+    else:
+        origin = annotation.origin_task
+        record["stacnotator_origin_task_id"] = origin.id if origin else None
+        record["stacnotator_origin_annotation_number"] = (
+            origin.annotation_number if origin else None
+        )
 
     record["stacnotator_annotation_id"] = annotation.id
     record["stacnotator_source_id"] = annotation.source_id
@@ -531,6 +539,7 @@ def fetch_annotations_with_context(
             .options(
                 joinedload(Annotation.geometry),
                 joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
+                joinedload(Annotation.origin_task),
             )
         )
         .unique()

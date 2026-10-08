@@ -96,6 +96,7 @@ function NoImageryOverlay() {
 export function ImageryWindowBody({ collection }: ImageryWindowProps) {
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
+  const originTask = useCampaignStore((s) => s.originTask);
   const imagery = useImageryStore();
   const legendOverrides = usePrefsStore((s) => s.legendOverrides);
   const camera = cameraFor(collection.id);
@@ -151,9 +152,10 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
       focusExtent: focus?.extent ?? null,
       crosshairPoint: focus?.center ?? null,
       crosshairColor: focus?.crosshairColor ?? null,
+      originTask,
     };
     return composeLayers({ catalog, mode }, state);
-  }, [catalog, mode, imagery, address, annotations, legendOverrides, focus]);
+  }, [catalog, mode, imagery, address, annotations, legendOverrides, focus, originTask]);
 
   const source = address ? catalog.sources.get(address.sourceId) : undefined;
   const healing = useEmptyHealing({

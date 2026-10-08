@@ -11,7 +11,7 @@ import {
   type LabelStyle,
 } from '../campaign/labelStyle';
 import type { ExtendedLabel } from '../campaign/annotation';
-import type { WorkMode } from '../stores/campaign';
+import type { OriginTask, WorkMode } from '../stores/campaign';
 import type { GeoFeature, LayerId, LayerSpec, LonLat, StyleSpec } from '~/shared/map/types';
 
 export const TILE_SKELETON_LAYER_ID = 'tile-skeleton';
@@ -28,6 +28,7 @@ export const isAnnotationLayer = (layerId: LayerId | undefined): boolean =>
   layerId === ANNOTATION_MARKER_LAYER_ID;
 export const EXTENT_LAYER_ID = 'task-extent';
 export const CROSSHAIR_LAYER_ID = 'crosshair';
+export const ORIGIN_TASK_LAYER_ID = 'origin-task';
 export const DRAFT_LAYER_ID = 'draft';
 export const PROBE_LAYER_ID = 'probe';
 
@@ -134,6 +135,8 @@ export interface ComposeState extends ImageryNavState {
   probePoints?: LonLat[];
   /** The probe a click moves, drawn larger so it is obvious which one that is. */
   activeProbe?: number | null;
+  /** Explore marks the task the annotator came from. */
+  originTask?: OriginTask | null;
 }
 
 /** `v` is the version the tiles were fetched at: changing it is what fetches
@@ -249,11 +252,12 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
   }
 
   // A task's rasters get their own cache scope: imagery must not be reused
-  // across task locations even when the URL is identical.
-  const taskScope =
-    mode === 'tasks' && state.crosshairPoint
-      ? `${state.crosshairPoint[0]}:${state.crosshairPoint[1]}`
-      : undefined;
+  // across task locations even when the URL is identical. Explore keeps the
+  // scope of the task it was entered from, so switching modes does not throw
+  // away the loaded tiles.
+  const taskScope = state.crosshairPoint
+    ? `${state.crosshairPoint[0]}:${state.crosshairPoint[1]}`
+    : undefined;
 
   // Imagery, or the basemap when selected - and also when there is no imagery
   // at all, so the map is never a blank canvas.
@@ -301,7 +305,9 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     }
   }
 
-  if (state.focusExtent) {
+  // Explore marks the task it was entered from with its own marker instead,
+  // which goes away when the annotator clears it.
+  if (mode === 'tasks' && state.focusExtent) {
     layers.push({
       kind: 'features',
       id: EXTENT_LAYER_ID,
@@ -426,6 +432,34 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
         };
       },
       zIndex: PROBE_Z,
+    });
+  }
+
+  // Drawn as the task crosshair with its number, a shape no annotation takes,
+  // so it never reads as a saved point.
+  if (mode === 'explore' && state.originTask) {
+    layers.push({
+      kind: 'features',
+      id: ORIGIN_TASK_LAYER_ID,
+      features: [
+        {
+          id: ORIGIN_TASK_LAYER_ID,
+          geometry: { type: 'Point', coordinates: state.originTask.center },
+        },
+      ],
+      style: {
+        cross: {
+          size: CROSSHAIR_SIZE_PX,
+          stroke: { color: DEFAULT_CROSSHAIR_COLOR, width: 2.5 },
+        },
+        text: {
+          label: `Task #${state.originTask.annotationNumber}`,
+          color: DEFAULT_CROSSHAIR_COLOR,
+          haloColor: '#ffffff',
+          offsetY: -CROSSHAIR_SIZE_PX,
+        },
+      },
+      zIndex: CROSSHAIR_Z,
     });
   }
 

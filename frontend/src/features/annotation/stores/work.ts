@@ -39,7 +39,7 @@ import {
 } from '../campaign/sliceComments';
 import type { SavedAnnotations } from '../map/compose';
 import type { LonLat } from '~/shared/map/types';
-import { campaignState, formFields, useCampaignStore } from './campaign';
+import { campaignState, formFields, originTaskId, useCampaignStore } from './campaign';
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';
 
@@ -270,6 +270,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           flagged_for_review: flagged,
           flag_comment: flagged ? flagComment || null : null,
           slice_comments: listNotes(sliceNotes),
+          origin_task_id: originTaskId(),
         },
       });
       const id = result.data?.id ?? null;

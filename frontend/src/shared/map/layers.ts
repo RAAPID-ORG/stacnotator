@@ -80,6 +80,7 @@ export function toOlStyle(spec: StyleSpec): Style {
     text: spec.text
       ? new Text({
           text: spec.text.label,
+          offsetY: spec.text.offsetY,
           fill: new Fill({ color: spec.text.color }),
           stroke: spec.text.haloColor
             ? new Stroke({ color: spec.text.haloColor, width: 3 })

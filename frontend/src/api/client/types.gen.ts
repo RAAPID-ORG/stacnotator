@@ -387,6 +387,10 @@ export type AnnotationCreate = {
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
+    /**
+     * Origin Task Id
+     */
+    origin_task_id?: number | null;
 };
 
 /**
@@ -767,6 +771,10 @@ export type AnnotationOut = {
      * Annotation Task Id
      */
     annotation_task_id?: number | null;
+    /**
+     * Origin Task Id
+     */
+    origin_task_id?: number | null;
 };
 
 /**
@@ -871,6 +879,10 @@ export type AnnotationTaskOut = {
      * Has Embedding
      */
     has_embedding?: boolean;
+    /**
+     * Nearby Annotation Count
+     */
+    nearby_annotation_count?: number;
 };
 
 /**

@@ -21,7 +21,7 @@ import type { TaskFilter } from '../../campaign/tasks';
 import { ExportMenu } from './ExportMenu';
 import { GuidePanel } from './GuidePanel';
 import { HelpMenu } from './HelpMenu';
-import { ModeSwitch, ReviewToggle } from './ModeSwitch';
+import { ModeSwitch, OriginTaskChip, ReviewToggle } from './ModeSwitch';
 import { TaskFilterPanel } from './TaskFilterPanel';
 
 export interface ToolbarProps {
@@ -156,6 +156,7 @@ export function Toolbar({
         <div className="h-5 w-px bg-neutral-200" />
 
         <ModeSwitch campaign={campaign} hasTasks={tasks.length > 0} policy={policy} />
+        <OriginTaskChip />
 
         <ViewPicker campaign={campaign} />
 

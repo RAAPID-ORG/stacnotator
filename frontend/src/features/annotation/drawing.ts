@@ -25,6 +25,7 @@ import {
   campaignState,
   formFields,
   mayModifyAnnotation,
+  originTaskId,
   useCampaignStore,
   useCanModifyAnnotation,
   useLabels,
@@ -64,6 +65,7 @@ export function annotationBody(
     confidence: null,
     // An empty answer set is "no answers given", not "all answers cleared".
     form_values: Object.keys(formValues).length ? formValues : null,
+    origin_task_id: originTaskId(),
   };
 }
 

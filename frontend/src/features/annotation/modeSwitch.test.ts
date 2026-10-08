@@ -64,3 +64,32 @@ describe('switchWorkMode', () => {
     expect(useCampaignStore.getState().workMode).toBe('tasks');
   });
 });
+
+describe('the origin task', () => {
+  const task = { id: 7, annotation_number: 493 };
+
+  beforeEach(() => {
+    useCampaignStore.setState({ workMode: 'tasks', originTask: null });
+    useTasksStore.setState({
+      allTasks: [task] as never,
+      visibleTasks: [task] as never,
+      currentIndex: 0,
+      focus: { center: [5, 6] } as never,
+    });
+  });
+
+  it('is the task the annotator was on when they switched to Explore', async () => {
+    await switchWorkMode('explore');
+    expect(useCampaignStore.getState().originTask).toEqual({
+      id: 7,
+      annotationNumber: 493,
+      center: [5, 6],
+    });
+  });
+
+  it('is dropped on going back to Tasks', async () => {
+    await switchWorkMode('explore');
+    await switchWorkMode('tasks');
+    expect(useCampaignStore.getState().originTask).toBeNull();
+  });
+});

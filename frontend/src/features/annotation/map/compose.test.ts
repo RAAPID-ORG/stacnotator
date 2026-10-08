@@ -29,6 +29,7 @@ import {
   annotationsVisibleAt,
   CROSSHAIR_LAYER_ID,
   EXTENT_LAYER_ID,
+  ORIGIN_TASK_LAYER_ID,
   TILE_SKELETON_LAYER_ID,
   composeLayers,
   type ComposeState,
@@ -174,7 +175,7 @@ describe('composeLayers - tasks mode', () => {
     });
   });
 
-  it('scopes raster cache state to the current task, but not in Explore', () => {
+  it('scopes raster cache state to the current task, the same in Explore', () => {
     const taskRaster = composeLayers(ctxFor('tasks'), stateWith({ crosshairPoint: [5, 6] })).find(
       (layer) => layer.kind === 'raster'
     ) as RasterLayerSpec;
@@ -184,7 +185,7 @@ describe('composeLayers - tasks mode', () => {
     ).find((layer) => layer.kind === 'raster') as RasterLayerSpec;
 
     expect(taskRaster.cacheScope).toBe('5:6');
-    expect(exploreRaster.cacheScope).toBeUndefined();
+    expect(exploreRaster.cacheScope).toBe('5:6');
   });
 });
 
@@ -258,6 +259,25 @@ describe('composeLayers - explore mode', () => {
     const layers = composeLayers(ctxFor('explore'), stateWith({ showTaskAnnotations: true }));
     const annotations = layers.find((l) => l.id === ANNOTATION_LAYER_ID) as VectorTileLayerSpec;
     expect(annotations.url).toContain('include_tasks=true');
+  });
+});
+
+describe('composeLayers - origin task', () => {
+  const originTask = { id: 7, annotationNumber: 493, center: [5, 6] as [number, number] };
+  const extent = { geometry: { type: 'Point' as const, coordinates: [5, 6] } };
+
+  it('marks the task Explore was entered from in place of its outline', () => {
+    const layers = composeLayers(ctxFor('explore'), stateWith({ originTask, focusExtent: extent }));
+    const marker = layers.find((l) => l.id === ORIGIN_TASK_LAYER_ID);
+    expect(marker?.kind === 'features' && marker.style).toMatchObject({
+      text: { label: 'Task #493' },
+    });
+    expect(ids(layers)).not.toContain(EXTENT_LAYER_ID);
+  });
+
+  it('is not drawn in tasks mode, where the crosshair marks the task', () => {
+    const layers = composeLayers(ctxFor('tasks'), stateWith({ originTask }));
+    expect(ids(layers)).not.toContain(ORIGIN_TASK_LAYER_ID);
   });
 });
 

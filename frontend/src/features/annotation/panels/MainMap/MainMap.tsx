@@ -327,6 +327,7 @@ export function MainMapBody() {
   const probePoints = useWorkStore((s) => (s.probeMarkerHidden ? EMPTY_PROBES : s.probePoints));
   const activeProbe = useWorkStore((s) => s.activeProbe);
   const focus = useMapFocus();
+  const originTask = useCampaignStore((s) => s.originTask);
   const { containerRef, width, height } = useContainerSize();
   const [mapLoading, setMapLoading] = useState(false);
   const foregroundLoading = useForegroundLoading();
@@ -376,6 +377,7 @@ export function MainMapBody() {
       draftLabelId: draft.phase === 'idle' ? null : draft.labelId,
       probePoints,
       activeProbe,
+      originTask,
     };
     return composeLayers({ catalog, mode }, state);
   }, [
@@ -389,6 +391,7 @@ export function MainMapBody() {
     draft,
     probePoints,
     activeProbe,
+    originTask,
   ]);
 
   // A fresh tuple each render would restart preloading forever (its enqueue

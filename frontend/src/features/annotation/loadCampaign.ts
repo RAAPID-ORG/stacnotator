@@ -70,6 +70,7 @@ export async function loadCampaign(
     isReviewMode: workMode === 'explore' ? false : (options.isReviewMode ?? false),
     currentUserId: options.currentUserId,
     taskStartCollectionId: startCollectionId,
+    originTask: null,
   });
   useLayoutStore.setState({ currentLayout: layout, savedLayout: layout, editing: false });
   useImageryStore.getState().reset({

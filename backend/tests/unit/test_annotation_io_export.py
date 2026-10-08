@@ -46,6 +46,7 @@ def _annotation(
     is_authoritative=False,
     counts_toward_completion=None,
     task=None,
+    origin_task=None,
     slice_comments=None,
     active_seconds=None,
 ):
@@ -70,6 +71,7 @@ def _annotation(
         geometry=None,
         annotation_task=task,
         annotation_task_id=task.id if task else None,
+        origin_task=origin_task,
     )
 
 
@@ -91,6 +93,14 @@ class TestTaskStatusInExportRecords:
     def test_standalone_annotation_has_no_task_status(self):
         record = _records([_annotation(label_id=1)])[0]
         assert record.get("stacnotator_task_status") is None
+
+    def test_standalone_annotation_exports_its_origin_task(self):
+        origin = _task(task_id=7, annotation_number=42)
+        with_origin = _records([_annotation(label_id=1, origin_task=origin)])[0]
+        without_origin = _records([_annotation(label_id=1)])[0]
+        assert with_origin["stacnotator_origin_task_id"] == 7
+        assert with_origin["stacnotator_origin_annotation_number"] == 42
+        assert without_origin["stacnotator_origin_task_id"] is None
 
     def test_conflicting_labels_from_two_assignees_is_conflicting(self):
         user_a, user_b = uuid4(), uuid4()
