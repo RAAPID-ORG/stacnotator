@@ -9,9 +9,10 @@ interface SecretInputProps {
   'aria-label': string;
   /** Short state shown inside the field's right edge: saved, missing, valid until... */
   status?: ReactNode;
+  masked?: boolean;
 }
 
-/** A write-only secret: masked, never autofilled, with its state inside the field
+/** A write-only secret: masked by default, never autofilled, with its state inside the field
  *  rather than in a row of its own. */
 export const SecretInput = ({
   value,
@@ -19,11 +20,12 @@ export const SecretInput = ({
   placeholder,
   'aria-label': ariaLabel,
   status,
+  masked = true,
 }: SecretInputProps) => (
   <div className="relative">
     <IconLock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
     <input
-      type="password"
+      type={masked ? 'password' : 'text'}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}

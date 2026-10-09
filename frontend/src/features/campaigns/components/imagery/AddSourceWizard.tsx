@@ -150,6 +150,19 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
               Pick an imagery dataset to add. We&apos;ll guide you through the rest.
             </p>
             <div className="grid gap-1.5">
+              <button
+                type="button"
+                onClick={() => setStep({ kind: 'custom-stac-question' })}
+                className="text-left px-4 py-3 rounded-lg border border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <IconChevronRight className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+                  <span className="text-sm font-medium text-neutral-900">Custom (other)</span>
+                </div>
+                <p className="text-xs text-neutral-500 mt-1 leading-snug">
+                  Bring your own STAC catalog or raw XYZ tile URLs.
+                </p>
+              </button>
               {MPC_PRESETS.map((preset) => (
                 <button
                   key={preset.stacCollectionId}
@@ -204,19 +217,6 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
                 <p className="text-xs text-neutral-500 mt-1 leading-snug">
                   The PlanetScope archive over your campaign area, grouped into periods you choose -
                   down to a single day. Raw acquisitions stacked best-first, not a seamless basemap.
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep({ kind: 'custom-stac-question' })}
-                className="text-left px-4 py-3 rounded-lg border border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <IconChevronRight className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-                  <span className="text-sm font-medium text-neutral-900">Custom (other)</span>
-                </div>
-                <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                  Bring your own STAC catalog or raw XYZ tile URLs.
                 </p>
               </button>
             </div>

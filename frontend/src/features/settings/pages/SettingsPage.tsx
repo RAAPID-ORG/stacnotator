@@ -29,6 +29,7 @@ import {
 } from '~/features/organizations/hooks/useOrganizations';
 import { pendingAdminActions } from '~/features/organizations/utils/organizations';
 import { CountBadge } from '~/shared/ui/Badge';
+import { TabNavigator } from '~/shared/ui/TabNavigator';
 import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
 import { usernameError } from 'src/features/auth/utils/usernames';
 import {
@@ -82,6 +83,7 @@ export const SettingsPage = () => {
   const { auth } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'profile' | 'platform'>('profile');
+  const [platformTab, setPlatformTab] = useState<'organizations' | 'users'>('organizations');
 
   // Username editing state
   const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
@@ -113,14 +115,14 @@ export const SettingsPage = () => {
 
   const usersQuery = useQuery({
     ...listUsersOptions({}),
-    enabled: isPlatformAdmin && activeTab === 'platform',
+    enabled: isPlatformAdmin && activeTab === 'platform' && platformTab === 'users',
     meta: { errorMessage: 'Failed to load users' },
   });
   const users = useMemo(() => (usersQuery.data ?? []).filter(isDetailedUser), [usersQuery.data]);
 
   const tilersQuery = useQuery({
     ...listGrantableTilersOptions(),
-    enabled: isPlatformAdmin && activeTab === 'platform',
+    enabled: isPlatformAdmin && activeTab === 'platform' && platformTab === 'organizations',
     meta: { errorMessage: 'Failed to load tilers' },
   });
 
@@ -548,44 +550,70 @@ export const SettingsPage = () => {
 
               {activeTab === 'platform' && isPlatformAdmin && (
                 <div>
-                  <section className={sectionCls}>
-                    <div className="flex items-center justify-between">
-                      <h2 className="section-heading">
-                        Platform users{' '}
-                        <span className="text-neutral-400 font-normal">({users.length})</span>
-                      </h2>
-                      <RefreshButton onClick={refetchUsers} busy={usersQuery.isFetching} />
-                    </div>
-                    <PlatformUsersTable
-                      users={users}
-                      onGrantAdmin={handleGrantAdmin}
-                      onRevokeAdmin={handleRevokeAdmin}
-                      loading={usersQuery.isPending}
-                    />
-                  </section>
-
-                  <section className={sectionCls}>
-                    <div className="flex items-center justify-between">
-                      <h2 className="section-heading">
-                        Organizations{' '}
-                        <span className="text-neutral-400 font-normal">({knownOrgs.length})</span>
-                      </h2>
-                      <RefreshButton
-                        onClick={refreshOrganizationsTab}
-                        busy={tilersQuery.isFetching}
+                  <TabNavigator
+                    items={[
+                      {
+                        id: 'organizations',
+                        label: (
+                          <span className="inline-flex items-center gap-1.5">
+                            Organizations
+                            <CountBadge
+                              count={
+                                pendingAdminActions(knownOrgs, account.is_admin)
+                                  .organizationApprovals
+                              }
+                              label="organizations to review"
+                            />
+                          </span>
+                        ),
+                      },
+                      { id: 'users', label: 'Users' },
+                    ]}
+                    activeId={platformTab}
+                    onChange={setPlatformTab}
+                  />
+                  {platformTab === 'users' && (
+                    <section id="tab-users" role="tabpanel" className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h2 className="section-heading">
+                          Platform users{' '}
+                          <span className="text-neutral-400 font-normal">({users.length})</span>
+                        </h2>
+                        <RefreshButton onClick={refetchUsers} busy={usersQuery.isFetching} />
+                      </div>
+                      <PlatformUsersTable
+                        users={users}
+                        onGrantAdmin={handleGrantAdmin}
+                        onRevokeAdmin={handleRevokeAdmin}
+                        loading={usersQuery.isPending}
                       />
-                    </div>
-                    <PlatformOrganizationsTable
-                      organizations={knownOrgs}
-                      allTilers={tilersQuery.data ?? NO_TILERS}
-                      onApprove={handleApproveOrganization}
-                      onReject={handleRejectOrganization}
-                      onSetInternalStorage={handleSetInternalStorage}
-                      onLoadTilers={handleLoadOrganizationTilers}
-                      onSaveTilers={handleSaveOrganizationTilers}
-                      loading={orgsLoading || tilersQuery.isPending}
-                    />
-                  </section>
+                    </section>
+                  )}
+
+                  {platformTab === 'organizations' && (
+                    <section id="tab-organizations" role="tabpanel" className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h2 className="section-heading">
+                          Organizations{' '}
+                          <span className="text-neutral-400 font-normal">({knownOrgs.length})</span>
+                        </h2>
+                        <RefreshButton
+                          onClick={refreshOrganizationsTab}
+                          busy={orgsLoading || tilersQuery.isFetching}
+                        />
+                      </div>
+                      <PlatformOrganizationsTable
+                        organizations={knownOrgs}
+                        allTilers={tilersQuery.data ?? NO_TILERS}
+                        onApprove={handleApproveOrganization}
+                        onReject={handleRejectOrganization}
+                        onSetInternalStorage={handleSetInternalStorage}
+                        onLoadTilers={handleLoadOrganizationTilers}
+                        onSaveTilers={handleSaveOrganizationTilers}
+                        loading={orgsLoading || tilersQuery.isPending}
+                      />
+                    </section>
+                  )}
                 </div>
               )}
             </div>

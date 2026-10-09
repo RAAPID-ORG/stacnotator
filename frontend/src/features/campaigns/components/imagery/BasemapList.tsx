@@ -24,11 +24,11 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="section-heading flex items-center gap-1">
-            Basemaps
+            Supporting Basemaps
             <Tooltip text="If a provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.planet.com/basemaps/v1/planet-tiles/global_monthly_2024_01_mosaic/gmap/{z}/{x}/{y}.png?api_key={api_key}. Then enter the key below - it is saved with the basemap, stored encrypted on the server and attached when tiles are fetched through the backend (never exposed to annotators)." />
           </h3>
           <p className="section-description">
-            Background reference layers shown beneath imagery in every view. Use{' '}
+            Additional background reference layers shown beneath imagery in every view. Use{' '}
             <code className="font-mono bg-neutral-100 px-0.5 rounded">{'{api_key}'}</code> in the
             URL for providers that require authentication.
           </p>

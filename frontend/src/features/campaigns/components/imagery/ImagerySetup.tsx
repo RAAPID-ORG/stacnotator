@@ -22,10 +22,10 @@ export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
     <div className="space-y-8">
       <section>
         <div className="mb-3">
-          <h3 className="section-heading">Imagery</h3>
+          <h3 className="section-heading">Satellite Imagery</h3>
           <p className="section-description">
-            Imagery is at the core of you campaign. Setup and configure imagery here. Each imagery
-            source represents a dataset (e.g. Sentinel-2, Landsat, NAIP) with collections covering
+            Imagery is at the core of your campaign. Setup and configure imagery sources here. Each source
+            source represents a remote sensing dataset (e.g. Sentinel-2, Landsat, NAIP) with collections covering
             specific time periods.
           </p>
         </div>

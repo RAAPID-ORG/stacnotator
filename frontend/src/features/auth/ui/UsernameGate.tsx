@@ -48,7 +48,6 @@ export const UsernameGate = ({ account }: { account: MeOut }) => {
         <h1 className="text-lg font-semibold text-neutral-900">Pick a username</h1>
         <p className="mt-1 text-sm text-neutral-600">
           This is the name other people see on your annotations and in the organizations you join.
-          It has to be unique, and you can change it later in settings.
         </p>
       </div>
 

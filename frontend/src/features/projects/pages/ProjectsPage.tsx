@@ -107,7 +107,7 @@ export const ProjectsPage = () => {
           >
             <div className="flex-1 min-w-[16rem]">
               <p className="text-sm font-medium text-neutral-900">
-                Creating projects needs an organization
+                You need to be part of an organization to create projects.
               </p>
               <p className="text-xs text-neutral-600 mt-0.5">
                 Ask an organization admin to add you, or request a new organization for your team.

@@ -34,6 +34,7 @@ export const SasTokenField = ({
       </div>
       <SecretInput
         aria-label="SAS token"
+        masked={false}
         value={value}
         onChange={onChange}
         placeholder={placeholder}

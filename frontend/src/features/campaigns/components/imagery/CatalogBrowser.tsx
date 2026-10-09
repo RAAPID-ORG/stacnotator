@@ -1241,26 +1241,36 @@ export const CatalogBrowser = ({
             {step === 'catalog' && !loading && (
               <div className="space-y-4">
                 <CatalogSection
-                  title="Provided catalogs"
-                  badge="Recommended"
-                  tone="green"
-                  note="Microsoft Planetary Computer and catalogs hosted on our own tilers. Fully supported with fast tile loading."
-                >
-                  <div className="space-y-1">{providedCatalogs.map(renderCatalogCard)}</div>
-                  {!providedCatalogs.length && (
-                    <p className="text-xs text-neutral-400 py-1">None available.</p>
-                  )}
-                </CatalogSection>
-
-                <CatalogSection
-                  title="Any STAC catalog URL"
+                  title="Any STAC catalog"
                   badge="Experimental"
                   tone="amber"
-                  note="Point at any STAC API. Served by our default tiler; may need manual adjustments."
+                  note="Enter the full URL of the STAC catalog's API endpoint or catalog.json file, including its full path. Served by our default tiler; may need manual adjustments."
                 >
+                  {allowPrivateCatalogs && hasIngestTiler && (
+                    <div className="space-y-2 pb-2">
+                      <p className="text-xs font-medium text-neutral-700">
+                        How is your catalog accessed?
+                      </p>
+                      <SegmentedControl
+                        aria-label="Catalog access"
+                        value={customCatalogIsPrivate ? 'private' : 'public'}
+                        onChange={(access) => setCustomCatalogIsPrivate(access === 'private')}
+                        segments={[
+                          { value: 'public', label: 'Public', Icon: IconGlobe },
+                          { value: 'private', label: 'Private Azure container', Icon: IconLock },
+                        ]}
+                      />
+                      <p className="text-[11px] text-neutral-500">
+                        {customCatalogIsPrivate
+                          ? 'The catalog is in a private Azure storage container. Provide its URL and a read-only SAS token below.'
+                          : 'The catalog is publicly accessible without a SAS token.'}
+                      </p>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <Input
                       type="url"
+                      aria-label="STAC catalog URL"
                       size="sm"
                       className="!flex-1"
                       value={customCatalogUrl}
@@ -1277,24 +1287,25 @@ export const CatalogBrowser = ({
                       Load
                     </Button>
                   </div>
-                  {allowPrivateCatalogs && hasIngestTiler && (
+                  {allowPrivateCatalogs && hasIngestTiler && customCatalogIsPrivate && (
                     <div className="mt-2 space-y-2">
-                      <SegmentedControl
-                        aria-label="Catalog access"
-                        value={customCatalogIsPrivate ? 'private' : 'public'}
-                        onChange={(access) => setCustomCatalogIsPrivate(access === 'private')}
-                        segments={[
-                          { value: 'public', label: 'Public', Icon: IconGlobe },
-                          { value: 'private', label: 'Private Azure container', Icon: IconLock },
-                        ]}
-                      />
-                      {customCatalogIsPrivate && (
-                        <SasTokenField value={sasInput} onChange={setSasInput} />
-                      )}
+                      <SasTokenField value={sasInput} onChange={setSasInput} />
                     </div>
                   )}
                   {!hasIngestTiler && (
                     <p className="text-[11px] text-amber-600 mt-1.5">{NO_TILER_NOTE}</p>
+                  )}
+                </CatalogSection>
+
+                <CatalogSection
+                  title="Provided catalogs"
+                  badge="Recommended"
+                  tone="green"
+                  note="Microsoft Planetary Computer and catalogs hosted on our own tilers. Fully supported with fast tile loading."
+                >
+                  <div className="space-y-1">{providedCatalogs.map(renderCatalogCard)}</div>
+                  {!providedCatalogs.length && (
+                    <p className="text-xs text-neutral-400 py-1">None available.</p>
                   )}
                 </CatalogSection>
 

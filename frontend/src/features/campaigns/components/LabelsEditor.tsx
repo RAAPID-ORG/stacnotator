@@ -117,7 +117,7 @@ export const LabelsEditor = ({
           className="text-sm text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           type="button"
         >
-          + Add label
+          + Add class
         </button>
       )}
     </div>

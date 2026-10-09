@@ -11,9 +11,11 @@ interface AuthCardProps {
 
 /** Full-screen centered card used by the auth/onboarding screens. */
 export const AuthCard = ({ children, className, outerClassName }: AuthCardProps) => (
-  <div className={`h-screen w-screen flex items-center justify-center ${outerClassName ?? ''}`}>
+  <div
+    className={`h-dvh w-full overflow-y-auto flex flex-col items-center px-4 py-6 ${outerClassName ?? ''}`}
+  >
     <div
-      className={`bg-white border border-neutral-200 rounded-xl shadow-sm p-8 w-full max-w-md ${
+      className={`bg-white border border-neutral-200 rounded-xl shadow-sm p-8 w-full max-w-md shrink-0 my-auto ${
         className ?? ''
       }`}
     >

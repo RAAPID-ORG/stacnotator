@@ -62,11 +62,9 @@ export const NewOrganizationPage = () => {
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">New organization</h1>
+            <h1 className="page-title">Request organization creation</h1>
             <p className="page-subtitle">
-              Organizations own projects and their members. A new one is reviewed by a platform
-              admin before it can hold projects.
-            </p>
+              Organizations own projects and have manage their own members. A new organization has to be requested and approved by a platform admin before it can hold projects.
           </div>
         </header>
 

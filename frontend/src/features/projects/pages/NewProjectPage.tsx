@@ -73,7 +73,7 @@ export const NewProjectPage = () => {
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">New project</h1>
+            <h1 className="page-title">Create new project</h1>
             <p className="page-subtitle">
               A project groups campaigns and the people working on them.
             </p>

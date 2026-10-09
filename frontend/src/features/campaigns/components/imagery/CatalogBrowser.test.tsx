@@ -1,6 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('~/api/client/sdk.gen', async () => {
   const actual =
@@ -40,11 +40,22 @@ const open = (allowPrivateCatalogs: boolean) =>
   );
 
 describe('CatalogBrowser, private catalogs', () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it('lists a private catalog with its SAS token, never through the public listing', async () => {
     open(true);
-    await userEvent.type(await screen.findByPlaceholderText(/earth-search/), CATALOG);
+    const url = await screen.findByRole('textbox', { name: 'STAC catalog URL' });
+    const sections = document.querySelectorAll('section');
+    expect(sections[0].textContent).toContain('Any STAC catalog');
+    expect(
+      screen.getByText(/API endpoint or catalog.json file, including its full path/)
+    ).toBeTruthy();
+    const access = screen.getByRole('radiogroup', { name: 'Catalog access' });
+    expect(access.compareDocumentPosition(url) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.type(url, CATALOG);
     await userEvent.click(await screen.findByRole('radio', { name: /Private Azure container/ }));
     const load = screen.getByRole('button', { name: 'Load' });
+    expect(screen.getByLabelText('SAS token').getAttribute('type')).toBe('text');
 
     await userEvent.type(screen.getByLabelText('SAS token'), 'sv=1&sp=rw&sig=x');
     expect(screen.getByText(/read \(and optionally list\) only/)).toBeTruthy();
@@ -61,6 +72,18 @@ describe('CatalogBrowser, private catalogs', () => {
       body: { catalog_url: CATALOG, storage_access: { kind: 'azure_sas', secret: SAS } },
     });
     expect(getCollections).not.toHaveBeenCalled();
+  });
+
+  it('uses public access after switching back from a private container', async () => {
+    open(true);
+    await userEvent.type(await screen.findByLabelText('STAC catalog URL'), CATALOG);
+    await userEvent.click(screen.getByRole('radio', { name: /Private Azure container/ }));
+    await userEvent.type(screen.getByLabelText('SAS token'), SAS);
+    await userEvent.click(screen.getByRole('radio', { name: 'Public' }));
+    expect(screen.queryByLabelText('SAS token')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Load' }));
+    await waitFor(() => expect(getCollections).toHaveBeenCalled());
+    expect(getPrivateCollections).not.toHaveBeenCalled();
   });
 
   it('is not offered where imagery gets published', async () => {

@@ -27,6 +27,7 @@ import { StepAddTimeseries } from '../components/creation/steps/StepAddTimeserie
 import { StepAccess } from '../components/creation/steps/StepAccess';
 import { StepReview } from '../components/creation/steps/StepReview';
 import { StepIndicator } from '~/shared/ui/StepIndicator';
+import { CollapsibleSection } from '~/shared/ui/CollapsibleSection';
 import { WIZARD_STEPS, WIZARD_STEP_NAMES } from '../components/creation/steps';
 import type { ImageryStepState } from '../components/imagery/types';
 import { Button } from '~/shared/ui/forms';
@@ -132,17 +133,23 @@ export const CreateCampaignPage = () => {
         );
       case 'StepAddTimeseries':
         return <StepAddTimeseries form={form} setForm={setForm} />;
-      case 'StepAccess':
-        return (
-          <StepAccess
-            form={form}
-            setForm={setForm}
-            projectIsPublic={project?.visibility === 'public'}
-            members={projectUsers}
-          />
-        );
       case 'StepReview':
-        return <StepReview validation={validation} />;
+        return (
+          <div className="space-y-6">
+            <StepReview validation={validation} />
+            <CollapsibleSection
+              title="Advanced options"
+              description="Most campaigns should keep the default access settings. Expand to choose who can label, complete tasks, or edit other people's annotations."
+            >
+              <StepAccess
+                form={form}
+                setForm={setForm}
+                projectIsPublic={projectIsPublic}
+                members={projectUsers}
+              />
+            </CollapsibleSection>
+          </div>
+        );
       default:
         return null;
     }

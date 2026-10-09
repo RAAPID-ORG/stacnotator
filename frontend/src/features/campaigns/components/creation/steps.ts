@@ -4,7 +4,6 @@ export const WIZARD_STEPS = [
   { name: 'Settings', component: 'StepSettings' },
   { name: 'Imagery', component: 'StepImagery' },
   { name: 'Time Series', component: 'StepAddTimeseries' },
-  { name: 'Access', component: 'StepAccess' },
   { name: 'Create', component: 'StepReview' },
 ] as const;
 
