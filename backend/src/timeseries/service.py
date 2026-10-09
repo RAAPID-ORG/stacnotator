@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.campaigns.models import Campaign
+from src.canvas.layout import rename_window_in_layout
 from src.canvas.service import sync_main_layouts
 from src.config import get_settings
 from src.timeseries.fetch import fetch_index_series
@@ -11,7 +12,11 @@ from src.timeseries.indices import index_for
 from src.timeseries.models import TimeSeries
 from src.timeseries.schemas import TimeSeriesCreate
 from src.timeseries.sources import source_for
-from src.timeseries.windows import distinct_window_keys, sync_timeseries_windows_in_layout
+from src.timeseries.windows import (
+    distinct_window_keys,
+    sync_timeseries_windows_in_layout,
+    window_grid_key,
+)
 
 settings = get_settings()
 
@@ -124,6 +129,32 @@ def create_timeseries_bulk(
 
     db.commit()
     return new_items
+
+
+def rename_timeseries_panel(
+    campaign_id: int, old_name: str, new_name: str, db: Session
+) -> None:
+    series = list(
+        db.execute(
+            select(TimeSeries).where(TimeSeries.campaign_id == campaign_id).with_for_update()
+        )
+        .scalars()
+        .all()
+    )
+    old_key, new_key = window_grid_key(old_name), window_grid_key(new_name)
+    matching = [item for item in series if window_grid_key(item.window_name) == old_key]
+    if not matching:
+        raise HTTPException(status_code=404, detail="Timeseries panel not found")
+    if old_key == new_key:
+        return
+    if any(window_grid_key(item.window_name) == new_key for item in series):
+        raise HTTPException(status_code=409, detail="A panel with this name already exists")
+    for item in matching:
+        item.window_name = new_name
+    sync_main_layouts(
+        db, campaign_id, lambda layout: rename_window_in_layout(layout, old_key, new_key)
+    )
+    db.commit()
 
 
 def get_timeseries_by_id(timeseries_id: int, db: Session) -> TimeSeries:

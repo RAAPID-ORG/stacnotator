@@ -64,7 +64,9 @@ export const NewOrganizationPage = () => {
           <div>
             <h1 className="page-title">Request organization creation</h1>
             <p className="page-subtitle">
-              Organizations own projects and have manage their own members. A new organization has to be requested and approved by a platform admin before it can hold projects.
+              Organizations own projects and manage their own members. A new organization has to be
+              requested and approved by a platform admin before it can hold projects.
+            </p>
           </div>
         </header>
 

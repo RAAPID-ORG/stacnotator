@@ -1,7 +1,7 @@
 """
 Development database seeding script.
-Creates two sample Ukraine campaigns with Sentinel-2 imagery (all 12 months, weekly slices)
-and S2 NDVI timeseries:
+Creates two sample Ukraine campaigns with Sentinel-2 imagery (12 monthly slices)
+and optional S2 NDVI timeseries when Earth Engine is configured:
   1. Task-mode campaign with 100 random sample points within Ukraine's bounding box
   2. Open-mode campaign (same region and imagery, no tasks)
 
@@ -14,21 +14,25 @@ Usage:
 
 import logging
 import sys
+import time
+from calendar import monthrange
 
-import numpy as np
 from shapely.geometry import box as shapely_box
 from sqlalchemy import insert, select
+from sqlalchemy.orm import Session
 
 import src.models  # noqa: F401 -- side-effect import: ensures all ORM models are registered before any mapper configures  # isort: skip
 
-from src.annotation.models import AnnotationGeometry, AnnotationTask, AnnotationTaskAssignment
+from src.annotation.models import AnnotationTask, AnnotationTaskAssignment
 from src.auth.constants import ROLE_ADMIN, ROLE_USER
 from src.auth.models import User, UserRole
-from src.campaigns.models import Campaign
+from src.campaigns.models import Campaign, TaskSet
 from src.campaigns.schemas import CampaignSettingsCreate, LabelBase
 from src.campaigns.service import create_campaign
+from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.config import get_settings
 from src.database import SessionLocal
+from src.earth_engine import ensure_earth_engine
 from src.imagery.schemas import (
     CollectionStacConfigCreate,
     ImageryCollectionCreate,
@@ -49,7 +53,8 @@ from src.organizations.models import (
     OrganizationUser,
 )
 from src.projects.models import Project, ProjectUser
-from src.sampling_design.service import generate_random_points
+from src.sampling_design.schemas import RandomSamplingConfig
+from src.sampling_design.service import create_tasks_from_sampling_strategy
 from src.tilers import registry
 from src.timeseries.schemas import TimeSeriesCreate
 
@@ -64,7 +69,98 @@ CAMPAIGN_NAME = "Ukraine Dev Campaign"
 OPEN_CAMPAIGN_NAME = "Ukraine Open-Mode Dev Campaign"
 
 
-def _ensure_user(db, firebase_uid: str | None = None) -> User:
+def _monthly_slices(year: int) -> list[ImagerySliceCreate]:
+    return [
+        ImagerySliceCreate(
+            name=f"{year}-{month:02d}",
+            start_date=f"{year}-{month:02d}-01",
+            end_date=f"{year}-{month:02d}-{monthrange(year, month)[1]:02d}",
+        )
+        for month in range(1, 13)
+    ]
+
+
+def _stac_search_query() -> dict:
+    return {
+        "collections": ["sentinel-2-l2a"],
+        "filter": {
+            "op": "and",
+            "args": [
+                {
+                    "op": "anyinteracts",
+                    "args": [
+                        {"property": "datetime"},
+                        {"interval": ["{sliceStart}", "{sliceEnd}"]},
+                    ],
+                },
+                {
+                    "op": "or",
+                    "args": [
+                        {"op": "isNull", "args": [{"property": "eo:cloud_cover"}]},
+                        {"op": "<=", "args": [{"property": "eo:cloud_cover"}, 70]},
+                    ],
+                },
+            ],
+        },
+        "filterLang": "cql2-json",
+        "sortby": [{"field": "datetime", "direction": "desc"}],
+    }
+
+
+def _seed_tasks(db: Session, campaign: Campaign, user: User) -> list[int]:
+    task_set_id = db.execute(
+        select(TaskSet.id).where(
+            TaskSet.campaign_id == campaign.id, TaskSet.name == DEFAULT_TASK_SET_NAME
+        )
+    ).scalar_one()
+    region = shapely_box(
+        UKRAINE_BBOX["bbox_west"],
+        UKRAINE_BBOX["bbox_south"],
+        UKRAINE_BBOX["bbox_east"],
+        UKRAINE_BBOX["bbox_north"],
+    )
+    create_tasks_from_sampling_strategy(
+        db,
+        campaign.id,
+        RandomSamplingConfig(num_samples=100, seed=42),
+        region,
+        task_set_id,
+    )
+    task_ids = list(
+        db.scalars(
+            select(AnnotationTask.id)
+            .where(AnnotationTask.campaign_id == campaign.id)
+            .order_by(AnnotationTask.annotation_number)
+        )
+    )
+    db.execute(
+        insert(AnnotationTaskAssignment),
+        [{"task_id": tid, "user_id": user.id} for tid in task_ids],
+    )
+    db.commit()
+    return task_ids
+
+
+def _wait_for_registration(db: Session, campaign_id: int, timeout: float = 180) -> None:
+    deadline = time.monotonic() + timeout
+    while True:
+        db.expire_all()
+        campaign = db.get(Campaign, campaign_id)
+        if campaign is None:
+            raise RuntimeError(f"Seeded campaign {campaign_id} no longer exists")
+        status = campaign.registration_status
+        errors = campaign.registration_errors
+        db.rollback()
+        if status == "ready":
+            return
+        if status != "registering":
+            raise RuntimeError(f"Imagery registration failed for campaign {campaign_id}: {errors}")
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Imagery registration timed out for campaign {campaign_id}")
+        time.sleep(1)
+
+
+def _ensure_user(db: Session, firebase_uid: str | None = None) -> User:
     """Return existing user or create a new one with the user + admin roles.
 
     In local auth mode, creates the fixed local user (issuer="local",
@@ -110,7 +206,7 @@ def _ensure_user(db, firebase_uid: str | None = None) -> User:
     return user
 
 
-def _ensure_dev_org_and_project(db, user) -> Project:
+def _ensure_dev_org_and_project(db: Session, user: User) -> Project:
     """Create or retrieve the Dev Org and its project.
 
     Returns the Project so campaigns can be created under it.
@@ -136,7 +232,9 @@ def _ensure_dev_org_and_project(db, user) -> Project:
         )
         for tiler_name in registry.all_names():
             db.add(OrganizationTiler(organization_id=org.id, tiler_name=tiler_name))
-    project = db.scalar(select(Project).where(Project.organization_id == org.id))
+    project = db.scalar(
+        select(Project).where(Project.organization_id == org.id, Project.name == "Ukraine Crops")
+    )
     if project is None:
         project = Project(
             organization_id=org.id,
@@ -183,33 +281,22 @@ def seed_dev_data(firebase_uid: str | None = None):
     try:
         logger.info("Starting database seeding...")
 
-        # Drop existing dev campaigns so the script is idempotent
+        user = _ensure_user(db, firebase_uid)
+        project = _ensure_dev_org_and_project(db, user)
+
+        # Only replace the demo campaigns in the seeded project.
         for name in (CAMPAIGN_NAME, OPEN_CAMPAIGN_NAME):
             existing = db.execute(
-                select(Campaign).where(Campaign.name == name)
+                select(Campaign).where(Campaign.name == name, Campaign.project_id == project.id)
             ).scalar_one_or_none()
             if existing:
                 logger.info("Campaign '%s' already exists - deleting and recreating...", name)
                 db.delete(existing)
         db.commit()
 
-        user = _ensure_user(db, firebase_uid)
-        project = _ensure_dev_org_and_project(db, user)
-
         # One Sentinel-2 imagery source spanning all of 2024: one MPC stac-browser
         # collection with 12 monthly slices and two named visualizations. Tile URLs
         # are built by the background mosaic registration, not seeded.
-        monthly_slices = []
-        for month in range(1, 13):
-            end_month = month + 1 if month < 12 else 12
-            monthly_slices.append(
-                ImagerySliceCreate(
-                    name=f"2024-{month:02d}",
-                    start_date=f"2024-{month:02d}-01",
-                    end_date=f"2024-{end_month:02d}-{'28' if month == 12 else '01'}",
-                )
-            )
-
         imagery_editor_state = ImageryEditorStateCreate(
             sources=[
                 ImagerySourceCreate(
@@ -228,6 +315,7 @@ def seed_dev_data(firebase_uid: str | None = None):
                                 catalog_url=MPC_CATALOG_URL,
                                 stac_collection_id="sentinel-2-l2a",
                                 max_cloud_cover=70,
+                                search_query=_stac_search_query(),
                                 visualizations=[
                                     NamedVizParamsCreate(
                                         name="True Color",
@@ -251,7 +339,7 @@ def seed_dev_data(firebase_uid: str | None = None):
                                     ),
                                 ],
                             ),
-                            slices=monthly_slices,
+                            slices=_monthly_slices(2024),
                         ),
                     ],
                 ),
@@ -260,16 +348,22 @@ def seed_dev_data(firebase_uid: str | None = None):
         )
 
         # S2 NDVI timeseries (from Google Earth Engine)
-        timeseries_configs = [
-            TimeSeriesCreate(
-                name="S2 NDVI",
-                start_ym="202401",
-                end_ym="202412",
-                data_source="SENTINEL2",
-                provider="EE",
-                ts_type="NDVI",
-            ),
-        ]
+        timeseries_configs = (
+            [
+                TimeSeriesCreate(
+                    name="S2 NDVI",
+                    start_ym="202401",
+                    end_ym="202412",
+                    data_source="SENTINEL2",
+                    provider="EE",
+                    ts_type="NDVI",
+                ),
+            ]
+            if ensure_earth_engine()
+            else []
+        )
+        if not timeseries_configs:
+            logger.info("Earth Engine unavailable; skipping optional S2 NDVI timeseries")
 
         # Campaign settings
         settings = CampaignSettingsCreate(
@@ -298,53 +392,8 @@ def seed_dev_data(firebase_uid: str | None = None):
         logger.info("Campaign created: id=%d", campaign.id)
         _seed_default_view(db, campaign.id)
 
-        # Generate 100 random points within Ukraine bbox and create tasks
-        logger.info("Generating 100 random sample points within Ukraine bounding box...")
-        ukraine_polygon = shapely_box(
-            UKRAINE_BBOX["bbox_west"],
-            UKRAINE_BBOX["bbox_south"],
-            UKRAINE_BBOX["bbox_east"],
-            UKRAINE_BBOX["bbox_north"],
-        )
-        sample_points = generate_random_points(
-            ukraine_polygon, num_samples=100, rng=np.random.default_rng(42)
-        )
-
-        logger.info("Creating %d annotation tasks...", len(sample_points))
-        geometry_records = [{"geometry": f"SRID=4326;POINT({pt.x} {pt.y})"} for pt in sample_points]
-        geometry_result = db.execute(
-            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
-            geometry_records,
-        )
-        geometry_ids = [row.id for row in geometry_result]
-
-        task_records = [
-            {
-                "annotation_number": i + 1,
-                "campaign_id": campaign.id,
-                "geometry_id": geom_id,
-                "status": "pending",
-                "raw_source_data": {
-                    "sampling_strategy": "random",
-                    "lon": pt.x,
-                    "lat": pt.y,
-                },
-            }
-            for i, (geom_id, pt) in enumerate(zip(geometry_ids, sample_points, strict=True))
-        ]
-        task_result = db.execute(
-            insert(AnnotationTask).returning(AnnotationTask.id),
-            task_records,
-        )
-        task_ids = [row.id for row in task_result]
-
-        # Assign all tasks to the seeded user
-        db.execute(
-            insert(AnnotationTaskAssignment),
-            [{"task_id": tid, "user_id": user.id} for tid in task_ids],
-        )
-
-        db.commit()
+        logger.info("Creating and assigning 100 random sample tasks...")
+        task_ids = _seed_tasks(db, campaign, user)
 
         # Open-mode campaign (same imagery & timeseries, no tasks)
         logger.info("Creating open-mode campaign via service...")
@@ -361,13 +410,19 @@ def seed_dev_data(firebase_uid: str | None = None):
         logger.info("Open-mode campaign created: id=%d", open_campaign.id)
         _seed_default_view(db, open_campaign.id)
 
+        logger.info("Waiting for imagery registration before exiting...")
+        for campaign_id in (campaign.id, open_campaign.id):
+            _wait_for_registration(db, campaign_id)
+
         logger.info("\nDatabase seeding complete!")
         logger.info("  Task-mode Campaign  : id=%d  name=%s", campaign.id, campaign.name)
         logger.info("  Open-mode Campaign  : id=%d  name=%s", open_campaign.id, open_campaign.name)
         logger.info("  User                : %s", user.email)
         logger.info("  Firebase UID        : %s", user.external_uid)
         logger.info("  Imagery items       : 1 source, 1 collection, 12 monthly slices")
-        logger.info("  Timeseries          : S2 NDVI (2024)")
+        logger.info(
+            "  Timeseries          : %s", "S2 NDVI (2024)" if timeseries_configs else "None"
+        )
         logger.info("  Tasks (task-mode)   : %d", len(task_ids))
         logger.info("  Labels              : %d", len(settings.labels))
 
@@ -397,6 +452,7 @@ def clear_dev_data():
 
 def main():
     """Main entry point."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     if len(sys.argv) > 1 and sys.argv[1] == "clear":
         clear_dev_data()

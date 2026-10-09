@@ -4804,6 +4804,20 @@ export type TimeseriesListResponse = {
 };
 
 /**
+ * TimeseriesPanelRenameRequest
+ */
+export type TimeseriesPanelRenameRequest = {
+    /**
+     * Old Name
+     */
+    old_name: string;
+    /**
+     * New Name
+     */
+    new_name: string;
+};
+
+/**
  * TimeseriesSourceOut
  */
 export type TimeseriesSourceOut = {
@@ -9515,6 +9529,36 @@ export type GetTimeseriesCreationOptionsResponses = {
 };
 
 export type GetTimeseriesCreationOptionsResponse = GetTimeseriesCreationOptionsResponses[keyof GetTimeseriesCreationOptionsResponses];
+
+export type RenameTimeseriesPanelData = {
+    body: TimeseriesPanelRenameRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/timeseries/panel';
+};
+
+export type RenameTimeseriesPanelErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenameTimeseriesPanelError = RenameTimeseriesPanelErrors[keyof RenameTimeseriesPanelErrors];
+
+export type RenameTimeseriesPanelResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RenameTimeseriesPanelResponse = RenameTimeseriesPanelResponses[keyof RenameTimeseriesPanelResponses];
 
 export type GetTimeseriesDataData = {
     body?: never;

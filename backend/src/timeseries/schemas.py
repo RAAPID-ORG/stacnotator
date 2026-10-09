@@ -182,6 +182,19 @@ class TimeseriesBulkCreateRequest(BaseModel):
     timeseries: list[TimeSeriesCreate]
 
 
+class TimeseriesPanelRenameRequest(BaseModel):
+    old_name: str
+    new_name: str
+
+    @field_validator("old_name", "new_name")
+    @classmethod
+    def validate_panel_name(cls, value: str) -> str:
+        name = value.strip()
+        if not name:
+            raise ValueError("Panel name must not be empty")
+        return name
+
+
 class TimeseriesBulkCreateResponse(BaseModel):
     new_items: list[TimeSeriesOut]
 

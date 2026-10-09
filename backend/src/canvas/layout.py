@@ -24,6 +24,15 @@ VIEW_WINDOW_H = 9
 VIEW_LAYOUT_START_Y = 25
 
 
+def rename_window_in_layout(layout_data: list[dict], old_key: str, new_key: str) -> bool:
+    changed = False
+    for item in layout_data:
+        if item["i"] == old_key:
+            item["i"] = new_key
+            changed = True
+    return changed
+
+
 def layout_bottom(layout_data: list[dict] | None) -> int:
     """Lowest occupied grid row (max y+h) across the items, 0 when empty."""
     return max(
