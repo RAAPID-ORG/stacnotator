@@ -2,6 +2,7 @@
  * Band presets, rescale defaults, and colormaps for known STAC collections.
  * Ported from geo-ai-agents' collectionPresets.ts.
  */
+import type { VizParams } from './types';
 
 export interface BandPreset {
   label: string;
@@ -212,6 +213,29 @@ export function guessRescale(collectionId: string): string | undefined {
   return undefined;
 }
 
+export function presetVizParams(
+  preset: BandPreset,
+  collectionId: string,
+  base: VizParams = { assets: [], assetAsBand: false, rescale: '' }
+): VizParams {
+  return {
+    ...base,
+    assets: [...preset.assets],
+    assetAsBand: !preset.bidx && (preset.assets.length === 3 || !!preset.expression),
+    bidx: preset.bidx ? [...preset.bidx] : undefined,
+    rescale:
+      preset.rescale ??
+      (preset.colorFormula
+        ? ''
+        : (KNOWN_RESCALE[collectionId] ?? guessRescale(collectionId) ?? '')),
+    colormapName: preset.colormap,
+    colorFormula: preset.colorFormula,
+    expression: preset.expression,
+    nodata: preset.nodata,
+    extraParams: preset.extraParams ? { ...preset.extraParams } : undefined,
+  };
+}
+
 export const COLORMAPS = [
   { value: 'viridis', label: 'Viridis' },
   { value: 'plasma', label: 'Plasma' },
@@ -281,7 +305,11 @@ export function encodeChannels(
   available: Record<string, AssetInfo>
 ): { assets: string[]; bidx?: number[] } {
   const assets = [...new Set(channels.map((c) => c.asset))];
-  if (channels.every((c) => bandCount(available[c.asset]) === 1)) return { assets };
+  if (
+    assets.length === channels.length &&
+    channels.every((c) => bandCount(available[c.asset]) === 1)
+  )
+    return { assets };
   const offsets = new Map<string, number>();
   let offset = 0;
   for (const asset of assets) {

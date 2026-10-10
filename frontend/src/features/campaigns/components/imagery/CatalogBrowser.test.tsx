@@ -1,6 +1,9 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { StacCollectionOut } from '~/api/client';
+
+const catalogCollections = vi.hoisted(() => ({ items: [] as StacCollectionOut[] }));
 
 vi.mock('~/api/client/sdk.gen', async () => {
   const actual =
@@ -16,7 +19,7 @@ vi.mock('~/api/client/sdk.gen', async () => {
         },
       })
     ),
-    getCollections: vi.fn(() => Promise.resolve({ data: [] })),
+    getCollections: vi.fn(() => Promise.resolve({ data: catalogCollections.items })),
     getPrivateCollections: vi.fn(() => Promise.resolve({ data: [] })),
   };
 });
@@ -24,6 +27,7 @@ vi.mock('~/api/client/sdk.gen', async () => {
 import { getCollections, getPrivateCollections } from '~/api/client/sdk.gen';
 import { renderWithQuery } from '~/shared/testing/renderWithQuery';
 import { CatalogBrowser } from './CatalogBrowser';
+import type { CatalogBrowserResult } from './CatalogBrowser';
 import type { ImageryGenerationConfig } from './types';
 
 const CATALOG = 'https://acct.blob.core.windows.net/imagery/catalog.json';
@@ -40,7 +44,55 @@ const open = (allowPrivateCatalogs: boolean) =>
   );
 
 describe('CatalogBrowser, private catalogs', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    catalogCollections.items = [];
+  });
+
+  it('keeps the generated NDVI cover synchronized when an existing false-color tab is edited', async () => {
+    catalogCollections.items = [
+      {
+        id: 'sentinel-2-l2a',
+        title: 'Sentinel',
+        description: '',
+        keywords: [],
+        has_cloud_cover: true,
+        item_assets: Object.fromEntries(
+          ['visual', 'B08', 'B04', 'B03'].map((name) => [
+            name,
+            { title: name, type: 'image/tiff', roles: ['data'] },
+          ])
+        ),
+      },
+    ];
+    const onAdd = vi.fn<(result: CatalogBrowserResult) => void>();
+    renderWithQuery(
+      <CatalogBrowser
+        projectId={3}
+        onAdd={onAdd}
+        onClose={vi.fn()}
+        preset={{ stacCollectionId: 'sentinel-2-l2a', label: 'Sentinel' }}
+      />
+    );
+    const tabs = await screen.findAllByRole('button', { name: 'False Color (Vegetation)' });
+    await userEvent.click(tabs[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'NDVI' }));
+    const name = screen.getByDisplayValue('False Color (Vegetation)');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'NDVI');
+    await userEvent.click(screen.getByRole('button', { name: /^Generate/ }));
+    expect(onAdd).toHaveBeenCalledOnce();
+    const result = onAdd.mock.calls[0][0];
+    const data = result.collections[0].data;
+    if (data.type !== 'stac_browser') throw new Error('Expected STAC imagery');
+    expect(data.visualizations[1].name).toBe('NDVI');
+    expect(data.visualizations[1].vizParams.expression).toBe('(B08-B04)/(B08+B04)');
+    expect(data.coverVisualizations?.[1].vizParams).toEqual({
+      ...data.visualizations[1].vizParams,
+      compositing: 'first',
+    });
+    expect(result.collections[0].hasDedicatedCover).toBe(true);
+  });
 
   it('lists a private catalog with its SAS token, never through the public listing', async () => {
     open(true);
@@ -90,6 +142,48 @@ describe('CatalogBrowser, private catalogs', () => {
     open(false);
     await screen.findByPlaceholderText(/earth-search/);
     expect(screen.queryByRole('radio', { name: /Private Azure container/ })).toBeNull();
+  });
+
+  it('guides saved mosaic series through grouping patterns and custom periods', async () => {
+    const saved: ImageryGenerationConfig = {
+      version: 1,
+      catalogUrl: 'https://example.test/stac',
+      stacCollectionId: 'imagery',
+      collectionTitle: 'Imagery',
+      isMpc: false,
+      hasCloudCover: false,
+      startDate: '2025-01',
+      endDate: '2025-12',
+      collectionPeriodInterval: 1,
+      collectionPeriodUnit: 'months',
+      slicePeriodInterval: 1,
+      slicePeriodUnit: 'weeks',
+      coverMode: 'nth',
+      coverSliceNth: 1,
+      maxCloudCover: 100,
+      itemSort: 'date_desc',
+      coverMaxCloudCover: 100,
+      coverItemSort: 'date_desc',
+      visualizations: [],
+      coverVisualizations: [],
+    };
+    renderWithQuery(
+      <CatalogBrowser projectId={3} onAdd={vi.fn()} onClose={vi.fn()} initialGeneration={saved} />
+    );
+    expect(await screen.findByText('Mosaic groups and time periods')).toBeTruthy();
+    const pattern = screen.getByRole('combobox', { name: 'Grouping pattern' });
+    expect((pattern as HTMLSelectElement).selectedOptions[0].text).toBe(
+      'Group by month with weekly detailed imagery'
+    );
+    await userEvent.selectOptions(pattern, 'yearly-monthly');
+    await userEvent.selectOptions(pattern, 'custom');
+    expect((screen.getByLabelText('Group time unit') as HTMLSelectElement).value).toBe('years');
+    expect((screen.getByLabelText('Detailed imagery time unit') as HTMLSelectElement).value).toBe(
+      'months'
+    );
+    expect(screen.getByText(/Each group \(imagery collection\) spans 1 year/)).toBeTruthy();
+    await userEvent.selectOptions(screen.getByLabelText('Detailed imagery time unit'), 'weeks');
+    expect(screen.getByText(/detailed mosaic \(slice\) every 1 week/)).toBeTruthy();
   });
 
   it('asks again for the SAS before reading a saved private series', async () => {

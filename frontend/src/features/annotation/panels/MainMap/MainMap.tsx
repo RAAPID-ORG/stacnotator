@@ -17,6 +17,7 @@ import { MapView, type MapAnchor } from '~/shared/map/MapView';
 import { CenterCrosshair } from '../../components/CenterCrosshair';
 import { PillSpinner, StatusPill } from '../../components/StatusPill';
 import { ImageryRegistrationNotice } from '../../components/ImageryRegistrationNotice';
+import { ImageryLegend } from '../../components/ImageryLegend';
 import { Delayed } from '~/shared/ui/Delayed';
 import { setForegroundMapLoading, useForegroundLoading } from '~/shared/map/tileLoading';
 import type { LonLat, MapClickEvent } from '~/shared/map/types';
@@ -481,6 +482,7 @@ export function MainMapBody() {
           }}
         />
         <CustomMapLegend catalog={catalog} />
+        {!imagery.showBasemap && <ImageryLegend catalog={catalog} address={address} />}
         <CenterCrosshair />
         <MapNotice
           waitingForRegistration={

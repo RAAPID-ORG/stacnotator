@@ -8,6 +8,53 @@
  * - After task navigation, imagery state resets properly
  */
 import { test, expect, waitForNavIdle } from './fixtures/annotator-fixture';
+import { MOCK_CAMPAIGN, COLLECTION_S2 } from './fixtures/mock-data';
+
+test('single-band imagery shows its min-to-max legend on the main map and each window', async ({
+  annotationPage: page,
+}) => {
+  const params = {
+    assets: ['B08', 'B04'],
+    expression: '(B08-B04)/(B08+B04)',
+    rescale: '-1,1',
+    colormap_name: 'rdylgn',
+  };
+  await page.route('**/api/campaigns/*/detailed', (route) =>
+    route.fulfill({
+      json: {
+        ...MOCK_CAMPAIGN,
+        imagery_sources: MOCK_CAMPAIGN.imagery_sources.map((source) => ({
+          ...source,
+          collections: source.collections.map((collection) => ({
+            ...collection,
+            stac_config: {
+              viz_configs: source.visualizations.map((viz, index) => ({
+                id: index,
+                name: viz.name,
+                render_params: params,
+                display_order: index,
+              })),
+            },
+          })),
+        })),
+      },
+    })
+  );
+  await page.reload();
+  for (const panel of [
+    page.locator('[data-panel-role="main-map"]'),
+    page.locator(`[data-panel-id="${COLLECTION_S2.id}"]`),
+  ]) {
+    const legend = panel.getByTestId('imagery-legend');
+    await expect(legend).toBeVisible();
+    await expect(legend.getByText('-1', { exact: true })).toBeVisible();
+    await expect(legend.getByText('1', { exact: true })).toBeVisible();
+  }
+  await page.keyboard.press('Shift+i');
+  await expect(
+    page.locator('[data-panel-role="main-map"]').getByTestId('imagery-legend')
+  ).toContainText('False Color');
+});
 
 test.describe('Imagery and Visualization', () => {
   test('keyboard slice navigation (A/D) changes displayed slice name', async ({

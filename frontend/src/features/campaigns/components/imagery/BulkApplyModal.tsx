@@ -8,7 +8,6 @@ import type {
   CollectionItem,
   ImagerySource,
   ItemSortOption,
-  NamedVizParams,
   StacBrowserCollectionData,
   VizParams,
 } from './types';
@@ -19,6 +18,7 @@ import { CoverSearchParams } from './CoverSearchParams';
 import type { ImageryController } from './controller';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { compositingMethods, servingTiler } from './tilerCapabilities';
+import { setVisualization, updateRegularVisualization } from './visualizations';
 
 export type BulkFocus = { kind: 'viz'; name: string } | { kind: 'search' };
 
@@ -93,18 +93,6 @@ const getCoverSearch = (
   return { uniform: allUniform(values, value), value, count: values.length };
 };
 
-const setVizByName = (
-  list: NamedVizParams[] | undefined,
-  name: string,
-  params: VizParams
-): NamedVizParams[] => {
-  const existing = list ?? [];
-  const idx = existing.findIndex((v) => v.name === name);
-  return idx >= 0
-    ? existing.map((v, i) => (i === idx ? { ...v, vizParams: params } : v))
-    : [...existing, { name, vizParams: params }];
-};
-
 const applyRegularViz = (
   source: ImagerySource,
   name: string,
@@ -114,7 +102,7 @@ const applyRegularViz = (
     c.data.type === 'stac_browser'
       ? {
           ...c,
-          data: { ...c.data, visualizations: setVizByName(c.data.visualizations, name, params) },
+          data: updateRegularVisualization(c.data, name, params, c.hasDedicatedCover),
         }
       : c
   );
@@ -126,7 +114,7 @@ const applyCoverViz = (source: ImagerySource, name: string, params: VizParams): 
           ...c,
           data: {
             ...c.data,
-            coverVisualizations: setVizByName(c.data.coverVisualizations, name, params),
+            coverVisualizations: setVisualization(c.data.coverVisualizations, name, params),
           },
         }
       : c

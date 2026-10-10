@@ -43,30 +43,32 @@ export const VizTabs = ({
     <div className="rounded-lg border border-neutral-200 overflow-hidden">
       <div className="flex items-center bg-neutral-50 border-b border-neutral-200 px-2 pt-2 gap-1">
         {visualizations.map((viz, i) => (
-          <button
+          <div
             key={i}
-            type="button"
-            onClick={() => onActiveIndexChange(i)}
-            className={`text-xs px-3 py-1.5 rounded-t-md transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`text-xs rounded-t-md transition-colors flex items-center ${
               i === active
                 ? 'bg-white border border-neutral-200 border-b-white -mb-px text-brand-700 font-medium'
                 : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
             }`}
           >
-            {viz.name || `Viz ${i + 1}`}
+            <button
+              type="button"
+              onClick={() => onActiveIndexChange(i)}
+              className="px-3 py-1.5 cursor-pointer"
+            >
+              {viz.name || `Viz ${i + 1}`}
+            </button>
             {onRemove && visualizations.length > 1 && (
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove(i);
-                }}
-                className="text-neutral-400 hover:text-red-500"
+                onClick={() => onRemove(i)}
+                aria-label={`Remove ${viz.name || `Viz ${i + 1}`}`}
+                className="pr-2 text-neutral-400 hover:text-red-500 cursor-pointer"
               >
                 <IconTrash className="w-2.5 h-2.5" />
               </button>
             )}
-          </button>
+          </div>
         ))}
         {onAdd && (
           <button
@@ -94,6 +96,7 @@ export const VizTabs = ({
           </div>
         )}
         <VizConfigPanel
+          key={`${collectionId}-${active}-${visualizations.length}`}
           collectionId={collectionId}
           availableAssets={availableAssets}
           vizParams={visualizations[active]?.vizParams || emptyVizParams()}

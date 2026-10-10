@@ -16,6 +16,7 @@ import { MapView } from '~/shared/map/MapView';
 import { CenterCrosshair } from '../../components/CenterCrosshair';
 import { PillSpinner, StatusPill } from '../../components/StatusPill';
 import { ImageryRegistrationNotice } from '../../components/ImageryRegistrationNotice';
+import { ImageryLegend } from '../../components/ImageryLegend';
 import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
 
 // ---------------------------------------------------------------------------
@@ -218,6 +219,7 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
         />
       )}
       <CenterCrosshair />
+      <ImageryLegend catalog={catalog} address={address} />
       {waitingForRegistration && <ImageryRegistrationNotice />}
       {!waitingForRegistration && showHint && <StatusPill>Hold Ctrl/Cmd to zoom</StatusPill>}
       {!waitingForRegistration && healing.searchingLabel && (

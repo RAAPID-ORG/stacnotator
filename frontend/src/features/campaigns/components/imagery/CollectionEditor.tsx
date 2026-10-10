@@ -26,6 +26,7 @@ import { StacQueryEditor } from './StacQueryEditor';
 import { getCollections, type AssetInfo } from '~/api/client';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { compositingMethods, servingTiler } from './tilerCapabilities';
+import { updateRegularVisualization } from './visualizations';
 
 interface CollectionEditorProps {
   collection: CollectionItem;
@@ -85,34 +86,7 @@ export const CollectionEditor = ({
     : [];
   const writeVizParams = (index: number, params: VizParams) => {
     if (!sb) return;
-    const name = vizNames[index];
-    const existingIdx = sb.visualizations.findIndex((v) => v.name === name);
-    const newVizs =
-      existingIdx >= 0
-        ? sb.visualizations.map((v, i) => (i === existingIdx ? { ...v, vizParams: params } : v))
-        : [...sb.visualizations, { name, vizParams: params }];
-    const updates: Partial<StacBrowserCollectionData> = { visualizations: newVizs };
-    // Mirror into the dedicated cover viz while it's still unconfigured, so a
-    // newly-added visualization's cover slice doesn't render with empty params.
-    // A cover the user has filled in on its own is left untouched.
-    if (collection.hasDedicatedCover) {
-      const coverList = sb.coverVisualizations ?? [];
-      const coverIdx = coverList.findIndex((v) => v.name === name);
-      const cover = coverIdx >= 0 ? coverList[coverIdx] : undefined;
-      const coverUnconfigured =
-        !cover || (cover.vizParams.assets.length === 0 && !cover.vizParams.expression);
-      if (coverUnconfigured) {
-        const mirrored: NamedVizParams = {
-          name,
-          vizParams: { ...params, compositing: cover?.vizParams.compositing ?? 'first' },
-        };
-        updates.coverVisualizations =
-          coverIdx >= 0
-            ? coverList.map((v, i) => (i === coverIdx ? mirrored : v))
-            : [...coverList, mirrored];
-      }
-    }
-    updateSb(updates);
+    updateSb(updateRegularVisualization(sb, vizNames[index], params, collection.hasDedicatedCover));
   };
 
   const coverVizs: NamedVizParams[] =
