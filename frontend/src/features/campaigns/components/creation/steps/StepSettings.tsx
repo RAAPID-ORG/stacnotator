@@ -55,13 +55,15 @@ export const StepSettings = ({
       <div>
         <h3 className="section-heading">Annotation class names</h3>
         <p className="section-description mb-1">
-          Define the different classes that annotators can assign to shapes / that they can choose from when labeling.
+          Define the different classes that annotators can assign to shapes / that they can choose
+          from when labeling.
         </p>
         <p className="text-xs text-neutral-400 mb-3">
           <span className="font-medium">Example:</span> For a crop survey you might want to identify
-          all fields with Maize, Cassava or Fallow, aswell as Farms. These would be your class names. 
-          You only need to select a geometry type for each class if you are planning on allowing users to draw the shapes of these.
-          In our case, you would select polygon as the geometry types for the 3 field types and might want to select point for a farm.
+          all fields with Maize, Cassava or Fallow, aswell as Farms. These would be your class
+          names. You only need to select a geometry type for each class if you are planning on
+          allowing users to draw the shapes of these. In our case, you would select polygon as the
+          geometry types for the 3 field types and might want to select point for a farm.
         </p>
         <LabelsEditor
           value={s.labels}
@@ -76,12 +78,14 @@ export const StepSettings = ({
           <span className="ml-1 text-xs font-normal text-neutral-400">(optional)</span>
         </h3>
         <p className="section-description mb-1">
-          Add extra questions for annotations. These allow you to capture additional details beyond the main class label.
+          Add extra questions for annotations. These allow you to capture additional details beyond
+          the main class label.
         </p>
         <p className="text-xs text-neutral-400 mb-3">
           <span className="font-medium">Example:</span> If you just drew a Maize field you might
           want to distinguish the crop stage of the fields. So you could specify a “Crop stage?”
-          custom field with <em>“Crop stage?”</em> and <em>“Seedling / Mature / Harvested”</em> as options.
+          custom field with <em>“Crop stage?”</em> and <em>“Seedling / Mature / Harvested”</em> as
+          options.
         </p>
         <FormFieldsEditor
           value={s.form_fields ?? []}

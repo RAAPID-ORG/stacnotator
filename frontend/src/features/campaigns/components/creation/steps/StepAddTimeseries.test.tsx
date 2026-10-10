@@ -204,7 +204,9 @@ describe('Panel-first timeseries setup', () => {
     await userEvent.clear(name);
     await userEvent.type(name, ' Vegetation {Enter}');
     const panel = screen.getByRole('region', { name: 'Vegetation panel' });
-    expect(screen.queryByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` })).toBeNull();
+    expect(
+      screen.queryByRole('region', { name: `${DEFAULT_TIMESERIES_WINDOW_NAME} panel` })
+    ).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
     await userEvent.type(within(panel).getByRole('textbox', { name: 'Timeseries name' }), 'NDVI');
     expect(onChange.mock.lastCall?.[0].timeseries_configs[0].window_name).toBe('Vegetation');
@@ -221,9 +223,12 @@ describe('Panel-first timeseries setup', () => {
     await userEvent.type(name, 'Greenness');
     await userEvent.click(within(panel).getByRole('button', { name: 'Save' }));
     const renamed = screen.getByRole('region', { name: 'Greenness panel' });
-    await userEvent.click(within(renamed).getByRole('button', { name: '+ Add another timeseries' }));
-    expect(onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeSeriesCreate) => ts.window_name))
-      .toEqual(['Greenness', 'Greenness', 'Greenness']);
+    await userEvent.click(
+      within(renamed).getByRole('button', { name: '+ Add another timeseries' })
+    );
+    expect(
+      onChange.mock.lastCall?.[0].timeseries_configs.map((ts: TimeSeriesCreate) => ts.window_name)
+    ).toEqual(['Greenness', 'Greenness', 'Greenness']);
     expect(screen.queryByRole('region', { name: 'Vegetation panel' })).toBeNull();
   });
 
@@ -234,10 +239,14 @@ describe('Panel-first timeseries setup', () => {
     await userEvent.click(within(panel).getByRole('button', { name: 'Rename Vegetation panel' }));
     const name = screen.getByRole('textbox', { name: 'Panel name' });
     await userEvent.clear(name);
-    expect((within(panel).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (within(panel).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled
+    ).toBe(true);
     await userEvent.type(name, ' Water ');
     expect(screen.getByRole('alert').textContent).toMatch(/already exists/);
-    expect((within(panel).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (within(panel).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled
+    ).toBe(true);
     await userEvent.keyboard('{Escape}');
     expect(within(panel).queryByRole('textbox', { name: 'Panel name' })).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
@@ -247,7 +256,10 @@ describe('Panel-first timeseries setup', () => {
     await openEditor([savedSeries]);
     const panel = screen.getByRole('region', { name: 'Vegetation panel' });
     await userEvent.click(within(panel).getByRole('button', { name: '+ Add another timeseries' }));
-    await userEvent.type(within(panel).getByRole('textbox', { name: 'Timeseries name' }), 'New NDVI');
+    await userEvent.type(
+      within(panel).getByRole('textbox', { name: 'Timeseries name' }),
+      'New NDVI'
+    );
     await userEvent.click(within(panel).getByRole('button', { name: 'Rename Vegetation panel' }));
     const name = screen.getByRole('textbox', { name: 'Panel name' });
     await userEvent.clear(name);
@@ -255,8 +267,9 @@ describe('Panel-first timeseries setup', () => {
     const renamed = await screen.findByRole('region', { name: 'Greenness panel' });
     expect(onRenameExistingPanel).toHaveBeenCalledWith('Vegetation', 'Greenness');
     expect(within(renamed).getByText('Saved NDVI')).toBeTruthy();
-    expect((within(renamed).getByRole('textbox', { name: 'Timeseries name' }) as HTMLInputElement).value)
-      .toBe('New NDVI');
+    expect(
+      (within(renamed).getByRole('textbox', { name: 'Timeseries name' }) as HTMLInputElement).value
+    ).toBe('New NDVI');
     expect(onChange.mock.lastCall?.[0].timeseries_configs[0].window_name).toBe('Greenness');
     expect(screen.queryByRole('region', { name: 'Vegetation panel' })).toBeNull();
   });

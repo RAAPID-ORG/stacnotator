@@ -131,9 +131,7 @@ def create_timeseries_bulk(
     return new_items
 
 
-def rename_timeseries_panel(
-    campaign_id: int, old_name: str, new_name: str, db: Session
-) -> None:
+def rename_timeseries_panel(campaign_id: int, old_name: str, new_name: str, db: Session) -> None:
     series = list(
         db.execute(
             select(TimeSeries).where(TimeSeries.campaign_id == campaign_id).with_for_update()

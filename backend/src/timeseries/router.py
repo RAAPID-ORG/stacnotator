@@ -15,8 +15,8 @@ from src.timeseries.schemas import (
     TimeseriesBulkCreateResponse,
     TimeseriesDataResponse,
     TimeseriesListResponse,
-    TimeseriesPanelRenameRequest,
     TimeSeriesOptionsOut,
+    TimeseriesPanelRenameRequest,
     timeseries_options,
     ym_range_to_dates,
 )
