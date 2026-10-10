@@ -428,23 +428,43 @@ export function AnnotationPage() {
   // same response the initial load used so completed tile URLs appear without
   // the user having to refresh or wonder whether setup is stuck.
   useEffect(() => {
-    if (!isRegistering) return;
+    if (load !== 'ready' || campaign?.id !== campaignId || !isRegistering) return;
     let cancelled = false;
+    let refreshing = false;
     const interval = window.setInterval(() => {
-      void getCampaignWithImageryWindows({ path: { campaign_id: campaignId } })
+      if (refreshing) return;
+      refreshing = true;
+      void getCampaignWithImageryWindows({
+        path: { campaign_id: campaignId },
+        throwOnError: true,
+      })
         .then(({ data }) => {
-          if (!cancelled && data) useCampaignStore.getState().setCampaign(data);
+          if (cancelled) return;
+          if (!data) throw new Error('Campaign registration response contains no data');
+          const current = useCampaignStore.getState().campaign;
+          if (current?.id !== campaignId) return;
+          useCampaignStore.getState().setCampaign({
+            ...current,
+            imagery_sources: data.imagery_sources,
+            registration_status: data.registration_status,
+            registration_errors: data.registration_errors,
+            embedding_status: data.embedding_status,
+          });
         })
-        .catch(() => {
-          // Keep the visible status and retry; a transient polling failure
-          // should not replace the workspace with an error state.
+        .catch((error) => {
+          if (!cancelled) {
+            handleError(error, 'Failed to refresh campaign registration', { showUser: false });
+          }
+        })
+        .finally(() => {
+          refreshing = false;
         });
     }, 5000);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [campaignId, isRegistering]);
+  }, [campaignId, campaign?.id, load, isRegistering]);
 
   // ------------------------------------------------------------------
   // Gates
@@ -475,11 +495,13 @@ export function AnnotationPage() {
             body: { name: 'Default view', source_ids: campaign.imagery_sources.map((s) => s.id) },
           })
             .then((res) => {
-              if (!res.data) return;
+              const currentCampaign = useCampaignStore.getState().campaign;
+              if (!res.data || currentCampaign?.id !== campaign.id) return;
               setSettingUpFirstView(true);
-              useCampaignStore.getState().setCampaign({ ...campaign, imagery_views: [res.data] });
-              useCampaignStore.getState().selectView(res.data);
-              focusFirstViewSetup(campaign.imagery_sources[0]?.default_zoom ?? null);
+              useCampaignStore
+                .getState()
+                .setCampaign({ ...currentCampaign, imagery_views: [res.data] });
+              focusFirstViewSetup(currentCampaign.imagery_sources[0]?.default_zoom ?? null);
               useLayoutStore.getState().startEditing();
             })
             .catch((error) => handleError(error, 'Could not create the view'));
@@ -535,16 +557,6 @@ export function AnnotationPage() {
           <span className="font-medium">Save layout</span> at the top right - the imagery only
           appears once it is saved. Everyone can rearrange their own copy later, and you can come
           back through Edit Layout any time.
-        </div>
-      )}
-
-      {isRegistering && (
-        <div
-          className="border-b border-blue-200 bg-blue-50 px-4 py-2 text-center text-sm text-blue-800"
-          data-testid="registration-banner"
-        >
-          Preparing mosaic imagery in the background. You can arrange the layout now; imagery will
-          appear automatically when registration finishes.
         </div>
       )}
 

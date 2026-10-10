@@ -56,6 +56,10 @@ const GRAYSCALE = 'linear-gradient(to right, #000000, #ffffff)';
 
 export function gradientFor(name: string): string {
   const key = name.toLowerCase();
+  if (key === 'greys') return 'linear-gradient(to right, #ffffff, #000000)';
+  if (key === 'terrain') {
+    return 'linear-gradient(to right, #333399, #00a6a6, #00cc66, #ffff99, #996633, #ffffff)';
+  }
   if (!isColormapName(key)) return GRAYSCALE;
   return `linear-gradient(to right, ${STOPS[key].join(', ')})`;
 }

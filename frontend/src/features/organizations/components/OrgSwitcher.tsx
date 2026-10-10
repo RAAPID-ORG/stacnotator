@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   newOrganizationPath,
   organizationPath,
@@ -7,8 +7,9 @@ import {
   projectsPath,
 } from '~/app/routes';
 import { useOrgStore } from '~/shared/stores/org.store';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { Badge, CountBadge } from '~/shared/ui/Badge';
-import { IconBuilding, IconCheck, IconChevronDown, IconGear, IconPlus } from '~/shared/ui/Icons';
+import { IconBuilding, IconCheck, IconChevronDown, IconPlus } from '~/shared/ui/Icons';
 import { useOrganizations } from '../hooks/useOrganizations';
 import { reconcileActiveOrgId } from '../utils/organizations';
 
@@ -23,6 +24,7 @@ const menuItemClass =
 export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
   const navigate = useNavigate();
   const { orgs, loading } = useOrganizations();
+  const isPlatformAdmin = useAccountStore((s) => s.account?.is_admin ?? false);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
   const hasChosenOrg = useOrgStore((s) => s.hasChosenOrg);
   const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
@@ -114,7 +116,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
         <div className="h-8 rounded-md bg-neutral-100 animate-pulse" />
       ) : (
         <div className="relative" ref={containerRef}>
-          <div className="flex items-center gap-1">
+          <div>
             <button
               ref={triggerRef}
               type="button"
@@ -129,7 +131,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                   setOpen(true);
                 }
               }}
-              className="flex flex-1 min-w-0 items-center gap-2 h-8 px-2 text-[11px] text-neutral-600 rounded-md cursor-pointer transition-colors hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
+              className="flex w-full min-w-0 items-center gap-2 h-8 px-2 text-[11px] text-neutral-600 rounded-md cursor-pointer transition-colors hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
             >
               <IconBuilding className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
               <span
@@ -145,26 +147,22 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                 }`}
               />
             </button>
-            {activeOrg?.is_admin && (
-              <button
-                type="button"
+            {activeOrg && (isPlatformAdmin || activeOrg.is_admin) && (
+              <Link
+                to={organizationPath(activeOrg.id)}
                 data-testid="org-switcher-manage"
-                aria-label="Manage organization"
-                title="Manage organization"
                 onClick={() => {
                   setOpen(false);
-                  navigate(organizationPath(activeOrg.id));
                   onNavigate?.();
                 }}
-                className="relative flex h-8 w-8 shrink-0 items-center justify-center text-neutral-500 rounded-md cursor-pointer transition-colors hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
+                className="flex w-fit items-center gap-1.5 px-2 text-[10px] text-neutral-400 rounded transition-colors hover:text-neutral-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
               >
-                <IconGear className="w-3.5 h-3.5" />
+                Manage organization
                 <CountBadge
                   count={activeOrg.pending_access_requests ?? 0}
                   label="access requests"
-                  className="absolute right-0 top-0"
                 />
-              </button>
+              </Link>
             )}
           </div>
 

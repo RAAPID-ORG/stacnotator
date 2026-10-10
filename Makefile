@@ -15,10 +15,10 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # Development Commands (standalone dev compose file)
-COMPOSE_DEV = docker-compose -f docker-compose.dev.yml
+COMPOSE_DEV = docker compose -f docker-compose.dev.yml
 
 # Production Commands (standalone prod compose file)
-COMPOSE_PROD = docker-compose -f docker-compose.prod.yml
+COMPOSE_PROD = docker compose -f docker-compose.prod.yml
 
 ###################################################
 # Dev Commands

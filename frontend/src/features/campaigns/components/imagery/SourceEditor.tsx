@@ -10,6 +10,7 @@ import {
 } from '~/shared/ui/Icons';
 import type { CollectionItem, ImagerySource, NamedVizParams } from './types';
 import { emptyManualCollection, emptyVizParams, swap } from './types';
+import { rewriteVisualization } from './visualizations';
 import { IconButton, Input, Button } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { CollectionEditor } from './CollectionEditor';
@@ -45,28 +46,6 @@ const collectionDisplayName = (c: CollectionItem) => {
   const last = c.slices[c.slices.length - 1]?.endDate?.slice(0, 7) ?? '';
   return `${first} - ${last}`;
 };
-
-/** Apply a visualization-name rewrite to every collection's vizUrls (in `data`
- * and per-slice). A null target means the viz was removed and its URLs are
- * dropped. */
-function rewriteVizUrls(
-  collections: CollectionItem[],
-  rewrite: (vizName: string) => string | null
-): CollectionItem[] {
-  const filter = <T extends { vizName: string }>(arr: T[]) =>
-    arr
-      .map((vu) => {
-        const next = rewrite(vu.vizName);
-        return next === null ? null : { ...vu, vizName: next };
-      })
-      .filter((v): v is T => v !== null);
-
-  return collections.map((c) => ({
-    ...c,
-    data: { ...c.data, vizUrls: filter(c.data.vizUrls) },
-    slices: c.slices.map((sl) => (sl.vizUrls ? { ...sl, vizUrls: filter(sl.vizUrls) } : sl)),
-  }));
-}
 
 /** Align a freshly-added collection to the source's visualization names so it
  * exposes the same named tabs. Params for a matching name are carried over;
@@ -178,19 +157,11 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
   };
 
   const renameVisualization = (index: number, newName: string) => {
-    const oldName = source.visualizations[index].name;
-    void updateSource({
-      visualizations: source.visualizations.map((v, i) => (i === index ? { name: newName } : v)),
-      collections: rewriteVizUrls(source.collections, (n) => (n === oldName ? newName : n)),
-    });
+    void updateSource(rewriteVisualization(source, index, newName));
   };
 
   const removeVisualization = (index: number) => {
-    const removed = source.visualizations[index].name;
-    void updateSource({
-      visualizations: source.visualizations.filter((_, i) => i !== index),
-      collections: rewriteVizUrls(source.collections, (n) => (n === removed ? null : n)),
-    });
+    void updateSource(rewriteVisualization(source, index, null));
   };
 
   const addCollectionsFromCatalog = async (result: CatalogBrowserResult) => {

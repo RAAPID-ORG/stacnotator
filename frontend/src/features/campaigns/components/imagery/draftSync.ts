@@ -109,7 +109,6 @@ export function collectionToBackend(
             const data = col.data;
             const configured = (data.visualizations ?? []).filter((v) => v.vizParams);
             const paramsByName = new Map(configured.map((v) => [v.name, v.vizParams]));
-            const fallbackParams = configured[0]?.vizParams ?? emptyVizParams();
             const names = sourceVizNames.length ? sourceVizNames : configured.map((v) => v.name);
             return {
               catalog_url: data.catalogUrl,
@@ -119,7 +118,7 @@ export function collectionToBackend(
                 const cover = data.coverVisualizations?.find((c) => c.name === name);
                 return {
                   name,
-                  viz_params: toVizParamsPayload(paramsByName.get(name) ?? fallbackParams),
+                  viz_params: toVizParamsPayload(paramsByName.get(name) ?? emptyVizParams()),
                   cover_viz_params: cover?.vizParams
                     ? toVizParamsPayload(cover.vizParams)
                     : undefined,

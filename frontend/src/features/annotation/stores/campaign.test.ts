@@ -13,6 +13,7 @@ import { startCollectionFor, useCampaignStore } from './campaign';
 import { useLayoutStore } from './layout';
 import { usePrefsStore } from './prefs';
 import { EMPTY_LAYOUT } from '../canvas/grid';
+import { sliceRaster } from '../campaign/tileUrls';
 
 const layoutOut = (id: number, collectionIds: number[]) => ({
   id,
@@ -38,6 +39,7 @@ const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [source] }));
 
 beforeEach(() => {
   useCampaignStore.setState({
+    campaign: null,
     catalog: cat,
     workMode: 'explore',
     isReviewMode: false,
@@ -61,6 +63,64 @@ beforeEach(() => {
     showAnnotations: true,
     viewSync: true,
     viewSnapshots: {},
+  });
+});
+
+describe('setCampaign during registration', () => {
+  const view = makeView({ id: 1, source_ids: [1] });
+
+  it('updates registered tile URLs without resetting navigation or layout edits', () => {
+    const registering = makeCampaign({
+      registration_status: 'registering',
+      imagery_sources: [
+        {
+          ...source,
+          collections: [
+            {
+              ...source.collections[0],
+              slices: [makeSlice({ id: 100, tile_urls: [] })],
+            },
+          ],
+        },
+      ],
+      imagery_views: [view],
+    });
+    useCampaignStore.getState().setCampaign(registering);
+    const address = useImageryStore.getState().address;
+    expect(address).toEqual({ sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1' });
+
+    useLayoutStore.getState().startEditing();
+    const layout = useLayoutStore.getState().currentLayout;
+    useCampaignStore.getState().setCampaign({
+      ...registering,
+      registration_status: 'ready',
+      imagery_sources: [source],
+    });
+
+    expect(useCampaignStore.getState().taskStartCollectionId).toBe(10);
+    expect(useImageryStore.getState().address).toBe(address);
+    expect(sliceRaster(useCampaignStore.getState().catalog!, address!).url).toBe(
+      'https://tiles/{z}/{x}/{y}'
+    );
+    expect(useLayoutStore.getState().currentLayout).toBe(layout);
+    expect(useLayoutStore.getState().editing).toBe(true);
+  });
+
+  it('preserves valid imagery selections and layout edits on subsequent refreshes', () => {
+    const campaign = makeCampaign({ imagery_sources: [source], imagery_views: [view] });
+    useCampaignStore.getState().setCampaign(campaign);
+    useImageryStore.getState().setShowBasemap(true);
+    useLayoutStore.getState().startEditing();
+    useLayoutStore.getState().hideAllWindows();
+    const address = useImageryStore.getState().address;
+    const layout = useLayoutStore.getState().currentLayout;
+
+    useCampaignStore.getState().setCampaign({ ...campaign });
+
+    expect(useImageryStore.getState().address).toBe(address);
+    expect(useImageryStore.getState().showBasemap).toBe(true);
+    expect(useLayoutStore.getState().currentLayout).toBe(layout);
+    expect(useLayoutStore.getState().editing).toBe(true);
   });
 });
 

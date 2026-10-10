@@ -130,6 +130,24 @@ def test_campaign_out_full_viewer_role_flags_default_to_false():
     assert not out.viewer_is_authoritative_reviewer
 
 
+@pytest.mark.parametrize("registration_status", ["registering", "failed", "ready"])
+def test_campaign_out_full_preserves_background_status(registration_status):
+    campaign = _campaign_orm_stub()
+    campaign.registration_status = registration_status
+    campaign.embedding_status = "registering"
+    campaign.registration_errors = [{"message": "Registration failed"}]
+
+    out = CampaignOutFull.from_orm(campaign)
+
+    assert out.registration_status == registration_status
+    assert out.embedding_status == "registering"
+    assert out.registration_errors == campaign.registration_errors
+    assert (
+        out.model_dump(include=set(CampaignOut.model_fields))
+        == CampaignOut.model_validate(campaign).model_dump()
+    )
+
+
 def test_assign_reviewers_pattern_percentage_accepted():
     req = AssignReviewersRequest(
         pattern="percentage", percentage=50.0, num_reviewers=1, reviewer_ids=[]

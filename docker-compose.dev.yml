@@ -1,5 +1,5 @@
 # Development Docker Compose Configuration (Standalone)
-# Usage: docker-compose -f docker-compose.dev.yml up
+# Usage: docker compose -f docker-compose.dev.yml up
 
 services:
   # PostgreSQL Database with PostGIS + pgvector

@@ -21,7 +21,8 @@ import { VizTabs } from './VizTabs';
 import { compositingMethods, servingTiler, NO_TILER_NOTE } from './tilerCapabilities';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { CoverSearchParams } from './CoverSearchParams';
-import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
+import { COLLECTION_PRESETS, presetVizParams } from './collectionPresets';
+import { followingCoverParams, setVisualization } from './visualizations';
 import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
 import { SasTokenField } from './SasTokenField';
@@ -53,7 +54,7 @@ interface TemporalPatternOption {
 const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   {
     id: 'monthly-weekly',
-    label: 'Month by month, with weekly images to choose from',
+    label: 'Group by month with weekly detailed imagery',
     windowInterval: 1,
     windowUnit: 'months',
     sliceInterval: 1,
@@ -61,7 +62,7 @@ const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   },
   {
     id: 'monthly-monthly',
-    label: 'Month by month, one image per month',
+    label: 'Group by month with monthly mosaics',
     windowInterval: 1,
     windowUnit: 'months',
     sliceInterval: 1,
@@ -69,7 +70,7 @@ const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   },
   {
     id: 'weekly-weekly',
-    label: 'Week by week, one image per week',
+    label: 'Group by week with weekly mosaics',
     windowInterval: 1,
     windowUnit: 'weeks',
     sliceInterval: 1,
@@ -77,7 +78,7 @@ const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   },
   {
     id: 'yearly-monthly',
-    label: 'Year by year, with monthly images to choose from',
+    label: 'Group by year with monthly detailed imagery',
     windowInterval: 1,
     windowUnit: 'years',
     sliceInterval: 1,
@@ -85,7 +86,7 @@ const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   },
   {
     id: 'yearly-yearly',
-    label: 'Year by year, one image per year',
+    label: 'Group by year with yearly mosaics',
     windowInterval: 1,
     windowUnit: 'years',
     sliceInterval: 1,
@@ -555,28 +556,17 @@ export const CatalogBrowser = ({
       ];
     }
 
-    const knownRescale = KNOWN_RESCALE[collectionId] || guessRescale(collectionId);
     const trueColor = presets.find((p) => p.label.toLowerCase().includes('true color'));
     const falseColor = presets.find((p) => p.label.toLowerCase().includes('false color'));
 
     const buildViz = (preset: BandPreset): NamedVizParams => {
-      const vp: VizParams = {
-        ...emptyVizParams(),
-        assets: preset.assets,
-        assetAsBand: preset.assets.length === 3 || !!preset.expression,
-        ...(preset.colorFormula ? { colorFormula: preset.colorFormula } : {}),
-        ...(preset.colormap ? { colormapName: preset.colormap } : {}),
-        ...(preset.expression ? { expression: preset.expression } : {}),
-        ...(preset.extraParams ? { extraParams: { ...preset.extraParams } } : {}),
-        ...(compositingOverride ? { compositing: compositingOverride } : {}),
+      return {
+        name: preset.label,
+        vizParams: presetVizParams(preset, collectionId, {
+          ...emptyVizParams(),
+          ...(compositingOverride ? { compositing: compositingOverride } : {}),
+        }),
       };
-      // Set rescale: use preset-specific, or skip if color formula handles it
-      if (preset.rescale) {
-        vp.rescale = preset.rescale;
-      } else if (!preset.colorFormula && knownRescale) {
-        vp.rescale = knownRescale;
-      }
-      return { name: preset.label, vizParams: vp };
     };
 
     const vizs: NamedVizParams[] = [];
@@ -710,45 +700,34 @@ export const CatalogBrowser = ({
     }
   };
 
-  /** Sync cover visualizations structure with regular visualizations.
-   *  Keeps existing cover viz params for matching indices, initializes new ones
-   *  from the regular viz with compositing: 'first'. */
   const syncCoverVisualizationsFromRegular = () => {
-    setCoverVisualizations((prev) => {
-      return visualizations.map((viz, i) => {
-        if (prev[i]) {
-          // Keep existing cover params, just sync the name
-          return { ...prev[i], name: viz.name };
-        }
-        // New viz: copy from regular with first-valid compositing
-        return {
-          name: viz.name,
-          vizParams: { ...viz.vizParams, compositing: 'first' },
-        };
-      });
-    });
+    setCoverVisualizations((prev) =>
+      visualizations.map(
+        (viz) =>
+          prev.find((cover) => cover.name === viz.name) ?? {
+            name: viz.name,
+            vizParams: { ...viz.vizParams, compositing: 'first' },
+          }
+      )
+    );
   };
 
   const updateVizParams = (params: VizParams) => {
+    const previous = visualizations[activeVizIndex];
     setVisualizations((prev) =>
       prev.map((v, i) => (i === activeVizIndex ? { ...v, vizParams: params } : v))
     );
-    // Keep the matching cover viz in sync while it hasn't been configured on its
-    // own. A freshly-added viz (e.g. one the user just set to an NDVI preset)
-    // starts with an empty cover entry; without this the cover slice would
-    // render with no params (broken). A cover the user has already filled in via
-    // Advanced is left untouched.
     if (coverMode === 'custom') {
       setCoverVisualizations((prev) =>
-        prev.map((cv, i) => {
-          if (i !== activeVizIndex) return cv;
-          const coverUnconfigured = cv.vizParams.assets.length === 0 && !cv.vizParams.expression;
-          if (!coverUnconfigured) return cv;
-          return {
-            ...cv,
-            vizParams: { ...params, compositing: cv.vizParams.compositing ?? 'first' },
-          };
-        })
+        setVisualization(
+          prev,
+          previous.name,
+          followingCoverParams(
+            previous.vizParams,
+            prev.find((cover) => cover.name === previous.name)?.vizParams,
+            params
+          )
+        )
       );
     }
   };
@@ -1586,24 +1565,25 @@ export const CatalogBrowser = ({
                     <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
                       <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
                         <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                          How often you get a new image
-                          <Tooltip text="Chops the date range into the time windows annotators step through. Collections are the top-level windows (e.g. one per month). Each is divided into slices (e.g. weeks), which is what an annotator flips between to find a cloud-free view." />
+                          Mosaic groups and time periods
+                          <Tooltip text="Groups are imagery collections, not the source STAC collection. Each group contains mosaics for smaller time periods, called slices." />
                         </h4>
                         <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
                           {singleCollection
-                            ? 'The whole date range becomes one collection, split into slices that annotators can flip between.'
-                            : 'How finely the date range is sliced up in time. The date range becomes a series of collections (e.g. one per month), and each of those is split into slices (e.g. weeks) that annotators flip between.'}
+                            ? 'The whole date range forms one group (imagery collection). Choose the time periods for detailed imagery within it; each period becomes a mosaic slice.'
+                            : 'Organize mosaics into time-based groups (imagery collections), with detailed imagery periods (slices) inside each group. For example: monthly groups with weekly mosaics. These periods organize available scenes; they do not change how often the satellite captures new images.'}
                         </p>
                       </div>
                       <div className="p-3 space-y-3">
                         {!showAdvanced && !singleCollection && (
                           <div className="space-y-1">
                             <label className="text-xs text-neutral-700 flex items-center gap-1">
-                              Pattern
-                              <Tooltip text="How the date range is divided into collections and slices. Pick a preset or switch to Advanced for custom intervals." />
+                              Grouping pattern
+                              <Tooltip text="Choose group and detailed imagery periods, or select Custom to set your own intervals." />
                             </label>
                             <Select
                               size="sm"
+                              aria-label="Grouping pattern"
                               value={matchingPattern}
                               onChange={(e) =>
                                 applyTemporalPattern(e.target.value as TemporalPattern)
@@ -1624,12 +1604,13 @@ export const CatalogBrowser = ({
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <label className="text-xs text-neutral-700 flex items-center gap-1">
-                                Collection Period
-                                <Tooltip text="How often to create a new collection. E.g. 1 month = each month becomes its own collection." />
+                                Group every
+                                <Tooltip text="Each group is an imagery collection. For example, 1 month creates one collection per month." />
                               </label>
                               <Input
                                 type="number"
                                 size="sm"
+                                aria-label="Group every"
                                 min="1"
                                 value={collectionPeriodInterval}
                                 onChange={(e) =>
@@ -1638,9 +1619,10 @@ export const CatalogBrowser = ({
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="text-xs text-neutral-700">Collection Unit</label>
+                              <label className="text-xs text-neutral-700">Group time unit</label>
                               <Select
                                 size="sm"
+                                aria-label="Group time unit"
                                 value={collectionPeriodUnit}
                                 onChange={(e) =>
                                   setCollectionPeriodUnit(
@@ -1660,12 +1642,13 @@ export const CatalogBrowser = ({
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <label className="text-xs text-neutral-700 flex items-center gap-1">
-                                Slice Period
-                                <Tooltip text="How to divide each collection into slices. Annotators switch between slices to find cloud-free imagery." />
+                                Detailed imagery every
+                                <Tooltip text="Each period becomes a mosaic slice within its group (collection). For example, 1 week creates weekly detailed imagery." />
                               </label>
                               <Input
                                 type="number"
                                 size="sm"
+                                aria-label="Detailed imagery every"
                                 min="1"
                                 value={slicePeriodInterval}
                                 onChange={(e) =>
@@ -1674,9 +1657,12 @@ export const CatalogBrowser = ({
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="text-xs text-neutral-700">Slice Unit</label>
+                              <label className="text-xs text-neutral-700">
+                                Detailed imagery time unit
+                              </label>
                               <Select
                                 size="sm"
+                                aria-label="Detailed imagery time unit"
                                 value={slicePeriodUnit}
                                 onChange={(e) =>
                                   setSlicePeriodUnit(
@@ -1691,6 +1677,14 @@ export const CatalogBrowser = ({
                               </Select>
                             </div>
                           </div>
+                        )}
+                        {showAdvanced && (
+                          <p className="text-[11px] text-neutral-500">
+                            {singleCollection
+                              ? 'One group (imagery collection) covers the full date range'
+                              : `Each group (imagery collection) spans ${collectionPeriodInterval} ${collectionPeriodInterval === 1 ? collectionPeriodUnit.slice(0, -1) : collectionPeriodUnit}`}
+                            {`, with a detailed mosaic (slice) every ${slicePeriodInterval} ${slicePeriodInterval === 1 ? slicePeriodUnit.slice(0, -1) : slicePeriodUnit}.`}
+                          </p>
                         )}
                         <AdvancedToggle
                           expanded={showAdvanced}

@@ -64,7 +64,7 @@ export const LabelsEditor = ({
             <Input
               type="text"
               value={label.name}
-              placeholder="Label name"
+              placeholder="Class name"
               ref={(el) => {
                 if (el) inputRefs.current.set(label.id, el);
                 else inputRefs.current.delete(label.id);

@@ -12,7 +12,7 @@ NASA Harvest's geospatial imagery annotation platform.
 
 #### Prerequisites
 
-- Ensure you have `docker` and `docker-compose` installed. Follow the setup instructions for your system [here](https://docs.docker.com/compose/install/#docker-desktop-recommended). The easiest way might be through `Docker Desktop`.
+- Ensure you have Docker and its Compose plugin installed (`docker compose version`). Follow the setup instructions for your system [here](https://docs.docker.com/compose/install/). Docker Desktop includes Compose.
 
 #### Option A - Local Mode (No Firebase, Quickest Setup)
 

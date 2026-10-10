@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ImageryCollectionOut } from '~/api/client';
 import { type ImageryCatalog } from '../../campaign/imagery';
+import { awaitingImageryRegistration } from '../../campaign/tileUrls';
 import { type SliceAddress } from '../../campaign/imageryNav';
 import { addressAtSlice, collectionAddress } from '../../campaign/imageryNav';
 import { useCampaignStore, useCatalog } from '../../stores/campaign';
@@ -14,6 +15,8 @@ import { composeLayers, type ComposeState } from '../../map/compose';
 import { MapView } from '~/shared/map/MapView';
 import { CenterCrosshair } from '../../components/CenterCrosshair';
 import { PillSpinner, StatusPill } from '../../components/StatusPill';
+import { ImageryRegistrationNotice } from '../../components/ImageryRegistrationNotice';
+import { ImageryLegend } from '../../components/ImageryLegend';
 import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
 
 // ---------------------------------------------------------------------------
@@ -95,6 +98,7 @@ function NoImageryOverlay() {
 
 export function ImageryWindowBody({ collection }: ImageryWindowProps) {
   const catalog = useCatalog();
+  const registrationStatus = useCampaignStore((s) => s.campaign?.registration_status);
   const mode = useCampaignStore((s) => s.workMode);
   const originTask = useCampaignStore((s) => s.originTask);
   const imagery = useImageryStore();
@@ -123,6 +127,7 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
   );
 
   const address = windowAddress(catalog, imagery, collection.id);
+  const waitingForRegistration = awaitingImageryRegistration(registrationStatus, catalog, address);
   // Coverage probing must not become a fifth foreground request alongside
   // this small map's four-slot OL queue. Key the last completed paint to both
   // location and imagery: a task/date change disables healing until that exact
@@ -214,14 +219,16 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
         />
       )}
       <CenterCrosshair />
-      {showHint && <StatusPill>Hold Ctrl/Cmd to zoom</StatusPill>}
-      {healing.searchingLabel && (
+      <ImageryLegend catalog={catalog} address={address} />
+      {waitingForRegistration && <ImageryRegistrationNotice />}
+      {!waitingForRegistration && showHint && <StatusPill>Hold Ctrl/Cmd to zoom</StatusPill>}
+      {!waitingForRegistration && healing.searchingLabel && (
         <StatusPill>
           <PillSpinner />
           Searching imagery... {healing.searchingLabel}
         </StatusPill>
       )}
-      {(!address || healing.noImagery) && <NoImageryOverlay />}
+      {!waitingForRegistration && (!address || healing.noImagery) && <NoImageryOverlay />}
     </div>
   );
 }

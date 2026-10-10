@@ -16,6 +16,7 @@ from src.timeseries.schemas import (
     TimeseriesDataResponse,
     TimeseriesListResponse,
     TimeSeriesOptionsOut,
+    TimeseriesPanelRenameRequest,
     timeseries_options,
     ym_range_to_dates,
 )
@@ -54,6 +55,16 @@ def get_timeseries_creation_options():
     """Get options for registering new timeseries for a campaign: the satellite
     sources, the spectral indices each one can compute, and what they are for."""
     return timeseries_options()
+
+
+@router.patch("/campaigns/{campaign_id}/timeseries/panel", status_code=204)
+def rename_timeseries_panel(
+    campaign_id: int,
+    request: TimeseriesPanelRenameRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    service.rename_timeseries_panel(campaign_id, request.old_name, request.new_name, db)
 
 
 @router.get(

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useId } from 'react';
 import {
   COLLECTION_PRESETS,
   KNOWN_RESCALE,
@@ -8,6 +8,7 @@ import {
   getRasterAssets,
   isPreRenderedRGB,
   guessRescale,
+  presetVizParams,
 } from './collectionPresets';
 import type { BandPreset, AssetInfo, Channel } from './collectionPresets';
 import type { VizParams } from './types';
@@ -118,7 +119,25 @@ export const VizConfigPanel = ({
   compositingMethods,
 }: VizConfigPanelProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [isRgbAsset, setIsRgbAsset] = useState(false);
+  const id = useId();
+  const [setupMode, setSetupMode] = useState<'preset' | 'custom' | undefined>(() => {
+    if (!vizParams.assets.length && !vizParams.expression) return undefined;
+    const matchesPreset = (COLLECTION_PRESETS[collectionId] ?? []).some(
+      (preset) =>
+        JSON.stringify(preset.assets) === JSON.stringify(vizParams.assets) &&
+        JSON.stringify(preset.bidx ?? null) === JSON.stringify(vizParams.bidx ?? null) &&
+        (preset.expression ?? '') === (vizParams.expression ?? '') &&
+        (preset.extraParams?.asset_bidx ?? '') === (vizParams.extraParams?.asset_bidx ?? '')
+    );
+    return matchesPreset ? 'preset' : 'custom';
+  });
+  const [pendingMapping, setPendingMapping] = useState<{
+    channels: (Channel | undefined)[];
+    assets: string[];
+    bidx?: number[];
+    mode: 'single' | 'rgb';
+  }>();
+  const [singleBandMode, setSingleBandMode] = useState<'direct' | 'calculated'>();
   /** 'manual' = explicit min,max from preset or user; 'none' = no rescale, raw values served as-is */
   const [rescaleMode, setRescaleMode] = useState<'manual' | 'none'>(() => {
     if (vizParams.colorFormula && !vizParams.rescale) return 'none';
@@ -127,30 +146,53 @@ export const VizConfigPanel = ({
 
   const rasterAssets = getRasterAssets(availableAssets);
 
-  // Up to 3 output channels, each a band of some asset: a single-band asset is picked
-  // directly, a multiband one opens its band list. A multiband asset saved without bidx
-  // (e.g. a pre-rendered `visual` preset) renders whole and is shown as such.
-  const isMultiband = (key: string) => (availableAssets[key]?.bands?.length ?? 0) > 1;
-  const wholeAsset =
-    !vizParams.bidx?.length && vizParams.assets.length === 1 && isMultiband(vizParams.assets[0])
-      ? vizParams.assets[0]
-      : undefined;
-  const channels = wholeAsset
-    ? []
-    : decodeChannels(vizParams.assets, vizParams.bidx, availableAssets);
-  const [openAsset, setOpenAsset] = useState(
-    () => wholeAsset ?? channels.find((c) => isMultiband(c.asset))?.asset
+  const channelAssets: Record<string, AssetInfo> = Object.fromEntries(
+    rasterAssets.map(([key, info]) => [
+      key,
+      !info.bands?.length && isPreRenderedRGB(key, info.roles)
+        ? { ...info, bands: ['Red', 'Green', 'Blue'].map((name) => ({ name })) }
+        : info,
+    ])
   );
-  const bandChoices = openAsset
-    ? (availableAssets[openAsset]?.bands ?? [])
-        .map((b, i) => ({ name: b.name, band: i + 1 }))
-        // Alpha is a transparency mask, not a display band - exclude it from the picker.
-        .filter((b) => b.name.toLowerCase() !== 'alpha')
-    : [];
-  const channelName = ({ asset, band }: Channel) =>
-    isMultiband(asset) ? `${asset}/${availableAssets[asset].bands![band - 1].name}` : asset;
-  // How many output bands are selected (drives RGB-vs-single-band / colormap logic).
-  const selCount = wholeAsset ? 1 : channels.length;
+  const legacyAssetBands = vizParams.extraParams?.asset_bidx?.split('|');
+  const selectedBands =
+    vizParams.bidx ??
+    (legacyAssetBands && legacyAssetBands[0] === vizParams.assets[0]
+      ? legacyAssetBands[1]?.split(',').map(Number)
+      : undefined);
+  const wholeRgbAsset =
+    !selectedBands?.length &&
+    vizParams.assets.length === 1 &&
+    (isPreRenderedRGB(vizParams.assets[0], availableAssets[vizParams.assets[0]]?.roles) ||
+      availableAssets[vizParams.assets[0]]?.bands?.length === 3);
+  const decodedChannels = wholeRgbAsset
+    ? [1, 2, 3].map((band) => ({ asset: vizParams.assets[0], band }))
+    : decodeChannels(vizParams.assets, selectedBands, channelAssets);
+  const activeMapping =
+    !vizParams.expression &&
+    pendingMapping &&
+    JSON.stringify(pendingMapping.assets) === JSON.stringify(vizParams.assets) &&
+    JSON.stringify(pendingMapping.bidx) === JSON.stringify(vizParams.bidx)
+      ? pendingMapping
+      : undefined;
+  const channels = activeMapping?.channels ?? decodedChannels;
+  const expressionBands = vizParams.expression
+    ? vizParams.expression.split(',').filter((term) => term.trim()).length
+    : 0;
+  const activeRenderMode =
+    singleBandMode === 'calculated'
+      ? 'single'
+      : expressionBands
+        ? expressionBands === 1
+          ? 'single'
+          : 'rgb'
+        : (activeMapping?.mode ??
+          (selectedBands?.length === 3 || decodedChannels.length === 3
+            ? 'rgb'
+            : vizParams.assets.length
+              ? 'single'
+              : undefined));
+  const isCalculation = !!vizParams.expression || singleBandMode === 'calculated';
 
   // Best-NDVI needs red/NIR bands to rank pixels by, so it is only meaningful on the
   // collections we know carry them.
@@ -184,108 +226,150 @@ export const VizConfigPanel = ({
     [vizParams.colorFormula]
   );
 
-  const channelIndex = (asset: string, band: number) =>
-    channels.findIndex((c) => c.asset === asset && c.band === band);
-
-  const toggleChannel = (channel: Channel) => {
-    const pos = channelIndex(channel.asset, channel.band);
-    let next = channels;
-    if (pos >= 0) next = channels.filter((_, i) => i !== pos);
-    else if (channels.length < 3) next = [...channels, channel];
-    const { assets, bidx } = encodeChannels(next, availableAssets);
-    onChange({ ...vizParams, assets, bidx, assetAsBand: !bidx && assets.length === 3 });
+  const writeChannels = (next: (Channel | undefined)[], mode: 'single' | 'rgb') => {
+    const wasCalculated = !!vizParams.expression || singleBandMode === 'calculated';
+    const complete = next.every((channel) => !!channel);
+    const { assets, bidx } = encodeChannels(
+      complete ? next.filter((channel): channel is Channel => !!channel) : [],
+      channelAssets
+    );
+    setPendingMapping({ channels: next, assets, bidx, mode });
+    const extraParams = { ...vizParams.extraParams };
+    delete extraParams.asset_bidx;
+    onChange({
+      ...vizParams,
+      assets,
+      bidx,
+      assetAsBand: !bidx && assets.length === 3,
+      expression: undefined,
+      rescale: wasCalculated ? (defaultRescale ?? '') : vizParams.rescale,
+      colorFormula: wasCalculated ? undefined : vizParams.colorFormula,
+      colormapName: mode === 'single' ? vizParams.colormapName : undefined,
+      extraParams: Object.keys(extraParams).length ? extraParams : undefined,
+    });
+    if (wasCalculated) setRescaleMode(defaultRescale ? 'manual' : 'none');
   };
 
-  const clickAsset = (key: string) => {
-    if (isMultiband(key)) setOpenAsset(openAsset === key ? undefined : key);
-    else toggleChannel({ asset: key, band: 1 });
+  const changeRenderMode = (mode: 'single' | 'rgb') => {
+    setSingleBandMode('direct');
+    const next = Array.from({ length: mode === 'rgb' ? 3 : 1 }, (_, i) =>
+      vizParams.expression ? undefined : channels[i]
+    );
+    writeChannels(next, mode);
+  };
+
+  const writeCalculation = (assets: string[]) => {
+    if (activeRenderMode === 'single') setSingleBandMode('calculated');
+    const assetAsBand = assets.every(
+      (asset) => Math.max(channelAssets[asset]?.bands?.length ?? 0, 1) === 1
+    );
+    let nextExpression = vizParams.expression;
+    if (assetAsBand !== vizParams.assetAsBand && nextExpression) {
+      const replacements = new Map(
+        rasterAssets
+          .filter(([, info]) => (info.bands?.length ?? 1) <= 1)
+          .map(([asset]) => [
+            vizParams.assetAsBand ? asset : `${asset}_b1`,
+            assetAsBand ? asset : `${asset}_b1`,
+          ])
+      );
+      if (replacements.size) {
+        const names = [...replacements.keys()].map((name) =>
+          name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        );
+        nextExpression = nextExpression.replace(
+          new RegExp(`\\b(${names.join('|')})\\b`, 'g'),
+          (name) => replacements.get(name)!
+        );
+      }
+    }
+    const extraParams = { ...vizParams.extraParams };
+    delete extraParams.asset_bidx;
+    setPendingMapping(undefined);
+    onChange({
+      ...vizParams,
+      assets,
+      expression: nextExpression || undefined,
+      assetAsBand,
+      bidx: undefined,
+      extraParams: Object.keys(extraParams).length ? extraParams : undefined,
+    });
+  };
+
+  const changeSingleBandMode = (mode: 'direct' | 'calculated') => {
+    setSingleBandMode(mode);
+    if (mode === 'direct') changeRenderMode('single');
+    else writeCalculation(vizParams.assets);
+  };
+
+  const changeChannel = (index: number, channel: Channel | undefined) => {
+    const mode = activeRenderMode ?? 'single';
+    const next = Array.from({ length: mode === 'rgb' ? 3 : 1 }, (_, i) => channels[i]);
+    next[index] = channel;
+    writeChannels(next, mode);
   };
 
   const applyPreset = (preset: BandPreset) => {
-    const updates: Partial<VizParams> = {
-      assets: preset.assets,
-      // bidx presets pick bands within one asset; asset_as_band doesn't apply there.
-      assetAsBand: preset.bidx ? false : preset.assets.length === 3 || !!preset.expression,
-      bidx: preset.bidx,
-    };
-    if (preset.colormap) updates.colormapName = preset.colormap;
-    if (preset.rescale) {
-      updates.rescale = preset.rescale;
-      setRescaleMode('manual');
-    } else if (preset.colorFormula) {
-      // Color formula handles tone mapping - no rescale needed
-      updates.rescale = '';
-      setRescaleMode('none');
-    } else if (knownRescale) {
-      updates.rescale = knownRescale;
-      setRescaleMode('manual');
-    }
-    if (preset.expression) updates.expression = preset.expression;
-    if (preset.colorFormula) {
-      updates.colorFormula = preset.colorFormula;
-    } else {
-      updates.colorFormula = undefined;
-    }
-    updates.nodata = preset.nodata;
-    if (preset.extraParams) updates.extraParams = { ...preset.extraParams };
+    const params = presetVizParams(preset, collectionId, vizParams);
+    setRescaleMode(params.rescale ? 'manual' : 'none');
 
-    if (
-      preset.assets.length === 1 &&
-      isPreRenderedRGB(preset.assets[0], availableAssets[preset.assets[0]]?.roles)
-    ) {
-      setIsRgbAsset(true);
-    } else {
-      setIsRgbAsset(false);
-    }
-
-    onChange({ ...vizParams, ...updates });
+    setPendingMapping(undefined);
+    setSingleBandMode(undefined);
+    onChange(params);
   };
 
-  const bandLabel = (i: number) => {
-    if (vizParams.expression) return '';
-    if (selCount === 1) return 'S';
-    return ['R', 'G', 'B'][i] || '';
-  };
-
-  const bandColorClass = (i: number) => {
-    // Expression mode: the selected assets are the expression's inputs, not RGB.
-    if (vizParams.expression) return 'bg-brand-50 border-brand-400 text-brand-700';
-    if (selCount === 1) return 'bg-purple-100 border-purple-400 text-purple-800';
-    return (
-      [
-        'bg-red-100 border-red-400 text-red-800',
-        'bg-green-100 border-green-400 text-green-800',
-        'bg-blue-100 border-blue-400 text-blue-800',
-      ][i] || ''
-    );
-  };
-
-  // A colormap only applies to single-band output. An expression is a
-  // comma-separated list of band expressions (one output band per term), so it
-  // qualifies only when it has a single term (e.g. NDVI). Otherwise it's the
-  // single-selected-asset case.
-  const expressionBands = vizParams.expression
-    ? vizParams.expression.split(',').filter((t) => t.trim()).length
-    : 0;
-  const showColormap =
-    !isRgbAsset && (expressionBands === 1 || (expressionBands === 0 && selCount === 1));
+  const showColormap = activeRenderMode === 'single';
 
   return (
     <div className="space-y-4">
-      {/* Quick presets */}
-      {validPresets.length > 0 && (
+      <fieldset className="space-y-1.5">
+        <legend className="text-xs text-neutral-700 font-medium">
+          1. Start with a preset or customize
+        </legend>
+        <p className="text-[11px] text-neutral-500">
+          Presets fill in rendering and bands for you. Custom lets you map them yourself.
+        </p>
+        <div className="flex gap-2">
+          {(['preset', 'custom'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={setupMode === mode}
+              disabled={mode === 'preset' && !validPresets.length}
+              onClick={() => setSetupMode(mode)}
+              className={`flex-1 text-xs px-3 py-2 rounded-md border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                setupMode === mode
+                  ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
+                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+              }`}
+            >
+              {mode === 'preset' ? 'Use a preset' : 'Custom'}
+            </button>
+          ))}
+        </div>
+        {!validPresets.length && (
+          <p className="text-[11px] text-neutral-500">
+            No presets are available for these assets. Choose Custom to configure the display.
+          </p>
+        )}
+      </fieldset>
+
+      {setupMode === 'preset' && (
         <div className="space-y-1.5">
-          <label className="text-xs text-neutral-700 font-medium">Quick Presets</label>
+          <p className="text-xs text-neutral-700 font-medium">Choose a preset</p>
           <div className="flex flex-wrap gap-1.5">
             {validPresets.map((p, i) => {
               const isActive =
                 p.assets.length === vizParams.assets.length &&
                 p.assets.every((a, j) => a === vizParams.assets[j]) &&
-                JSON.stringify(p.bidx ?? null) === JSON.stringify(vizParams.bidx ?? null);
+                JSON.stringify(p.bidx ?? null) === JSON.stringify(vizParams.bidx ?? null) &&
+                (p.expression ?? '') === (vizParams.expression ?? '') &&
+                (p.extraParams?.asset_bidx ?? '') === (vizParams.extraParams?.asset_bidx ?? '');
               return (
                 <button
                   key={i}
                   type="button"
+                  aria-pressed={isActive}
                   onClick={() => applyPreset(p)}
                   className={`text-xs px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
                     isActive
@@ -301,132 +385,407 @@ export const VizConfigPanel = ({
         </div>
       )}
 
-      {/* Channel picker; without STAC metadata it falls back to a text input (e.g. editing
-          a saved collection without re-fetching). */}
-      {rasterAssets.length > 0 ? (
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <label className="text-xs text-neutral-700 font-medium">
-              Bands{' '}
-              <span className="font-normal text-neutral-500">
-                Select 1 (colorized) or 3 (RGB); open a multiband asset to pick its bands
-              </span>
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {rasterAssets.map(([key, info]) => {
-                const multiband = isMultiband(key);
-                const positions = channels.flatMap((c, i) => (c.asset === key ? [i] : []));
-                const used = positions.length > 0 || wholeAsset === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => clickAsset(key)}
-                    aria-expanded={multiband ? openAsset === key : undefined}
-                    title={info.title || key}
-                    className={`relative text-xs px-2 py-1 rounded border transition-colors cursor-pointer ${
-                      !used
-                        ? 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                        : multiband
-                          ? 'border-brand-600 bg-brand-50 text-brand-700'
-                          : bandColorClass(positions[0])
-                    } ${openAsset === key ? 'ring-1 ring-brand-400' : ''}`}
-                  >
-                    {positions.length > 0 && (
-                      <span className="absolute -top-1.5 -left-1 text-[9px] font-bold leading-none">
-                        {positions.map(bandLabel).join('')}
-                      </span>
-                    )}
-                    {info.title || key}
-                    {multiband && (
-                      <span className="ml-1 text-neutral-500">
-                        {info.bands!.length} bands {openAsset === key ? '-' : '+'}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+      {setupMode && (setupMode === 'custom' || vizParams.assets.length > 0) && (
+        <>
+          <fieldset className="space-y-1.5">
+            <legend className="text-xs text-neutral-700 font-medium">
+              2. How should this visualization be displayed?
+            </legend>
+            <div className="grid grid-cols-2 gap-2">
+              {(['single', 'rgb'] as const).map((mode) => (
+                <label
+                  key={mode}
+                  className={`text-xs p-2.5 rounded-md border cursor-pointer ${
+                    activeRenderMode === mode
+                      ? 'border-brand-600 bg-brand-50 text-brand-700'
+                      : 'border-neutral-200 text-neutral-600'
+                  }`}
+                >
+                  <span className="flex items-center gap-2 font-medium">
+                    <input
+                      type="radio"
+                      name={`${id}-render-mode`}
+                      checked={activeRenderMode === mode}
+                      onChange={() => changeRenderMode(mode)}
+                    />
+                    {mode === 'single' ? 'Single band' : 'RGB'}
+                  </span>
+                  <span className="block mt-1 text-[11px]">
+                    {mode === 'single'
+                      ? 'One value, shown in grayscale or with a color scale.'
+                      : 'Three bands mapped to red, green, and blue.'}
+                  </span>
+                </label>
+              ))}
             </div>
-          </div>
-          {openAsset && bandChoices.length > 0 && (
-            <div className="space-y-1.5 pl-2 border-l-2 border-brand-200">
-              <label className="text-xs text-neutral-700 font-medium">Bands of {openAsset}</label>
-              <div className="flex flex-wrap gap-1.5">
-                {bandChoices.map(({ name, band }) => {
-                  const pos = channelIndex(openAsset, band);
-                  return (
-                    <button
-                      key={band}
-                      type="button"
-                      onClick={() => toggleChannel({ asset: openAsset, band })}
-                      title={`band ${band}: ${name}`}
-                      className={`relative text-xs px-2 py-1 rounded border transition-colors cursor-pointer ${
-                        pos >= 0
-                          ? bandColorClass(pos)
-                          : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+          </fieldset>
+
+          {activeRenderMode && (
+            <fieldset className="space-y-3">
+              <legend className="text-xs text-neutral-700 font-medium mb-1.5">
+                {activeRenderMode === 'single'
+                  ? '3. Choose the single-band source'
+                  : '3. Map assets and bands to rendering channels'}
+              </legend>
+              {activeRenderMode === 'single' && (
+                <div className="grid grid-cols-2 gap-2">
+                  {(['direct', 'calculated'] as const).map((mode) => (
+                    <label
+                      key={mode}
+                      className={`text-xs p-2.5 rounded-md border cursor-pointer ${
+                        isCalculation === (mode === 'calculated')
+                          ? 'border-brand-600 bg-brand-50 text-brand-700'
+                          : 'border-neutral-200 text-neutral-600'
                       }`}
                     >
-                      {pos >= 0 && (
-                        <span className="absolute -top-1.5 -left-1 text-[9px] font-bold leading-none">
-                          {bandLabel(pos)}
-                        </span>
-                      )}
-                      {name}
+                      <span className="flex items-center gap-2 font-medium">
+                        <input
+                          type="radio"
+                          name={`${id}-single-band-mode`}
+                          checked={isCalculation === (mode === 'calculated')}
+                          onChange={() => changeSingleBandMode(mode)}
+                        />
+                        {mode === 'direct' ? 'Use an existing band' : 'Calculate a band'}
+                      </span>
+                      <span className="block mt-1 text-[11px]">
+                        {mode === 'direct'
+                          ? 'Display one band from an imagery asset.'
+                          : 'Combine input bands with a formula, such as NDVI.'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {isCalculation ? (
+                <div className="rounded-md border border-brand-200 bg-brand-50 p-3 space-y-1">
+                  <p className="text-xs text-neutral-700">
+                    Choose the input assets, then combine their bands in a formula. The result is
+                    displayed{' '}
+                    {activeRenderMode === 'single'
+                      ? 'as one band with the color scale below'
+                      : 'in RGB'}
+                    .
+                  </p>
+                  {rasterAssets.length ? (
+                    <fieldset className="space-y-2 pt-2">
+                      <legend className="text-xs font-medium text-neutral-700">Input assets</legend>
+                      {rasterAssets.map(([asset, info]) => (
+                        <label
+                          key={asset}
+                          className="flex items-center gap-2 text-xs text-neutral-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={vizParams.assets.includes(asset)}
+                            onChange={(e) =>
+                              writeCalculation(
+                                e.target.checked
+                                  ? [...vizParams.assets, asset]
+                                  : vizParams.assets.filter((key) => key !== asset)
+                              )
+                            }
+                          />
+                          {info.title ? `${info.title} (${asset})` : asset}
+                        </label>
+                      ))}
+                    </fieldset>
+                  ) : (
+                    <div className="space-y-1 pt-2">
+                      <label
+                        htmlFor={`${id}-calculation-assets`}
+                        className="text-xs text-neutral-700"
+                      >
+                        Input assets
+                      </label>
+                      <Input
+                        id={`${id}-calculation-assets`}
+                        size="sm"
+                        value={vizParams.assets.join(', ')}
+                        onChange={(e) => {
+                          setPendingMapping(undefined);
+                          onChange({
+                            ...vizParams,
+                            assets: e.target.value
+                              .split(',')
+                              .map((asset) => asset.trim())
+                              .filter(Boolean),
+                          });
+                        }}
+                        placeholder="e.g. B08, B04"
+                      />
+                      <p className="text-[11px] text-neutral-500">
+                        Asset metadata is unavailable. Existing calculation settings are preserved.
+                      </p>
+                    </div>
+                  )}
+                  <div className="space-y-1 pt-2">
+                    <p className="text-xs font-medium text-neutral-700">Input bands</p>
+                    <p className="text-[11px] text-neutral-500">
+                      Click a band reference to append it to the formula, or type it directly.
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {vizParams.assets.flatMap((asset) => {
+                        const metadataBands = channelAssets[asset]?.bands;
+                        const bands = metadataBands?.length
+                          ? metadataBands
+                          : [{ name: 'Single band' }];
+                        return bands.flatMap((band, i) => {
+                          if (band.name.toLowerCase() === 'alpha') return [];
+                          const reference = vizParams.assetAsBand ? asset : `${asset}_b${i + 1}`;
+                          return (
+                            <button
+                              key={`${asset}-${i}`}
+                              type="button"
+                              onClick={() =>
+                                update('expression', `${vizParams.expression ?? ''}${reference}`)
+                              }
+                              title={`${asset}, band ${i + 1}: ${band.name}`}
+                              aria-label={`Insert ${reference} into formula`}
+                              className="text-xs font-mono px-2 py-1 rounded border border-brand-200 bg-white text-brand-700 cursor-pointer"
+                            >
+                              {reference}
+                              {bands.length > 1 ? ` (${band.name})` : ''}
+                            </button>
+                          );
+                        });
+                      })}
+                    </div>
+                  </div>
+                  <label
+                    htmlFor={`${id}-expression`}
+                    className="block pt-2 text-xs font-medium text-neutral-700"
+                  >
+                    Band formula
+                  </label>
+                  <Input
+                    id={`${id}-expression`}
+                    size="sm"
+                    type="text"
+                    value={vizParams.expression ?? ''}
+                    onChange={(e) => {
+                      if (activeRenderMode === 'single') setSingleBandMode('calculated');
+                      update('expression', e.target.value || undefined);
+                    }}
+                    placeholder="e.g. (B08-B04)/(B08+B04)"
+                    className="font-mono"
+                  />
+                  <p className="text-[11px] text-neutral-500">
+                    Use +, -, *, / and parentheses to combine the input bands.
+                    {activeRenderMode === 'single' &&
+                      ' Enter one formula for the single output band.'}
+                  </p>
+                  {(!vizParams.assets.length || !vizParams.expression?.trim()) && (
+                    <p className="text-[11px] text-amber-700">
+                      Choose input assets and enter a formula to calculate the band.
+                    </p>
+                  )}
+                  {activeRenderMode === 'single' && (
+                    <div className="space-y-1 pt-2">
+                      <label
+                        htmlFor={`${id}-calculation-range`}
+                        className="text-xs font-medium text-neutral-700"
+                      >
+                        Display range (min, max)
+                      </label>
+                      <Input
+                        id={`${id}-calculation-range`}
+                        size="sm"
+                        value={vizParams.rescale}
+                        onChange={(e) => {
+                          setRescaleMode(e.target.value ? 'manual' : 'none');
+                          update('rescale', e.target.value);
+                        }}
+                        placeholder="min,max"
+                      />
+                      <p className="text-[11px] text-neutral-500">
+                        Set the calculated values mapped to the ends of the color scale.
+                      </p>
+                    </div>
+                  )}
+                  {activeRenderMode === 'rgb' && (
+                    <button
+                      type="button"
+                      onClick={() => changeRenderMode('rgb')}
+                      className="text-xs text-brand-700 underline cursor-pointer"
+                    >
+                      Use direct band mapping instead
                     </button>
-                  );
-                })}
-              </div>
+                  )}
+                </div>
+              ) : rasterAssets.length > 0 ? (
+                <>
+                  <p className="text-[11px] text-neutral-500">
+                    Choose an asset (imagery file) for each channel, then a band if that asset
+                    contains multiple bands. The same asset can supply several channels.
+                  </p>
+                  {(activeRenderMode === 'rgb'
+                    ? ['Red (R)', 'Green (G)', 'Blue (B)']
+                    : ['Single band']
+                  ).map((label, index) => {
+                    const channel = channels[index];
+                    const info = channel ? channelAssets[channel.asset] : undefined;
+                    const bands = info?.bands ?? [];
+                    return (
+                      <div
+                        key={label}
+                        className="rounded-md border border-neutral-200 p-2.5 space-y-2"
+                      >
+                        <p className="text-xs font-medium text-neutral-700">{label}</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label
+                              htmlFor={`${id}-asset-${index}`}
+                              className="text-xs text-neutral-600"
+                            >
+                              Asset
+                            </label>
+                            <Select
+                              id={`${id}-asset-${index}`}
+                              aria-label={`${label} asset`}
+                              size="sm"
+                              value={channel?.asset ?? ''}
+                              onChange={(e) => {
+                                const asset = e.target.value;
+                                const firstBand = channelAssets[asset]?.bands?.findIndex(
+                                  (band) => band.name.toLowerCase() !== 'alpha'
+                                );
+                                changeChannel(
+                                  index,
+                                  asset
+                                    ? {
+                                        asset,
+                                        band:
+                                          firstBand !== undefined && firstBand >= 0
+                                            ? firstBand + 1
+                                            : 1,
+                                      }
+                                    : undefined
+                                );
+                              }}
+                            >
+                              <option value="">Choose an asset</option>
+                              {rasterAssets.map(([key, asset]) => (
+                                <option key={key} value={key}>
+                                  {asset.title ? `${asset.title} (${key})` : key}
+                                </option>
+                              ))}
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <label
+                              htmlFor={`${id}-band-${index}`}
+                              className="text-xs text-neutral-600"
+                            >
+                              Band
+                            </label>
+                            <Select
+                              id={`${id}-band-${index}`}
+                              aria-label={`${label} band`}
+                              size="sm"
+                              disabled={!channel || bands.length < 2}
+                              value={channel?.band ?? ''}
+                              onChange={(e) => {
+                                if (channel)
+                                  changeChannel(index, {
+                                    ...channel,
+                                    band: Number(e.target.value),
+                                  });
+                              }}
+                            >
+                              {!channel ? (
+                                <option value="">Choose an asset first</option>
+                              ) : bands.length ? (
+                                bands.map(
+                                  (band, i) =>
+                                    band.name.toLowerCase() !== 'alpha' && (
+                                      <option key={i} value={i + 1}>
+                                        {i + 1}: {band.name}
+                                        {band.description ? ` - ${band.description}` : ''}
+                                      </option>
+                                    )
+                                )
+                              ) : (
+                                <option value={1}>1: Single band</option>
+                              )}
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {Array.from(
+                    { length: activeRenderMode === 'rgb' ? 3 : 1 },
+                    (_, i) => channels[i]
+                  ).some((channel) => !channel) && (
+                    <p className="text-[11px] text-amber-700">
+                      {activeRenderMode === 'rgb'
+                        ? 'Choose an asset and band for all three RGB channels.'
+                        : 'Choose the asset and band to display.'}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-[11px] text-neutral-500">
+                    Asset metadata is unavailable. Enter asset keys in rendering order:
+                    {activeRenderMode === 'rgb' ? ' red, green, blue.' : ' one single-band asset.'}
+                    Existing band indexes are preserved in Advanced Options.
+                  </p>
+                  <label htmlFor={`${id}-assets`} className="text-xs text-neutral-700 font-medium">
+                    Assets
+                  </label>
+                  <Input
+                    id={`${id}-assets`}
+                    size="sm"
+                    type="text"
+                    value={vizParams.assets.join(', ')}
+                    onChange={(e) => {
+                      setPendingMapping(undefined);
+                      const assets = e.target.value
+                        .split(',')
+                        .map((asset) => asset.trim())
+                        .filter(Boolean);
+                      onChange({
+                        ...vizParams,
+                        assets,
+                        assetAsBand: !vizParams.bidx?.length && assets.length === 3,
+                      });
+                    }}
+                    placeholder={
+                      activeRenderMode === 'rgb' ? 'e.g. B04, B03, B02' : 'e.g. elevation'
+                    }
+                    className="font-mono"
+                  />
+                </div>
+              )}
+            </fieldset>
+          )}
+
+          {showColormap && (
+            <div className="space-y-1">
+              <label htmlFor={`${id}-colormap`} className="text-xs text-neutral-700 font-medium">
+                Color scale
+              </label>
+              <Select
+                id={`${id}-colormap`}
+                size="sm"
+                value={vizParams.colormapName || ''}
+                onChange={(e) => update('colormapName', e.target.value || undefined)}
+              >
+                <option value="">Grayscale (no color scale)</option>
+                {COLORMAPS.map((cm) => (
+                  <option key={cm.value} value={cm.value}>
+                    {cm.label}
+                  </option>
+                ))}
+              </Select>
             </div>
           )}
-          <div className="text-[11px] text-neutral-500">
-            {vizParams.expression ? (
-              <>Expression inputs (colorized by the expression below)</>
-            ) : wholeAsset ? (
-              isRgbAsset ? (
-                `Pre-rendered RGB: ${wholeAsset}`
-              ) : (
-                `All bands of ${wholeAsset}`
-              )
-            ) : (
-              <>
-                {channels.length === 0 && 'No bands selected'}
-                {channels.length === 1 && `Single band: ${channelName(channels[0])} (colorized)`}
-                {channels.length === 2 && 'Select a 3rd band for RGB, or remove one'}
-                {channels.length === 3 && (
-                  <>
-                    RGB: <span className="text-red-600">{channelName(channels[0])}</span> /{' '}
-                    <span className="text-green-600">{channelName(channels[1])}</span> /{' '}
-                    <span className="text-blue-600">{channelName(channels[2])}</span>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-1">
-          <label className="text-xs text-neutral-700 font-medium">Assets</label>
-          <Input
-            size="sm"
-            type="text"
-            value={vizParams.assets.join(', ')}
-            onChange={(e) =>
-              onChange({
-                ...vizParams,
-                assets: e.target.value
-                  .split(',')
-                  .map((a) => a.trim())
-                  .filter(Boolean),
-              })
-            }
-            placeholder="e.g. B04, B03, B02"
-            className="font-mono"
-          />
-        </div>
+        </>
       )}
 
       {/* Compositing (mosaic mode only) */}
-      {showCompositing && (
+      {setupMode && activeRenderMode && showCompositing && (
         <div className="space-y-1">
           <label className="text-xs text-neutral-700 font-medium">Compositing Method</label>
           <Select
@@ -457,7 +816,10 @@ export const VizConfigPanel = ({
       )}
 
       {/* Advanced */}
-      <div className="rounded-md border border-neutral-200">
+      <div
+        hidden={!setupMode || !activeRenderMode}
+        className="rounded-md border border-neutral-200"
+      >
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
@@ -473,39 +835,34 @@ export const VizConfigPanel = ({
 
         {showAdvanced && (
           <div className="px-3 pb-3 space-y-3 border-t border-neutral-100">
-            {showColormap && (
+            {!rasterAssets.length && vizParams.bidx?.length && (
+              <p className="text-[11px] text-neutral-500 pt-2">
+                Saved band indexes: {vizParams.bidx.join(', ')}. Asset metadata is needed to change
+                the band mapping.
+              </p>
+            )}
+            {activeRenderMode === 'rgb' && !isCalculation && (
               <div className="space-y-1 pt-2">
-                <label className="text-xs text-neutral-700">Colormap</label>
-                <Select
+                <label htmlFor={`${id}-rgb-expression`} className="text-xs text-neutral-700">
+                  Band Expression
+                </label>
+                <Input
+                  id={`${id}-rgb-expression`}
                   size="sm"
-                  value={vizParams.colormapName || 'viridis'}
-                  onChange={(e) => update('colormapName', e.target.value)}
-                >
-                  {COLORMAPS.map((cm) => (
-                    <option key={cm.value} value={cm.value}>
-                      {cm.label}
-                    </option>
-                  ))}
-                </Select>
+                  type="text"
+                  value={vizParams.expression || ''}
+                  onChange={(e) => update('expression', e.target.value || undefined)}
+                  placeholder="Comma-separated formulas for red, green, blue"
+                  className="font-mono"
+                />
+                <p className="text-[11px] text-neutral-400">
+                  Math on asset bands. Overrides band selection for rendering.
+                </p>
               </div>
             )}
-            <div className="space-y-1 pt-2">
-              <label className="text-xs text-neutral-700">Band Expression</label>
-              <Input
-                size="sm"
-                type="text"
-                value={vizParams.expression || ''}
-                onChange={(e) => update('expression', e.target.value || undefined)}
-                placeholder="e.g. (B08-B04)/(B08+B04)"
-                className="font-mono"
-              />
-              <p className="text-[11px] text-neutral-400">
-                Math on asset bands. Overrides band selection for rendering.
-              </p>
-            </div>
 
             {/* Rescale */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 pt-3">
               <label className="text-xs text-neutral-700 flex items-center gap-1">
                 Rescale
                 <InfoPopover>

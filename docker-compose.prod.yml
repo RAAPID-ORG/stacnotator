@@ -1,5 +1,5 @@
 # Production Docker Compose Configuration
-# Usage: docker-compose -f docker-compose.prod.yml up
+# Usage: docker compose -f docker-compose.prod.yml up
 
 services:
   # PostgreSQL Database with PostGIS + pgvector

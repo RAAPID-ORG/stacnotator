@@ -32,6 +32,7 @@ import {
   deleteTimeseriesMutation,
   getProjectUsersOptions,
   listProjectCampaignsQueryKey,
+  renameTimeseriesPanelMutation,
   updateCampaignNameMutation,
 } from '~/api/queries';
 import { useCampaign, useRefreshCampaign } from '../hooks/campaignQueries';
@@ -191,11 +192,28 @@ export const CampaignSettingsPage = () => {
     },
   });
 
+  const renamePanel = useMutation({
+    ...renameTimeseriesPanelMutation(),
+    meta: { errorMessage: 'Failed to rename timeseries panel' },
+    onSuccess: async () => {
+      await refreshCampaign();
+      showAlert('Panel renamed successfully', 'success');
+    },
+  });
+
+  const handleRenamePanel = async (oldName: string, newName: string) => {
+    await renamePanel.mutateAsync({
+      path: { campaign_id: campaignId },
+      body: { old_name: oldName, new_name: newName },
+    });
+  };
+
   const saving =
     renameCampaign.isPending ||
     removeCampaign.isPending ||
     removeTimeseries.isPending ||
-    addTimeseries.isPending;
+    addTimeseries.isPending ||
+    renamePanel.isPending;
 
   const handleSaveName = () => {
     if (!campaign || campaignName === campaign.name) return;
@@ -430,6 +448,7 @@ export const CampaignSettingsPage = () => {
                       setNewTimeseries={setNewTimeseries}
                       timeseries={timeseries}
                       handleAddTimeseries={handleAddTimeseries}
+                      handleRenamePanel={handleRenamePanel}
                       setDeleteConfirm={setDeleteConfirm}
                       saving={saving}
                       campaignName={campaignName}

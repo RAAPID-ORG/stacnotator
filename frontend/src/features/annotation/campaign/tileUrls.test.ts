@@ -11,7 +11,7 @@ import {
 } from '../testing/fixtures';
 import { buildImageryCatalog } from './imagery';
 import { isProxiedTileUrl, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
-import { sliceRaster } from './tileUrls';
+import { awaitingImageryRegistration, sliceLegend, sliceRaster } from './tileUrls';
 
 const source = makeSource({
   id: 1,
@@ -45,6 +45,85 @@ const source = makeSource({
     makeViz({ id: 1000, name: 'True Color' }),
     makeViz({ id: 1001, name: 'Needs Key' }),
   ],
+});
+
+describe('single-band legends', () => {
+  const address = { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' };
+  const catalogFor = (params: Record<string, unknown>, cover?: Record<string, unknown>) =>
+    buildImageryCatalog(
+      makeCampaign({
+        imagery_sources: [
+          {
+            ...source,
+            collections: [
+              {
+                ...source.collections[0],
+                has_dedicated_cover: !!cover,
+                stac_config: {
+                  viz_configs: [
+                    {
+                      id: 1,
+                      name: 'True Color',
+                      display_order: 0,
+                      render_params: params,
+                      cover_render_params: cover,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      })
+    );
+
+  it('uses the saved single-band formula and range, including cover-specific settings', () => {
+    const params = {
+      assets: ['B08', 'B04'],
+      expression: '(B08-B04)/(B08+B04)',
+      rescale: '-1,1',
+      colormap_name: 'rdylgn',
+    };
+    expect(sliceLegend(catalogFor(params), address)).toEqual({
+      name: 'True Color',
+      colormap: 'rdylgn',
+      range: [-1, 1],
+    });
+    expect(
+      sliceLegend(catalogFor(params, { ...params, rescale: '0,0.8' }), address)?.range
+    ).toEqual([0, 0.8]);
+    expect(
+      sliceLegend(catalogFor(params), address, { rescale: [-0.5, 1], colormap_name: 'magma' })
+    ).toEqual({ name: 'True Color', colormap: 'magma', range: [-0.5, 1] });
+  });
+
+  it('shows grayscale ranges for single-band assets or selected bands, not RGB', () => {
+    expect(
+      sliceLegend(catalogFor({ assets: ['data'], rescale: '0,4000' }), address)?.range
+    ).toEqual([0, 4000]);
+    expect(
+      sliceLegend(catalogFor({ assets: ['image'], bidx: [4], rescale: '0,255' }), address)
+    ).not.toBeNull();
+    for (const params of [
+      { assets: ['visual'] },
+      { assets: ['B08', 'B04', 'B03'], rescale: '0,10000' },
+      { assets: ['image'], bidx: [1, 2, 3], rescale: '0,255' },
+      { assets: ['image'], extra_params: { asset_bidx: 'image|1,2,3' }, rescale: '0,255' },
+      { expression: 'B08;B04;B03', rescale: '0,10000' },
+    ])
+      expect(sliceLegend(catalogFor(params), address)).toBeNull();
+  });
+
+  it('reads legacy tile parameters and does not invent bounds for automatic ranges', () => {
+    const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [structuredClone(source)] }));
+    cat.collections.get(10)!.slices[0].tile_urls[0] = makeTileUrl({
+      tile_url: 'https://tiles/{z}/{x}/{y}?assets=data&colormap_name=viridis&rescale=-2000,10000',
+    });
+    expect(sliceLegend(cat, address)?.range).toEqual([-2000, 10000]);
+    expect(
+      sliceLegend(catalogFor({ colormap_name: 'viridis', rescale: ',' }), address)?.range
+    ).toBeNull();
+  });
 });
 
 const campaign = makeCampaign({
@@ -100,6 +179,36 @@ describe('sliceRaster', () => {
   it('assembles a direct (unproxied) tile url for a keyless visualization', () => {
     const spec = sliceRaster(cat, { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' });
     expect(spec).toMatchObject({ url: 'https://tiler/1/{z}/{x}/{y}.png', auth: 'none' });
+  });
+
+  describe('awaitingImageryRegistration', () => {
+    const cat = buildImageryCatalog(campaign);
+    const address = { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' };
+
+    it('explains missing imagery only while registration is running', () => {
+      const pending = buildImageryCatalog(
+        makeCampaign({
+          imagery_sources: [
+            {
+              ...source,
+              collections: [makeCollection({ id: 10, slices: [makeSlice({ tile_urls: [] })] })],
+            },
+          ],
+        })
+      );
+      expect(awaitingImageryRegistration('registering', pending, address)).toBe(true);
+      expect(awaitingImageryRegistration('registering', pending, null)).toBe(true);
+      expect(awaitingImageryRegistration('ready', pending, address)).toBe(false);
+      expect(awaitingImageryRegistration('failed', pending, address)).toBe(false);
+      expect(awaitingImageryRegistration(undefined, pending, address)).toBe(false);
+    });
+
+    it('does not cover imagery that is already registered while other slices are pending', () => {
+      expect(awaitingImageryRegistration('registering', cat, address)).toBe(false);
+      expect(awaitingImageryRegistration('registering', cat, { ...address, vizId: '9999' })).toBe(
+        true
+      );
+    });
   });
 
   it('carries the source zoom cap so the map stops where the provider does', () => {
