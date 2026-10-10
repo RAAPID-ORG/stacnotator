@@ -1,6 +1,7 @@
 import { test, expect, waitForNavIdle } from './fixtures/annotator-fixture';
 import {
   MOCK_CAMPAIGN_MULTI_VIEW,
+  MOCK_CAMPAIGN,
   COLLECTION_S2,
   COLLECTION_NDVI,
   COLLECTION_VHR,
@@ -10,7 +11,39 @@ import {
 import { assertCrosshairAt } from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
+type Locator = import('@playwright/test').Locator;
 type ApiCapture = import('./fixtures/annotator-fixture').ApiCapture;
+
+async function mockVisibleImagery(page: Page): Promise<void> {
+  await page.route('**/tiles.example.com/**', (route) =>
+    route.fulfill({
+      contentType: 'image/png',
+      headers: { 'access-control-allow-origin': '*' },
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGUExURQD/AP///2+9WFEAAAABYktHRAH/Ai3eAAAAB3RJTUUH6ggNCC0kqyvu3gAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII=',
+        'base64'
+      ),
+    })
+  );
+}
+
+async function expectImageryPainted(panel: Locator): Promise<void> {
+  await expect
+    .poll(() =>
+      panel.locator('canvas').evaluateAll((canvases) =>
+        canvases.some((canvas) => {
+          if (!(canvas instanceof HTMLCanvasElement) || !canvas.width || !canvas.height) {
+            return false;
+          }
+          const pixel = canvas
+            .getContext('2d')
+            ?.getImageData(Math.floor(canvas.width / 4), Math.floor(canvas.height / 4), 1, 1).data;
+          return pixel?.[0] === 0 && pixel[1] === 255 && pixel[2] === 0 && pixel[3] === 255;
+        })
+      )
+    )
+    .toBe(true);
+}
 
 async function loadMultiView(page: Page, api: ApiCapture): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
@@ -40,6 +73,130 @@ const windowTitle = (page: Page, collectionId: number) =>
 
 const layerButton = (page: Page) => page.locator('[data-tour="layer-selector"] button');
 const collectionButton = (page: Page) => page.locator('[data-tour="collection-picker"] button');
+
+for (const readyAtCreation of [false, true]) {
+  test(`first-view maps paint imagery after saving without a reload (${readyAtCreation ? 'registered' : 'registering'})`, async ({
+    annotationPage: page,
+  }) => {
+    let ready = readyAtCreation;
+    let created = false;
+    const view = {
+      ...MOCK_CAMPAIGN.imagery_views[0],
+      default_canvas_layout: {
+        ...MOCK_CAMPAIGN.imagery_views[0].default_canvas_layout,
+        layout_data: MOCK_CAMPAIGN.imagery_views[0].default_canvas_layout.layout_data.filter(
+          (item) => item.i === String(COLLECTION_S2.id)
+        ),
+      },
+    };
+    const source = MOCK_CAMPAIGN.imagery_sources[0];
+    await page.route('**/api/campaigns/*/detailed', (route) =>
+      route.fulfill({
+        json: {
+          ...MOCK_CAMPAIGN,
+          viewer_is_admin: true,
+          registration_status: ready ? 'ready' : 'registering',
+          imagery_views: created ? [view] : [],
+          imagery_sources: [
+            {
+              ...source,
+              collections: [
+                {
+                  ...COLLECTION_S2,
+                  slices: COLLECTION_S2.slices.map((slice) => ({
+                    ...slice,
+                    tile_urls: ready ? slice.tile_urls : [],
+                  })),
+                },
+              ],
+            },
+          ],
+        },
+      })
+    );
+    await page.route('**/api/*/imagery/views', (route) => {
+      created = true;
+      return route.fulfill({ status: 201, json: view });
+    });
+    await page.route('**/api/*/new-layout', (route) => route.fulfill({ status: 201, json: {} }));
+    await mockVisibleImagery(page);
+
+    await page.reload();
+    if (!readyAtCreation) {
+      await page.getByRole('button', { name: 'Set up layout anyway' }).click();
+    }
+    await page.getByTestId('create-first-view').click();
+    const mainMap = page.locator('[data-panel-role="main-map"]');
+    const windowMap = windowPanel(page, COLLECTION_S2.id);
+    const mainNotice = mainMap.getByTestId('imagery-registration-notice');
+    const windowNotice = windowMap.getByTestId('imagery-registration-notice');
+    await expect(page.getByTestId('edit-placeholder-main')).toBeVisible();
+    await page.getByTestId('save-required-default').click();
+    await expect(page.getByTestId('edit-layout-trigger')).toBeVisible();
+    if (!readyAtCreation) {
+      await expect(mainNotice).toContainText('Imagery will appear automatically');
+      await expect(windowNotice).toBeVisible();
+      await expect(
+        windowPanel(page, COLLECTION_S2.id).getByText('No imagery', { exact: true })
+      ).toHaveCount(0);
+
+      ready = true;
+      await page.waitForResponse('**/api/campaigns/*/detailed');
+    }
+    await expect(mainNotice).toHaveCount(0);
+    await expect(windowNotice).toHaveCount(0);
+    await expect(layerButton(page)).toContainText('True Color');
+    await expectImageryPainted(mainMap);
+    await expectImageryPainted(windowMap);
+  });
+}
+
+test('a registration response started before first-view creation does not discard the new view', async ({
+  annotationPage: page,
+}) => {
+  let created = false;
+  let reads = 0;
+  let releaseRefresh = () => {};
+  let markRefreshStarted = () => {};
+  const heldRefresh = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const refreshStarted = new Promise<void>((resolve) => {
+    markRefreshStarted = resolve;
+  });
+  const view = MOCK_CAMPAIGN.imagery_views[0];
+  await page.route('**/api/campaigns/*/detailed', async (route) => {
+    const snapshot = {
+      ...MOCK_CAMPAIGN,
+      viewer_is_admin: true,
+      registration_status: reads === 0 ? 'registering' : 'ready',
+      imagery_views: created ? [view] : [],
+    };
+    if (++reads === 2) {
+      markRefreshStarted();
+      await heldRefresh;
+    }
+    await route.fulfill({ json: snapshot });
+  });
+  await page.route('**/api/*/imagery/views', (route) => {
+    created = true;
+    return route.fulfill({ status: 201, json: view });
+  });
+  await page.route('**/api/*/new-layout', (route) => route.fulfill({ status: 201, json: {} }));
+  await mockVisibleImagery(page);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Set up layout anyway' }).click();
+  await refreshStarted;
+  await page.getByTestId('create-first-view').click();
+  await page.getByTestId('save-required-default').click();
+  const staleResponse = page.waitForResponse('**/api/campaigns/*/detailed');
+  releaseRefresh();
+  await staleResponse;
+  await expect(page.getByTestId('edit-layout-trigger')).toBeVisible({ timeout: 1000 });
+  await expectImageryPainted(page.locator('[data-panel-role="main-map"]'));
+  await expectImageryPainted(windowPanel(page, COLLECTION_S2.id));
+});
 
 // ---------------------------------------------------------------------------
 // Initial view state

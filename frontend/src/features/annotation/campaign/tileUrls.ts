@@ -9,6 +9,18 @@ import { stampLegendOverride, type LegendOverride } from '~/shared/imagery/tileC
 import type { ImageryCatalog } from './imagery';
 import type { SliceAddress } from './imageryNav';
 
+export function awaitingImageryRegistration(
+  status: string | undefined,
+  cat: ImageryCatalog,
+  address: SliceAddress | null
+): boolean {
+  if (status !== 'registering') return false;
+  if (!address) return true;
+  const slice = cat.collections.get(address.collectionId)?.slices[address.sliceIndex];
+  const viz = cat.vizzes.get(Number(address.vizId));
+  return !slice?.tile_urls.some((entry) => entry.visualization_name === viz?.name);
+}
+
 export interface SliceRaster {
   id: string;
   url: string;

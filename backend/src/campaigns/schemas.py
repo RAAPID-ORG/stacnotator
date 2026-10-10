@@ -356,20 +356,8 @@ class CampaignOutFull(CampaignOut):
 
         return cls.model_validate(
             {
-                "id": obj.id,
-                "project_id": obj.project_id,
-                "name": obj.name,
-                "created_at": obj.created_at,
-                "mode": obj.mode,
-                "is_public": obj.is_public,
-                "annotations_version": obj.annotations_version,
-                "settings": obj.settings,
-                "time_series": obj.time_series,
-                "imagery_sources": obj.imagery_sources,
+                **CampaignOut.model_validate(obj).model_dump(),
                 "imagery_views": views_list,
-                "basemaps": obj.basemaps,
-                "custom_maps": obj.custom_maps,
-                "vector_layers": obj.vector_layers,
                 "default_main_canvas_layout": default_layout,
                 "personal_main_canvas_layout": personal_layout,
             }

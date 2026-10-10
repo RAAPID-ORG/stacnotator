@@ -11,7 +11,7 @@ import {
 } from '../testing/fixtures';
 import { buildImageryCatalog } from './imagery';
 import { isProxiedTileUrl, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
-import { sliceRaster } from './tileUrls';
+import { awaitingImageryRegistration, sliceRaster } from './tileUrls';
 
 const source = makeSource({
   id: 1,
@@ -100,6 +100,36 @@ describe('sliceRaster', () => {
   it('assembles a direct (unproxied) tile url for a keyless visualization', () => {
     const spec = sliceRaster(cat, { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' });
     expect(spec).toMatchObject({ url: 'https://tiler/1/{z}/{x}/{y}.png', auth: 'none' });
+  });
+
+  describe('awaitingImageryRegistration', () => {
+    const cat = buildImageryCatalog(campaign);
+    const address = { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' };
+
+    it('explains missing imagery only while registration is running', () => {
+      const pending = buildImageryCatalog(
+        makeCampaign({
+          imagery_sources: [
+            {
+              ...source,
+              collections: [makeCollection({ id: 10, slices: [makeSlice({ tile_urls: [] })] })],
+            },
+          ],
+        })
+      );
+      expect(awaitingImageryRegistration('registering', pending, address)).toBe(true);
+      expect(awaitingImageryRegistration('registering', pending, null)).toBe(true);
+      expect(awaitingImageryRegistration('ready', pending, address)).toBe(false);
+      expect(awaitingImageryRegistration('failed', pending, address)).toBe(false);
+      expect(awaitingImageryRegistration(undefined, pending, address)).toBe(false);
+    });
+
+    it('does not cover imagery that is already registered while other slices are pending', () => {
+      expect(awaitingImageryRegistration('registering', cat, address)).toBe(false);
+      expect(awaitingImageryRegistration('registering', cat, { ...address, vizId: '9999' })).toBe(
+        true
+      );
+    });
   });
 
   it('carries the source zoom cap so the map stops where the provider does', () => {

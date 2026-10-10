@@ -6,6 +6,7 @@ import { SliceCommentButton } from '../../chrome/SliceComments';
 import { useContainerSize } from '~/shared/hooks/useContainerSize';
 import { hotkeyTip } from '../../hotkeys';
 import { collectionsInView } from '../../campaign/imagery';
+import { awaitingImageryRegistration } from '../../campaign/tileUrls';
 import { computeTaskProgress } from '../../campaign/tasks';
 import { handleProbeClick, useDrawingInteractions, useEditDrawnId } from '../../drawing';
 import { geometryTopRight, missingRequiredFields } from '../../campaign/annotation';
@@ -15,6 +16,7 @@ import { annotationsVisibleAt, composeLayers, type ComposeState } from '../../ma
 import { MapView, type MapAnchor } from '~/shared/map/MapView';
 import { CenterCrosshair } from '../../components/CenterCrosshair';
 import { PillSpinner, StatusPill } from '../../components/StatusPill';
+import { ImageryRegistrationNotice } from '../../components/ImageryRegistrationNotice';
 import { Delayed } from '~/shared/ui/Delayed';
 import { setForegroundMapLoading, useForegroundLoading } from '~/shared/map/tileLoading';
 import type { LonLat, MapClickEvent } from '~/shared/map/types';
@@ -275,12 +277,13 @@ function DraftQuestionsHint({ missing }: { missing: string[] }) {
  * looks like a broken tool. One pill in the same slot as the zoom notice, so
  * the two can never stack.
  */
-function MapNotice() {
+function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean }) {
   const mode = useCampaignStore((s) => s.workMode);
   const needsLabel = useWorkStore((s) => s.tool === 'annotate' && s.selectedLabelId === null);
   const sceneNotice = useSceneNotice();
   const loadingTiles = useForegroundLoading();
 
+  if (waitingForRegistration) return <ImageryRegistrationNotice />;
   if (mode === 'explore' && needsLabel) {
     return (
       <StatusPill>
@@ -479,7 +482,12 @@ export function MainMapBody() {
         />
         <CustomMapLegend catalog={catalog} />
         <CenterCrosshair />
-        <MapNotice />
+        <MapNotice
+          waitingForRegistration={
+            !imagery.showBasemap &&
+            awaitingImageryRegistration(campaign.registration_status, catalog, address)
+          }
+        />
       </div>
     </div>
   );
