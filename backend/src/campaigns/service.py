@@ -533,6 +533,7 @@ def update_campaign_bbox(
         bg_db = SessionLocal()
         try:
             count = re_register_stac_collections(bg_db, campaign_id, new_bbox)
+            bg_db.commit()
             if count:
                 logger.info(
                     "Re-registered STAC mosaics for %d collection(s) in campaign %d",
