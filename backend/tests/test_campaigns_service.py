@@ -215,6 +215,25 @@ class TestUpdateCampaignBbox:
         assert settings.bbox_north == 20
         db.commit.assert_called_once()
 
+    def test_reregistered_tile_urls_are_committed(self):
+        """The background re-registration rewrites tile URLs onto mosaics for the
+        new ROI; without a commit they are rolled back when its session closes."""
+        db = _mock_db()
+        db.get.return_value = MagicMock()
+        bg_db = MagicMock()
+
+        with (
+            patch("src.campaigns.service.SessionLocal", return_value=bg_db),
+            patch("src.campaigns.service.re_register_stac_collections", return_value=1) as rr,
+            patch("src.campaigns.service.threading.Thread") as thread,
+        ):
+            update_campaign_bbox(db, 1, -10, -20, 10, 20)
+            thread.call_args.kwargs["target"]()
+
+        rr.assert_called_once_with(bg_db, 1, [-10, -20, 10, 20])
+        bg_db.commit.assert_called_once()
+        bg_db.close.assert_called_once()
+
     def test_no_settings_raises_404(self):
         db = _mock_db()
         campaign = MagicMock()
