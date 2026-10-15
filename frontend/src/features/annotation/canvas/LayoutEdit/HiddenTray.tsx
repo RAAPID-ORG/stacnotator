@@ -92,6 +92,7 @@ export function HiddenTray({
   const panelMoveStart = useRef<{ x: number; y: number; offset: PanelOffset } | null>(null);
 
   const onPanelResizePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || !e.isPrimary) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     panelResizeStart.current = {
@@ -124,12 +125,15 @@ export function HiddenTray({
   const onPanelResizePointerUp = (e: React.PointerEvent) => {
     if (!panelResizeStart.current) return;
     panelResizeStart.current = null;
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     persistGeometry();
   };
 
   // The panel is tall enough to bury the canvas it edits, so it moves.
   const onPanelMovePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || !e.isPrimary) return;
     if ((e.target as HTMLElement).closest('button')) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -155,7 +159,9 @@ export function HiddenTray({
   const onPanelMovePointerUp = (e: React.PointerEvent) => {
     if (!panelMoveStart.current) return;
     panelMoveStart.current = null;
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     persistGeometry();
   };
 
@@ -189,7 +195,9 @@ export function HiddenTray({
         onPointerDown={onPanelResizePointerDown}
         onPointerMove={onPanelResizePointerMove}
         onPointerUp={onPanelResizePointerUp}
-        className="absolute top-0 left-0 z-20 h-5 w-5 cursor-nwse-resize"
+        onPointerCancel={onPanelResizePointerUp}
+        onLostPointerCapture={onPanelResizePointerUp}
+        className="absolute top-0 left-0 z-20 h-5 w-5 touch-none cursor-nwse-resize"
         title="Drag to resize"
         aria-label={`Resize ${title.toLowerCase()}`}
         data-testid="resize-hidden-tray"
@@ -200,7 +208,8 @@ export function HiddenTray({
         onPointerMove={onPanelMovePointerMove}
         onPointerUp={onPanelMovePointerUp}
         onPointerCancel={onPanelMovePointerUp}
-        className="flex shrink-0 cursor-grab items-center justify-between gap-2 border-b border-neutral-100 bg-neutral-50/70 px-3.5 py-2.5 select-none active:cursor-grabbing"
+        onLostPointerCapture={onPanelMovePointerUp}
+        className="flex shrink-0 touch-none cursor-grab items-center justify-between gap-2 border-b border-neutral-100 bg-neutral-50/70 px-3.5 py-2.5 select-none active:cursor-grabbing"
         title="Drag to move"
         data-testid="move-hidden-tray"
       >

@@ -6,6 +6,7 @@ import { PANEL_DRAG_CANCEL_SELECTOR, PANEL_DRAG_HANDLE_CLASS, PanelHost } from '
 import { GRID_COLS, GRID_MARGIN, ROW_HEIGHT, type LayoutItem } from '../canvas/grid';
 import type { PanelDef } from '../panels/panels';
 import { useContainerSize } from '~/shared/hooks/useContainerSize';
+import { useGridGestureRecovery } from './useGridGestureRecovery';
 
 export interface CanvasProps {
   panels: PanelDef[];
@@ -60,6 +61,7 @@ export function Canvas({
   const isStatic = mobileLayout != null;
   const effectiveLayout = isStatic ? mobileLayout : layout;
   const editingActive = editing && !isStatic;
+  useGridGestureRecovery(containerRef, editingActive);
 
   const panelsById = useMemo(() => new Map(panels.map((panel) => [panel.id, panel])), [panels]);
 

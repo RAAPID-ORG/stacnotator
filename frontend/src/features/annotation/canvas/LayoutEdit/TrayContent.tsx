@@ -18,6 +18,7 @@ export interface TrayContentProps {
   view: ImageryViewOut | null;
   /** Views are a campaign-wide definition, so only an admin gets that section. */
   isCampaignAdmin: boolean;
+  settingUpFirstView?: boolean;
 }
 
 const sectionHeading = 'block text-[11px] font-medium uppercase tracking-wider text-neutral-500';
@@ -118,7 +119,12 @@ function HiddenPanelsHeader({ count }: { count: number }) {
   );
 }
 
-export function TrayContent({ catalog, view, isCampaignAdmin }: TrayContentProps) {
+export function TrayContent({
+  catalog,
+  view,
+  isCampaignAdmin,
+  settingUpFirstView = false,
+}: TrayContentProps) {
   const currentLayout = useLayoutStore((s) => s.currentLayout);
   const showWindow = useLayoutStore((s) => s.showWindow);
 
@@ -146,7 +152,27 @@ export function TrayContent({ catalog, view, isCampaignAdmin }: TrayContentProps
     <HiddenTray
       items={items}
       title="Layout"
-      sections={isCampaignAdmin ? <ViewAdmin /> : null}
+      sections={
+        (settingUpFirstView || isCampaignAdmin) && (
+          <>
+            {settingUpFirstView && (
+              <div
+                className="mb-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-xs leading-relaxed text-brand-900"
+                data-testid="first-view-setup-guidance"
+              >
+                <p className="mb-1 font-medium">Setting up the workspace</p>
+                <p>
+                  Drag and resize panels into your team's starting arrangement, then select{' '}
+                  <span className="font-medium">Save layout</span> at the top right to show imagery.
+                  Everyone can rearrange their own copy later through Edit Layout.
+                </p>
+                <p className="mt-2">Drag this panel by its header to move it out of the way.</p>
+              </div>
+            )}
+            {isCampaignAdmin && <ViewAdmin />}
+          </>
+        )
+      }
       listHeader={<HiddenPanelsHeader count={items.length} />}
       storageKey="annotation:layoutPanel"
       onAdd={(id) => showWindow(Number(id))}

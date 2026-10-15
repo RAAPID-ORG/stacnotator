@@ -61,6 +61,9 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Multiple views per campaign - each view is an ordered set of imagery sources; all their collections are browsable in it
 - Views are authored by campaign admins in the annotation page's edit mode (create, rename, reorder, delete, source membership); a campaign is annotatable once its first view exists
 - Drag-and-resize grid layout (react-grid-layout)
+- First-view setup guidance lives in the movable, resizable Layout panel rather
+  than taking space above the canvas. Dragging and resizing end when focus is lost
+  or a mouse release is missed, on both the main canvas and secondary screens.
 - Split between (Main map + minimap + control panel) and  imagery windows items on the canvas. Prior are constant, latter may change.
 - Personal layouts saved per user, default layouts per campaign; a collection is a window exactly when its key is in the layout
 - Per-view state (active slice, empty detection, selected viz), saved and restored when switching views

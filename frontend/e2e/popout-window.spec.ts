@@ -12,7 +12,7 @@ async function enterEditMode(page: Page) {
   await page.locator('button', { hasText: 'Edit Layout' }).click();
   // The floating hidden-panels tray overlays bottom-right panels in this
   // viewport; collapse it to its chip so panel headers are reachable.
-  await page.locator('[aria-label="Minimize hidden panels"]').click();
+  await page.getByRole('button', { name: 'Minimize layout', exact: true }).click();
 }
 
 async function sendControlsToNewScreen(page: Page) {
@@ -24,6 +24,24 @@ async function sendControlsToNewScreen(page: Page) {
 }
 
 test.describe('Secondary screens', () => {
+  test('dragging stops when the secondary window loses focus', async ({ annotationPage }) => {
+    const popup = await sendControlsToNewScreen(annotationPage);
+    const panel = popup.locator('[data-panel-id="controls"]');
+    const header = await panel.locator('.card-header').boundingBox();
+    if (!header) throw new Error('Secondary screen controls header is missing');
+    await popup.mouse.move(header.x + 30, header.y + header.height / 2);
+    await popup.mouse.down();
+    await popup.mouse.move(header.x + 80, header.y + 50, { steps: 4 });
+    await expect(panel).toHaveClass(/react-draggable-dragging/);
+    await popup.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(panel).not.toHaveClass(/react-draggable-dragging/);
+    await expect(popup.locator('.react-grid-placeholder')).toHaveCount(0);
+    await popup.mouse.up();
+    const dropped = await panel.boundingBox();
+    await popup.mouse.move(header.x + 140, header.y + 90, { steps: 4 });
+    await expect.poll(() => panel.boundingBox()).toEqual(dropped);
+  });
+
   test('sending a card opens a screen; more cards join it; closing returns all', async ({
     annotationPage,
   }) => {

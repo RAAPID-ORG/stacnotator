@@ -547,19 +547,6 @@ export function AnnotationPage() {
         onOpenTour={() => setTourOpen(true)}
       />
 
-      {settingUpFirstView && (
-        <div
-          className="border-b border-brand-200 bg-brand-50 px-4 py-2 text-center text-sm text-brand-900"
-          data-testid="first-view-setup-banner"
-        >
-          <span className="font-medium">Setting up the workspace.</span> Drag and resize the panels
-          into the arrangement your team should start from, then hit{' '}
-          <span className="font-medium">Save layout</span> at the top right - the imagery only
-          appears once it is saved. Everyone can rearrange their own copy later, and you can come
-          back through Edit Layout any time.
-        </div>
-      )}
-
       {showCanvas ? (
         <Canvas
           panels={panels}
@@ -592,7 +579,12 @@ export function AnnotationPage() {
       <SliceCommentDialog />
 
       {!isMobile && editing && (
-        <TrayContent catalog={catalog} view={view} isCampaignAdmin={policy.isAdmin} />
+        <TrayContent
+          catalog={catalog}
+          view={view}
+          isCampaignAdmin={policy.isAdmin}
+          settingUpFirstView={settingUpFirstView}
+        />
       )}
 
       {!isMobile &&
