@@ -130,6 +130,14 @@ The mosaic registration process (for both MPC and self-hosted) works as follows:
 3. For MPC: the query is POSTed to MPC's register endpoint, returning a `searchId`.
 4. For self-hosted: the query is registered on the tiler (`/searches/register`), returning a search id; the tiler resolves items from its own pgstac index at render time.
 
+Changing a campaign's ROI rebuilds all saved STAC collections through the same
+background registration workflow. The new bounding box, removal of old tile URLs,
+and `registering` status are committed together before provider calls start. The
+settings page polls until registration finishes and loads the new URLs; failures
+are reported in the campaign's registration errors. Manual tile-URL sources and
+basemaps are unchanged. Wait for an ongoing imagery registration before changing
+the ROI again.
+
 **Cloud cover filtering** uses `isNull OR <=` to handle collections without `eo:cloud_cover` (e.g. SAR data). Items without the property pass through instead of being excluded.
 
 **Item sort order** is passed via the STAC API Sort Extension (`sortby`). The default for collections with cloud cover is `eo:cloud_cover ASC, datetime DESC` - lowest cloud cover first, then newest. This is especially important for first-valid compositing where the first matching item wins.

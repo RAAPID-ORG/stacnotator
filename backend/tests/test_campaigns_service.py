@@ -35,6 +35,7 @@ from src.campaigns.statistics import (
     _calculate_pairwise_agreement,
     _scoped_to_set,
 )
+from src.layers import LayerOwner
 
 
 def _mock_db():
@@ -215,24 +216,61 @@ class TestUpdateCampaignBbox:
         assert settings.bbox_north == 20
         db.commit.assert_called_once()
 
-    def test_reregistered_tile_urls_are_committed(self):
-        """The background re-registration rewrites tile URLs onto mosaics for the
-        new ROI; without a commit they are rolled back when its session closes."""
+    def test_commits_registration_status_before_spawning_for_new_roi(self):
         db = _mock_db()
-        db.get.return_value = MagicMock()
-        bg_db = MagicMock()
+        campaign = MagicMock(registration_status="ready", registration_errors=[{"error": "old"}])
+        db.get.return_value = campaign
+        pending = [MagicMock()]
+
+        def committed():
+            assert campaign.settings.bbox_west == -10
+            assert campaign.registration_status == "registering"
+            assert campaign.registration_heartbeat_at is not None
+            assert campaign.registration_errors is None
+
+        db.commit.side_effect = committed
+
+        def spawned(*args):
+            db.commit.assert_called_once()
 
         with (
-            patch("src.campaigns.service.SessionLocal", return_value=bg_db),
-            patch("src.campaigns.service.re_register_stac_collections", return_value=1) as rr,
-            patch("src.campaigns.service.threading.Thread") as thread,
+            patch(
+                "src.campaigns.service.prepare_stac_reregistration", return_value=pending
+            ) as prepare,
+            patch(
+                "src.campaigns.service.spawn_background_registration", side_effect=spawned
+            ) as spawn,
         ):
             update_campaign_bbox(db, 1, -10, -20, 10, 20)
-            thread.call_args.kwargs["target"]()
 
-        rr.assert_called_once_with(bg_db, 1, [-10, -20, 10, 20])
-        bg_db.commit.assert_called_once()
-        bg_db.close.assert_called_once()
+        prepare.assert_called_once_with(db, 1)
+        spawn.assert_called_once_with(LayerOwner(campaign_id=1), pending, [-10, -20, 10, 20])
+
+    def test_without_stac_imagery_does_not_start_registration(self):
+        db = _mock_db()
+        campaign = MagicMock(registration_status="ready")
+        db.get.return_value = campaign
+        with (
+            patch("src.campaigns.service.prepare_stac_reregistration", return_value=[]),
+            patch("src.campaigns.service.spawn_background_registration") as spawn,
+        ):
+            update_campaign_bbox(db, 1, -10, -20, 10, 20)
+
+        assert campaign.registration_status == "ready"
+        spawn.assert_not_called()
+
+    def test_cannot_change_roi_during_registration(self):
+        db = _mock_db()
+        campaign = MagicMock(registration_status="registering")
+        campaign.settings.bbox_west = 0
+        db.get.return_value = campaign
+
+        with pytest.raises(HTTPException) as exc_info:
+            update_campaign_bbox(db, 1, -10, -20, 10, 20)
+
+        assert exc_info.value.status_code == 409
+        assert campaign.settings.bbox_west == 0
+        db.commit.assert_not_called()
 
     def test_no_settings_raises_404(self):
         db = _mock_db()
