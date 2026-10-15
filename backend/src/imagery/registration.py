@@ -32,8 +32,11 @@ from src.imagery.models import (
     ImagerySource,
     SliceTileUrl,
 )
-from src.imagery.schemas import CollectionStacConfigCreate
-from src.imagery.tile_urls import _slice_viz_params
+from src.imagery.schemas import (
+    CollectionStacConfigCreate,
+    NamedVizParamsCreate,
+    VizParamsCreate,
+)
 from src.layers import LayerOwner
 from src.redact import redact_urls
 from src.storage_access import StorageAccess
@@ -576,94 +579,59 @@ def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:
         body["datetime"] = f"{start}/{end}"
 
 
-def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float]) -> int:
-    """Re-register every stac_browser collection in a campaign with a new bbox.
+def prepare_stac_reregistration(db: Session, campaign_id: int) -> list[StacRegistrationSpec]:
+    """Snapshot stored STAC collections and discard tile URLs for the old ROI.
 
-    Returns the number of collections updated.
+    The caller commits these changes with the new bbox and registration status,
+    then passes the work orders to spawn_background_registration.
     """
-
     sources = (
         db.execute(select(ImagerySource).where(ImagerySource.campaign_id == campaign_id))
         .scalars()
         .all()
     )
 
-    updated = 0
+    pending = []
     for source in sources:
         for collection in source.collections:
             stac = collection.stac_config
-            if not stac or not stac.catalog_url:
+            if not (stac and stac.catalog_url and stac.stac_collection_id and collection.slices):
                 continue
-
-            slices = (
-                db.execute(
-                    select(ImagerySlice)
-                    .where(ImagerySlice.collection_id == collection.id)
-                    .order_by(ImagerySlice.display_order)
-                )
-                .scalars()
-                .all()
-            )
-            if not slices:
-                continue
-
-            collection_updated = False
-            for sl_idx, sl in enumerate(slices):
-                is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
-                custom_query = (
-                    stac.cover_search_query
-                    if (is_cover and stac.cover_search_query)
-                    else stac.search_query
-                )
-
-                # Register once per provider this slice uses (shared across its vizs); "mpc"
-                # or a configured tiler name. Each provider is isolated so one failing
-                # doesn't drop the other.
-                refs: dict[str, str] = {}
-                for provider in {tu.tile_provider for tu in sl.tile_urls if tu.tile_provider}:
-                    try:
-                        if provider == "mpc":
-                            refs[provider] = _register_mpc_slice(stac, sl, bbox, custom_query)
-                        else:
-                            refs[provider] = _register_hosted_slice(
-                                stac,
-                                sl,
-                                bbox,
-                                custom_query,
-                                str(campaign_id),
-                                providers.resolve_tiler(provider),
-                                storage_access.stored(stac),
+            pending.append(
+                StacRegistrationSpec(
+                    collection_id=collection.id,
+                    collection_name=collection.name,
+                    stac_config=CollectionStacConfigCreate(
+                        catalog_url=stac.catalog_url,
+                        stac_collection_id=stac.stac_collection_id,
+                        tiler=stac.tile_provider,
+                        max_cloud_cover=stac.max_cloud_cover,
+                        search_query=copy.deepcopy(stac.search_query),
+                        cover_search_query=copy.deepcopy(stac.cover_search_query),
+                        internal_storage=stac.internal_storage,
+                        visualizations=[
+                            NamedVizParamsCreate(
+                                name=vc.name,
+                                viz_params=VizParamsCreate.model_validate(vc.render_params),
+                                cover_viz_params=(
+                                    VizParamsCreate.model_validate(vc.cover_render_params)
+                                    if vc.cover_render_params is not None
+                                    else None
+                                ),
                             )
-                    except Exception:
-                        logger.warning(
-                            "STAC re-registration failed for collection %s slice %s provider %s",
-                            collection.name,
-                            sl.name,
-                            provider,
-                            exc_info=True,
-                        )
-
-                # Rebuild each visualization's URL with its own params + the slice's new ref.
+                            for vc in collection.viz_configs
+                        ],
+                    ),
+                    has_dedicated_cover=collection.has_dedicated_cover,
+                    cover_slice_index=collection.cover_slice_index,
+                    source_viz_names=[v.name for v in source.visualizations],
+                    storage_access=storage_access.stored(stac),
+                )
+            )
+            for sl in collection.slices:
                 for tu in sl.tile_urls:
-                    ref = refs.get(tu.tile_provider or "")
-                    if ref is None:
-                        continue
-                    params = _slice_viz_params(stac, tu.visualization_name, is_cover)
-                    if tu.tile_provider == "mpc":
-                        tu.tile_url = providers.build_tile_url(
-                            "mpc", ref, params, collection_id=stac.stac_collection_id
-                        )
-                    else:
-                        tu.tile_url = providers.build_tile_url(
-                            "hosted", ref, params, tiler=providers.resolve_tiler(tu.tile_provider)
-                        )
-                    tu.mosaic_id = ref
-                    collection_updated = True
-
-            if collection_updated:
-                updated += 1
-
-    return updated
+                    db.delete(tu)
+    return pending
 
 
 def load_refreshable_collection(

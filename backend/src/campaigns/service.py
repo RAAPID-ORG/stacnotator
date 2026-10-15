@@ -1,5 +1,4 @@
 import logging
-import threading
 from typing import Any
 from uuid import UUID
 
@@ -32,7 +31,6 @@ from src.campaigns.schemas import (
 )
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.canvas.service import new_default_main_layout
-from src.database import SessionLocal
 from src.imagery.models import (
     ImageryCollection,
     ImagerySlice,
@@ -42,7 +40,7 @@ from src.imagery.models import (
 from src.imagery.registration import (
     REGISTRATION_RUN,
     StacRegistrationSpec,
-    re_register_stac_collections,
+    prepare_stac_reregistration,
     spawn_background_registration,
 )
 from src.imagery.service import create_imagery_from_editor_state
@@ -520,36 +518,24 @@ def update_campaign_bbox(
         raise HTTPException(status_code=404, detail="Campaign not found")
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
+    if campaign.registration_status == "registering":
+        raise HTTPException(
+            status_code=409,
+            detail="Wait for imagery registration to finish before changing the ROI",
+        )
     campaign.settings.bbox_west = bbox_west
     campaign.settings.bbox_south = bbox_south
     campaign.settings.bbox_east = bbox_east
     campaign.settings.bbox_north = bbox_north
 
+    pending = prepare_stac_reregistration(db, campaign_id)
+    if pending:
+        background.begin_status_run(campaign, REGISTRATION_RUN)
+        campaign.registration_errors = None
     db.commit()
-
     new_bbox = [bbox_west, bbox_south, bbox_east, bbox_north]
-
-    def _bg_reregister():
-        bg_db = SessionLocal()
-        try:
-            count = re_register_stac_collections(bg_db, campaign_id, new_bbox)
-            bg_db.commit()
-            if count:
-                logger.info(
-                    "Re-registered STAC mosaics for %d collection(s) in campaign %d",
-                    count,
-                    campaign_id,
-                )
-        except Exception:
-            logger.warning(
-                "STAC re-registration failed for campaign %d",
-                campaign_id,
-                exc_info=True,
-            )
-        finally:
-            bg_db.close()
-
-    threading.Thread(target=_bg_reregister, daemon=True).start()
+    if pending:
+        spawn_background_registration(LayerOwner(campaign_id=campaign_id), pending, new_bbox)
 
     return get_campaign_full(db, campaign_id)
 
