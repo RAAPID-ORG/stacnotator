@@ -401,6 +401,7 @@ input[type='range'] {
 
 .editable {
   cursor: move !important;
+  touch-action: none;
   background: var(--color-amber-50) !important;
   color: var(--color-amber-800) !important;
 }
@@ -411,9 +412,7 @@ input[type='range'] {
 
 .is-editing .react-resizable-handle {
   display: block !important;
-  bottom: 0;
-  right: 0;
-  cursor: se-resize;
+  touch-action: none;
 }
 
 .is-editing .react-resizable-handle::after {

@@ -126,6 +126,8 @@ for (const readyAtCreation of [false, true]) {
       await page.getByRole('button', { name: 'Set up layout anyway' }).click();
     }
     await page.getByTestId('create-first-view').click();
+    await expect(page.getByTestId('hidden-tray')).toContainText('Setting up the workspace');
+    await expect(page.getByTestId('first-view-setup-banner')).toHaveCount(0);
     const mainMap = page.locator('[data-panel-role="main-map"]');
     const windowMap = windowPanel(page, COLLECTION_S2.id);
     const mainNotice = mainMap.getByTestId('imagery-registration-notice');
@@ -150,6 +152,105 @@ for (const readyAtCreation of [false, true]) {
     await expectImageryPainted(windowMap);
   });
 }
+
+test('layout dragging stops if the mouse button was released outside the window', async ({
+  annotationPage: page,
+}) => {
+  await page.getByTestId('edit-layout-trigger').click();
+  await page.getByRole('button', { name: 'Minimize layout', exact: true }).click();
+  const panel = page.locator('[data-panel-id="main"]');
+  const header = await panel.locator('.card-header').boundingBox();
+  if (!header) throw new Error('Main map header is missing');
+  await page.mouse.move(header.x + 30, header.y + header.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(header.x + 70, header.y + 40, { steps: 4 });
+  await expect(panel).toHaveClass(/react-draggable-dragging/);
+
+  // The browser may miss mouseup outside its window; the next move reveals
+  // that no button is held, rather than beginning another drag.
+  await panel.evaluate((node) =>
+    node.ownerDocument.dispatchEvent(
+      new MouseEvent('mousemove', { bubbles: true, buttons: 0, clientX: 200, clientY: 200 })
+    )
+  );
+  await expect(panel).not.toHaveClass(/react-draggable-dragging/);
+  await expect(page.locator('.react-grid-placeholder')).toHaveCount(0);
+  await page.mouse.up();
+  const dropped = await panel.boundingBox();
+  await page.mouse.move(header.x + 120, header.y + 80, { steps: 4 });
+  await expect.poll(() => panel.boundingBox()).toEqual(dropped);
+});
+
+test('layout resizing stops on window blur and the next resize still works', async ({
+  annotationPage: page,
+}) => {
+  await page.getByTestId('edit-layout-trigger').click();
+  await page.getByRole('button', { name: 'Minimize layout', exact: true }).click();
+  const panel = page.locator('[data-panel-id="main"]');
+  const handle = panel.locator('.react-resizable-handle-se');
+  const box = await handle.boundingBox();
+  if (!box) throw new Error('Main map resize handle is missing');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x - 60, box.y - 30, { steps: 4 });
+  await expect(panel).toHaveClass(/resizing/);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(panel).not.toHaveClass(/resizing/);
+  await expect(page.locator('.react-grid-placeholder')).toHaveCount(0);
+  await page.mouse.up();
+  const dropped = await panel.boundingBox();
+  await page.mouse.move(box.x - 100, box.y - 60, { steps: 4 });
+  await expect.poll(() => panel.boundingBox()).toEqual(dropped);
+
+  const nextHandle = await panel.locator('.react-resizable-handle-w').boundingBox();
+  if (!nextHandle || !dropped) throw new Error('Resized main map is missing');
+  await page.mouse.move(nextHandle.x + nextHandle.width / 2, nextHandle.y + nextHandle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(nextHandle.x + 40, nextHandle.y + nextHandle.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect(panel).not.toHaveClass(/resizing/);
+  await expect.poll(async () => (await panel.boundingBox())?.width).toBeLessThan(dropped.width);
+});
+
+test('the floating layout panel moves, resizes, and releases cancelled gestures', async ({
+  annotationPage: page,
+}) => {
+  await page.getByTestId('edit-layout-trigger').click();
+  const tray = page.getByTestId('hidden-tray');
+  const header = page.getByTestId('move-hidden-tray');
+  const before = await tray.boundingBox();
+  const handle = await header.boundingBox();
+  if (!before || !handle) throw new Error('Layout panel is missing');
+  await page.mouse.move(handle.x + 80, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 20, handle.y - 60, { steps: 4 });
+  await header.dispatchEvent('pointercancel');
+  await page.mouse.up();
+  const moved = await tray.boundingBox();
+  if (!moved) throw new Error('Moved layout panel is missing');
+  expect(moved.x).toBeLessThan(before.x);
+  expect(moved.y).toBeLessThan(before.y);
+  await page.mouse.move(handle.x - 80, handle.y - 100, { steps: 4 });
+  await expect.poll(() => tray.boundingBox()).toEqual(moved);
+
+  const resize = page.getByTestId('resize-hidden-tray');
+  const resizeBox = await resize.boundingBox();
+  if (!resizeBox) throw new Error('Layout panel resize handle is missing');
+  await page.mouse.move(resizeBox.x + 5, resizeBox.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(resizeBox.x - 40, resizeBox.y - 30, { steps: 4 });
+  await resize.dispatchEvent('pointercancel');
+  await page.mouse.up();
+  const resized = await tray.boundingBox();
+  if (!resized) throw new Error('Resized layout panel is missing');
+  expect(resized.width).toBeGreaterThan(moved.width);
+  await page.mouse.move(resizeBox.x - 80, resizeBox.y - 60, { steps: 4 });
+  await expect.poll(() => tray.boundingBox()).toEqual(resized);
+  await page.getByRole('button', { name: 'Minimize layout', exact: true }).click();
+  await expect(tray).toHaveCount(0);
+  await page.getByTitle('Show layout', { exact: true }).click();
+  await expect.poll(() => tray.boundingBox()).toEqual(resized);
+});
 
 test('a registration response started before first-view creation does not discard the new view', async ({
   annotationPage: page,
