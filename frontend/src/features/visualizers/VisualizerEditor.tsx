@@ -324,7 +324,14 @@ export function VisualizerEditor({
                         })
                       }
                       title={overlay.name}
-                      note={overlay.status === 'ready' ? 'Raster' : `Raster - ${overlay.status}`}
+                      note={
+                        overlay.restriction === 'storage_access'
+                          ? "Read from private storage with its SAS token - can't be published"
+                          : overlay.status === 'ready'
+                            ? 'Raster'
+                            : `Raster - ${overlay.status}`
+                      }
+                      disabled={overlay.restriction === 'storage_access'}
                     />
                   )),
                   ...campaign.vector_overlays.map((overlay) => (

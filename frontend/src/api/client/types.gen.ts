@@ -2254,6 +2254,12 @@ export type ConfidenceFacet = {
  */
 export type CustomMapCreate = {
     /**
+     * Storage Access
+     */
+    storage_access?: ({
+        kind: 'azure_sas';
+    } & AzureSasAccess) | null;
+    /**
      * Name
      */
     name: string;
@@ -2335,12 +2341,19 @@ export type CustomMapOut = {
      * Internal Storage
      */
     internal_storage: boolean;
+    storage_access?: StorageAccessOut | null;
 };
 
 /**
  * CustomMapUpdate
  */
 export type CustomMapUpdate = {
+    /**
+     * Storage Access
+     */
+    storage_access?: ({
+        kind: 'azure_sas';
+    } & AzureSasAccess) | null;
     /**
      * Name
      */

@@ -1,8 +1,10 @@
 from typing import Literal
+from urllib.parse import parse_qs, urlparse
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.custom_layers.render import build_viz_params
+from src.storage_access import StorageAccessCreate, StorageAccessOut, check_url
 
 HEX_COLOR = r"^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
 COLOR_BLUE = "#3b82f6"
@@ -37,7 +39,18 @@ class RenderConfig(BaseModel):
         return self
 
 
-class CustomMapCreate(BaseModel):
+class CustomMapAccess(BaseModel):
+    storage_access: StorageAccessCreate | None = None
+
+    @field_validator("cog_url", check_fields=False)
+    @classmethod
+    def no_inline_sas(cls, value: str | None) -> str | None:
+        if value and "sig" in parse_qs(urlparse(value).query):
+            raise ValueError("Paste the SAS token in storage_access, not in the COG URL")
+        return value
+
+
+class CustomMapCreate(CustomMapAccess):
     name: str = Field(min_length=1)
     cog_url: str = Field(min_length=1)
     render_config: RenderConfig
@@ -45,8 +58,16 @@ class CustomMapCreate(BaseModel):
     mlops_url: str | None = None
     internal_storage: bool = False
 
+    @model_validator(mode="after")
+    def valid_storage_access(self) -> "CustomMapCreate":
+        if self.storage_access is not None:
+            check_url(self.cog_url)
+            if self.internal_storage:
+                raise ValueError("Choose either a SAS token or internal storage, not both")
+        return self
 
-class CustomMapUpdate(BaseModel):
+
+class CustomMapUpdate(CustomMapAccess):
     name: str | None = Field(default=None, min_length=1)
     cog_url: str | None = Field(default=None, min_length=1)
     render_config: RenderConfig | None = None
@@ -54,6 +75,15 @@ class CustomMapUpdate(BaseModel):
     display_order: int | None = None
     mlops_url: str | None = None
     internal_storage: bool | None = None
+
+    @model_validator(mode="after")
+    def valid_storage_access(self) -> "CustomMapUpdate":
+        if self.storage_access is not None:
+            if self.cog_url is not None:
+                check_url(self.cog_url)
+            if self.internal_storage:
+                raise ValueError("Choose either a SAS token or internal storage, not both")
+        return self
 
 
 class CustomMapOut(BaseModel):
@@ -76,6 +106,7 @@ class CustomMapOut(BaseModel):
     display_order: int
     mlops_url: str | None
     internal_storage: bool
+    storage_access: StorageAccessOut | None = None
 
 
 class VectorLayerCreate(BaseModel):

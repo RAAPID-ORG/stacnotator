@@ -31,6 +31,7 @@ from src.campaigns.schemas import (
 )
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.canvas.service import new_default_main_layout
+from src.custom_layers.service import revoke_campaign_private_searches
 from src.imagery.models import (
     ImageryCollection,
     ImagerySlice,
@@ -679,6 +680,7 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
     if not db.get(Campaign, campaign_id):
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    revoke_campaign_private_searches(db, campaign_id)
     db.execute(delete(Campaign).where(Campaign.id == campaign_id))
     # Geometries have no campaign FK, so the cascade above cannot reach them.
     delete_orphan_geometries(db)

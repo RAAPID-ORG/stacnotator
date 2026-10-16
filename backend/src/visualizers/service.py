@@ -264,12 +264,13 @@ def _replace_layers(
     deleted, so the pick list has no business reconciling it.
     """
     source_ids = [entry.source_id for entry in imagery]
+    custom_map_ids = [o.custom_map_id for o in overlays if o.custom_map_id is not None]
     _assert_in_project(db, visualizer.project_id, ImagerySource, source_ids, "imagery source")
     _assert_in_project(
         db,
         visualizer.project_id,
         CustomMap,
-        [o.custom_map_id for o in overlays if o.custom_map_id is not None],
+        custom_map_ids,
         "custom map",
     )
     _assert_in_project(
@@ -284,6 +285,18 @@ def _replace_layers(
     linked = db.scalars(select(ImagerySource).where(ImagerySource.id.in_(source_ids)))
     if any(_reads_private_catalog(source) for source in linked):
         raise HTTPException(status_code=400, detail=PRIVATE_CATALOG_NOT_PUBLISHABLE)
+    linked_maps = db.scalars(
+        select(CustomMap)
+        .where(CustomMap.id.in_(custom_map_ids))
+        .order_by(CustomMap.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if any(cm.storage_auth for cm in linked_maps):
+        raise HTTPException(
+            status_code=400,
+            detail="A custom map read with a SAS token can't be published in a visualizer",
+        )
 
     # Reconciled in place rather than replaced wholesale. Assigning a fresh list makes
     # SQLAlchemy delete every existing row and insert new ones in the same flush, and it
@@ -595,7 +608,13 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
                         id=cm.id,
                         name=cm.name,
                         status=cm.status,
-                        restriction="internal_storage" if cm.internal_storage else None,
+                        restriction=(
+                            "storage_access"
+                            if cm.storage_auth
+                            else "internal_storage"
+                            if cm.internal_storage
+                            else None
+                        ),
                     )
                     for cm in campaign.custom_maps
                 ],

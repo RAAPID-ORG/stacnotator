@@ -1,12 +1,6 @@
 import { useState } from 'react';
 import type { ImageryController } from './controller';
-import {
-  describeExpiry,
-  expiresSoon,
-  privateCollections,
-  readSasToken,
-  sourceAccessExpiry,
-} from './sasToken';
+import { privateCollections, readSasToken, sourceAccessExpiry } from './sasToken';
 import { SasTokenField } from './SasTokenField';
 import type { ImagerySource } from './types';
 
@@ -41,12 +35,9 @@ export const PrivateCatalogAccess = ({
         value={value}
         onChange={replace}
         placeholder="Paste a new token to replace it"
+        configured
+        expiresAt={expiry}
       />
-      {expiry && !value.trim() && (
-        <p className={`text-[11px] ${expiresSoon(expiry) ? 'text-amber-600' : 'text-neutral-500'}`}>
-          Current token {describeExpiry(expiry)}
-        </p>
-      )}
     </div>
   );
 };

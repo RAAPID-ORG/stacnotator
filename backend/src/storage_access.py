@@ -1,9 +1,9 @@
-"""A customer's own access to the storage their STAC catalog lives in.
+"""A customer's own access to the storage their imagery lives in.
 
 Today that is an Azure SAS token for the container. The admin pastes it once while adding
-a private catalog; it is then used for every read of that catalog - browsing it here,
-ingesting it on the tiler, and the tiler's tile reads - and only ever sent to the one host
-the catalog URL is on, never to anything else the catalog links to.
+a private catalog or custom COG map; it is then used for registration and tile reads
+(and catalog browsing here) and only ever sent to the data URL's host, never to another
+host the catalog links to.
 
 It is write-only like a provider key: stored encrypted (``crypto.py``), reported back only
 as its kind and expiry. For tile reads the tiler gets it sealed into the search metadata
@@ -113,13 +113,15 @@ def host_of(url: str) -> str:
     return (urlparse(url).hostname or "").lower()
 
 
+def check_url(url: str | None) -> None:
+    """A SAS only makes sense for Azure Blob storage, read over HTTPS."""
+    parsed = urlparse(url or "")
+    if parsed.scheme != "https" or not host_of(url or "").endswith(AZURE_BLOB_SUFFIX):
+        raise InvalidStorageAccess("A SAS token can only be used with Azure Blob Storage (https)")
+
+
 def check_catalog(catalog_url: str | None) -> None:
-    """A SAS only makes sense for a catalog on Azure Blob, read over HTTPS."""
-    parsed = urlparse(catalog_url or "")
-    if parsed.scheme != "https" or not host_of(catalog_url or "").endswith(AZURE_BLOB_SUFFIX):
-        raise InvalidStorageAccess(
-            "A SAS token can only be used with a catalog on Azure Blob Storage (https)"
-        )
+    check_url(catalog_url)
 
 
 def apply(url: str, catalog_url: str, access: StorageAccess | None) -> str:
@@ -157,6 +159,12 @@ def stored(row: _HasStorageColumns | None) -> StorageAccess | None:
     return StorageAccess(
         row.storage_auth, decrypt(row.encrypted_storage_secret), row.storage_secret_expires_at
     )
+
+
+def clear(row: _HasStorageColumns) -> None:
+    row.storage_auth = None
+    row.encrypted_storage_secret = None
+    row.storage_secret_expires_at = None
 
 
 @dataclass(frozen=True)
