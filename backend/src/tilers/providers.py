@@ -11,7 +11,7 @@ Two providers:
 """
 
 from dataclasses import dataclass
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -273,6 +273,23 @@ def register_cog_on_tiler(
         raise ValueError("The configured tiler does not support private custom-map storage access")
     search_id: str = result["id"]
     return search_id
+
+
+def revoke_on_tiler(tiler: TilerCfg, search_id: str) -> None:
+    """Delete a search from the hosted tiler so nothing can read through it again.
+
+    A search sealed with a private storage access serves that access for as long as it
+    exists, so it is revoked when the access is replaced or removed, or its layer deleted.
+    An already-missing search counts as revoked.
+    """
+    token = mint_tiler_token("backend", [], scope=["searches:write"], ttl=300)
+    resp = httpx.delete(
+        f"{_register_base(tiler)}/searches/{quote(search_id, safe='')}",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if resp.status_code != 404:
+        resp.raise_for_status()
 
 
 # Wire contract with the tiler (its `azure.ASSET_SIGNER_MANAGED_IDENTITY`): a search stamped

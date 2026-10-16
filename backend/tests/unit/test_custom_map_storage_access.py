@@ -2,6 +2,7 @@ import base64
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -189,9 +190,74 @@ def test_stale_registration_cannot_overwrite_a_token_replacement(monkeypatch):
         return "old-search"
 
     monkeypatch.setattr(service, "register_cog_on_tiler", register)
+    revoked = []
+    monkeypatch.setattr(service, "revoke_on_tiler", lambda tiler, sid: revoked.append(sid))
     service.run_registration(MagicMock(), cm)
     assert cm.status == "registering"
     assert cm.mosaic_id is None
+    assert revoked == ["old-search"]
+
+
+def _registered(cm, search_id="sas-search"):
+    cm.mosaic_id, cm.tile_url = search_id, f"https://tiler/searches/{search_id}/tiles"
+    return cm
+
+
+@pytest.fixture
+def revoked(monkeypatch):
+    calls = []
+    monkeypatch.setattr(service, "resolve_tiler", lambda *a: object())
+    monkeypatch.setattr(service, "revoke_on_tiler", lambda tiler, sid: calls.append(sid))
+    return calls
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"storage_access": None},
+        {"storage_access": {**ACCESS, "secret": SAS.replace("SECRET", "NEW")}},
+        {"cog_url": URL.replace("pred", "other")},
+    ],
+)
+def test_retiring_a_sas_revokes_its_tiler_search_first(monkeypatch, revoked, payload):
+    cm = _registered(_map())
+    assert _update(monkeypatch, cm, **payload) == [1]
+    assert revoked == ["sas-search"]
+    assert cm.mosaic_id is None and cm.tile_url is None
+
+
+def test_render_edits_and_public_maps_revoke_nothing(monkeypatch, revoked):
+    monkeypatch.setattr(service, "build_tile_url", lambda *a, **kw: "https://tiler/tiles")
+    _update(monkeypatch, _registered(_map()), render_config={**RENDER, "colormap_name": "magma"})
+    _update(monkeypatch, _registered(_map(private=False)), cog_url=URL.replace("pred", "other"))
+    assert revoked == []
+
+
+def test_a_failed_revocation_fails_the_edit(monkeypatch):
+    monkeypatch.setattr(service, "resolve_tiler", lambda *a: object())
+
+    def unreachable(*a):
+        raise httpx.ConnectError("down")
+
+    monkeypatch.setattr(service, "revoke_on_tiler", unreachable)
+    cm = _registered(_map())
+    with pytest.raises(HTTPException) as exc:
+        _update(monkeypatch, cm, storage_access=None)
+    assert exc.value.status_code == 502
+
+
+def test_deleting_a_private_map_revokes_its_search_unless_a_copy_still_uses_it(
+    monkeypatch, revoked
+):
+    for shared, expected in ((None, ["sas-search"]), (True, [])):
+        revoked.clear()
+        cm = _registered(_map())
+        monkeypatch.setattr(service, "_get_custom_map", lambda *a, cm=cm: cm)
+        db = MagicMock()
+        db.scalar.return_value = shared
+        assert service.delete_custom_map(db, OWNER, cm.id)
+        assert revoked == expected
+        db.delete.assert_called_once_with(cm)
 
 
 def test_registration_errors_do_not_persist_signed_urls(monkeypatch):
