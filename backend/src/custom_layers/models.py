@@ -19,6 +19,7 @@ from sqlalchemy.types import DateTime
 
 from src.database import Base
 from src.layers import LayerOwner
+from src.storage_access import StorageAccessOut, described
 
 if TYPE_CHECKING:
     from src.campaigns.models import Campaign
@@ -68,12 +69,21 @@ class CustomMap(Base, _OwnedLayer):
     # COG lives in internal storage the tiler reads with its managed identity. Only internal
     # users may enable this (enforced in the router); it drives the tiler's asset_signer marker.
     internal_storage: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
+    storage_auth: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    encrypted_storage_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    storage_secret_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     campaign: Mapped["Campaign | None"] = relationship(back_populates="custom_maps")
     visualizer: Mapped["Visualizer | None"] = relationship(back_populates="custom_maps")
+
+    @property
+    def storage_access(self) -> StorageAccessOut | None:
+        return described(self)
 
 
 class VectorLayer(Base, _OwnedLayer):

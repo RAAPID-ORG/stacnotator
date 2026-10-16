@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures/annotator-fixture';
 import type { Page } from '@playwright/test';
 import { MOCK_CAMPAIGN } from './fixtures/mock-data';
+import type { CustomMapOut } from '../src/api/client';
 
 const READY_MAP = {
   id: 1,
@@ -102,6 +103,76 @@ test.describe('custom map overlay', () => {
     // Hiding the overlay hides the legend and its opacity slider with it.
     await expect(annotationPage.getByTestId('custom-map-legend')).toBeHidden();
     await expect(opacity).toBeHidden();
+  });
+
+  test('custom map private access is separate, write-only, replaceable, and removable', async ({
+    appPage,
+  }) => {
+    const url = 'https://acct.blob.core.windows.net/maps/pred.tif';
+    const sas = 'sv=2024-11-04&sr=c&sp=r&se=2099-01-01T00:00:00Z&spr=https&sig=SECRET';
+    let maps: CustomMapOut[] = [];
+    await appPage.route(/\/api\/campaigns\/42$/, (route) => route.fulfill({ json: MOCK_CAMPAIGN }));
+    await appPage.route(/\/api\/campaigns\/42\/vector-layers$/, (route) =>
+      route.fulfill({ json: [] })
+    );
+    await appPage.route(/\/api\/campaigns\/42\/custom-maps(?:\/1)?$/, async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') return route.fulfill({ json: maps });
+      if (method !== 'POST' && method !== 'PATCH') return route.fallback();
+      const body = route.request().postDataJSON();
+      const access = body.storage_access;
+      const map: CustomMapOut = {
+        ...READY_MAP,
+        ...body,
+        id: 1,
+        internal_storage: false,
+        storage_access:
+          access === null ? null : { kind: 'azure_sas', expires_at: '2099-01-01T00:00:00Z' },
+      };
+      maps = [map];
+      await route.fulfill({ status: method === 'POST' ? 201 : 200, json: map });
+    });
+
+    await appPage.goto('/projects/7/campaigns/42/settings?tab=imagery');
+    await appPage.getByRole('button', { name: '+ Add raster layer' }).click();
+    await appPage.getByTestId('custom-map-name').fill('Private prediction');
+    await appPage.getByTestId('custom-map-url').fill(url);
+    await appPage.getByLabel('Private Azure storage (own SAS token)').check();
+    await expect(appPage.getByRole('button', { name: 'Add map' })).toBeDisabled();
+    const token = appPage.getByLabel('SAS token', { exact: true });
+    await expect(token).toHaveAttribute('type', 'password');
+    await token.fill(sas.replace('sp=r', 'sp=rw'));
+    await expect(appPage.getByRole('button', { name: 'Add map' })).toBeDisabled();
+    await token.fill(sas);
+    const create = appPage.waitForRequest(
+      (req) => req.method() === 'POST' && req.url().endsWith('/custom-maps')
+    );
+    await appPage.getByRole('button', { name: 'Add map' }).click();
+    expect((await create).postDataJSON()).toMatchObject({
+      cog_url: url,
+      storage_access: { kind: 'azure_sas', secret: sas },
+    });
+    await expect(appPage.getByTestId('custom-map-row')).toContainText('Private prediction');
+
+    await appPage.reload();
+    await appPage.getByLabel('Edit custom map').click();
+    await expect(token).toHaveValue('');
+    await expect(appPage.getByText(/Current token expires/)).toBeVisible();
+    await token.fill(sas.replace('SECRET', 'REPLACEMENT'));
+    const replace = appPage.waitForRequest(
+      (req) => req.method() === 'PATCH' && req.url().endsWith('/custom-maps/1')
+    );
+    await appPage.getByRole('button', { name: 'Save map' }).click();
+    expect((await replace).postDataJSON().storage_access.secret).toContain('REPLACEMENT');
+    await expect(appPage.getByRole('button', { name: 'Save map' })).toBeHidden();
+
+    await appPage.getByLabel('Edit custom map').click();
+    await appPage.getByLabel('Private Azure storage (own SAS token)').uncheck();
+    const remove = appPage.waitForRequest(
+      (req) => req.method() === 'PATCH' && req.url().endsWith('/custom-maps/1')
+    );
+    await appPage.getByRole('button', { name: 'Save map' }).click();
+    expect((await remove).postDataJSON().storage_access).toBeNull();
   });
 
   test('legend recolours the overlay locally and resets back to the campaign default', async ({

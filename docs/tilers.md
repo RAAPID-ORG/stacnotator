@@ -107,6 +107,32 @@ SAS token for it; that one token is used for everything in the catalog:
 `storage_auth` names the kind of access so that other ways of reading private storage can be
 added beside the SAS without changing the columns, the API shape or the tiler contract.
 
+### Private custom maps
+
+Campaign raster overlays use the same storage-access contract as private STAC catalogs.
+In the custom-map editor, provide the **bare HTTPS Azure Blob COG URL**, select
+**Private Azure storage (own SAS token)**, and paste a read-only, expiring token into the
+separate masked SAS field. SAS tokens embedded in COG URLs are rejected; move any token
+from an older signed URL into the SAS field when editing that map.
+
+The backend encrypts the token on the custom-map row using the existing provider-key
+encryption key. Responses expose only the access kind and expiry. Saving without a
+replacement keeps the stored token; replacing it re-registers the map. Switching back to
+public storage explicitly clears it (`storage_access: null` on PATCH). Changing storage
+hosts requires a new token or explicit removal. Own SAS access and managed-identity
+internal storage are mutually exclusive.
+
+The backend sends **sealed** `storage_access` to `/searches/register-cog`. The tiler
+opens it only to read the COG's metadata, persists the bare asset URL, and carries the
+sealed access in search metadata for subsequent tile reads. No managed identity is needed.
+Deploy the companion tiler support before using this feature: the backend requires its
+`storage_access: true` registration acknowledgement and marks registration failed on
+older tilers rather than silently creating an unusable map.
+
+Private custom maps follow the same restrictions as private STAC imagery: they cannot
+be attached to visualizers or copied into another organization. A map already linked to
+a visualizer cannot be changed to SAS access until it is unlinked.
+
 ## Tilers and their flags
 
 `backend/src/tilers/registry.py` is the single source of truth for which tilers exist. MPC and

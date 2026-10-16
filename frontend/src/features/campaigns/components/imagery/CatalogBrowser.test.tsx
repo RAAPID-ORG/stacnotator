@@ -107,7 +107,7 @@ describe('CatalogBrowser, private catalogs', () => {
     await userEvent.type(url, CATALOG);
     await userEvent.click(await screen.findByRole('radio', { name: /Private Azure container/ }));
     const load = screen.getByRole('button', { name: 'Load' });
-    expect(screen.getByLabelText('SAS token').getAttribute('type')).toBe('text');
+    expect(screen.getByLabelText('SAS token').getAttribute('type')).toBe('password');
 
     await userEvent.type(screen.getByLabelText('SAS token'), 'sv=1&sp=rw&sig=x');
     expect(screen.getByText(/read \(and optionally list\) only/)).toBeTruthy();

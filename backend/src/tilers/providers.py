@@ -237,7 +237,11 @@ def ingest_on_tiler(
 
 
 def register_cog_on_tiler(
-    tiler: TilerCfg, cog_url: str, tile_scope: str, internal_storage: bool = False
+    tiler: TilerCfg,
+    cog_url: str,
+    tile_scope: str,
+    internal_storage: bool = False,
+    sealed_storage_access: dict | None = None,
 ) -> str:
     """Register a single COG as an owner-scoped pgstac search on the hosted tiler.
 
@@ -249,19 +253,25 @@ def register_cog_on_tiler(
     identity. Returns the tiler search id, used to build the tile-URL template.
     """
     assert_public_url(cog_url)
+    body = {
+        "cog_url": cog_url,
+        "campaign_id": tile_scope,
+        "internal_storage": internal_storage,
+    }
+    if sealed_storage_access is not None:
+        body["storage_access"] = sealed_storage_access
     token = mint_tiler_token("backend", [], scope=["searches:write"], ttl=300)
     resp = httpx.post(
         f"{_register_base(tiler)}/searches/register-cog",
-        json={
-            "cog_url": cog_url,
-            "campaign_id": tile_scope,
-            "internal_storage": internal_storage,
-        },
+        json=body,
         headers={"Authorization": f"Bearer {token}"},
         timeout=60,
     )
     resp.raise_for_status()
-    search_id: str = resp.json()["id"]
+    result = resp.json()
+    if sealed_storage_access is not None and result.get("storage_access") is not True:
+        raise ValueError("The configured tiler does not support private custom-map storage access")
+    search_id: str = result["id"]
     return search_id
 
 

@@ -13,6 +13,8 @@ import {
   type ColormapName,
 } from '~/shared/colormaps/colormaps';
 import { type CategoricalEntry, type CustomMapCreate, type CustomMapOut } from '~/api/client';
+import { SasTokenField } from './imagery/SasTokenField';
+import { readSasToken } from './imagery/sasToken';
 
 const NO_MAPS: CustomMapOut[] = [];
 
@@ -31,6 +33,9 @@ interface FormState {
   entries: Array<{ value: string; color: string; label: string }>;
   max_native_zoom: string;
   internal_storage: boolean;
+  private_storage: boolean;
+  sas_token: string;
+  storage_expiry: string | null;
 }
 
 const defaultForm = (): FormState => ({
@@ -44,6 +49,9 @@ const defaultForm = (): FormState => ({
   entries: [{ value: '1', color: CATEGORICAL_PALETTE[0], label: '' }],
   max_native_zoom: '',
   internal_storage: false,
+  private_storage: false,
+  sas_token: '',
+  storage_expiry: null,
 });
 
 const formFromMap = (m: CustomMapOut): FormState => {
@@ -63,6 +71,9 @@ const formFromMap = (m: CustomMapOut): FormState => {
       : defaultForm().entries,
     max_native_zoom: m.max_native_zoom != null ? String(m.max_native_zoom) : '',
     internal_storage: m.internal_storage ?? false,
+    private_storage: !!m.storage_access,
+    sas_token: '',
+    storage_expiry: m.storage_access?.expires_at ?? null,
   };
 };
 
@@ -181,6 +192,9 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
     },
   });
   const submitting = save.isPending;
+  const savedAccess = maps.find((m) => m.id === editingId)?.storage_access;
+  const sasReading = form.sas_token.trim() ? readSasToken(form.sas_token) : null;
+  const invalidAccess = form.private_storage && (sasReading ? 'error' in sasReading : !savedAccess);
 
   const remove = useMutation({
     mutationFn: (mapId: number) => api.remove(mapId),
@@ -190,6 +204,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (invalidAccess) return;
     const renderConfig =
       form.mode === 'continuous'
         ? {
@@ -221,6 +236,11 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
       // downgrades a flag the user cannot see; the backend defaults it to false on
       // create and leaves it on update.
       ...(allowsInternalStorage ? { internal_storage: form.internal_storage } : {}),
+      storage_access: form.private_storage
+        ? sasReading && 'token' in sasReading
+          ? { kind: 'azure_sas', secret: sasReading.token }
+          : undefined
+        : null,
     });
   };
 
@@ -389,13 +409,12 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                 <strong className="font-medium text-neutral-600">
                   Cloud-Optimized GeoTIFF (COG)
                 </strong>{' '}
-                - internally tiled with overviews. The browser reads it directly, so a plain GeoTIFF
-                means downloading the whole file.
+                - internally tiled with overviews so the tiler can read only the pixels it needs.
               </li>
               <li>Single-band raster (e.g. a class map or probability layer).</li>
               <li>
-                Reachable by this server - a public URL, or one that includes a SAS token. The URL
-                is never exposed to annotators.
+                Reachable by the tiler. For private Azure storage, provide a SAS token separately
+                below so it is saved encrypted, not in the URL.
               </li>
               <li>
                 Any projection with a WGS84 datum (UTM zones and EPSG:4326/3857 are all handled).
@@ -403,6 +422,40 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
               <li>Not validated automatically - an invalid or non-COG file will not render.</li>
             </ul>
           </div>
+
+          {ownerKind === 'campaign' && (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs text-neutral-700">
+                <input
+                  type="checkbox"
+                  checked={form.private_storage}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      private_storage: e.target.checked,
+                      internal_storage: e.target.checked ? false : f.internal_storage,
+                      sas_token: '',
+                    }))
+                  }
+                />
+                Private Azure storage (own SAS token)
+              </label>
+              {form.private_storage && (
+                <>
+                  <SasTokenField
+                    value={form.sas_token}
+                    onChange={(sas_token) => setForm((f) => ({ ...f, sas_token }))}
+                    configured={!!savedAccess}
+                    expiresAt={form.storage_expiry}
+                    placeholder={savedAccess ? 'Paste a new token to replace it' : undefined}
+                  />
+                  {!savedAccess && !form.sas_token.trim() && (
+                    <p className="text-[11px] text-neutral-500">Provide a read-only SAS token.</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-neutral-700 mb-1">
@@ -429,6 +482,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                   type="checkbox"
                   className="mt-0.5"
                   checked={form.internal_storage}
+                  disabled={form.private_storage}
                   onChange={(e) => setForm((f) => ({ ...f, internal_storage: e.target.checked }))}
                   data-testid="custom-map-internal-storage"
                 />
@@ -567,7 +621,12 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
           )}
 
           <div className="flex items-center gap-2 pt-1">
-            <Button type="submit" size="sm" disabled={submitting} data-testid="add-custom-map">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={submitting || invalidAccess}
+              data-testid="add-custom-map"
+            >
               {submitLabel}
             </Button>
             <Button

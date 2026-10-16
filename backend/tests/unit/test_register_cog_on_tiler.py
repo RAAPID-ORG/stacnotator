@@ -67,3 +67,22 @@ def test_an_internal_cog_url_is_never_forwarded(monkeypatch):
 
     with pytest.raises(net_guard.UnsafeUrlError):
         providers.register_cog_on_tiler(TILER, "http://169.254.169.254/latest/meta-data/", 42)
+
+
+def test_private_cog_forwards_sealed_access_and_requires_tiler_acknowledgement(monkeypatch):
+    monkeypatch.setattr(providers, "mint_tiler_token", lambda *a, **k: "tok")
+    monkeypatch.setattr(providers, "assert_public_url", lambda url: None)
+    sealed = {"kind": "azure_sas", "host": "acct.blob.core.windows.net", "secret": "ciphertext"}
+    captured = _fake_post(monkeypatch, {"id": "s", "storage_access": True})
+    assert (
+        providers.register_cog_on_tiler(
+            TILER, "https://acct.blob.core.windows.net/m.tif", "42", sealed_storage_access=sealed
+        )
+        == "s"
+    )
+    assert captured["json"]["storage_access"] == sealed
+    _fake_post(monkeypatch, {"id": "s"})
+    with pytest.raises(ValueError, match="does not support private"):
+        providers.register_cog_on_tiler(
+            TILER, "https://acct.blob.core.windows.net/m.tif", "42", sealed_storage_access=sealed
+        )
