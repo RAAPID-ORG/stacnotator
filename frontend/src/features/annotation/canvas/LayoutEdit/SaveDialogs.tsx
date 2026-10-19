@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
+import { Button } from '~/shared/ui/forms';
 import { IconChevronDownFilled } from '~/shared/ui/Icons';
 import { mainLayoutChanged, type WorkspaceLayout } from '../grid';
 
@@ -52,34 +53,25 @@ export function SaveDialogs({
     proceedPastDefaultConfirm(shouldBeDefault);
   };
 
-  const saveButtonClass =
-    'flex items-center gap-1 rounded px-3 py-1 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 transition-colors';
-
   return (
     <div ref={containerRef} className="relative" data-testid="save-dialogs">
       {mustSaveDefault ? (
-        <button
-          type="button"
-          onClick={() => requestSave(true)}
-          className={saveButtonClass}
-          data-testid="save-required-default"
-        >
+        <Button size="sm" onClick={() => requestSave(true)} data-testid="save-required-default">
           Save layout
-        </button>
+        </Button>
       ) : (
-        <button
-          type="button"
+        <Button
+          size="sm"
           onClick={() => setMenuOpen((open) => !open)}
-          className={saveButtonClass}
           data-testid="save-menu-trigger"
         >
           Save
           <IconChevronDownFilled className="w-3 h-3" />
-        </button>
+        </Button>
       )}
       {!mustSaveDefault && menuOpen && (
         <div
-          className="absolute top-full left-0 mt-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white shadow-lg z-20"
+          className="absolute bottom-full right-0 mb-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white shadow-lg z-20"
           data-testid="save-menu"
         >
           <button

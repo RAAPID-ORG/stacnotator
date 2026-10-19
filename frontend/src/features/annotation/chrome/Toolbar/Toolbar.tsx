@@ -136,23 +136,6 @@ export function Toolbar({
           </button>
         )}
 
-        {onNavigateWorkPage && (
-          <button
-            type="button"
-            onClick={onNavigateWorkPage}
-            className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-neutral-700 transition-colors hover:bg-neutral-100"
-            title={
-              workMode === 'tasks'
-                ? 'Open the full task list, with status and assignments'
-                : 'Open the full annotation list, with everything recorded so far'
-            }
-            data-testid="open-work-list"
-          >
-            <IconDocument className="h-4 w-4" />
-            <span>{workMode === 'tasks' ? 'All tasks' : 'All annotations'}</span>
-          </button>
-        )}
-
         <div className="h-5 w-px bg-neutral-200" />
 
         <ModeSwitch campaign={campaign} hasTasks={tasks.length > 0} policy={policy} />
@@ -207,6 +190,23 @@ export function Toolbar({
           </button>
         )}
 
+        {onNavigateWorkPage && (
+          <button
+            type="button"
+            onClick={onNavigateWorkPage}
+            className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-neutral-700 transition-colors hover:bg-neutral-100"
+            title={
+              workMode === 'tasks'
+                ? 'Open the full task list, with status and assignments'
+                : 'Open the full annotation list, with everything recorded so far'
+            }
+            data-testid="open-work-list"
+          >
+            <IconDocument className="h-4 w-4" />
+            <span>{workMode === 'tasks' ? 'All tasks' : 'All annotations'}</span>
+          </button>
+        )}
+
         <ExportMenu
           campaignId={campaign.id}
           campaignName={campaign.name}
@@ -215,7 +215,7 @@ export function Toolbar({
         />
       </div>
 
-      <div className="flex items-center gap-0.5 desktop:gap-2" data-tour="layout-controls">
+      <div className="flex items-center gap-0.5 desktop:gap-2">
         {layoutControls}
 
         <button

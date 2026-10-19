@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { pageKeymap } from '../../keymap';
 import { SliceCommentButton } from '../../chrome/SliceComments';
+import { SliceNavigation } from '../../chrome/SliceNavigation';
 import { useContainerSize } from '~/shared/hooks/useContainerSize';
 import { hotkeyTip } from '../../hotkeys';
 import { collectionsInView } from '../../campaign/imagery';
@@ -40,6 +41,7 @@ import { SelectionControls } from './SelectionControls';
 import { usePreloading } from './usePreloading';
 import { useSceneNotice } from './SceneNotice';
 import { useSceneAutoLoad, useSceneSliceLayers } from '../../stores/scenes';
+import { useIsMobile } from '~/shared/utils/useIsMobile';
 
 /** Stable empty array: a fresh [] each render would recompose the layers. */
 const EMPTY_PROBES: LonLat[] = [];
@@ -155,6 +157,81 @@ function TaskProgressCounter() {
 }
 
 export function MainMapHeader() {
+  const detached = useLayoutStore((s) => !!s.currentLayout.main.imagery);
+  const isMobile = useIsMobile();
+  const isTaskMode = useCampaignStore((s) => s.workMode === 'tasks');
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      {detached && !isMobile ? (
+        <span className="flex-1 text-[11px] font-medium uppercase tracking-wider text-neutral-500">
+          Main map
+        </span>
+      ) : (
+        <ImageryControls />
+      )}
+      <MainMapActions />
+      {isTaskMode && <TaskProgressCounter />}
+    </div>
+  );
+}
+
+export function ImageryControls({
+  orientation = 'horizontal',
+  detached = false,
+}: {
+  orientation?: 'horizontal' | 'vertical';
+  detached?: boolean;
+}) {
+  const campaign = useCampaign();
+  const catalog = useCatalog();
+  const mode = useCampaignStore((s) => s.workMode);
+  const view = useCampaignStore((s) => s.view);
+  const expandedSections = useLayoutStore((s) => s.currentLayout.main.imagery?.expanded_sections);
+  const setPanelOptions = useLayoutStore((s) => s.setPanelOptions);
+  const setExpanded = (section: 'collections' | 'slices', expanded: boolean) => {
+    const sections = (expandedSections ?? []).filter((value) => value !== section);
+    if (expanded) sections.push(section);
+    setPanelOptions('imagery', { expanded_sections: sections });
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const bindings = useMemo(() => pageKeymap(), [campaign, catalog, mode, view]);
+  const layoutClass = !detached
+    ? 'flex-wrap items-center justify-center gap-1'
+    : orientation === 'vertical'
+      ? 'flex-col items-stretch divide-y divide-neutral-200 [&>*]:py-1.5'
+      : 'flex-wrap items-start divide-x divide-neutral-200 [&>*]:flex-1 [&>*]:px-2';
+
+  return (
+    <div
+      className={`flex min-w-0 flex-1 [&>*]:min-w-0 ${layoutClass}`}
+      data-tour="map-controls"
+      data-orientation={orientation}
+    >
+      <LayerSelector
+        catalog={catalog}
+        sourceIds={view?.source_ids ?? []}
+        title={`Select layer - ${hotkeyTip(bindings, 'i')}, ${hotkeyTip(bindings, 'shift+i')}`}
+        expanded={detached}
+      />
+      <CollectionPicker
+        catalog={catalog}
+        sourceIds={view?.source_ids ?? []}
+        isTaskMode={mode === 'tasks'}
+        expanded={detached && !!expandedSections?.includes('collections')}
+        onExpandedChange={detached ? (expanded) => setExpanded('collections', expanded) : undefined}
+        title={`Select collection - ${hotkeyTip(bindings, 'shift+d', 'Next collection')}`}
+      />
+      <SlicePicker
+        catalog={catalog}
+        expanded={detached && !!expandedSections?.includes('slices')}
+        onExpandedChange={detached ? (expanded) => setExpanded('slices', expanded) : undefined}
+        title={`Select time slice - ${hotkeyTip(bindings, 'd', 'Next slice')}`}
+      />
+    </div>
+  );
+}
+
+function MainMapActions() {
   const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
@@ -174,63 +251,35 @@ export function MainMapHeader() {
   ).length;
 
   return (
-    <div
-      className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
-      data-tour="map-controls"
-    >
-      <div className="col-start-2 flex min-w-0 items-center justify-center gap-1">
-        <LayerSelector
-          catalog={catalog}
-          sourceIds={sourceIds}
-          title={`Select layer - ${hotkeyTip(bindings, 'i')}, ${hotkeyTip(bindings, 'shift+i')}`}
-        />
-        <CollectionPicker
-          catalog={catalog}
-          sourceIds={sourceIds}
-          isTaskMode={isTaskMode}
-          title={`Select collection - ${hotkeyTip(bindings, 'shift+d', 'Next collection')}`}
-        />
-        <SlicePicker
-          catalog={catalog}
-          title={`Select time slice - ${hotkeyTip(bindings, 'd', 'Next slice')}`}
-        />
-        <SliceCommentButton address={address} hint={hotkeyTip(bindings, 'shift+c')} />
-        <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'o')} />
-        <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'v')} />
-        <ViewControls
-          isTaskMode={isTaskMode}
-          onFocus={() => {
-            if (isTaskMode) {
-              const focus = useTasksStore.getState().focus;
-              if (focus) mainCamera.moveTo({ center: focus.center });
-            } else
-              void fitAnnotations(
-                catalog.campaignId,
-                useImageryStore.getState().showTaskAnnotations
-              );
-          }}
-          focusTitle={hotkeyTip(bindings, ' ')}
-          crosshairTitle={hotkeyTip(bindings, 'x')}
-          showViewSync={windowCount > 1}
-          viewSyncTitle={hotkeyTip(bindings, 'l')}
-        />
-        {/* Tasks only: there the probe is a detour from the task, so it is
+    <div className="flex flex-wrap items-center justify-center gap-1" data-tour="map-actions">
+      <SliceCommentButton address={address} hint={hotkeyTip(bindings, 'shift+c')} />
+      <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'o')} />
+      <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'v')} />
+      <ViewControls
+        isTaskMode={isTaskMode}
+        onFocus={() => {
+          if (isTaskMode) {
+            const focus = useTasksStore.getState().focus;
+            if (focus) mainCamera.moveTo({ center: focus.center });
+          } else
+            void fitAnnotations(catalog.campaignId, useImageryStore.getState().showTaskAnnotations);
+        }}
+        focusTitle={hotkeyTip(bindings, ' ')}
+        crosshairTitle={hotkeyTip(bindings, 'x')}
+        showViewSync={windowCount > 1}
+        viewSyncTitle={hotkeyTip(bindings, 'l')}
+      />
+      {/* Tasks only: there the probe is a detour from the task, so it is
             reached from the map. Explore keeps every probe control in its
             tools panel, beside the tool that drops them. */}
-        {isTaskMode && campaign.time_series.length > 0 && (
-          <ProbeToggle
-            title={hotkeyTip(bindings, 't')}
-            addTitle={hotkeyTip(bindings, 'shift+t', 'Add another probe')}
-          />
-        )}
-        {isTaskMode && <ClearProbes />}
-        {isTaskMode && <PreloadMenu />}
-      </div>
-      {isTaskMode && (
-        <div className="col-start-3 justify-self-end">
-          <TaskProgressCounter />
-        </div>
+      {isTaskMode && campaign.time_series.length > 0 && (
+        <ProbeToggle
+          title={hotkeyTip(bindings, 't')}
+          addTitle={hotkeyTip(bindings, 'shift+t', 'Add another probe')}
+        />
       )}
+      {isTaskMode && <ClearProbes />}
+      {isTaskMode && <PreloadMenu />}
     </div>
   );
 }
@@ -315,6 +364,9 @@ function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean
 }
 
 export function MainMapBody() {
+  const detachedTimeline = useLayoutStore((s) => !!s.currentLayout.main.timeline);
+  const showSliceNavigation = useLayoutStore((s) => s.currentLayout.main.main.slice_navigation);
+  const isMobile = useIsMobile();
   const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
@@ -455,7 +507,7 @@ export function MainMapBody() {
 
   return (
     <div className="flex h-full w-full">
-      <TimelineSidebar />
+      {(!detachedTimeline || isMobile) && <TimelineSidebar />}
       <div
         ref={containerRef}
         data-crosshair-lon={focus?.center?.[0]}
@@ -484,6 +536,7 @@ export function MainMapBody() {
         <CustomMapLegend catalog={catalog} />
         {!imagery.showBasemap && <ImageryLegend catalog={catalog} address={address} />}
         <CenterCrosshair />
+        {!isMobile && showSliceNavigation && <SliceNavigation />}
         <MapNotice
           waitingForRegistration={
             !imagery.showBasemap &&

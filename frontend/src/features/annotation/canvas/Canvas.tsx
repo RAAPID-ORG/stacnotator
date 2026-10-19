@@ -38,7 +38,7 @@ const GRID_CONFIG = {
 
 /** The rearrangeable panel grid: wraps react-grid-layout with free
  *  positioning (no auto-compaction, so panels stay exactly where the user
- *  puts them) and PanelHost's header-only drag handle. Generic over
+ *  puts them) and PanelHost's drag surfaces. Generic over
  *  arbitrary PanelDefs.
  **/
 export function Canvas({

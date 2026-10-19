@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ImageryViewOut } from '~/api/client';
 import type { ImageryCatalog } from '../../campaign/imagery';
 import { collectionsInView } from '../../campaign/imagery';
@@ -19,6 +19,7 @@ export interface TrayContentProps {
   /** Views are a campaign-wide definition, so only an admin gets that section. */
   isCampaignAdmin: boolean;
   settingUpFirstView?: boolean;
+  footerActions: ReactNode;
 }
 
 const sectionHeading = 'block text-[11px] font-medium uppercase tracking-wider text-neutral-500';
@@ -67,16 +68,11 @@ function HiddenPanelsHeader({ count }: { count: number }) {
       </div>
 
       {count > 0 && !sizeOpen && (
-        <p className="text-[11px] leading-snug text-neutral-500">
-          Click one to put it back on the canvas.
-        </p>
+        <p className="text-[11px] leading-snug text-neutral-500">Click a panel to restore it.</p>
       )}
 
       {sizeOpen && (
         <div className="space-y-2 rounded-lg bg-neutral-50 p-2" data-testid="new-window-size">
-          <p className="text-[11px] leading-snug text-neutral-500">
-            The size a panel is added back at.
-          </p>
           <label className="flex items-center gap-2 text-[11px] text-neutral-500">
             <span className="w-12 shrink-0">Per row</span>
             <input
@@ -124,6 +120,7 @@ export function TrayContent({
   view,
   isCampaignAdmin,
   settingUpFirstView = false,
+  footerActions,
 }: TrayContentProps) {
   const currentLayout = useLayoutStore((s) => s.currentLayout);
   const showWindow = useLayoutStore((s) => s.showWindow);
@@ -140,9 +137,21 @@ export function TrayContent({
     return {
       id: String(collection.id),
       content: (
-        <div className="flex min-w-0 flex-col" data-testid={`hidden-window-${collection.id}`}>
-          <span className="truncate text-xs font-medium text-neutral-700">{collection.name}</span>
-          {source && <span className="truncate text-[10px] text-neutral-400">{source.name}</span>}
+        <div
+          className="flex min-w-0 items-baseline gap-2"
+          data-testid={`hidden-window-${collection.id}`}
+        >
+          <span
+            className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-700"
+            title={collection.name}
+          >
+            {collection.name}
+          </span>
+          {source && (
+            <span className="max-w-[40%] truncate text-[10px] text-neutral-400" title={source.name}>
+              {source.name}
+            </span>
+          )}
         </div>
       ),
     };
@@ -151,31 +160,88 @@ export function TrayContent({
   return (
     <HiddenTray
       items={items}
-      title="Layout"
+      title="Edit Layout"
+      footerActions={footerActions}
       sections={
-        (settingUpFirstView || isCampaignAdmin) && (
-          <>
-            {settingUpFirstView && (
-              <div
-                className="mb-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-xs leading-relaxed text-brand-900"
-                data-testid="first-view-setup-guidance"
-              >
-                <p className="mb-1 font-medium">Setting up the workspace</p>
-                <p>
-                  Drag and resize panels into your team's starting arrangement, then select{' '}
-                  <span className="font-medium">Save layout</span> at the top right to show imagery.
-                  Everyone can rearrange their own copy later through Edit Layout.
-                </p>
-                <p className="mt-2">Drag this panel by its header to move it out of the way.</p>
-              </div>
-            )}
-            {isCampaignAdmin && <ViewAdmin />}
-          </>
-        )
+        <>
+          {settingUpFirstView && (
+            <div
+              className="mb-2 rounded-md border border-brand-200 bg-brand-50 p-2 text-xs leading-snug text-brand-900"
+              data-testid="first-view-setup-guidance"
+            >
+              <p className="mb-1 font-medium">Setting up the workspace</p>
+              <p>
+                Drag and resize panels into your team's starting arrangement, then select{' '}
+                <span className="font-medium">Save layout</span> at the bottom of this panel to show
+                imagery. Everyone can rearrange their own copy later through Edit Layout.
+              </p>
+              <p className="mt-2">Drag this panel by its header to move it out of the way.</p>
+            </div>
+          )}
+          {isCampaignAdmin && (
+            <div className="mb-2 border-b border-neutral-100 pb-2">
+              <ViewAdmin />
+            </div>
+          )}
+          <NavigationPanels />
+        </>
       }
       listHeader={<HiddenPanelsHeader count={items.length} />}
       storageKey="annotation:layoutPanel"
       onAdd={(id) => showWindow(Number(id))}
     />
+  );
+}
+
+function NavigationPanels() {
+  const main = useLayoutStore((s) => s.currentLayout.main);
+  const setPanel = useLayoutStore((s) => s.setNavigationPanel);
+  const setOptions = useLayoutStore((s) => s.setPanelOptions);
+
+  return (
+    <div className="space-y-1 text-xs text-neutral-600">
+      <h3 className={`${sectionHeading} mb-1.5`}>Map navigation</h3>
+      {(['timeline', 'imagery'] as const).map((id) => {
+        const item = main[id];
+        const label = id === 'timeline' ? 'Timeline' : 'Imagery controls';
+        return (
+          <div key={id} className="flex items-center justify-between gap-2 rounded-md px-1 py-0.5">
+            <label className="flex min-w-0 cursor-pointer items-center gap-2 text-neutral-700">
+              <input
+                type="checkbox"
+                checked={!!item}
+                aria-label={`${label} in a separate panel`}
+                onChange={(e) => setPanel(id, e.target.checked)}
+                className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-600"
+              />
+              {id === 'timeline' ? 'Timeline panel' : 'Imagery panel'}
+            </label>
+            <select
+              aria-label={`${label} orientation`}
+              disabled={!item}
+              value={item?.orientation ?? (id === 'timeline' ? 'vertical' : 'horizontal')}
+              onChange={(e) =>
+                setOptions(id, {
+                  orientation: e.target.value === 'horizontal' ? 'horizontal' : 'vertical',
+                })
+              }
+              className="h-6 w-24 shrink-0 rounded-md border border-neutral-200 bg-white px-1.5 text-[11px] text-neutral-600 disabled:bg-neutral-50 disabled:text-neutral-400"
+            >
+              <option value="horizontal">Horizontal</option>
+              <option value="vertical">Vertical</option>
+            </select>
+          </div>
+        );
+      })}
+      <label className="flex cursor-pointer items-center gap-2 px-1 py-1 text-neutral-700">
+        <input
+          type="checkbox"
+          checked={main.main.slice_navigation ?? false}
+          onChange={(e) => setOptions('main', { slice_navigation: e.target.checked })}
+          className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-600"
+        />
+        Desktop slice navigation
+      </label>
+    </div>
   );
 }

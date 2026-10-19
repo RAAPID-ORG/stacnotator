@@ -7,15 +7,32 @@ import { useSliceNotes } from '../../../stores/work';
 import { HeaderSelect } from '../../../components/HeaderSelect';
 import { NoteBadge } from '../../../chrome/SliceComments';
 
-export function SlicePicker({ catalog, title }: { catalog: ImageryCatalog; title: string }) {
+export function SlicePicker({
+  catalog,
+  title,
+  expanded,
+  onExpandedChange,
+}: {
+  catalog: ImageryCatalog;
+  title: string;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+}) {
   const forcedOpen = useLayoutStore((s) => s.forcedOpenControl);
+  const editing = useLayoutStore((s) => s.editing);
   const address = useImageryStore((s) => s.address);
   const empties = useImageryStore((s) => s.empties);
   const setAddress = useImageryStore((s) => s.setAddress);
   const notes = useSliceNotes();
 
   const collection = address ? catalog.collections.get(address.collectionId) : undefined;
-  if (!address || !collection || collection.slices.length <= 1) return null;
+  if (
+    !address ||
+    !collection ||
+    collection.slices.length === 0 ||
+    (collection.slices.length === 1 && !expanded && !onExpandedChange)
+  )
+    return null;
 
   const options = slicePickerIndices(catalog, collection).map((index) => {
     const slice = collection.slices[index];
@@ -35,6 +52,9 @@ export function SlicePicker({ catalog, title }: { catalog: ImageryCatalog; title
         options={options}
         onChange={(v: string | number) => setAddress(addressAtSlice(catalog, address, Number(v)))}
         title={title}
+        inline={expanded}
+        onInlineChange={editing ? onExpandedChange : undefined}
+        label="Dates"
         forcedOpen={forcedOpen === 'slice-picker'}
         menuTourName="slice-picker-menu"
       />

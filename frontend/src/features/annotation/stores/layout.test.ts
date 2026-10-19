@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { makeCampaign, makeView } from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from './layout';
-import { coversPanels, EMPTY_LAYOUT, layoutForView } from '../canvas/grid';
+import { coversPanels, EMPTY_LAYOUT, layoutForView, overlaps, toGridLayout } from '../canvas/grid';
 
 const layoutOut = (id: number, keys: string[]) => ({
   id,
@@ -58,7 +58,8 @@ describe('loadViewLayout', () => {
       ...EMPTY_LAYOUT,
       main: {
         ...EMPTY_LAYOUT.main,
-        main: { i: 'main', x: 3, y: 0, w: 40, h: 20 },
+        main: { i: 'main', x: 3, y: 0, w: 40, h: 20, slice_navigation: true },
+        timeline: { i: 'timeline', x: 0, y: 20, w: 40, h: 5, orientation: 'horizontal' as const },
       },
     };
     useLayoutStore.setState({ currentLayout: moved, savedLayout: moved });
@@ -68,7 +69,8 @@ describe('loadViewLayout', () => {
       .loadViewLayout(makeView({ id: 1, default_canvas_layout: layoutOut(2, ['10']) }));
 
     const { currentLayout, savedLayout } = useLayoutStore.getState();
-    expect(currentLayout.main.main).toEqual(moved.main.main);
+    expect(currentLayout.main).toEqual(moved.main);
+    expect(savedLayout.main).toEqual(moved.main);
     expect(Object.keys(currentLayout.windows)).toEqual(['10']);
     // Cancelling an edit made after the switch must not revert to the other view.
     expect(savedLayout.windows).toEqual(currentLayout.windows);
@@ -121,6 +123,109 @@ describe('showWindow / hideWindow / hideAllWindows', () => {
 });
 
 describe('startEditing / saveLayout / cancelEditing', () => {
+  it('docks the timeline beside or below the map without moving neighboring panels', () => {
+    const initial = {
+      ...EMPTY_LAYOUT,
+      main: {
+        ...EMPTY_LAYOUT.main,
+        main: { i: 'main', x: 2, y: 3, w: 30, h: 20, slice_navigation: true },
+        minimap: { i: 'minimap', x: 32, y: 3, w: 10, h: 20 },
+      },
+      windows: { 10: { i: '10', x: 2, y: 23, w: 30, h: 10 } },
+    };
+    useLayoutStore.setState({ currentLayout: initial, savedLayout: initial });
+    const store = useLayoutStore.getState();
+    store.setNavigationPanel('timeline', true);
+    let layout = useLayoutStore.getState().currentLayout;
+    expect(layout.main.timeline).toMatchObject({ i: 'timeline', x: 2, y: 3, w: 4, h: 20 });
+    expect(layout.main.main).toMatchObject({ x: 6, y: 3, w: 26, h: 20, slice_navigation: true });
+
+    store.setPanelOptions('timeline', { orientation: 'horizontal' });
+    layout = useLayoutStore.getState().currentLayout;
+    expect(layout.main.timeline).toMatchObject({
+      x: 2,
+      y: 19,
+      w: 30,
+      h: 4,
+      orientation: 'horizontal',
+    });
+    expect(layout.main.main).toMatchObject({ x: 2, y: 3, w: 30, h: 16 });
+    expect(layout.main.minimap).toEqual(initial.main.minimap);
+    expect(layout.windows).toEqual(initial.windows);
+    for (const item of toGridLayout(layout)) {
+      expect(
+        toGridLayout(layout).some((other) => other.i !== item.i && overlaps(item, other))
+      ).toBe(false);
+    }
+
+    store.setPanelOptions('timeline', { orientation: 'vertical' });
+    expect(useLayoutStore.getState().currentLayout.main.timeline).toMatchObject({
+      x: 2,
+      y: 3,
+      w: 4,
+      h: 20,
+    });
+    store.setNavigationPanel('timeline', false);
+    expect(useLayoutStore.getState().currentLayout).toEqual(initial);
+  });
+
+  it('does not reclaim space between the map and a timeline the user moved away', () => {
+    const initial = {
+      ...EMPTY_LAYOUT,
+      main: {
+        ...EMPTY_LAYOUT.main,
+        main: { i: 'main', x: 4, y: 0, w: 30, h: 20 },
+        timeline: { i: 'timeline', x: 0, y: 50, w: 4, h: 20, orientation: 'vertical' as const },
+      },
+    };
+    useLayoutStore.setState({ currentLayout: initial });
+    useLayoutStore.getState().setNavigationPanel('timeline', false);
+    expect(useLayoutStore.getState().currentLayout.main.main).toEqual(initial.main.main);
+  });
+
+  it('keeps a one-cell map intact when there is no room to split it', () => {
+    const initial = {
+      ...EMPTY_LAYOUT,
+      main: { ...EMPTY_LAYOUT.main, main: { i: 'main', x: 0, y: 0, w: 1, h: 1 } },
+    };
+    useLayoutStore.setState({ currentLayout: initial });
+    const store = useLayoutStore.getState();
+    store.setNavigationPanel('timeline', true);
+    store.setPanelOptions('timeline', { orientation: 'horizontal' });
+    const { main } = useLayoutStore.getState().currentLayout;
+    expect(main.main).toEqual(initial.main.main);
+    expect(main.timeline?.w).toBeGreaterThan(0);
+    expect(main.timeline?.h).toBeGreaterThan(0);
+    expect(overlaps(main.main, main.timeline!)).toBe(false);
+  });
+
+  it('packs detached navigation without overlap and reverts all its settings on cancel', () => {
+    const initial = layoutForView(makeCampaign({ default_main_canvas_layout: chrome }), makeView());
+    useLayoutStore.setState({ currentLayout: initial, savedLayout: initial });
+    const store = useLayoutStore.getState();
+    store.startEditing();
+    store.setNavigationPanel('timeline', true);
+    store.setNavigationPanel('imagery', true);
+    store.setPanelOptions('timeline', { orientation: 'horizontal' });
+    store.setPanelOptions('imagery', {
+      orientation: 'vertical',
+      expanded_sections: ['sources', 'visualizations'],
+    });
+    store.setPanelOptions('main', { slice_navigation: true });
+    const edited = useLayoutStore.getState().currentLayout;
+    for (const item of toGridLayout(edited)) {
+      expect(
+        toGridLayout(edited)
+          .filter((other) => other.i !== item.i)
+          .some((other) => overlaps(item, other))
+      ).toBe(false);
+    }
+    store.setNavigationPanel('timeline', false);
+    expect(useLayoutStore.getState().currentLayout.main.timeline).toBeUndefined();
+    store.cancelEditing();
+    expect(useLayoutStore.getState().currentLayout).toEqual(initial);
+  });
+
   it('cancelEditing reverts currentLayout to savedLayout and clears editing', () => {
     useLayoutStore.getState().startEditing();
     expect(useLayoutStore.getState().editing).toBe(true);

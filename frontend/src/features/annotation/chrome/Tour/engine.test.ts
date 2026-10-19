@@ -376,7 +376,9 @@ describe('tour steps content', () => {
       );
     for (const variant of ['tasks', 'explore'] as const) {
       const steps = buildTourSteps(variant, { hasTimeseries: false, hasFormFields: false });
-      expect(named(steps.find((s) => s.id === 'practice-resize')!.avoid)).toContain('toolbar');
+      expect(named(steps.find((s) => s.id === 'practice-resize')!.avoid)).toContain(
+        'layout-controls'
+      );
       expect(named(steps.find((s) => s.id === 'practice-google-earth')!.avoid)).toContain(
         'minimap'
       );

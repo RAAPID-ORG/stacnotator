@@ -109,7 +109,7 @@ function ScreenGrid({
         <div className="flex h-full items-center justify-center px-6">
           <p className="max-w-sm text-center text-sm leading-relaxed text-neutral-400">
             This screen is empty. Send a panel here from the main canvas, then drag panels by their
-            header to arrange them.
+            header or body to arrange them.
           </p>
         </div>
       ) : (
@@ -142,7 +142,7 @@ function ScreenGrid({
 }
 
 /** A secondary canvas hosted in a pop-out window: its own grid of panels,
- *  with the same free-compaction rules and header-only drag handle as the
+ *  with the same free-compaction rules and drag surfaces as the
  *  main Canvas, via the shared PanelHost handle/cancel selectors. ScreenWindow
  *  only arranges the same panel definitions the main canvas uses. */
 export function ScreenWindow({

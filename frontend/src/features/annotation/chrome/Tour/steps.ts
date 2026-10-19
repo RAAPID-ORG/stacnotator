@@ -12,6 +12,7 @@ const imagerySelector = { kind: 'anchor', name: 'imagery-selector' } as const;
 const taskFilter = { kind: 'anchor', name: 'task-filter' } as const;
 const taskFilterMenu = { kind: 'anchor', name: 'task-filter-menu' } as const;
 const mapControls = { kind: 'anchor', name: 'map-controls' } as const;
+const mapActions = { kind: 'anchor', name: 'map-actions' } as const;
 const collectionPicker = { kind: 'anchor', name: 'collection-picker' } as const;
 const slicePicker = { kind: 'anchor', name: 'slice-picker' } as const;
 const slicePickerMenu = { kind: 'anchor', name: 'slice-picker-menu' } as const;
@@ -106,13 +107,12 @@ const HELP_STEP: TourStep = {
 const RESIZE_STEP: TourStep = {
   id: 'practice-resize',
   target: [canvas, layoutControls],
-  // The step is finished by clicking Save or Cancel up in the toolbar, so the
-  // tooltip must never be the thing standing in front of them.
-  avoid: toolbar,
+  // Keep the completion actions reachable while the tooltip covers the canvas.
+  avoid: layoutControls,
   title: 'Practice: Resize Panels',
   body: [
-    "We've turned Edit Layout on for you. Try dragging a panel header to move it, or drag a panel's edge or corner to resize it - every panel on the canvas is draggable and resizable right now.",
-    'When you are done, use Save or Cancel in the highlighted controls at the top right.',
+    "We've turned Edit Layout on for you. Try dragging a panel's header or body to move it, or drag its edge or corner to resize it. Buttons and inputs still work normally.",
+    'When you are done, use Save or Cancel at the bottom of the Edit Layout panel.',
   ],
   placement: 'bottom',
   effect: 'edit-layout',
@@ -238,9 +238,11 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     },
     {
       id: 'map-controls',
-      target: mapControls,
+      target: [mapControls, mapActions],
       title: 'Map Controls',
-      body: ['These controls in the header bar let you manage the map:'],
+      body: [
+        'These controls let you manage the map. Imagery selectors can also be moved into their own panel:',
+      ],
       bullets: [
         { text: 'Layer / Collection / Slice selectors - switch imagery directly' },
         { text: 'Recenter - snap back to the task location ({{ }})' },

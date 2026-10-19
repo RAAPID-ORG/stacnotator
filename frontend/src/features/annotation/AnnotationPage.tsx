@@ -23,7 +23,7 @@ import {
 } from './chrome/Gates';
 import { LayoutEditControls } from './canvas/LayoutEdit/LayoutEditControls';
 import { TrayContent } from './canvas/LayoutEdit/TrayContent';
-import { MobileSliceNav } from './chrome/MobileSliceNav';
+import { SliceNavigation } from './chrome/SliceNavigation';
 import { SliceCommentDialog } from './chrome/SliceComments';
 import { RestoreScreensToast, SendToScreenButton } from './canvas/Screens/ScreenControls';
 import { ScreenWindow } from './canvas/Screens/ScreenWindow';
@@ -403,7 +403,9 @@ export function AnnotationPage() {
     if (!coversPanels(next, canvasPanelIds)) return;
     const layout = useLayoutStore.getState();
     const previous = toGridLayout(layout.currentLayout);
-    layout.setLayout(fromGridLayout(mergeLayoutChange(next, previous, popped), currentLayout));
+    layout.setLayout(
+      fromGridLayout(mergeLayoutChange(next, previous, popped), layout.currentLayout)
+    );
   };
 
   // A sent-away panel can disappear from under us (a view switch drops its
@@ -511,6 +513,15 @@ export function AnnotationPage() {
   }
 
   const showCanvas = workMode === 'explore' || visibleTasks.length > 0;
+  const layoutControls = (
+    <LayoutEditControls
+      campaign={campaign}
+      view={view}
+      isCampaignAdmin={policy.isAdmin}
+      mustSaveDefault={settingUpFirstView}
+      onSetupFinished={() => setSettingUpFirstView(false)}
+    />
+  );
 
   return (
     // Activity is captured here rather than on `document` so that panels popped
@@ -530,15 +541,7 @@ export function AnnotationPage() {
         taskFilter={taskFilter}
         onTaskFilterChange={(patch) => applyFilter({ ...taskFilter, ...patch })}
         policy={policy}
-        layoutControls={
-          <LayoutEditControls
-            campaign={campaign}
-            view={view}
-            isCampaignAdmin={policy.isAdmin}
-            mustSaveDefault={settingUpFirstView}
-            onSetupFinished={() => setSettingUpFirstView(false)}
-          />
-        }
+        layoutControls={!editing ? layoutControls : null}
         onNavigateCampaign={goTo('')}
         onNavigateWorkPage={
           workMode === 'tasks' ? goTo('tasks', '?taskSet=all') : goTo('annotations')
@@ -574,7 +577,7 @@ export function AnnotationPage() {
         />
       )}
 
-      {isMobile && <MobileSliceNav />}
+      {showCanvas && !editing && isMobile && <SliceNavigation mobile />}
 
       <SliceCommentDialog />
 
@@ -584,6 +587,7 @@ export function AnnotationPage() {
           view={view}
           isCampaignAdmin={policy.isAdmin}
           settingUpFirstView={settingUpFirstView}
+          footerActions={layoutControls}
         />
       )}
 

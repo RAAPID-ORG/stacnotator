@@ -2,7 +2,8 @@ import { useEffect, type RefObject } from 'react';
 import { PANEL_DRAG_CANCEL_SELECTOR, PANEL_DRAG_HANDLE_CLASS } from './PanelHost';
 
 /** react-draggable only ends mouse gestures on mouseup, which the browser
- * can lose when focus or pointer capture leaves the window. */
+ * can lose when focus or pointer capture leaves the window. The same captured
+ * gesture drives edge scrolling in either canvas's own document. */
 export function useGridGestureRecovery(
   containerRef: RefObject<HTMLDivElement | null>,
   enabled: boolean
@@ -14,8 +15,59 @@ export function useGridGestureRecovery(
     if (!enabled || !container || !doc || !win) return;
 
     let active: { node: Element; pointerId: number; x: number; y: number } | null = null;
+    let scrollFrame: number | null = null;
+    let lastScrollTime: number | null = null;
+
+    const stopScrolling = () => {
+      if (scrollFrame !== null) win.cancelAnimationFrame(scrollFrame);
+      scrollFrame = null;
+      lastScrollTime = null;
+    };
+    const scroll = (time: number) => {
+      if (!active) {
+        stopScrolling();
+        return;
+      }
+      const rect = container.getBoundingClientRect();
+      const top = Math.max(0, rect.top);
+      const bottom = Math.min(win.innerHeight, rect.bottom);
+      const edge = Math.min(56, (bottom - top) / 4);
+      if (edge <= 0 || active.x < rect.left || active.x > rect.right) {
+        stopScrolling();
+        return;
+      }
+      const distance =
+        active.y < top + edge
+          ? active.y - top - edge
+          : active.y > bottom - edge
+            ? active.y - bottom + edge
+            : 0;
+      const velocity = Math.max(-1, Math.min(1, distance / edge)) * 800;
+      const seconds =
+        lastScrollTime === null ? 1 / 60 : Math.min((time - lastScrollTime) / 1000, 0.032);
+      lastScrollTime = time;
+      const before = container.scrollTop;
+      container.scrollTop += velocity * seconds;
+      if (container.scrollTop === before) {
+        stopScrolling();
+        return;
+      }
+      // react-draggable includes scroll offsets when reading a mouse move.
+      // Re-read them even when the pointer is held still at the edge.
+      doc.dispatchEvent(
+        new win.MouseEvent('mousemove', {
+          bubbles: true,
+          button: 0,
+          buttons: 1,
+          clientX: active.x,
+          clientY: active.y,
+        })
+      );
+      if (active) scrollFrame = win.requestAnimationFrame(scroll);
+    };
 
     const clear = () => {
+      stopScrolling();
       const gesture = active;
       active = null;
       if (gesture?.node.hasPointerCapture(gesture.pointerId)) {
@@ -52,6 +104,9 @@ export function useGridGestureRecovery(
       else {
         active.x = event.clientX;
         active.y = event.clientY;
+        if (scrollFrame === null && !active.node.matches('.react-resizable-handle')) {
+          scrollFrame = win.requestAnimationFrame(scroll);
+        }
       }
     };
     const lostCapture = (event: PointerEvent) => {

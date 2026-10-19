@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { IconChevronDown } from '~/shared/ui/Icons';
 
@@ -40,6 +40,9 @@ export interface HeaderSelectProps {
   /** `data-tour` name for the open menu. It is portaled to the body rather
    *  than nested under the trigger, so a spotlight cannot find it otherwise. */
   menuTourName?: string;
+  inline?: boolean;
+  onInlineChange?: (inline: boolean) => void;
+  label?: string;
 }
 
 /** Options in listed order, cut into their consecutive groups. */
@@ -87,7 +90,11 @@ export function HeaderSelect({
   dark,
   forcedOpen = false,
   menuTourName,
+  inline = false,
+  onInlineChange,
+  label,
 }: HeaderSelectProps) {
+  const radioName = useId();
   const [selfOpen, setSelfOpen] = useState(false);
   const open = forcedOpen || selfOpen;
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -102,7 +109,7 @@ export function HeaderSelect({
   }, []);
 
   useEffect(() => {
-    if (!open || !buttonRef.current || !listRef.current) return;
+    if (inline || !open || !buttonRef.current || !listRef.current) return;
     const win = buttonRef.current.ownerDocument.defaultView ?? window;
     const rect = buttonRef.current.getBoundingClientRect();
     const list = listRef.current;
@@ -119,7 +126,7 @@ export function HeaderSelect({
     list.style.top = `${Math.max(VIEWPORT_GAP_PX, top)}px`;
     list.style.left = `${Math.max(VIEWPORT_GAP_PX, Math.min(rect.left, win.innerWidth - width - VIEWPORT_GAP_PX))}px`;
     list.style.maxHeight = `${height}px`;
-  }, [open, options]);
+  }, [open, options, inline]);
 
   const select = (option: HeaderSelectOption) => {
     onChange(option.value);
@@ -127,51 +134,86 @@ export function HeaderSelect({
   };
 
   const selected = options.find((o) => o.value === value);
+  const renderOptions = (content: ReactNode) =>
+    inline
+      ? content
+      : createPortal(content, buttonRef.current?.ownerDocument.body ?? document.body);
 
   return (
     <div className="select-none" onMouseEnter={cancelClose} onMouseLeave={scheduleClose}>
-      <button
-        ref={buttonRef}
-        type="button"
-        title={title}
-        // The header is the panel's drag handle; a press on a control here
-        // must not start dragging the panel.
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          cancelClose();
-          setSelfOpen(!open);
-        }}
-        className={`${compact ? 'h-5' : 'h-6'} px-1.5 flex items-center rounded-md font-medium cursor-pointer ${
-          compact ? 'text-[10px] gap-1' : 'text-[11px] gap-1.5'
-        } ${
-          dark
-            ? 'text-white/80 hover:bg-white/15 hover:text-white'
-            : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700'
-        } transition-colors`}
-      >
-        {icon && <span className="shrink-0 opacity-40 flex items-center">{icon}</span>}
-        <span className="truncate max-w-[11rem]">
-          {selected
-            ? selected.group
-              ? `${selected.group} > ${selected.label}`
-              : selected.label
-            : ''}
-        </span>
-        <IconChevronDown className={`w-2 h-2 shrink-0 ${dark ? 'opacity-50' : 'opacity-40'}`} />
-      </button>
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        {!inline && (
+          <button
+            ref={buttonRef}
+            type="button"
+            title={title}
+            // The header is the panel's drag handle; a press on a control here
+            // must not start dragging the panel.
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              cancelClose();
+              setSelfOpen(!open);
+            }}
+            className={`min-w-0 ${compact ? 'h-5' : 'h-6'} px-1.5 flex items-center rounded-md font-medium cursor-pointer ${
+              compact ? 'text-[10px] gap-1' : 'text-[11px] gap-1.5'
+            } ${
+              dark
+                ? 'text-white/80 hover:bg-white/15 hover:text-white'
+                : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700'
+            } transition-colors`}
+          >
+            {icon && <span className="shrink-0 opacity-40 flex items-center">{icon}</span>}
+            <span className="truncate max-w-[11rem]">
+              {selected
+                ? selected.group
+                  ? `${selected.group} > ${selected.label}`
+                  : selected.label
+                : ''}
+            </span>
+            <IconChevronDown className={`w-2 h-2 shrink-0 ${dark ? 'opacity-50' : 'opacity-40'}`} />
+          </button>
+        )}
+        {onInlineChange && (
+          <button
+            type="button"
+            aria-label={`${inline ? 'Collapse' : 'Expand'} ${label}`}
+            aria-expanded={inline}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              cancelClose();
+              setSelfOpen(false);
+              onInlineChange(!inline);
+            }}
+            className="rounded px-1.5 py-0.5 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+          >
+            {inline ? 'Collapse' : 'Expand'}
+          </button>
+        )}
+      </div>
 
-      {open &&
-        createPortal(
+      {(inline || open) &&
+        renderOptions(
           <div
             ref={listRef}
             data-tour={menuTourName}
-            className="fixed z-[9999] min-w-[180px] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+            role={inline ? 'radiogroup' : undefined}
+            aria-label={inline ? label : undefined}
+            className={
+              inline
+                ? 'flex flex-wrap gap-0.5 p-0.5'
+                : 'fixed z-[9999] min-w-[180px] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-lg'
+            }
             onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}
           >
             {sections(options).map((section) => (
-              <div key={section.group ?? ''} data-option-group={section.group}>
+              <div
+                key={section.group ?? ''}
+                data-option-group={section.group}
+                className={inline ? 'flex max-w-full flex-wrap gap-0.5' : undefined}
+              >
                 {section.group && (
                   <div className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
                     {section.group}
@@ -183,19 +225,39 @@ export function HeaderSelect({
                   return (
                     <div
                       key={option.value}
-                      className={`flex items-center ${isSelected ? 'bg-brand-50' : 'hover:bg-neutral-50'} ${option.dimmed ? 'opacity-50' : ''}`}
+                      className={`flex min-w-0 items-center ${inline ? 'max-w-full rounded' : ''} ${isSelected ? 'bg-brand-50' : 'hover:bg-neutral-50'} ${option.dimmed ? 'opacity-50' : ''}`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => select(option)}
-                        className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 text-left text-xs cursor-pointer ${isSelected ? 'font-medium text-brand-700' : 'text-neutral-700'}`}
-                      >
-                        <span
-                          className={`h-1 w-1 shrink-0 rounded-full ${isSelected ? 'bg-brand-500' : 'bg-transparent'}`}
-                        />
-                        <span className="truncate">{option.label}</span>
-                        {option.badge && <span className="shrink-0">{option.badge}</span>}
-                      </button>
+                      {inline ? (
+                        <label
+                          title={option.label}
+                          className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 px-1 py-0.5 text-[11px] ${isSelected ? 'font-medium text-brand-700' : 'text-neutral-700'}`}
+                        >
+                          <input
+                            type="radio"
+                            name={radioName}
+                            value={option.value}
+                            checked={isSelected}
+                            onChange={() => select(option)}
+                            className="h-3 w-3 shrink-0 cursor-pointer accent-brand-600"
+                          />
+                          <span className="truncate">{option.label}</span>
+                          {option.badge && <span className="shrink-0">{option.badge}</span>}
+                        </label>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          title={option.label}
+                          onClick={() => select(option)}
+                          className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 text-left text-xs cursor-pointer ${isSelected ? 'font-medium text-brand-700' : 'text-neutral-700'}`}
+                        >
+                          <span
+                            className={`h-1 w-1 shrink-0 rounded-full ${isSelected ? 'bg-brand-500' : 'bg-transparent'}`}
+                          />
+                          <span className="truncate">{option.label}</span>
+                          {option.badge && <span className="shrink-0">{option.badge}</span>}
+                        </button>
+                      )}
                       {onMarkOption && (
                         <button
                           type="button"
@@ -216,8 +278,7 @@ export function HeaderSelect({
                 })}
               </div>
             ))}
-          </div>,
-          buttonRef.current?.ownerDocument.body ?? document.body
+          </div>
         )}
     </div>
   );

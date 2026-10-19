@@ -12,7 +12,7 @@ async function enterEditMode(page: Page) {
   await page.locator('button', { hasText: 'Edit Layout' }).click();
   // The floating hidden-panels tray overlays bottom-right panels in this
   // viewport; collapse it to its chip so panel headers are reachable.
-  await page.getByRole('button', { name: 'Minimize layout', exact: true }).click();
+  await page.getByRole('button', { name: 'Minimize edit layout', exact: true }).click();
 }
 
 async function sendControlsToNewScreen(page: Page) {
@@ -24,21 +24,52 @@ async function sendControlsToNewScreen(page: Page) {
 }
 
 test.describe('Secondary screens', () => {
-  test('dragging stops when the secondary window loses focus', async ({ annotationPage }) => {
+  test('edge scrolling in a secondary canvas stops on focus loss', async ({ annotationPage }) => {
     const popup = await sendControlsToNewScreen(annotationPage);
+    await popup.setViewportSize({ width: 900, height: 360 });
+    const canvas = popup.getByTestId('popout-screen-2');
     const panel = popup.locator('[data-panel-id="controls"]');
     const header = await panel.locator('.card-header').boundingBox();
-    if (!header) throw new Error('Secondary screen controls header is missing');
-    await popup.mouse.move(header.x + 30, header.y + header.height / 2);
+    const bounds = await canvas.boundingBox();
+    if (!header || !bounds) throw new Error('Secondary canvas or controls header is missing');
+    const x = header.x + 30;
+    await popup.mouse.move(x, header.y + header.height / 2);
     await popup.mouse.down();
-    await popup.mouse.move(header.x + 80, header.y + 50, { steps: 4 });
+    await popup.mouse.move(x, Math.min(bounds.y + bounds.height, 360) - 8, { steps: 6 });
+    await expect.poll(() => canvas.evaluate((node) => node.scrollTop)).toBeGreaterThan(100);
+    await popup.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(panel).not.toHaveClass(/react-draggable-dragging/);
+    await expect(popup.locator('.react-grid-placeholder')).toHaveCount(0);
+    const stoppedAt = await canvas.evaluate((node) => node.scrollTop);
+    const afterBlur = await canvas.evaluate(async (node) => {
+      for (let i = 0; i < 4; i++) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      return node.scrollTop;
+    });
+    expect(afterBlur).toBe(stoppedAt);
+    await popup.mouse.up();
+  });
+
+  test('dragging a secondary panel by its body stops when the window loses focus', async ({
+    annotationPage,
+  }) => {
+    const popup = await sendControlsToNewScreen(annotationPage);
+    const panel = popup.locator('[data-panel-id="controls"]');
+    const target = panel.getByText('Confidence', { exact: true });
+    await target.scrollIntoViewIfNeeded();
+    const body = await target.boundingBox();
+    if (!body) throw new Error('Secondary screen controls body is missing');
+    await popup.mouse.move(body.x + body.width / 2, body.y + body.height / 2);
+    await popup.mouse.down();
+    await popup.mouse.move(body.x + body.width / 2 + 50, body.y + 50, { steps: 4 });
     await expect(panel).toHaveClass(/react-draggable-dragging/);
     await popup.evaluate(() => window.dispatchEvent(new Event('blur')));
     await expect(panel).not.toHaveClass(/react-draggable-dragging/);
     await expect(popup.locator('.react-grid-placeholder')).toHaveCount(0);
     await popup.mouse.up();
     const dropped = await panel.boundingBox();
-    await popup.mouse.move(header.x + 140, header.y + 90, { steps: 4 });
+    await popup.mouse.move(body.x + body.width / 2 + 100, body.y + 90, { steps: 4 });
     await expect.poll(() => panel.boundingBox()).toEqual(dropped);
   });
 
@@ -125,7 +156,11 @@ test.describe('Secondary screens', () => {
     const page = annotationPage;
 
     const popup = await sendControlsToNewScreen(page);
-    await page.locator('[data-tour="toolbar"] button', { hasText: 'Cancel' }).click();
+    await page.getByRole('button', { name: 'Show edit layout', exact: true }).click();
+    await page
+      .getByTestId('layout-footer-actions')
+      .getByRole('button', { name: 'Cancel', exact: true })
+      .click();
 
     await popup.close({ runBeforeUnload: true });
     await expect(page.locator('[data-tour="controls"]')).toBeVisible();

@@ -1,10 +1,11 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { IconPlus } from '~/shared/ui/Icons';
 
-const MIN_PANEL_W = 240;
+const MIN_PANEL_W = 280;
 const MIN_PANEL_H = 200;
 const MAX_PANEL_W = 560;
 const MAX_PANEL_H = 720;
+const PANEL_MARGIN = 12;
 const DEFAULT_PANEL_SIZE = { width: 288, height: 520 };
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
@@ -44,10 +45,9 @@ function loadPanelGeometry(storageKey: string): PanelGeometry {
 
 /** Keeps the panel reachable: it may leave its corner, but not the viewport. */
 function clampOffset({ dx, dy }: PanelOffset, width: number, height: number): PanelOffset {
-  const margin = 12;
   return {
-    dx: clamp(dx, -Math.max(0, window.innerWidth - width - margin), 0),
-    dy: clamp(dy, -Math.max(0, window.innerHeight - height - margin), 0),
+    dx: clamp(dx, -Math.max(0, window.innerWidth - width - PANEL_MARGIN * 2), 0),
+    dy: clamp(dy, -Math.max(0, window.innerHeight - height - PANEL_MARGIN * 2), 0),
   };
 }
 
@@ -59,6 +59,7 @@ export interface HiddenTrayItem {
 export interface HiddenTrayProps {
   items: HiddenTrayItem[];
   title?: string;
+  footerActions?: ReactNode;
   /** Sections shown above the hidden-panel section, in the same panel. */
   sections?: ReactNode;
   /** Rendered directly above the item list, so whatever names the list sits
@@ -77,6 +78,7 @@ export interface HiddenTrayProps {
 export function HiddenTray({
   items,
   title = 'Hidden',
+  footerActions,
   sections,
   listHeader,
   storageKey,
@@ -85,7 +87,20 @@ export function HiddenTray({
 }: HiddenTrayProps) {
   const [expanded, setExpanded] = useState(true);
   const [panelGeometry, setPanelGeometry] = useState(() => loadPanelGeometry(storageKey));
-  const panelSize = panelGeometry;
+  const [viewport, setViewport] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+  useEffect(() => {
+    const resize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
+  const panelSize = {
+    width: Math.min(panelGeometry.width, viewport.width - PANEL_MARGIN * 2),
+    height: Math.min(panelGeometry.height, viewport.height - PANEL_MARGIN * 2),
+  };
+  const panelOffset = clampOffset(panelGeometry.offset, panelSize.width, panelSize.height);
   const panelResizeStart = useRef<{ x: number; y: number; width: number; height: number } | null>(
     null
   );
@@ -134,10 +149,15 @@ export function HiddenTray({
   // The panel is tall enough to bury the canvas it edits, so it moves.
   const onPanelMovePointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || !e.isPrimary) return;
-    if ((e.target as HTMLElement).closest('button')) return;
+    if (
+      !(e.target instanceof Element) ||
+      !e.currentTarget.contains(e.target) ||
+      e.target.closest('button')
+    )
+      return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    panelMoveStart.current = { x: e.clientX, y: e.clientY, offset: panelGeometry.offset };
+    panelMoveStart.current = { x: e.clientX, y: e.clientY, offset: panelOffset };
   };
 
   const onPanelMovePointerMove = (e: React.PointerEvent) => {
@@ -150,8 +170,8 @@ export function HiddenTray({
           dx: start.offset.dx + (e.clientX - start.x),
           dy: start.offset.dy + (e.clientY - start.y),
         },
-        prev.width,
-        prev.height
+        panelSize.width,
+        panelSize.height
       ),
     }));
   };
@@ -170,8 +190,10 @@ export function HiddenTray({
       <button
         type="button"
         onClick={() => setExpanded(true)}
-        className={`fixed bottom-3 right-3 z-[1002] inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-2 text-xs font-medium text-neutral-700 shadow-lg ${className}`}
+        className={`fixed z-[900] inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-2 text-xs font-medium text-neutral-700 shadow-lg ${className}`}
+        style={{ bottom: PANEL_MARGIN, right: PANEL_MARGIN }}
         title={`Show ${title.toLowerCase()}`}
+        aria-label={`Show ${title.toLowerCase()}`}
       >
         <span>{title}</span>
         <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-neutral-200 px-1 text-[10px] font-semibold tabular-nums text-neutral-600">
@@ -183,11 +205,13 @@ export function HiddenTray({
 
   return (
     <div
-      className={`fixed bottom-3 right-3 z-[1002] flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white/95 shadow-xl ${className}`}
+      className={`fixed z-[900] flex flex-col rounded-xl border border-neutral-200 bg-white/95 shadow-xl ${className}`}
       style={{
+        bottom: PANEL_MARGIN,
+        right: PANEL_MARGIN,
         width: panelSize.width,
         maxHeight: panelSize.height,
-        transform: `translate(${panelGeometry.offset.dx}px, ${panelGeometry.offset.dy}px)`,
+        transform: `translate(${panelOffset.dx}px, ${panelOffset.dy}px)`,
       }}
       data-testid="hidden-tray"
     >
@@ -209,7 +233,7 @@ export function HiddenTray({
         onPointerUp={onPanelMovePointerUp}
         onPointerCancel={onPanelMovePointerUp}
         onLostPointerCapture={onPanelMovePointerUp}
-        className="flex shrink-0 touch-none cursor-grab items-center justify-between gap-2 border-b border-neutral-100 bg-neutral-50/70 px-3.5 py-2.5 select-none active:cursor-grabbing"
+        className="flex shrink-0 touch-none cursor-grab items-center justify-between gap-2 rounded-t-xl border-b border-neutral-100 bg-neutral-50/70 px-3 py-2 select-none active:cursor-grabbing"
         title="Drag to move"
         data-testid="move-hidden-tray"
       >
@@ -219,41 +243,44 @@ export function HiddenTray({
           onClick={() => setExpanded(false)}
           aria-label={`Minimize ${title.toLowerCase()}`}
           title="Minimize"
+          className="grid h-5 w-5 shrink-0 place-items-center rounded text-neutral-400 hover:bg-neutral-200/70 hover:text-neutral-700"
         >
           -
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${footerActions ? '' : 'rounded-b-xl'}`}
+      >
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {sections && <div className="px-3.5 py-3">{sections}</div>}
+          {sections && <div className="px-3 py-2.5">{sections}</div>}
         </div>
         {/* The list keeps its own region rather than trailing the settings in
             one scroll: sharing it, the list fell off the bottom of the panel
-            and went unnoticed. The floor keeps a couple of rows on screen
+            and went unnoticed. The floor keeps restoration controls on screen
             whatever sits above; the cap stops a long list squeezing the
             settings out in turn. */}
         <div
           className={`flex flex-col border-t border-neutral-100 p-2 ${
-            items.length > 0 ? 'max-h-64 min-h-[7rem]' : ''
+            items.length > 0 ? 'max-h-48 min-h-[6rem]' : ''
           }`}
         >
-          {listHeader && <div className="shrink-0 px-1.5 pb-2">{listHeader}</div>}
+          {listHeader && <div className="shrink-0 px-1 pb-1.5">{listHeader}</div>}
           {items.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-neutral-400">Nothing hidden</p>
+            <p className="px-2 py-1 text-[11px] text-neutral-400">Nothing hidden</p>
           ) : (
-            <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+            <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
               {items.map((item) => (
                 <li key={item.id}>
                   <button
                     type="button"
                     onClick={() => onAdd(item.id)}
-                    className="group flex w-full items-center gap-2 rounded-lg border border-dashed border-neutral-200 px-2.5 py-1.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/60"
+                    className="group flex w-full items-center gap-1.5 rounded-md border border-dashed border-neutral-200 px-2 py-1 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/60"
                     data-testid={`hidden-tray-item-${item.id}`}
                   >
                     <span
                       aria-hidden
-                      className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-neutral-100 text-neutral-500 transition-colors group-hover:bg-brand-100 group-hover:text-brand-700"
+                      className="grid h-4 w-4 shrink-0 place-items-center rounded bg-neutral-100 text-neutral-500 transition-colors group-hover:bg-brand-100 group-hover:text-brand-700"
                     >
                       <IconPlus className="h-3 w-3" />
                     </span>
@@ -265,6 +292,14 @@ export function HiddenTray({
           )}
         </div>
       </div>
+      {footerActions && (
+        <div
+          className="flex shrink-0 items-center justify-end rounded-b-xl border-t border-neutral-200 bg-neutral-50/70 px-3 py-2"
+          data-testid="layout-footer-actions"
+        >
+          {footerActions}
+        </div>
+      )}
     </div>
   );
 }
