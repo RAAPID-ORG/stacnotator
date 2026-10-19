@@ -107,6 +107,7 @@ export const AppLayout = () => {
           confirmText={confirmDialog?.confirmText}
           cancelText={confirmDialog?.cancelText}
           isDangerous={confirmDialog?.isDangerous}
+          isWarning={confirmDialog?.isWarning}
           showDontAskAgain={confirmDialog?.showDontAskAgain}
           onConfirm={(dontAskAgain) => {
             if (dontAskAgain && confirmDialog?.onDontAskAgain) {

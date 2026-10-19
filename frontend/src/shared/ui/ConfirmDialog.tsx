@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Button } from './forms';
 import { AnimatedDialog } from './motion';
 import { Spinner } from './Spinner';
+import { IconWarning } from './Icons';
 
 export interface ConfirmDialogProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ export interface ConfirmDialogProps {
   confirmText?: string;
   cancelText?: string;
   isDangerous?: boolean;
+  isWarning?: boolean;
   isLoading?: boolean;
   showDontAskAgain?: boolean;
   /** Extra options shown under the description, owned by the caller. */
@@ -25,6 +27,7 @@ export const ConfirmDialog = ({
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   isDangerous = false,
+  isWarning = false,
   isLoading = false,
   showDontAskAgain = false,
   children,
@@ -50,7 +53,10 @@ export const ConfirmDialog = ({
       panelClassName="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 border border-neutral-200"
     >
       <div className="p-6">
-        <h2 className="text-base font-semibold text-neutral-900 mb-1.5">{title}</h2>
+        <h2 className="mb-1.5 flex items-start gap-2 text-base font-semibold text-neutral-900">
+          {isWarning && <IconWarning className="mt-0.5 h-5 w-5 shrink-0 text-orange-500" />}
+          {title}
+        </h2>
         {description && (
           <p className="text-sm text-neutral-600 mb-5 leading-relaxed">{description}</p>
         )}

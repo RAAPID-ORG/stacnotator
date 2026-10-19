@@ -208,4 +208,48 @@ describe('startCollectionFor', () => {
     // Pinned to a collection the windows exclude: the pin does not apply.
     expect(startCollectionFor(catalog, view, { 20: window })).toBe(20);
   });
+
+  const multiSource = makeCampaign({
+    imagery_sources: [
+      ...Array.from(catalog.sources.values()),
+      makeSource({ id: 2, collections: [dated(40, '2020-01-01')] }),
+      makeSource({ id: 3, collections: [] }),
+    ],
+    imagery_views: [makeView({ id: 7, source_ids: [1, 2] })],
+  });
+  const multiCatalog = buildImageryCatalog(multiSource);
+
+  it('uses source order before collection dates, even when only another source has windows', () => {
+    expect(startCollectionFor(multiCatalog, multiSource.imagery_views[0], { 40: window })).toBe(10);
+    expect(startCollectionFor(multiCatalog, makeView({ id: 7, source_ids: [2, 1] }), {})).toBe(40);
+  });
+
+  it('skips unknown and empty sources without losing the requested ordering', () => {
+    expect(
+      startCollectionFor(multiCatalog, makeView({ id: 7, source_ids: [99, 3, 1, 2] }), {})
+    ).toBe(10);
+  });
+
+  it('keeps an explicitly pinned start ahead of the view default', () => {
+    usePrefsStore.getState().setPinnedStart(7, 40);
+    expect(startCollectionFor(multiCatalog, multiSource.imagery_views[0], {})).toBe(40);
+  });
+
+  it('updates the next-task default after a server order change without resetting navigation or layout edits', () => {
+    useCampaignStore.getState().setCampaign(multiSource);
+    useLayoutStore.getState().startEditing();
+    const layout = useLayoutStore.getState().currentLayout;
+    const address = useImageryStore.getState().address;
+    expect(useCampaignStore.getState().taskStartCollectionId).toBe(10);
+
+    useCampaignStore.getState().setCampaign({
+      ...multiSource,
+      imagery_views: [makeView({ id: 7, source_ids: [2, 1] })],
+    });
+
+    expect(useCampaignStore.getState().taskStartCollectionId).toBe(40);
+    expect(useImageryStore.getState().address).toBe(address);
+    expect(useLayoutStore.getState().currentLayout).toBe(layout);
+    expect(useLayoutStore.getState().editing).toBe(true);
+  });
 });

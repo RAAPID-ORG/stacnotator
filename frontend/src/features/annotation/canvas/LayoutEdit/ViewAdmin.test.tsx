@@ -106,7 +106,7 @@ describe('deleting a view', () => {
   });
 });
 
-describe('toggling a source into the selected view', () => {
+describe('updating sources in the selected view', () => {
   // The server reconciles the stored layouts and returns them; the canvas has
   // to pick that up, or the new windows silently fall into the hidden tray.
   const TWO_SOURCES: CampaignOutFull = {
@@ -184,5 +184,56 @@ describe('toggling a source into the selected view', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(useLayoutStore.getState().currentLayout.windows).toEqual({});
+  });
+
+  it('saves source order on the selected view without resetting the layout draft', async () => {
+    const savedLayout = {
+      ...EMPTY_LAYOUT,
+      windows: {
+        100: { i: '100', x: 0, y: 25, w: 10, h: 9 },
+        200: { i: '200', x: 10, y: 25, w: 10, h: 9 },
+      },
+    };
+    const view = makeView({
+      id: 1,
+      name: 'One',
+      source_ids: [1, 2],
+      default_canvas_layout: {
+        id: 1,
+        user_id: null,
+        layout_data: Object.values(savedLayout.windows),
+      },
+    });
+    const campaign = { ...TWO_SOURCES, imagery_views: [view] };
+    vi.mocked(updateImageryView).mockResolvedValue(apiSuccess({ ...view, source_ids: [2, 1] }));
+    useCampaignStore.setState({
+      campaign,
+      catalog: buildImageryCatalog(campaign),
+      view,
+    });
+    const draft = {
+      ...EMPTY_LAYOUT,
+      windows: { 100: { i: '100', x: 3, y: 7, w: 10, h: 9 } },
+    };
+    useLayoutStore.setState({ currentLayout: draft, savedLayout });
+    render(<ViewAdmin />);
+    expect(
+      screen.getByRole('button', { name: 'Move source Sentinel up' }).hasAttribute('disabled')
+    ).toBe(true);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Move source Landsat up' }));
+
+    expect(updateImageryView).toHaveBeenCalledWith({
+      path: { campaign_id: campaign.id, view_id: view.id },
+      body: { source_ids: [2, 1] },
+    });
+    expect(useCampaignStore.getState().view?.source_ids).toEqual([2, 1]);
+    expect(
+      Array.from(screen.getByTestId('view-sources').querySelectorAll('[data-source-id]')).map(
+        (row) => row.getAttribute('data-source-id')
+      )
+    ).toEqual(['2', '1']);
+    expect(useLayoutStore.getState().currentLayout).toEqual(draft);
+    expect(useLayoutStore.getState().savedLayout).toBe(savedLayout);
   });
 });

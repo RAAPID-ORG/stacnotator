@@ -71,23 +71,29 @@ interface CampaignState {
 }
 
 /**
- * Which collection a view opens on: the chronologically first one that has a
- * window, else the first browsable one - so the map keeps imagery even when
- * every window is hidden. A pinned start wins inside whichever pool applies.
+ * Open the first nonempty source in view order, preferring its windowed
+ * collections, then its earliest date. An eligible pinned start still wins.
  */
 export function startCollectionFor(
   catalog: ImageryCatalog,
   view: ImageryViewOut | null,
   windows: Record<number, LayoutItem>
 ): number | null {
-  const entries = [...collectionsInView(catalog, view)].sort((a, b) =>
-    collectionStartDate(a).localeCompare(collectionStartDate(b))
-  );
+  const entries = collectionsInView(catalog, view);
   const windowed = entries.filter((c) => windows[c.id] !== undefined);
   const pool = windowed.length > 0 ? windowed : entries;
   const pinned = view ? usePrefsStore.getState().pinnedStart[view.id] : undefined;
   if (pinned != null && pool.some((c) => c.id === pinned)) return pinned;
-  return pool[0]?.id ?? null;
+  const firstSource = view?.source_ids
+    .map((id) => catalog.sources.get(id))
+    .find((source) => source && source.collections.length > 0);
+  const collections = firstSource?.collections ?? [];
+  const visible = collections.filter((c) => windows[c.id] !== undefined);
+  return (
+    [...(visible.length > 0 ? visible : collections)].sort((a, b) =>
+      collectionStartDate(a).localeCompare(collectionStartDate(b))
+    )[0]?.id ?? null
+  );
 }
 
 export const useCampaignStore = create<CampaignState>((set, get) => ({
@@ -106,6 +112,20 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     const current = get().view;
     const kept = campaign.imagery_views.find((v) => v.id === current?.id) ?? null;
     set({ campaign, catalog, view: kept ?? current });
+    if (
+      kept &&
+      current &&
+      (kept.source_ids.length !== current.source_ids.length ||
+        kept.source_ids.some((id, index) => id !== current.source_ids[index]))
+    ) {
+      set({
+        taskStartCollectionId: startCollectionFor(
+          catalog,
+          kept,
+          useLayoutStore.getState().currentLayout.windows
+        ),
+      });
+    }
     // The selected view is gone (an admin deleted it). Moving to the
     // replacement is a real view switch - the imagery address and the canvas
     // windows still belong to the view that went - so it goes through
