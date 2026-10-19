@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -11,6 +12,11 @@ class CanvasLayoutItem(BaseModel):
     y: int
     w: int
     h: int
+    orientation: Literal["horizontal", "vertical"] | None = None
+    expanded_sections: (
+        list[Literal["sources", "visualizations", "collections", "slices"]] | None
+    ) = None
+    slice_navigation: bool | None = None
 
 
 class CanvasLayoutOut(BaseModel):

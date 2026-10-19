@@ -231,9 +231,9 @@ def save_canvas_layouts(
                 status_code=404, detail=f"View {view_id} not found in campaign {campaign_id}"
             )
 
-    main_items = [item.model_dump() for item in layout_data.main_layout_data]
+    main_items = [item.model_dump(exclude_none=True) for item in layout_data.main_layout_data]
     view_items = (
-        [item.model_dump() for item in layout_data.view_layout_data]
+        [item.model_dump(exclude_none=True) for item in layout_data.view_layout_data]
         if layout_data.view_layout_data is not None
         else None
     )
