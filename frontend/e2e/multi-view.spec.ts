@@ -9,6 +9,7 @@ import {
   TASK_2,
 } from './fixtures/mock-data';
 import { assertCrosshairAt } from './fixtures/imagery-helpers';
+import type { CanvasLayoutCreate } from '../src/api/client';
 
 type Page = import('@playwright/test').Page;
 type Locator = import('@playwright/test').Locator;
@@ -157,7 +158,7 @@ test('layout dragging stops if the mouse button was released outside the window'
   annotationPage: page,
 }) => {
   await page.getByTestId('edit-layout-trigger').click();
-  await page.getByRole('button', { name: 'Minimize layout', exact: true }).click();
+  await page.getByRole('button', { name: 'Minimize edit layout', exact: true }).click();
   const panel = page.locator('[data-panel-id="main"]');
   const header = await panel.locator('.card-header').boundingBox();
   if (!header) throw new Error('Main map header is missing');
@@ -181,11 +182,129 @@ test('layout dragging stops if the mouse button was released outside the window'
   await expect.poll(() => panel.boundingBox()).toEqual(dropped);
 });
 
+test('dragging a panel body scrolls both canvas edges and saves its new position', async ({
+  annotationPage: page,
+}) => {
+  let saved: CanvasLayoutCreate | undefined;
+  await page.route('**/api/campaigns/*/detailed', (route) =>
+    route.fulfill({
+      json: {
+        ...MOCK_CAMPAIGN,
+        personal_main_canvas_layout: {
+          id: 99,
+          user_id: null,
+          layout_data: [
+            { i: 'main', x: 0, y: 0, w: 30, h: 8 },
+            { i: 'controls', x: 44, y: 80, w: 16, h: 8 },
+            { i: 'minimap', x: 32, y: 60, w: 12, h: 4 },
+          ],
+        },
+        imagery_views: MOCK_CAMPAIGN.imagery_views.map((view) => ({
+          ...view,
+          default_canvas_layout: { ...view.default_canvas_layout, layout_data: [] },
+        })),
+      },
+    })
+  );
+  await page.route('**/api/*/new-layout', async (route) => {
+    saved = route.request().postDataJSON().layout;
+    await route.fulfill({ status: 201, json: {} });
+  });
+  await page.reload();
+  await page.getByTestId('edit-layout-trigger').click();
+  await page.getByRole('button', { name: 'Minimize edit layout', exact: true }).click();
+  const canvas = page.locator('[data-tour="canvas"]');
+  const panel = page.locator('[data-panel-id="minimap"]');
+  const body = page.getByTestId('edit-placeholder-minimap');
+  await body.scrollIntoViewIfNeeded();
+  expect(await canvas.evaluate((node) => node.scrollTop)).toBeGreaterThan(300);
+  const bounds = await canvas.boundingBox();
+  let grip = await body.boundingBox();
+  if (!bounds || !grip) throw new Error('Scrollable canvas or minimap body is missing');
+  const x = grip.x + grip.width / 4;
+  await page.mouse.move(x, grip.y + grip.height / 3);
+  await page.mouse.down();
+  await page.mouse.move(x, bounds.y + 8, { steps: 6 });
+  await expect(panel).toHaveClass(/react-draggable-dragging/);
+  // Keep the pointer still: scrolling must carry the panel all the way up.
+  await expect.poll(() => canvas.evaluate((node) => node.scrollTop)).toBe(0);
+  await page.mouse.up();
+  await expect.poll(async () => (await panel.boundingBox())!.y - bounds.y).toBeLessThan(15);
+
+  grip = await body.boundingBox();
+  const panelBox = await panel.boundingBox();
+  if (!grip || !panelBox) throw new Error('Dropped minimap body is missing');
+  const grabOffset = grip.y - panelBox.y + grip.height / 3;
+  const bottom = bounds.y + bounds.height - 8;
+  await page.mouse.move(x, grip.y + grip.height / 3);
+  await page.mouse.down();
+  await page.mouse.move(x, bottom, { steps: 6 });
+  await expect.poll(() => canvas.evaluate((node) => node.scrollTop)).toBeGreaterThan(200);
+  await expect
+    .poll(async () => Math.abs((await panel.boundingBox())!.y + grabOffset - bottom))
+    .toBeLessThan(3);
+  await page.mouse.up();
+  await expect(panel).not.toHaveClass(/react-draggable-dragging/);
+  await expect(page.locator('.react-grid-placeholder')).toHaveCount(0);
+  const stoppedAt = await canvas.evaluate((node) => node.scrollTop);
+  await page.mouse.move(x, bounds.y + 8);
+  const afterRelease = await canvas.evaluate(async (node) => {
+    for (let i = 0; i < 4; i++) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    return node.scrollTop;
+  });
+  expect(afterRelease).toBe(stoppedAt);
+
+  await page.getByRole('button', { name: 'Show edit layout', exact: true }).click();
+  await page.getByTestId('save-menu-trigger').click();
+  const saving = page.waitForResponse('**/api/*/new-layout');
+  await page.getByTestId('save-personal').click();
+  await saving;
+  expect(saved?.main_layout_data?.find((item) => item.i === 'minimap')?.y).toBeGreaterThan(0);
+});
+
+test('imagery bodies drag instead of hiding and task text fields stay interactive', async ({
+  annotationPage: page,
+}) => {
+  await page.getByTestId('edit-layout-trigger').click();
+  await page.getByRole('button', { name: 'Minimize edit layout', exact: true }).click();
+  const controls = page.locator('[data-panel-id="controls"]');
+  const comment = controls.locator('[data-task-comment-input]');
+  await comment.scrollIntoViewIfNeeded();
+  const field = await comment.boundingBox();
+  if (!field) throw new Error('Task comment field is missing');
+  await page.mouse.move(field.x + 20, field.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(field.x + 40, field.y + 15, { steps: 3 });
+  await expect(controls).not.toHaveClass(/react-draggable-dragging/);
+  await page.mouse.up();
+  await comment.fill('Still editable while arranging panels');
+  await expect(comment).toHaveValue('Still editable while arranging panels');
+
+  const panel = page.locator('[data-panel-id="10"]');
+  const body = page.getByTestId('edit-placeholder-10');
+  await body.scrollIntoViewIfNeeded();
+  await body.click();
+  await expect(panel).toBeVisible();
+  const grip = await body.boundingBox();
+  const before = await panel.boundingBox();
+  if (!grip || !before) throw new Error('Imagery panel body is missing');
+  await page.mouse.move(grip.x + grip.width / 3, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + grip.width / 3 + 450, grip.y + grip.height / 2, { steps: 8 });
+  await expect(panel).toHaveClass(/react-draggable-dragging/);
+  await page.mouse.up();
+  await expect.poll(async () => (await panel.boundingBox())?.x).toBeGreaterThan(before.x + 200);
+  await page.getByTestId('hide-panel-10').click();
+  await expect(panel).toHaveCount(0);
+});
+
 test('layout resizing stops on window blur and the next resize still works', async ({
   annotationPage: page,
 }) => {
   await page.getByTestId('edit-layout-trigger').click();
-  await page.getByRole('button', { name: 'Minimize layout', exact: true }).click();
+  await page.getByRole('button', { name: 'Minimize edit layout', exact: true }).click();
   const panel = page.locator('[data-panel-id="main"]');
   const handle = panel.locator('.react-resizable-handle-se');
   const box = await handle.boundingBox();
@@ -221,7 +340,7 @@ test('the floating layout panel moves, resizes, and releases cancelled gestures'
   const before = await tray.boundingBox();
   const handle = await header.boundingBox();
   if (!before || !handle) throw new Error('Layout panel is missing');
-  await page.mouse.move(handle.x + 80, handle.y + handle.height / 2);
+  await page.mouse.move(handle.x + 80, handle.y + 10);
   await page.mouse.down();
   await page.mouse.move(handle.x - 20, handle.y - 60, { steps: 4 });
   await header.dispatchEvent('pointercancel');
@@ -246,9 +365,9 @@ test('the floating layout panel moves, resizes, and releases cancelled gestures'
   expect(resized.width).toBeGreaterThan(moved.width);
   await page.mouse.move(resizeBox.x - 80, resizeBox.y - 60, { steps: 4 });
   await expect.poll(() => tray.boundingBox()).toEqual(resized);
-  await page.getByRole('button', { name: 'Minimize layout', exact: true }).click();
+  await page.getByRole('button', { name: 'Minimize edit layout', exact: true }).click();
   await expect(tray).toHaveCount(0);
-  await page.getByTitle('Show layout', { exact: true }).click();
+  await page.getByTitle('Show edit layout', { exact: true }).click();
   await expect.poll(() => tray.boundingBox()).toEqual(resized);
 });
 

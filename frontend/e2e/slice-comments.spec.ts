@@ -9,7 +9,7 @@ import { test, expect, waitForNavIdle, type CapturedRequest } from './fixtures/a
 const JAN_2024_SLICE_ID = 101;
 
 const mainMapNoteButton = (page: import('@playwright/test').Page) =>
-  page.locator('[data-tour="map-controls"] [data-slice-comment-open]');
+  page.locator('[data-panel-role="main-map"] [data-slice-comment-open]');
 
 const dialogInput = (page: import('@playwright/test').Page) =>
   page.locator('[data-slice-comment-input]');

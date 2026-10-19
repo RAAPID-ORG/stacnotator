@@ -35,8 +35,7 @@ const mainSliceBtn = (page: Page) => page.locator('button[title^="Select time sl
 const windowCard = (page: Page, collectionId: number) =>
   page.locator(`[data-panel-id="${collectionId}"]`);
 
-// The map opens on the chronologically first collection of the view that has a
-// window, which is VHR (2023) rather than Sentinel-2 (2024) in this fixture.
+// This view puts VHR first, independently of the campaign's source order.
 
 // ---------------------------------------------------------------------------
 // Imagery correctness in open mode

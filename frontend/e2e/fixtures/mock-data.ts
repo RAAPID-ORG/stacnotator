@@ -541,7 +541,7 @@ export const MOCK_CAMPAIGN_MULTI_SOURCE = {
       id: 1,
       name: 'Default View',
       display_order: 0,
-      source_ids: [1, 2],
+      source_ids: [2, 1],
       default_canvas_layout: viewWindowLayout(11, [10, 30]),
       personal_canvas_layout: null,
     },

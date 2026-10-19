@@ -14,6 +14,7 @@ export interface ConfirmDialogOptions {
   confirmText?: string;
   cancelText?: string;
   isDangerous?: boolean;
+  isWarning?: boolean;
   showDontAskAgain?: boolean;
   onDontAskAgain?: () => void;
 }

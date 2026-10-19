@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildImageryCatalog } from '../../../campaign/imagery';
 import {
   makeCampaign,
@@ -12,6 +12,7 @@ import {
 import { useCampaignStore } from '../../../stores/campaign';
 import { useImageryStore } from '../../../stores/imagery';
 import { usePrefsStore } from '../../../stores/prefs';
+import { useLayoutStore } from '../../../stores/layout';
 import { CollectionPicker } from './CollectionPicker';
 
 const source = makeSource({
@@ -25,6 +26,7 @@ const source = makeSource({
 const catalog = buildImageryCatalog(makeCampaign({ imagery_sources: [source] }));
 
 beforeEach(() => {
+  useLayoutStore.setState({ editing: false });
   usePrefsStore.setState({ pinnedStart: {} });
   useCampaignStore.setState({
     view: makeView({ id: 9, name: 'View', source_ids: [7] }),
@@ -36,6 +38,41 @@ beforeEach(() => {
 });
 
 describe('CollectionPicker task start', () => {
+  it('can expand and collapse a detached picker even with only one collection', () => {
+    useLayoutStore.setState({ editing: true });
+    const single = buildImageryCatalog(
+      makeCampaign({ imagery_sources: [{ ...source, collections: [source.collections[0]] }] })
+    );
+    const onExpandedChange = vi.fn();
+    const { rerender } = render(
+      <CollectionPicker
+        catalog={single}
+        sourceIds={[7]}
+        isTaskMode
+        title="Collections"
+        expanded={false}
+        onExpandedChange={onExpandedChange}
+      />
+    );
+    expect(screen.queryByRole('radiogroup', { name: 'Collections' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Collections' }));
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
+
+    rerender(
+      <CollectionPicker
+        catalog={single}
+        sourceIds={[7]}
+        isTaskMode
+        title="Collections"
+        expanded
+        onExpandedChange={onExpandedChange}
+      />
+    );
+    expect(screen.getByRole('radio', { name: 'Spring' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse Collections' }));
+    expect(onExpandedChange).toHaveBeenLastCalledWith(false);
+  });
+
   it('shows the default start collection as starred before a preference is saved', () => {
     render(<CollectionPicker catalog={catalog} sourceIds={[7]} isTaskMode title="Collections" />);
 

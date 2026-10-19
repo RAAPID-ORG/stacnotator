@@ -8,6 +8,27 @@ from src.canvas.layout import (
     packed_layout,
     reconcile_layout,
 )
+from src.canvas.schemas import CanvasLayoutCreate
+
+
+def test_navigation_panel_preferences_survive_layout_serialization():
+    items = [
+        {"i": "main", "x": 0, "y": 0, "w": 40, "h": 25, "slice_navigation": True},
+        {"i": "timeline", "x": 0, "y": 25, "w": 40, "h": 5, "orientation": "horizontal"},
+        {
+            "i": "imagery",
+            "x": 40,
+            "y": 0,
+            "w": 12,
+            "h": 25,
+            "orientation": "vertical",
+            "expanded_sections": ["sources", "slices"],
+        },
+    ]
+    layout = CanvasLayoutCreate(main_layout_data=items)
+    stored = [item.model_dump(exclude_none=True) for item in layout.main_layout_data]
+    assert stored == items
+    assert CanvasLayoutCreate(main_layout_data=stored) == layout
 
 
 class TestLayoutBottom:

@@ -1,16 +1,12 @@
 import { useState } from 'react';
-import {
-  createNewCanvasLayout,
-  type CampaignOutFull,
-  type CanvasLayoutItem,
-  type ImageryViewOut,
-} from '~/api/client';
+import { createNewCanvasLayout, type CampaignOutFull, type ImageryViewOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
+import { Button } from '~/shared/ui/forms';
 import { IconLayoutGrid } from '~/shared/ui/Icons';
 import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.store';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { useLayoutStore } from '../../stores/layout';
-import { fromGridLayout } from '../grid';
+import { EMPTY_LAYOUT, fromGridLayout, toGridLayout } from '../grid';
 import { SaveDialogs } from './SaveDialogs';
 
 export interface LayoutEditControlsProps {
@@ -48,13 +44,8 @@ export function LayoutEditControls({
       saveLayout();
       return;
     }
-    const mainLayoutData: CanvasLayoutItem[] = [
-      currentLayout.main.main,
-      currentLayout.main.minimap,
-      currentLayout.main.controls,
-      ...Object.values(currentLayout.main.timeseries),
-    ];
-    const viewLayoutData: CanvasLayoutItem[] = Object.values(currentLayout.windows);
+    const mainLayoutData = toGridLayout({ main: currentLayout.main, windows: {} });
+    const viewLayoutData = Object.values(currentLayout.windows);
     // Do not rely on the save menu alone to uphold first-view setup: even if a
     // caller asks for a personal save, the initial layout must be shared.
     const saveAsDefault = mustSaveDefault || shouldBeDefault;
@@ -79,7 +70,7 @@ export function LayoutEditControls({
     setResetConfirmOpen(false);
     const mainItems = campaign.default_main_canvas_layout?.layout_data ?? [];
     const viewItems = view?.default_canvas_layout?.layout_data ?? [];
-    setLayout(fromGridLayout([...mainItems, ...viewItems], currentLayout));
+    setLayout(fromGridLayout([...mainItems, ...viewItems], EMPTY_LAYOUT));
     showAlert('Layout reset to defaults', 'success');
   };
 
@@ -96,6 +87,7 @@ export function LayoutEditControls({
         title="Edit canvas layout and panels"
         className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 rounded transition-all"
         data-testid="edit-layout-trigger"
+        data-tour="layout-controls"
       >
         <IconLayoutGrid className="w-3.5 h-3.5" />
         Edit Layout
@@ -104,7 +96,27 @@ export function LayoutEditControls({
   }
 
   return (
-    <div className="flex items-center gap-1 rounded border border-brand-200 bg-brand-50/70 py-0.5 pl-1 pr-0.5">
+    <div className="flex w-full min-w-0 items-center gap-1" data-tour="layout-controls">
+      <Button
+        variant="quiet"
+        size="sm"
+        onClick={() => setResetConfirmOpen(true)}
+        title="Reset to campaign defaults"
+        className="mr-auto"
+      >
+        Reset
+      </Button>
+      <Button
+        variant="quiet"
+        size="sm"
+        onClick={() => {
+          cancelEditing();
+          if (mustSaveDefault) onSetupFinished?.();
+        }}
+        title="Discard layout changes"
+      >
+        Cancel
+      </Button>
       <SaveDialogs
         currentLayout={currentLayout}
         savedLayout={savedLayout}
@@ -113,23 +125,6 @@ export function LayoutEditControls({
         mustSaveDefault={mustSaveDefault}
         onSave={persistAndSave}
       />
-      <button
-        type="button"
-        onClick={() => setResetConfirmOpen(true)}
-        className="px-3 py-1 text-xs font-medium text-neutral-600 hover:text-amber-600"
-      >
-        Reset
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          cancelEditing();
-          if (mustSaveDefault) onSetupFinished?.();
-        }}
-        className="px-3 py-1 text-xs font-medium text-neutral-600 hover:text-red-600"
-      >
-        Cancel
-      </button>
 
       <ConfirmDialog
         isOpen={resetConfirmOpen}

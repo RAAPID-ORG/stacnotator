@@ -473,6 +473,7 @@ export function usePersistedController({
     if (stateRef.current.sources.some((source) => !isRealId(source.id))) {
       const ok = await useLayoutStore.getState().showConfirmDialog({
         title: 'New sources start off the canvas',
+        isWarning: true,
         description:
           'A source only shows up in the annotation view once it belongs to a view. ' +
           'After saving, open the campaign, click "Edit Layout", and tick the new source ' +

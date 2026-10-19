@@ -44,4 +44,42 @@ describe('toGridLayout / fromGridLayout round-trip', () => {
     expect(rebuilt.windows[101]).toBeUndefined();
     expect(rebuilt.windows[102]).toEqual(original.windows[102]);
   });
+
+  it('keeps navigation panels and their preferences when the grid reports geometry only', () => {
+    const layout = sampleLayout();
+    layout.main.main.slice_navigation = true;
+    layout.main.timeline = { i: 'timeline', x: 0, y: 60, w: 40, h: 5, orientation: 'horizontal' };
+    layout.main.imagery = {
+      i: 'imagery',
+      x: 40,
+      y: 30,
+      w: 20,
+      h: 25,
+      orientation: 'vertical',
+      expanded_sections: ['sources', 'slices'],
+    };
+    const geometry = toGridLayout(layout).map(({ i, x, y, w, h }) => ({ i, x, y: y + 1, w, h }));
+    const moved = fromGridLayout(geometry, layout);
+    expect(moved.main.timeline).toMatchObject({ y: 61, orientation: 'horizontal' });
+    expect(moved.main.imagery).toMatchObject({
+      orientation: 'vertical',
+      expanded_sections: ['sources', 'slices'],
+    });
+    expect(moved.main.main.slice_navigation).toBe(true);
+    expect(Object.keys(moved.windows)).toEqual(['101', '102']);
+  });
+
+  it('does not resurrect detached panels omitted by reset, and honors incoming preferences', () => {
+    const previous = sampleLayout();
+    previous.main.timeline = { i: 'timeline', x: 0, y: 60, w: 40, h: 5 };
+    previous.main.main.slice_navigation = true;
+    const reset = fromGridLayout(
+      toGridLayout(sampleLayout()).map((item) =>
+        item.i === 'main' ? { ...item, slice_navigation: false } : item
+      ),
+      previous
+    );
+    expect(reset.main.timeline).toBeUndefined();
+    expect(reset.main.main.slice_navigation).toBe(false);
+  });
 });

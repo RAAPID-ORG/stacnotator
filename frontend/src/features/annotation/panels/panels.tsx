@@ -5,7 +5,8 @@ import type { WorkspaceLayout } from '../canvas/grid';
 import { ExploreControls } from './ExploreControls/ExploreControls';
 import { ImageryWindowBody } from './ImageryWindow/ImageryWindow';
 import { ImageryWindowHeader } from './ImageryWindow/ImageryWindowHeader';
-import { MainMapBody, MainMapHeader } from './MainMap/MainMap';
+import { ImageryControls, MainMapBody, MainMapHeader } from './MainMap/MainMap';
+import { Timeline } from './MainMap/TimelineSidebar';
 import { MinimapBody, MinimapHeader } from './Minimap/Minimap';
 import { TaskClaimBadge } from './TaskControls/ClaimBadge';
 import { TaskControls } from './TaskControls/TaskControls';
@@ -27,6 +28,7 @@ export interface PanelDef {
    *  the E2E suite can find "a panel of this kind" without knowing the id. */
   role: string;
   title?: string;
+  headerless?: boolean;
   /** Rendered inside the panel header, right of the drag area. */
   header?: ReactNode;
   body: ReactNode;
@@ -98,6 +100,29 @@ export function buildPanels({
           body: <ExploreControls />,
         },
   ];
+
+  if (layout.main.timeline) {
+    panels.push({
+      id: 'timeline',
+      role: 'imagery-timeline',
+      title: 'Timeline',
+      headerless: true,
+      hideTarget: true,
+      body: <Timeline orientation={layout.main.timeline.orientation ?? 'vertical'} />,
+    });
+  }
+  if (layout.main.imagery) {
+    panels.push({
+      id: 'imagery',
+      role: 'imagery-controls',
+      title: 'Imagery',
+      body: (
+        <div className="h-full overflow-auto p-1">
+          <ImageryControls detached orientation={layout.main.imagery.orientation ?? 'horizontal'} />
+        </div>
+      ),
+    });
+  }
 
   for (const window of groupTimeseriesIntoWindows(campaign.time_series)) {
     panels.push({

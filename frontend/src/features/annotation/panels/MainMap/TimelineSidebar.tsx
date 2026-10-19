@@ -3,20 +3,18 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useImageryStore } from '../../stores/imagery';
 import { monthYear, segmentIndexAt, timelineCollections, timelineRange } from './timeline';
 
-interface Scrub {
-  /** Pointer position inside the track, px from its top. */
-  y: number;
-  label: string;
-}
-
-export function TimelineSidebar() {
+export function Timeline({
+  orientation = 'vertical',
+}: {
+  orientation?: 'horizontal' | 'vertical';
+}) {
+  const horizontal = orientation === 'horizontal';
   const catalog = useCatalog();
   const address = useImageryStore((s) => s.address);
   const activateCollection = useImageryStore((s) => s.activateCollection);
 
   const trackRef = useRef<HTMLDivElement>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  const [scrub, setScrub] = useState<Scrub | null>(null);
+  const scrubbing = useRef(false);
 
   const view = useCampaignStore((s) => s.view);
   const collections = useMemo(
@@ -25,45 +23,45 @@ export function TimelineSidebar() {
   );
   const range = useMemo(() => timelineRange(catalog, collections), [catalog, collections]);
 
-  // The ticks don't move while scrubbing, and the scrub tooltip re-renders on
-  // every pointer move - holding them as one memoized element keeps those
-  // renders off the rail itself.
   const ticks = useMemo(
     () =>
       collections.map((collection) => {
-        const height = `${100 / collections.length}%`;
+        const size = `${100 / collections.length}%`;
         return (
           <div
             key={collection.id}
             data-collection-id={collection.id}
             className="relative flex items-center justify-center"
-            style={{ height, minHeight: height }}
+            style={horizontal ? { width: size, minWidth: size } : { height: size, minHeight: size }}
             title={collection.name}
           >
-            <div className="h-px w-3 bg-neutral-200" />
+            <div className={`${horizontal ? 'h-3 w-px' : 'h-px w-3'} bg-neutral-200`} />
           </div>
         );
       }),
-    [collections]
+    [collections, horizontal]
   );
 
   /** Selects the collection under the pointer. Reads the active collection
    *  back off the store rather than closing over it: re-selecting the one
    *  already showing would restart its tile loads on every pointer move. */
   const pickAt = useCallback(
-    (clientY: number) => {
+    (clientX: number, clientY: number) => {
       const track = trackRef.current;
       if (!track) return;
       const rect = track.getBoundingClientRect();
-      const index = segmentIndexAt(collections.length, clientY - rect.top, rect.height);
+      const index = segmentIndexAt(
+        collections.length,
+        horizontal ? clientX - rect.left : clientY - rect.top,
+        horizontal ? rect.width : rect.height
+      );
       if (index === null) return;
       const collection = collections[index];
       if (collection.id !== useImageryStore.getState().address?.collectionId) {
         activateCollection(catalog, collection.id);
       }
-      setScrub({ y: clientY - rect.top, label: collection.name });
     },
-    [activateCollection, catalog, collections]
+    [activateCollection, catalog, collections, horizontal]
   );
 
   const startScrub = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -72,15 +70,17 @@ export function TimelineSidebar() {
     // claimed here or the panel moves instead.
     e.preventDefault();
     e.stopPropagation();
+    e.currentTarget.focus({ preventScroll: true });
     // Capture keeps the drag alive over the map and past the track's edges.
     e.currentTarget.setPointerCapture(e.pointerId);
-    pickAt(e.clientY);
+    scrubbing.current = true;
+    pickAt(e.clientX, e.clientY);
   };
 
   const endScrub = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!scrub) return;
-    pickAt(e.clientY);
-    setScrub(null);
+    if (!scrubbing.current) return;
+    pickAt(e.clientX, e.clientY);
+    scrubbing.current = false;
   };
 
   const activeIndex = collections.findIndex((c) => c.id === address?.collectionId);
@@ -91,7 +91,102 @@ export function TimelineSidebar() {
     collections.length > 0 ? ((activeIndex + 0.5) / collections.length) * 100 : 0;
 
   return (
-    <div className="relative h-full" data-tour="timeline-sidebar">
+    <div
+      className={`flex h-full min-h-0 w-full select-none gap-2 p-2 ${horizontal ? 'items-center' : 'flex-col'}`}
+      data-orientation={orientation}
+      data-testid="imagery-timeline"
+      data-tour="timeline-sidebar"
+    >
+      <span className="shrink-0 text-center text-[9px] font-medium uppercase tracking-wider text-neutral-500">
+        {monthYear(range.start)}
+      </span>
+      <div
+        ref={trackRef}
+        role="slider"
+        tabIndex={collections.length ? 0 : -1}
+        aria-label="Imagery timeline"
+        aria-orientation={orientation}
+        aria-valuemin={1}
+        aria-valuemax={Math.max(1, collections.length)}
+        aria-valuenow={Math.max(1, activeIndex + 1)}
+        aria-valuetext={activeCollection?.name ?? 'No imagery'}
+        title={activeLabel || undefined}
+        className={`group/timeline relative flex min-h-0 min-w-0 flex-1 touch-none outline-none ${
+          horizontal ? 'h-full cursor-ew-resize' : 'w-full cursor-ns-resize flex-col'
+        }`}
+        onPointerDown={startScrub}
+        onPointerMove={(e) => {
+          if (scrubbing.current) pickAt(e.clientX, e.clientY);
+        }}
+        onPointerUp={endScrub}
+        onPointerCancel={() => {
+          scrubbing.current = false;
+        }}
+        onLostPointerCapture={() => {
+          scrubbing.current = false;
+        }}
+        onKeyDown={(e) => {
+          const step =
+            e.key === 'ArrowRight' || e.key === 'ArrowDown'
+              ? 1
+              : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+                ? -1
+                : 0;
+          const index =
+            e.key === 'Home'
+              ? 0
+              : e.key === 'End'
+                ? collections.length - 1
+                : step
+                  ? Math.max(0, Math.min(collections.length - 1, activeIndex + step))
+                  : null;
+          if (index === null || !collections[index]) return;
+          e.preventDefault();
+          e.stopPropagation();
+          activateCollection(catalog, collections[index].id);
+        }}
+      >
+        <div
+          className={`pointer-events-none absolute bg-neutral-200 ${
+            horizontal ? 'inset-x-0 top-1/2 h-px' : 'inset-y-0 left-1/2 w-px'
+          }`}
+        />
+        {ticks}
+        {activeCollection && (
+          <div
+            className={`pointer-events-none absolute z-20 flex items-center justify-center rounded-md border border-brand-500 bg-brand-50 px-1 py-1 shadow-sm group-focus-visible/timeline:ring-2 group-focus-visible/timeline:ring-brand-500 ${
+              horizontal
+                ? 'top-1/2 -translate-x-1/2 -translate-y-1/2'
+                : 'inset-x-0 -translate-y-1/2'
+            }`}
+            style={
+              horizontal
+                ? {
+                    left: `${activeTopPct}%`,
+                    maxWidth: `min(8rem, ${2 * Math.min(activeTopPct, 100 - activeTopPct)}%)`,
+                  }
+                : { top: `${activeTopPct}%` }
+            }
+          >
+            <span
+              className={`w-full text-center text-[9px] font-semibold leading-tight text-brand-800 ${horizontal ? 'truncate' : 'break-words'}`}
+            >
+              {activeLabel}
+            </span>
+          </div>
+        )}
+      </div>
+      <span className="shrink-0 text-center text-[9px] font-medium uppercase tracking-wider text-neutral-500">
+        {monthYear(range.end)}
+      </span>
+    </div>
+  );
+}
+
+export function TimelineSidebar() {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <div className="relative h-full">
       <button
         onClick={() => setCollapsed((c) => !c)}
         className="absolute right-0 top-1/2 z-[1001] flex h-12 w-4 -translate-y-1/2 translate-x-full cursor-pointer items-center justify-center rounded-r-md border border-l-0 border-neutral-200 bg-white text-neutral-400 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-700"
@@ -122,54 +217,7 @@ export function TimelineSidebar() {
           transition: 'width 180ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
-        {!collapsed && (
-          <div className="flex h-full select-none flex-col px-1.5 py-2">
-            <div className="mb-2 text-center text-[9px] font-medium uppercase leading-tight tracking-wider text-neutral-500">
-              {monthYear(range.start)}
-            </div>
-
-            <div
-              ref={trackRef}
-              className="group/track relative flex flex-1 cursor-ns-resize flex-col"
-              onPointerDown={startScrub}
-              onPointerMove={(e) => {
-                if (scrub) pickAt(e.clientY);
-              }}
-              onPointerUp={endScrub}
-              onPointerCancel={endScrub}
-            >
-              <div className="pointer-events-none absolute bottom-0 left-1/2 top-0 w-px -translate-x-px bg-neutral-200" />
-
-              {ticks}
-
-              {activeCollection && (
-                <div
-                  className="pointer-events-none absolute inset-x-0 z-20 flex flex-col items-center justify-center rounded-md border border-brand-500 bg-brand-50 px-0.5 py-1 shadow-sm"
-                  style={{ top: `${activeTopPct}%`, transform: 'translateY(-50%)', minHeight: 34 }}
-                >
-                  <span className="w-full break-words text-center text-[9px] font-semibold leading-tight text-brand-800">
-                    {activeLabel}
-                  </span>
-                </div>
-              )}
-
-              {scrub && (
-                <div
-                  className="pointer-events-none absolute left-full z-50 ml-3"
-                  style={{ top: Math.max(0, scrub.y - 14) }}
-                >
-                  <div className="whitespace-nowrap rounded-md bg-neutral-800 px-2.5 py-1.5 text-[10px] leading-snug text-white shadow-lg">
-                    {scrub.label}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-2 text-center text-[9px] font-medium uppercase leading-tight tracking-wider text-neutral-500">
-              {monthYear(range.end)}
-            </div>
-          </div>
-        )}
+        {!collapsed && <Timeline />}
       </div>
     </div>
   );

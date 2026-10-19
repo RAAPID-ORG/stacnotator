@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { useLayoutStore } from '../../../stores/layout';
 import { type ImageryCatalog } from '../../../campaign/imagery';
 import { type SliceAddress } from '../../../campaign/imageryNav';
@@ -28,9 +29,11 @@ export interface LayerSelectorProps {
   sourceIds: number[];
   /** Tooltip carrying the source/visualization hotkeys, from the bindings. */
   title: string;
+  expanded?: boolean;
 }
 
-export function LayerSelector({ catalog, sourceIds, title }: LayerSelectorProps) {
+export function LayerSelector({ catalog, sourceIds, title, expanded = false }: LayerSelectorProps) {
+  const radioName = useId();
   const forcedOpen = useLayoutStore((s) => s.forcedOpenControl);
   const address = useImageryStore((s) => s.address);
   const showBasemap = useImageryStore((s) => s.showBasemap);
@@ -39,30 +42,9 @@ export function LayerSelector({ catalog, sourceIds, title }: LayerSelectorProps)
   const setShowBasemap = useImageryStore((s) => s.setShowBasemap);
   const setSelectedBasemapId = useImageryStore((s) => s.setSelectedBasemapId);
 
-  const options: HeaderSelectOption[] = [];
   const sources = sourceIds.map((id) => catalog.sources.get(id)).filter((s) => s !== undefined);
-
-  // Each source is its own section, so a visualization is always read as
-  // belonging to the source above it rather than as a layer in its own right.
-  for (const source of sources) {
-    for (const viz of source.visualizations) {
-      options.push({ value: `${source.id}:${viz.id}`, label: viz.name, group: source.name });
-    }
-  }
-  for (const basemap of catalog.basemaps.values()) {
-    options.push({
-      value: `${BASEMAP_PREFIX}${basemap.id}`,
-      label: basemap.name,
-      group: 'Basemaps',
-    });
-  }
-  if (options.length === 0) return null;
-
-  const value = showBasemap
-    ? (selectedBasemapId ?? '')
-    : address
-      ? `${address.sourceId}:${address.vizId}`
-      : '';
+  if (!sources.some((source) => source.visualizations.length > 0) && catalog.basemaps.size === 0)
+    return null;
 
   const handleChange = (next: string | number) => {
     const key = String(next);
@@ -78,6 +60,98 @@ export function LayerSelector({ catalog, sourceIds, title }: LayerSelectorProps)
     setAddress(target);
     setShowBasemap(false);
   };
+
+  if (expanded) {
+    return (
+      <div data-tour="layer-selector" className="select-none">
+        <div className="text-[11px] font-medium text-neutral-500">Imagery sources</div>
+        <div role="radiogroup" aria-label="Imagery sources" className="space-y-1 p-0.5">
+          {sources.map((source) => {
+            const viz =
+              source.visualizations.find((item) => String(item.id) === address?.vizId) ??
+              source.visualizations[0];
+            if (!viz) return null;
+            const active = !showBasemap && address?.sourceId === source.id;
+            return (
+              <div key={source.id}>
+                <label
+                  className={`flex min-w-0 cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-[11px] ${active ? 'font-medium text-brand-700' : 'text-neutral-700 hover:bg-neutral-50'}`}
+                >
+                  <input
+                    type="radio"
+                    name={radioName}
+                    checked={active}
+                    onChange={() => handleChange(`${source.id}:${viz.id}`)}
+                    className="h-3 w-3 shrink-0 cursor-pointer accent-brand-600"
+                  />
+                  <span className="truncate" title={source.name}>
+                    {source.name}
+                  </span>
+                </label>
+                <div
+                  role="group"
+                  aria-label={`${source.name} visualizations`}
+                  className="flex flex-wrap gap-0.5 pl-5"
+                >
+                  {source.visualizations.map((item) => {
+                    const selected = active && String(item.id) === address?.vizId;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => handleChange(`${source.id}:${item.id}`)}
+                        className={`rounded px-1.5 py-0.5 text-[10px] cursor-pointer ${selected ? 'bg-brand-50 font-medium text-brand-700' : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700'}`}
+                      >
+                        {item.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {[...catalog.basemaps.values()].map((basemap) => (
+            <label
+              key={`basemap-${basemap.id}`}
+              className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-[11px] text-neutral-700 hover:bg-neutral-50"
+            >
+              <input
+                type="radio"
+                name={radioName}
+                checked={showBasemap && selectedBasemapId === `${BASEMAP_PREFIX}${basemap.id}`}
+                onChange={() => handleChange(`${BASEMAP_PREFIX}${basemap.id}`)}
+                className="h-3 w-3 shrink-0 cursor-pointer accent-brand-600"
+              />
+              <span className="truncate" title={basemap.name}>
+                {basemap.name}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const options: HeaderSelectOption[] = sources.flatMap((source) =>
+    source.visualizations.map((viz) => ({
+      value: `${source.id}:${viz.id}`,
+      label: viz.name,
+      group: source.name,
+    }))
+  );
+  for (const basemap of catalog.basemaps.values()) {
+    options.push({
+      value: `${BASEMAP_PREFIX}${basemap.id}`,
+      label: basemap.name,
+      group: 'Basemaps',
+    });
+  }
+  const value = showBasemap
+    ? (selectedBasemapId ?? '')
+    : address
+      ? `${address.sourceId}:${address.vizId}`
+      : '';
 
   return (
     <div data-tour="layer-selector">

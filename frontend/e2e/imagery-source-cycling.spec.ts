@@ -134,9 +134,8 @@ test.describe('Visualization cycling within one source', () => {
   });
 });
 
-// The initially active collection is the chronologically-first one that has a
-// window in the layout. VHR's collection starts 2023-01-01 and Sentinel-2's
-// 2024-01-01, so this campaign opens on VHR and `i` cycles S2 <-> VHR from there.
+// VHR is first in this view's source order, so the view opens on it and `i`
+// cycles S2 <-> VHR from there.
 test.describe('Source cycling across two sources', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
     await useCampaign(annotationPage, api, MOCK_CAMPAIGN_MULTI_SOURCE);

@@ -1,25 +1,21 @@
-import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
+import type { CampaignOutFull, CanvasLayoutItem, ImageryViewOut } from '~/api/client';
 import { TIMESERIES_KEY_PREFIX } from '../campaign/timeseries';
 
 export const GRID_COLS = 60;
 export const ROW_HEIGHT = 15;
 export const GRID_MARGIN: [number, number] = [6, 6];
 
-export interface LayoutItem {
-  i: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+export type LayoutItem = CanvasLayoutItem;
 
-/** Page chrome that always has a grid slot. Timeseries windows are keyed
- *  `timeseries:<name>`. None of these can be hidden. */
+/** Campaign-wide panels. Timeline and imagery controls stay inside the main
+ *  map unless given their own slot. Timeseries windows are keyed `timeseries:<name>`. */
 export interface MainLayout {
   main: LayoutItem;
   minimap: LayoutItem;
   controls: LayoutItem;
   timeseries: Record<string, LayoutItem>;
+  timeline?: LayoutItem;
+  imagery?: LayoutItem;
 }
 
 export interface WorkspaceLayout {
@@ -47,6 +43,8 @@ export function toGridLayout(l: WorkspaceLayout): LayoutItem[] {
     l.main.main,
     l.main.minimap,
     l.main.controls,
+    ...(l.main.timeline ? [l.main.timeline] : []),
+    ...(l.main.imagery ? [l.main.imagery] : []),
     ...Object.values(l.main.timeseries),
     ...Object.values(l.windows),
   ];
@@ -62,16 +60,34 @@ export function fromGridLayout(items: LayoutItem[], prev: WorkspaceLayout): Work
   let { main, minimap, controls } = prev.main;
   const timeseries: Record<string, LayoutItem> = {};
   const windows: Record<number, LayoutItem> = {};
+  const navigation: Pick<MainLayout, 'timeline' | 'imagery'> = {};
+  const previous = new Map(toGridLayout(prev).map((item) => [item.i, item]));
 
-  for (const item of items) {
+  for (const next of items) {
+    // The grid returns geometry only; keep panel preferences across drags/resizes.
+    const saved = previous.get(next.i);
+    const orientation = next.orientation ?? saved?.orientation;
+    const expandedSections = next.expanded_sections ?? saved?.expanded_sections;
+    const sliceNavigation = next.slice_navigation ?? saved?.slice_navigation;
+    const item: LayoutItem = {
+      i: next.i,
+      x: next.x,
+      y: next.y,
+      w: next.w,
+      h: next.h,
+      ...(orientation != null && { orientation }),
+      ...(expandedSections != null && { expanded_sections: expandedSections }),
+      ...(sliceNavigation != null && { slice_navigation: sliceNavigation }),
+    };
     if (item.i === 'main') main = item;
     else if (item.i === 'minimap') minimap = item;
     else if (item.i === 'controls') controls = item;
+    else if (item.i === 'timeline' || item.i === 'imagery') navigation[item.i] = item;
     else if (item.i.startsWith(TIMESERIES_KEY_PREFIX)) timeseries[item.i] = item;
-    else windows[Number(item.i)] = item;
+    else if (Number.isFinite(Number(item.i))) windows[Number(item.i)] = item;
   }
 
-  return { main: { main, minimap, controls, timeseries }, windows };
+  return { main: { main, minimap, controls, timeseries, ...navigation }, windows };
 }
 
 /** The windows a view carries: the user's saved layout for it, else the
@@ -139,7 +155,7 @@ function nextSlot(
   if (existing.length === 0) {
     return {
       x: 0,
-      y: bottomOf([main.main, main.minimap, main.controls, ...Object.values(main.timeseries)]),
+      y: bottomOf(toGridLayout({ main, windows: {} })),
     };
   }
   const lastRowY = existing.reduce((max, it) => Math.max(max, it.y), 0);
@@ -221,6 +237,80 @@ export function packItem(
     }
   }
   return [...items, { i: id, x: 0, y: bottom, w, h: size.h }];
+}
+
+/** Split the map's footprint so the timeline starts where its integrated
+ *  counterpart lived. Reclaim its old strip only while it still fits flush. */
+export function placeTimeline(
+  layout: WorkspaceLayout,
+  orientation: 'horizontal' | 'vertical' | null
+): WorkspaceLayout {
+  const map = { ...layout.main.main };
+  const previous = layout.main.timeline;
+  if (previous) {
+    if (
+      previous.y === map.y &&
+      previous.h === map.h &&
+      (previous.x + previous.w === map.x || map.x + map.w === previous.x)
+    ) {
+      map.x = Math.min(map.x, previous.x);
+      map.w += previous.w;
+    } else if (
+      previous.x === map.x &&
+      previous.w === map.w &&
+      (previous.y + previous.h === map.y || map.y + map.h === previous.y)
+    ) {
+      map.y = Math.min(map.y, previous.y);
+      map.h += previous.h;
+    }
+  }
+  const main = { ...layout.main, main: map };
+  delete main.timeline;
+  const next = { ...layout, main };
+  if (orientation === null) return next;
+
+  // A one-cell map cannot be split; leave a gap so this fallback is not
+  // mistaken for a strip to reclaim on the next orientation change.
+  if ((orientation === 'vertical' ? map.w : map.h) < 2) {
+    const size =
+      orientation === 'vertical'
+        ? { w: 4, h: Math.max(1, map.h) }
+        : { w: Math.max(1, map.w), h: 4 };
+    return {
+      ...next,
+      main: {
+        ...main,
+        timeline: {
+          ...previous,
+          i: 'timeline',
+          ...size,
+          orientation,
+          x: Math.min(map.x, GRID_COLS - size.w),
+          y: bottomOf(toGridLayout(next)) + 1,
+        },
+      },
+    };
+  }
+
+  const timeline: LayoutItem = {
+    ...previous,
+    i: 'timeline',
+    x: map.x,
+    y: map.y,
+    w: map.w,
+    h: map.h,
+    orientation,
+  };
+  if (orientation === 'vertical') {
+    timeline.w = Math.min(4, map.w - 1);
+    map.x += timeline.w;
+    map.w -= timeline.w;
+  } else {
+    timeline.h = Math.min(4, map.h - 1);
+    map.h -= timeline.h;
+    timeline.y = map.y + map.h;
+  }
+  return { ...next, main: { ...main, timeline } };
 }
 
 /** Withhold popped-out panels so the grid can use the freed space. */

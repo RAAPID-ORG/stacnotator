@@ -2003,6 +2003,18 @@ export type CanvasLayoutItem = {
      * H
      */
     h: number;
+    /**
+     * Orientation
+     */
+    orientation?: 'horizontal' | 'vertical' | null;
+    /**
+     * Expanded Sections
+     */
+    expanded_sections?: Array<'sources' | 'visualizations' | 'collections' | 'slices'> | null;
+    /**
+     * Slice Navigation
+     */
+    slice_navigation?: boolean | null;
 };
 
 /**

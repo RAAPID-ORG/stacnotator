@@ -7,6 +7,10 @@ import {
   scaleWidthToScreen,
   showWindow,
   syncViewWindows,
+  fromGridLayout,
+  packItem,
+  placeTimeline,
+  toGridLayout,
   viewWindows,
   EMPTY_LAYOUT,
   type LayoutItem,
@@ -63,6 +67,11 @@ interface LayoutState {
   restorePromptHidden: boolean;
 
   setLayout: (layout: WorkspaceLayout) => void;
+  setNavigationPanel: (id: 'timeline' | 'imagery', visible: boolean) => void;
+  setPanelOptions: (
+    id: 'main' | 'timeline' | 'imagery',
+    options: Pick<LayoutItem, 'orientation' | 'expanded_sections' | 'slice_navigation'>
+  ) => void;
   /** Swap in another view's windows, leaving the page chrome where it is. */
   loadViewLayout: (view: ImageryViewOut | null) => void;
   /** Pick up a source-membership change on the view already loaded: drop the
@@ -141,6 +150,48 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     restorePromptHidden: false,
 
     setLayout: (currentLayout) => set({ currentLayout }),
+    setNavigationPanel: (id, visible) =>
+      set((s) => {
+        if (id === 'timeline') {
+          if (visible && s.currentLayout.main.timeline) return s;
+          return { currentLayout: placeTimeline(s.currentLayout, visible ? 'vertical' : null) };
+        }
+        if (!visible) {
+          const main = { ...s.currentLayout.main };
+          delete main[id];
+          return { currentLayout: { ...s.currentLayout, main } };
+        }
+        const items = packItem(toGridLayout(s.currentLayout), id, { w: 36, h: 5 });
+        return { currentLayout: fromGridLayout(items, s.currentLayout) };
+      }),
+    setPanelOptions: (id, options) =>
+      set((s) => {
+        const item = s.currentLayout.main[id];
+        if (!item) return s;
+        let layout = s.currentLayout;
+        const previousOrientation =
+          item.orientation ?? (id === 'timeline' ? 'vertical' : 'horizontal');
+        if (id !== 'main' && options.orientation && options.orientation !== previousOrientation) {
+          if (id === 'timeline') layout = placeTimeline(layout, options.orientation);
+          else {
+            const size = options.orientation === 'horizontal' ? { w: 36, h: 5 } : { w: 12, h: 14 };
+            layout = fromGridLayout(
+              packItem(
+                toGridLayout(layout).filter((panel) => panel.i !== id),
+                id,
+                size
+              ),
+              layout
+            );
+          }
+        }
+        return {
+          currentLayout: {
+            ...layout,
+            main: { ...layout.main, [id]: { ...layout.main[id], ...options } },
+          },
+        };
+      }),
 
     loadViewLayout: (view) =>
       set((s) => {

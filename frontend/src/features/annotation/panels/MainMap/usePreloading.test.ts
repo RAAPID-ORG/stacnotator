@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seedCampaign } from '../../testing/seed';
 import type { CampaignOutFull } from '~/api/client';
@@ -9,10 +9,12 @@ import {
   makeSlice,
   makeSource,
   makeTileUrl,
+  makeView,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
 import { TilePreloader } from '../../map/preloader';
 import { useImageryStore } from '../../stores/imagery';
+import { useCampaignStore } from '../../stores/campaign';
 import {
   PRIORITY_UPCOMING,
   taskPercents,
@@ -208,6 +210,67 @@ describe('usePreloading upcoming centres', () => {
 
   beforeEach(() => {
     useImageryStore.setState({ address: NDVI, windowSlices: {}, viewSync: true });
+  });
+
+  it('warms the new first source after reordering and keeps the displayed window imagery', () => {
+    const view = makeView({ id: 1, source_ids: [1, 2] });
+    const campaign = makeCampaign({
+      imagery_sources: [
+        ...CAMPAIGN.imagery_sources,
+        makeSource({
+          id: 2,
+          visualizations: [makeViz({ id: 20, name: 'rgb' })],
+          collections: [
+            makeCollection({
+              id: 300,
+              slices: [
+                makeSlice({
+                  id: 3000,
+                  tile_urls: [
+                    makeTileUrl({
+                      visualization_name: 'rgb',
+                      tile_url: 'https://t.test/second/{z}/{x}/{y}.png',
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+      imagery_views: [view],
+    });
+    seedCampaign(campaign, { mode: 'tasks' });
+    useCampaignStore.getState().selectView(view);
+    const enqueueMany = vi
+      .spyOn(TilePreloader.prototype, 'enqueueMany')
+      .mockImplementation(() => {});
+    const { unmount } = renderHook(() =>
+      usePreloading({
+        enabled: true,
+        activeLoading: false,
+        focus: [5, 50],
+        upcoming: [[6, 51]],
+        visibleCollectionIds: [200],
+      })
+    );
+    expect(enqueueMany.mock.lastCall?.[0].map((job) => job.groupId)).toEqual([
+      'preload-t0-c100-s0',
+      'preload-t0-c200-s0',
+    ]);
+
+    act(() =>
+      useCampaignStore.getState().setCampaign({
+        ...campaign,
+        imagery_views: [{ ...view, source_ids: [2, 1] }],
+      })
+    );
+
+    expect(enqueueMany.mock.lastCall?.[0].map((job) => job.groupId)).toEqual([
+      'preload-t0-c300-s0',
+      'preload-t0-c200-s0',
+    ]);
+    unmount();
   });
 
   it('queues only the visible imagery at centres the caller says are coming next', () => {
