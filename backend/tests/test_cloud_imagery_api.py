@@ -629,3 +629,129 @@ def test_managed_reference_resolves_only_ready_catalogs_in_the_projects_scopes(w
             assert exc.value.status_code == status
     finally:
         db.close()
+
+
+# ── management listing: drafts on revisit, picker stays ready-only ───────────────
+# Additive contract: GET /collections?project_id=P&include_drafts=true and
+# GET /collections?organization_id=O&include_drafts=true list every catalog the caller may
+# manage in that one context (draft, importing, failed, ready). Exactly one context is
+# required; without include_drafts the list stays the READY-only campaign picker.
+
+
+def _ids(response):
+    assert response.status_code == 200, response.text
+    return {c["id"] for c in response.json()["items"]}
+
+
+def test_project_management_listing_shows_unfinished_catalogs_but_picker_stays_ready_only(world):
+    client, tiler = world["as"]("p1_admin"), world["tiler"]
+    ready = _ready_collection(world, {"project_id": world["p1"]})
+    draft = _create(client, {"project_id": world["p1"]}).json()["id"]
+    failed = _create(client, {"project_id": world["p1"]}).json()["id"]
+    _corrupt(world)
+    _wait(client, _import(client, failed, _files(world, "flights/b.tif")).json()["id"])
+    importing = _create(client, {"project_id": world["p1"]}).json()["id"]
+    entered, release = threading.Event(), threading.Event()
+    tiler.hold = (entered, release)
+    run = _import(client, importing, _files(world, "flights/a.tif")).json()
+    assert entered.wait(10)
+    try:
+        managed = _ids(
+            client.get(
+                f"/api/cloud-imagery/collections?project_id={world['p1']}&include_drafts=true"
+            )
+        )
+        picker = _ids(client.get(f"/api/cloud-imagery/collections?project_id={world['p1']}"))
+        other = _ids(
+            world["as"]("p2_admin").get(
+                f"/api/cloud-imagery/collections?project_id={world['p2']}&include_drafts=true"
+            )
+        )
+        outsider = world["as"]("stranger").get(
+            f"/api/cloud-imagery/collections?project_id={world['p1']}&include_drafts=true"
+        )
+    finally:
+        release.set()
+        _wait(world["as"]("p1_admin"), run["id"])
+
+    assert {ready, draft, failed, importing} <= managed
+    assert ready in picker and not {draft, failed, importing} & picker
+    assert not {ready, draft, failed, importing} & other
+    assert outsider.status_code in (403, 404) and "Drone flights" not in outsider.text
+
+
+def test_org_catalog_is_created_and_managed_without_any_project_context(world):
+    org_admin = world["as"]("org_admin")
+    created = _create(org_admin, {"organization_id": world["org"]})
+    assert created.status_code == 201, created.text
+    draft = created.json()["id"]
+
+    managed = _ids(
+        org_admin.get(
+            f"/api/cloud-imagery/collections?organization_id={world['org']}&include_drafts=true"
+        )
+    )
+    picker = _ids(org_admin.get(f"/api/cloud-imagery/collections?organization_id={world['org']}"))
+    outsider = world["as"]("stranger").get(
+        f"/api/cloud-imagery/collections?organization_id={world['org']}&include_drafts=true"
+    )
+
+    assert draft in managed and draft not in picker
+    assert outsider.status_code in (403, 404) and "Drone flights" not in outsider.text
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["include_drafts=true", "project_id={p1}&organization_id={org}&include_drafts=true"],
+    ids=["no context", "two contexts"],
+)
+def test_catalog_listing_requires_exactly_one_context(world, query):
+    url = "/api/cloud-imagery/collections?" + query.format(p1=world["p1"], org=world["org"])
+    assert world["as"]("org_admin").get(url).status_code == 422
+
+
+# ── visualization presets: the imagery VizParams schema, stored as an independent copy ──
+
+_PRESET = {
+    "name": "True colour",
+    "viz_params": {"assets": ["visual"], "bidx": [3, 2, 1], "rescale": "0,3000"},
+}
+
+
+def _presets(response):
+    assert response.status_code in (200, 201), response.text
+    return [
+        {"name": v["name"], "viz_params": {k: v["viz_params"][k] for k in _PRESET["viz_params"]}}
+        for v in response.json()["visualizations"]
+    ]
+
+
+def test_visualization_preset_round_trips_and_is_copied_independently_of_its_source(world):
+    client = world["as"]("p1_admin")
+    sent = json.loads(json.dumps(_PRESET))
+    first = _create(client, {"project_id": world["p1"]}, visualizations=[sent])
+    copy = _create(client, {"project_id": world["p1"]}, visualizations=_presets(first))
+    first_id, copy_id = first.json()["id"], copy.json()["id"]
+
+    changed = {"name": "False colour", "viz_params": {**_PRESET["viz_params"], "bidx": [4, 3, 2]}}
+    patched = client.patch(
+        f"/api/cloud-imagery/collections/{first_id}", json={"visualizations": [changed]}
+    )
+
+    assert _presets(first) == [_PRESET] and _presets(copy) == [_PRESET]
+    assert _presets(patched) == [changed]
+    assert _presets(client.get(f"/api/cloud-imagery/collections/{copy_id}")) == [_PRESET]
+
+
+@pytest.mark.parametrize(
+    "viz_params",
+    [{"bidx": ["red"]}, {"rescale": ["0", "3000"]}, {"assets": "visual"}],
+    ids=["non-integer band", "rescale not a string", "assets not a list"],
+)
+def test_visualization_preset_rejects_params_the_imagery_schema_rejects(world, viz_params):
+    client = world["as"]("p1_admin")
+    bad = [{"name": "Broken", "viz_params": viz_params}]
+    assert _create(client, {"project_id": world["p1"]}, visualizations=bad).status_code == 422
+    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    patch = client.patch(f"/api/cloud-imagery/collections/{cid}", json={"visualizations": bad})
+    assert patch.status_code == 422
