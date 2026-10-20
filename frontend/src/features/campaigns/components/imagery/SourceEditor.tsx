@@ -261,6 +261,16 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
         initialAdvanced={controller.mode === 'persisted'}
         initialGeneration={activeGenerationSeries.config}
         privateCatalog={activeGenerationSeries.privateCatalog}
+        managedCatalog={
+          activeGenerationSeries.managedCatalogId != null
+            ? {
+                id: activeGenerationSeries.managedCatalogId,
+                title: activeGenerationSeries.config.collectionTitle,
+                tiler: activeGenerationSeries.config.tiler ?? '',
+                containerUrl: activeGenerationSeries.config.catalogUrl,
+              }
+            : undefined
+        }
         generationSeriesId={activeGenerationSeries.id}
         onAdd={(result) => void replaceGeneratedSeries(result, activeGenerationSeries)}
         onClose={() => setGenerationStep(null)}

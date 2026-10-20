@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 
 import { useQuery } from '@tanstack/react-query';
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
@@ -12,7 +12,7 @@ import { ProjectSettingsSection } from '~/features/projects/components/ProjectSe
 import { ProjectUsersSection } from '~/features/projects/components/ProjectUsersSection';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { Button } from '~/shared/ui/forms';
+import { Button, buttonClass } from '~/shared/ui/forms';
 import { IconCopy, IconDocument, IconGlobe, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
@@ -178,6 +178,7 @@ const ProjectTabs = ({
             onOpen={onOpenCampaign}
             onOpenSettings={onOpenCampaignSettings}
             onCreate={onCreateCampaign}
+            catalogsHref={`/projects/${project.id}/catalogs`}
             onDuplicate={onDuplicateCampaign}
           />
         )}
@@ -203,6 +204,7 @@ interface CampaignsListProps {
   onOpenSettings: (campaign: CampaignListItemOut) => void;
   onCreate: () => void;
   onDuplicate: (campaign: CampaignListItemOut) => void;
+  catalogsHref: string;
 }
 
 const CampaignsList = ({
@@ -212,6 +214,7 @@ const CampaignsList = ({
   onOpenSettings,
   onCreate,
   onDuplicate,
+  catalogsHref,
 }: CampaignsListProps) => (
   <>
     <div className="mb-4 flex items-start justify-between gap-4">
@@ -223,9 +226,14 @@ const CampaignsList = ({
         </p>
       </div>
       {canCreate && (
-        <Button size="sm" onClick={onCreate} leading={<IconPlus className="h-4 w-4" />}>
-          New campaign
-        </Button>
+        <div className="flex gap-2">
+          <Link to={catalogsHref} className={buttonClass('secondary', 'text-xs px-3 py-1.5')}>
+            Imagery catalogs
+          </Link>
+          <Button size="sm" onClick={onCreate} leading={<IconPlus className="h-4 w-4" />}>
+            New campaign
+          </Button>
+        </div>
       )}
     </div>
 

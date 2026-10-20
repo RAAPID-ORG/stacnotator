@@ -16,6 +16,8 @@ export interface EditableGenerationSeries {
   /** Set when the series reads a private catalog. Its SAS is write-only once saved, so the
    *  editor asks for it again; only an unsaved series still holds the typed `sasToken`. */
   privateCatalog?: PrivateCatalog;
+  /** Set when the series reads a managed cloud catalog; reopening keeps that reference. */
+  managedCatalogId?: number;
 }
 
 export interface PrivateCatalog {
@@ -68,8 +70,10 @@ export function editableGenerationSeries(source: ImagerySource): EditableGenerat
         collections: earliest(candidates),
         otherCollections: source.collections.filter((c) => !candidateIds.has(c.id)),
         config,
+        managedCatalogId: currentData.cloudCollectionId,
         privateCatalog:
-          currentData.storageAccess || currentData.sasToken
+          currentData.cloudCollectionId == null &&
+          (currentData.storageAccess || currentData.sasToken)
             ? { sasToken: currentData.sasToken }
             : undefined,
       },

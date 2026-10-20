@@ -26,6 +26,7 @@ import { followingCoverParams, setVisualization } from './visualizations';
 import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
 import { SasTokenField } from './SasTokenField';
+import { ManagedBandCountField, useManagedAssets } from './managedCatalog';
 import { readSasToken } from './sasToken';
 import type { PrivateCatalog } from './generation';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
@@ -142,7 +143,37 @@ interface CatalogBrowserProps {
   privateCatalog?: PrivateCatalog;
   /** Offer reading a catalog URL in private Azure storage with a SAS token. */
   allowPrivateCatalogs?: boolean;
+  /** Generate from a managed cloud catalog: no catalog browsing, and the result refers to
+   *  it by id so the server resolves its catalog, tiler and access. */
+  managedCatalog?: ManagedCatalog;
 }
+
+export interface ManagedCatalog {
+  id: number;
+  title: string;
+  tiler: string;
+  containerUrl: string;
+  /** The catalog's suggested presets, copied into the campaign rather than linked. */
+  visualizations?: NamedVizParams[];
+}
+
+const managedCatalogEntry = (managed: ManagedCatalog): StacCatalogOut => ({
+  id: `cloud-${managed.id}`,
+  title: managed.title,
+  url: managed.containerUrl,
+  summary: '',
+  is_mpc: false,
+  auth_required: false,
+  tiler_name: managed.tiler,
+});
+
+const managedCollectionEntry = (managed: ManagedCatalog): StacCollectionOut => ({
+  id: `cloud-${managed.id}`,
+  title: managed.title,
+  description: '',
+  keywords: [],
+  has_cloud_cover: false,
+});
 
 export interface CatalogBrowserResult {
   collections: CollectionItem[];
@@ -207,8 +238,11 @@ export const CatalogBrowser = ({
   privateCatalog,
   generationSeriesId,
   allowPrivateCatalogs = false,
+  managedCatalog,
 }: CatalogBrowserProps) => {
-  const [step, setStep] = useState<Step>(initialGeneration ? 'configure' : 'catalog');
+  const [step, setStep] = useState<Step>(
+    initialGeneration || managedCatalog ? 'configure' : 'catalog'
+  );
   const [catalogs, setCatalogs] = useState<StacCatalogOut[]>([]);
   const [collections, setCollections] = useState<StacCollectionOut[]>([]);
   const [items, setItems] = useState<StacItemOut[]>([]);
@@ -217,28 +251,32 @@ export const CatalogBrowser = ({
   const [loadingMore, setLoadingMore] = useState(false);
 
   const [selectedCatalog, setSelectedCatalog] = useState<StacCatalogOut | null>(() =>
-    initialGeneration
-      ? {
-          id: 'saved-generation',
-          title: initialGeneration.catalogUrl,
-          url: initialGeneration.catalogUrl,
-          summary: '',
-          is_mpc: initialGeneration.isMpc,
-          auth_required: false,
-          tiler_name: initialGeneration.tiler ?? undefined,
-        }
-      : null
+    managedCatalog && !initialGeneration
+      ? managedCatalogEntry(managedCatalog)
+      : initialGeneration
+        ? {
+            id: 'saved-generation',
+            title: initialGeneration.catalogUrl,
+            url: initialGeneration.catalogUrl,
+            summary: '',
+            is_mpc: initialGeneration.isMpc,
+            auth_required: false,
+            tiler_name: initialGeneration.tiler ?? undefined,
+          }
+        : null
   );
   const [selectedCollection, setSelectedCollection] = useState<StacCollectionOut | null>(() =>
-    initialGeneration
-      ? {
-          id: initialGeneration.stacCollectionId,
-          title: initialGeneration.collectionTitle,
-          description: '',
-          keywords: [],
-          has_cloud_cover: initialGeneration.hasCloudCover,
-        }
-      : null
+    managedCatalog && !initialGeneration
+      ? managedCollectionEntry(managedCatalog)
+      : initialGeneration
+        ? {
+            id: initialGeneration.stacCollectionId,
+            title: initialGeneration.collectionTitle,
+            description: '',
+            keywords: [],
+            has_cloud_cover: initialGeneration.hasCloudCover,
+          }
+        : null
   );
 
   const [query, setQuery] = useState('');
@@ -379,10 +417,15 @@ export const CatalogBrowser = ({
 
   // Multiple named visualizations
   const [visualizations, setVisualizations] = useState<NamedVizParams[]>([
-    ...(initialGeneration?.visualizations ?? [{ name: 'True Color', vizParams: emptyVizParams() }]),
+    ...(initialGeneration?.visualizations ??
+      (managedCatalog?.visualizations?.length ? managedCatalog.visualizations : null) ?? [
+        { name: 'True Color', vizParams: emptyVizParams() },
+      ]),
   ]);
   const [activeVizIndex, setActiveVizIndex] = useState(0);
-  const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
+  const [fetchedAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
+  const managedAssets = useManagedAssets(visualizations);
+  const availableAssets = managedCatalog ? managedAssets.assets : fetchedAssets;
 
   /** Refresh only the catalog metadata the band picker needs. Saved generator inputs
    *  remain untouched even when the upstream catalog is temporarily unavailable. */
@@ -417,6 +460,8 @@ export const CatalogBrowser = ({
 
   // Load catalogs on mount (skip if preset provided)
   useEffect(() => {
+    // A managed catalog lives in the tiler's own catalog, not a STAC API we can browse.
+    if (managedCatalog) return;
     if (initialGeneration) {
       if (!needsSavedSas) loadSavedMetadata(initialGeneration, catalogSas);
       return;
@@ -859,6 +904,7 @@ export const CatalogBrowser = ({
           coverSearchQuery: coverMode === 'custom' ? (effectiveCoverQuery ?? undefined) : undefined,
           internalStorage: initialGeneration?.internalStorage,
           sasToken: catalogSas ?? undefined,
+          cloudCollectionId: managedCatalog?.id,
           vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
         },
       });
@@ -894,6 +940,7 @@ export const CatalogBrowser = ({
         maxCloudCover: selectedCollection.has_cloud_cover ? maxCloudCover : undefined,
         visualizations,
         sasToken: catalogSas ?? undefined,
+        cloudCollectionId: managedCatalog?.id,
         vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
       },
     };
@@ -1407,7 +1454,17 @@ export const CatalogBrowser = ({
             {/* Configure step */}
             {step === 'configure' && !loading && (
               <div className="space-y-4">
-                {selectedCatalog && !selectedCatalog.is_mpc && (
+                {managedCatalog && (
+                  <div
+                    className="text-[11px] text-neutral-700 bg-neutral-50 border border-neutral-200 rounded px-2.5 py-1.5"
+                    data-testid="managed-catalog-identity"
+                  >
+                    <strong>Custom catalog: {managedCatalog.title}.</strong> Its storage, access and
+                    tiler ({managedCatalog.tiler || 'not reported'}) are managed on the catalog
+                    itself and cannot be changed here.
+                  </div>
+                )}
+                {selectedCatalog && !selectedCatalog.is_mpc && !managedCatalog && (
                   <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
                     <strong>Non-MPC catalog.</strong> Tile serving goes through our self-hosted
                     tiler which has noticeable latency compared to Planetary Computer. Only MPC is
@@ -1458,7 +1515,8 @@ export const CatalogBrowser = ({
                           <button
                             type="button"
                             onClick={() => setMode('single-item')}
-                            className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                            disabled={!!managedCatalog}
+                            className={`flex-1 disabled:opacity-50 disabled:cursor-not-allowed text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
                               mode === 'single-item'
                                 ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
                                 : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
@@ -1467,6 +1525,12 @@ export const CatalogBrowser = ({
                             Single Item
                           </button>
                         </div>
+                        {managedCatalog && (
+                          <p className="text-[11px] text-neutral-500">
+                            Custom catalogs are always used as a mosaic; picking one file is not
+                            supported.
+                          </p>
+                        )}
                       </div>
                     )}
 
@@ -1795,6 +1859,12 @@ export const CatalogBrowser = ({
                         </p>
                       </div>
                       <div className="p-3 space-y-3 bg-white">
+                        {managedCatalog && (
+                          <ManagedBandCountField
+                            bandCount={managedAssets.bandCount}
+                            onChange={managedAssets.setBandCount}
+                          />
+                        )}
                         <VizTabs
                           visualizations={visualizations}
                           activeIndex={activeVizIndex}

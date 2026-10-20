@@ -27,6 +27,7 @@ import { getCollections, type AssetInfo } from '~/api/client';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { compositingMethods, servingTiler } from './tilerCapabilities';
 import { updateRegularVisualization } from './visualizations';
+import { ManagedBandCountField, useManagedAssets } from './managedCatalog';
 
 interface CollectionEditorProps {
   collection: CollectionItem;
@@ -48,7 +49,7 @@ export const CollectionEditor = ({
 }: CollectionEditorProps) => {
   const { tilers, allowsInternalStorage } = useProjectTilers(projectId);
   const [expanded, setExpanded] = useState(true);
-  const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
+  const [fetchedAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
   const [hasCloudCover, setHasCloudCover] = useState(false);
   const [activeVizIndex, setActiveVizIndex] = useState(0);
   const [activeCoverVizIndex, setActiveCoverVizIndex] = useState(0);
@@ -64,6 +65,9 @@ export const CollectionEditor = ({
     if (!sb) return;
     onChange({ data: { ...sb, ...updates } });
   };
+  const managed = sb?.cloudCollectionId != null;
+  const managedAssets = useManagedAssets(sb?.visualizations ?? []);
+  const availableAssets = managed ? managedAssets.assets : fetchedAssets;
 
   const hostedTilers = tilers.filter((t) => t.kind === 'hosted');
   const defaultTilerName = hostedTilers.find((t) => t.is_default)?.name;
@@ -166,7 +170,7 @@ export const CollectionEditor = ({
   useEffect(() => {
     if (collection.data.type !== 'stac_browser') return;
     const sb = collection.data;
-    if (!sb.catalogUrl || !sb.stacCollectionId) return;
+    if (sb.cloudCollectionId != null || !sb.catalogUrl || !sb.stacCollectionId) return;
     let cancelled = false;
     getCollections({ query: { catalog_url: sb.catalogUrl, project_id: projectId } })
       .then(({ data, error }) => {
@@ -580,28 +584,41 @@ export const CollectionEditor = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-xs text-neutral-700">Catalog URL</label>
-                      <Input
-                        size="sm"
-                        type="url"
-                        value={sb.catalogUrl}
-                        onChange={(e) => updateSb({ catalogUrl: e.target.value })}
+                  {managed ? (
+                    <div className="space-y-2" data-testid="managed-catalog-identity">
+                      <p className="text-xs text-neutral-700">
+                        Custom catalog <strong>#{sb.cloudCollectionId}</strong>. Its storage, access
+                        and tiler are managed on the catalog itself and cannot be changed here.
+                      </p>
+                      <ManagedBandCountField
+                        bandCount={managedAssets.bandCount}
+                        onChange={managedAssets.setBandCount}
                       />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-neutral-700">STAC Collection ID</label>
-                      <Input
-                        size="sm"
-                        type="text"
-                        value={sb.stacCollectionId}
-                        onChange={(e) => updateSb({ stacCollectionId: e.target.value })}
-                      />
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700">Catalog URL</label>
+                        <Input
+                          size="sm"
+                          type="url"
+                          value={sb.catalogUrl}
+                          onChange={(e) => updateSb({ catalogUrl: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700">STAC Collection ID</label>
+                        <Input
+                          size="sm"
+                          type="text"
+                          value={sb.stacCollectionId}
+                          onChange={(e) => updateSb({ stacCollectionId: e.target.value })}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {allowsInternalStorage && !sb.isMpc && (
+                  {allowsInternalStorage && !sb.isMpc && !managed && (
                     <label className="flex items-start gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -621,7 +638,7 @@ export const CollectionEditor = ({
                     </label>
                   )}
 
-                  {!sb.isMpc && hostedTilers.length > 1 && (
+                  {!sb.isMpc && !managed && hostedTilers.length > 1 && (
                     <div className="pt-1">
                       <button
                         type="button"

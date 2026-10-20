@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { type OrganizationOut } from '~/api/client';
 import { updateOrganizationMutation } from '~/api/queries';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge, type BadgeTone } from '~/shared/ui/Badge';
-import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
+import { Button, buttonClass, Field, Input, Textarea } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
@@ -175,6 +175,14 @@ export const OrganizationPage = () => {
               <Skeleton className="h-7 w-52" />
             )}
           </div>
+          {org && (
+            <Link
+              to={`/organizations/${org.id}/catalogs`}
+              className={buttonClass('secondary', 'text-xs px-3 py-1.5')}
+            >
+              Imagery catalogs
+            </Link>
+          )}
         </header>
 
         {org ? (
