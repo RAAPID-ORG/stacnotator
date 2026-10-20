@@ -8,7 +8,6 @@ import { listProjectCampaignsOptions } from '~/api/queries';
 import { isRegistering } from '~/features/campaigns/hooks/campaignQueries';
 import { type CampaignListItemOut, type CampaignOut, type ProjectOut } from '~/api/client';
 import { DuplicateCampaignModal } from '~/features/campaigns/components/DuplicateCampaignModal';
-import { CatalogsSection } from '~/features/cloudImagery/CatalogsPage';
 import { ProjectSettingsSection } from '~/features/projects/components/ProjectSettingsSection';
 import { ProjectUsersSection } from '~/features/projects/components/ProjectUsersSection';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
@@ -192,14 +191,7 @@ const ProjectTabs = ({
           <ProjectUsersSection projectId={project.id} canManage={isAdmin} />
         )}
 
-        {activeTab === 'settings' && (
-          <div className="space-y-8">
-            <ProjectSettingsSection project={project} />
-            <div className="border-t border-neutral-200 pt-6">
-              <CatalogsSection scope={{ kind: 'project', projectId: project.id }} />
-            </div>
-          </div>
-        )}
+        {activeTab === 'settings' && <ProjectSettingsSection project={project} />}
       </div>
     </div>
   );

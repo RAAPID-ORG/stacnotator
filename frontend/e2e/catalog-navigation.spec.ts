@@ -108,6 +108,7 @@ const searchParams = (page: Page) => Object.fromEntries(new URL(page.url()).sear
 
 async function createCatalogFromForm(page: Page) {
   await page.getByRole('button', { name: 'New catalog' }).click();
+  await expect(page.getByRole('heading', { name: 'New catalog', exact: true })).toBeVisible();
   await expect(page.getByLabel('Title')).toBeVisible();
   await expect(page.getByLabel('Shared with')).toHaveCount(0);
   await page.getByLabel('Title').fill('Drone flights');
@@ -166,6 +167,11 @@ test('project Settings tab creates catalogs owned by the project', async ({ appP
 
   await page.getByRole('tab', { name: 'Settings' }).click();
   await expect(page.getByRole('heading', { name: 'Imagery catalogs' })).toBeVisible();
+  const imagery = await page.getByRole('heading', { name: 'Imagery catalogs' }).boundingBox();
+  const deletion = await page.getByRole('heading', { name: 'Delete project' }).boundingBox();
+  expect(imagery).not.toBeNull();
+  expect(deletion).not.toBeNull();
+  expect(imagery!.y).toBeLessThan(deletion!.y);
 
   await createCatalogFromForm(page);
   await expect.poll(() => created).toHaveLength(1);

@@ -21,6 +21,9 @@ Live desktop and 390px organization/project forms verified; no page overflow.
 - Opening/creating a catalog preserves the active tab query.
 - Existing admin visibility restrictions remain in force.
 - Catalog form/list use the existing design system and fit narrow screens.
+- New catalog opens in the existing modal; cancellation leaves creation unsaved.
+- Organization tabs have space before content; project imagery precedes deletion.
+- Project description omits the organization-page guidance sentence.
 
 ## Decisions
 Use existing TabNavigator and URL query convention, not new navigation machinery.

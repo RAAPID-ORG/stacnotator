@@ -8,6 +8,11 @@ from the page, without a sharing selector. Legacy links retain selected catalogs
 Commit `d565144e`; eight browser cases and live desktop/narrow-screen checks pass.
 See [navigation report](review/implement-catalog-navigation/report.md).
 
+Follow-up: added space below organization tabs, moved New catalog into the existing
+modal, removed the organization-page guidance, and placed project imagery above
+Delete project. The eight focused browser cases remain green; live 390px/1440px
+checks cover popup placement/cancellation, spacing, and section order.
+
 ## 2026-10-20 - Azure imagery catalogs
 
 Implemented issue #158 on a develop-based feature branch and activated it in the

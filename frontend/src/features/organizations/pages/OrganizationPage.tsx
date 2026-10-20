@@ -208,19 +208,21 @@ export const OrganizationPage = () => {
               onChange={selectTab}
               className="!mb-0 overflow-x-auto [&>button]:shrink-0 [&>button]:whitespace-nowrap"
             />
-            {activeTab === 'details' && <DetailsForm org={org} />}
-            {activeTab === 'members' && (
-              <>
-                <AccessRequests organizationId={org.id} />
-                <OrganizationMembers organizationId={org.id} />
-              </>
-            )}
-            {activeTab === 'api-keys' && <OrganizationApiKeys organizationId={org.id} />}
-            {activeTab === 'imagery' && (
-              <div className="surface surface-section">
-                <CatalogsSection scope={{ kind: 'organization', organizationId: org.id }} />
-              </div>
-            )}
+            <div className="space-y-4 pt-4">
+              {activeTab === 'details' && <DetailsForm org={org} />}
+              {activeTab === 'members' && (
+                <>
+                  <AccessRequests organizationId={org.id} />
+                  <OrganizationMembers organizationId={org.id} />
+                </>
+              )}
+              {activeTab === 'api-keys' && <OrganizationApiKeys organizationId={org.id} />}
+              {activeTab === 'imagery' && (
+                <div className="surface surface-section">
+                  <CatalogsSection scope={{ kind: 'organization', organizationId: org.id }} />
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <SkeletonForm sections={2} />

@@ -30,6 +30,7 @@ import type { NamedVizParams } from '~/features/campaigns/components/imagery/typ
 import { emptyVizParams } from '~/features/campaigns/components/imagery/types';
 import { isSelfHostedTiler } from '~/shared/imagery/tileUrls';
 import { Button, Input, selectClass, textareaClass } from '~/shared/ui/forms';
+import { Modal } from '~/shared/ui/Modal';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import {
   dateFromPath,
@@ -136,7 +137,7 @@ export const CatalogsSection = ({ scope }: { scope: Scope }) => {
           </h2>
           <p className="section-description">
             {scope.kind === 'project'
-              ? 'Your own GeoTIFFs in Azure storage, imported once and offered to every campaign in this project. Catalogs for every project belong on the organization page.'
+              ? 'Your own GeoTIFFs in Azure storage, imported once and offered to every campaign in this project.'
               : 'Your own GeoTIFFs in Azure storage, imported once and offered to every project in this organization.'}
           </p>
         </div>
@@ -293,63 +294,71 @@ const CreateCatalog = ({
   };
 
   return (
-    <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
-      <h3 className="text-sm font-semibold text-neutral-800">1. Connect storage</h3>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Title">
-          <Input size="sm" value={title} onChange={(e) => setTitle(e.target.value)} />
+    <Modal
+      title="New catalog"
+      onClose={() => {
+        if (!create.isPending) onCancel();
+      }}
+      maxWidth="max-w-xl"
+    >
+      <section className="space-y-3 p-5">
+        <h3 className="text-sm font-semibold text-neutral-800">1. Connect storage</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Title">
+            <Input size="sm" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </Field>
+          <Field label="Tiler">
+            <select
+              className={selectClass}
+              value={chosenTiler}
+              onChange={(e) => setTiler(e.target.value)}
+            >
+              {ingest.names.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <ErrorText error={ingest.error} />
+        {!ingest.error && ingest.names.length === 0 && (
+          <p role="alert" className="text-xs text-amber-700">
+            No tiler that can import files is enabled for this organization. Ask a platform
+            administrator to grant one.
+          </p>
+        )}
+        <Field label="Container URL">
+          <Input
+            size="sm"
+            value={containerUrl}
+            onChange={(e) => setContainerUrl(e.target.value)}
+            placeholder="https://account.blob.core.windows.net/container"
+          />
         </Field>
-        <Field label="Tiler">
-          <select
-            className={selectClass}
-            value={chosenTiler}
-            onChange={(e) => setTiler(e.target.value)}
-          >
-            {ingest.names.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
+        <Field label="Path prefix">
+          <Input size="sm" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
         </Field>
-      </div>
-      <ErrorText error={ingest.error} />
-      {!ingest.error && ingest.names.length === 0 && (
-        <p role="alert" className="text-xs text-amber-700">
-          No tiler that can import files is enabled for this organization. Ask a platform
-          administrator to grant one.
-        </p>
-      )}
-      <Field label="Container URL">
-        <Input
-          size="sm"
-          value={containerUrl}
-          onChange={(e) => setContainerUrl(e.target.value)}
-          placeholder="https://account.blob.core.windows.net/container"
-        />
-      </Field>
-      <Field label="Path prefix">
-        <Input size="sm" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
-      </Field>
-      <Field label="Storage region (optional)">
-        <Input
-          size="sm"
-          value={dataRegion}
-          onChange={(e) => setDataRegion(e.target.value)}
-          placeholder="e.g. westeurope"
-        />
-      </Field>
-      <SasTokenField value={sas} onChange={setSas} />
-      <ErrorText error={create.error} />
-      <div className="flex gap-2">
-        <Button onClick={submit} disabled={!canSubmit}>
-          Create catalog
-        </Button>
-        <Button variant="quiet" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    </section>
+        <Field label="Storage region (optional)">
+          <Input
+            size="sm"
+            value={dataRegion}
+            onChange={(e) => setDataRegion(e.target.value)}
+            placeholder="e.g. westeurope"
+          />
+        </Field>
+        <SasTokenField value={sas} onChange={setSas} />
+        <ErrorText error={create.error} />
+        <div className="flex gap-2">
+          <Button onClick={submit} disabled={!canSubmit}>
+            Create catalog
+          </Button>
+          <Button variant="quiet" onClick={onCancel} disabled={create.isPending}>
+            Cancel
+          </Button>
+        </div>
+      </section>
+    </Modal>
   );
 };
 
