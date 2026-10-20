@@ -19,7 +19,9 @@ and regenerate/rebuild the frontend when deploying these changes.
 
 ## Import and reuse
 
-Open **Imagery catalogs** from a project or organization.
+Open **Settings > Imagery catalogs** in a project, or the **Imagery** tab in an
+organization. Creation uses the owner of that page; project forms do not offer
+organization-wide creation. Existing `/catalogs` links redirect to these tabs.
 
 1. Create a catalog with its title, Azure container URL, optional path prefix,
    hosted tiler, and a container SAS granting read and list access.

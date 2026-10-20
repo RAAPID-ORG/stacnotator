@@ -1,5 +1,13 @@
 # Development changelog
 
+## 2026-10-20 - Catalog navigation simplification
+
+Moved organization management into Details/Members/API keys/Imagery tabs and
+project catalog management into Settings. Catalog creation now takes its owner
+from the page, without a sharing selector. Legacy links retain selected catalogs.
+Commit `d565144e`; eight browser cases and live desktop/narrow-screen checks pass.
+See [navigation report](review/implement-catalog-navigation/report.md).
+
 ## 2026-10-20 - Azure imagery catalogs
 
 Implemented issue #158 on a develop-based feature branch and activated it in the
