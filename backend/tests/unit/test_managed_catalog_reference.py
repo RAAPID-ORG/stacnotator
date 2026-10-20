@@ -25,6 +25,34 @@ def test_managed_reference_is_accepted_alone_with_visualization_copies():
     assert config.visualizations[0].viz_params.bidx == [1, 2, 3]
 
 
+@pytest.mark.parametrize("internal_url", ["http://tiler:8000/", None])
+def test_catalog_requests_use_internal_tiler_address_when_configured(monkeypatch, internal_url):
+    import json
+
+    import httpx
+
+    from src.config import TilerCfg, get_settings
+    from src.tilers import catalogs
+
+    public_url = "https://tiles.example.com/"
+    monkeypatch.setattr(
+        get_settings(),
+        "tilers_raw",
+        json.dumps({"hosted": TilerCfg(url=public_url, internal_url=internal_url).model_dump()}),
+    )
+    requested = []
+
+    def get(url, **kwargs):
+        requested.append(url)
+        return httpx.Response(
+            200, json={"version": 1, "providers": ["azure_blob"], "max_batch_items": 100}
+        )
+
+    monkeypatch.setattr(catalogs.httpx, "get", get)
+    assert catalogs.capabilities("hosted")["providers"] == ["azure_blob"]
+    assert requested == [f"{(internal_url or public_url).rstrip('/')}/catalogs/capabilities"]
+
+
 @pytest.mark.parametrize(
     "bypass",
     [

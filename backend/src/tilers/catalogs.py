@@ -2,7 +2,8 @@
 
 import httpx
 
-from src.tilers import registry, tokens
+from src.config import get_settings
+from src.tilers import tokens
 
 _TIMEOUT = 60.0
 
@@ -19,10 +20,10 @@ class ObjectRejected(CatalogError):
 
 
 def _base(name: str) -> str:
-    tiler = registry.get(name)
+    tiler = get_settings().TILERS.get(name)
     if tiler is None:
         raise CatalogError(f"Unknown tiler {name!r}")
-    return str(getattr(tiler, "internal_url", None) or tiler.url or "").rstrip("/")
+    return (tiler.internal_url or tiler.url).rstrip("/")
 
 
 def _headers() -> dict:
