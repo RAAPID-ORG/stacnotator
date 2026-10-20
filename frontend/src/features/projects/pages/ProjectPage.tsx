@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useQuery } from '@tanstack/react-query';
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
@@ -8,11 +8,12 @@ import { listProjectCampaignsOptions } from '~/api/queries';
 import { isRegistering } from '~/features/campaigns/hooks/campaignQueries';
 import { type CampaignListItemOut, type CampaignOut, type ProjectOut } from '~/api/client';
 import { DuplicateCampaignModal } from '~/features/campaigns/components/DuplicateCampaignModal';
+import { CatalogsSection } from '~/features/cloudImagery/CatalogsPage';
 import { ProjectSettingsSection } from '~/features/projects/components/ProjectSettingsSection';
 import { ProjectUsersSection } from '~/features/projects/components/ProjectUsersSection';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { Button, buttonClass } from '~/shared/ui/forms';
+import { Button } from '~/shared/ui/forms';
 import { IconCopy, IconDocument, IconGlobe, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
@@ -73,6 +74,7 @@ export const ProjectPage = () => {
 
   const selectTab = (tab: ProjectTab) => {
     const next = new URLSearchParams(searchParams);
+    next.delete('catalog');
     if (tab === 'campaigns') {
       next.delete('tab');
     } else {
@@ -167,7 +169,7 @@ const ProjectTabs = ({
         items={availableTabs.map((tab) => ({ id: tab, label: capitalizeFirst(tab) }))}
         activeId={activeTab}
         onChange={onSelectTab}
-        className="!mb-0 !border-neutral-200 px-6"
+        className="!mb-0 !border-neutral-200 overflow-x-auto px-6 [&>button]:shrink-0 [&>button]:whitespace-nowrap"
       />
 
       <div className="p-6">
@@ -178,7 +180,6 @@ const ProjectTabs = ({
             onOpen={onOpenCampaign}
             onOpenSettings={onOpenCampaignSettings}
             onCreate={onCreateCampaign}
-            catalogsHref={`/projects/${project.id}/catalogs`}
             onDuplicate={onDuplicateCampaign}
           />
         )}
@@ -191,7 +192,14 @@ const ProjectTabs = ({
           <ProjectUsersSection projectId={project.id} canManage={isAdmin} />
         )}
 
-        {activeTab === 'settings' && <ProjectSettingsSection project={project} />}
+        {activeTab === 'settings' && (
+          <div className="space-y-8">
+            <ProjectSettingsSection project={project} />
+            <div className="border-t border-neutral-200 pt-6">
+              <CatalogsSection scope={{ kind: 'project', projectId: project.id }} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -204,7 +212,6 @@ interface CampaignsListProps {
   onOpenSettings: (campaign: CampaignListItemOut) => void;
   onCreate: () => void;
   onDuplicate: (campaign: CampaignListItemOut) => void;
-  catalogsHref: string;
 }
 
 const CampaignsList = ({
@@ -214,7 +221,6 @@ const CampaignsList = ({
   onOpenSettings,
   onCreate,
   onDuplicate,
-  catalogsHref,
 }: CampaignsListProps) => (
   <>
     <div className="mb-4 flex items-start justify-between gap-4">
@@ -226,14 +232,9 @@ const CampaignsList = ({
         </p>
       </div>
       {canCreate && (
-        <div className="flex gap-2">
-          <Link to={catalogsHref} className={buttonClass('secondary', 'text-xs px-3 py-1.5')}>
-            Imagery catalogs
-          </Link>
-          <Button size="sm" onClick={onCreate} leading={<IconPlus className="h-4 w-4" />}>
-            New campaign
-          </Button>
-        </div>
+        <Button size="sm" onClick={onCreate} leading={<IconPlus className="h-4 w-4" />}>
+          New campaign
+        </Button>
       )}
     </div>
 

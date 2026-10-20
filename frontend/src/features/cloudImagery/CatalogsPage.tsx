@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CollectionOut, DiscoveredObject, ImportOut, Owner } from '~/api/client';
 import {
@@ -17,7 +17,6 @@ import {
   startImportMutation,
   updateCollectionMutation,
 } from '~/api/queries';
-import { useProject } from '~/app/projectRoute';
 import { SasTokenField } from '~/features/campaigns/components/imagery/SasTokenField';
 import { VizTabs } from '~/features/campaigns/components/imagery/VizTabs';
 import { toVizParamsPayload } from '~/features/campaigns/components/imagery/draftSync';
@@ -29,6 +28,7 @@ import {
 import { describeExpiry, readSasToken } from '~/features/campaigns/components/imagery/sasToken';
 import type { NamedVizParams } from '~/features/campaigns/components/imagery/types';
 import { emptyVizParams } from '~/features/campaigns/components/imagery/types';
+import { isSelfHostedTiler } from '~/shared/imagery/tileUrls';
 import { Button, Input, selectClass, textareaClass } from '~/shared/ui/forms';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import {
@@ -56,7 +56,7 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
   </label>
 );
 
-type Scope =
+export type Scope =
   | { kind: 'project'; projectId: number }
   | { kind: 'organization'; organizationId: number };
 
@@ -68,14 +68,13 @@ const scopeQuery = (scope: Scope) =>
 const managementListKey = (scope: Scope) =>
   listCollectionsQueryKey({ query: { ...scopeQuery(scope), include_drafts: true } });
 
-const useScope = (): Scope | null => {
-  const { projectId, orgId } = useParams();
-  const id = Number(projectId ?? orgId);
-  if (!Number.isInteger(id) || id <= 0) return null;
-  return projectId !== undefined
-    ? { kind: 'project', projectId: id }
-    : { kind: 'organization', organizationId: id };
-};
+/** The page tab that hosts the catalogs of each owner. */
+const HOST_TAB: Record<Scope['kind'], string> = { project: 'settings', organization: 'imagery' };
+
+const ownerPath = (scope: Scope) =>
+  scope.kind === 'project'
+    ? `/projects/${scope.projectId}`
+    : `/organizations/${scope.organizationId}`;
 
 const STATUS_LABEL: Record<CollectionOut['status'], string> = {
   draft: 'Draft: choose files to import',
@@ -91,50 +90,59 @@ const STATUS_TONE: Record<CollectionOut['status'], string> = {
   failed: 'bg-red-50 text-red-700',
 };
 
+/** The old standalone address: lands on the tab that now hosts the catalogs, keeping
+ *  the selected catalog and any other query parameters. */
 export const CatalogsPage = () => {
-  const scope = useScope();
-  if (!scope) {
-    return (
-      <p role="alert" className="p-6 text-sm text-red-600">
-        This address does not name a project or organization.
-      </p>
-    );
-  }
-  return <CatalogsForScope scope={scope} />;
+  const { projectId, orgId } = useParams();
+  const [params] = useSearchParams();
+  const id = Number(projectId ?? orgId);
+  if (!Number.isInteger(id) || id <= 0) return <Navigate to="/" replace />;
+  const scope: Scope =
+    projectId !== undefined
+      ? { kind: 'project', projectId: id }
+      : { kind: 'organization', organizationId: id };
+  const next = new URLSearchParams(params);
+  next.set('tab', HOST_TAB[scope.kind]);
+  return <Navigate to={`${ownerPath(scope)}?${next}`} replace />;
 };
 
-const CatalogsForScope = ({ scope }: { scope: Scope }) => {
+export const CatalogsSection = ({ scope }: { scope: Scope }) => {
   const [params, setParams] = useSearchParams();
   const selected = Number(params.get('catalog'));
   const activeId = Number.isInteger(selected) && selected > 0 ? selected : null;
   const setActiveId = (id: number | null) =>
-    setParams(id === null ? {} : { catalog: String(id) }, { replace: true });
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (id === null) next.delete('catalog');
+        else next.set('catalog', String(id));
+        return next;
+      },
+      { replace: true }
+    );
   const [creating, setCreating] = useState(false);
   const catalogs = useQuery({
     ...listCollectionsOptions({ query: { ...scopeQuery(scope), include_drafts: true } }),
     meta: inPlace('Failed to load catalogs'),
   });
-  const backHref =
-    scope.kind === 'project'
-      ? `/projects/${scope.projectId}`
-      : `/organizations/${scope.organizationId}`;
+  const ownerName = scope.kind === 'project' ? 'project' : 'organization';
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link to={backHref} className="text-xs text-neutral-500">
-            ← {scope.kind === 'project' ? 'Project' : 'Organization'}
-          </Link>
-          <h1 className="text-lg font-semibold text-neutral-900">Imagery catalogs</h1>
-          <p className="text-xs text-neutral-500">
+    <section className="space-y-5" aria-labelledby="imagery-catalogs-heading">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 max-w-2xl">
+          <h2 id="imagery-catalogs-heading" className="section-heading">
+            Imagery catalogs
+          </h2>
+          <p className="section-description">
             {scope.kind === 'project'
-              ? 'Your own GeoTIFFs in Azure storage, imported once and offered to every campaign in this project as a custom catalog.'
-              : 'Your own GeoTIFFs in Azure storage, imported once and offered to every project in this organization as a custom catalog.'}
+              ? 'Your own GeoTIFFs in Azure storage, imported once and offered to every campaign in this project. Catalogs for every project belong on the organization page.'
+              : 'Your own GeoTIFFs in Azure storage, imported once and offered to every project in this organization.'}
           </p>
         </div>
         {!creating && (
           <Button
+            size="sm"
             onClick={() => {
               setCreating(true);
               setActiveId(null);
@@ -160,43 +168,48 @@ const CatalogsForScope = ({ scope }: { scope: Scope }) => {
         <CatalogWorkspace key={activeId} collectionId={activeId} scope={scope} />
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-neutral-800">Catalogs</h2>
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-neutral-800">Catalogs</h3>
         <ErrorText error={catalogs.error} />
-        {catalogs.data?.items.length === 0 && (
-          <p className="text-xs text-neutral-500">No catalogs yet.</p>
+        {catalogs.data?.items.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-neutral-200 px-4 py-8 text-center">
+            <p className="text-sm text-neutral-600">No catalogs in this {ownerName} yet.</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              Choose New catalog to connect an Azure container and import its GeoTIFFs.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+            {catalogs.data?.items.map((c) => (
+              <li
+                key={c.id}
+                data-testid="cloud-catalog-row"
+                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm"
+              >
+                <span className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="break-words font-medium text-neutral-900">{c.title}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] ${STATUS_TONE[c.status]}`}
+                  >
+                    {STATUS_LABEL[c.status]}
+                  </span>
+                  <span className="text-xs text-neutral-500">{c.item_count ?? 0} files</span>
+                </span>
+                <Button size="sm" variant="secondary" onClick={() => setActiveId(c.id)}>
+                  Open
+                </Button>
+              </li>
+            ))}
+          </ul>
         )}
-        <ul className="divide-y divide-neutral-100 border border-neutral-200 rounded-lg">
-          {catalogs.data?.items.map((c) => (
-            <li
-              key={c.id}
-              data-testid="cloud-catalog-row"
-              className="flex items-center justify-between px-3 py-2 text-sm"
-            >
-              <span className="flex items-center gap-2">
-                {c.title}
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${STATUS_TONE[c.status]}`}>
-                  {STATUS_LABEL[c.status]}
-                </span>
-                <span className="text-xs text-neutral-500">
-                  {c.owner.organization_id != null ? 'organization' : 'project'} ·{' '}
-                  {c.item_count ?? 0} files
-                </span>
-              </span>
-              <Button size="sm" variant="secondary" onClick={() => setActiveId(c.id)}>
-                Open
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
+      </div>
+    </section>
   );
 };
 
 /** Hosted tilers that can import files, with the one to preselect. A project knows each
- *  tiler's capabilities; an organization only reports the names it may use, so the server
- *  rejects a tiler that cannot import. */
+ *  tiler's capabilities; an organization only reports the names it may use, so MPC (which
+ *  cannot import) is dropped here and the server rejects any other tiler that cannot. */
 const useIngestTilers = (scope: Scope) => {
   const project = useQuery({
     ...getProjectTilersOptions({
@@ -213,7 +226,11 @@ const useIngestTilers = (scope: Scope) => {
     meta: inPlace('Failed to load organization tilers'),
   });
   if (scope.kind === 'organization') {
-    return { names: org.data?.tiler_names ?? [], preferred: undefined, error: org.error };
+    return {
+      names: (org.data?.tiler_names ?? []).filter(isSelfHostedTiler),
+      preferred: undefined,
+      error: org.error,
+    };
   }
   const hosted = (project.data?.tilers ?? []).filter((t) => t.kind === 'hosted' && t.allows_ingest);
   return {
@@ -232,10 +249,8 @@ const CreateCatalog = ({
   onCancel: () => void;
   onCreated: (id: number) => void;
 }) => {
-  const { project } = useProject(scope.kind === 'project' ? scope.projectId : null);
   const ingest = useIngestTilers(scope);
   const [title, setTitle] = useState('');
-  const [shareWithOrg, setShareWithOrg] = useState(false);
   const [tiler, setTiler] = useState('');
   const [containerUrl, setContainerUrl] = useState('');
   const [prefix, setPrefix] = useState('');
@@ -247,25 +262,20 @@ const CreateCatalog = ({
   });
   const chosenTiler = tiler || ingest.preferred || ingest.names[0] || '';
   const sasReading = sas.trim() ? readSasToken(sas) : null;
-  const owner: Owner | null =
+  const owner: Owner =
     scope.kind === 'organization'
       ? { organization_id: scope.organizationId }
-      : shareWithOrg
-        ? project
-          ? { organization_id: project.organization_id }
-          : null
-        : { project_id: scope.projectId };
+      : { project_id: scope.projectId };
   const canSubmit =
     !!title.trim() &&
     !!containerUrl.trim() &&
     !!chosenTiler &&
-    !!owner &&
     !!sasReading &&
     'token' in sasReading &&
     !create.isPending;
 
   const submit = () => {
-    if (!owner || !sasReading || !('token' in sasReading)) return;
+    if (!sasReading || !('token' in sasReading)) return;
     create.mutate(
       {
         body: {
@@ -283,38 +293,26 @@ const CreateCatalog = ({
   };
 
   return (
-    <section className="space-y-3 border border-neutral-200 rounded-lg p-4">
-      <h2 className="text-sm font-semibold text-neutral-800">1. Connect storage</h2>
-      <Field label="Title">
-        <Input size="sm" value={title} onChange={(e) => setTitle(e.target.value)} />
-      </Field>
-      {scope.kind === 'project' && (
-        <Field label="Shared with">
+    <section className="space-y-3 rounded-lg border border-neutral-200 p-4">
+      <h3 className="text-sm font-semibold text-neutral-800">1. Connect storage</h3>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Title">
+          <Input size="sm" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </Field>
+        <Field label="Tiler">
           <select
             className={selectClass}
-            value={shareWithOrg ? 'organization' : 'project'}
-            onChange={(e) => setShareWithOrg(e.target.value === 'organization')}
+            value={chosenTiler}
+            onChange={(e) => setTiler(e.target.value)}
           >
-            <option value="project">This project</option>
-            <option value="organization" disabled={!project}>
-              Every project in the organization
-            </option>
+            {ingest.names.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
           </select>
         </Field>
-      )}
-      <Field label="Tiler">
-        <select
-          className={selectClass}
-          value={chosenTiler}
-          onChange={(e) => setTiler(e.target.value)}
-        >
-          {ingest.names.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </Field>
+      </div>
       <ErrorText error={ingest.error} />
       {!ingest.error && ingest.names.length === 0 && (
         <p role="alert" className="text-xs text-amber-700">
@@ -399,9 +397,9 @@ const CatalogHeader = ({ collection }: { collection: CollectionOut }) => {
   const expires = collection.storage_access?.expires_at;
   const expired = !!expires && new Date(expires).getTime() < Date.now();
   return (
-    <div className="space-y-1">
-      <h2 className="text-sm font-semibold text-neutral-900">{collection.title}</h2>
-      <p className="text-xs text-neutral-500 font-mono">
+    <div className="min-w-0 space-y-1">
+      <h3 className="break-words text-sm font-semibold text-neutral-900">{collection.title}</h3>
+      <p className="break-all text-xs text-neutral-500 font-mono">
         {collection.container_url}/{collection.prefix}
       </p>
       <p className="text-xs text-neutral-500">

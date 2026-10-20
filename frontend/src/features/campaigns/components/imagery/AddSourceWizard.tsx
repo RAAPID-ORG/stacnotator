@@ -298,7 +298,7 @@ const toManagedCatalog = (c: CollectionOut): ManagedCatalog => ({
 });
 
 /** The project's and its organization's ready cloud catalogs; picking one copies its presets
- *  into the campaign. New catalogs are made on the project's catalogs page in another tab. */
+ *  into the campaign. New catalogs are made under the project's Settings tab in another tab. */
 const CustomCatalogs = ({
   projectId,
   onPick,
@@ -333,7 +333,7 @@ const CustomCatalogs = ({
           Custom catalogs
         </p>
         <a
-          href={`/projects/${projectId}/catalogs`}
+          href={`/projects/${projectId}?tab=settings`}
           target="_blank"
           rel="noreferrer"
           className="ml-auto text-[11px] text-brand-700 hover:underline"

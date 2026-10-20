@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { type OrganizationOut } from '~/api/client';
 import { updateOrganizationMutation } from '~/api/queries';
+import { CatalogsSection } from '~/features/cloudImagery/CatalogsPage';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge, type BadgeTone } from '~/shared/ui/Badge';
-import { Button, buttonClass, Field, Input, Textarea } from '~/shared/ui/forms';
+import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
+import TabNavigator from '~/shared/ui/TabNavigator';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { AccessRequests } from '../components/AccessRequests';
 import { OrganizationApiKeys } from '../components/OrganizationApiKeys';
@@ -19,6 +21,16 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   pending: 'yellow',
   rejected: 'red',
 };
+
+const ORG_TABS = ['details', 'members', 'api-keys', 'imagery'] as const;
+type OrgTab = (typeof ORG_TABS)[number];
+const ORG_TAB_LABELS: Record<OrgTab, string> = {
+  details: 'Details',
+  members: 'Members',
+  'api-keys': 'API keys',
+  imagery: 'Imagery',
+};
+const isOrgTab = (t: string | null): t is OrgTab => ORG_TABS.some((tab) => tab === t);
 
 const DetailsForm = ({ org }: { org: OrganizationOut }) => {
   const refreshOrganizations = useRefreshOrganizations();
@@ -119,6 +131,17 @@ export const OrganizationPage = () => {
   const refreshOrganizations = useRefreshOrganizations();
 
   const org = orgs.find((o) => o.id === organizationId);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab: OrgTab = isOrgTab(tabParam) ? tabParam : 'details';
+
+  const selectTab = (tab: OrgTab) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('catalog');
+    if (tab === 'details') next.delete('tab');
+    else next.set('tab', tab);
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     setBreadcrumbs([{ label: org?.name ?? 'Organization' }]);
@@ -175,22 +198,29 @@ export const OrganizationPage = () => {
               <Skeleton className="h-7 w-52" />
             )}
           </div>
-          {org && (
-            <Link
-              to={`/organizations/${org.id}/catalogs`}
-              className={buttonClass('secondary', 'text-xs px-3 py-1.5')}
-            >
-              Imagery catalogs
-            </Link>
-          )}
         </header>
 
         {org ? (
           <>
-            <DetailsForm org={org} />
-            <AccessRequests organizationId={org.id} />
-            <OrganizationApiKeys organizationId={org.id} />
-            <OrganizationMembers organizationId={org.id} />
+            <TabNavigator<OrgTab>
+              items={ORG_TABS.map((id) => ({ id, label: ORG_TAB_LABELS[id] }))}
+              activeId={activeTab}
+              onChange={selectTab}
+              className="!mb-0 overflow-x-auto [&>button]:shrink-0 [&>button]:whitespace-nowrap"
+            />
+            {activeTab === 'details' && <DetailsForm org={org} />}
+            {activeTab === 'members' && (
+              <>
+                <AccessRequests organizationId={org.id} />
+                <OrganizationMembers organizationId={org.id} />
+              </>
+            )}
+            {activeTab === 'api-keys' && <OrganizationApiKeys organizationId={org.id} />}
+            {activeTab === 'imagery' && (
+              <div className="surface surface-section">
+                <CatalogsSection scope={{ kind: 'organization', organizationId: org.id }} />
+              </div>
+            )}
           </>
         ) : (
           <SkeletonForm sections={2} />
