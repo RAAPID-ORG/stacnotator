@@ -284,7 +284,7 @@ def world(database, settings_env, monkeypatch):
     app.dependency_overrides.clear()
 
 
-def _create(client, owner, **over):
+def _create(client, owner, /, **over):
     body = {
         "title": "Drone flights",
         "owner": owner,
