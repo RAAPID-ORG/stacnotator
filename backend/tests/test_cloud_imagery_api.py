@@ -53,6 +53,7 @@ import re
 import threading
 import time
 import uuid
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -755,3 +756,118 @@ def test_visualization_preset_rejects_params_the_imagery_schema_rejects(world, v
     cid = _create(client, {"project_id": world["p1"]}).json()["id"]
     patch = client.patch(f"/api/cloud-imagery/collections/{cid}", json={"visualizations": bad})
     assert patch.status_code == 422
+
+
+# ── review regressions ──────────────────────────────────────────────────────────
+
+
+def test_swept_import_stays_failed_when_its_still_live_worker_finishes(
+    world, database, monkeypatch
+):
+    from src.cloud_imagery import azure
+    from src.cloud_imagery.models import CloudImageryImport
+    from src.cloud_imagery.service import resolve_managed_collection
+
+    client = world["as"]("p1_admin")
+    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    entered, release = threading.Event(), threading.Event()
+    fake_get_blob = azure.get_blob
+
+    def slow_get_blob(container_url, sas, path):
+        entered.set()
+        release.wait(20)
+        return fake_get_blob(container_url, sas, path)
+
+    monkeypatch.setattr(azure, "get_blob", slow_get_blob)
+    imp = _import(client, cid, _files(world, "flights/a.tif", "flights/b.tif")).json()
+    assert entered.wait(10)
+    with database.begin() as conn:  # the worker is alive but looks dead: no retry follows
+        conn.execute(
+            text(
+                f"UPDATE {CloudImageryImport.__table__} "
+                "SET heartbeat_at = now() - interval '1 hour' WHERE id = :id"
+            ),
+            {"id": imp["id"]},
+        )
+    swept = client.get(f"/api/cloud-imagery/imports/{imp['id']}").json()
+    assert swept["status"] == "failed"
+
+    release.set()
+    time.sleep(2.0)
+
+    final = client.get(f"/api/cloud-imagery/imports/{imp['id']}").json()
+    catalog = client.get(f"/api/cloud-imagery/collections/{cid}").json()
+    assert final["status"] == "failed" and final["retryable"] is True
+    assert catalog["status"] == "failed" and catalog["item_count"] is None
+    assert world["tiler"].verified == []
+    db = SessionLocal()
+    try:
+        with pytest.raises(HTTPException) as exc:
+            resolve_managed_collection(db, world["p1"], cid)
+        assert exc.value.status_code == 409
+    finally:
+        db.close()
+
+
+_ODD_KEY = "flights/drone run 100%@2x.tif"
+
+
+def _with_odd_key(world):
+    from src.cloud_imagery import azure
+
+    world["azure"].blobs[_ODD_KEY] = azure.Blob(path=_ODD_KEY, etag='"0x9"', size=2000)
+    return f"{CONTAINER}/{quote(_ODD_KEY)}"
+
+
+def test_import_sends_url_encoded_href_for_a_blob_key_with_reserved_characters(world):
+    client, tiler = world["as"]("p1_admin"), world["tiler"]
+    encoded = _with_odd_key(world)
+    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+
+    done = _wait(client, _import(client, cid, _files(world, _ODD_KEY)).json()["id"])
+
+    assert tiler.batches == [[encoded]]
+    assert encoded.endswith("drone%20run%20100%25%402x.tif")
+    assert done["status"] == "ready" and done["completed"] == 1, done
+    assert tiler.verified == [[_item_id(encoded)]]
+
+
+def test_tiler_rejection_of_an_encoded_href_is_reported_on_the_original_blob_path(world):
+    client = world["as"]("p1_admin")
+    world["tiler"].reject[_with_odd_key(world)] = "invalid_raster"
+    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+
+    done = _wait(client, _import(client, cid, _files(world, _ODD_KEY)).json()["id"])
+
+    assert done["status"] == "failed"
+    assert [(e["code"], e["path"]) for e in done["errors"]] == [("invalid_raster", _ODD_KEY)]
+
+
+def test_org_catalog_is_usable_across_projects_but_managed_only_by_its_creator_or_org_admin(
+    world,
+):
+    from src.cloud_imagery.service import resolve_managed_collection
+
+    by_org_admin = _ready_collection(world, {"organization_id": world["org"]}, role="org_admin")
+    by_p2_admin = _create(world["as"]("p2_admin"), {"organization_id": world["org"]})
+    assert by_p2_admin.status_code == 201, by_p2_admin.text
+    own = by_p2_admin.json()["id"]
+
+    db = SessionLocal()
+    try:
+        assert resolve_managed_collection(db, world["p1"], by_org_admin).tiler == "hosted"
+    finally:
+        db.close()
+    p1 = world["as"]("p1_admin")
+    for cid in (by_org_admin, own):
+        url = f"/api/cloud-imagery/collections/{cid}"
+        assert p1.patch(url, json={"title": "Taken"}).status_code in (403, 404)
+        assert p1.get(f"{url}/discover").status_code in (403, 404)
+        assert p1.delete(url).status_code in (403, 404)
+
+    p2 = world["as"]("p2_admin")
+    own_url = f"/api/cloud-imagery/collections/{own}"
+    assert p2.patch(own_url, json={"title": "Mine"}).status_code == 200
+    assert p2.get(f"{own_url}/discover").status_code == 200
+    org_admin = world["as"]("org_admin")
+    assert org_admin.patch(own_url, json={"title": "Org"}).status_code == 200

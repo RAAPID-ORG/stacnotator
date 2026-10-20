@@ -189,3 +189,111 @@ test('create catalog, import with explicit times, see failure, retry to ready', 
   });
   await expect(page.getByTestId('cloud-import-error')).toHaveCount(0);
 });
+
+/** Server state that moves with the import: the catalog reads `importing` once the import
+ *  starts, then the outcome once the second poll of the import reports it. */
+const mockFirstImport = async (
+  page: import('@playwright/test').Page,
+  outcome: { status: 'ready' | 'failed'; collection: 'ready' | 'failed'; errors?: unknown[] }
+) => {
+  let catalogStatus = 'draft';
+  let polls = 0;
+  const collection = () => ({
+    ...COLLECTION,
+    status: catalogStatus,
+    visualizations: [],
+    item_count: catalogStatus === 'ready' ? 1 : null,
+    import_id: catalogStatus === 'draft' ? null : IMPORT.id,
+  });
+  const job = (status: string) => ({
+    ...IMPORT,
+    status,
+    total: 1,
+    completed: status === 'ready' ? 1 : 0,
+    errors: status === 'failed' ? (outcome.errors ?? []) : [],
+    retryable: false,
+  });
+  await page.route(ROUTE.projectTilers, (route) =>
+    route.fulfill({
+      json: {
+        tilers: [
+          {
+            name: 'hosted',
+            kind: 'hosted',
+            url: 'https://tiler.test',
+            is_default: true,
+            stac_url: null,
+            allows_ingest: true,
+          },
+        ],
+        allows_internal_storage: false,
+      },
+    })
+  );
+  await page.route(/\/api\/cloud-imagery\/collections\?/, (route) =>
+    route.fulfill({ json: { items: catalogStatus === 'draft' ? [] : [collection()] } })
+  );
+  await page.route('**/api/cloud-imagery/collections', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({ status: 201, json: collection() })
+      : route.fallback()
+  );
+  await page.route(`**/api/cloud-imagery/collections/${COLLECTION.id}`, (route) =>
+    route.fulfill({ json: collection() })
+  );
+  await page.route(`**/api/cloud-imagery/collections/${COLLECTION.id}/discover*`, (route) =>
+    route.fulfill({
+      json: { objects: [{ path: 'flights/a.tif', etag: '"0x0"', size: 1000 }], next_cursor: null },
+    })
+  );
+  await page.route(`**/api/cloud-imagery/collections/${COLLECTION.id}/imports`, (route) => {
+    catalogStatus = 'importing';
+    return route.fulfill({ status: 202, json: job('registering') });
+  });
+  await page.route(`**/api/cloud-imagery/imports/${IMPORT.id}`, (route) => {
+    polls++;
+    if (polls >= 2) catalogStatus = outcome.collection;
+    return route.fulfill({ json: job(polls >= 2 ? outcome.status : 'registering') });
+  });
+
+  await page.goto(`/projects/${MOCK_PROJECT.id}/catalogs`);
+  await page.getByRole('button', { name: 'New catalog' }).click();
+  await page.getByLabel('Title').fill('Drone flights');
+  await page.getByLabel('Container URL').fill(CONTAINER);
+  await page.getByLabel('Path prefix').fill('flights/');
+  await page.getByLabel('SAS token').fill(SECRET);
+  await page.getByRole('button', { name: 'Create catalog' }).click();
+  await page.getByRole('checkbox', { name: 'flights/a.tif' }).check();
+  await page.getByTestId('time-instant-flights/a.tif').fill('2026-01-12T10:20:00Z');
+  await page.getByRole('button', { name: 'Import selected' }).click();
+};
+
+test('a first import that finishes while polling shows the catalog Ready everywhere', async ({
+  appPage: page,
+}) => {
+  await mockFirstImport(page, { status: 'ready', collection: 'ready' });
+
+  await expect(page.getByTestId('cloud-import-status')).toHaveText(/Ready/, { timeout: 15_000 });
+  const row = page.getByTestId('cloud-catalog-row').filter({ hasText: 'Drone flights' });
+  await expect(row).toContainText('Ready');
+  await expect(row).not.toContainText('Importing');
+  await expect(page.getByText('Catalog settings')).toBeVisible();
+});
+
+test('a first import that fails while polling offers the repair settings without a retry', async ({
+  appPage: page,
+}) => {
+  await mockFirstImport(page, {
+    status: 'failed',
+    collection: 'failed',
+    errors: [{ code: 'storage_error', path: 'flights/a.tif', message: 'could not be read' }],
+  });
+
+  await expect(page.getByTestId('cloud-import-status')).toHaveText(/Failed/, { timeout: 15_000 });
+  const row = page.getByTestId('cloud-catalog-row').filter({ hasText: 'Drone flights' });
+  await expect(row).toContainText('Import failed');
+  await expect(row).not.toContainText('Importing');
+  await expect(page.getByText('Catalog settings')).toBeVisible();
+  await expect(page.getByText(/replace the SAS token below/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry import' })).toHaveCount(0);
+});
