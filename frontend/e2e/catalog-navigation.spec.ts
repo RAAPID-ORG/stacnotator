@@ -145,6 +145,7 @@ test('organization Imagery tab manages catalogs for the organization', async ({
   const otherTabs = page.getByRole('tab').filter({ hasNotText: 'Imagery' });
   for (let i = 0; i < (await otherTabs.count()); i++) {
     await otherTabs.nth(i).click();
+    await expect(otherTabs.nth(i)).toHaveAttribute('aria-selected', 'true');
     for (const h of await page.locator('h2').allTextContents()) headings.add(h.trim());
   }
   const all = [...headings].join(' | ');
