@@ -30,6 +30,7 @@ from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign, TaskSet
 from src.canvas.models import CanvasLayout
+from src.cloud_imagery.service import resolve_managed_collection
 from src.custom_layers.models import CustomMap
 from src.imagery.models import (
     CollectionStacConfig,
@@ -287,6 +288,9 @@ def _duplicate_imagery(
     )
     for col in collections:
         if col.stac_config is not None:
+            if col.stac_config.cloud_collection_id is not None:
+                # A managed catalog travels only where its scope reaches the target project.
+                resolve_managed_collection(db, dup.project_id, col.stac_config.cloud_collection_id)
             db.add(clone_row(col.stac_config, collection_id=collection_map[col.id]))
         for viz_config in col.viz_configs:
             db.add(clone_row(viz_config, collection_id=collection_map[col.id]))

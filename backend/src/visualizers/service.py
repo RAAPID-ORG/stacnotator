@@ -659,7 +659,11 @@ def _source_option(source: ImagerySource) -> SourceOptionOut:
 
 
 def _reads_private_catalog(source: ImagerySource) -> bool:
-    return any(c.stac_config is not None and c.stac_config.storage_auth for c in source.collections)
+    return any(
+        c.stac_config is not None
+        and (c.stac_config.storage_auth or c.stac_config.cloud_collection_id is not None)
+        for c in source.collections
+    )
 
 
 PRIVATE_CATALOG_NOT_PUBLISHABLE = (

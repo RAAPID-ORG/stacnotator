@@ -15,6 +15,7 @@ from src.canvas.service import (
     new_default_view_layout,
     sync_view_layouts,
 )
+from src.cloud_imagery.service import ManagedCollection, resolve_managed_collection
 from src.crypto import encrypt
 from src.imagery.models import (
     Basemap,
@@ -51,6 +52,7 @@ from src.planet import client as planet_client
 from src.planet import scenes as planet_scenes
 from src.planet.schemas import PlanetScenesGenerationConfigV1
 from src.tilers import providers, registry
+from src.visualizers.models import Visualizer
 
 
 def _apply_provider_key(target: Basemap | ImagerySource, incoming: ProviderKeyCreate) -> None:
@@ -73,6 +75,55 @@ def _store_storage_access(row: CollectionStacConfig, incoming: CollectionStacCon
         except storage_access.InvalidStorageAccess as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     return storage_access.store(row, incoming.storage_access)
+
+
+def _project_id_of(db: Session, source: ImagerySource) -> int:
+    owner = (
+        db.get(Campaign, source.campaign_id)
+        if source.campaign_id is not None
+        else db.get(Visualizer, source.visualizer_id)
+    )
+    if owner is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Imagery source owner not found")
+    return owner.project_id
+
+
+def _resolve_managed(
+    db: Session, source: ImagerySource, incoming: CollectionStacConfigCreate
+) -> tuple[CollectionStacConfigCreate, ManagedCollection | None]:
+    """A managed reference expanded into the catalog fields it stands for, resolved for the
+    source's own project so no client value reaches them."""
+    if incoming.cloud_collection_id is None:
+        return incoming, None
+    ref = resolve_managed_collection(db, _project_id_of(db, source), incoming.cloud_collection_id)
+    resolved = incoming.model_copy(
+        update={
+            "catalog_url": ref.container_url,
+            "stac_collection_id": ref.stac_collection_id,
+            "tiler": ref.tiler,
+            "internal_storage": False,
+            "storage_access": None,
+        }
+    )
+    return resolved, ref
+
+
+def _bind_managed(row: CollectionStacConfig, ref: ManagedCollection | None) -> bool:
+    """Point the row at its managed catalog (or off one); returns whether that changed."""
+    previous = row.cloud_collection_id
+    if ref is None:
+        if previous is not None:
+            row.cloud_collection_id = None
+            storage_access.clear(row)
+        return previous is not None
+    row.cloud_collection_id = ref.id
+    row.catalog_url = ref.container_url
+    row.stac_collection_id = ref.stac_collection_id
+    row.tile_provider = ref.tiler
+    row.internal_storage = False
+    storage_access.clear(row)
+    storage_access.inherit(row, ref.held_access)
+    return previous != ref.id
 
 
 def _held_storage_access(source: ImagerySource) -> dict[str, storage_access.Held]:
@@ -548,7 +599,11 @@ def save_visualizer_imagery(
     path.
     """
     if any(
-        collection.stac_config and collection.stac_config.storage_access
+        collection.stac_config
+        and (
+            collection.stac_config.storage_access
+            or collection.stac_config.cloud_collection_id is not None
+        )
         for source in sources
         for collection in source.collections
     ):
@@ -753,6 +808,9 @@ def _update_collection_in_place(
     has_cover = bool(col_create.has_dedicated_cover)
 
     if col_create.stac_config:
+        stac_create, managed = _resolve_managed(db, db_col.source, col_create.stac_config)
+        col_create = col_create.model_copy(update={"stac_config": stac_create})
+    if col_create.stac_config:
         if db_col.stac_config is None:
             # Collection just gained a stac_config (unusual).
             stac_row = CollectionStacConfig(
@@ -768,10 +826,13 @@ def _update_collection_in_place(
                 internal_storage=col_create.stac_config.internal_storage,
             )
             _store_storage_access(stac_row, col_create.stac_config)
+            _bind_managed(stac_row, managed)
             db.add(stac_row)
             needs_reregistration = True
         else:
             if _stac_config_changed(db_col.stac_config, col_create.stac_config):
+                needs_reregistration = True
+            if _bind_managed(db_col.stac_config, managed):
                 needs_reregistration = True
             # Searches carry the access they were registered with, so a new one means
             # registering them again.
@@ -966,6 +1027,9 @@ def _create_collection_record(
 
     stac_row: CollectionStacConfig | None = None
     if col_create.stac_config:
+        stac_create, managed = _resolve_managed(db, source, col_create.stac_config)
+        col_create = col_create.model_copy(update={"stac_config": stac_create})
+    if col_create.stac_config:
         stac_row = CollectionStacConfig(
             collection_id=collection.id,
             catalog_url=col_create.stac_config.catalog_url,
@@ -977,7 +1041,9 @@ def _create_collection_record(
             internal_storage=col_create.stac_config.internal_storage,
         )
         _store_storage_access(stac_row, col_create.stac_config)
-        storage_access.inherit(stac_row, (held_access or {}).get(stac_row.catalog_url or ""))
+        if managed is None:
+            storage_access.inherit(stac_row, (held_access or {}).get(stac_row.catalog_url or ""))
+        _bind_managed(stac_row, managed)
         db.add(stac_row)
         _upsert_viz_configs(db, collection.id, col_create.stac_config.visualizations, has_cover)
 

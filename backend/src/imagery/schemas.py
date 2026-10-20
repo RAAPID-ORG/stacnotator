@@ -1,3 +1,4 @@
+import re
 from typing import Literal
 from uuid import UUID
 
@@ -14,6 +15,23 @@ from pydantic import (
 from src.canvas.schemas import CanvasLayoutOut
 from src.planet.schemas import PlanetScenesGenerationConfigV1
 from src.storage_access import StorageAccessCreate, StorageAccessOut
+
+# The pgstac collection id a managed cloud catalog is stored under; never chosen by a client.
+MANAGED_COLLECTION_ID = re.compile(r"cc-[0-9a-f]{32}")
+
+
+def _names_managed_collection(value: object) -> bool:
+    """Whether any key or string anywhere in a (CQL2) query mentions a managed collection."""
+    if isinstance(value, str):
+        return MANAGED_COLLECTION_ID.search(value.lower()) is not None
+    if isinstance(value, dict):
+        return any(
+            _names_managed_collection(k) or _names_managed_collection(v) for k, v in value.items()
+        )
+    if isinstance(value, list | tuple):
+        return any(_names_managed_collection(v) for v in value)
+    return False
+
 
 # ============================================================================
 # Slice / Collection / Source - Output Schemas
@@ -65,6 +83,8 @@ class CollectionStacConfigOut(BaseModel):
     internal_storage: bool = False
     # The private catalog's access, as its kind and expiry only - never the secret.
     storage_access: StorageAccessOut | None = None
+    # Set when the collection reads a managed cloud catalog; the editor sends only this back.
+    cloud_collection_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -281,6 +301,39 @@ class CollectionStacConfigCreate(BaseModel):
     internal_storage: bool = False
     # A private catalog's access, write-only. Left out, a saved collection keeps its own.
     storage_access: StorageAccessCreate | None = None
+    # A managed cloud catalog. Its catalog, tiler and access are resolved server-side, so
+    # none of them may arrive beside it.
+    cloud_collection_id: int | None = None
+
+    @model_validator(mode="after")
+    def managed_reference_stands_alone(self) -> "CollectionStacConfigCreate":
+        if self.cloud_collection_id is None:
+            if self.stac_collection_id and MANAGED_COLLECTION_ID.fullmatch(self.stac_collection_id):
+                raise ValueError(
+                    "A cloud catalog collection is chosen by cloud_collection_id, "
+                    "not by its stac_collection_id"
+                )
+            if _names_managed_collection(self.search_query) or _names_managed_collection(
+                self.cover_search_query
+            ):
+                raise ValueError(
+                    "A search query may not name a cloud catalog collection; "
+                    "choose it by cloud_collection_id"
+                )
+            return self
+        smuggled = [
+            name
+            for name in ("catalog_url", "stac_collection_id", "tiler", "storage_access")
+            if getattr(self, name) is not None
+        ]
+        if self.internal_storage:
+            smuggled.append("internal_storage")
+        if smuggled:
+            raise ValueError(
+                "A cloud catalog collection is chosen by cloud_collection_id alone; "
+                f"remove {', '.join(smuggled)}"
+            )
+        return self
 
 
 class ImageryCollectionCreate(BaseModel):

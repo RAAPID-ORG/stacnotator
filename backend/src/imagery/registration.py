@@ -17,6 +17,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 import httpx
 from fastapi import HTTPException
@@ -530,6 +531,17 @@ def _register_hosted_slice(
     """
     dt_range = f"{db_slice.start_date}T00:00:00Z/{db_slice.end_date}T23:59:59Z"
     body = _resolved_search_body(search_query, bbox, db_slice)
+    if getattr(stac, "cloud_collection_id", None) is not None:
+        # A managed catalog is already in the tiler's pgstac: search it, never ingest it.
+        if access is None:
+            raise ValueError("The cloud catalog's storage access is missing")
+        body["collections"] = [stac.stac_collection_id]
+        return providers.register_on_tiler(
+            tiler,
+            body,
+            tile_scope,
+            sealed_storage_access=storage_access.seal_for_tiler(access, stac.catalog_url),
+        )
     if access is not None:
         if not tiler.allows_ingest:
             raise ValueError("A private catalog needs a tiler that can ingest it")
@@ -597,31 +609,40 @@ def prepare_stac_reregistration(db: Session, campaign_id: int) -> list[StacRegis
             stac = collection.stac_config
             if not (stac and stac.catalog_url and stac.stac_collection_id and collection.slices):
                 continue
+            config: dict[str, Any] = {
+                "catalog_url": stac.catalog_url,
+                "stac_collection_id": stac.stac_collection_id,
+                "tiler": stac.tile_provider,
+                "max_cloud_cover": stac.max_cloud_cover,
+                "search_query": copy.deepcopy(stac.search_query),
+                "cover_search_query": copy.deepcopy(stac.cover_search_query),
+                "internal_storage": stac.internal_storage,
+                "visualizations": [
+                    NamedVizParamsCreate(
+                        name=vc.name,
+                        viz_params=VizParamsCreate.model_validate(vc.render_params),
+                        cover_viz_params=(
+                            VizParamsCreate.model_validate(vc.cover_render_params)
+                            if vc.cover_render_params is not None
+                            else None
+                        ),
+                    )
+                    for vc in collection.viz_configs
+                ],
+            }
+            if stac.cloud_collection_id is None:
+                stac_config = CollectionStacConfigCreate(**config)
+            else:
+                # Not a client payload: these server-resolved fields were checked when the
+                # reference was bound, and the public schema forbids them beside it.
+                stac_config = CollectionStacConfigCreate.model_construct(
+                    **config, storage_access=None, cloud_collection_id=stac.cloud_collection_id
+                )
             pending.append(
                 StacRegistrationSpec(
                     collection_id=collection.id,
                     collection_name=collection.name,
-                    stac_config=CollectionStacConfigCreate(
-                        catalog_url=stac.catalog_url,
-                        stac_collection_id=stac.stac_collection_id,
-                        tiler=stac.tile_provider,
-                        max_cloud_cover=stac.max_cloud_cover,
-                        search_query=copy.deepcopy(stac.search_query),
-                        cover_search_query=copy.deepcopy(stac.cover_search_query),
-                        internal_storage=stac.internal_storage,
-                        visualizations=[
-                            NamedVizParamsCreate(
-                                name=vc.name,
-                                viz_params=VizParamsCreate.model_validate(vc.render_params),
-                                cover_viz_params=(
-                                    VizParamsCreate.model_validate(vc.cover_render_params)
-                                    if vc.cover_render_params is not None
-                                    else None
-                                ),
-                            )
-                            for vc in collection.viz_configs
-                        ],
-                    ),
+                    stac_config=stac_config,
                     has_dedicated_cover=collection.has_dedicated_cover,
                     cover_slice_index=collection.cover_slice_index,
                     source_viz_names=[v.name for v in source.visualizations],
@@ -692,6 +713,9 @@ def refresh_collection_imagery(
     )
 
     refreshed_count = 0
+    # A managed catalog already lives in the tiler's pgstac: there is nothing to ingest.
+    if stac.cloud_collection_id is not None:
+        slices = []
     for sl in slices:
         # Re-ingest the slice's AOI into the hosted tiler's pgstac; the registered search
         # auto-picks-up new items, so the tile URL is unchanged. MPC manages its own; direct

@@ -311,6 +311,13 @@ class CollectionStacConfig(Base):
     storage_secret_expires_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
+    # A managed cloud catalog (src/cloud_imagery) this collection reads; RESTRICT keeps a
+    # catalog in use from being deleted underneath it.
+    cloud_collection_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.cloud_imagery_collections.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
 
     collection: Mapped["ImageryCollection"] = relationship(back_populates="stac_config")
 
