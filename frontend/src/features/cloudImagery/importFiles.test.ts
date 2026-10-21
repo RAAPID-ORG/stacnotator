@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assignAssets,
   buildSelection,
+  parseTimeCsv,
   timeFromPath,
   toImportFile,
   type SelectionRow,
@@ -140,6 +141,29 @@ describe('toImportFile', () => {
         start_datetime: '2026-01-01T00:00:00Z',
         end_datetime: '2026-01-31T23:59:59.999999Z',
       },
+    });
+  });
+
+  describe('parseTimeCsv', () => {
+    it('preserves commas, escaped quotes, and newlines in quoted paths', () => {
+      const { times, errors } = parseTimeCsv(
+        [
+          'path,date',
+          '"flights/field,west.tif",2026-01-12',
+          '"flights/field ""west"".tif",2026-01-13',
+          '"flights/field',
+          'west.tif",2026-01-14',
+          'flights/next.tif,2026-01-15',
+        ].join('\n')
+      );
+
+      expect(errors).toEqual([]);
+      expect([...times]).toEqual([
+        ['flights/field,west.tif', { kind: 'instant', value: '2026-01-12' }],
+        ['flights/field "west".tif', { kind: 'instant', value: '2026-01-13' }],
+        ['flights/field\nwest.tif', { kind: 'instant', value: '2026-01-14' }],
+        ['flights/next.tif', { kind: 'instant', value: '2026-01-15' }],
+      ]);
     });
   });
 

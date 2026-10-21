@@ -169,16 +169,96 @@ export function assignAssets(
 export function parseTimeCsv(text: string): { times: Map<string, TimeInput>; errors: string[] } {
   const times = new Map<string, TimeInput>();
   const errors: string[] = [];
-  text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !/^path\s*,/i.test(line))
-    .forEach((line, index) => {
-      const cells = line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
-      if (cells.length === 2) times.set(cells[0], { kind: 'instant', value: cells[1] });
-      else if (cells.length === 3)
-        times.set(cells[0], { kind: 'interval', start: cells[1], end: cells[2] });
-      else errors.push(`Line ${index + 1}: expected path,date or path,start,end`);
+  const records: { cells: string[]; line: number }[] = [];
+  let cells: string[] = [];
+  let field = '';
+  let line = 1;
+  let recordLine = 1;
+  let inQuotes = false;
+  let closedQuote = false;
+  let invalid = false;
+
+  const finishRecord = () => {
+    cells.push(field.trim());
+    if (invalid) errors.push(`Line ${recordLine}: invalid CSV quoting`);
+    else if (cells.some((cell) => cell !== '')) records.push({ cells, line: recordLine });
+    cells = [];
+    field = '';
+    recordLine = line + 1;
+    closedQuote = false;
+    invalid = false;
+  };
+
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    const newlineLength =
+      character === '\r' && text[index + 1] === '\n'
+        ? 2
+        : character === '\r' || character === '\n'
+          ? 1
+          : 0;
+    if (inQuotes) {
+      if (character === '"') {
+        if (text[index + 1] === '"') {
+          field += '"';
+          index++;
+        } else {
+          inQuotes = false;
+          closedQuote = true;
+        }
+      } else {
+        field += newlineLength ? text.slice(index, index + newlineLength) : character;
+        if (newlineLength) {
+          line++;
+          index += newlineLength - 1;
+        }
+      }
+    } else if (closedQuote) {
+      if (character === ',') {
+        cells.push(field.trim());
+        field = '';
+        closedQuote = false;
+      } else if (newlineLength) {
+        finishRecord();
+        line++;
+        index += newlineLength - 1;
+      } else if (!/\s/.test(character)) {
+        invalid = true;
+        field += character;
+        closedQuote = false;
+      }
+    } else if (character === '"') {
+      if (field.trim()) invalid = true;
+      else {
+        field = '';
+        inQuotes = true;
+      }
+    } else if (character === ',') {
+      cells.push(field.trim());
+      field = '';
+    } else if (newlineLength) {
+      finishRecord();
+      line++;
+      index += newlineLength - 1;
+    } else {
+      field += character;
+    }
+  }
+
+  if (inQuotes) {
+    errors.push(`Line ${recordLine}: unterminated quoted field`);
+  } else if (cells.length || field || closedQuote || invalid) {
+    finishRecord();
+  }
+
+  records
+    .filter(({ cells: recordCells }) => recordCells[0].toLowerCase() !== 'path')
+    .forEach(({ cells: recordCells, line: recordLine }) => {
+      if (recordCells.length === 2)
+        times.set(recordCells[0], { kind: 'instant', value: recordCells[1] });
+      else if (recordCells.length === 3)
+        times.set(recordCells[0], { kind: 'interval', start: recordCells[1], end: recordCells[2] });
+      else errors.push(`Line ${recordLine}: expected path,date or path,start,end`);
     });
   return { times, errors };
 }
