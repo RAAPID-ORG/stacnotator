@@ -29,7 +29,8 @@ redirect to Settings.
    interval, entered per file or mapped with the CSV/filename controls.
 3. Start import. The page shows progress and file-specific failures; navigation
    away does not stop the server-side import. Reopen the catalog to see its run.
-4. Once ready, select it under **Custom catalogs** in the campaign imagery wizard.
+4. Once ready, open **Custom (other)** in the campaign imagery wizard and select
+   the catalog under **No - I have my own imagery in cloud storage**.
 
 There is no inspection/review approval step. Metadata is read during import.
 Unreadable files, missing georeferencing, invalid times, changed objects and

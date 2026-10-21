@@ -64,11 +64,14 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
       step.kind === 'configure-preset' ||
       step.kind === 'planet-mosaics' ||
       step.kind === 'planet-scenes' ||
-      step.kind === 'managed-catalog' ||
       step.kind === 'custom-stac-question'
     ) {
       setStep({ kind: 'pick-preset' });
-    } else if (step.kind === 'custom-stac-browse' || step.kind === 'custom-xyz') {
+    } else if (
+      step.kind === 'custom-stac-browse' ||
+      step.kind === 'custom-xyz' ||
+      step.kind === 'managed-catalog'
+    ) {
       setStep({ kind: 'custom-stac-question' });
     }
   };
@@ -180,13 +183,9 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
                   <span className="text-sm font-medium text-neutral-900">Custom (other)</span>
                 </div>
                 <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                  Bring your own STAC catalog or raw XYZ tile URLs.
+                  Use your own cloud imagery, a STAC catalog or XYZ tile URLs.
                 </p>
               </button>
-              <CustomCatalogs
-                projectId={controller.projectId}
-                onPick={(catalog) => setStep({ kind: 'managed-catalog', catalog })}
-              />
               {MPC_PRESETS.map((preset) => (
                 <button
                   key={preset.stacCollectionId}
@@ -250,7 +249,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
         {step.kind === 'custom-stac-question' && (
           <>
             <p className="text-xs text-neutral-600 leading-relaxed">
-              Where does your imagery come from? Pick the option that matches your data provider.
+              Is your imagery already in a STAC catalog?
             </p>
             <button
               type="button"
@@ -268,6 +267,10 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
                 <code className="font-mono text-[11px]">/v1</code> or similar, choose this.
               </p>
             </button>
+            <CustomCatalogs
+              projectId={controller.projectId}
+              onPick={(catalog) => setStep({ kind: 'managed-catalog', catalog })}
+            />
             <button
               type="button"
               onClick={() => setStep({ kind: 'custom-xyz' })}
@@ -318,10 +321,16 @@ const CustomCatalogs = ({
   });
   const catalogs = data?.items ?? [];
   return (
-    <div className="space-y-1.5" data-testid="custom-catalogs">
-      <div className="flex items-center gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-          Custom catalogs
+    <div
+      className="space-y-3 rounded-lg border border-neutral-200 px-4 py-3.5"
+      data-testid="custom-catalogs"
+    >
+      <p className="text-sm font-medium text-neutral-900">
+        No - I have my own imagery in cloud storage
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs text-neutral-500">
+          Import GeoTIFFs from Azure storage, or choose a catalog below.
         </p>
         <a
           href={`/projects/${projectId}?tab=settings`}

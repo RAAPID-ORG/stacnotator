@@ -5,6 +5,8 @@
 Removed organization catalog ownership and management to reduce scope. Catalogs
 use project-admin permissions and a required project ID. The original unreleased
 migration now creates project-only catalogs; the tiler contract is unchanged.
+Moved the campaign cloud-catalog picker under Custom (other), alongside STAC and
+XYZ choices. A focused browser case covers the new section and return navigation.
 
 ## 2026-10-20 - Catalog navigation simplification
 
