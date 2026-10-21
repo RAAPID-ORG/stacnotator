@@ -175,12 +175,12 @@ test('old project catalogs address lands on Settings with the catalog open', asy
     'aria-selected',
     'true'
   );
-  await expect(page.getByText('Catalog settings')).toBeVisible();
+  await expect(page.getByText('Catalog setup', { exact: true })).toBeVisible();
 
   await page
     .getByTestId('cloud-catalog-row')
     .filter({ hasText: 'Second survey' })
-    .getByRole('button', { name: 'Open' })
+    .getByRole('button', { name: 'Edit', exact: true })
     .click();
   await expect.poll(() => searchParams(page)).toMatchObject({ tab: 'settings', catalog: '13' });
 });
