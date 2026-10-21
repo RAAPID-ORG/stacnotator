@@ -119,7 +119,11 @@ export function buildSelection(rows: Iterable<SelectionRow>) {
   return { files, problems, itemCount: new Set(files.map((file) => file.item_key)).size };
 }
 
-export function assignAssets(rows: Map<string, SelectionRow>, rules: AssetRule[]) {
+export function assignAssets(
+  rows: Map<string, SelectionRow>,
+  rules: AssetRule[],
+  matchingOnly = false
+) {
   const errors: string[] = [];
   if (!rules.length || rules.some((rule) => !/^[A-Za-z0-9_.-]{1,128}$/.test(rule.name)))
     errors.push(
@@ -138,18 +142,26 @@ export function assignAssets(rows: Map<string, SelectionRow>, rules: AssetRule[]
   const next = new Map(rows);
   let matched = 0;
   for (const [path, row] of rows) {
-    if (!row.selected) continue;
+    if (!matchingOnly && !row.selected) continue;
     const matches = rules.filter((_, index) => compiled[index].test(path));
-    if (!matches.length) continue;
+    if (!matches.length) {
+      if (matchingOnly) next.set(path, { ...row, selected: false });
+      continue;
+    }
     if (matches.length > 1) {
       errors.push(`${path}: more than one asset rule matches.`);
       continue;
     }
     const rule = matches[0];
     matched++;
-    next.set(path, { ...row, assetKey: rule.name });
+    next.set(path, { ...row, assetKey: rule.name, selected: true });
   }
-  if (!matched && !errors.length) errors.push('No selected files match these patterns.');
+  if (!matched && !errors.length)
+    errors.push(
+      matchingOnly
+        ? 'No listed files match these patterns.'
+        : 'No selected files match these patterns.'
+    );
   return { rows: errors.length ? rows : next, errors };
 }
 

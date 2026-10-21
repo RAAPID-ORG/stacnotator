@@ -44,9 +44,12 @@ become assets of one item. Enter dates as `YYYY-MM-DD`, or check **Interval** an
 enter both bounds; month-only dates and timestamps are not accepted in the editor.
 To name assets together, expand **Set asset names in bulk (optional)**. For example,
 use `reflectance` with `_reflectance\.tif$` and `clear-count` with
-`_clear-count\.tif$`. Each pattern shows its matching selected-file count while
-typing. **Apply asset names** changes names only, without needing or changing
-dates. Unmatched files stay unchanged; not every rule needs a match on every date.
+`_clear-count\.tif$`. Use **+** to add a rule. Each pattern shows its matching
+selected-file count while typing. The inline **Apply** action changes names without
+needing or changing dates. Check **Auto-select matching files only** to match
+against all listed files instead: Apply selects matches and deselects the rest,
+preserving their dates and names. Otherwise selection stays unchanged.
+Not every rule needs a match on every date.
 Overlapping rules are rejected. Files in one item must have distinct asset names.
 
 Raster headers automatically supply band counts, names and types during indexing.

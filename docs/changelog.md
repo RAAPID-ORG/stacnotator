@@ -4,7 +4,9 @@
 
 UI follow-up: **Set asset names in bulk** replaces manual grouping, directly below
 date extraction. Rules only change names and show live match counts beside each
-pattern. Selected files group automatically by equal dates or identical intervals.
+pattern. A compact toolbar provides **+**, matching-only selection, and inline
+**Apply**; matching-only selects matching listed files and deselects the rest.
+Selected files group automatically by equal dates or identical intervals.
 The editor accepts `YYYY-MM-DD` dates and explicit intervals, without month inference.
 Date extraction help is aligned beside the disclosure title.
 Selection is a table-header checkbox; asset names have their own input column.

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Button, Input } from '~/shared/ui/forms';
+import { IconButton, Input } from '~/shared/ui/forms';
+import { IconCheck, IconClose, IconPlus } from '~/shared/ui/Icons';
 import { assignAssets, type AssetRule, type SelectionRow } from './importFiles';
 
 export const BulkAssetNames = ({
@@ -10,18 +11,19 @@ export const BulkAssetNames = ({
   onApply: (result: ReturnType<typeof assignAssets>) => void;
 }) => {
   const [rules, setRules] = useState<AssetRule[]>([{ name: '', pattern: '' }]);
+  const [matchingOnly, setMatchingOnly] = useState(false);
   const change = (index: number, update: Partial<AssetRule>) =>
     setRules((previous) =>
       previous.map((rule, i) => (i === index ? { ...rule, ...update } : rule))
     );
-  const selected = [...rows.values()].filter((row) => row.selected);
+  const candidates = [...rows.values()].filter((row) => matchingOnly || row.selected);
   const hasRules = rules.length > 0 && rules.every((rule) => rule.name && rule.pattern);
-  const preview = hasRules ? assignAssets(rows, rules) : null;
+  const preview = hasRules ? assignAssets(rows, rules, matchingOnly) : null;
   const counts = rules.map((rule) => {
     if (!rule.pattern.trim()) return '';
     try {
       const pattern = new RegExp(rule.pattern);
-      const count = selected.filter((row) => pattern.test(row.object.path)).length;
+      const count = candidates.filter((row) => pattern.test(row.object.path)).length;
       return `${count} ${count === 1 ? 'match' : 'matches'}`;
     } catch {
       return 'Invalid pattern';
@@ -34,8 +36,7 @@ export const BulkAssetNames = ({
         Set asset names in bulk (optional)
       </summary>
       <p className="text-neutral-500">
-        Name matching selected files without changing their dates. Patterns accept regular
-        expressions; unmatched files stay unchanged.
+        Name matching files without changing their dates. Patterns accept regular expressions.
       </p>
       {rules.map((rule, index) => (
         <div key={index} className="flex flex-wrap items-end gap-2">
@@ -69,36 +70,50 @@ export const BulkAssetNames = ({
               </span>
             </div>
           </label>
-          <Button
-            size="sm"
-            variant="quiet"
+          <IconButton
+            className="h-8"
             aria-label={`Remove rule ${index + 1}`}
+            title={`Remove rule ${index + 1}`}
             onClick={() => setRules((previous) => previous.filter((_, i) => i !== index))}
           >
-            Remove
-          </Button>
+            <IconClose className="h-4 w-4" />
+          </IconButton>
         </div>
       ))}
-      <Button
-        size="sm"
-        variant="quiet"
-        onClick={() => setRules((previous) => [...previous, { name: '', pattern: '' }])}
-      >
-        Add asset rule
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <IconButton
+          tone="brand"
+          aria-label="Add asset rule"
+          title="Add asset rule"
+          onClick={() => setRules((previous) => [...previous, { name: '', pattern: '' }])}
+        >
+          <IconPlus className="h-4 w-4" />
+        </IconButton>
+        <label className="flex items-center gap-1.5 text-neutral-600">
+          <input
+            type="checkbox"
+            checked={matchingOnly}
+            onChange={(e) => setMatchingOnly(e.target.checked)}
+          />
+          Auto-select matching files only
+        </label>
+        <IconButton
+          tone="brand"
+          className="gap-1 text-xs"
+          aria-label="Apply asset names"
+          title="Apply asset names"
+          disabled={!preview || preview.errors.length > 0}
+          onClick={() => preview && onApply(preview)}
+        >
+          <IconCheck className="h-3.5 w-3.5" />
+          Apply
+        </IconButton>
+      </div>
       {preview && preview.errors.length > 0 && (
         <p role="alert" className="whitespace-pre-line text-red-600">
           {preview.errors.join('\n')}
         </p>
       )}
-      <Button
-        size="sm"
-        variant="secondary"
-        disabled={!preview || preview.errors.length > 0}
-        onClick={() => preview && onApply(preview)}
-      >
-        Apply asset names
-      </Button>
     </details>
   );
 };
