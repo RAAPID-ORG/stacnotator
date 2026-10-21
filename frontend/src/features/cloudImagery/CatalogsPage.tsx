@@ -45,6 +45,67 @@ import {
 } from './importFiles';
 import { BulkAssetNames } from './BulkAssetNames';
 
+// Azure public-cloud region names: https://learn.microsoft.com/azure/reliability/regions-list
+const STORAGE_REGIONS = [
+  ['australiacentral', 'Australia Central'],
+  ['australiacentral2', 'Australia Central 2'],
+  ['australiaeast', 'Australia East'],
+  ['australiasoutheast', 'Australia Southeast'],
+  ['austriaeast', 'Austria East'],
+  ['belgiumcentral', 'Belgium Central'],
+  ['brazilsouth', 'Brazil South'],
+  ['brazilsoutheast', 'Brazil Southeast'],
+  ['canadacentral', 'Canada Central'],
+  ['canadaeast', 'Canada East'],
+  ['centralindia', 'Central India'],
+  ['centralus', 'Central US'],
+  ['chilecentral', 'Chile Central'],
+  ['denmarkeast', 'Denmark East'],
+  ['eastasia', 'East Asia'],
+  ['eastus', 'East US'],
+  ['eastus2', 'East US 2'],
+  ['francecentral', 'France Central'],
+  ['francesouth', 'France South'],
+  ['germanynorth', 'Germany North'],
+  ['germanywestcentral', 'Germany West Central'],
+  ['indiasouthcentral', 'India South Central'],
+  ['indonesiacentral', 'Indonesia Central'],
+  ['israelcentral', 'Israel Central'],
+  ['italynorth', 'Italy North'],
+  ['japaneast', 'Japan East'],
+  ['japanwest', 'Japan West'],
+  ['koreacentral', 'Korea Central'],
+  ['koreasouth', 'Korea South'],
+  ['malaysiawest', 'Malaysia West'],
+  ['mexicocentral', 'Mexico Central'],
+  ['newzealandnorth', 'New Zealand North'],
+  ['northcentralus', 'North Central US'],
+  ['northeurope', 'North Europe'],
+  ['norwayeast', 'Norway East'],
+  ['norwaywest', 'Norway West'],
+  ['polandcentral', 'Poland Central'],
+  ['qatarcentral', 'Qatar Central'],
+  ['southafricanorth', 'South Africa North'],
+  ['southafricawest', 'South Africa West'],
+  ['southcentralus', 'South Central US'],
+  ['southindia', 'South India'],
+  ['southeastasia', 'Southeast Asia'],
+  ['spaincentral', 'Spain Central'],
+  ['swedencentral', 'Sweden Central'],
+  ['switzerlandnorth', 'Switzerland North'],
+  ['switzerlandwest', 'Switzerland West'],
+  ['uaecentral', 'UAE Central'],
+  ['uaenorth', 'UAE North'],
+  ['uksouth', 'UK South'],
+  ['ukwest', 'UK West'],
+  ['westcentralus', 'West Central US'],
+  ['westeurope', 'West Europe'],
+  ['westindia', 'West India'],
+  ['westus', 'West US'],
+  ['westus2', 'West US 2'],
+  ['westus3', 'West US 3'],
+] as const;
+
 // Every load and action on this page shows its own failure where it happened.
 const inPlace = (errorMessage: string) => ({ errorMessage, showUser: false });
 
@@ -383,12 +444,18 @@ const CreateCatalog = ({
             <Input size="sm" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
           </Field>
           <Field label="Storage region (optional)">
-            <Input
-              size="sm"
+            <select
+              className={selectClass}
               value={dataRegion}
               onChange={(e) => setDataRegion(e.target.value)}
-              placeholder="e.g. westeurope"
-            />
+            >
+              <option value="">Not specified</option>
+              {STORAGE_REGIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </Field>
           <SasTokenField value={sas} onChange={setSas} />
           <ErrorText error={create.error} />

@@ -9,6 +9,8 @@ that catalog, with a **Close** toggle. Indexing has a progress bar and its own a
 Catalog title and SAS edits live in step 1; step 4 contains detected bands and visualization
 presets only. Both forms show saving/saved feedback, clear it on edits, and send only their
 own fields so a visualization save cannot overwrite catalog details.
+Storage region is an alphabetized Azure region dropdown instead of free text, with
+an optional **Not specified** default and canonical region identifiers in requests.
 
 UI follow-up: **Set asset names in bulk** replaces manual grouping, directly below
 date extraction. Rules only change names and show live match counts beside each
