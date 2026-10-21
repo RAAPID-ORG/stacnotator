@@ -1193,7 +1193,7 @@ export const CatalogBrowser = ({
         {!(loading && preset) && (
           <>
             {/* Step indicator */}
-            {!initialGeneration && (
+            {!initialGeneration && !managedCatalog && (
               <div className="flex items-center gap-1 text-[11px] text-neutral-400">
                 <button
                   type="button"
