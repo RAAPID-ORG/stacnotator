@@ -268,10 +268,12 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
                 <code className="font-mono text-[11px]">/v1</code> or similar, choose this.
               </p>
             </button>
-            <CustomCatalogs
-              projectId={controller.projectId}
-              onPick={(catalog) => setStep({ kind: 'managed-catalog', catalog })}
-            />
+            {controller.allowsPrivateCatalogs && (
+              <CustomCatalogs
+                projectId={controller.projectId}
+                onPick={(catalog) => setStep({ kind: 'managed-catalog', catalog })}
+              />
+            )
             <button
               type="button"
               onClick={() => setStep({ kind: 'custom-xyz' })}
