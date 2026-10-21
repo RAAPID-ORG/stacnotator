@@ -49,7 +49,7 @@ describe('asset grouping', () => {
     const feb = [...result.rows.values()].filter((row) => row.object.path.includes('2025-02'));
     expect(feb.map((row) => row.assetKey)).toEqual(['reflectance', 'clear-count']);
     expect(feb[0].time).toEqual({ kind: 'interval', start: '2025-02-01', end: '2025-02-28' });
-    expect(feb[0].bandNames).toBeUndefined();
+    expect(feb[0]).not.toHaveProperty('bandNames');
     expect(timeFromPath('2024-02_reflectance.tif', /(\d{4}-\d{2})/)).toEqual({
       kind: 'interval',
       start: '2024-02-01',

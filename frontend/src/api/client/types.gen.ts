@@ -2364,6 +2364,12 @@ export type CollectionUpdate = {
     storage_access?: ({
         kind: 'azure_sas';
     } & AzureSasAccess) | null;
+    /**
+     * Band Names
+     */
+    band_names?: {
+        [key: string]: Array<string>;
+    } | null;
 };
 
 /**

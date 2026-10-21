@@ -26,12 +26,14 @@ in the same tab and scrolls to it.
 
 1. Create a catalog with its title, Azure container URL, optional path prefix,
    hosted tiler, and a container SAS granting read and list access.
-2. Discovered files start selected. Use **Select all / Unselect all** for files
+2. Discovered files start selected. Use the **File** header checkbox for all files
    listed so far. Enter a date per file; check **Interval** beside it for start/end
-   dates. Alternatively, expand **Extract dates from filenames (optional)** above
+   dates in compact side-by-side fields. Asset names are editable in their own
+   column. Alternatively, expand **Extract dates from filenames (optional)** above
    the list; the question mark shows an example. Check **Auto-select matching
    entries only** and click **Apply** to select matching paths and unselect the
-   rest. CSV date import is also available below the list.
+   rest. The upload icon in the **Date** header opens a popup for uploading or
+   pasting CSV dates.
 3. Choose **Index selected**. The page shows progress and file-specific failures;
    navigation away does not stop indexing. Reopen the catalog to see its run.
 4. Once ready, open **Custom (other)** in the campaign imagery wizard and select
@@ -50,9 +52,11 @@ date. Conflicting rules,
 duplicate asset names within an item, and mismatched dates are rejected.
 
 Raster headers automatically supply band counts, names and types during indexing.
-**Catalog settings** shows detected counts and names once indexing finishes.
-Missing names fall back to numbered bands. A file's **Edit asset > Rename bands
-(optional)** accepts comma-separated overrides; the count must match the raster.
+**Assets and bands** shows detected counts and names once indexing finishes.
+Missing names fall back to numbered bands. **Edit band names** then provides one
+field for each detected band. Saved names label the catalog's visualization
+controls; source files, indexed STAC metadata, band order and render parameters
+remain unchanged. Names cannot be edited before indexing.
 Indexing stores `eo:bands` and
 `raster:bands` on each STAC asset. Visualization editors use the recorded asset and
 band names rather than asking for a band count. An older catalog without that

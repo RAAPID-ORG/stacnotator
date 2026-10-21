@@ -235,6 +235,25 @@ def update_collection(
     db: Session, user: User, collection_id: int, payload: CollectionUpdate
 ) -> CollectionOut:
     row = _managed(db, user, collection_id)
+    if payload.band_names is not None:
+        if _status(row) != "ready":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "Index the files before editing their band names"
+            )
+        assets = dict(row.item_assets or {})
+        for key, names in payload.band_names.items():
+            asset = assets.get(key)
+            bands = asset.get("bands") if asset is not None else None
+            if asset is None or not bands or len(names) != len(bands):
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    f"Supply one name for each detected band of asset {key!r}",
+                )
+            assets[key] = {
+                **asset,
+                "bands": [{**band, "name": name} for band, name in zip(bands, names, strict=True)],
+            }
+        row.item_assets = assets
     if payload.storage_access is not None and _used_by_imagery(db, row):
         # Imagery registered from this catalog holds its own copy of the access, sealed
         # into its tiler searches; a new access would leave those reading with the old one.

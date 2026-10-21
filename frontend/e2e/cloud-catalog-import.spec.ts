@@ -103,7 +103,7 @@ test('group monthly assets manually or by rules, then use indexed band names', a
   await page.goto(`/projects/${MOCK_PROJECT.id}/catalogs`);
   await page.getByTestId('cloud-catalog-row').getByRole('button', { name: 'Open' }).click();
   await expect(page.getByTestId('cloud-object-row')).toHaveCount(5);
-  await page.getByRole('button', { name: 'Unselect all' }).click();
+  await page.getByRole('checkbox', { name: 'Select all files' }).uncheck();
   for (const path of paths.slice(0, 2))
     await page.getByRole('checkbox', { name: path, exact: true }).check();
   await page.getByText('Group files into items (optional)', { exact: true }).click();
@@ -112,8 +112,7 @@ test('group monthly assets manually or by rules, then use indexed band names', a
   await expect(groups).toHaveCount(1);
   await expect(groups).toContainText('2 assets');
   await groups.getByRole('button', { name: 'Ungroup' }).click();
-  await page.getByRole('button', { name: 'Unselect all' }).click();
-  await page.getByRole('button', { name: 'Select all', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all files' }).check();
   await page.getByLabel('Asset name rule 1').fill('reflectance');
   await page.getByLabel('File pattern rule 1').fill('_reflectance\\.tif$');
   await page.getByRole('button', { name: 'Add asset rule' }).click();
@@ -128,8 +127,8 @@ test('group monthly assets manually or by rules, then use indexed band names', a
   await page.getByRole('button', { name: 'Apply grouping', exact: true }).click();
   await expect(groups).toHaveCount(2);
   await expect(page.getByRole('checkbox', { name: unmatched, exact: true })).toBeChecked();
-  await expect(page.getByLabel(`Time for ${unmatched}`, { exact: true })).toHaveValue('');
-  await page.getByLabel(`Time for ${unmatched}`, { exact: true }).fill('2025-03-01');
+  await expect(page.getByLabel(`Date for ${unmatched}`, { exact: true })).toHaveValue('');
+  await page.getByLabel(`Date for ${unmatched}`, { exact: true }).fill('2025-03-01');
   await expect(groups.nth(0).getByRole('textbox').first()).toHaveValue('2025-01-01');
   await expect(groups.nth(1).getByRole('textbox').last()).toHaveValue('2025-02-28');
   await page.getByText('Group files into items (optional)', { exact: true }).click();
@@ -198,14 +197,14 @@ test('draft catalog: select files, apply matching dates, and delete', async ({ a
   await expect(page.getByText('Times are in UTC.', { exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Time zone', exact: true }).hover();
   await expect(page.getByText('Times are in UTC.', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Unselect all' }).click();
+  await page.getByRole('checkbox', { name: 'Select all files' }).uncheck();
   await expect(matching).not.toBeChecked();
   await expect(nonmatching).not.toBeChecked();
-  await page.getByRole('button', { name: 'Select all', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Select all files' }).check();
   await expect(nonmatching).toBeChecked();
   const pattern = page.getByRole('textbox', { name: /regular expression/i });
   await expect(pattern).toBeHidden();
-  const date = page.getByLabel(`Time for ${dated}`, { exact: true });
+  const date = page.getByLabel(`Date for ${dated}`, { exact: true });
   const interval = page.getByRole('checkbox', { name: `Interval for ${dated}`, exact: true });
   await expect(date).toBeVisible();
   await expect(interval).not.toBeChecked();
@@ -236,7 +235,7 @@ test('draft catalog: select files, apply matching dates, and delete', async ({ a
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(matching).toBeChecked();
   await expect(nonmatching).not.toBeChecked();
-  await expect(page.getByLabel(`Time for ${dated}`, { exact: true })).toHaveValue('2026-01-05');
+  await expect(page.getByLabel(`Date for ${dated}`, { exact: true })).toHaveValue('2026-01-05');
   await test.info().attach('catalog-date-controls', {
     body: await page.screenshot(),
     contentType: 'image/png',

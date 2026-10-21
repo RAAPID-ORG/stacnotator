@@ -30,7 +30,7 @@ import type { NamedVizParams } from '~/features/campaigns/components/imagery/typ
 import { emptyVizParams } from '~/features/campaigns/components/imagery/types';
 import { Button, Input, selectClass, textareaClass } from '~/shared/ui/forms';
 import { Modal } from '~/shared/ui/Modal';
-import { IconQuestion } from '~/shared/ui/Icons';
+import { IconQuestion, IconUploadFilled } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
@@ -399,6 +399,7 @@ const CatalogWorkspace = ({
       </div>
       <ErrorText error={remove.error} />
       {importId !== null && <ImportProgress importId={importId} onSettled={refresh} />}
+      {collection.status === 'ready' && <IndexedBands collection={collection} onSaved={refresh} />}
       {(collection.status === 'ready' || collection.status === 'failed') && (
         <CatalogSettings key={collection.id} collection={collection} onSaved={refresh} />
       )}
@@ -453,6 +454,9 @@ const SelectFiles = ({
   const [pattern, setPattern] = useState('(\\d{4}-?\\d{2}(?:-?\\d{2})?)');
   const [matchingOnly, setMatchingOnly] = useState(false);
   const [csv, setCsv] = useState('');
+  const [csvOpen, setCsvOpen] = useState(false);
+  const [csvError, setCsvError] = useState('');
+  const [csvReading, setCsvReading] = useState(false);
   const [bulkError, setBulkError] = useState('');
   const discovered = useQuery({
     ...discoverObjectsOptions({
@@ -566,8 +570,11 @@ const SelectFiles = ({
       const time = row.itemKey && groupTimes.get(row.itemKey);
       if (time) next.set(path, { ...row, time });
     });
-    if (!errors.length) setRows(next);
-    setBulkError(errors.join('; '));
+    setCsvError(errors.join('; '));
+    if (!errors.length) {
+      setRows(next);
+      setCsvOpen(false);
+    }
   };
 
   const submit = () => {
@@ -580,9 +587,6 @@ const SelectFiles = ({
           ...result.file,
           ...(row.itemKey ? { item_key: row.itemKey } : {}),
           ...(row.assetKey !== undefined ? { asset_key: row.assetKey } : {}),
-          ...(row.bandNames?.trim()
-            ? { band_names: row.bandNames.split(',').map((name) => name.trim()) }
-            : {}),
         });
       else found.set(path, result.error);
     });
@@ -614,6 +618,20 @@ const SelectFiles = ({
         <details className="min-w-0 flex-1 space-y-2 text-xs">
           <summary className="cursor-pointer text-neutral-700">
             Extract dates from filenames (optional)
+            <Tooltip
+              text={
+                'Example: flight_2026-01-05.tif\nPattern: (\\d{4}-\\d{2}-\\d{2})\nExtracted date: 2026-01-05\n\nThe first capture group (in parentheses) supplies the date. The default pattern also accepts 20260105 and months such as 2025-01 (the full month). Click Apply to fill dates.'
+              }
+            >
+              <button
+                type="button"
+                aria-label="Date extraction example"
+                className="ml-1 inline-flex align-middle text-neutral-500"
+                onClick={(e) => e.preventDefault()}
+              >
+                <IconQuestion />
+              </button>
+            </Tooltip>
           </summary>
           <Field label="Date from file path (regular expression)">
             <div className="flex gap-2">
@@ -632,20 +650,10 @@ const SelectFiles = ({
             Auto-select matching entries only
           </label>
         </details>
-        <Tooltip
-          text={
-            'Example: flight_2026-01-05.tif\nPattern: (\\d{4}-\\d{2}-\\d{2})\nExtracted date: 2026-01-05\n\nThe first capture group (in parentheses) supplies the date. The default pattern also accepts 20260105 and months such as 2025-01 (the full month). Click Apply to fill dates.'
-          }
-        >
-          <button type="button" aria-label="Date extraction example" className="text-neutral-500">
-            <IconQuestion />
-          </button>
-        </Tooltip>
       </div>
       <FileGrouping
         rows={rows}
         datePattern={pattern}
-        onDatePatternChange={setPattern}
         onGroup={() => applyGrouping(groupSelected(rows, `manual:${crypto.randomUUID()}`))}
         onApply={applyGrouping}
       />
@@ -657,21 +665,6 @@ const SelectFiles = ({
           {bulkError}
         </p>
       )}
-      {rows.size > 0 && (
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            const select = selected.size === 0;
-            setRows(
-              (prev) =>
-                new Map([...prev].map(([path, row]) => [path, { ...row, selected: select }]))
-            );
-          }}
-        >
-          {selected.size > 0 ? 'Unselect all' : 'Select all'}
-        </Button>
-      )}
       <ErrorText error={discovered.error} />
       {discovered.isPending && <p className="text-xs text-neutral-500">Listing files…</p>}
       {discovered.data && discovered.data.objects.length === 0 && (
@@ -681,14 +674,50 @@ const SelectFiles = ({
         <table className="w-full text-xs">
           <thead>
             <tr className="text-left text-neutral-500">
-              <th className="py-1">File</th>
-              <th>Size</th>
-              <th>
+              <th className="py-1">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all files"
+                    checked={rows.size > 0 && selected.size === rows.size}
+                    ref={(element) => {
+                      if (element)
+                        element.indeterminate = selected.size > 0 && selected.size < rows.size;
+                    }}
+                    onChange={(e) => {
+                      const select = e.target.checked;
+                      setRows(
+                        (previous) =>
+                          new Map(
+                            [...previous].map(([path, row]) => [path, { ...row, selected: select }])
+                          )
+                      );
+                    }}
+                  />
+                  File
+                </label>
+              </th>
+              <th className="px-2">Asset name</th>
+              <th className="pr-3">Size</th>
+              <th className="w-1 whitespace-nowrap">
                 <span className="inline-flex items-center gap-1">
-                  Time
+                  Date
                   <Tooltip text="Times are in UTC.">
                     <button type="button" aria-label="Time zone" className="text-neutral-500">
                       <IconQuestion />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Upload dates from CSV">
+                    <button
+                      type="button"
+                      aria-label="Upload dates from CSV"
+                      className="text-neutral-500 hover:text-neutral-800"
+                      onClick={() => {
+                        setCsvError('');
+                        setCsvOpen(true);
+                      }}
+                    >
+                      <IconUploadFilled />
                     </button>
                   </Tooltip>
                 </span>
@@ -703,7 +732,7 @@ const SelectFiles = ({
                 <Fragment key={key}>
                   {itemKey && groupRow && (
                     <tr className="border-t bg-neutral-50" data-testid="cloud-item-group">
-                      <td colSpan={2} className="py-2">
+                      <td colSpan={3} className="py-2">
                         <span className="font-medium">Grouped item</span>
                         <span className="ml-2 text-neutral-500">
                           {[...rows.values()].filter((row) => row.itemKey === itemKey).length}{' '}
@@ -740,7 +769,7 @@ const SelectFiles = ({
                     const row = selected.get(object.path);
                     const p = object.path;
                     return (
-                      <tr key={p} data-testid="cloud-object-row" className="border-t align-top">
+                      <tr key={p} data-testid="cloud-object-row" className="border-t align-middle">
                         <td className="py-1">
                           <label className="flex items-center gap-2">
                             <input
@@ -753,42 +782,22 @@ const SelectFiles = ({
                               {p.split('/').pop()}
                             </span>
                           </label>
-                          {row && (
-                            <details className="ml-5 mt-1 space-y-1 text-neutral-600">
-                              <summary className="cursor-pointer">
-                                {row.assetKey ?? 'data'} · Edit asset
-                              </summary>
-                              <Input
-                                size="sm"
-                                aria-label={`Asset name for ${p}`}
-                                value={row.assetKey ?? 'data'}
-                                onChange={(e) =>
-                                  update(p, (r) => ({ ...r, assetKey: e.target.value }))
-                                }
-                              />
-                              <details className="space-y-1">
-                                <summary className="cursor-pointer">
-                                  Rename bands (optional)
-                                </summary>
-                                <p>
-                                  Leave blank to use names from the file. To override them, enter
-                                  one name per band, in order, separated by commas.
-                                </p>
-                                <Input
-                                  size="sm"
-                                  aria-label={`Band names for ${p}`}
-                                  placeholder="e.g. red, green, blue"
-                                  value={row.bandNames ?? ''}
-                                  onChange={(e) =>
-                                    update(p, (r) => ({ ...r, bandNames: e.target.value }))
-                                  }
-                                />
-                              </details>
-                            </details>
-                          )}
                         </td>
-                        <td>{(object.size / 1e6).toFixed(1)} MB</td>
-                        <td className="space-y-1">
+                        <td className="px-2 py-1">
+                          <Input
+                            size="sm"
+                            className="h-[28px]"
+                            style={{ width: 144 }}
+                            aria-label={`Asset name for ${p}`}
+                            disabled={!row}
+                            value={rows.get(p)?.assetKey ?? 'data'}
+                            onChange={(e) => update(p, (r) => ({ ...r, assetKey: e.target.value }))}
+                          />
+                        </td>
+                        <td className="whitespace-nowrap pr-3">
+                          {(object.size / 1e6).toFixed(1)} MB
+                        </td>
+                        <td className="space-y-1 py-1">
                           {row && !itemKey && (
                             <TimeFields
                               path={p}
@@ -823,21 +832,63 @@ const SelectFiles = ({
           </Button>
         )}
       </div>
-      <details className="text-xs space-y-2">
-        <summary className="cursor-pointer text-neutral-700">
-          Load dates from CSV (optional)
-        </summary>
-        <Field label="Dates as CSV (path,datetime or path,start,end)">
-          <textarea
-            className={textareaClass}
-            value={csv}
-            onChange={(e) => setCsv(e.target.value)}
-          />
-        </Field>
-        <Button size="sm" variant="secondary" onClick={applyCsv}>
-          Apply CSV
-        </Button>
-      </details>
+      {csvOpen && (
+        <Modal
+          title="Upload dates from CSV"
+          maxWidth="max-w-lg"
+          onClose={() => setCsvOpen(false)}
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variant="quiet" onClick={() => setCsvOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={applyCsv} disabled={!csv.trim() || csvReading}>
+                Apply dates
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 p-5 text-xs">
+            <p className="text-neutral-500">
+              Use path,datetime or path,start,end. Paths must match listed files.
+            </p>
+            <Input
+              type="file"
+              accept=".csv,text/csv"
+              aria-label="Date CSV file"
+              disabled={csvReading}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setCsvReading(true);
+                setCsvError('');
+                setCsv('');
+                try {
+                  setCsv(await file.text());
+                } catch {
+                  setCsvError('Could not read this CSV file. Try choosing it again.');
+                } finally {
+                  setCsvReading(false);
+                }
+              }}
+            />
+            <Field label="Or paste CSV">
+              <textarea
+                className={textareaClass}
+                rows={5}
+                value={csv}
+                disabled={csvReading}
+                onChange={(e) => setCsv(e.target.value)}
+              />
+            </Field>
+            {csvError && (
+              <p role="alert" className="text-red-600">
+                {csvError}
+              </p>
+            )}
+          </div>
+        </Modal>
+      )}
       <ErrorText error={start.error} />
       <p className="text-xs text-neutral-500">
         {selected.size} files selected ·{' '}
@@ -866,14 +917,15 @@ const TimeFields = ({
   time: TimeInput;
   onChange: (time: TimeInput) => void;
 }) => (
-  <div className="flex items-center gap-2">
-    <div className="min-w-0 flex-1 space-y-1">
+  <div className="inline-flex min-w-max items-center gap-2 align-middle">
+    <div className="flex shrink-0 items-center gap-1">
       {time.kind === 'instant' ? (
         <Input
           size="sm"
           data-testid={`time-instant-${path}`}
-          aria-label={`Time for ${path}`}
-          className="h-[28px]"
+          aria-label={`Date for ${path}`}
+          className="h-[28px] shrink-0"
+          style={{ width: 128 }}
           placeholder="YYYY-MM-DD"
           value={time.value}
           onChange={(e) => onChange({ kind: 'instant', value: e.target.value })}
@@ -884,16 +936,21 @@ const TimeFields = ({
             size="sm"
             data-testid={`time-start-${path}`}
             aria-label={`Start for ${path}`}
-            className="h-[28px]"
+            className="h-[28px] shrink-0"
+            style={{ width: 128 }}
             placeholder="Start date"
             value={time.start}
             onChange={(e) => onChange({ ...time, start: e.target.value })}
           />
+          <span className="text-neutral-400" aria-hidden="true">
+            –
+          </span>
           <Input
             size="sm"
             data-testid={`time-end-${path}`}
             aria-label={`End for ${path}`}
-            className="h-[28px]"
+            className="h-[28px] shrink-0"
+            style={{ width: 128 }}
             placeholder="End date"
             value={time.end}
             onChange={(e) => onChange({ ...time, end: e.target.value })}
@@ -1003,6 +1060,132 @@ const ImportProgress = ({ importId, onSettled }: { importId: number; onSettled: 
   );
 };
 
+const IndexedBands = ({
+  collection,
+  onSaved,
+}: {
+  collection: CollectionOut;
+  onSaved: () => void;
+}) => {
+  const queryClient = useQueryClient();
+  const [names, setNames] = useState<Record<string, string[]> | null>(null);
+  const assets = Object.entries(collection.item_assets ?? {});
+  const save = useMutation({
+    ...updateCollectionMutation(),
+    meta: inPlace('Failed to save band names'),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(
+        getCollectionQueryKey({ path: { collection_id: collection.id } }),
+        saved
+      );
+      setNames(null);
+      onSaved();
+    },
+  });
+  if (!assets.length) return null;
+
+  return (
+    <div className="space-y-2 text-xs" aria-label="Detected bands">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-semibold text-neutral-800">Assets and bands</h3>
+        <Button
+          size="sm"
+          variant="quiet"
+          disabled={!assets.some(([, asset]) => asset.bands?.length)}
+          onClick={() => {
+            save.reset();
+            setNames(
+              Object.fromEntries(
+                assets
+                  .filter(([, asset]) => asset.bands?.length)
+                  .map(([key, asset]) => [key, asset.bands!.map((band) => band.name)])
+              )
+            );
+          }}
+        >
+          Edit band names
+        </Button>
+      </div>
+      {assets.map(([key, asset]) => (
+        <p key={key} className="break-words text-neutral-600">
+          <span className="font-medium">{key}</span>
+          {' · '}
+          {asset.bands?.length
+            ? `${asset.bands.length} ${asset.bands.length === 1 ? 'band' : 'bands'}: ${asset.bands.map((band) => band.name).join(', ')}`
+            : 'Band metadata unavailable'}
+        </p>
+      ))}
+      {names && (
+        <Modal
+          title="Edit band names"
+          maxWidth="max-w-lg"
+          onClose={() => {
+            if (!save.isPending) setNames(null);
+          }}
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variant="quiet" disabled={save.isPending} onClick={() => setNames(null)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={
+                  save.isPending ||
+                  Object.values(names)
+                    .flat()
+                    .some((name) => !name.trim())
+                }
+                onClick={() =>
+                  save.mutate({
+                    path: { collection_id: collection.id },
+                    body: { band_names: names },
+                  })
+                }
+              >
+                Save band names
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 p-5 text-xs">
+            <p className="text-neutral-500">
+              Bands were detected from the indexed files. These names label the catalog's
+              visualization controls; the source files and band order stay unchanged.
+            </p>
+            {Object.entries(names).map(([key, bands]) => (
+              <fieldset key={key} className="space-y-2" disabled={save.isPending}>
+                <legend className="font-medium text-neutral-800">
+                  {key} · {bands.length} {bands.length === 1 ? 'band' : 'bands'}
+                </legend>
+                {bands.map((name, index) => (
+                  <label key={index} className="flex items-center gap-3">
+                    <span className="w-14 shrink-0 text-neutral-500">Band {index + 1}</span>
+                    <Input
+                      size="sm"
+                      className="min-w-0 flex-1"
+                      aria-label={`${key} band ${index + 1}`}
+                      maxLength={100}
+                      value={name}
+                      onChange={(e) =>
+                        setNames({
+                          ...names,
+                          [key]: bands.map((current, i) =>
+                            i === index ? e.target.value : current
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                ))}
+              </fieldset>
+            ))}
+            <ErrorText error={save.error} />
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
 const CatalogSettings = ({
   collection,
   onSaved,
@@ -1071,20 +1254,6 @@ const CatalogSettings = ({
         <p className="text-xs text-neutral-500">
           Index files first to see their detected bands and configure visualization presets.
         </p>
-      )}
-      {managedAssets.hasMetadata && (
-        <div className="space-y-1 text-xs" aria-label="Detected bands">
-          <p className="font-medium text-neutral-700">Detected assets and bands</p>
-          {Object.entries(managedAssets.assets).map(([key, asset]) => (
-            <p key={key} className="break-words text-neutral-600">
-              <span className="font-medium">{key}</span>
-              {' · '}
-              {asset.bands?.length
-                ? `${asset.bands.length} ${asset.bands.length === 1 ? 'band' : 'bands'}: ${asset.bands.map((band) => band.name).join(', ')}`
-                : 'Band metadata unavailable'}
-            </p>
-          ))}
-        </div>
       )}
       {presets.length === 0 ? (
         <Button

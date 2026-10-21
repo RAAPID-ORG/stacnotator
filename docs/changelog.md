@@ -2,6 +2,14 @@
 
 ## 2026-10-21 - Project-only catalogs
 
+UI follow-up: grouping uses the same disclosure style as date extraction, without
+a duplicate date-pattern field; its example help sits beside the disclosure title.
+Selection is a table-header checkbox; asset names have their own input column.
+CSV dates open in a popup from the Date header. Interval dates sit side by side
+in 128px fields, vertically centered with the checkbox.
+Band-name editing now follows indexing, with one field per detected band and
+persistent catalog display names; raw rasters and STAC metadata stay unchanged.
+
 Removed organization catalog ownership and management to reduce scope. Catalogs
 use project-admin permissions and a required project ID. The original unreleased
 migration now creates project-only catalogs; the tiler contract is unchanged.
@@ -22,8 +30,7 @@ Added manual asset grouping and asset-name/regex rules grouped by date, includin
 full-month intervals for monthly filenames. Each group has a shared date and
 editable asset names. Grouping previews show matched files, dated items and
 unchanged files; not every file has to match. Band counts and embedded names are
-detected automatically during indexing and shown in catalog settings; optional
-renaming is tucked under file asset editing. The tiler records raster band metadata and returns it
+detected automatically during indexing and shown in the catalog. The tiler records raster band metadata and returns it
 to the existing visualization editors. Whole-item batching preserves retry
 checkpoints. The original migration includes the new metadata/grouping columns;
 local catalogs were preserved with additive schema changes. Focused core, tiler,

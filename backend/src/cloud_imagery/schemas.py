@@ -1,7 +1,7 @@
 from datetime import UTC, date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from src.imagery.schemas import VizParamsCreate
 from src.stac_browser.schemas import AssetInfo
@@ -9,7 +9,7 @@ from src.storage_access import StorageAccessCreate, StorageAccessOut
 
 CollectionStatus = Literal["draft", "importing", "ready", "failed"]
 ImportStatus = Literal["registering", "ready", "failed"]
-BandName = Annotated[str, Field(min_length=1, max_length=100)]
+BandName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 
 
 class Visualization(BaseModel):
@@ -40,6 +40,7 @@ class CollectionUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     visualizations: list[Visualization] | None = None
     storage_access: StorageAccessCreate | None = None
+    band_names: dict[str, list[BandName]] | None = None
 
 
 class CollectionOut(BaseModel):

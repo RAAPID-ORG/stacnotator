@@ -15,7 +15,6 @@ export type SelectionRow = {
   selected: boolean;
   itemKey?: string;
   assetKey?: string;
-  bandNames?: string;
 };
 
 export type AssetRule = { name: string; pattern: string };

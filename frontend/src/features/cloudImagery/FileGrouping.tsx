@@ -5,13 +5,11 @@ import { groupByDate, type AssetRule, type SelectionRow } from './importFiles';
 export const FileGrouping = ({
   rows,
   datePattern,
-  onDatePatternChange,
   onGroup,
   onApply,
 }: {
   rows: Map<string, SelectionRow>;
   datePattern: string;
-  onDatePatternChange: (pattern: string) => void;
   onGroup: () => void;
   onApply: (result: ReturnType<typeof groupByDate>) => void;
 }) => {
@@ -35,8 +33,8 @@ export const FileGrouping = ({
   }
 
   return (
-    <details className="rounded-md border border-neutral-200 p-3 space-y-3 text-xs">
-      <summary className="cursor-pointer font-medium text-neutral-700">
+    <details className="space-y-2 text-xs">
+      <summary className="cursor-pointer text-neutral-700">
         Group files into items (optional)
       </summary>
       <p className="text-neutral-500">
@@ -87,22 +85,9 @@ export const FileGrouping = ({
       >
         Add asset rule
       </Button>
-      <details className="space-y-2">
-        <summary className="cursor-pointer text-neutral-600">How dates are found</summary>
-        <p className="text-neutral-500">
-          Uses dates you entered, or reads them from filenames. For example, 2025-01 produces one
-          item covering January. Change the pattern below only for a different naming format.
-        </p>
-        <label className="block space-y-1">
-          <span>Date pattern (regular expression)</span>
-          <Input
-            size="sm"
-            aria-label="Group date pattern"
-            value={datePattern}
-            onChange={(e) => onDatePatternChange(e.target.value)}
-          />
-        </label>
-      </details>
+      <p className="text-neutral-500">
+        Uses the dates in the table or the filename date pattern above.
+      </p>
       {preview && !preview.errors.length && (
         <div className="rounded bg-neutral-50 p-2 space-y-1" aria-label="Grouping preview">
           <p className="font-medium">
