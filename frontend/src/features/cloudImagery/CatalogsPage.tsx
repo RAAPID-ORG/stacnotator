@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CollectionOut, DiscoveredObject, ImportOut } from '~/api/client';
@@ -35,15 +35,15 @@ import { Tooltip } from '~/shared/ui/Tooltip';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import {
-  groupSelected,
+  assignAssets,
+  buildSelection,
   timeFromPath,
   parseTimeCsv,
   toImportFile,
-  type ImportFile,
   type TimeInput,
   type SelectionRow,
 } from './importFiles';
-import { FileGrouping } from './FileGrouping';
+import { BulkAssetNames } from './BulkAssetNames';
 
 // Every load and action on this page shows its own failure where it happened.
 const inPlace = (errorMessage: string) => ({ errorMessage, showUser: false });
@@ -450,8 +450,9 @@ const SelectFiles = ({
   const [cursor, setCursor] = useState<string | null>(null);
   const [rows, setRows] = useState<Map<string, SelectionRow>>(new Map());
   const selected = new Map([...rows].filter(([, row]) => row.selected));
+  const selection = buildSelection(selected.values());
   const [problems, setProblems] = useState<Map<string, string>>(new Map());
-  const [pattern, setPattern] = useState('(\\d{4}-?\\d{2}(?:-?\\d{2})?)');
+  const [pattern, setPattern] = useState('(\\d{4}-\\d{2}-\\d{2})');
   const [matchingOnly, setMatchingOnly] = useState(false);
   const [csv, setCsv] = useState('');
   const [csvOpen, setCsvOpen] = useState(false);
@@ -497,16 +498,7 @@ const SelectFiles = ({
   const toggle = (object: DiscoveredObject, on: boolean) =>
     update(object.path, (row) => ({ ...row, selected: on }));
 
-  const setTime = (path: string, time: TimeInput) =>
-    setRows((previous) => {
-      const itemKey = previous.get(path)?.itemKey;
-      return new Map(
-        [...previous].map(([p, row]) => [
-          p,
-          p === path || (itemKey && row.itemKey === itemKey) ? { ...row, time } : row,
-        ])
-      );
-    });
+  const setTime = (path: string, time: TimeInput) => update(path, (row) => ({ ...row, time }));
 
   const applyPattern = () => {
     let regex: RegExp;
@@ -517,32 +509,14 @@ const SelectFiles = ({
       return;
     }
     const missed: string[] = [];
-    const conflicting: string[] = [];
     const next = new Map(rows);
-    const groupTimes = new Map<string, TimeInput>();
     rows.forEach((row, path) => {
       if (!matchingOnly && !row.selected) return;
       const matches = regex.test(path);
       const time = timeFromPath(path, regex);
       next.set(path, { ...row, selected: matchingOnly ? matches : row.selected });
-      if (time) {
-        if (row.itemKey) {
-          const prior = groupTimes.get(row.itemKey);
-          if (prior && JSON.stringify(prior) !== JSON.stringify(time)) {
-            conflicting.push(`Grouped files have different dates: ${path}. Ungroup them first.`);
-          }
-          groupTimes.set(row.itemKey, time);
-        } else next.set(path, { ...next.get(path)!, time });
-      }
+      if (time) next.set(path, { ...next.get(path)!, time });
       if (!time && (!matchingOnly || matches)) missed.push(path);
-    });
-    if (conflicting.length) {
-      setBulkError(conflicting.join('\n'));
-      return;
-    }
-    next.forEach((row, path) => {
-      const time = row.itemKey && groupTimes.get(row.itemKey);
-      if (time) next.set(path, { ...row, time });
     });
     setRows(next);
     setBulkError(missed.length ? `No date found in: ${missed.join(', ')}` : '');
@@ -552,23 +526,14 @@ const SelectFiles = ({
     const { times, errors } = parseTimeCsv(csv);
     const objects = new Map(discovered.data?.objects.map((o) => [o.path, o]) ?? []);
     const next = new Map(rows);
-    const groupTimes = new Map<string, TimeInput>();
     times.forEach((time, path) => {
       const object = next.get(path)?.object ?? objects.get(path);
       if (object) {
         const existing = next.get(path);
-        next.set(path, { ...existing, object, time, selected: true });
-        if (existing?.itemKey) {
-          const prior = groupTimes.get(existing.itemKey);
-          if (prior && JSON.stringify(prior) !== JSON.stringify(time))
-            errors.push(`Grouped files have different CSV dates: ${path}. Ungroup them first.`);
-          groupTimes.set(existing.itemKey, time);
-        }
+        const result = toImportFile(object, time);
+        if (!result.ok) errors.push(`${path}: ${result.error}`);
+        else next.set(path, { ...existing, object, time, selected: true });
       } else errors.push(`${path} is not among the listed files`);
-    });
-    next.forEach((row, path) => {
-      const time = row.itemKey && groupTimes.get(row.itemKey);
-      if (time) next.set(path, { ...row, time });
     });
     setCsvError(errors.join('; '));
     if (!errors.length) {
@@ -578,35 +543,15 @@ const SelectFiles = ({
   };
 
   const submit = () => {
-    const files: ImportFile[] = [];
-    const found = new Map<string, string>();
-    selected.forEach((row, path) => {
-      const result = toImportFile(row.object, row.time);
-      if (result.ok)
-        files.push({
-          ...result.file,
-          ...(row.itemKey ? { item_key: row.itemKey } : {}),
-          ...(row.assetKey !== undefined ? { asset_key: row.assetKey } : {}),
-        });
-      else found.set(path, result.error);
-    });
-    setProblems(found);
-    if (found.size > 0 || files.length === 0) return;
+    setProblems(selection.problems);
+    if (selection.problems.size > 0 || selection.files.length === 0) return;
     start.mutate(
-      { path: { collection_id: collection.id }, body: { files } },
+      { path: { collection_id: collection.id }, body: { files: selection.files } },
       { onSuccess: onStarted }
     );
   };
 
-  const visibleGroups = new Map<string, DiscoveredObject[]>();
-  for (const object of discovered.data?.objects ?? []) {
-    const itemKey = rows.get(object.path)?.itemKey;
-    const key = itemKey ? `group:${itemKey}` : `file:${object.path}`;
-    const group = visibleGroups.get(key) ?? [];
-    group.push(object);
-    visibleGroups.set(key, group);
-  }
-  const applyGrouping = (result: ReturnType<typeof groupSelected>) => {
+  const applyAssetNames = (result: ReturnType<typeof assignAssets>) => {
     setBulkError(result.errors.join('\n'));
     if (!result.errors.length) setRows(result.rows);
   };
@@ -617,21 +562,23 @@ const SelectFiles = ({
       <div className="flex items-start gap-2">
         <details className="min-w-0 flex-1 space-y-2 text-xs">
           <summary className="cursor-pointer text-neutral-700">
-            Extract dates from filenames (optional)
-            <Tooltip
-              text={
-                'Example: flight_2026-01-05.tif\nPattern: (\\d{4}-\\d{2}-\\d{2})\nExtracted date: 2026-01-05\n\nThe first capture group (in parentheses) supplies the date. The default pattern also accepts 20260105 and months such as 2025-01 (the full month). Click Apply to fill dates.'
-              }
-            >
-              <button
-                type="button"
-                aria-label="Date extraction example"
-                className="ml-1 inline-flex align-middle text-neutral-500"
-                onClick={(e) => e.preventDefault()}
+            <span className="inline-flex items-center gap-1 align-middle">
+              <span>Extract dates from filenames (optional)</span>
+              <Tooltip
+                text={
+                  'Example: flight_2026-01-05.tif\nPattern: (\\d{4}-\\d{2}-\\d{2})\nExtracted date: 2026-01-05\n\nThe first capture group supplies a date in YYYY-MM-DD format. Click Apply to fill dates. For a date range, use Interval in the table.'
+                }
               >
-                <IconQuestion />
-              </button>
-            </Tooltip>
+                <button
+                  type="button"
+                  aria-label="Date extraction example"
+                  className="inline-flex items-center text-neutral-500"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <IconQuestion />
+                </button>
+              </Tooltip>
+            </span>
           </summary>
           <Field label="Date from file path (regular expression)">
             <div className="flex gap-2">
@@ -651,12 +598,11 @@ const SelectFiles = ({
           </label>
         </details>
       </div>
-      <FileGrouping
-        rows={rows}
-        datePattern={pattern}
-        onGroup={() => applyGrouping(groupSelected(rows, `manual:${crypto.randomUUID()}`))}
-        onApply={applyGrouping}
-      />
+      <BulkAssetNames rows={rows} onApply={applyAssetNames} />
+      <p className="text-xs text-neutral-500">
+        Files with the same date or identical interval are grouped into one item automatically. Each
+        file in an item needs a different asset name.
+      </p>
       <p className="text-xs text-neutral-500">
         Band counts and names are detected from each file during indexing. No need to enter them.
       </p>
@@ -725,92 +671,43 @@ const SelectFiles = ({
             </tr>
           </thead>
           <tbody>
-            {[...visibleGroups].map(([key, objects]) => {
-              const groupRow = rows.get(objects[0].path);
-              const itemKey = groupRow?.itemKey;
+            {discovered.data.objects.map((object) => {
+              const row = selected.get(object.path);
+              const p = object.path;
               return (
-                <Fragment key={key}>
-                  {itemKey && groupRow && (
-                    <tr className="border-t bg-neutral-50" data-testid="cloud-item-group">
-                      <td colSpan={3} className="py-2">
-                        <span className="font-medium">Grouped item</span>
-                        <span className="ml-2 text-neutral-500">
-                          {[...rows.values()].filter((row) => row.itemKey === itemKey).length}{' '}
-                          assets
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="quiet"
-                          onClick={() =>
-                            setRows(
-                              (previous) =>
-                                new Map(
-                                  [...previous].map(([path, row]) => [
-                                    path,
-                                    row.itemKey === itemKey ? { ...row, itemKey: undefined } : row,
-                                  ])
-                                )
-                            )
-                          }
-                        >
-                          Ungroup
-                        </Button>
-                      </td>
-                      <td className="py-2">
-                        <TimeFields
-                          path={key}
-                          time={groupRow.time}
-                          onChange={(time) => setTime(groupRow.object.path, time)}
-                        />
-                      </td>
-                    </tr>
-                  )}
-                  {objects.map((object) => {
-                    const row = selected.get(object.path);
-                    const p = object.path;
-                    return (
-                      <tr key={p} data-testid="cloud-object-row" className="border-t align-middle">
-                        <td className="py-1">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              aria-label={p}
-                              checked={!!row}
-                              onChange={(e) => toggle(object, e.target.checked)}
-                            />
-                            <span className="break-all font-mono" title={p}>
-                              {p.split('/').pop()}
-                            </span>
-                          </label>
-                        </td>
-                        <td className="px-2 py-1">
-                          <Input
-                            size="sm"
-                            className="h-[28px]"
-                            style={{ width: 144 }}
-                            aria-label={`Asset name for ${p}`}
-                            disabled={!row}
-                            value={rows.get(p)?.assetKey ?? 'data'}
-                            onChange={(e) => update(p, (r) => ({ ...r, assetKey: e.target.value }))}
-                          />
-                        </td>
-                        <td className="whitespace-nowrap pr-3">
-                          {(object.size / 1e6).toFixed(1)} MB
-                        </td>
-                        <td className="space-y-1 py-1">
-                          {row && !itemKey && (
-                            <TimeFields
-                              path={p}
-                              time={row.time}
-                              onChange={(time) => setTime(p, time)}
-                            />
-                          )}
-                          {problems.get(p) && <p className="text-red-600">{problems.get(p)}</p>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </Fragment>
+                <tr key={p} data-testid="cloud-object-row" className="border-t align-middle">
+                  <td className="py-1">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        aria-label={p}
+                        checked={!!row}
+                        onChange={(e) => toggle(object, e.target.checked)}
+                      />
+                      <span className="break-all font-mono" title={p}>
+                        {p.split('/').pop()}
+                      </span>
+                    </label>
+                  </td>
+                  <td className="px-2 py-1">
+                    <Input
+                      size="sm"
+                      className="h-[28px]"
+                      style={{ width: 144 }}
+                      aria-label={`Asset name for ${p}`}
+                      disabled={!row}
+                      value={rows.get(p)?.assetKey ?? 'data'}
+                      onChange={(e) => update(p, (r) => ({ ...r, assetKey: e.target.value }))}
+                    />
+                  </td>
+                  <td className="whitespace-nowrap pr-3">{(object.size / 1e6).toFixed(1)} MB</td>
+                  <td className="space-y-1 py-1">
+                    {row && (
+                      <TimeFields path={p} time={row.time} onChange={(time) => setTime(p, time)} />
+                    )}
+                    {problems.get(p) && <p className="text-red-600">{problems.get(p)}</p>}
+                  </td>
+                </tr>
               );
             })}
           </tbody>
@@ -850,7 +747,8 @@ const SelectFiles = ({
         >
           <div className="space-y-3 p-5 text-xs">
             <p className="text-neutral-500">
-              Use path,datetime or path,start,end. Paths must match listed files.
+              Use path,date or path,start,end, with dates in YYYY-MM-DD format. Paths must match
+              listed files.
             </p>
             <Input
               type="file"
@@ -891,15 +789,7 @@ const SelectFiles = ({
       )}
       <ErrorText error={start.error} />
       <p className="text-xs text-neutral-500">
-        {selected.size} files selected ·{' '}
-        {
-          new Set(
-            [...selected.values()].map((row) =>
-              row.itemKey ? `group:${row.itemKey}` : `file:${row.object.path}`
-            )
-          ).size
-        }{' '}
-        items to index
+        {selected.size} files selected · {selection.itemCount} dated items
       </p>
       <Button onClick={submit} disabled={selected.size === 0 || start.isPending}>
         Index selected

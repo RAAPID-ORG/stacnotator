@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { CollectionOut } from '~/api/client';
 import { listCollectionsOptions } from '~/api/queries';
 import { Modal } from '~/shared/ui/Modal';
-import { Input, Button, buttonClass } from '~/shared/ui/forms';
+import { Input, Button } from '~/shared/ui/forms';
 import { IconStac, IconChevronRight } from '~/shared/ui/Icons';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
@@ -332,7 +332,7 @@ const CustomCatalogs = ({
         </p>
         <Link
           to={`/projects/${projectId}?tab=settings#imagery`}
-          className={buttonClass('secondary', 'shrink-0')}
+          className="shrink-0 text-xs leading-5 text-brand-700 hover:underline"
         >
           Manage
         </Link>

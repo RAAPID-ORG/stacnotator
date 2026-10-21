@@ -21,7 +21,7 @@ and regenerate/rebuild the frontend when deploying these changes.
 
 Open **Settings > Imagery catalogs** in a project. Catalogs belong to that project;
 organization-wide catalogs are not supported. Existing project `/catalogs` links
-redirect to Settings. The imagery wizard's **Manage** button opens this section
+redirect to Settings. The imagery wizard's small top-right **Manage** link opens this section
 in the same tab and scrolls to it.
 
 1. Create a catalog with its title, Azure container URL, optional path prefix,
@@ -39,17 +39,15 @@ in the same tab and scrolls to it.
 4. Once ready, open **Custom (other)** in the campaign imagery wizard and select
    the catalog under **No - I have my own imagery in cloud storage**.
 
-One file is one item by default. To combine related files, expand **Group files
-into items (optional)** and either select files then **Group selected as one item**,
-or add asset-name/file-pattern rules, check the preview, and choose **Apply grouping**. For example,
-`reflectance` with `_reflectance\.tif$` and `clear-count` with `_clear-count\.tif$`
-produce two assets per monthly item when the paths contain `2025-01`, `2025-02`,
-and so on. Month-only dates become full-month intervals. Each group has one shared
-date control; **Ungroup** returns its files to separate items. Only matching selected
-files are grouped; unmatched files keep their selection, dates and grouping. They
-still need dates if selected for indexing. Not every rule needs a match on every
-date. Conflicting rules,
-duplicate asset names within an item, and mismatched dates are rejected.
+Selected files with the same date or identical start/end dates automatically
+become assets of one item. Enter dates as `YYYY-MM-DD`, or check **Interval** and
+enter both bounds; month-only dates and timestamps are not accepted in the editor.
+To name assets together, expand **Set asset names in bulk (optional)**. For example,
+use `reflectance` with `_reflectance\.tif$` and `clear-count` with
+`_clear-count\.tif$`. Each pattern shows its matching selected-file count while
+typing. **Apply asset names** changes names only, without needing or changing
+dates. Unmatched files stay unchanged; not every rule needs a match on every date.
+Overlapping rules are rejected. Files in one item must have distinct asset names.
 
 Raster headers automatically supply band counts, names and types during indexing.
 **Assets and bands** shows detected counts and names once indexing finishes.
@@ -102,6 +100,7 @@ full-pixel corruption scan; later source deletion or access expiry can still
 make imagery unreadable.
 
 Current restrictions:
+
 - Azure Blob container SAS only; S3-compatible storage is not implemented.
 - A used catalog cannot be deleted or have its SAS replaced. Unbind its campaign
   imagery before changing the credential. Automatic dependent-search rotation

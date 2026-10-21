@@ -40,7 +40,7 @@ const IMPORT = {
   retryable: false,
 };
 
-test('group monthly assets manually or by rules, then use indexed band names', async ({
+test('bulk-name assets and group identical date intervals automatically', async ({
   appPage: page,
 }) => {
   const paths = ['01', '02'].flatMap((month) =>
@@ -103,42 +103,37 @@ test('group monthly assets manually or by rules, then use indexed band names', a
   await page.goto(`/projects/${MOCK_PROJECT.id}/catalogs`);
   await page.getByTestId('cloud-catalog-row').getByRole('button', { name: 'Open' }).click();
   await expect(page.getByTestId('cloud-object-row')).toHaveCount(5);
-  await page.getByRole('checkbox', { name: 'Select all files' }).uncheck();
-  for (const path of paths.slice(0, 2))
-    await page.getByRole('checkbox', { name: path, exact: true }).check();
-  await page.getByText('Group files into items (optional)', { exact: true }).click();
-  await page.getByRole('button', { name: 'Group selected as one item' }).click();
-  const groups = page.getByTestId('cloud-item-group');
-  await expect(groups).toHaveCount(1);
-  await expect(groups).toContainText('2 assets');
-  await groups.getByRole('button', { name: 'Ungroup' }).click();
-  await page.getByRole('checkbox', { name: 'Select all files' }).check();
+  await page.getByText('Set asset names in bulk (optional)', { exact: true }).click();
   await page.getByLabel('Asset name rule 1').fill('reflectance');
   await page.getByLabel('File pattern rule 1').fill('_reflectance\\.tif$');
   await page.getByRole('button', { name: 'Add asset rule' }).click();
   await page.getByLabel('Asset name rule 2').fill('clear-count');
   await page.getByLabel('File pattern rule 2').fill('_clear-count\\.tif$');
-  await expect(page.getByLabel('Grouping preview')).toContainText(
-    '4 matching files → 2 dated items'
-  );
-  await expect(page.getByLabel('Grouping preview')).toContainText('1 selected file unchanged');
+  await expect(page.getByLabel('Matches for asset rule 1')).toHaveText('2 matches');
+  await expect(page.getByLabel('Matches for asset rule 2')).toHaveText('2 matches');
   await expect(page.getByLabel('Band names rule 1')).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('grouping-preview.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Apply grouping', exact: true }).click();
-  await expect(groups).toHaveCount(2);
+  await page.getByRole('button', { name: 'Apply asset names', exact: true }).click();
+  for (const path of paths) {
+    await expect(page.getByLabel(`Date for ${path}`, { exact: true })).toHaveValue('');
+    const month = path.includes('2025-02') ? '02' : '01';
+    await page.getByRole('checkbox', { name: `Interval for ${path}`, exact: true }).check();
+    await page.getByLabel(`Start for ${path}`, { exact: true }).fill(`2025-${month}-01`);
+    await page
+      .getByLabel(`End for ${path}`, { exact: true })
+      .fill(`2025-${month}-${month === '02' ? '28' : '31'}`);
+  }
   await expect(page.getByRole('checkbox', { name: unmatched, exact: true })).toBeChecked();
   await expect(page.getByLabel(`Date for ${unmatched}`, { exact: true })).toHaveValue('');
   await page.getByLabel(`Date for ${unmatched}`, { exact: true }).fill('2025-03-01');
-  await expect(groups.nth(0).getByRole('textbox').first()).toHaveValue('2025-01-01');
-  await expect(groups.nth(1).getByRole('textbox').last()).toHaveValue('2025-02-28');
-  await page.getByText('Group files into items (optional)', { exact: true }).click();
-  await groups.first().scrollIntoViewIfNeeded();
+  await page.getByText('Set asset names in bulk (optional)', { exact: true }).click();
+  await page.getByTestId('cloud-object-row').first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath('grouped-assets.png'), fullPage: true });
   await page.getByRole('button', { name: 'Index selected' }).click();
   await expect(page.getByTestId('cloud-import-status')).toHaveText('Ready');
   expect(indexed).toHaveLength(5);
   expect(new Set(indexed.filter((file) => file.item_key).map((file) => file.item_key)).size).toBe(
-    2
+    3
   );
   expect(indexed[0]).toMatchObject({
     asset_key: 'reflectance',
@@ -369,7 +364,7 @@ test('create catalog, import with explicit times, see failure, retry to ready', 
 
   await page.getByRole('checkbox', { name: 'flights/a.tif', exact: true }).check();
   await page.getByRole('checkbox', { name: 'flights/b.tif', exact: true }).check();
-  await page.getByTestId('time-instant-flights/a.tif').fill('2026-01-12T10:20:00Z');
+  await page.getByTestId('time-instant-flights/a.tif').fill('2026-01-12');
   await page.getByTestId('time-mode-flights/b.tif').check();
   await page.getByTestId('time-start-flights/b.tif').fill('2026-01-01');
   await page.getByTestId('time-end-flights/b.tif').fill('2026-01-31');
@@ -381,13 +376,17 @@ test('create catalog, import with explicit times, see failure, retry to ready', 
       {
         path: 'flights/a.tif',
         etag: '"0x0"',
-        datetime: '2026-01-12T10:20:00Z',
+        datetime: '2026-01-12T00:00:00Z',
+        item_key: 'date:2026-01-12T00:00:00Z',
+        asset_key: 'data',
       },
       {
         path: 'flights/b.tif',
         etag: '"0x1"',
         start_datetime: '2026-01-01T00:00:00Z',
         end_datetime: '2026-01-31T23:59:59.999999Z',
+        item_key: 'interval:2026-01-01T00:00:00Z/2026-01-31T23:59:59.999999Z',
+        asset_key: 'data',
       },
     ],
   });
@@ -476,7 +475,7 @@ const mockFirstImport = async (
   await page.getByLabel('SAS token').fill(SECRET);
   await page.getByRole('button', { name: 'Create catalog' }).click();
   await page.getByRole('checkbox', { name: 'flights/a.tif', exact: true }).check();
-  await page.getByTestId('time-instant-flights/a.tif').fill('2026-01-12T10:20:00Z');
+  await page.getByTestId('time-instant-flights/a.tif').fill('2026-01-12');
   await page.getByRole('button', { name: 'Index selected' }).click();
 };
 

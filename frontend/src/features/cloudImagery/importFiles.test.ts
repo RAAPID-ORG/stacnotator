@@ -1,7 +1,7 @@
 /**
  * Specification: import times typed by the user become the exact UTC payload the
  * backend accepts (issue #158). One instant OR one complete interval per file;
- * timezone-aware or date-only input only; date-only means whole UTC days.
+ * YYYY-MM-DD dates only; intervals include the whole end day.
  *
  * Contract: `toImportFile(object, time)` from `./importFiles`
  *   object: { path: string; etag: string }
@@ -11,8 +11,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  groupByDate,
-  groupSelected,
+  assignAssets,
+  buildSelection,
   timeFromPath,
   toImportFile,
   type SelectionRow,
@@ -42,18 +42,28 @@ describe('asset grouping', () => {
     { name: 'clear-count', pattern: '_clear-count\\.tif$' },
   ];
 
-  it('groups monthly files by date with named assets and explicit month bounds', () => {
-    const result = groupByDate(rows(), rules, '(\\d{4}-\\d{2})');
+  it('sets asset names without dates, then groups identical intervals automatically', () => {
+    const result = assignAssets(rows(), rules);
     expect(result.errors).toEqual([]);
-    expect(new Set([...result.rows.values()].map((row) => row.itemKey)).size).toBe(2);
     const feb = [...result.rows.values()].filter((row) => row.object.path.includes('2025-02'));
     expect(feb.map((row) => row.assetKey)).toEqual(['reflectance', 'clear-count']);
-    expect(feb[0].time).toEqual({ kind: 'interval', start: '2025-02-01', end: '2025-02-28' });
+    expect(feb[0].time).toEqual({ kind: 'instant', value: '' });
+    for (const row of result.rows.values()) {
+      const month = row.object.path.includes('2025-02') ? '02' : '01';
+      row.time = {
+        kind: 'interval',
+        start: `2025-${month}-01`,
+        end: `2025-${month}-${month === '02' ? '28' : '31'}`,
+      };
+    }
+    const selection = buildSelection(result.rows.values());
+    expect(selection.problems.size).toBe(0);
+    expect(selection.itemCount).toBe(2);
+    expect(selection.files[2].item_key).toBe(selection.files[3].item_key);
     expect(feb[0]).not.toHaveProperty('bandNames');
-    expect(timeFromPath('2024-02_reflectance.tif', /(\d{4}-\d{2})/)).toEqual({
-      kind: 'interval',
-      start: '2024-02-01',
-      end: '2024-02-29',
+    expect(timeFromPath('2024-02-29_reflectance.tif', /(\d{4}-\d{2}-\d{2})/)).toEqual({
+      kind: 'instant',
+      value: '2024-02-29',
     });
   });
 
@@ -66,9 +76,11 @@ describe('asset grouping', () => {
       time: { kind: 'instant', value: '' },
     };
     original.set(path, unmatched);
-    const result = groupByDate(original, [rules[0]], '(\\d{4}-\\d{2})');
+    const result = assignAssets(original, [rules[0]]);
     expect(result.errors).toEqual([]);
-    expect([...result.rows.values()].filter((row) => row.itemKey)).toHaveLength(2);
+    expect([...result.rows.values()].filter((row) => row.assetKey === 'reflectance')).toHaveLength(
+      2
+    );
     for (const [key, row] of original) {
       if (!key.includes('reflectance')) expect(result.rows.get(key)).toBe(row);
     }
@@ -81,26 +93,31 @@ describe('asset grouping', () => {
       [rules[0], { ...rules[1], pattern: '\\.tif$' }],
       rules.map((rule) => ({ ...rule, name: 'same' })),
     ]) {
-      const result = groupByDate(original, invalidRules, '(\\d{4}-\\d{2})');
+      const result = assignAssets(original, invalidRules);
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.rows).toBe(original);
     }
   });
 
-  it('manually groups selected files without absorbing unselected files', () => {
-    const original = rows();
-    for (const row of original.values()) row.selected = row.object.path.includes('2025-01');
-    const result = groupSelected(original, 'manual-1');
-    expect(result.errors).toEqual([]);
-    expect([...result.rows.values()].filter((row) => row.itemKey === 'manual-1')).toHaveLength(2);
-    expect([...result.rows.values()].filter((row) => !row.itemKey)).toHaveLength(2);
+  it('groups selected files by date and rejects duplicate assets within a date', () => {
+    const original = assignAssets(rows(), rules).rows;
+    for (const row of original.values()) {
+      row.selected = row.object.path.includes('2025-01');
+      row.time = { kind: 'instant', value: '2025-01-01' };
+    }
+    const result = buildSelection(original.values());
+    expect(result.problems.size).toBe(0);
+    expect(result.files).toHaveLength(2);
+    expect(result.itemCount).toBe(1);
+    for (const row of original.values()) row.assetKey = 'data';
+    expect(buildSelection(original.values()).problems.size).toBe(2);
   });
 });
 
 describe('toImportFile', () => {
   it.each([
-    ['2026-01-12T12:20:00+02:00', '2026-01-12T10:20:00Z'],
-    ['2026-01-12T10:20:00.250Z', '2026-01-12T10:20:00.250Z'],
+    ['2024-02-29', '2024-02-29T00:00:00Z'],
+    ['2025-12-31', '2025-12-31T00:00:00Z'],
     ['2026-01-12', '2026-01-12T00:00:00Z'],
   ])('normalizes instant %s to UTC', (value, datetime) => {
     expect(toImportFile(obj, { kind: 'instant', value })).toEqual({

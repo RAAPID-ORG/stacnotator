@@ -2,8 +2,11 @@
 
 ## 2026-10-21 - Project-only catalogs
 
-UI follow-up: grouping uses the same disclosure style as date extraction, without
-a duplicate date-pattern field; its example help sits beside the disclosure title.
+UI follow-up: **Set asset names in bulk** replaces manual grouping, directly below
+date extraction. Rules only change names and show live match counts beside each
+pattern. Selected files group automatically by equal dates or identical intervals.
+The editor accepts `YYYY-MM-DD` dates and explicit intervals, without month inference.
+Date extraction help is aligned beside the disclosure title.
 Selection is a table-header checkbox; asset names have their own input column.
 CSV dates open in a popup from the Date header. Interval dates sit side by side
 in 128px fields, vertically centered with the checkbox.
@@ -15,7 +18,7 @@ use project-admin permissions and a required project ID. The original unreleased
 migration now creates project-only catalogs; the tiler contract is unchanged.
 Moved the campaign cloud-catalog picker under Custom (other), alongside STAC and
 XYZ choices. A focused browser case covers the new section and return navigation.
-The cloud imagery card now has one top-right Manage button, which opens and scrolls
+The cloud imagery card now has one small top-right Manage link, which opens and scrolls
 to project imagery settings; removed the Refresh action and repeated instructions.
 Added catalog deletion with confirmation, including drafts without contacting the
 tiler. Discovered files start selected, with a select/unselect-all control. The
@@ -26,10 +29,8 @@ The catalog UI now says indexing rather than importing, with the shorter
 "Times are in UTC." hint in the Time column's question mark. Internal API names
 are unchanged.
 
-Added manual asset grouping and asset-name/regex rules grouped by date, including
-full-month intervals for monthly filenames. Each group has a shared date and
-editable asset names. Grouping previews show matched files, dated items and
-unchanged files; not every file has to match. Band counts and embedded names are
+Added multi-asset items and bulk asset-name rules; not every file has to match.
+Band counts and embedded names are
 detected automatically during indexing and shown in the catalog. The tiler records raster band metadata and returns it
 to the existing visualization editors. Whole-item batching preserves retry
 checkpoints. The original migration includes the new metadata/grouping columns;
@@ -58,8 +59,7 @@ registration workers; metadata failures remain visible, and catalog presets are
 copied through the existing imagery editor.
 
 Core: `68802fe8`, `a78a03c3`, `03b8dd23`. Companion tiler: `04e6b7e`.
-Backend tests: 1528; frontend units: 1387; tiler tests: 123; catalog browser cases:
-3. Full browser suite remains red; live Azure import/rendering is not verified.
+Backend tests: 1528; frontend units: 1387; tiler tests: 123; catalog browser cases: 3. Full browser suite remains red; live Azure import/rendering is not verified.
 No publication to develop/main.
 
 See [implementation report](review/implement-cloud-catalog/report.md) for commands,
