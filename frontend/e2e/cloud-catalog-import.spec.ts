@@ -40,6 +40,64 @@ const IMPORT = {
   retryable: false,
 };
 
+test('draft catalog: select files, apply matching dates, and delete', async ({ appPage: page }) => {
+  const dated = 'flights/2026-01-05.tif';
+  const other = 'flights/other.tif';
+  let deleted = false;
+  await page.route(/\/api\/cloud-imagery\/collections\?/, (route) =>
+    route.fulfill({ json: { items: deleted ? [] : [COLLECTION] } })
+  );
+  await page.route(`**/api/cloud-imagery/collections/${COLLECTION.id}`, (route) => {
+    if (route.request().method() === 'DELETE') {
+      deleted = true;
+      return route.fulfill({ status: 204 });
+    }
+    return route.fulfill({ json: COLLECTION });
+  });
+  await page.route(`**/api/cloud-imagery/collections/${COLLECTION.id}/discover*`, (route) =>
+    route.fulfill({
+      json: {
+        objects: [dated, other].map((path) => ({ path, etag: '"1"', size: 1000 })),
+        next_cursor: null,
+      },
+    })
+  );
+  await page.goto(`/projects/${MOCK_PROJECT.id}/catalogs`);
+  await page.getByTestId('cloud-catalog-row').getByRole('button', { name: 'Open' }).click();
+  const matching = page.getByRole('checkbox', { name: dated, exact: true });
+  const nonmatching = page.getByRole('checkbox', { name: other, exact: true });
+  await expect(matching).toBeChecked();
+  await expect(nonmatching).toBeChecked();
+  await page.getByRole('button', { name: 'Unselect all' }).click();
+  await expect(matching).not.toBeChecked();
+  await expect(nonmatching).not.toBeChecked();
+  await page.getByRole('button', { name: 'Select all', exact: true }).click();
+  await expect(nonmatching).toBeChecked();
+  const pattern = page.getByRole('textbox', { name: /regular expression/i });
+  await expect(pattern).toBeVisible();
+  expect((await pattern.boundingBox())!.y).toBeLessThan(
+    (await page.getByTestId('cloud-object-row').first().boundingBox())!.y
+  );
+  await page.getByRole('checkbox', { name: 'Auto-select matching entries only' }).check();
+  await pattern.fill('(');
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(page.getByText('The pattern is not a valid regular expression')).toBeVisible();
+  await expect(nonmatching).toBeChecked();
+  await pattern.fill('(\\d{4}-\\d{2}-\\d{2})');
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(matching).toBeChecked();
+  await expect(nonmatching).not.toBeChecked();
+  await expect(page.getByLabel(`Time for ${dated}`, { exact: true })).toHaveValue('2026-01-05');
+  await page.getByRole('button', { name: 'Delete catalog' }).click();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(deleted).toBe(false);
+  await page.getByRole('button', { name: 'Delete catalog' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByTestId('cloud-catalog-row')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: COLLECTION.title })).toHaveCount(0);
+  expect(deleted).toBe(true);
+});
+
 /** Browser-side failures, attached when the test fails (the config already screenshots).
  *  Aborted requests are dropped: polling and route changes cancel mocked requests. */
 let problems: string[] = [];

@@ -689,6 +689,21 @@ def _ids(response):
     return {c["id"] for c in response.json()["items"]}
 
 
+def test_delete_draft_does_not_need_the_tiler(world, monkeypatch):
+    from src.tilers import catalogs
+
+    client = world["as"]("p1_admin")
+    cid = _create(client, world["p1"]).json()["id"]
+
+    def unavailable(*args, **kwargs):
+        raise AssertionError("A draft has no remote catalog to delete")
+
+    monkeypatch.setattr(catalogs, "delete", unavailable)
+    url = f"/api/cloud-imagery/collections/{cid}"
+    assert client.delete(url).status_code == 204
+    assert client.get(url).status_code == 404
+
+
 def test_project_management_listing_shows_unfinished_catalogs_but_picker_stays_ready_only(world):
     client, tiler = world["as"]("p1_admin"), world["tiler"]
     ready = _ready_collection(world, world["p1"])
