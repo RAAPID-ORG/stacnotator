@@ -47,7 +47,7 @@ IMPORT_RUN = StatusField(
     status_column="status",
     heartbeat_column="heartbeat_at",
     errors_column="errors",
-    interrupted_error="The import was interrupted; retry it to continue",
+    interrupted_error="Indexing was interrupted; retry it to continue",
     attempt_column="attempt",
 )
 
@@ -254,7 +254,7 @@ def update_collection(
 def delete_collection(db: Session, user: User, collection_id: int) -> None:
     row = _managed(db, user, collection_id)
     if row.run is not None and row.run.status == "registering":
-        raise HTTPException(status.HTTP_409_CONFLICT, "An import is running for this collection")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Indexing is running for this collection")
     if _used_by_imagery(db, row):
         raise HTTPException(status.HTTP_409_CONFLICT, "Campaign imagery still uses this collection")
     tiler, cid = row.tiler, row.stac_collection_id
@@ -366,7 +366,7 @@ def _admit(db: Session, collection_id: int) -> CloudImageryImport | None:
         select(CloudImageryImport).where(CloudImageryImport.collection_id == collection_id)
     )
     if run is not None and run.status == "registering":
-        raise HTTPException(status.HTTP_409_CONFLICT, "An import is already running")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Indexing is already running")
     live = db.scalar(
         select(func.count())
         .select_from(CloudImageryImport)
@@ -374,7 +374,8 @@ def _admit(db: Session, collection_id: int) -> CloudImageryImport | None:
     )
     if (live or 0) >= get_settings().CLOUD_IMPORT_MAX_CONCURRENT:
         raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, "Too many imports are running; try again shortly"
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many indexing jobs are running; try again shortly",
         )
     return run
 
@@ -388,7 +389,7 @@ def start_import(db: Session, user: User, collection_id: int, payload: ImportCre
     row = _managed(db, user, collection_id)
     run = _admit(db, row.id)
     if run is not None and run.status == "ready":
-        raise HTTPException(status.HTTP_409_CONFLICT, "This collection is already imported")
+        raise HTTPException(status.HTTP_409_CONFLICT, "This collection is already indexed")
     stale_cid = None
     if run is None:
         run = CloudImageryImport(collection_id=row.id, attempt=1, errors=[])
@@ -430,7 +431,7 @@ def _launch(db: Session, run: CloudImageryImport, stale_cid: str | None = None) 
         IMPORT_RUN,
         name="cloud imagery import",
         work=lambda session: _import_work(session, run_id, attempt, stale_cid),
-        sanitize_error=lambda exc: "The import failed unexpectedly; retry it",
+        sanitize_error=lambda exc: "Indexing failed unexpectedly; retry it",
         attempt=attempt,
     )
     return accepted
@@ -439,7 +440,7 @@ def _launch(db: Session, run: CloudImageryImport, stale_cid: str | None = None) 
 def _run_for(db: Session, user: User, import_id: int) -> CloudImageryImport:
     run = db.get(CloudImageryImport, import_id)
     if run is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Import not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Indexing job not found")
     _managed(db, user, run.collection_id)
     return run
 
@@ -458,13 +459,13 @@ def retry_import(db: Session, user: User, import_id: int) -> ImportOut:
     db.commit()
     db.refresh(run)
     if run.status != "failed":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Only a failed import can be retried")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only a failed indexing job can be retried")
     tiler = run.collection.tiler
     db.commit()
     _require_capability(tiler)
     admitted = _admit(db, _run_for(db, user, import_id).collection_id)
     if admitted is None or admitted.status != "failed":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Only a failed import can be retried")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only a failed indexing job can be retried")
     run = admitted
     run.attempt += 1
     run.errors = []
@@ -561,7 +562,7 @@ def _import_work(
             {
                 "code": "verification_failed",
                 "path": None,
-                "message": "The tiler holds a different number of items than were imported",
+                "message": "The tiler holds a different number of items than were indexed",
             }
         ]
     if not _fenced(

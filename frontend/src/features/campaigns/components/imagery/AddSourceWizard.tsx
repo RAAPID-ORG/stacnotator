@@ -343,7 +343,7 @@ const CustomCatalogs = ({
         </p>
       )}
       {data && catalogs.length === 0 && (
-        <p className="text-xs text-neutral-500">No imagery imported yet.</p>
+        <p className="text-xs text-neutral-500">No imagery indexed yet.</p>
       )}
       {catalogs.map((c) => (
         <button

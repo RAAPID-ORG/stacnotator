@@ -63,10 +63,10 @@ const managementListKey = (projectId: number) =>
   listCollectionsQueryKey({ query: { project_id: projectId, include_drafts: true } });
 
 const STATUS_LABEL: Record<CollectionOut['status'], string> = {
-  draft: 'Draft: choose files to import',
-  importing: 'Importing',
+  draft: 'Draft: choose files to index',
+  importing: 'Indexing',
   ready: 'Ready',
-  failed: 'Import failed',
+  failed: 'Indexing failed',
 };
 
 const STATUS_TONE: Record<CollectionOut['status'], string> = {
@@ -167,7 +167,7 @@ export const CatalogsSection = ({ projectId }: { projectId: number }) => {
           <div className="rounded-lg border border-dashed border-neutral-200 px-4 py-8 text-center">
             <p className="text-sm text-neutral-600">No catalogs in this project yet.</p>
             <p className="mt-1 text-xs text-neutral-500">
-              Choose New catalog to connect to cloudstorage and import GeoTIFFs.
+              Choose New catalog to connect to cloud storage and index GeoTIFFs.
             </p>
           </div>
         ) : (
@@ -292,7 +292,7 @@ const CreateCatalog = ({
         <ErrorText error={ingest.error} />
         {!ingest.error && ingest.names.length === 0 && (
           <p role="alert" className="text-xs text-amber-700">
-            No tiler that can import files is enabled for this organization. Ask a platform
+            No tiler that can index files is enabled for this organization. Ask a platform
             administrator to grant one.
           </p>
         )}
@@ -428,7 +428,7 @@ const CatalogHeader = ({ collection }: { collection: CollectionOut }) => {
       {expires && (
         <p className={`text-xs ${expired ? 'text-red-600' : 'text-neutral-500'}`}>
           {expired
-            ? 'The SAS token has expired; imagery and imports fail until it is replaced.'
+            ? 'The SAS token has expired; imagery and indexing fail until it is replaced.'
             : `SAS token ${describeExpiry(expires)}`}
         </p>
       )}
@@ -460,7 +460,10 @@ const SelectFiles = ({
     }),
     meta: inPlace('Failed to list storage files'),
   });
-  const start = useMutation({ ...startImportMutation(), meta: inPlace('Failed to start import') });
+  const start = useMutation({
+    ...startImportMutation(),
+    meta: inPlace('Failed to start indexing'),
+  });
 
   useEffect(() => {
     if (!discovered.data) return;
@@ -664,7 +667,7 @@ const SelectFiles = ({
       </div>
       <details className="text-xs space-y-2">
         <summary className="cursor-pointer text-neutral-700">
-          Import dates from CSV (optional)
+          Load dates from CSV (optional)
         </summary>
         <Field label="Dates as CSV (path,datetime or path,start,end)">
           <textarea
@@ -677,12 +680,10 @@ const SelectFiles = ({
           Apply CSV
         </Button>
       </details>
-      <p className="text-xs text-neutral-500">
-        Times are UTC unless they carry a timezone. A date alone means the whole UTC day.
-      </p>
+      <p className="text-xs text-neutral-500">Times are in UTC.</p>
       <ErrorText error={start.error} />
       <Button onClick={submit} disabled={selected.size === 0 || start.isPending}>
-        Import selected
+        Index selected
       </Button>
     </div>
   );
@@ -753,7 +754,7 @@ const TimeFields = ({
 );
 
 const STATUS_TEXT: Record<ImportOut['status'], string> = {
-  registering: 'Importing',
+  registering: 'Indexing',
   failed: 'Failed',
   ready: 'Ready',
 };
@@ -763,10 +764,13 @@ const ImportProgress = ({ importId, onSettled }: { importId: number; onSettled: 
   const key = getImportQueryKey({ path: { import_id: importId } });
   const progress = useQuery({
     ...getImportOptions({ path: { import_id: importId } }),
-    meta: inPlace('Failed to load import progress'),
+    meta: inPlace('Failed to load indexing progress'),
     refetchInterval: (query) => (query.state.data?.status === 'registering' ? 2000 : false),
   });
-  const retry = useMutation({ ...retryImportMutation(), meta: inPlace('Failed to retry import') });
+  const retry = useMutation({
+    ...retryImportMutation(),
+    meta: inPlace('Failed to retry indexing'),
+  });
   const job = progress.data;
   const status = job?.status;
   const settled = useRef(onSettled);
@@ -784,7 +788,7 @@ const ImportProgress = ({ importId, onSettled }: { importId: number; onSettled: 
 
   return (
     <div className="space-y-2 rounded-md bg-neutral-50 p-3">
-      <h3 className="text-sm font-semibold text-neutral-800">3. Import</h3>
+      <h3 className="text-sm font-semibold text-neutral-800">3. Indexing</h3>
       <ErrorText error={progress.error} />
       {job && (
         <>
@@ -821,7 +825,7 @@ const ImportProgress = ({ importId, onSettled }: { importId: number; onSettled: 
                 )
               }
             >
-              Retry import
+              Retry indexing
             </Button>
           )}
           <ErrorText error={retry.error} />
@@ -884,8 +888,8 @@ const CatalogSettings = ({
       </summary>
       {collection.status === 'failed' && (
         <p className="text-xs text-neutral-600">
-          If the import failed because the storage could not be read, replace the SAS token below,
-          save, then retry the import.
+          If indexing failed because the storage could not be read, replace the SAS token below,
+          save, then retry indexing.
         </p>
       )}
       <p className="text-xs text-neutral-500">

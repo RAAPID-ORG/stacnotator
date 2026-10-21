@@ -1,7 +1,7 @@
 # Azure cloud imagery catalogs
 
 Cloud catalogs turn selected Azure Blob GeoTIFFs into reusable STAC collections.
-The source imagery stays in Azure; importing is not a backup.
+The source imagery stays in Azure; indexing is not a backup.
 
 ## Setup
 
@@ -17,7 +17,7 @@ disabled tiler fails the import capability check; `allows_ingest` alone is not
 proof of managed-catalog support. Apply backend migrations through `bt1cloudcat`
 and regenerate/rebuild the frontend when deploying these changes.
 
-## Import and reuse
+## Indexing and reuse
 
 Open **Settings > Imagery catalogs** in a project. Catalogs belong to that project;
 organization-wide catalogs are not supported. Existing project `/catalogs` links
@@ -32,18 +32,18 @@ in the same tab and scrolls to it.
    the list; the question mark shows an example. Check **Auto-select matching
    entries only** and click **Apply** to select matching paths and unselect the
    rest. CSV date import is also available below the list.
-3. Start import. The page shows progress and file-specific failures; navigation
-   away does not stop the server-side import. Reopen the catalog to see its run.
+3. Choose **Index selected**. The page shows progress and file-specific failures;
+   navigation away does not stop indexing. Reopen the catalog to see its run.
 4. Once ready, open **Custom (other)** in the campaign imagery wizard and select
    the catalog under **No - I have my own imagery in cloud storage**.
 
-There is no inspection/review approval step. Metadata is read during import.
+There is no inspection/review approval step. Metadata is read during indexing.
 Unreadable files, missing georeferencing, invalid times, changed objects and
 failed batches prevent publication; files are not silently skipped.
 
 Open a catalog and choose **Delete catalog** to remove it, including a draft.
 Original files in cloud storage are not deleted. Catalogs used by campaign imagery
-or with an import running cannot be deleted.
+or with indexing running cannot be deleted.
 
 Date-only instants mean midnight UTC. Date-only interval bounds cover whole UTC
 days, with the end at `23:59:59.999999Z`. Interval searches use overlap.

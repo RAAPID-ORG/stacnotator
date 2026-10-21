@@ -14,6 +14,9 @@ tiler. Discovered files start selected, with a select/unselect-all control. The
 date regex is above the list; Apply can select only matching files. Date rows now
 use compact inputs with an Interval checkbox. Optional filename date extraction
 starts collapsed, with a question-mark example.
+The catalog UI now says indexing rather than importing, with the shorter
+"Times are in UTC." hint. Internal API names are unchanged. Band metadata and
+multi-asset items are not implemented yet; the current item has one `data` asset.
 
 ## 2026-10-20 - Catalog navigation simplification
 

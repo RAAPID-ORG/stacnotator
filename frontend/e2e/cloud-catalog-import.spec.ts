@@ -4,12 +4,12 @@
  * the catalog becomes ready - all without a review/inspection step.
  *
  * Page: /projects/:projectId/catalogs. Selectors this spec fixes:
- *   buttons "New catalog", "Create catalog", "Import selected", "Retry import";
+ *   buttons "New catalog", "Create catalog", "Index selected", "Retry indexing";
  *   labelled fields "Title", "Container URL", "Path prefix", "SAS token";
  *   rows data-testid="cloud-object-row" with a checkbox labelled by the object path;
  *   per selected path p: data-testid `time-mode-${p}` (interval checkbox),
  *   `time-instant-${p}`, `time-start-${p}`, `time-end-${p}`;
- *   data-testid="cloud-import-status" (text Importing | Failed | Ready) and
+ *   data-testid="cloud-import-status" (text Indexing | Failed | Ready) and
  *   data-testid="cloud-import-error" (one per error, shows path and message).
  * API: /api/cloud-imagery/... as in backend/tests/test_cloud_imagery_api.py.
  */
@@ -68,6 +68,7 @@ test('draft catalog: select files, apply matching dates, and delete', async ({ a
   const nonmatching = page.getByRole('checkbox', { name: other, exact: true });
   await expect(matching).toBeChecked();
   await expect(nonmatching).toBeChecked();
+  await expect(page.getByText('Times are in UTC.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Unselect all' }).click();
   await expect(matching).not.toBeChecked();
   await expect(nonmatching).not.toBeChecked();
@@ -244,7 +245,7 @@ test('create catalog, import with explicit times, see failure, retry to ready', 
   await page.getByTestId('time-mode-flights/b.tif').check();
   await page.getByTestId('time-start-flights/b.tif').fill('2026-01-01');
   await page.getByTestId('time-end-flights/b.tif').fill('2026-01-31');
-  await page.getByRole('button', { name: 'Import selected' }).click();
+  await page.getByRole('button', { name: 'Index selected' }).click();
 
   await expect(page.getByTestId('cloud-import-status')).toHaveText(/Failed/);
   expect(bodies.import).toEqual({
@@ -266,7 +267,7 @@ test('create catalog, import with explicit times, see failure, retry to ready', 
   await expect(error).toContainText('flights/b.tif');
   await expect(error).toContainText('raster has no CRS');
 
-  await page.getByRole('button', { name: 'Retry import' }).click();
+  await page.getByRole('button', { name: 'Retry indexing' }).click();
   await expect(page.getByTestId('cloud-import-status')).toHaveText(/Ready/, {
     timeout: 15_000,
   });
@@ -348,7 +349,7 @@ const mockFirstImport = async (
   await page.getByRole('button', { name: 'Create catalog' }).click();
   await page.getByRole('checkbox', { name: 'flights/a.tif', exact: true }).check();
   await page.getByTestId('time-instant-flights/a.tif').fill('2026-01-12T10:20:00Z');
-  await page.getByRole('button', { name: 'Import selected' }).click();
+  await page.getByRole('button', { name: 'Index selected' }).click();
 };
 
 test('a first import that finishes while polling shows the catalog Ready everywhere', async ({
@@ -359,7 +360,7 @@ test('a first import that finishes while polling shows the catalog Ready everywh
   await expect(page.getByTestId('cloud-import-status')).toHaveText(/Ready/, { timeout: 15_000 });
   const row = page.getByTestId('cloud-catalog-row').filter({ hasText: 'Drone flights' });
   await expect(row).toContainText('Ready');
-  await expect(row).not.toContainText('Importing');
+  await expect(row).not.toContainText('Indexing');
   await expect(page.getByText('Catalog settings')).toBeVisible();
 });
 
@@ -374,9 +375,9 @@ test('a first import that fails while polling offers the repair settings without
 
   await expect(page.getByTestId('cloud-import-status')).toHaveText(/Failed/, { timeout: 15_000 });
   const row = page.getByTestId('cloud-catalog-row').filter({ hasText: 'Drone flights' });
-  await expect(row).toContainText('Import failed');
-  await expect(row).not.toContainText('Importing');
+  await expect(row).toContainText('Indexing failed');
+  await expect(row.getByText('Indexing', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Catalog settings')).toBeVisible();
   await expect(page.getByText(/replace the SAS token below/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Retry import' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Retry indexing' })).toHaveCount(0);
 });
