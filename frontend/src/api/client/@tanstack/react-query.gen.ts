@@ -3102,12 +3102,12 @@ export const updateVisualizerVectorLayerMutation = (options?: Partial<Options<Up
     return mutationOptions;
 };
 
-export const listCollectionsQueryKey = (options?: Options<ListCollectionsData>) => createQueryKey('listCollections', options);
+export const listCollectionsQueryKey = (options: Options<ListCollectionsData>) => createQueryKey('listCollections', options);
 
 /**
  * List Collections
  */
-export const listCollectionsOptions = (options?: Options<ListCollectionsData>) => queryOptions<ListCollectionsResponse, ListCollectionsError, ListCollectionsResponse, ReturnType<typeof listCollectionsQueryKey>>({
+export const listCollectionsOptions = (options: Options<ListCollectionsData>) => queryOptions<ListCollectionsResponse, ListCollectionsError, ListCollectionsResponse, ReturnType<typeof listCollectionsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await listCollections({
             ...options,

@@ -24,18 +24,11 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), sa.Identity(always=True), primary_key=True),
         sa.Column("title", sa.String(255), nullable=False),
         sa.Column(
-            "organization_id",
-            sa.Integer(),
-            sa.ForeignKey("data.organizations.id", ondelete="CASCADE"),
-            nullable=True,
-        ),
-        sa.Column(
             "project_id",
             sa.Integer(),
             sa.ForeignKey("data.projects.id", ondelete="CASCADE"),
-            nullable=True,
+            nullable=False,
         ),
-        sa.Column("created_by_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("tiler", sa.String(64), nullable=False),
         sa.Column("stac_collection_id", sa.String(64), nullable=False, unique=True),
         sa.Column("container_url", sa.Text(), nullable=False),
@@ -49,15 +42,6 @@ def upgrade() -> None:
         sa.Column("item_count", sa.Integer(), nullable=True),
         sa.Column("visualizations", postgresql.JSONB(), nullable=False, server_default="[]"),
         sa.Column("created_at", TS, server_default=sa.func.now(), nullable=False),
-        sa.CheckConstraint(
-            "(organization_id IS NULL) <> (project_id IS NULL)", name="cloud_imagery_one_owner"
-        ),
-        schema="data",
-    )
-    op.create_index(
-        "ix_data_cloud_imagery_collections_organization_id",
-        "cloud_imagery_collections",
-        ["organization_id"],
         schema="data",
     )
     op.create_index(

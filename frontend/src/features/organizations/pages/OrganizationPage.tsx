@@ -3,7 +3,6 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { type OrganizationOut } from '~/api/client';
 import { updateOrganizationMutation } from '~/api/queries';
-import { CatalogsSection } from '~/features/cloudImagery/CatalogsPage';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge, type BadgeTone } from '~/shared/ui/Badge';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
@@ -22,13 +21,12 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   rejected: 'red',
 };
 
-const ORG_TABS = ['details', 'members', 'api-keys', 'imagery'] as const;
+const ORG_TABS = ['details', 'members', 'api-keys'] as const;
 type OrgTab = (typeof ORG_TABS)[number];
 const ORG_TAB_LABELS: Record<OrgTab, string> = {
   details: 'Details',
   members: 'Members',
   'api-keys': 'API keys',
-  imagery: 'Imagery',
 };
 const isOrgTab = (t: string | null): t is OrgTab => ORG_TABS.some((tab) => tab === t);
 
@@ -217,11 +215,6 @@ export const OrganizationPage = () => {
                 </>
               )}
               {activeTab === 'api-keys' && <OrganizationApiKeys organizationId={org.id} />}
-              {activeTab === 'imagery' && (
-                <div className="surface surface-section">
-                  <CatalogsSection scope={{ kind: 'organization', organizationId: org.id }} />
-                </div>
-              )}
             </div>
           </>
         ) : (

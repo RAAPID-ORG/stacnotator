@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CollectionOut, DiscoveredObject, ImportOut, Owner } from '~/api/client';
+import type { CollectionOut, DiscoveredObject, ImportOut } from '~/api/client';
 import {
   createCollectionMutation,
   discoverObjectsOptions,
@@ -9,7 +9,6 @@ import {
   getCollectionQueryKey,
   getImportOptions,
   getImportQueryKey,
-  getOrganizationTilersOptions,
   getProjectTilersOptions,
   listCollectionsOptions,
   listCollectionsQueryKey,
@@ -28,7 +27,6 @@ import {
 import { describeExpiry, readSasToken } from '~/features/campaigns/components/imagery/sasToken';
 import type { NamedVizParams } from '~/features/campaigns/components/imagery/types';
 import { emptyVizParams } from '~/features/campaigns/components/imagery/types';
-import { isSelfHostedTiler } from '~/shared/imagery/tileUrls';
 import { Button, Input, selectClass, textareaClass } from '~/shared/ui/forms';
 import { Modal } from '~/shared/ui/Modal';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
@@ -57,25 +55,8 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
   </label>
 );
 
-export type Scope =
-  | { kind: 'project'; projectId: number }
-  | { kind: 'organization'; organizationId: number };
-
-const scopeQuery = (scope: Scope) =>
-  scope.kind === 'project'
-    ? { project_id: scope.projectId }
-    : { organization_id: scope.organizationId };
-
-const managementListKey = (scope: Scope) =>
-  listCollectionsQueryKey({ query: { ...scopeQuery(scope), include_drafts: true } });
-
-/** The page tab that hosts the catalogs of each owner. */
-const HOST_TAB: Record<Scope['kind'], string> = { project: 'settings', organization: 'imagery' };
-
-const ownerPath = (scope: Scope) =>
-  scope.kind === 'project'
-    ? `/projects/${scope.projectId}`
-    : `/organizations/${scope.organizationId}`;
+const managementListKey = (projectId: number) =>
+  listCollectionsQueryKey({ query: { project_id: projectId, include_drafts: true } });
 
 const STATUS_LABEL: Record<CollectionOut['status'], string> = {
   draft: 'Draft: choose files to import',
@@ -91,23 +72,19 @@ const STATUS_TONE: Record<CollectionOut['status'], string> = {
   failed: 'bg-red-50 text-red-700',
 };
 
-/** The old standalone address: lands on the tab that now hosts the catalogs, keeping
- *  the selected catalog and any other query parameters. */
+/** The old standalone address: lands on the project Settings tab that now hosts the
+ *  catalogs, keeping the selected catalog and any other query parameters. */
 export const CatalogsPage = () => {
-  const { projectId, orgId } = useParams();
+  const { projectId } = useParams();
   const [params] = useSearchParams();
-  const id = Number(projectId ?? orgId);
+  const id = Number(projectId);
   if (!Number.isInteger(id) || id <= 0) return <Navigate to="/" replace />;
-  const scope: Scope =
-    projectId !== undefined
-      ? { kind: 'project', projectId: id }
-      : { kind: 'organization', organizationId: id };
   const next = new URLSearchParams(params);
-  next.set('tab', HOST_TAB[scope.kind]);
-  return <Navigate to={`${ownerPath(scope)}?${next}`} replace />;
+  next.set('tab', 'settings');
+  return <Navigate to={`/projects/${id}?${next}`} replace />;
 };
 
-export const CatalogsSection = ({ scope }: { scope: Scope }) => {
+export const CatalogsSection = ({ projectId }: { projectId: number }) => {
   const [params, setParams] = useSearchParams();
   const selected = Number(params.get('catalog'));
   const activeId = Number.isInteger(selected) && selected > 0 ? selected : null;
@@ -123,10 +100,9 @@ export const CatalogsSection = ({ scope }: { scope: Scope }) => {
     );
   const [creating, setCreating] = useState(false);
   const catalogs = useQuery({
-    ...listCollectionsOptions({ query: { ...scopeQuery(scope), include_drafts: true } }),
+    ...listCollectionsOptions({ query: { project_id: projectId, include_drafts: true } }),
     meta: inPlace('Failed to load catalogs'),
   });
-  const ownerName = scope.kind === 'project' ? 'project' : 'organization';
 
   return (
     <section className="space-y-5" aria-labelledby="imagery-catalogs-heading">
@@ -136,9 +112,8 @@ export const CatalogsSection = ({ scope }: { scope: Scope }) => {
             Imagery catalogs
           </h2>
           <p className="section-description">
-            {scope.kind === 'project'
-              ? 'Your own GeoTIFFs in Azure storage, imported once and offered to every campaign in this project.'
-              : 'Your own GeoTIFFs in Azure storage, imported once and offered to every project in this organization.'}
+            Your own GeoTIFFs in Azure storage, imported once and offered to every campaign in this
+            project.
           </p>
         </div>
         {!creating && (
@@ -156,7 +131,7 @@ export const CatalogsSection = ({ scope }: { scope: Scope }) => {
 
       {creating && (
         <CreateCatalog
-          scope={scope}
+          projectId={projectId}
           onCancel={() => setCreating(false)}
           onCreated={(id) => {
             setCreating(false);
@@ -166,7 +141,7 @@ export const CatalogsSection = ({ scope }: { scope: Scope }) => {
       )}
 
       {activeId !== null && (
-        <CatalogWorkspace key={activeId} collectionId={activeId} scope={scope} />
+        <CatalogWorkspace key={activeId} collectionId={activeId} projectId={projectId} />
       )}
 
       <div className="space-y-2">
@@ -174,7 +149,7 @@ export const CatalogsSection = ({ scope }: { scope: Scope }) => {
         <ErrorText error={catalogs.error} />
         {catalogs.data?.items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-neutral-200 px-4 py-8 text-center">
-            <p className="text-sm text-neutral-600">No catalogs in this {ownerName} yet.</p>
+            <p className="text-sm text-neutral-600">No catalogs in this project yet.</p>
             <p className="mt-1 text-xs text-neutral-500">
               Choose New catalog to connect an Azure container and import its GeoTIFFs.
             </p>
@@ -208,31 +183,12 @@ export const CatalogsSection = ({ scope }: { scope: Scope }) => {
   );
 };
 
-/** Hosted tilers that can import files, with the one to preselect. A project knows each
- *  tiler's capabilities; an organization only reports the names it may use, so MPC (which
- *  cannot import) is dropped here and the server rejects any other tiler that cannot. */
-const useIngestTilers = (scope: Scope) => {
+/** Hosted tilers of the project that can import files, with the one to preselect. */
+const useIngestTilers = (projectId: number) => {
   const project = useQuery({
-    ...getProjectTilersOptions({
-      path: { project_id: scope.kind === 'project' ? scope.projectId : 0 },
-    }),
-    enabled: scope.kind === 'project',
+    ...getProjectTilersOptions({ path: { project_id: projectId } }),
     meta: inPlace('Failed to load project tilers'),
   });
-  const org = useQuery({
-    ...getOrganizationTilersOptions({
-      path: { organization_id: scope.kind === 'organization' ? scope.organizationId : 0 },
-    }),
-    enabled: scope.kind === 'organization',
-    meta: inPlace('Failed to load organization tilers'),
-  });
-  if (scope.kind === 'organization') {
-    return {
-      names: (org.data?.tiler_names ?? []).filter(isSelfHostedTiler),
-      preferred: undefined,
-      error: org.error,
-    };
-  }
   const hosted = (project.data?.tilers ?? []).filter((t) => t.kind === 'hosted' && t.allows_ingest);
   return {
     names: hosted.map((t) => t.name),
@@ -242,15 +198,15 @@ const useIngestTilers = (scope: Scope) => {
 };
 
 const CreateCatalog = ({
-  scope,
+  projectId,
   onCancel,
   onCreated,
 }: {
-  scope: Scope;
+  projectId: number;
   onCancel: () => void;
   onCreated: (id: number) => void;
 }) => {
-  const ingest = useIngestTilers(scope);
+  const ingest = useIngestTilers(projectId);
   const [title, setTitle] = useState('');
   const [tiler, setTiler] = useState('');
   const [containerUrl, setContainerUrl] = useState('');
@@ -263,10 +219,6 @@ const CreateCatalog = ({
   });
   const chosenTiler = tiler || ingest.preferred || ingest.names[0] || '';
   const sasReading = sas.trim() ? readSasToken(sas) : null;
-  const owner: Owner =
-    scope.kind === 'organization'
-      ? { organization_id: scope.organizationId }
-      : { project_id: scope.projectId };
   const canSubmit =
     !!title.trim() &&
     !!containerUrl.trim() &&
@@ -281,7 +233,7 @@ const CreateCatalog = ({
       {
         body: {
           title: title.trim(),
-          owner,
+          project_id: projectId,
           tiler: chosenTiler,
           container_url: containerUrl.trim(),
           prefix: prefix.trim(),
@@ -362,7 +314,13 @@ const CreateCatalog = ({
   );
 };
 
-const CatalogWorkspace = ({ collectionId, scope }: { collectionId: number; scope: Scope }) => {
+const CatalogWorkspace = ({
+  collectionId,
+  projectId,
+}: {
+  collectionId: number;
+  projectId: number;
+}) => {
   const queryClient = useQueryClient();
   const detail = useQuery({
     ...getCollectionOptions({ path: { collection_id: collectionId } }),
@@ -379,7 +337,7 @@ const CatalogWorkspace = ({ collectionId, scope }: { collectionId: number; scope
     queryClient.invalidateQueries({
       queryKey: getCollectionQueryKey({ path: { collection_id: collectionId } }),
     });
-    queryClient.invalidateQueries({ queryKey: managementListKey(scope) });
+    queryClient.invalidateQueries({ queryKey: managementListKey(projectId) });
   };
 
   return (

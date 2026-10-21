@@ -161,7 +161,7 @@ export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps)
       </section>
 
       <section className={sectionCls}>
-        <CatalogsSection scope={{ kind: 'project', projectId: project.id }} />
+        <CatalogsSection projectId={project.id} />
       </section>
 
       <section className={sectionCls}>

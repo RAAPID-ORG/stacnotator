@@ -297,7 +297,7 @@ const toManagedCatalog = (c: CollectionOut): ManagedCatalog => ({
   visualizations: catalogPresets(c),
 });
 
-/** The project's and its organization's ready cloud catalogs; picking one copies its presets
+/** The project's ready cloud catalogs; picking one copies its presets
  *  into the campaign. New catalogs are made under the project's Settings tab in another tab. */
 const CustomCatalogs = ({
   projectId,
@@ -316,16 +316,7 @@ const CustomCatalogs = ({
     },
     meta: { errorMessage: 'Failed to load custom catalogs', showUser: false },
   });
-  const groups = [
-    {
-      label: 'Project catalogs',
-      items: data?.items.filter((c) => c.owner.project_id != null) ?? [],
-    },
-    {
-      label: 'Organization catalogs',
-      items: data?.items.filter((c) => c.owner.organization_id != null) ?? [],
-    },
-  ].filter((g) => g.items.length > 0);
+  const catalogs = data?.items ?? [];
   return (
     <div className="space-y-1.5" data-testid="custom-catalogs">
       <div className="flex items-center gap-2">
@@ -354,34 +345,29 @@ const CustomCatalogs = ({
           Custom catalogs could not be loaded: {extractErrorMessage(error)}
         </p>
       )}
-      {data && groups.length === 0 && (
+      {data && catalogs.length === 0 && (
         <p className="text-xs text-neutral-500">
           No ready custom catalogs. Import your own GeoTIFFs under Manage catalogs, then refresh.
         </p>
       )}
-      {groups.map((group) => (
-        <div key={group.label} className="space-y-1.5">
-          <p className="text-[10px] font-medium text-neutral-500">{group.label}</p>
-          {group.items.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => onPick(toManagedCatalog(c))}
-              className="w-full text-left px-4 py-3 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <IconStac className="w-3.5 h-3.5 text-brand-600 shrink-0" />
-                <span className="text-sm font-medium text-neutral-900">{c.title}</span>
-              </div>
-              <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                {c.item_count ?? 0} files
-                {c.interval?.[0]
-                  ? `, ${c.interval[0].slice(0, 10)} to ${c.interval[1]?.slice(0, 10) ?? '…'}`
-                  : ''}
-              </p>
-            </button>
-          ))}
-        </div>
+      {catalogs.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          onClick={() => onPick(toManagedCatalog(c))}
+          className="w-full text-left px-4 py-3 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <IconStac className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+            <span className="text-sm font-medium text-neutral-900">{c.title}</span>
+          </div>
+          <p className="text-xs text-neutral-500 mt-1 leading-snug">
+            {c.item_count ?? 0} files
+            {c.interval?.[0]
+              ? `, ${c.interval[0].slice(0, 10)} to ${c.interval[1]?.slice(0, 10) ?? '…'}`
+              : ''}
+          </p>
+        </button>
       ))}
     </div>
   );

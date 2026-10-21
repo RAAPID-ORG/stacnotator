@@ -115,7 +115,6 @@ const router = createBrowserRouter(
       <Route path="organizations" lazy={lazyBrowseOrganizations} />
       <Route path="organizations/new" lazy={lazyNewOrganization} />
       <Route path="organizations/:orgId" loader={requireOrgId} lazy={lazyOrganization} />
-      <Route path="organizations/:orgId/catalogs" loader={requireOrgId} lazy={lazyCatalogs} />
       <Route path="settings" lazy={lazySettings} />
       <Route path="sdk-auth" lazy={lazySdkAuth} />
       {/* Unmatched paths render a friendly 404 within the layout. */}

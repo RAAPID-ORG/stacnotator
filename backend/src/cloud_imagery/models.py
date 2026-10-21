@@ -1,10 +1,8 @@
 from datetime import datetime
-from uuid import UUID
 
 from sqlalchemy import (
     TIMESTAMP,
     Boolean,
-    CheckConstraint,
     ForeignKey,
     Identity,
     Integer,
@@ -14,7 +12,6 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -24,22 +21,13 @@ class CloudImageryCollection(Base):
     """An Azure Blob container (and prefix) registered as one managed tiler catalog."""
 
     __tablename__ = "cloud_imagery_collections"
-    __table_args__ = (
-        CheckConstraint(
-            "(organization_id IS NULL) <> (project_id IS NULL)", name="cloud_imagery_one_owner"
-        ),
-        {"schema": "data"},
-    )
+    __table_args__ = ({"schema": "data"},)
 
     id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    organization_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.organizations.id", ondelete="CASCADE"), nullable=True, index=True
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("data.projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    project_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.projects.id", ondelete="CASCADE"), nullable=True, index=True
-    )
-    created_by_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     tiler: Mapped[str] = mapped_column(String(64), nullable=False)
     stac_collection_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     container_url: Mapped[str] = mapped_column(Text, nullable=False)

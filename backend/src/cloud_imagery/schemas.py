@@ -10,19 +10,6 @@ CollectionStatus = Literal["draft", "importing", "ready", "failed"]
 ImportStatus = Literal["registering", "ready", "failed"]
 
 
-class Owner(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    project_id: int | None = None
-    organization_id: int | None = None
-
-    @model_validator(mode="after")
-    def exactly_one(self) -> "Owner":
-        if (self.project_id is None) == (self.organization_id is None):
-            raise ValueError("Give exactly one of project_id or organization_id")
-        return self
-
-
 class Visualization(BaseModel):
     """A preset suggested to campaigns; a campaign copies it, there is no live link."""
 
@@ -36,7 +23,7 @@ class CollectionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str = Field(min_length=1, max_length=200)
-    owner: Owner
+    project_id: int = Field(gt=0)
     tiler: str = Field(min_length=1, max_length=64)
     container_url: str = Field(min_length=1, max_length=2048)
     prefix: str = Field(default="", max_length=1024)
@@ -56,7 +43,7 @@ class CollectionUpdate(BaseModel):
 class CollectionOut(BaseModel):
     id: int
     title: str
-    owner: dict[str, int]
+    project_id: int
     status: CollectionStatus
     tiler: str
     container_url: str

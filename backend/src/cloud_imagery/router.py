@@ -29,19 +29,14 @@ def create_collection(
 
 @router.get("/collections", response_model=CollectionList)
 def list_collections(
-    project_id: int | None = Query(default=None),
-    organization_id: int | None = Query(default=None),
+    project_id: int = Query(gt=0),
     include_drafts: bool = Query(default=False),
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ) -> CollectionList:
     return CollectionList(
         items=service.list_collections(
-            db,
-            user,
-            project_id=project_id,
-            organization_id=organization_id,
-            include_drafts=include_drafts,
+            db, user, project_id=project_id, include_drafts=include_drafts
         )
     )
 

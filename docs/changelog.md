@@ -1,5 +1,11 @@
 # Development changelog
 
+## 2026-10-21 - Project-only catalogs
+
+Removed organization catalog ownership and management to reduce scope. Catalogs
+use project-admin permissions and a required project ID. The original unreleased
+migration now creates project-only catalogs; the tiler contract is unchanged.
+
 ## 2026-10-20 - Catalog navigation simplification
 
 Moved organization management into Details/Members/API keys/Imagery tabs and

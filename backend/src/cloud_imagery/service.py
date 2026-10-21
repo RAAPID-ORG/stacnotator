@@ -15,7 +15,7 @@ from urllib.parse import quote, urlparse
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import Update, func, or_, select, text, update
+from sqlalchemy import Update, func, select, text, update
 from sqlalchemy.orm import Session
 
 from src import storage_access
@@ -35,8 +35,8 @@ from src.cloud_imagery.schemas import (
 )
 from src.config import get_settings
 from src.imagery.models import CollectionStacConfig
-from src.organizations.models import OrganizationTiler, OrganizationUser
-from src.projects.models import Project, ProjectUser
+from src.organizations.models import OrganizationTiler
+from src.projects.dependencies import assert_project_admin
 from src.storage_access import Held
 from src.tilers import catalogs, registry
 
@@ -62,56 +62,15 @@ def _not_found() -> HTTPException:
 # ── authorization ─────────────────────────────────────────────────────────────
 
 
-def _admin_project_ids(db: Session, user: User) -> set[int]:
-    return set(
-        db.scalars(
-            select(ProjectUser.project_id).where(
-                ProjectUser.user_id == user.id, ProjectUser.is_admin.is_(True)
-            )
-        )
-    )
-
-
-def _is_org_admin(db: Session, user: User, organization_id: int) -> bool:
-    return (
-        db.scalar(
-            select(OrganizationUser.user_id).where(
-                OrganizationUser.user_id == user.id,
-                OrganizationUser.organization_id == organization_id,
-                OrganizationUser.status == "active",
-                OrganizationUser.is_admin.is_(True),
-            )
-        )
-        is not None
-    )
-
-
-def _admins_a_project_in(db: Session, user: User, organization_id: int) -> bool:
-    ids = _admin_project_ids(db, user)
-    return bool(ids) and (
-        db.scalar(
-            select(Project.id).where(
-                Project.organization_id == organization_id, Project.id.in_(ids)
-            )
-        )
-        is not None
-    )
-
-
 def _may_manage(db: Session, user: User, row: CloudImageryCollection) -> bool:
-    """Who may edit, discover, import into or delete a catalog (using a ready one is wider:
-    see resolve_managed_collection). Platform admins; for a project catalog its project
-    admins; for an organization catalog its org admins and its creator while they may
-    still create campaigns in one of its projects."""
-    if user.is_admin:
-        return True
-    if row.project_id is not None:
-        return row.project_id in _admin_project_ids(db, user)
-    if row.organization_id is None:
+    """Project admins and platform admins manage a catalog; everyone else gets a 404."""
+    try:
+        assert_project_admin(db, user, row.project_id)
+    except HTTPException as exc:
+        if exc.status_code != status.HTTP_403_FORBIDDEN:
+            raise
         return False
-    if _is_org_admin(db, user, row.organization_id):
-        return True
-    return row.created_by_id == user.id and _admins_a_project_in(db, user, row.organization_id)
+    return True
 
 
 def _managed(db: Session, user: User, collection_id: int) -> CloudImageryCollection:
@@ -119,15 +78,6 @@ def _managed(db: Session, user: User, collection_id: int) -> CloudImageryCollect
     if row is None or not _may_manage(db, user, row):
         raise _not_found()
     return row
-
-
-def _organization_of(db: Session, owner_project_id: int | None, organization_id: int | None) -> int:
-    if organization_id is not None:
-        return organization_id
-    project = db.get(Project, owner_project_id)
-    if project is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
-    return project.organization_id
 
 
 # ── views ─────────────────────────────────────────────────────────────────────
@@ -141,16 +91,11 @@ def _status(row: CloudImageryCollection) -> str:
 
 
 def collection_out(row: CloudImageryCollection) -> CollectionOut:
-    owner = (
-        {"project_id": row.project_id}
-        if row.project_id is not None
-        else {"organization_id": row.organization_id}
-    )
     tiler = registry.get(row.tiler)
     return CollectionOut(
         id=row.id,
         title=row.title,
-        owner=owner,
+        project_id=row.project_id,
         status=_status(row),
         tiler=row.tiler,
         container_url=row.container_url,
@@ -226,22 +171,11 @@ def _prefix(prefix: str) -> str:
 
 
 def create_collection(db: Session, user: User, payload: CollectionCreate) -> CollectionOut:
-    owner = payload.owner
-    organization_id = _organization_of(db, owner.project_id, owner.organization_id)
-    if owner.project_id is not None:
-        allowed = user.is_admin or owner.project_id in _admin_project_ids(db, user)
-    else:
-        allowed = (
-            user.is_admin
-            or _is_org_admin(db, user, organization_id)
-            or _admins_a_project_in(db, user, organization_id)
-        )
-    if not allowed:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "You may not add imagery for this owner")
+    project = assert_project_admin(db, user, payload.project_id)
     tiler = registry.get(payload.tiler)
     on_list = db.scalar(
         select(OrganizationTiler.tiler_name).where(
-            OrganizationTiler.organization_id == organization_id,
+            OrganizationTiler.organization_id == project.organization_id,
             OrganizationTiler.tiler_name == payload.tiler,
         )
     )
@@ -251,9 +185,7 @@ def create_collection(db: Session, user: User, payload: CollectionCreate) -> Col
         )
     row = CloudImageryCollection(
         title=payload.title,
-        project_id=owner.project_id,
-        organization_id=owner.organization_id,
-        created_by_id=user.id,
+        project_id=payload.project_id,
         tiler=payload.tiler,
         stac_collection_id=f"cc-{uuid.uuid4().hex}",
         container_url=_container(payload.container_url),
@@ -269,52 +201,17 @@ def create_collection(db: Session, user: User, payload: CollectionCreate) -> Col
 
 
 def list_collections(
-    db: Session,
-    user: User,
-    *,
-    project_id: int | None,
-    organization_id: int | None,
-    include_drafts: bool,
+    db: Session, user: User, *, project_id: int, include_drafts: bool
 ) -> list[CollectionOut]:
-    """The READY campaign picker, or with ``include_drafts`` every catalog the caller may
-    manage in that one context, whatever its status."""
-    if (project_id is None) == (organization_id is None):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "Give exactly one of project_id or organization_id",
-        )
-    if project_id is not None:
-        project = db.get(Project, project_id)
-        if project is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
-        if not (user.is_admin or project_id in _admin_project_ids(db, user)):
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "You are not an admin of this project")
-        scope = or_(
-            CloudImageryCollection.project_id == project_id,
-            CloudImageryCollection.organization_id == project.organization_id,
-        )
-    else:
-        organization_id = organization_id or 0
-        if not (
-            user.is_admin
-            or _is_org_admin(db, user, organization_id)
-            or _admins_a_project_in(db, user, organization_id)
-        ):
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN, "You may not manage imagery for this organization"
-            )
-        scope = CloudImageryCollection.organization_id == organization_id
-    stmt = select(CloudImageryCollection).where(scope)
+    """The project's READY campaign picker, or with ``include_drafts`` every catalog of
+    the project whatever its status."""
+    assert_project_admin(db, user, project_id)
+    stmt = select(CloudImageryCollection).where(CloudImageryCollection.project_id == project_id)
     if not include_drafts:
         stmt = stmt.join(
             CloudImageryImport, CloudImageryImport.collection_id == CloudImageryCollection.id
         ).where(CloudImageryImport.status == "ready")
     rows = db.scalars(stmt.order_by(CloudImageryCollection.title, CloudImageryCollection.id))
-    if include_drafts:
-        # Ready catalogs are reusable by anyone here; unfinished ones only by their managers.
-        return [
-            collection_out(r) for r in rows if _status(r) == "ready" or _may_manage(db, user, r)
-        ]
     return [collection_out(r) for r in rows]
 
 
@@ -410,18 +307,10 @@ class ManagedCollection:
 
 
 def resolve_managed_collection(db: Session, project_id: int, collection_id: int):
-    """A ready catalog the project may read (its own or its organization's), resolved
-    server-side so no client can name a catalog URL, collection, tiler or access."""
-    project = db.get(Project, project_id)
+    """A ready catalog of that project, resolved server-side so no client can name a
+    catalog URL, collection, tiler or access."""
     row = db.get(CloudImageryCollection, collection_id)
-    if (
-        project is None
-        or row is None
-        or not (
-            row.project_id == project_id
-            or (row.organization_id is not None and row.organization_id == project.organization_id)
-        )
-    ):
+    if row is None or row.project_id != project_id:
         raise _not_found()
     access, held = storage_access.stored(row), storage_access.held(row)
     if _status(row) != "ready" or access is None or held is None:

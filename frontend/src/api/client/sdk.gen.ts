@@ -1986,7 +1986,7 @@ export const updateVisualizerVectorLayer = <ThrowOnError extends boolean = false
 /**
  * List Collections
  */
-export const listCollections = <ThrowOnError extends boolean = false>(options?: Options<ListCollectionsData, ThrowOnError>) => (options?.client ?? client).get<ListCollectionsResponses, ListCollectionsErrors, ThrowOnError>({ url: '/api/cloud-imagery/collections', ...options });
+export const listCollections = <ThrowOnError extends boolean = false>(options: Options<ListCollectionsData, ThrowOnError>) => (options.client ?? client).get<ListCollectionsResponses, ListCollectionsErrors, ThrowOnError>({ url: '/api/cloud-imagery/collections', ...options });
 
 /**
  * Create Collection

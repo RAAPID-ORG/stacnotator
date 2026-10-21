@@ -19,9 +19,9 @@ and regenerate/rebuild the frontend when deploying these changes.
 
 ## Import and reuse
 
-Open **Settings > Imagery catalogs** in a project, or the **Imagery** tab in an
-organization. Creation uses the owner of that page; project forms do not offer
-organization-wide creation. Existing `/catalogs` links redirect to these tabs.
+Open **Settings > Imagery catalogs** in a project. Catalogs belong to that project;
+organization-wide catalogs are not supported. Existing project `/catalogs` links
+redirect to Settings.
 
 1. Create a catalog with its title, Azure container URL, optional path prefix,
    hosted tiler, and a container SAS granting read and list access.
@@ -38,10 +38,9 @@ failed batches prevent publication; files are not silently skipped.
 Date-only instants mean midnight UTC. Date-only interval bounds cover whole UTC
 days, with the end at `23:59:59.999999Z`. Interval searches use overlap.
 
-Organization-owned catalogs are reusable by authorized campaign creators in
-that organization's projects; project-owned catalogs stay within their project.
-Creation from a campaign uses its project. Management is restricted to the
-creator with retained access and the relevant administrators.
+Catalogs are reusable only within their project, including when other projects
+belong to the same organization. Project administrators and platform administrators
+manage catalogs. Organization administration alone grants no catalog access.
 
 Visualization settings use the existing imagery editor. A campaign receives a
 copy of the selected catalog presets; later catalog edits do not update existing

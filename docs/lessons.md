@@ -1,7 +1,10 @@
 # Lessons
 
-## Catalog management follows its owner page
+## Keep catalog scope small
 
-Project catalog forms must not offer organization-wide creation. Keep project-owned
-imagery under project Settings, and organization-owned imagery under the
-organization Imagery tab. Reuse remains separate from creation scope.
+Catalogs belong to projects only, under project Settings. Do not reintroduce
+organization ownership or creator-specific permission rules without a new request.
+
+For this unreleased feature, edit the original migration as requested rather than
+adding a compatibility migration. Check local development data before refreshing
+an already-applied revision.
