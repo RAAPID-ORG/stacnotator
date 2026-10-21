@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CollectionOut, DiscoveredObject, ImportOut } from '~/api/client';
 import {
   createCollectionMutation,
+  deleteCollectionMutation,
   discoverObjectsOptions,
   getCollectionOptions,
   getCollectionQueryKey,
@@ -29,6 +30,7 @@ import type { NamedVizParams } from '~/features/campaigns/components/imagery/typ
 import { emptyVizParams } from '~/features/campaigns/components/imagery/types';
 import { Button, Input, selectClass, textareaClass } from '~/shared/ui/forms';
 import { Modal } from '~/shared/ui/Modal';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import {
   dateFromPath,
@@ -121,9 +123,7 @@ export const CatalogsSection = ({ projectId }: { projectId: number }) => {
           <h2 id="imagery-catalogs-heading" className="section-heading">
             Imagery catalogs
           </h2>
-          <p className="section-description">
-            Your own GeoTIFFs for use in this project.
-          </p>
+          <p className="section-description">Your own GeoTIFFs for use in this project.</p>
         </div>
         {!creating && (
           <Button
@@ -150,7 +150,12 @@ export const CatalogsSection = ({ projectId }: { projectId: number }) => {
       )}
 
       {activeId !== null && (
-        <CatalogWorkspace key={activeId} collectionId={activeId} projectId={projectId} />
+        <CatalogWorkspace
+          key={activeId}
+          collectionId={activeId}
+          projectId={projectId}
+          onDeleted={() => setActiveId(null)}
+        />
       )}
 
       <div className="space-y-2">
@@ -326,11 +331,28 @@ const CreateCatalog = ({
 const CatalogWorkspace = ({
   collectionId,
   projectId,
+  onDeleted,
 }: {
   collectionId: number;
   projectId: number;
+  onDeleted: () => void;
 }) => {
   const queryClient = useQueryClient();
+  const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
+  const remove = useMutation({
+    ...deleteCollectionMutation(),
+    meta: inPlace('Failed to delete catalog'),
+    onSuccess: () => {
+      onDeleted();
+      queryClient.removeQueries({
+        queryKey: getCollectionQueryKey({ path: { collection_id: collectionId } }),
+      });
+      void queryClient.invalidateQueries({ queryKey: managementListKey(projectId) });
+      void queryClient.invalidateQueries({
+        queryKey: listCollectionsQueryKey({ query: { project_id: projectId } }),
+      });
+    },
+  });
   const detail = useQuery({
     ...getCollectionOptions({ path: { collection_id: collectionId } }),
     meta: inPlace('Failed to load catalog'),
@@ -351,7 +373,26 @@ const CatalogWorkspace = ({
 
   return (
     <section className="space-y-4 border border-neutral-200 rounded-lg p-4">
-      <CatalogHeader collection={collection} />
+      <div className="flex items-start justify-between gap-3">
+        <CatalogHeader collection={collection} />
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={remove.isPending}
+          onClick={async () => {
+            const confirmed = await showConfirmDialog({
+              title: `Delete "${collection.title}"?`,
+              description: 'This removes the catalog, not the original files in cloud storage.',
+              confirmText: 'Delete',
+              isDangerous: true,
+            });
+            if (confirmed) remove.mutate({ path: { collection_id: collectionId } });
+          }}
+        >
+          Delete catalog
+        </Button>
+      </div>
+      <ErrorText error={remove.error} />
       {importId !== null && <ImportProgress importId={importId} onSettled={refresh} />}
       {(collection.status === 'ready' || collection.status === 'failed') && (
         <CatalogSettings key={collection.id} collection={collection} onSaved={refresh} />
@@ -393,7 +434,7 @@ const CatalogHeader = ({ collection }: { collection: CollectionOut }) => {
   );
 };
 
-type Row = { object: DiscoveredObject; time: TimeInput };
+type Row = { object: DiscoveredObject; time: TimeInput; selected: boolean };
 
 const SelectFiles = ({
   collection,
@@ -403,9 +444,11 @@ const SelectFiles = ({
   onStarted: (started: ImportOut) => void;
 }) => {
   const [cursor, setCursor] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Map<string, Row>>(new Map());
+  const [rows, setRows] = useState<Map<string, Row>>(new Map());
+  const selected = new Map([...rows].filter(([, row]) => row.selected));
   const [problems, setProblems] = useState<Map<string, string>>(new Map());
   const [pattern, setPattern] = useState('(\\d{4}-?\\d{2}-?\\d{2})');
+  const [matchingOnly, setMatchingOnly] = useState(false);
   const [csv, setCsv] = useState('');
   const [bulkError, setBulkError] = useState('');
   const discovered = useQuery({
@@ -417,20 +460,32 @@ const SelectFiles = ({
   });
   const start = useMutation({ ...startImportMutation(), meta: inPlace('Failed to start import') });
 
+  useEffect(() => {
+    if (!discovered.data) return;
+    setRows((previous) => {
+      const next = new Map(previous);
+      for (const object of discovered.data.objects) {
+        if (!next.has(object.path)) {
+          next.set(object.path, {
+            object,
+            time: { kind: 'instant', value: '' },
+            selected: true,
+          });
+        }
+      }
+      return next;
+    });
+  }, [discovered.data]);
+
   const update = (path: string, change: (row: Row) => Row) =>
-    setSelected((prev) => {
+    setRows((prev) => {
       const row = prev.get(path);
       if (!row) return prev;
       return new Map(prev).set(path, change(row));
     });
 
   const toggle = (object: DiscoveredObject, on: boolean) =>
-    setSelected((prev) => {
-      const next = new Map(prev);
-      if (on) next.set(object.path, { object, time: { kind: 'instant', value: '' } });
-      else next.delete(object.path);
-      return next;
-    });
+    update(object.path, (row) => ({ ...row, selected: on }));
 
   const applyPattern = () => {
     let regex: RegExp;
@@ -441,10 +496,16 @@ const SelectFiles = ({
       return;
     }
     const missed: string[] = [];
-    selected.forEach((row, path) => {
+    rows.forEach((row, path) => {
+      if (!matchingOnly && !row.selected) return;
+      const matches = regex.test(path);
       const day = dateFromPath(path, regex);
-      if (day) update(path, (r) => ({ ...r, time: { kind: 'instant', value: day } }));
-      else missed.push(path);
+      update(path, (r) => ({
+        ...r,
+        selected: matchingOnly ? matches : r.selected,
+        time: day ? { kind: 'instant', value: day } : r.time,
+      }));
+      if (!day && (!matchingOnly || matches)) missed.push(path);
     });
     setBulkError(missed.length ? `No date found in: ${missed.join(', ')}` : '');
   };
@@ -452,11 +513,11 @@ const SelectFiles = ({
   const applyCsv = () => {
     const { times, errors } = parseTimeCsv(csv);
     const objects = new Map(discovered.data?.objects.map((o) => [o.path, o]) ?? []);
-    setSelected((prev) => {
+    setRows((prev) => {
       const next = new Map(prev);
       times.forEach((time, path) => {
         const object = next.get(path)?.object ?? objects.get(path);
-        if (object) next.set(path, { object, time });
+        if (object) next.set(path, { object, time, selected: true });
         else errors.push(`${path} is not among the listed files`);
       });
       return next;
@@ -483,6 +544,42 @@ const SelectFiles = ({
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-neutral-800">2. Select files and set dates</h3>
+      <Field label="Date from file path (regular expression)">
+        <div className="flex gap-2">
+          <Input size="sm" value={pattern} onChange={(e) => setPattern(e.target.value)} />
+          <Button size="sm" variant="secondary" onClick={applyPattern}>
+            Apply
+          </Button>
+        </div>
+      </Field>
+      <label className="flex items-center gap-2 text-xs">
+        <input
+          type="checkbox"
+          checked={matchingOnly}
+          onChange={(e) => setMatchingOnly(e.target.checked)}
+        />
+        Auto-select matching entries only
+      </label>
+      {bulkError && (
+        <p role="alert" className="text-xs text-red-600">
+          {bulkError}
+        </p>
+      )}
+      {rows.size > 0 && (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            const select = selected.size === 0;
+            setRows(
+              (prev) =>
+                new Map([...prev].map(([path, row]) => [path, { ...row, selected: select }]))
+            );
+          }}
+        >
+          {selected.size > 0 ? 'Unselect all' : 'Select all'}
+        </Button>
+      )}
       <ErrorText error={discovered.error} />
       {discovered.isPending && <p className="text-xs text-neutral-500">Listing files…</p>}
       {discovered.data && discovered.data.objects.length === 0 && (
@@ -549,14 +646,6 @@ const SelectFiles = ({
       </div>
       <details className="text-xs space-y-2">
         <summary className="cursor-pointer text-neutral-700">Set many dates at once</summary>
-        <Field label="Date from file path (regular expression)">
-          <div className="flex gap-2">
-            <Input size="sm" value={pattern} onChange={(e) => setPattern(e.target.value)} />
-            <Button size="sm" variant="secondary" onClick={applyPattern}>
-              Apply to selected
-            </Button>
-          </div>
-        </Field>
         <Field label="Dates as CSV (path,datetime or path,start,end)">
           <textarea
             className={textareaClass}
@@ -567,7 +656,6 @@ const SelectFiles = ({
         <Button size="sm" variant="secondary" onClick={applyCsv}>
           Apply CSV
         </Button>
-        {bulkError && <p className="text-red-600">{bulkError}</p>}
       </details>
       <p className="text-xs text-neutral-500">
         Times are UTC unless they carry a timezone. A date alone means the whole UTC day.

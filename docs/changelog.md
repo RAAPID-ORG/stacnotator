@@ -9,6 +9,9 @@ Moved the campaign cloud-catalog picker under Custom (other), alongside STAC and
 XYZ choices. A focused browser case covers the new section and return navigation.
 The cloud imagery card now has one top-right Manage button, which opens and scrolls
 to project imagery settings; removed the Refresh action and repeated instructions.
+Added catalog deletion with confirmation, including drafts without contacting the
+tiler. Discovered files start selected, with a select/unselect-all control. The
+date regex is above the list; Apply can select only matching files.
 
 ## 2026-10-20 - Catalog navigation simplification
 

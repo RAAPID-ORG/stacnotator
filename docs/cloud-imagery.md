@@ -26,8 +26,10 @@ in the same tab and scrolls to it.
 
 1. Create a catalog with its title, Azure container URL, optional path prefix,
    hosted tiler, and a container SAS granting read and list access.
-2. Select files and specify acquisition times. Use an instant or a start/end
-   interval, entered per file or mapped with the CSV/filename controls.
+2. Discovered files start selected. Use **Select all / Unselect all** for files
+   listed so far. Specify acquisition times per file, with CSV, or with the date
+   regex above the list. Check **Auto-select matching entries only** and click
+   **Apply** to select matching paths and unselect the rest.
 3. Start import. The page shows progress and file-specific failures; navigation
    away does not stop the server-side import. Reopen the catalog to see its run.
 4. Once ready, open **Custom (other)** in the campaign imagery wizard and select
@@ -36,6 +38,10 @@ in the same tab and scrolls to it.
 There is no inspection/review approval step. Metadata is read during import.
 Unreadable files, missing georeferencing, invalid times, changed objects and
 failed batches prevent publication; files are not silently skipped.
+
+Open a catalog and choose **Delete catalog** to remove it, including a draft.
+Original files in cloud storage are not deleted. Catalogs used by campaign imagery
+or with an import running cannot be deleted.
 
 Date-only instants mean midnight UTC. Date-only interval bounds cover whole UTC
 days, with the end at `23:59:59.999999Z`. Interval searches use overlap.

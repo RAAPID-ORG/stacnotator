@@ -258,9 +258,11 @@ def delete_collection(db: Session, user: User, collection_id: int) -> None:
     if _used_by_imagery(db, row):
         raise HTTPException(status.HTTP_409_CONFLICT, "Campaign imagery still uses this collection")
     tiler, cid = row.tiler, row.stac_collection_id
+    has_import = row.run is not None
     db.commit()
     try:
-        catalogs.delete(tiler, cid)
+        if has_import:
+            catalogs.delete(tiler, cid)
     except catalogs.CatalogError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     db.delete(db.get(CloudImageryCollection, collection_id))
