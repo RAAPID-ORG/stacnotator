@@ -1,28 +1,24 @@
 /**
- * Imagery catalogs live inside the pages that own them instead of on separate pages:
- * the organization page gets an Imagery tab, the project page shows catalogs under its
- * Settings tab. The scope comes from the page, so the create form has no "Shared with"
- * choice and posts the owner of the surface it was opened from. The old /catalogs
- * addresses keep working by landing on the canonical tab with the catalog still selected,
- * and selecting or creating a catalog never drops the tab from the address.
- * Admin gating stays: non-admins get no catalog management on either page.
+ * Imagery catalogs belong to projects only and are managed under the project's Settings
+ * tab. The create form posts a flat project_id taken from the page (no owner object, no
+ * organization). The organization page keeps Details, Members and API keys but has no
+ * Imagery tab, and the old organization catalogs address exposes no catalog management.
+ * The old project /catalogs address still lands on Settings with the catalog selected.
+ * Admin gating stays: non-admins get no catalog management.
  *
- * API shapes follow cloud-catalog-import.spec.ts (CollectionOut, ProjectTilersOut) and
- * the generated client (OrganizationTilersOut = { tiler_names }).
+ * API shapes follow cloud-catalog-import.spec.ts (CollectionOut, ProjectTilersOut).
  */
 import type { Page } from '@playwright/test';
 import { test, expect, ROUTE } from './fixtures/annotator-fixture';
 import { MOCK_ORG, MOCK_PROJECT } from './fixtures/mock-data';
 
-type Owner = { project_id: number } | { organization_id: number };
-
 const CONTAINER = 'https://acct.blob.core.windows.net/imagery';
 const SECRET = 'sp=rl&se=2099-01-01T00:00:00Z&spr=https&sr=c&sig=TOPSECRET';
 
-const catalog = (id: number, title: string, owner: Owner, status = 'ready') => ({
+const catalog = (id: number, title: string, projectId = MOCK_PROJECT.id, status = 'ready') => ({
   id,
   title,
-  owner,
+  project_id: projectId,
   status,
   tiler: 'hosted',
   container_url: CONTAINER,
@@ -35,35 +31,29 @@ const catalog = (id: number, title: string, owner: Owner, status = 'ready') => (
   import_id: status === 'ready' ? 21 : null,
 });
 
-/** Mocks the catalog API for one owner; returns the bodies of created catalogs. */
-async function mockCatalogs(page: Page, owner: Owner, listed: ReturnType<typeof catalog>[]) {
+/** Mocks the catalog API and organization management reads; returns created bodies. */
+async function mockCatalogs(page: Page, listed: ReturnType<typeof catalog>[]) {
   const created: unknown[] = [];
-  const draft = catalog(11, 'Drone flights', owner, 'draft');
+  const draft = catalog(11, 'Drone flights', MOCK_PROJECT.id, 'draft');
   const byId = new Map([draft, ...listed].map((c) => [c.id, c]));
 
-  if ('project_id' in owner) {
-    await page.route(ROUTE.projectTilers, (route) =>
-      route.fulfill({
-        json: {
-          tilers: [
-            {
-              name: 'hosted',
-              kind: 'hosted',
-              url: 'https://tiler.test',
-              is_default: true,
-              stac_url: null,
-              allows_ingest: true,
-            },
-          ],
-          allows_internal_storage: false,
-        },
-      })
-    );
-  } else {
-    await page.route(`**/api/organizations/${owner.organization_id}/tilers`, (route) =>
-      route.fulfill({ json: { tiler_names: ['hosted'] } })
-    );
-  }
+  await page.route(ROUTE.projectTilers, (route) =>
+    route.fulfill({
+      json: {
+        tilers: [
+          {
+            name: 'hosted',
+            kind: 'hosted',
+            url: 'https://tiler.test',
+            is_default: true,
+            stac_url: null,
+            allows_ingest: true,
+          },
+        ],
+        allows_internal_storage: false,
+      },
+    })
+  );
   await page.route(/\/api\/organizations\/\d+\/(access-requests|api-keys)(\?.*)?$/, (route) =>
     route.request().method() === 'GET' ? route.fulfill({ json: { items: [] } }) : route.fallback()
   );
@@ -118,45 +108,32 @@ async function createCatalogFromForm(page: Page) {
   await page.getByRole('button', { name: 'Create catalog' }).click();
 }
 
-test('organization Imagery tab manages catalogs for the organization', async ({
+test('organization page keeps Details, Members and API keys but has no Imagery tab', async ({
   appPage: page,
 }) => {
-  const created = await mockCatalogs(page, { organization_id: MOCK_ORG.id }, []);
+  await mockCatalogs(page, []);
 
   await page.goto(`/organizations/${MOCK_ORG.id}`);
-  const imageryTab = page.getByRole('tab', { name: 'Imagery' });
-  await imageryTab.click();
-
-  await expect.poll(() => searchParams(page).tab).toBe('imagery');
-  await expect(imageryTab).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('heading', { name: MOCK_ORG.name })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Imagery catalogs' })).toBeVisible();
-
-  await createCatalogFromForm(page);
-  await expect.poll(() => created).toHaveLength(1);
-  expect(created[0]).toMatchObject({
-    owner: { organization_id: MOCK_ORG.id },
-    container_url: CONTAINER,
-    storage_access: { kind: 'azure_sas', secret: SECRET },
-  });
-  expect(created[0]).not.toHaveProperty('owner.project_id');
-  await expect.poll(() => searchParams(page)).toMatchObject({ tab: 'imagery', catalog: '11' });
+  await expect(page.getByRole('tab', { name: 'Imagery' })).toHaveCount(0);
 
   const headings = new Set<string>();
-  const otherTabs = page.getByRole('tab').filter({ hasNotText: 'Imagery' });
-  for (let i = 0; i < (await otherTabs.count()); i++) {
-    await otherTabs.nth(i).click();
-    await expect(otherTabs.nth(i)).toHaveAttribute('aria-selected', 'true');
+  const tabs = page.getByRole('tab');
+  for (let i = 0; i < (await tabs.count()); i++) {
+    await tabs.nth(i).click();
+    await expect(tabs.nth(i)).toHaveAttribute('aria-selected', 'true');
     for (const h of await page.locator('h2').allTextContents()) headings.add(h.trim());
   }
   const all = [...headings].join(' | ');
   for (const section of ['Details', 'Access requests', 'Provider API keys', 'Members']) {
     expect(all).toContain(section);
   }
+  expect(all).not.toContain('Imagery catalogs');
+  await expect(page.getByRole('button', { name: 'New catalog' })).toHaveCount(0);
 });
 
 test('project Settings tab creates catalogs owned by the project', async ({ appPage: page }) => {
-  const created = await mockCatalogs(page, { project_id: MOCK_PROJECT.id }, []);
+  const created = await mockCatalogs(page, []);
 
   await page.goto(`/projects/${MOCK_PROJECT.id}`);
   await expect(page.getByRole('tab', { name: 'Campaigns' })).toHaveAttribute(
@@ -175,19 +152,20 @@ test('project Settings tab creates catalogs owned by the project', async ({ appP
 
   await createCatalogFromForm(page);
   await expect.poll(() => created).toHaveLength(1);
-  expect(created[0]).toMatchObject({ owner: { project_id: MOCK_PROJECT.id } });
-  expect(created[0]).not.toHaveProperty('owner.organization_id');
+  expect(created[0]).toMatchObject({
+    project_id: MOCK_PROJECT.id,
+    container_url: CONTAINER,
+    storage_access: { kind: 'azure_sas', secret: SECRET },
+  });
+  expect(created[0]).not.toHaveProperty('owner');
+  expect(created[0]).not.toHaveProperty('organization_id');
   await expect.poll(() => searchParams(page)).toMatchObject({ tab: 'settings', catalog: '11' });
 });
 
 test('old project catalogs address lands on Settings with the catalog open', async ({
   appPage: page,
 }) => {
-  const owner = { project_id: MOCK_PROJECT.id };
-  await mockCatalogs(page, owner, [
-    catalog(12, 'Field survey', owner),
-    catalog(13, 'Second survey', owner),
-  ]);
+  await mockCatalogs(page, [catalog(12, 'Field survey'), catalog(13, 'Second survey')]);
 
   await page.goto(`/projects/${MOCK_PROJECT.id}/catalogs?catalog=12`);
 
@@ -207,18 +185,28 @@ test('old project catalogs address lands on Settings with the catalog open', asy
   await expect.poll(() => searchParams(page)).toMatchObject({ tab: 'settings', catalog: '13' });
 });
 
-test('old organization catalogs address lands on the Imagery tab with the catalog open', async ({
+test('old organization catalogs address exposes no catalog management', async ({
   appPage: page,
 }) => {
-  const owner = { organization_id: MOCK_ORG.id };
-  await mockCatalogs(page, owner, [catalog(12, 'Org mosaics', owner)]);
+  await mockCatalogs(page, [catalog(12, 'Field survey')]);
+  const catalogReads: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/cloud-imagery/')) catalogReads.push(request.url());
+  });
 
   await page.goto(`/organizations/${MOCK_ORG.id}/catalogs?catalog=12`);
 
-  await expect(page).toHaveURL(new RegExp(`/organizations/${MOCK_ORG.id}\\?`));
-  await expect.poll(() => searchParams(page)).toMatchObject({ tab: 'imagery', catalog: '12' });
-  await expect(page.getByRole('tab', { name: 'Imagery' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByText('Catalog settings')).toBeVisible();
+  await expect(
+    page
+      .getByText('Page not found')
+      .or(page.getByRole('heading', { name: MOCK_ORG.name }))
+      .first()
+  ).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Imagery' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Imagery catalogs' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New catalog' })).toHaveCount(0);
+  await expect(page.getByText('Catalog settings')).toHaveCount(0);
+  expect(catalogReads).toEqual([]);
 });
 
 test('non-admins get no catalog management on project or organization pages', async ({
@@ -230,7 +218,7 @@ test('non-admins get no catalog management on project or organization pages', as
   await page.route(ROUTE.organizations, (route) =>
     route.fulfill({ json: { items: [{ ...MOCK_ORG, is_admin: false }] } })
   );
-  await mockCatalogs(page, { project_id: MOCK_PROJECT.id }, []);
+  await mockCatalogs(page, []);
 
   await page.goto(`/projects/${MOCK_PROJECT.id}/catalogs`);
   await expect(page.getByRole('tab', { name: 'Campaigns' })).toBeVisible();
@@ -238,7 +226,7 @@ test('non-admins get no catalog management on project or organization pages', as
   await expect(page.getByRole('link', { name: 'Imagery catalogs' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'New catalog' })).toHaveCount(0);
 
-  await page.goto(`/organizations/${MOCK_ORG.id}/catalogs`);
+  await page.goto(`/organizations/${MOCK_ORG.id}`);
   await expect(page.getByText('You are not an admin of this organization.')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Imagery' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'New catalog' })).toHaveCount(0);

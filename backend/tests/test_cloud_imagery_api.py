@@ -8,17 +8,21 @@ delete``, the mechanism ``src/tilers/providers.py`` already uses). Imports run o
 existing ``src/background.py`` status runs; the tests poll exactly like the UI does.
 
 Core contract (all under /api/cloud-imagery; errors use the app's {"detail": ...} shape):
-  POST /collections  {"title", "owner": {"project_id": int} | {"organization_id": int},
-        "tiler": str, "container_url": "https://<acct>.blob.core.windows.net/<container>",
+  Catalogs belong to exactly one project; there are no organization-level catalogs.
+  POST /collections  {"title", "project_id": int > 0, "tiler": str,
+        "container_url": "https://<acct>.blob.core.windows.net/<container>",
         "prefix": str, "storage_access": {"kind": "azure_sas", "secret": str},
         "data_region": str | null}
-     -> 201 CollectionOut {"id", "title", "owner", "status": "draft"|"importing"|"ready"|
-        "failed", "tiler", "container_url", "prefix", "storage_access": {"kind",
-        "expires_at"}, "data_region", "tiler_region"}   (never the secret)
-     project owner: project admin or platform admin; organization owner: org admin or
-     platform admin; the tiler must be on the organization's allow-list.
-  GET  /collections?project_id=P -> {"items": [CollectionOut]}: READY catalogs owned by P
-     or by P's organization. GET /collections/{id} -> 404 outside the caller's scopes.
+     -> 201 CollectionOut {"id", "title", "project_id", "status": "draft"|"importing"|
+        "ready"|"failed", "tiler", "container_url", "prefix", "storage_access": {"kind",
+        "expires_at"}, "data_region", "tiler_region"}   (never the secret; no "owner",
+        no "organization_id")
+     Only an admin of that project or a platform admin may create or manage it; an
+     organization admin/member or an admin of another project in the same organization
+     may not. Denied create/list -> 403; denied by-id access -> 404. The tiler must be on
+     the project's organization allow-list.
+  GET  /collections?project_id=P (required) -> {"items": [CollectionOut]}: READY catalogs
+     of P only. GET /collections/{id} -> 404 outside the caller's projects.
   GET  /collections/{id}/discover?cursor=&limit= -> {"objects": [{"path", "etag", "size"}],
      "next_cursor": str | null}; .tif/.tiff only, paths relative to the container.
   POST /collections/{id}/imports {"files": [{"path", "etag", "datetime"} |
@@ -43,7 +47,7 @@ has ``status`` and ``heartbeat_at`` columns. Settings (env): CLOUD_IMPORT_MAX_CO
 CLOUD_IMPORT_BATCH_SIZE (sent batch = min(this, tiler max_batch_items)).
 Helper: ``src.cloud_imagery.service.resolve_managed_collection(db, project_id, id)`` ->
 object with ``tiler``, ``stac_collection_id``, ``storage_access`` (sealed for the tiler);
-raises HTTPException 404 (outside the project's scopes) or 409 (not ready).
+raises HTTPException 404 (not that project's catalog) or 409 (not ready).
 """
 
 import dataclasses
@@ -63,8 +67,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 
+from src.auth.constants import ROLE_ADMIN
 from src.auth.dependencies import require_authenticated_user
-from src.auth.models import User
+from src.auth.models import User, UserRole
 from src.config import get_settings
 from src.database import Base, SessionLocal, get_db
 from src.organizations.models import Organization, OrganizationTiler, OrganizationUser
@@ -230,7 +235,7 @@ def world(database, settings_env, monkeypatch):
 
     tag = uuid.uuid4().hex[:8]
     db = SessionLocal()
-    roles = ("p1_admin", "p2_admin", "org_admin", "org_member", "stranger")
+    roles = ("p1_admin", "p2_admin", "org_admin", "org_member", "stranger", "platform_admin")
     users = {r: User(issuer="test", external_uid=f"{r}-{tag}", email=f"{r}-{tag}@t") for r in roles}
     org = Organization(name=f"org-{tag}", status="approved")
     other = Organization(name=f"other-{tag}", status="approved")
@@ -263,9 +268,11 @@ def world(database, settings_env, monkeypatch):
     )
     for role, project in (("p1_admin", p1), ("p2_admin", p2), ("stranger", p3)):
         db.add(ProjectUser(user_id=users[role].id, project_id=project.id, is_admin=True))
+    db.add(UserRole(user_id=users["platform_admin"].id, role=ROLE_ADMIN))
     db.commit()
     ids = {r: u.id for r, u in users.items()}
     w = {"org": org.id, "p1": p1.id, "p2": p2.id, "p3": p3.id, "tiler": tiler, "azure": fake_azure}
+    w["user"] = ids
     db.close()
 
     current = {"id": ids["p1_admin"]}
@@ -285,10 +292,10 @@ def world(database, settings_env, monkeypatch):
     app.dependency_overrides.clear()
 
 
-def _create(client, owner, /, **over):
+def _create(client, project_id, /, **over):
     body = {
         "title": "Drone flights",
-        "owner": owner,
+        "project_id": project_id,
         "tiler": "hosted",
         "container_url": CONTAINER,
         "prefix": "flights/",
@@ -319,9 +326,9 @@ def _import(client, cid, files):
     return client.post(f"/api/cloud-imagery/collections/{cid}/imports", json={"files": files})
 
 
-def _ready_collection(world, owner, role="p1_admin"):
+def _ready_collection(world, project_id, role="p1_admin"):
     client = world["as"](role)
-    cid = _create(client, owner).json()["id"]
+    cid = _create(client, project_id).json()["id"]
     assert (
         _wait(client, _import(client, cid, _files(world, "flights/a.tif")).json()["id"])["status"]
         == "ready"
@@ -334,11 +341,12 @@ def _ready_collection(world, owner, role="p1_admin"):
 
 def test_project_admin_creates_project_catalog_and_secret_stays_write_only(world):
     client = world["as"]("p1_admin")
-    r = _create(client, {"project_id": world["p1"]}, data_region="westeurope")
+    r = _create(client, world["p1"], data_region="westeurope")
 
     assert r.status_code == 201, r.text
     body = r.json()
-    assert body["status"] == "draft" and body["owner"] == {"project_id": world["p1"]}
+    assert body["status"] == "draft" and body["project_id"] == world["p1"]
+    assert "owner" not in body and "organization_id" not in body
     assert body["storage_access"]["kind"] == "azure_sas"
     assert body["storage_access"]["expires_at"].startswith("2099-01-01")
     assert body["data_region"] == "westeurope" and body["tiler_region"] is None
@@ -346,64 +354,103 @@ def test_project_admin_creates_project_catalog_and_secret_stays_write_only(world
     assert "TOPSECRET" not in shown and "sig=" not in shown
 
 
-@pytest.mark.parametrize(
-    ("role", "scope", "expected"),
-    [
-        ("p2_admin", "p1", 403),
-        ("org_member", "org", 403),
-        ("stranger", "org", 403),
-        ("org_admin", "org", 201),
-    ],
-    ids=["other project admin", "org member", "other org admin", "org admin"],
-)
-def test_catalog_creation_requires_admin_of_the_owning_scope(world, role, scope, expected):
-    owner = {"organization_id": world["org"]} if scope == "org" else {"project_id": world["p1"]}
-    assert _create(world["as"](role), owner).status_code == expected
+_DENIED = ("org_admin", "org_member", "p2_admin", "stranger")
+_DENIED_IDS = ["org admin", "org member", "same-org other project admin", "other org admin"]
+
+
+def test_platform_admin_without_membership_creates_and_manages_project_catalog(world):
+    admin = world["as"]("platform_admin")
+    r = _create(admin, world["p1"])
+    assert r.status_code == 201, r.text
+    url = f"/api/cloud-imagery/collections/{r.json()['id']}"
+    assert admin.patch(url, json={"title": "Platform"}).status_code == 200
+    assert admin.get(f"{url}/discover").status_code == 200
+
+
+@pytest.mark.parametrize("role", _DENIED, ids=_DENIED_IDS)
+def test_catalog_creation_and_listing_require_project_or_platform_admin(world, role):
+    client = world["as"](role)
+    assert _create(client, world["p1"]).status_code == 403
+    listing = client.get(f"/api/cloud-imagery/collections?project_id={world['p1']}")
+    assert listing.status_code == 403
 
 
 @pytest.mark.parametrize(
     "over",
     [
-        {"owner": {}},
-        {"owner": {"project_id": 1, "organization_id": 1}},
+        {"project_id": None},
+        {"project_id": 0},
+        {"project_id": -1},
+        {"project_id": None, "organization_id": 1},
+        {"project_id": None, "owner": {"project_id": 1}},
+        {"project_id": None, "owner": {"organization_id": 1}},
+    ],
+    ids=["no project", "zero", "negative", "organization id", "owner project", "owner org"],
+)
+def test_catalog_creation_rejects_missing_nonpositive_or_legacy_owner_shapes(world, over):
+    body = {k: v for k, v in over.items() if v is not None}
+    client = world["as"]("p1_admin")
+    r = client.post(
+        "/api/cloud-imagery/collections",
+        json={
+            "title": "Drone flights",
+            "tiler": "hosted",
+            "container_url": CONTAINER,
+            "prefix": "flights/",
+            "storage_access": {"kind": "azure_sas", "secret": SECRET},
+            **body,
+        },
+    )
+    assert r.status_code == 422, r.text
+
+
+@pytest.mark.parametrize(
+    "over",
+    [
         {"container_url": "https://evil.example.com/imagery"},
         {"container_url": f"http://{HOST}/imagery"},
         {"storage_access": {"kind": "azure_sas", "secret": SECRET.replace("sp=rl", "sp=rw")}},
         {"tiler": "not-allowed"},
     ],
-    ids=["no owner", "two owners", "not azure blob", "not https", "writable sas", "unknown tiler"],
+    ids=["not azure blob", "not https", "writable sas", "unknown tiler"],
 )
-def test_catalog_creation_rejects_bad_owner_location_access_or_tiler(world, over):
-    r = _create(world["as"]("org_admin"), {"organization_id": world["org"]}, **over)
+def test_catalog_creation_rejects_bad_location_access_or_tiler(world, over):
+    r = _create(world["as"]("p1_admin"), world["p1"], **over)
     assert r.status_code in (400, 403, 422)
 
 
-def test_ready_org_catalogs_are_reused_but_project_catalogs_stay_in_their_project(world):
-    org_cat = _ready_collection(world, {"organization_id": world["org"]}, role="org_admin")
-    p1_cat = _ready_collection(world, {"project_id": world["p1"]})
-    draft = _create(world["as"]("p1_admin"), {"project_id": world["p1"]}).json()["id"]
+def test_project_catalogs_are_listed_only_in_their_own_project(world):
+    p1_cat = _ready_collection(world, world["p1"])
+    draft = _create(world["as"]("p1_admin"), world["p1"]).json()["id"]
+    p2_cat = _ready_collection(world, world["p2"], role="p2_admin")
 
-    p1_ids = {
-        c["id"]
-        for c in world["as"]("p1_admin")
-        .get(f"/api/cloud-imagery/collections?project_id={world['p1']}")
-        .json()["items"]
-    }
-    p2 = world["as"]("p2_admin")
-    p2_ids = {
-        c["id"]
-        for c in p2.get(f"/api/cloud-imagery/collections?project_id={world['p2']}").json()["items"]
-    }
-
-    assert {org_cat, p1_cat} <= p1_ids and draft not in p1_ids
-    assert org_cat in p2_ids and p1_cat not in p2_ids
-    assert p2.get(f"/api/cloud-imagery/collections/{p1_cat}").status_code == 404
-    stranger = world["as"]("stranger")
-    assert stranger.get(f"/api/cloud-imagery/collections?project_id={world['p1']}").status_code in (
-        403,
-        404,
+    p1_ids = _ids(
+        world["as"]("p1_admin").get(f"/api/cloud-imagery/collections?project_id={world['p1']}")
     )
-    assert stranger.get(f"/api/cloud-imagery/collections/{org_cat}").status_code == 404
+    p2_ids = _ids(
+        world["as"]("p2_admin").get(f"/api/cloud-imagery/collections?project_id={world['p2']}")
+    )
+
+    assert p1_cat in p1_ids and draft not in p1_ids and p2_cat not in p1_ids
+    assert p2_cat in p2_ids and not {p1_cat, draft} & p2_ids
+
+
+@pytest.mark.parametrize("role", _DENIED, ids=_DENIED_IDS)
+@pytest.mark.parametrize("state", ["ready", "draft"])
+def test_project_catalog_is_hidden_by_id_from_everyone_but_its_project_admins(world, role, state):
+    if state == "ready":
+        cid = _ready_collection(world, world["p1"])
+    else:
+        cid = _create(world["as"]("p1_admin"), world["p1"]).json()["id"]
+    url = f"/api/cloud-imagery/collections/{cid}"
+    client = world["as"](role)
+
+    assert client.get(url).status_code == 404
+    assert client.patch(url, json={"title": "Taken"}).status_code == 404
+    assert client.get(f"{url}/discover").status_code == 404
+    assert _import(client, cid, _files(world, "flights/b.tif")).status_code == 404
+    assert client.delete(url).status_code == 404
+    assert world["as"]("p1_admin").get(url).json()["title"] == "Drone flights"
 
 
 # ── discovery ───────────────────────────────────────────────────────────────────
@@ -411,7 +458,7 @@ def test_ready_org_catalogs_are_reused_but_project_catalogs_stay_in_their_projec
 
 def test_discovery_pages_through_tiff_objects_relative_to_the_container(world):
     client = world["as"]("p1_admin")
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
 
     first = client.get(f"/api/cloud-imagery/collections/{cid}/discover?limit=2").json()
     cursor = first["next_cursor"]
@@ -461,7 +508,7 @@ _BAD_FILES = {
 @pytest.mark.parametrize("files", _BAD_FILES.values(), ids=_BAD_FILES.keys())
 def test_import_rejects_invalid_selection_without_starting_a_run(world, files):
     client = world["as"]("p1_admin")
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
     assert _import(client, cid, files).status_code == 422
     assert world["tiler"].batches == []
     assert client.get(f"/api/cloud-imagery/collections/{cid}").json()["status"] == "draft"
@@ -469,7 +516,7 @@ def test_import_rejects_invalid_selection_without_starting_a_run(world, files):
 
 def test_import_runs_in_background_in_bounded_batches_and_becomes_ready(world):
     client, tiler = world["as"]("p1_admin"), world["tiler"]
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
     files = _files(world, "flights/a.tif", "flights/b.tif") + [
         {
             "path": "flights/c.tiff",
@@ -493,7 +540,7 @@ def test_import_runs_in_background_in_bounded_batches_and_becomes_ready(world):
 def test_import_refuses_a_tiler_without_the_catalog_capability(world):
     client = world["as"]("p1_admin")
     world["tiler"].capable = False
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
     r = _import(client, cid, _files(world, "flights/a.tif"))
     assert r.status_code == 409 and "tiler" in r.text.lower()
 
@@ -519,7 +566,7 @@ def _corrupt(w):
 )
 def test_unusable_object_fails_import_visibly_and_catalog_is_never_ready(world, break_it, code):
     client = world["as"]("p1_admin")
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
     files = _files(world, "flights/a.tif", "flights/b.tif")
     break_it(world)
 
@@ -536,7 +583,7 @@ def test_unusable_object_fails_import_visibly_and_catalog_is_never_ready(world, 
 
 def test_retry_resends_only_unfinished_batches_and_then_publishes(world):
     client, tiler = world["as"]("p1_admin"), world["tiler"]
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
     files = _files(world, "flights/a.tif", "flights/b.tif", "flights/c.tiff")
     tiler.fail_once = {f"{CONTAINER}/flights/c.tiff"}
 
@@ -555,8 +602,8 @@ def test_retry_resends_only_unfinished_batches_and_then_publishes(world):
 
 def test_imports_are_bounded_globally_and_one_per_collection(world):
     client, tiler = world["as"]("p1_admin"), world["tiler"]
-    first = _create(client, {"project_id": world["p1"]}).json()["id"]
-    second = _create(client, {"project_id": world["p1"]}).json()["id"]
+    first = _create(client, world["p1"]).json()["id"]
+    second = _create(client, world["p1"]).json()["id"]
     entered, release = threading.Event(), threading.Event()
     tiler.hold = (entered, release)
     files = _files(world, "flights/a.tif")
@@ -578,7 +625,7 @@ def test_interrupted_import_fails_on_poll_and_late_old_attempt_cannot_overwrite_
     from src.cloud_imagery.models import CloudImageryImport
 
     client, tiler = world["as"]("p1_admin"), world["tiler"]
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
     entered, release = threading.Event(), threading.Event()
     tiler.hold, tiler.hold_status = (entered, release), 503
     imp = _import(client, cid, _files(world, "flights/a.tif")).json()
@@ -607,22 +654,21 @@ def test_interrupted_import_fails_on_poll_and_late_old_attempt_cannot_overwrite_
 # ── managed reference used by campaign imagery registration ─────────────────────
 
 
-def test_managed_reference_resolves_only_ready_catalogs_in_the_projects_scopes(world):
+def test_managed_reference_resolves_only_ready_catalogs_of_the_same_project(world):
     from src.cloud_imagery.service import resolve_managed_collection
 
-    org_cat = _ready_collection(world, {"organization_id": world["org"]}, role="org_admin")
-    p1_cat = _ready_collection(world, {"project_id": world["p1"]})
-    draft = _create(world["as"]("p1_admin"), {"project_id": world["p1"]}).json()["id"]
+    p1_cat = _ready_collection(world, world["p1"])
+    draft = _create(world["as"]("p1_admin"), world["p1"]).json()["id"]
     db = SessionLocal()
     try:
-        ref = resolve_managed_collection(db, world["p2"], org_cat)
+        ref = resolve_managed_collection(db, world["p1"], p1_cat)
         assert ref.tiler == "hosted"
         assert re.fullmatch(r"cc-[0-9a-f]{32}", ref.stac_collection_id)
         assert ref.storage_access["host"] == HOST
         assert "TOPSECRET" not in json.dumps(ref.storage_access)
         for project, catalog, status in (
             (world["p2"], p1_cat, 404),
-            (world["p3"], org_cat, 404),
+            (world["p3"], p1_cat, 404),
             (world["p1"], draft, 409),
         ):
             with pytest.raises(HTTPException) as exc:
@@ -633,10 +679,9 @@ def test_managed_reference_resolves_only_ready_catalogs_in_the_projects_scopes(w
 
 
 # ── management listing: drafts on revisit, picker stays ready-only ───────────────
-# Additive contract: GET /collections?project_id=P&include_drafts=true and
-# GET /collections?organization_id=O&include_drafts=true list every catalog the caller may
-# manage in that one context (draft, importing, failed, ready). Exactly one context is
-# required; without include_drafts the list stays the READY-only campaign picker.
+# Additive contract: GET /collections?project_id=P&include_drafts=true lists every catalog
+# of that project (draft, importing, failed, ready) to its admins and platform admins.
+# project_id is required; without include_drafts the list stays the READY-only picker.
 
 
 def _ids(response):
@@ -646,12 +691,12 @@ def _ids(response):
 
 def test_project_management_listing_shows_unfinished_catalogs_but_picker_stays_ready_only(world):
     client, tiler = world["as"]("p1_admin"), world["tiler"]
-    ready = _ready_collection(world, {"project_id": world["p1"]})
-    draft = _create(client, {"project_id": world["p1"]}).json()["id"]
-    failed = _create(client, {"project_id": world["p1"]}).json()["id"]
+    ready = _ready_collection(world, world["p1"])
+    draft = _create(client, world["p1"]).json()["id"]
+    failed = _create(client, world["p1"]).json()["id"]
     _corrupt(world)
     _wait(client, _import(client, failed, _files(world, "flights/b.tif")).json()["id"])
-    importing = _create(client, {"project_id": world["p1"]}).json()["id"]
+    importing = _create(client, world["p1"]).json()["id"]
     entered, release = threading.Event(), threading.Event()
     tiler.hold = (entered, release)
     run = _import(client, importing, _files(world, "flights/a.tif")).json()
@@ -678,36 +723,40 @@ def test_project_management_listing_shows_unfinished_catalogs_but_picker_stays_r
     assert {ready, draft, failed, importing} <= managed
     assert ready in picker and not {draft, failed, importing} & picker
     assert not {ready, draft, failed, importing} & other
-    assert outsider.status_code in (403, 404) and "Drone flights" not in outsider.text
+    assert outsider.status_code == 403 and "Drone flights" not in outsider.text
 
 
-def test_org_catalog_is_created_and_managed_without_any_project_context(world):
-    org_admin = world["as"]("org_admin")
-    created = _create(org_admin, {"organization_id": world["org"]})
-    assert created.status_code == 201, created.text
-    draft = created.json()["id"]
+def test_revoking_project_admin_removes_catalog_management(world):
+    cid = _create(world["as"]("p1_admin"), world["p1"]).json()["id"]
+    db = SessionLocal()
+    try:
+        membership = db.get(ProjectUser, (world["user"]["p1_admin"], world["p1"]))
+        membership.is_admin = False
+        db.commit()
+    finally:
+        db.close()
+    client = world["as"]("p1_admin")
+    url = f"/api/cloud-imagery/collections/{cid}"
 
-    managed = _ids(
-        org_admin.get(
-            f"/api/cloud-imagery/collections?organization_id={world['org']}&include_drafts=true"
-        )
-    )
-    picker = _ids(org_admin.get(f"/api/cloud-imagery/collections?organization_id={world['org']}"))
-    outsider = world["as"]("stranger").get(
-        f"/api/cloud-imagery/collections?organization_id={world['org']}&include_drafts=true"
-    )
-
-    assert draft in managed and draft not in picker
-    assert outsider.status_code in (403, 404) and "Drone flights" not in outsider.text
+    assert client.patch(url, json={"title": "Still mine"}).status_code == 404
+    assert client.get(f"{url}/discover").status_code == 404
+    listing = f"/api/cloud-imagery/collections?project_id={world['p1']}&include_drafts=true"
+    assert client.get(listing).status_code == 403
+    assert _create(client, world["p1"]).status_code == 403
 
 
 @pytest.mark.parametrize(
     "query",
-    ["include_drafts=true", "project_id={p1}&organization_id={org}&include_drafts=true"],
-    ids=["no context", "two contexts"],
+    [
+        "include_drafts=true",
+        "",
+        "organization_id={org}",
+        "organization_id={org}&include_drafts=true",
+    ],
+    ids=["no project", "no query", "org only", "org only with drafts"],
 )
-def test_catalog_listing_requires_exactly_one_context(world, query):
-    url = "/api/cloud-imagery/collections?" + query.format(p1=world["p1"], org=world["org"])
+def test_catalog_listing_requires_a_project(world, query):
+    url = "/api/cloud-imagery/collections?" + query.format(org=world["org"])
     assert world["as"]("org_admin").get(url).status_code == 422
 
 
@@ -730,8 +779,8 @@ def _presets(response):
 def test_visualization_preset_round_trips_and_is_copied_independently_of_its_source(world):
     client = world["as"]("p1_admin")
     sent = json.loads(json.dumps(_PRESET))
-    first = _create(client, {"project_id": world["p1"]}, visualizations=[sent])
-    copy = _create(client, {"project_id": world["p1"]}, visualizations=_presets(first))
+    first = _create(client, world["p1"], visualizations=[sent])
+    copy = _create(client, world["p1"], visualizations=_presets(first))
     first_id, copy_id = first.json()["id"], copy.json()["id"]
 
     changed = {"name": "False colour", "viz_params": {**_PRESET["viz_params"], "bidx": [4, 3, 2]}}
@@ -752,8 +801,8 @@ def test_visualization_preset_round_trips_and_is_copied_independently_of_its_sou
 def test_visualization_preset_rejects_params_the_imagery_schema_rejects(world, viz_params):
     client = world["as"]("p1_admin")
     bad = [{"name": "Broken", "viz_params": viz_params}]
-    assert _create(client, {"project_id": world["p1"]}, visualizations=bad).status_code == 422
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    assert _create(client, world["p1"], visualizations=bad).status_code == 422
+    cid = _create(client, world["p1"]).json()["id"]
     patch = client.patch(f"/api/cloud-imagery/collections/{cid}", json={"visualizations": bad})
     assert patch.status_code == 422
 
@@ -769,7 +818,7 @@ def test_swept_import_stays_failed_when_its_still_live_worker_finishes(
     from src.cloud_imagery.service import resolve_managed_collection
 
     client = world["as"]("p1_admin")
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
     entered, release = threading.Event(), threading.Event()
     fake_get_blob = azure.get_blob
 
@@ -822,7 +871,7 @@ def _with_odd_key(world):
 def test_import_sends_url_encoded_href_for_a_blob_key_with_reserved_characters(world):
     client, tiler = world["as"]("p1_admin"), world["tiler"]
     encoded = _with_odd_key(world)
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
 
     done = _wait(client, _import(client, cid, _files(world, _ODD_KEY)).json()["id"])
 
@@ -835,7 +884,7 @@ def test_import_sends_url_encoded_href_for_a_blob_key_with_reserved_characters(w
 def test_tiler_rejection_of_an_encoded_href_is_reported_on_the_original_blob_path(world):
     client = world["as"]("p1_admin")
     world["tiler"].reject[_with_odd_key(world)] = "invalid_raster"
-    cid = _create(client, {"project_id": world["p1"]}).json()["id"]
+    cid = _create(client, world["p1"]).json()["id"]
 
     done = _wait(client, _import(client, cid, _files(world, _ODD_KEY)).json()["id"])
 
@@ -843,31 +892,27 @@ def test_tiler_rejection_of_an_encoded_href_is_reported_on_the_original_blob_pat
     assert [(e["code"], e["path"]) for e in done["errors"]] == [("invalid_raster", _ODD_KEY)]
 
 
-def test_org_catalog_is_usable_across_projects_but_managed_only_by_its_creator_or_org_admin(
-    world,
-):
+def test_project_catalog_is_managed_only_by_its_project_admins_not_same_org_admins(world):
     from src.cloud_imagery.service import resolve_managed_collection
 
-    by_org_admin = _ready_collection(world, {"organization_id": world["org"]}, role="org_admin")
-    by_p2_admin = _create(world["as"]("p2_admin"), {"organization_id": world["org"]})
+    by_p2_admin = _create(world["as"]("p2_admin"), world["p2"])
     assert by_p2_admin.status_code == 201, by_p2_admin.text
     own = by_p2_admin.json()["id"]
+    url = f"/api/cloud-imagery/collections/{own}"
 
-    db = SessionLocal()
-    try:
-        assert resolve_managed_collection(db, world["p1"], by_org_admin).tiler == "hosted"
-    finally:
-        db.close()
-    p1 = world["as"]("p1_admin")
-    for cid in (by_org_admin, own):
-        url = f"/api/cloud-imagery/collections/{cid}"
-        assert p1.patch(url, json={"title": "Taken"}).status_code in (403, 404)
-        assert p1.get(f"{url}/discover").status_code in (403, 404)
-        assert p1.delete(url).status_code in (403, 404)
+    for role in ("p1_admin", "org_admin"):
+        client = world["as"](role)
+        assert client.patch(url, json={"title": "Taken"}).status_code == 404
+        assert client.get(f"{url}/discover").status_code == 404
+        assert client.delete(url).status_code == 404
 
     p2 = world["as"]("p2_admin")
-    own_url = f"/api/cloud-imagery/collections/{own}"
-    assert p2.patch(own_url, json={"title": "Mine"}).status_code == 200
-    assert p2.get(f"{own_url}/discover").status_code == 200
-    org_admin = world["as"]("org_admin")
-    assert org_admin.patch(own_url, json={"title": "Org"}).status_code == 200
+    assert p2.patch(url, json={"title": "Mine"}).status_code == 200
+    assert p2.get(f"{url}/discover").status_code == 200
+    db = SessionLocal()
+    try:
+        with pytest.raises(HTTPException) as exc:
+            resolve_managed_collection(db, world["p1"], own)
+        assert exc.value.status_code == 404
+    finally:
+        db.close()

@@ -21,7 +21,7 @@ const SECRET = 'sp=rl&se=2099-01-01T00:00:00Z&spr=https&sr=c&sig=TOPSECRET';
 const COLLECTION = {
   id: 11,
   title: 'Drone flights',
-  owner: { project_id: MOCK_PROJECT.id },
+  project_id: MOCK_PROJECT.id,
   status: 'draft',
   tiler: 'hosted',
   container_url: CONTAINER,
@@ -148,11 +148,13 @@ test('create catalog, import with explicit times, see failure, retry to ready', 
   await expect(page.getByTestId('cloud-object-row')).toHaveCount(2);
   expect(bodies.collection).toMatchObject({
     title: 'Drone flights',
-    owner: { project_id: MOCK_PROJECT.id },
+    project_id: MOCK_PROJECT.id,
     container_url: CONTAINER,
     prefix: 'flights/',
     storage_access: { kind: 'azure_sas', secret: SECRET },
   });
+  expect(bodies.collection).not.toHaveProperty('owner');
+  expect(bodies.collection).not.toHaveProperty('organization_id');
   await expect(page.locator('body')).not.toContainText('TOPSECRET');
 
   await page.getByRole('checkbox', { name: 'flights/a.tif' }).check();
