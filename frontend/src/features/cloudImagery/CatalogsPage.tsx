@@ -30,6 +30,8 @@ import type { NamedVizParams } from '~/features/campaigns/components/imagery/typ
 import { emptyVizParams } from '~/features/campaigns/components/imagery/types';
 import { Button, Input, selectClass, textareaClass } from '~/shared/ui/forms';
 import { Modal } from '~/shared/ui/Modal';
+import { IconQuestion } from '~/shared/ui/Icons';
+import { Tooltip } from '~/shared/ui/Tooltip';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import {
@@ -544,22 +546,38 @@ const SelectFiles = ({
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-neutral-800">2. Select files and set dates</h3>
-      <Field label="Date from file path (regular expression)">
-        <div className="flex gap-2">
-          <Input size="sm" value={pattern} onChange={(e) => setPattern(e.target.value)} />
-          <Button size="sm" variant="secondary" onClick={applyPattern}>
-            Apply
-          </Button>
-        </div>
-      </Field>
-      <label className="flex items-center gap-2 text-xs">
-        <input
-          type="checkbox"
-          checked={matchingOnly}
-          onChange={(e) => setMatchingOnly(e.target.checked)}
-        />
-        Auto-select matching entries only
-      </label>
+      <div className="flex items-start gap-2">
+        <details className="min-w-0 flex-1 space-y-2 text-xs">
+          <summary className="cursor-pointer text-neutral-700">
+            Extract dates from filenames (optional)
+          </summary>
+          <Field label="Date from file path (regular expression)">
+            <div className="flex gap-2">
+              <Input size="sm" value={pattern} onChange={(e) => setPattern(e.target.value)} />
+              <Button size="sm" variant="secondary" onClick={applyPattern}>
+                Apply
+              </Button>
+            </div>
+          </Field>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={matchingOnly}
+              onChange={(e) => setMatchingOnly(e.target.checked)}
+            />
+            Auto-select matching entries only
+          </label>
+        </details>
+        <Tooltip
+          text={
+            'Example: flight_2026-01-05.tif\nPattern: (\\d{4}-\\d{2}-\\d{2})\nExtracted date: 2026-01-05\n\nThe first capture group (in parentheses) supplies the date. The default pattern also accepts 20260105. Click Apply to fill dates.'
+          }
+        >
+          <button type="button" aria-label="Date extraction example" className="text-neutral-500">
+            <IconQuestion />
+          </button>
+        </Tooltip>
+      </div>
       {bulkError && (
         <p role="alert" className="text-xs text-red-600">
           {bulkError}
@@ -645,7 +663,9 @@ const SelectFiles = ({
         )}
       </div>
       <details className="text-xs space-y-2">
-        <summary className="cursor-pointer text-neutral-700">Set many dates at once</summary>
+        <summary className="cursor-pointer text-neutral-700">
+          Import dates from CSV (optional)
+        </summary>
         <Field label="Dates as CSV (path,datetime or path,start,end)">
           <textarea
             className={textareaClass}
@@ -677,52 +697,58 @@ const TimeFields = ({
   time: TimeInput;
   onChange: (time: TimeInput) => void;
 }) => (
-  <div className="flex flex-wrap items-center gap-1">
-    <select
-      data-testid={`time-mode-${path}`}
-      aria-label={`Time kind for ${path}`}
-      className={selectClass}
-      value={time.kind}
-      onChange={(e) =>
-        onChange(
-          e.target.value === 'interval'
-            ? { kind: 'interval', start: '', end: '' }
-            : { kind: 'instant', value: '' }
-        )
-      }
-    >
-      <option value="instant">instant</option>
-      <option value="interval">interval</option>
-    </select>
-    {time.kind === 'instant' ? (
-      <Input
-        size="sm"
-        data-testid={`time-instant-${path}`}
-        aria-label={`Time for ${path}`}
-        placeholder="2026-01-12T10:20:00Z or 2026-01-12"
-        value={time.value}
-        onChange={(e) => onChange({ kind: 'instant', value: e.target.value })}
+  <div className="flex items-center gap-2">
+    <div className="min-w-0 flex-1 space-y-1">
+      {time.kind === 'instant' ? (
+        <Input
+          size="sm"
+          data-testid={`time-instant-${path}`}
+          aria-label={`Time for ${path}`}
+          className="h-[28px]"
+          placeholder="YYYY-MM-DD"
+          value={time.value}
+          onChange={(e) => onChange({ kind: 'instant', value: e.target.value })}
+        />
+      ) : (
+        <>
+          <Input
+            size="sm"
+            data-testid={`time-start-${path}`}
+            aria-label={`Start for ${path}`}
+            className="h-[28px]"
+            placeholder="Start date"
+            value={time.start}
+            onChange={(e) => onChange({ ...time, start: e.target.value })}
+          />
+          <Input
+            size="sm"
+            data-testid={`time-end-${path}`}
+            aria-label={`End for ${path}`}
+            className="h-[28px]"
+            placeholder="End date"
+            value={time.end}
+            onChange={(e) => onChange({ ...time, end: e.target.value })}
+          />
+        </>
+      )}
+    </div>
+    <label className="flex shrink-0 items-center gap-1">
+      <input
+        type="checkbox"
+        data-testid={`time-mode-${path}`}
+        aria-label={`Interval for ${path}`}
+        checked={time.kind === 'interval'}
+        onChange={(e) => {
+          const start = time.kind === 'instant' ? time.value : time.start;
+          onChange(
+            e.target.checked
+              ? { kind: 'interval', start, end: '' }
+              : { kind: 'instant', value: start }
+          );
+        }}
       />
-    ) : (
-      <>
-        <Input
-          size="sm"
-          data-testid={`time-start-${path}`}
-          aria-label={`Start for ${path}`}
-          placeholder="start"
-          value={time.start}
-          onChange={(e) => onChange({ ...time, start: e.target.value })}
-        />
-        <Input
-          size="sm"
-          data-testid={`time-end-${path}`}
-          aria-label={`End for ${path}`}
-          placeholder="end"
-          value={time.end}
-          onChange={(e) => onChange({ ...time, end: e.target.value })}
-        />
-      </>
-    )}
+      Interval
+    </label>
   </div>
 );
 

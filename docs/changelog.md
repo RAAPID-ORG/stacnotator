@@ -11,7 +11,9 @@ The cloud imagery card now has one top-right Manage button, which opens and scro
 to project imagery settings; removed the Refresh action and repeated instructions.
 Added catalog deletion with confirmation, including drafts without contacting the
 tiler. Discovered files start selected, with a select/unselect-all control. The
-date regex is above the list; Apply can select only matching files.
+date regex is above the list; Apply can select only matching files. Date rows now
+use compact inputs with an Interval checkbox. Optional filename date extraction
+starts collapsed, with a question-mark example.
 
 ## 2026-10-20 - Catalog navigation simplification
 

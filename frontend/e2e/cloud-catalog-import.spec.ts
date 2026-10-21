@@ -7,7 +7,7 @@
  *   buttons "New catalog", "Create catalog", "Import selected", "Retry import";
  *   labelled fields "Title", "Container URL", "Path prefix", "SAS token";
  *   rows data-testid="cloud-object-row" with a checkbox labelled by the object path;
- *   per selected path p: data-testid `time-mode-${p}` (select: instant|interval),
+ *   per selected path p: data-testid `time-mode-${p}` (interval checkbox),
  *   `time-instant-${p}`, `time-start-${p}`, `time-end-${p}`;
  *   data-testid="cloud-import-status" (text Importing | Failed | Ready) and
  *   data-testid="cloud-import-error" (one per error, shows path and message).
@@ -74,6 +74,25 @@ test('draft catalog: select files, apply matching dates, and delete', async ({ a
   await page.getByRole('button', { name: 'Select all', exact: true }).click();
   await expect(nonmatching).toBeChecked();
   const pattern = page.getByRole('textbox', { name: /regular expression/i });
+  await expect(pattern).toBeHidden();
+  const date = page.getByLabel(`Time for ${dated}`, { exact: true });
+  const interval = page.getByRole('checkbox', { name: `Interval for ${dated}`, exact: true });
+  await expect(date).toBeVisible();
+  await expect(interval).not.toBeChecked();
+  await date.scrollIntoViewIfNeeded();
+  const dateBox = (await date.boundingBox())!;
+  const intervalBox = (await interval.boundingBox())!;
+  expect(dateBox.height).toBeLessThanOrEqual(32);
+  expect(intervalBox.x).toBeGreaterThanOrEqual(dateBox.x + dateBox.width);
+  await date.fill('2026-01-05');
+  await interval.check();
+  await expect(page.getByLabel(`Start for ${dated}`, { exact: true })).toHaveValue('2026-01-05');
+  await expect(page.getByLabel(`End for ${dated}`, { exact: true })).toBeVisible();
+  await interval.uncheck();
+  await expect(date).toHaveValue('2026-01-05');
+  await page.getByRole('button', { name: 'Date extraction example' }).hover();
+  await expect(page.getByText(/flight_2026-01-05\.tif/)).toBeVisible();
+  await page.getByText('Extract dates from filenames (optional)', { exact: true }).click();
   await expect(pattern).toBeVisible();
   expect((await pattern.boundingBox())!.y).toBeLessThan(
     (await page.getByTestId('cloud-object-row').first().boundingBox())!.y
@@ -88,6 +107,10 @@ test('draft catalog: select files, apply matching dates, and delete', async ({ a
   await expect(matching).toBeChecked();
   await expect(nonmatching).not.toBeChecked();
   await expect(page.getByLabel(`Time for ${dated}`, { exact: true })).toHaveValue('2026-01-05');
+  await test.info().attach('catalog-date-controls', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
   await page.getByRole('button', { name: 'Delete catalog' }).click();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect(deleted).toBe(false);
@@ -215,10 +238,10 @@ test('create catalog, import with explicit times, see failure, retry to ready', 
   expect(bodies.collection).not.toHaveProperty('organization_id');
   await expect(page.locator('body')).not.toContainText('TOPSECRET');
 
-  await page.getByRole('checkbox', { name: 'flights/a.tif' }).check();
-  await page.getByRole('checkbox', { name: 'flights/b.tif' }).check();
+  await page.getByRole('checkbox', { name: 'flights/a.tif', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'flights/b.tif', exact: true }).check();
   await page.getByTestId('time-instant-flights/a.tif').fill('2026-01-12T10:20:00Z');
-  await page.getByTestId('time-mode-flights/b.tif').selectOption('interval');
+  await page.getByTestId('time-mode-flights/b.tif').check();
   await page.getByTestId('time-start-flights/b.tif').fill('2026-01-01');
   await page.getByTestId('time-end-flights/b.tif').fill('2026-01-31');
   await page.getByRole('button', { name: 'Import selected' }).click();
@@ -323,7 +346,7 @@ const mockFirstImport = async (
   await page.getByLabel('Path prefix').fill('flights/');
   await page.getByLabel('SAS token').fill(SECRET);
   await page.getByRole('button', { name: 'Create catalog' }).click();
-  await page.getByRole('checkbox', { name: 'flights/a.tif' }).check();
+  await page.getByRole('checkbox', { name: 'flights/a.tif', exact: true }).check();
   await page.getByTestId('time-instant-flights/a.tif').fill('2026-01-12T10:20:00Z');
   await page.getByRole('button', { name: 'Import selected' }).click();
 };

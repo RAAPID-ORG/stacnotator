@@ -27,9 +27,11 @@ in the same tab and scrolls to it.
 1. Create a catalog with its title, Azure container URL, optional path prefix,
    hosted tiler, and a container SAS granting read and list access.
 2. Discovered files start selected. Use **Select all / Unselect all** for files
-   listed so far. Specify acquisition times per file, with CSV, or with the date
-   regex above the list. Check **Auto-select matching entries only** and click
-   **Apply** to select matching paths and unselect the rest.
+   listed so far. Enter a date per file; check **Interval** beside it for start/end
+   dates. Alternatively, expand **Extract dates from filenames (optional)** above
+   the list; the question mark shows an example. Check **Auto-select matching
+   entries only** and click **Apply** to select matching paths and unselect the
+   rest. CSV date import is also available below the list.
 3. Start import. The page shows progress and file-specific failures; navigation
    away does not stop the server-side import. Reopen the catalog to see its run.
 4. Once ready, open **Custom (other)** in the campaign imagery wizard and select
