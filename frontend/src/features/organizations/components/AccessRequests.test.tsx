@@ -53,12 +53,17 @@ describe('AccessRequests', () => {
     expect(screen.getByText('Working on the maize campaign')).toBeTruthy();
   });
 
-  it('stays out of the way when nobody is waiting', async () => {
+  it('shows an empty state when nobody is waiting', async () => {
     vi.mocked(listOrganizationAccessRequests).mockResolvedValue(listed([]));
-    const { container } = renderWithQuery(<AccessRequests organizationId={7} />);
+    renderWithQuery(<AccessRequests organizationId={7} />);
 
     await waitFor(() => expect(listOrganizationAccessRequests).toHaveBeenCalled());
-    expect(container.innerHTML).toBe('');
+    expect(screen.getByRole('heading', { name: 'Access requests' })).toBeTruthy();
+    expect(
+      screen.getByText(
+        'No one is waiting to join. Requests from people who find this organization appear here.'
+      )
+    ).toBeTruthy();
   });
 
   it('approves the request and re-reads what is left', async () => {
