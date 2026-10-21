@@ -40,6 +40,133 @@ const IMPORT = {
   retryable: false,
 };
 
+test('group monthly assets manually or by rules, then use indexed band names', async ({
+  appPage: page,
+}) => {
+  const paths = ['01', '02'].flatMap((month) =>
+    ['reflectance', 'clear-count'].map(
+      (asset) => `imagery/guaviare-s2-2025-${month}/guaviare-s2-2025-${month}_${asset}.tif`
+    )
+  );
+  const unmatched = 'imagery/other.tif';
+  let indexed: {
+    path: string;
+    item_key: string;
+    asset_key: string;
+    band_names?: string[];
+    start_datetime: string;
+    end_datetime: string;
+  }[] = [];
+  const catalog = () => ({
+    ...COLLECTION,
+    status: indexed.length ? 'ready' : 'draft',
+    visualizations: [],
+    import_id: indexed.length ? IMPORT.id : null,
+    item_assets: indexed.length
+      ? {
+          reflectance: {
+            title: 'Reflectance',
+            type: 'image/tiff',
+            roles: ['data'],
+            bands: [{ name: 'red' }, { name: 'green' }, { name: 'blue' }],
+          },
+          'clear-count': {
+            title: 'Clear count',
+            type: 'image/tiff',
+            roles: ['data'],
+            bands: [{ name: 'count' }],
+          },
+        }
+      : {},
+  });
+  await page.route(/\/api\/cloud-imagery\/collections\?/, (route) =>
+    route.fulfill({ json: { items: [catalog()] } })
+  );
+  await page.route(`**/api/cloud-imagery/collections/${COLLECTION.id}`, (route) =>
+    route.fulfill({ json: catalog() })
+  );
+  await page.route(`**/api/cloud-imagery/collections/${COLLECTION.id}/discover*`, (route) =>
+    route.fulfill({
+      json: {
+        objects: [...paths, unmatched].map((path) => ({ path, etag: '"1"', size: 1000 })),
+        next_cursor: null,
+      },
+    })
+  );
+  await page.route(`**/api/cloud-imagery/collections/${COLLECTION.id}/imports`, (route) => {
+    indexed = route.request().postDataJSON().files;
+    return route.fulfill({ status: 202, json: IMPORT });
+  });
+  await page.route(`**/api/cloud-imagery/imports/${IMPORT.id}`, (route) =>
+    route.fulfill({ json: { ...IMPORT, status: 'ready', total: 5, completed: 5 } })
+  );
+  await page.goto(`/projects/${MOCK_PROJECT.id}/catalogs`);
+  await page.getByTestId('cloud-catalog-row').getByRole('button', { name: 'Open' }).click();
+  await expect(page.getByTestId('cloud-object-row')).toHaveCount(5);
+  await page.getByRole('button', { name: 'Unselect all' }).click();
+  for (const path of paths.slice(0, 2))
+    await page.getByRole('checkbox', { name: path, exact: true }).check();
+  await page.getByText('Group files into items (optional)', { exact: true }).click();
+  await page.getByRole('button', { name: 'Group selected as one item' }).click();
+  const groups = page.getByTestId('cloud-item-group');
+  await expect(groups).toHaveCount(1);
+  await expect(groups).toContainText('2 assets');
+  await groups.getByRole('button', { name: 'Ungroup' }).click();
+  await page.getByRole('button', { name: 'Unselect all' }).click();
+  await page.getByRole('button', { name: 'Select all', exact: true }).click();
+  await page.getByLabel('Asset name rule 1').fill('reflectance');
+  await page.getByLabel('File pattern rule 1').fill('_reflectance\\.tif$');
+  await page.getByRole('button', { name: 'Add asset rule' }).click();
+  await page.getByLabel('Asset name rule 2').fill('clear-count');
+  await page.getByLabel('File pattern rule 2').fill('_clear-count\\.tif$');
+  await expect(page.getByLabel('Grouping preview')).toContainText(
+    '4 matching files → 2 dated items'
+  );
+  await expect(page.getByLabel('Grouping preview')).toContainText('1 selected file unchanged');
+  await expect(page.getByLabel('Band names rule 1')).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('grouping-preview.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Apply grouping', exact: true }).click();
+  await expect(groups).toHaveCount(2);
+  await expect(page.getByRole('checkbox', { name: unmatched, exact: true })).toBeChecked();
+  await expect(page.getByLabel(`Time for ${unmatched}`, { exact: true })).toHaveValue('');
+  await page.getByLabel(`Time for ${unmatched}`, { exact: true }).fill('2025-03-01');
+  await expect(groups.nth(0).getByRole('textbox').first()).toHaveValue('2025-01-01');
+  await expect(groups.nth(1).getByRole('textbox').last()).toHaveValue('2025-02-28');
+  await page.getByText('Group files into items (optional)', { exact: true }).click();
+  await groups.first().scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('grouped-assets.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Index selected' }).click();
+  await expect(page.getByTestId('cloud-import-status')).toHaveText('Ready');
+  expect(indexed).toHaveLength(5);
+  expect(new Set(indexed.filter((file) => file.item_key).map((file) => file.item_key)).size).toBe(
+    2
+  );
+  expect(indexed[0]).toMatchObject({
+    asset_key: 'reflectance',
+    start_datetime: '2025-01-01T00:00:00Z',
+    end_datetime: '2025-01-31T23:59:59.999999Z',
+  });
+  expect(indexed.every((file) => file.band_names === undefined)).toBe(true);
+  await page.getByText('Catalog settings', { exact: true }).click();
+  await expect(page.getByLabel('Detected bands')).toContainText(
+    'reflectance · 3 bands: red, green, blue'
+  );
+  await expect(page.getByLabel('Detected bands')).toContainText('clear-count · 1 band: count');
+  await page.getByRole('button', { name: 'Add a visualization preset' }).click();
+  await expect(page.getByLabel('Bands in each file')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Custom', exact: true }).click();
+  await page.getByRole('radio', { name: /RGB/ }).check();
+  await page
+    .getByRole('combobox', { name: 'Red (R) asset', exact: true })
+    .selectOption('reflectance');
+  await expect(page.getByRole('combobox', { name: 'Red (R) band', exact: true })).toContainText(
+    '1: red'
+  );
+  await expect(page.getByRole('combobox', { name: 'Red (R) band', exact: true })).toContainText(
+    '3: blue'
+  );
+});
+
 test('draft catalog: select files, apply matching dates, and delete', async ({ appPage: page }) => {
   const dated = 'flights/2026-01-05.tif';
   const other = 'flights/other.tif';

@@ -37,6 +37,27 @@ in the same tab and scrolls to it.
 4. Once ready, open **Custom (other)** in the campaign imagery wizard and select
    the catalog under **No - I have my own imagery in cloud storage**.
 
+One file is one item by default. To combine related files, expand **Group files
+into items (optional)** and either select files then **Group selected as one item**,
+or add asset-name/file-pattern rules, check the preview, and choose **Apply grouping**. For example,
+`reflectance` with `_reflectance\.tif$` and `clear-count` with `_clear-count\.tif$`
+produce two assets per monthly item when the paths contain `2025-01`, `2025-02`,
+and so on. Month-only dates become full-month intervals. Each group has one shared
+date control; **Ungroup** returns its files to separate items. Only matching selected
+files are grouped; unmatched files keep their selection, dates and grouping. They
+still need dates if selected for indexing. Not every rule needs a match on every
+date. Conflicting rules,
+duplicate asset names within an item, and mismatched dates are rejected.
+
+Raster headers automatically supply band counts, names and types during indexing.
+**Catalog settings** shows detected counts and names once indexing finishes.
+Missing names fall back to numbered bands. A file's **Edit asset > Rename bands
+(optional)** accepts comma-separated overrides; the count must match the raster.
+Indexing stores `eo:bands` and
+`raster:bands` on each STAC asset. Visualization editors use the recorded asset and
+band names rather than asking for a band count. An older catalog without that
+metadata retains the manual band-count field.
+
 There is no inspection/review approval step. Metadata is read during indexing.
 Unreadable files, missing georeferencing, invalid times, changed objects and
 failed batches prevent publication; files are not silently skipped.
@@ -54,17 +75,18 @@ manage catalogs. Organization administration alone grants no catalog access.
 
 Visualization settings use the existing imagery editor. A campaign receives a
 copy of the selected catalog presets; later catalog edits do not update existing
-campaigns. The band count is entered by the user rather than inferred for an
-inspection-results screen. Data region is optional supplied metadata; tiler
-region comes from operator configuration. Unknown values are shown as unknown.
+campaigns. Data region is optional supplied metadata; tiler region comes from
+operator configuration. Unknown values are shown as unknown.
 
 ## Execution and limits
 
 The backend uses the existing registration-thread/status/heartbeat mechanism,
 not a separate worker service. Admission is bounded across web processes by
 `CLOUD_IMPORT_MAX_CONCURRENT` (default 2). `CLOUD_IMPORT_BATCH_SIZE` defaults to
-50 and is further limited by the tiler's capability response. At capacity, new
-imports receive a clear error rather than joining an unbounded queue.
+50 and is further limited by the tiler's capability response. An item's assets
+stay in one batch, even if the group exceeds the preferred size; the tiler's hard
+asset limit still applies. At capacity, new indexing jobs receive a clear error
+rather than joining an unbounded queue.
 
 Database transactions are released before external reads. Completed batches
 are checkpointed, stale workers cannot publish completion, and failed imports

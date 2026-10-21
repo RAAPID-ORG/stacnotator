@@ -86,6 +86,10 @@ def _item_id(href: str) -> str:
     return "it-" + hashlib.sha1(href.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
+def _hrefs(item: dict) -> list[str]:
+    return [item["href"]] if "href" in item else [a["href"] for a in item["assets"].values()]
+
+
 # ── infrastructure: throwaway PostGIS database ─────────────────────────────────
 
 
@@ -163,6 +167,8 @@ class FakeTiler:
         self.capable = True
         self.hold = None  # (entered, release): the next batch call blocks until released
         self.hold_status = 200
+        self.sent: list[dict] = []
+        self.item_assets: dict = {}
 
     @staticmethod
     def _auth(headers):
@@ -191,11 +197,13 @@ class FakeTiler:
                 "item_count": len(json["item_ids"]),
                 "bbox": [10, 49, 11, 50],
                 "interval": ["2026-01-01T00:00:00Z", "2026-01-31T23:59:59.999999Z"],
+                "item_assets": self.item_assets,
             }
             return httpx.Response(200, json=body, request=req)
         assert "TOPSECRET" not in str(json)
         assert json["storage_access"]["host"] == HOST and json["container_url"] == CONTAINER
-        hrefs = [i["href"] for i in json["items"]]
+        self.sent.extend(json["items"])
+        hrefs = [h for i in json["items"] for h in _hrefs(i)]
         assert all(h.startswith(CONTAINER + "/") and "?" not in h for h in hrefs)
         if self.hold is not None:
             (entered, release), self.hold = self.hold, None
@@ -210,7 +218,12 @@ class FakeTiler:
         if set(hrefs) & self.fail_once:
             self.fail_once.clear()
             return httpx.Response(503, json={"detail": "busy"}, request=req)
-        items = [{"id": _item_id(h), "href": h} for h in hrefs]
+        items = [
+            {"id": _item_id(" ".join(sorted(_hrefs(i)))), "href": i.get("href")}
+            if "href" in i
+            else {"id": _item_id(" ".join(sorted(_hrefs(i)))), "assets": i["assets"]}
+            for i in json["items"]
+        ]
         return httpx.Response(200, json={"items": items}, request=req)
 
     def delete(self, url, headers=None, **kw):
@@ -502,6 +515,29 @@ _BAD_FILES = {
     "duplicate path": [{"path": "flights/a.tif", "etag": '"0x0"', "datetime": _T}] * 2,
     "path escapes prefix": [{"path": "flights/../x/a.tif", "etag": '"0x0"', "datetime": _T}],
     "path outside prefix": [{"path": "other/a.tif", "etag": '"0x0"', "datetime": _T}],
+    "duplicate asset in an item": [
+        {"path": f"flights/{n}", "etag": '"0x0"', "datetime": _T, "item_key": "s1"}
+        for n in ("a.tif", "b.tif")
+    ],
+    "item assets disagree on time": [
+        {"path": "flights/a.tif", "etag": '"0x0"', "datetime": _T, "item_key": "s1"},
+        {
+            "path": "flights/b.tif",
+            "etag": '"0x1"',
+            "datetime": "2026-01-13T10:20:00Z",
+            "item_key": "s1",
+            "asset_key": "nir",
+        },
+    ],
+    "unsafe asset key": [
+        {"path": "flights/a.tif", "etag": '"0x0"', "datetime": _T, "asset_key": "a/b"}
+    ],
+    "empty band name": [
+        {"path": "flights/a.tif", "etag": '"0x0"', "datetime": _T, "band_names": [""]}
+    ],
+    "too many bands": [
+        {"path": "flights/a.tif", "etag": '"0x0"', "datetime": _T, "band_names": ["b"] * 65}
+    ],
 }
 
 
@@ -535,6 +571,46 @@ def test_import_runs_in_background_in_bounded_batches_and_becomes_ready(world):
     assert all(len(batch) <= 2 for batch in tiler.batches)
     assert tiler.verified == [sorted(_item_id(f"{CONTAINER}/{f['path']}") for f in files)]
     assert client.get(f"/api/cloud-imagery/collections/{cid}").json()["status"] == "ready"
+
+
+def test_grouped_assets_import_as_one_item_with_band_metadata(world):
+    client, tiler = world["as"]("p1_admin"), world["tiler"]
+    cid = _create(client, world["p1"]).json()["id"]
+    a, b, c = _files(world, "flights/a.tif", "flights/b.tif", "flights/c.tiff")
+    files = [
+        c,
+        {**a, "item_key": "scene", "asset_key": "visual", "band_names": ["red", "green"]},
+        {**b, "item_key": "scene", "asset_key": "nir"},
+    ]
+    tiler.item_assets = {
+        "visual": {
+            "type": "image/tiff; application=geotiff",
+            "roles": ["data"],
+            "eo:bands": [{"name": "red"}, {"name": "green", "description": "Green"}],
+            "raster:bands": [{"data_type": "uint8"}, {"data_type": "uint8"}],
+        }
+    }
+
+    done = _wait(client, _import(client, cid, files).json()["id"])
+
+    assert done["status"] == "ready" and done["completed"] == 3, done
+    # The ungrouped file keeps the single-href form; the group is never split across batches.
+    assert tiler.sent == [
+        {"href": f"{CONTAINER}/flights/c.tiff", "datetime": _T},
+        {
+            "assets": {
+                "visual": {"href": f"{CONTAINER}/flights/a.tif", "band_names": ["red", "green"]},
+                "nir": {"href": f"{CONTAINER}/flights/b.tif", "band_names": None},
+            },
+            "datetime": _T,
+        },
+    ]
+    assert len(tiler.batches) == 2 and len(tiler.verified[0]) == 2
+    visual = client.get(f"/api/cloud-imagery/collections/{cid}").json()["item_assets"]["visual"]
+    assert visual["title"] == "visual" and visual["bands"] == [
+        {"name": "red", "description": None},
+        {"name": "green", "description": "Green"},
+    ]
 
 
 def test_import_refuses_a_tiler_without_the_catalog_capability(world):

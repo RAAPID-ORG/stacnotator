@@ -1,13 +1,15 @@
 from datetime import UTC, date, datetime, time
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.imagery.schemas import VizParamsCreate
+from src.stac_browser.schemas import AssetInfo
 from src.storage_access import StorageAccessCreate, StorageAccessOut
 
 CollectionStatus = Literal["draft", "importing", "ready", "failed"]
 ImportStatus = Literal["registering", "ready", "failed"]
+BandName = Annotated[str, Field(min_length=1, max_length=100)]
 
 
 class Visualization(BaseModel):
@@ -56,8 +58,9 @@ class CollectionOut(BaseModel):
     interval: list[str | None] | None
     item_count: int | None
     import_id: int | None
-    # The one asset every item of a managed catalog carries; presets pick its bands by bidx.
+    # Legacy default for ungrouped files; item_assets describes the actual catalog.
     asset_key: str = "data"
+    item_assets: dict[str, AssetInfo] = {}
 
 
 class CollectionList(BaseModel):
@@ -97,6 +100,10 @@ class FileSelection(BaseModel):
     datetime: str | None = None
     start_datetime: str | None = None
     end_datetime: str | None = None
+    # Files sharing an item_key are one STAC item, each under its own asset_key.
+    item_key: str | None = Field(default=None, min_length=1, max_length=128)
+    asset_key: str = Field(default="data", pattern=r"^[A-Za-z0-9_.-]{1,128}$")
+    band_names: list[BandName] | None = Field(default=None, min_length=1, max_length=64)
 
     @model_validator(mode="after")
     def one_time_form(self) -> "FileSelection":
@@ -134,6 +141,17 @@ class ImportCreate(BaseModel):
         paths = [f.path for f in self.files]
         if len(set(paths)) != len(paths):
             raise ValueError("Each path may be selected once")
+        items: dict[str, list[FileSelection]] = {}
+        for f in self.files:
+            if f.item_key is not None:
+                items.setdefault(f.item_key, []).append(f)
+        for key, group in items.items():
+            if len({f.asset_key for f in group}) != len(group):
+                raise ValueError(f"Item {key!r} has the same asset key twice")
+            if len(group) > 64:
+                raise ValueError(f"Item {key!r} has more than 64 assets")
+            if len({(f.instant, f.span()) for f in group}) != 1:
+                raise ValueError(f"Every asset of item {key!r} needs the same time")
         return self
 
 

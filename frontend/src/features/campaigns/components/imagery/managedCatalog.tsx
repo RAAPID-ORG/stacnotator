@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { AssetInfo, CollectionOut } from '~/api/client';
+import { getCollectionOptions } from '~/api/queries';
 import { Input } from '~/shared/ui/forms';
 import { vizParamsToFrontend } from './controller';
 import type { NamedVizParams } from './types';
 
-/** The asset key every managed cloud catalog item exposes for its GeoTIFF. */
+/** Older single-file catalogs use this default asset key. */
 export const MANAGED_ASSET_KEY = 'data';
 
 /** A catalog's suggested presets as editable visualizations: copied once, never linked. */
@@ -17,12 +19,15 @@ export const catalogPresets = (collection: CollectionOut): NamedVizParams[] =>
 const highestBand = (visualizations: NamedVizParams[]): number =>
   Math.max(0, ...visualizations.flatMap((v) => v.vizParams.bidx ?? []));
 
-/** Managed catalogs record no band metadata, so the user states how many bands their files
- *  carry and the band pickers offer that many. Saved band indexes always stay selectable. */
-export const useManagedAssets = (visualizations: NamedVizParams[]) => {
+export const useManagedAssets = (visualizations: NamedVizParams[], collectionId?: number) => {
+  const metadata = useQuery({
+    ...getCollectionOptions({ path: { collection_id: collectionId ?? 0 } }),
+    enabled: collectionId !== undefined,
+    meta: { errorMessage: 'Failed to load catalog band metadata', showUser: false },
+  });
   const [stated, setStated] = useState<number | null>(null);
   const bandCount = Math.max(stated ?? 0, highestBand(visualizations), 1);
-  const assets: Record<string, AssetInfo> = {
+  const fallback: Record<string, AssetInfo> = {
     [MANAGED_ASSET_KEY]: {
       title: 'GeoTIFF',
       type: 'image/tiff; application=geotiff',
@@ -30,7 +35,17 @@ export const useManagedAssets = (visualizations: NamedVizParams[]) => {
       bands: Array.from({ length: bandCount }, (_, i) => ({ name: `Band ${i + 1}` })),
     },
   };
-  return { assets, bandCount, setBandCount: setStated };
+  const recorded = metadata.data?.item_assets;
+  const hasMetadata = !!recorded && Object.keys(recorded).length > 0;
+  const legacy = metadata.data?.status === 'ready' && !hasMetadata;
+  return {
+    assets: hasMetadata ? recorded : legacy ? fallback : {},
+    hasMetadata,
+    legacy,
+    bandCount,
+    setBandCount: setStated,
+    error: metadata.error,
+  };
 };
 
 export const ManagedBandCountField = ({
@@ -56,7 +71,7 @@ export const ManagedBandCountField = ({
       }}
     />
     <span className="text-[11px] text-neutral-500">
-      The catalog does not record band metadata; pick bands by their number in the file.
+      This older catalog has no band metadata; pick bands by their number in the file.
     </span>
   </label>
 );

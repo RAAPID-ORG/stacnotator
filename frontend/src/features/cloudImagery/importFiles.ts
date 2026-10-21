@@ -1,4 +1,4 @@
-import type { FileSelection } from '~/api/client';
+import type { DiscoveredObject, FileSelection } from '~/api/client';
 
 export interface StorageObject {
   path: string;
@@ -8,6 +8,17 @@ export interface StorageObject {
 export type TimeInput =
   | { kind: 'instant'; value: string }
   | { kind: 'interval'; start: string; end: string };
+
+export type SelectionRow = {
+  object: DiscoveredObject;
+  time: TimeInput;
+  selected: boolean;
+  itemKey?: string;
+  assetKey?: string;
+  bandNames?: string;
+};
+
+export type AssetRule = { name: string; pattern: string };
 
 export type ImportFile = Pick<FileSelection, 'path' | 'etag'> &
   ({ datetime: string } | { start_datetime: string; end_datetime: string });
@@ -109,6 +120,108 @@ export function dateFromPath(path: string, pattern: RegExp): string | null {
   const match = pattern.exec(path);
   if (!match) return null;
   return compactDate(match[1] ?? match[0]);
+}
+
+export function timeFromPath(path: string, pattern: RegExp): TimeInput | null {
+  const match = pattern.exec(path);
+  if (!match) return null;
+  const value = match[1] ?? match[0];
+  const month = /^(\d{4})-(\d{2})$/.exec(value);
+  if (month && +month[2] >= 1 && +month[2] <= 12) {
+    const lastDay = new Date(Date.UTC(+month[1], +month[2], 0)).getUTCDate();
+    return { kind: 'interval', start: `${value}-01`, end: `${value}-${pad(lastDay, 2)}` };
+  }
+  const day = compactDate(value);
+  return day && toUtc(day).ok ? { kind: 'instant', value: day } : null;
+}
+
+const assetName = (path: string) =>
+  (path.split('/').pop() ?? path)
+    .replace(/\.tiff?$/i, '')
+    .split('_')
+    .pop()!
+    .replace(/[^A-Za-z0-9_.-]/g, '_');
+
+const timeKey = (row: SelectionRow, time: TimeInput) => {
+  const converted = toImportFile(row.object, time);
+  if (!converted.ok) return null;
+  return 'datetime' in converted.file
+    ? converted.file.datetime
+    : `${converted.file.start_datetime}/${converted.file.end_datetime}`;
+};
+
+const hasTime = (time: TimeInput) =>
+  time.kind === 'instant' ? !!time.value.trim() : !!(time.start.trim() || time.end.trim());
+
+export function groupSelected(rows: Map<string, SelectionRow>, itemKey: string) {
+  const selected = [...rows.values()].filter((row) => row.selected);
+  const errors: string[] = [];
+  if (selected.length < 2) errors.push('Select at least two files to group.');
+  const dates = new Set(selected.map((row) => timeKey(row, row.time)).filter(Boolean));
+  if (selected.some((row) => hasTime(row.time) && !timeKey(row, row.time)))
+    errors.push("Fix the selected files' dates before grouping.");
+  if (dates.size > 1) errors.push('Selected files have different dates. Set a shared date first.');
+  const names = selected.map((row) => row.assetKey || assetName(row.object.path));
+  if (new Set(names).size !== names.length)
+    errors.push('Asset names must be different within an item. Edit the asset names first.');
+  if (errors.length) return { rows, errors };
+  const time = selected.find((row) => timeKey(row, row.time))?.time ?? selected[0].time;
+  const next = new Map(rows);
+  selected.forEach((row, index) =>
+    next.set(row.object.path, { ...row, itemKey, assetKey: names[index], time })
+  );
+  return { rows: next, errors };
+}
+
+export function groupByDate(rows: Map<string, SelectionRow>, rules: AssetRule[], pattern: string) {
+  const errors: string[] = [];
+  if (!rules.length || rules.some((rule) => !/^[A-Za-z0-9_.-]{1,128}$/.test(rule.name)))
+    errors.push(
+      'Give each rule an asset name using letters, numbers, dots, hyphens or underscores.'
+    );
+  if (new Set(rules.map((rule) => rule.name)).size !== rules.length)
+    errors.push('Each asset rule needs a different name.');
+  if (rules.some((rule) => !rule.pattern.trim())) errors.push('Give each asset rule a pattern.');
+  if (errors.length) return { rows, errors };
+  let datePattern: RegExp;
+  let compiled: RegExp[];
+  try {
+    datePattern = new RegExp(pattern);
+    compiled = rules.map((rule) => new RegExp(rule.pattern));
+  } catch {
+    return { rows, errors: ['A grouping pattern is not a valid regular expression.'] };
+  }
+  const next = new Map(rows);
+  const changedItems = new Set<string>();
+  for (const [path, row] of rows) {
+    if (!row.selected) continue;
+    const matches = rules.filter((_, index) => compiled[index].test(path));
+    if (!matches.length) continue;
+    if (matches.length > 1) {
+      errors.push(`${path}: more than one asset rule matches.`);
+      continue;
+    }
+    const time = hasTime(row.time) ? row.time : timeFromPath(path, datePattern);
+    const date = time && timeKey(row, time);
+    if (!date || !time) {
+      errors.push(`${path}: enter a date or adjust the date extraction pattern.`);
+      continue;
+    }
+    const rule = matches[0];
+    const itemKey = `date:${date}`;
+    changedItems.add(itemKey);
+    next.set(path, { ...row, time, itemKey, assetKey: rule.name });
+  }
+  const seen = new Set<string>();
+  for (const row of next.values()) {
+    if (!row.selected || !row.itemKey || !changedItems.has(row.itemKey)) continue;
+    const key = `${row.itemKey}\n${row.assetKey}`;
+    if (seen.has(key))
+      errors.push(`More than one file has asset name "${row.assetKey}" for the same date.`);
+    seen.add(key);
+  }
+  if (!changedItems.size && !errors.length) errors.push('No selected files match these patterns.');
+  return { rows: errors.length ? rows : next, errors };
 }
 
 /** Times pasted as CSV rows: `path,datetime` or `path,start,end`. */

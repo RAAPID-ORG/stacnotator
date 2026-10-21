@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CollectionOut, DiscoveredObject, ImportOut } from '~/api/client';
@@ -35,12 +35,15 @@ import { Tooltip } from '~/shared/ui/Tooltip';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import {
-  dateFromPath,
+  groupSelected,
+  timeFromPath,
   parseTimeCsv,
   toImportFile,
   type ImportFile,
   type TimeInput,
+  type SelectionRow,
 } from './importFiles';
+import { FileGrouping } from './FileGrouping';
 
 // Every load and action on this page shows its own failure where it happened.
 const inPlace = (errorMessage: string) => ({ errorMessage, showUser: false });
@@ -436,8 +439,6 @@ const CatalogHeader = ({ collection }: { collection: CollectionOut }) => {
   );
 };
 
-type Row = { object: DiscoveredObject; time: TimeInput; selected: boolean };
-
 const SelectFiles = ({
   collection,
   onStarted,
@@ -446,10 +447,10 @@ const SelectFiles = ({
   onStarted: (started: ImportOut) => void;
 }) => {
   const [cursor, setCursor] = useState<string | null>(null);
-  const [rows, setRows] = useState<Map<string, Row>>(new Map());
+  const [rows, setRows] = useState<Map<string, SelectionRow>>(new Map());
   const selected = new Map([...rows].filter(([, row]) => row.selected));
   const [problems, setProblems] = useState<Map<string, string>>(new Map());
-  const [pattern, setPattern] = useState('(\\d{4}-?\\d{2}-?\\d{2})');
+  const [pattern, setPattern] = useState('(\\d{4}-?\\d{2}(?:-?\\d{2})?)');
   const [matchingOnly, setMatchingOnly] = useState(false);
   const [csv, setCsv] = useState('');
   const [bulkError, setBulkError] = useState('');
@@ -482,7 +483,7 @@ const SelectFiles = ({
     });
   }, [discovered.data]);
 
-  const update = (path: string, change: (row: Row) => Row) =>
+  const update = (path: string, change: (row: SelectionRow) => SelectionRow) =>
     setRows((prev) => {
       const row = prev.get(path);
       if (!row) return prev;
@@ -491,6 +492,17 @@ const SelectFiles = ({
 
   const toggle = (object: DiscoveredObject, on: boolean) =>
     update(object.path, (row) => ({ ...row, selected: on }));
+
+  const setTime = (path: string, time: TimeInput) =>
+    setRows((previous) => {
+      const itemKey = previous.get(path)?.itemKey;
+      return new Map(
+        [...previous].map(([p, row]) => [
+          p,
+          p === path || (itemKey && row.itemKey === itemKey) ? { ...row, time } : row,
+        ])
+      );
+    });
 
   const applyPattern = () => {
     let regex: RegExp;
@@ -501,32 +513,60 @@ const SelectFiles = ({
       return;
     }
     const missed: string[] = [];
+    const conflicting: string[] = [];
+    const next = new Map(rows);
+    const groupTimes = new Map<string, TimeInput>();
     rows.forEach((row, path) => {
       if (!matchingOnly && !row.selected) return;
       const matches = regex.test(path);
-      const day = dateFromPath(path, regex);
-      update(path, (r) => ({
-        ...r,
-        selected: matchingOnly ? matches : r.selected,
-        time: day ? { kind: 'instant', value: day } : r.time,
-      }));
-      if (!day && (!matchingOnly || matches)) missed.push(path);
+      const time = timeFromPath(path, regex);
+      next.set(path, { ...row, selected: matchingOnly ? matches : row.selected });
+      if (time) {
+        if (row.itemKey) {
+          const prior = groupTimes.get(row.itemKey);
+          if (prior && JSON.stringify(prior) !== JSON.stringify(time)) {
+            conflicting.push(`Grouped files have different dates: ${path}. Ungroup them first.`);
+          }
+          groupTimes.set(row.itemKey, time);
+        } else next.set(path, { ...next.get(path)!, time });
+      }
+      if (!time && (!matchingOnly || matches)) missed.push(path);
     });
+    if (conflicting.length) {
+      setBulkError(conflicting.join('\n'));
+      return;
+    }
+    next.forEach((row, path) => {
+      const time = row.itemKey && groupTimes.get(row.itemKey);
+      if (time) next.set(path, { ...row, time });
+    });
+    setRows(next);
     setBulkError(missed.length ? `No date found in: ${missed.join(', ')}` : '');
   };
 
   const applyCsv = () => {
     const { times, errors } = parseTimeCsv(csv);
     const objects = new Map(discovered.data?.objects.map((o) => [o.path, o]) ?? []);
-    setRows((prev) => {
-      const next = new Map(prev);
-      times.forEach((time, path) => {
-        const object = next.get(path)?.object ?? objects.get(path);
-        if (object) next.set(path, { object, time, selected: true });
-        else errors.push(`${path} is not among the listed files`);
-      });
-      return next;
+    const next = new Map(rows);
+    const groupTimes = new Map<string, TimeInput>();
+    times.forEach((time, path) => {
+      const object = next.get(path)?.object ?? objects.get(path);
+      if (object) {
+        const existing = next.get(path);
+        next.set(path, { ...existing, object, time, selected: true });
+        if (existing?.itemKey) {
+          const prior = groupTimes.get(existing.itemKey);
+          if (prior && JSON.stringify(prior) !== JSON.stringify(time))
+            errors.push(`Grouped files have different CSV dates: ${path}. Ungroup them first.`);
+          groupTimes.set(existing.itemKey, time);
+        }
+      } else errors.push(`${path} is not among the listed files`);
     });
+    next.forEach((row, path) => {
+      const time = row.itemKey && groupTimes.get(row.itemKey);
+      if (time) next.set(path, { ...row, time });
+    });
+    if (!errors.length) setRows(next);
     setBulkError(errors.join('; '));
   };
 
@@ -535,7 +575,15 @@ const SelectFiles = ({
     const found = new Map<string, string>();
     selected.forEach((row, path) => {
       const result = toImportFile(row.object, row.time);
-      if (result.ok) files.push(result.file);
+      if (result.ok)
+        files.push({
+          ...result.file,
+          ...(row.itemKey ? { item_key: row.itemKey } : {}),
+          ...(row.assetKey !== undefined ? { asset_key: row.assetKey } : {}),
+          ...(row.bandNames?.trim()
+            ? { band_names: row.bandNames.split(',').map((name) => name.trim()) }
+            : {}),
+        });
       else found.set(path, result.error);
     });
     setProblems(found);
@@ -544,6 +592,19 @@ const SelectFiles = ({
       { path: { collection_id: collection.id }, body: { files } },
       { onSuccess: onStarted }
     );
+  };
+
+  const visibleGroups = new Map<string, DiscoveredObject[]>();
+  for (const object of discovered.data?.objects ?? []) {
+    const itemKey = rows.get(object.path)?.itemKey;
+    const key = itemKey ? `group:${itemKey}` : `file:${object.path}`;
+    const group = visibleGroups.get(key) ?? [];
+    group.push(object);
+    visibleGroups.set(key, group);
+  }
+  const applyGrouping = (result: ReturnType<typeof groupSelected>) => {
+    setBulkError(result.errors.join('\n'));
+    if (!result.errors.length) setRows(result.rows);
   };
 
   return (
@@ -573,7 +634,7 @@ const SelectFiles = ({
         </details>
         <Tooltip
           text={
-            'Example: flight_2026-01-05.tif\nPattern: (\\d{4}-\\d{2}-\\d{2})\nExtracted date: 2026-01-05\n\nThe first capture group (in parentheses) supplies the date. The default pattern also accepts 20260105. Click Apply to fill dates.'
+            'Example: flight_2026-01-05.tif\nPattern: (\\d{4}-\\d{2}-\\d{2})\nExtracted date: 2026-01-05\n\nThe first capture group (in parentheses) supplies the date. The default pattern also accepts 20260105 and months such as 2025-01 (the full month). Click Apply to fill dates.'
           }
         >
           <button type="button" aria-label="Date extraction example" className="text-neutral-500">
@@ -581,8 +642,18 @@ const SelectFiles = ({
           </button>
         </Tooltip>
       </div>
+      <FileGrouping
+        rows={rows}
+        datePattern={pattern}
+        onDatePatternChange={setPattern}
+        onGroup={() => applyGrouping(groupSelected(rows, `manual:${crypto.randomUUID()}`))}
+        onApply={applyGrouping}
+      />
+      <p className="text-xs text-neutral-500">
+        Band counts and names are detected from each file during indexing. No need to enter them.
+      </p>
       {bulkError && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="whitespace-pre-line text-xs text-red-600">
           {bulkError}
         </p>
       )}
@@ -625,34 +696,112 @@ const SelectFiles = ({
             </tr>
           </thead>
           <tbody>
-            {discovered.data.objects.map((object) => {
-              const row = selected.get(object.path);
-              const p = object.path;
+            {[...visibleGroups].map(([key, objects]) => {
+              const groupRow = rows.get(objects[0].path);
+              const itemKey = groupRow?.itemKey;
               return (
-                <tr key={p} data-testid="cloud-object-row" className="border-t align-top">
-                  <td className="py-1">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        aria-label={p}
-                        checked={!!row}
-                        onChange={(e) => toggle(object, e.target.checked)}
-                      />
-                      <span className="font-mono">{p}</span>
-                    </label>
-                  </td>
-                  <td>{(object.size / 1e6).toFixed(1)} MB</td>
-                  <td className="space-y-1">
-                    {row && (
-                      <TimeFields
-                        path={p}
-                        time={row.time}
-                        onChange={(time) => update(p, (r) => ({ ...r, time }))}
-                      />
-                    )}
-                    {problems.get(p) && <p className="text-red-600">{problems.get(p)}</p>}
-                  </td>
-                </tr>
+                <Fragment key={key}>
+                  {itemKey && groupRow && (
+                    <tr className="border-t bg-neutral-50" data-testid="cloud-item-group">
+                      <td colSpan={2} className="py-2">
+                        <span className="font-medium">Grouped item</span>
+                        <span className="ml-2 text-neutral-500">
+                          {[...rows.values()].filter((row) => row.itemKey === itemKey).length}{' '}
+                          assets
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="quiet"
+                          onClick={() =>
+                            setRows(
+                              (previous) =>
+                                new Map(
+                                  [...previous].map(([path, row]) => [
+                                    path,
+                                    row.itemKey === itemKey ? { ...row, itemKey: undefined } : row,
+                                  ])
+                                )
+                            )
+                          }
+                        >
+                          Ungroup
+                        </Button>
+                      </td>
+                      <td className="py-2">
+                        <TimeFields
+                          path={key}
+                          time={groupRow.time}
+                          onChange={(time) => setTime(groupRow.object.path, time)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  {objects.map((object) => {
+                    const row = selected.get(object.path);
+                    const p = object.path;
+                    return (
+                      <tr key={p} data-testid="cloud-object-row" className="border-t align-top">
+                        <td className="py-1">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              aria-label={p}
+                              checked={!!row}
+                              onChange={(e) => toggle(object, e.target.checked)}
+                            />
+                            <span className="break-all font-mono" title={p}>
+                              {p.split('/').pop()}
+                            </span>
+                          </label>
+                          {row && (
+                            <details className="ml-5 mt-1 space-y-1 text-neutral-600">
+                              <summary className="cursor-pointer">
+                                {row.assetKey ?? 'data'} · Edit asset
+                              </summary>
+                              <Input
+                                size="sm"
+                                aria-label={`Asset name for ${p}`}
+                                value={row.assetKey ?? 'data'}
+                                onChange={(e) =>
+                                  update(p, (r) => ({ ...r, assetKey: e.target.value }))
+                                }
+                              />
+                              <details className="space-y-1">
+                                <summary className="cursor-pointer">
+                                  Rename bands (optional)
+                                </summary>
+                                <p>
+                                  Leave blank to use names from the file. To override them, enter
+                                  one name per band, in order, separated by commas.
+                                </p>
+                                <Input
+                                  size="sm"
+                                  aria-label={`Band names for ${p}`}
+                                  placeholder="e.g. red, green, blue"
+                                  value={row.bandNames ?? ''}
+                                  onChange={(e) =>
+                                    update(p, (r) => ({ ...r, bandNames: e.target.value }))
+                                  }
+                                />
+                              </details>
+                            </details>
+                          )}
+                        </td>
+                        <td>{(object.size / 1e6).toFixed(1)} MB</td>
+                        <td className="space-y-1">
+                          {row && !itemKey && (
+                            <TimeFields
+                              path={p}
+                              time={row.time}
+                              onChange={(time) => setTime(p, time)}
+                            />
+                          )}
+                          {problems.get(p) && <p className="text-red-600">{problems.get(p)}</p>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
               );
             })}
           </tbody>
@@ -690,6 +839,17 @@ const SelectFiles = ({
         </Button>
       </details>
       <ErrorText error={start.error} />
+      <p className="text-xs text-neutral-500">
+        {selected.size} files selected ·{' '}
+        {
+          new Set(
+            [...selected.values()].map((row) =>
+              row.itemKey ? `group:${row.itemKey}` : `file:${row.object.path}`
+            )
+          ).size
+        }{' '}
+        items to index
+      </p>
       <Button onClick={submit} disabled={selected.size === 0 || start.isPending}>
         Index selected
       </Button>
@@ -853,7 +1013,7 @@ const CatalogSettings = ({
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(collection.title);
   const [presets, setPresets] = useState<NamedVizParams[]>(() => catalogPresets(collection));
-  const managedAssets = useManagedAssets(presets);
+  const managedAssets = useManagedAssets(presets, collection.id);
   const [active, setActive] = useState(0);
   const [sas, setSas] = useState('');
   const save = useMutation({
@@ -907,20 +1067,43 @@ const CatalogSettings = ({
       <Field label="Catalog title">
         <Input size="sm" value={title} onChange={(e) => setTitle(e.target.value)} />
       </Field>
+      {collection.status !== 'ready' && !managedAssets.hasMetadata && (
+        <p className="text-xs text-neutral-500">
+          Index files first to see their detected bands and configure visualization presets.
+        </p>
+      )}
+      {managedAssets.hasMetadata && (
+        <div className="space-y-1 text-xs" aria-label="Detected bands">
+          <p className="font-medium text-neutral-700">Detected assets and bands</p>
+          {Object.entries(managedAssets.assets).map(([key, asset]) => (
+            <p key={key} className="break-words text-neutral-600">
+              <span className="font-medium">{key}</span>
+              {' · '}
+              {asset.bands?.length
+                ? `${asset.bands.length} ${asset.bands.length === 1 ? 'band' : 'bands'}: ${asset.bands.map((band) => band.name).join(', ')}`
+                : 'Band metadata unavailable'}
+            </p>
+          ))}
+        </div>
+      )}
       {presets.length === 0 ? (
         <Button
           size="sm"
           variant="secondary"
+          disabled={collection.status !== 'ready'}
           onClick={() => setPresets([{ name: 'True Color', vizParams: emptyVizParams() }])}
         >
           Add a visualization preset
         </Button>
       ) : (
         <>
-          <ManagedBandCountField
-            bandCount={managedAssets.bandCount}
-            onChange={managedAssets.setBandCount}
-          />
+          <ErrorText error={managedAssets.error} />
+          {managedAssets.legacy && (
+            <ManagedBandCountField
+              bandCount={managedAssets.bandCount}
+              onChange={managedAssets.setBandCount}
+            />
+          )}
           <VizTabs
             visualizations={presets}
             activeIndex={active}

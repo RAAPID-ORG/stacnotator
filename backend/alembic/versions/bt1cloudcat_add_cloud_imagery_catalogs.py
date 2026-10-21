@@ -41,6 +41,7 @@ def upgrade() -> None:
         sa.Column("interval", postgresql.JSONB(), nullable=True),
         sa.Column("item_count", sa.Integer(), nullable=True),
         sa.Column("visualizations", postgresql.JSONB(), nullable=False, server_default="[]"),
+        sa.Column("item_assets", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("created_at", TS, server_default=sa.func.now(), nullable=False),
         schema="data",
     )
@@ -83,6 +84,9 @@ def upgrade() -> None:
         sa.Column("start_datetime", TS, nullable=False),
         sa.Column("end_datetime", TS, nullable=False),
         sa.Column("item_id", sa.String(64), nullable=True),
+        sa.Column("item_key", sa.String(128), nullable=True),
+        sa.Column("asset_key", sa.String(128), nullable=False, server_default="data"),
+        sa.Column("band_names", postgresql.JSONB(), nullable=True),
         sa.UniqueConstraint("import_id", "path", name="cloud_imagery_files_path_uq"),
         schema="data",
     )

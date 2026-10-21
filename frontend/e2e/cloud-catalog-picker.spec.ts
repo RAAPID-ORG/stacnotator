@@ -28,6 +28,25 @@ test('cloud imagery lives under Custom (other) and returns there after browsing'
       },
     })
   );
+  await page.route('**/api/cloud-imagery/collections/11', (route) =>
+    route.fulfill({
+      json: {
+        id: 11,
+        title: 'Drone flights',
+        project_id: 7,
+        status: 'ready',
+        visualizations: [],
+        item_assets: {
+          data: {
+            title: 'GeoTIFF',
+            type: 'image/tiff',
+            roles: ['data'],
+            bands: [{ name: 'red' }, { name: 'green' }, { name: 'blue' }],
+          },
+        },
+      },
+    })
+  );
 
   await page.goto('/projects/7/campaigns/42/settings?tab=imagery');
   await page.getByRole('button', { name: 'Create source', exact: true }).click();

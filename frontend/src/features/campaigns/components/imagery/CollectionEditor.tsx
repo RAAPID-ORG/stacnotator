@@ -66,7 +66,7 @@ export const CollectionEditor = ({
     onChange({ data: { ...sb, ...updates } });
   };
   const managed = sb?.cloudCollectionId != null;
-  const managedAssets = useManagedAssets(sb?.visualizations ?? []);
+  const managedAssets = useManagedAssets(sb?.visualizations ?? [], sb?.cloudCollectionId);
   const availableAssets = managed ? managedAssets.assets : fetchedAssets;
 
   const hostedTilers = tilers.filter((t) => t.kind === 'hosted');
@@ -590,10 +590,17 @@ export const CollectionEditor = ({
                         Custom catalog <strong>#{sb.cloudCollectionId}</strong>. Its storage, access
                         and tiler are managed on the catalog itself and cannot be changed here.
                       </p>
-                      <ManagedBandCountField
-                        bandCount={managedAssets.bandCount}
-                        onChange={managedAssets.setBandCount}
-                      />
+                      {managedAssets.error && (
+                        <p role="alert" className="text-xs text-red-600">
+                          Could not load catalog band metadata.
+                        </p>
+                      )}
+                      {managedAssets.legacy && (
+                        <ManagedBandCountField
+                          bandCount={managedAssets.bandCount}
+                          onChange={managedAssets.setBandCount}
+                        />
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">

@@ -424,7 +424,7 @@ export const CatalogBrowser = ({
   ]);
   const [activeVizIndex, setActiveVizIndex] = useState(0);
   const [fetchedAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
-  const managedAssets = useManagedAssets(visualizations);
+  const managedAssets = useManagedAssets(visualizations, managedCatalog?.id);
   const availableAssets = managedCatalog ? managedAssets.assets : fetchedAssets;
 
   /** Refresh only the catalog metadata the band picker needs. Saved generator inputs
@@ -1454,7 +1454,12 @@ export const CatalogBrowser = ({
             {/* Configure step */}
             {step === 'configure' && !loading && (
               <div className="space-y-4">
-                {managedCatalog && (
+                {managedCatalog && managedAssets.error && (
+                  <p role="alert" className="text-xs text-red-600">
+                    Could not load catalog band metadata.
+                  </p>
+                )}
+                {managedCatalog && managedAssets.legacy && (
                   <div
                     className="text-[11px] text-neutral-700 bg-neutral-50 border border-neutral-200 rounded px-2.5 py-1.5"
                     data-testid="managed-catalog-identity"

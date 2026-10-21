@@ -2239,6 +2239,12 @@ export type CollectionOut = {
      * Asset Key
      */
     asset_key?: string;
+    /**
+     * Item Assets
+     */
+    item_assets?: {
+        [key: string]: AssetInfo;
+    };
 };
 
 /**
@@ -2669,6 +2675,18 @@ export type FileSelection = {
      * End Datetime
      */
     end_datetime?: string | null;
+    /**
+     * Item Key
+     */
+    item_key?: string | null;
+    /**
+     * Asset Key
+     */
+    asset_key?: string;
+    /**
+     * Band Names
+     */
+    band_names?: Array<string> | null;
 };
 
 /**

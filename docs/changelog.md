@@ -16,8 +16,19 @@ use compact inputs with an Interval checkbox. Optional filename date extraction
 starts collapsed, with a question-mark example.
 The catalog UI now says indexing rather than importing, with the shorter
 "Times are in UTC." hint in the Time column's question mark. Internal API names
-are unchanged. Band metadata and
-multi-asset items are not implemented yet; the current item has one `data` asset.
+are unchanged.
+
+Added manual asset grouping and asset-name/regex rules grouped by date, including
+full-month intervals for monthly filenames. Each group has a shared date and
+editable asset names. Grouping previews show matched files, dated items and
+unchanged files; not every file has to match. Band counts and embedded names are
+detected automatically during indexing and shown in catalog settings; optional
+renaming is tucked under file asset editing. The tiler records raster band metadata and returns it
+to the existing visualization editors. Whole-item batching preserves retry
+checkpoints. The original migration includes the new metadata/grouping columns;
+local catalogs were preserved with additive schema changes. Focused core, tiler,
+browser and unit checks pass; a real local pgstac check covers multi-asset metadata
+round trips. Actual Azure data indexing and rendered-tile acceptance remain open.
 
 ## 2026-10-20 - Catalog navigation simplification
 

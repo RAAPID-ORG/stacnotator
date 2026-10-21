@@ -42,6 +42,7 @@ class CloudImageryCollection(Base):
     interval: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     item_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     visualizations: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    item_assets: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
@@ -97,5 +98,8 @@ class CloudImageryFile(Base):
     start_datetime: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     end_datetime: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     item_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    item_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    asset_key: Mapped[str] = mapped_column(String(128), nullable=False, default="data")
+    band_names: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     run: Mapped[CloudImageryImport] = relationship(back_populates="files")

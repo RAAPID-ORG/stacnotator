@@ -107,6 +107,7 @@ def collection_out(row: CloudImageryCollection) -> CollectionOut:
         bbox=row.bbox,
         interval=row.interval,
         item_count=row.item_count,
+        item_assets=dict(row.item_assets or {}),
         import_id=row.run.id if row.run is not None else None,
     )
 
@@ -414,6 +415,9 @@ def start_import(db: Session, user: User, collection_id: int, payload: ImportCre
                 instant=selection.instant,
                 start_datetime=start,
                 end_datetime=end,
+                item_key=selection.item_key,
+                asset_key=selection.asset_key,
+                band_names=selection.band_names,
             )
         )
     return _launch(db, run, stale_cid)
@@ -484,6 +488,46 @@ class _Pending:
     start: datetime
     end: datetime
     item_id: str | None
+    item_key: str | None = None
+    asset_key: str = "data"
+    band_names: list[str] | None = None
+
+    @property
+    def group(self) -> tuple[str, str]:
+        return ("item", self.item_key) if self.item_key is not None else ("path", self.path)
+
+
+def _groups(files: list[_Pending]) -> list[list[_Pending]]:
+    """The files of each STAC item, in selection order; an ungrouped file is its own item."""
+    groups: dict[tuple[str, str], list[_Pending]] = {}
+    for f in files:
+        groups.setdefault(f.group, []).append(f)
+    return list(groups.values())
+
+
+def _batches(groups: list[list[_Pending]], size: int) -> list[list[list[_Pending]]]:
+    """Whole items packed up to ``size`` assets per batch; an item is never split."""
+    batches: list[list[list[_Pending]]] = []
+    count = size
+    for group in groups:
+        if count + len(group) > size:
+            batches.append([])
+            count = 0
+        batches[-1].append(group)
+        count += len(group)
+    return batches
+
+
+def _asset_info(key: str, asset: dict) -> dict:
+    return {
+        "title": asset.get("title") or key,
+        "type": asset.get("type") or "image/tiff; application=geotiff",
+        "roles": list(asset.get("roles") or []),
+        "bands": [
+            {"name": b.get("name") or f"Band {i}", "description": b.get("description")}
+            for i, b in enumerate(asset.get("eo:bands") or [], start=1)
+        ],
+    }
 
 
 def _iso(value: datetime) -> str:
@@ -521,25 +565,49 @@ def _import_work(
     container_url, collection_id = row.container_url, row.id
     access = storage_access.stored(row)
     files = [
-        _Pending(f.id, f.path, f.etag, f.instant, f.start_datetime, f.end_datetime, f.item_id)
+        _Pending(
+            f.id,
+            f.path,
+            f.etag,
+            f.instant,
+            f.start_datetime,
+            f.end_datetime,
+            f.item_id,
+            f.item_key,
+            f.asset_key or "data",
+            f.band_names,
+        )
         for f in run.files
     ]
     db.commit()
     if access is None:
         return [{"code": "no_access", "path": None, "message": "The storage access is missing"}]
     try:
-        limit = int(catalogs.capabilities(tiler).get("max_batch_items", 100))
-        batch_size = max(1, min(get_settings().CLOUD_IMPORT_BATCH_SIZE, limit))
+        capabilities = catalogs.capabilities(tiler)
+        limit = int(capabilities.get("max_batch_items", 100))
+        asset_limit = int(capabilities.get("max_batch_assets", limit))
+        batch_size = max(1, min(get_settings().CLOUD_IMPORT_BATCH_SIZE, limit, asset_limit))
         problems = _check_objects(container_url, access.secret, files)
         if problems:
             return problems
         sealed = storage_access.seal_for_tiler(access, container_url)
-        pending = [f for f in files if f.item_id is None]
-        item_ids = {f.file_id: f.item_id for f in files if f.item_id is not None}
-        for start in range(0, len(pending), batch_size):
-            batch = pending[start : start + batch_size]
+        # A partly indexed item is sent whole again; its deterministic id stays the same.
+        groups = _groups(files)
+        if any(len(group) > asset_limit for group in groups):
+            raise catalogs.CatalogError(
+                f"An item exceeds the tiler's limit of {asset_limit} assets per batch"
+            )
+        pending = [g for g in groups if any(f.item_id is None for f in g)]
+        item_ids = {
+            f.file_id: f.item_id
+            for g in groups
+            if all(f.item_id is not None for f in g)
+            for f in g
+            if f.item_id is not None
+        }
+        for batch in _batches(pending, batch_size):
             returned = _send_batch(tiler, cid, title, container_url, sealed, batch)
-            for f in batch:
+            for f in (f for g in batch for f in g):
                 if not _fenced(
                     db,
                     update(CloudImageryFile)
@@ -550,14 +618,17 @@ def _import_work(
                 ):
                     return []
             item_ids.update(returned)
-        summary = catalogs.verify(tiler, cid, sorted(item_ids.values()), title)
+        unique_ids = sorted(set(item_ids.values()))
+        if len(unique_ids) != len(groups):
+            raise catalogs.CatalogError("The tiler did not return a distinct id for each item")
+        summary = catalogs.verify(tiler, cid, unique_ids, title)
     except catalogs.ObjectRejected as exc:
         originals = {_href(container_url, f.path): f.path for f in files}
         path = originals.get(exc.href or "")
         return [{"code": exc.code, "path": path, "message": str(exc) or "Unusable object"}]
     except catalogs.CatalogError as exc:
         return [{"code": "tiler_error", "path": None, "message": str(exc)}]
-    if summary.get("item_count") != len(item_ids):
+    if summary.get("item_count") != len(unique_ids):
         return [
             {
                 "code": "verification_failed",
@@ -573,6 +644,10 @@ def _import_work(
             bbox=summary.get("bbox"),
             interval=summary.get("interval"),
             item_count=summary["item_count"],
+            item_assets={
+                key: _asset_info(key, asset)
+                for key, asset in (summary.get("item_assets") or {}).items()
+            },
         ),
         run_id,
         attempt,
@@ -634,17 +709,30 @@ def _href(container_url: str, path: str) -> str:
 
 
 def _send_batch(
-    tiler: str, cid: str, title: str, container_url: str, sealed: dict, batch: list[_Pending]
+    tiler: str,
+    cid: str,
+    title: str,
+    container_url: str,
+    sealed: dict,
+    batch: list[list[_Pending]],
 ) -> dict[int, str]:
-    by_href = {_href(container_url, f.path): f for f in batch}
+    group_of = {_href(container_url, f.path): i for i, g in enumerate(batch) for f in g}
     items = []
-    for href, f in by_href.items():
-        if f.instant:
-            items.append({"href": href, "datetime": _iso(f.start)})
+    for group in batch:
+        first = group[0]
+        if first.instant:
+            item: dict = {"datetime": _iso(first.start)}
         else:
-            items.append(
-                {"href": href, "start_datetime": _iso(f.start), "end_datetime": _iso(f.end)}
-            )
+            item = {"start_datetime": _iso(first.start), "end_datetime": _iso(first.end)}
+        if first.item_key is None and first.asset_key == "data" and first.band_names is None:
+            item = {"href": _href(container_url, first.path), **item}
+        else:
+            assets = {
+                f.asset_key: {"href": _href(container_url, f.path), "band_names": f.band_names}
+                for f in group
+            }
+            item = {"assets": assets, **item}
+        items.append(item)
     body = {
         "title": title,
         "container_url": container_url,
@@ -653,11 +741,35 @@ def _send_batch(
     }
     returned = catalogs.put_batch(tiler, cid, body)
     ids: dict[int, str] = {}
+    answered: set[int] = set()
+    returned_ids: set[str] = set()
     for item in returned:
-        sent = by_href.get(item.get("href", ""))
-        if sent is None or sent.file_id in ids or not item.get("id"):
+        response_assets = item.get("assets")
+        hrefs = (
+            [a.get("href") if isinstance(a, dict) else a for a in response_assets.values()]
+            if isinstance(response_assets, dict)
+            else [item.get("href")]
+        )
+        index = group_of.get(hrefs[0]) if hrefs and isinstance(hrefs[0], str) else None
+        if (
+            not isinstance(item.get("id"), str)
+            or not item["id"]
+            or item["id"] in returned_ids
+            or index is None
+            or index in answered
+            or any(not isinstance(h, str) or group_of.get(h) != index for h in hrefs)
+            or len(set(hrefs)) != len(hrefs)
+            or len(hrefs) != len(batch[index])
+        ):
             raise catalogs.CatalogError("The tiler answered a batch with unexpected items")
-        ids[sent.file_id] = str(item["id"])
-    if len(ids) != len(batch):
+        if isinstance(response_assets, dict):
+            expected = {f.asset_key: _href(container_url, f.path) for f in batch[index]}
+            if dict(zip(response_assets, hrefs, strict=True)) != expected:
+                raise catalogs.CatalogError("The tiler answered a batch with unexpected assets")
+        answered.add(index)
+        returned_ids.add(item["id"])
+        for f in batch[index]:
+            ids[f.file_id] = str(item["id"])
+    if len(answered) != len(batch):
         raise catalogs.CatalogError("The tiler did not register every object in a batch")
     return ids
