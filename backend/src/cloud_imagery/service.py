@@ -37,6 +37,7 @@ from src.config import get_settings
 from src.imagery.models import CollectionStacConfig
 from src.organizations.models import OrganizationTiler
 from src.projects.dependencies import assert_project_admin
+from src.projects.models import Project
 from src.storage_access import Held
 from src.tilers import catalogs, registry
 
@@ -334,6 +335,16 @@ def resolve_managed_collection(db: Session, project_id: int, collection_id: int)
     row = db.get(CloudImageryCollection, collection_id)
     if row is None or row.project_id != project_id:
         raise _not_found()
+    allowed = db.scalar(
+        select(OrganizationTiler.tiler_name)
+        .join(Project, Project.organization_id == OrganizationTiler.organization_id)
+        .where(Project.id == project_id, OrganizationTiler.tiler_name == row.tiler)
+    )
+    if allowed is None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"Your organization is not authorized to use tiler '{row.tiler}'",
+        )
     access, held = storage_access.stored(row), storage_access.held(row)
     if _status(row) != "ready" or access is None or held is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "This cloud imagery collection is not ready")

@@ -754,6 +754,24 @@ def test_managed_reference_resolves_only_ready_catalogs_of_the_same_project(worl
         db.close()
 
 
+def test_managed_reference_rejects_a_revoked_tiler_grant(world):
+    from src.cloud_imagery.service import resolve_managed_collection
+
+    catalog_id = _ready_collection(world, world["p1"])
+    db = SessionLocal()
+    try:
+        db.delete(db.get(OrganizationTiler, (world["org"], "hosted")))
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc:
+            resolve_managed_collection(db, world["p1"], catalog_id)
+
+        assert exc.value.status_code == 403
+        assert "hosted" in exc.value.detail
+    finally:
+        db.close()
+
+
 # ── management listing: drafts on revisit, picker stays ready-only ───────────────
 # Additive contract: GET /collections?project_id=P&include_drafts=true lists every catalog
 # of that project (draft, importing, failed, ready) to its admins and platform admins.
