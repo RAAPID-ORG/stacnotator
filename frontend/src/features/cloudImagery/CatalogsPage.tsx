@@ -122,8 +122,7 @@ export const CatalogsSection = ({ projectId }: { projectId: number }) => {
             Imagery catalogs
           </h2>
           <p className="section-description">
-            Your own GeoTIFFs in Azure storage, imported once and offered to every campaign in this
-            project.
+            Your own GeoTIFFs for use in this project.
           </p>
         </div>
         {!creating && (
@@ -161,7 +160,7 @@ export const CatalogsSection = ({ projectId }: { projectId: number }) => {
           <div className="rounded-lg border border-dashed border-neutral-200 px-4 py-8 text-center">
             <p className="text-sm text-neutral-600">No catalogs in this project yet.</p>
             <p className="mt-1 text-xs text-neutral-500">
-              Choose New catalog to connect an Azure container and import its GeoTIFFs.
+              Choose New catalog to connect to cloudstorage and import GeoTIFFs.
             </p>
           </div>
         ) : (
