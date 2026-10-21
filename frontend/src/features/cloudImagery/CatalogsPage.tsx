@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CollectionOut, DiscoveredObject, ImportOut } from '~/api/client';
 import {
@@ -85,7 +85,12 @@ export const CatalogsPage = () => {
 };
 
 export const CatalogsSection = ({ projectId }: { projectId: number }) => {
+  const sectionRef = useRef<HTMLElement>(null);
+  const { hash } = useLocation();
   const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (hash === '#imagery') sectionRef.current?.scrollIntoView({ block: 'start' });
+  }, [hash]);
   const selected = Number(params.get('catalog'));
   const activeId = Number.isInteger(selected) && selected > 0 ? selected : null;
   const setActiveId = (id: number | null) =>
@@ -105,7 +110,12 @@ export const CatalogsSection = ({ projectId }: { projectId: number }) => {
   });
 
   return (
-    <section className="space-y-5" aria-labelledby="imagery-catalogs-heading">
+    <section
+      id="imagery"
+      ref={sectionRef}
+      className="scroll-mt-6 space-y-5"
+      aria-labelledby="imagery-catalogs-heading"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 max-w-2xl">
           <h2 id="imagery-catalogs-heading" className="section-heading">

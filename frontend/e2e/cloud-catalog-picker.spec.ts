@@ -4,6 +4,7 @@ import { MOCK_CAMPAIGN } from './fixtures/mock-data';
 test('cloud imagery lives under Custom (other) and returns there after browsing', async ({
   appPage: page,
 }) => {
+  await page.setViewportSize({ width: 1280, height: 640 });
   await page.route(/\/api\/campaigns\/\d+(\/detailed)?(\?.*)?$/, (route) =>
     route.fulfill({ json: { ...MOCK_CAMPAIGN, viewer_is_admin: true } })
   );
@@ -34,9 +35,10 @@ test('cloud imagery lives under Custom (other) and returns there after browsing'
   await page.getByRole('button', { name: /Custom \(other\)/ }).click();
   const cloudSection = page.getByTestId('custom-catalogs');
   await expect(cloudSection).toContainText('No - I have my own imagery in cloud storage');
-  await expect(cloudSection.getByRole('link', { name: 'Manage catalogs' })).toHaveAttribute(
+  await expect(cloudSection.getByRole('button', { name: 'Refresh' })).toHaveCount(0);
+  await expect(cloudSection.getByRole('link', { name: 'Manage', exact: true })).toHaveAttribute(
     'href',
-    '/projects/7?tab=settings'
+    '/projects/7?tab=settings#imagery'
   );
   await cloudSection.getByRole('button', { name: /Drone flights/ }).click();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -45,4 +47,11 @@ test('cloud imagery lives under Custom (other) and returns there after browsing'
     page.getByRole('button', { name: /Yes - my imagery is in a STAC catalog/ })
   ).toBeVisible();
   await expect(page.getByRole('button', { name: /No - I have raw XYZ tile URLs/ })).toBeVisible();
+  await cloudSection.getByRole('link', { name: 'Manage', exact: true }).click();
+  await expect(page).toHaveURL(/\/projects\/7\?tab=settings#imagery$/);
+  await expect(page.getByRole('heading', { name: 'Imagery catalogs', exact: true })).toBeInViewport(
+    {
+      ratio: 1,
+    }
+  );
 });

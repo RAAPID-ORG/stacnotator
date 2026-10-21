@@ -7,6 +7,8 @@ use project-admin permissions and a required project ID. The original unreleased
 migration now creates project-only catalogs; the tiler contract is unchanged.
 Moved the campaign cloud-catalog picker under Custom (other), alongside STAC and
 XYZ choices. A focused browser case covers the new section and return navigation.
+The cloud imagery card now has one top-right Manage button, which opens and scrolls
+to project imagery settings; removed the Refresh action and repeated instructions.
 
 ## 2026-10-20 - Catalog navigation simplification
 

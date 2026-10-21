@@ -21,7 +21,8 @@ and regenerate/rebuild the frontend when deploying these changes.
 
 Open **Settings > Imagery catalogs** in a project. Catalogs belong to that project;
 organization-wide catalogs are not supported. Existing project `/catalogs` links
-redirect to Settings.
+redirect to Settings. The imagery wizard's **Manage** button opens this section
+in the same tab and scrolls to it.
 
 1. Create a catalog with its title, Azure container URL, optional path prefix,
    hosted tiler, and a container SAS granting read and list access.

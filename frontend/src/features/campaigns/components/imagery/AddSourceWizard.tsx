@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { CollectionOut } from '~/api/client';
 import { listCollectionsOptions } from '~/api/queries';
 import { Modal } from '~/shared/ui/Modal';
-import { Input, Button } from '~/shared/ui/forms';
+import { Input, Button, buttonClass } from '~/shared/ui/forms';
 import { IconStac, IconChevronRight } from '~/shared/ui/Icons';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
@@ -300,8 +301,7 @@ const toManagedCatalog = (c: CollectionOut): ManagedCatalog => ({
   visualizations: catalogPresets(c),
 });
 
-/** The project's ready cloud catalogs; picking one copies its presets
- *  into the campaign. New catalogs are made under the project's Settings tab in another tab. */
+/** The project's ready cloud catalogs; picking one copies its presets into the campaign. */
 const CustomCatalogs = ({
   projectId,
   onPick,
@@ -309,8 +309,9 @@ const CustomCatalogs = ({
   projectId: number;
   onPick: (catalog: ManagedCatalog) => void;
 }) => {
-  const { data, error, refetch, isFetching } = useQuery({
+  const { data, error } = useQuery({
     ...listCollectionsOptions({ query: { project_id: projectId } }),
+    staleTime: 0,
     select: (response) => {
       if (!Array.isArray(response.items)) {
         throw new Error('The catalog service returned an invalid collection list.');
@@ -325,29 +326,16 @@ const CustomCatalogs = ({
       className="space-y-3 rounded-lg border border-neutral-200 px-4 py-3.5"
       data-testid="custom-catalogs"
     >
-      <p className="text-sm font-medium text-neutral-900">
-        No - I have my own imagery in cloud storage
-      </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-xs text-neutral-500">
-          Import GeoTIFFs from Azure storage, or choose a catalog below.
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-neutral-900">
+          No - I have my own imagery in cloud storage
         </p>
-        <a
-          href={`/projects/${projectId}?tab=settings`}
-          target="_blank"
-          rel="noreferrer"
-          className="ml-auto text-[11px] text-brand-700 hover:underline"
+        <Link
+          to={`/projects/${projectId}?tab=settings#imagery`}
+          className={buttonClass('secondary', 'shrink-0')}
         >
-          Manage catalogs
-        </a>
-        <button
-          type="button"
-          disabled={isFetching}
-          onClick={() => void refetch()}
-          className="text-[11px] text-neutral-600 hover:underline disabled:opacity-50"
-        >
-          Refresh
-        </button>
+          Manage
+        </Link>
       </div>
       {error && (
         <p role="alert" className="text-xs text-red-600">
@@ -355,9 +343,7 @@ const CustomCatalogs = ({
         </p>
       )}
       {data && catalogs.length === 0 && (
-        <p className="text-xs text-neutral-500">
-          No ready custom catalogs. Import your own GeoTIFFs under Manage catalogs, then refresh.
-        </p>
+        <p className="text-xs text-neutral-500">No imagery imported yet.</p>
       )}
       {catalogs.map((c) => (
         <button
