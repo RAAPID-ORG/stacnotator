@@ -612,7 +612,16 @@ const SelectFiles = ({
             <tr className="text-left text-neutral-500">
               <th className="py-1">File</th>
               <th>Size</th>
-              <th>Time</th>
+              <th>
+                <span className="inline-flex items-center gap-1">
+                  Time
+                  <Tooltip text="Times are in UTC.">
+                    <button type="button" aria-label="Time zone" className="text-neutral-500">
+                      <IconQuestion />
+                    </button>
+                  </Tooltip>
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -680,7 +689,6 @@ const SelectFiles = ({
           Apply CSV
         </Button>
       </details>
-      <p className="text-xs text-neutral-500">Times are in UTC.</p>
       <ErrorText error={start.error} />
       <Button onClick={submit} disabled={selected.size === 0 || start.isPending}>
         Index selected

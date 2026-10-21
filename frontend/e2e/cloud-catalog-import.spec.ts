@@ -68,6 +68,8 @@ test('draft catalog: select files, apply matching dates, and delete', async ({ a
   const nonmatching = page.getByRole('checkbox', { name: other, exact: true });
   await expect(matching).toBeChecked();
   await expect(nonmatching).toBeChecked();
+  await expect(page.getByText('Times are in UTC.', { exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Time zone', exact: true }).hover();
   await expect(page.getByText('Times are in UTC.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Unselect all' }).click();
   await expect(matching).not.toBeChecked();
