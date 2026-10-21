@@ -2,6 +2,14 @@
 
 ## 2026-10-21 - Project-only catalogs
 
+Catalog setup now has four numbered sections: connect storage, select files and dates,
+index files, and configure display. Distinct headers separate the steps; opening a catalog
+scrolls to its row. **Edit** replaces **Open** and expands setup directly below
+that catalog, with a **Close** toggle. Indexing has a progress bar and its own action section.
+Catalog title and SAS edits live in step 1; step 4 contains detected bands and visualization
+presets only. Both forms show saving/saved feedback, clear it on edits, and send only their
+own fields so a visualization save cannot overwrite catalog details.
+
 UI follow-up: **Set asset names in bulk** replaces manual grouping, directly below
 date extraction. Rules only change names and show live match counts beside each
 pattern. A compact toolbar provides **+**, matching-only selection, and inline

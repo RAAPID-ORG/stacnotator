@@ -24,9 +24,15 @@ organization-wide catalogs are not supported. Existing project `/catalogs` links
 redirect to Settings. The imagery wizard's small top-right **Manage** link opens this section
 in the same tab and scrolls to it.
 
-1. Create a catalog with its title, Azure container URL, optional path prefix,
-   hosted tiler, and a container SAS granting read and list access.
-2. Discovered files start selected. Use the **File** header checkbox for all files
+Choose **Edit** on a catalog to expand its setup directly beneath that row;
+**Close** collapses it. Setup uses four numbered sections with separate headers
+and actions. Opening or creating a catalog scrolls its row into view.
+
+1. **Connect storage.** Create a catalog with its title, Azure container URL, optional path prefix,
+   hosted tiler, and a container SAS granting read and list access. Later, **Edit catalog**
+   in this section changes the title or replaces the SAS token; **Catalog saved.**
+   confirms a successful save.
+2. **Select files and dates.** Discovered files start selected. Use the **File** header checkbox for all files
    listed so far. Enter a date per file; check **Interval** beside it for start/end
    dates in compact side-by-side fields. Asset names are editable in their own
    column. Alternatively, expand **Extract dates from filenames (optional)** above
@@ -34,10 +40,16 @@ in the same tab and scrolls to it.
    entries only** and click **Apply** to select matching paths and unselect the
    rest. The upload icon in the **Date** header opens a popup for uploading or
    pasting CSV dates.
-3. Choose **Index selected**. The page shows progress and file-specific failures;
+3. **Index files.** Check the selected-file and item counts, then choose **Index selected**.
+   The page shows a progress bar and file-specific failures;
    navigation away does not stop indexing. Reopen the catalog to see its run.
-4. Once ready, open **Custom (other)** in the campaign imagery wizard and select
-   the catalog under **No - I have my own imagery in cloud storage**.
+4. **Configure display.** After indexing, review detected bands and optionally add visualization
+   presets. **Save changes** shows **Saving…**, then **Visualization settings saved.**
+   after success; editing again clears that confirmation. Storage access is edited in step 1,
+   not alongside visualization settings.
+
+To use a ready catalog, open **Custom (other)** in the campaign imagery wizard and select
+it under **No - I have my own imagery in cloud storage**.
 
 Selected files with the same date or identical start/end dates automatically
 become assets of one item. Enter dates as `YYYY-MM-DD`, or check **Interval** and

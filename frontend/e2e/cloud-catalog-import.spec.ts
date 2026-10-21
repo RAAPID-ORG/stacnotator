@@ -101,7 +101,10 @@ test('bulk-name assets and group identical date intervals automatically', async 
     route.fulfill({ json: { ...IMPORT, status: 'ready', total: 5, completed: 5 } })
   );
   await page.goto(`/projects/${MOCK_PROJECT.id}/catalogs`);
-  await page.getByTestId('cloud-catalog-row').getByRole('button', { name: 'Open' }).click();
+  await page
+    .getByTestId('cloud-catalog-row')
+    .getByRole('button', { name: 'Edit', exact: true })
+    .click();
   await expect(page.getByTestId('cloud-object-row')).toHaveCount(5);
   await page.getByText('Set asset names in bulk (optional)', { exact: true }).click();
   await page.getByLabel('Asset name rule 1').fill('reflectance');
@@ -141,7 +144,9 @@ test('bulk-name assets and group identical date intervals automatically', async 
     end_datetime: '2025-01-31T23:59:59.999999Z',
   });
   expect(indexed.every((file) => file.band_names === undefined)).toBe(true);
-  await page.getByText('Catalog settings', { exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Visualization presets', exact: true })
+  ).toBeVisible();
   await expect(page.getByLabel('Detected bands')).toContainText(
     'reflectance · 3 bands: red, green, blue'
   );
@@ -184,7 +189,10 @@ test('draft catalog: select files, apply matching dates, and delete', async ({ a
     })
   );
   await page.goto(`/projects/${MOCK_PROJECT.id}/catalogs`);
-  await page.getByTestId('cloud-catalog-row').getByRole('button', { name: 'Open' }).click();
+  await page
+    .getByTestId('cloud-catalog-row')
+    .getByRole('button', { name: 'Edit', exact: true })
+    .click();
   const matching = page.getByRole('checkbox', { name: dated, exact: true });
   const nonmatching = page.getByRole('checkbox', { name: other, exact: true });
   await expect(matching).toBeChecked();
@@ -296,7 +304,7 @@ test('create catalog, import with explicit times, see failure, retry to ready', 
   let importState: Record<string, unknown> = IMPORT;
 
   await page.route(/\/api\/cloud-imagery\/collections\?/, (route) =>
-    route.fulfill({ json: { items: [] } })
+    route.fulfill({ json: { items: bodies.collection ? [COLLECTION] : [] } })
   );
   await page.route('**/api/cloud-imagery/collections', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
@@ -408,6 +416,7 @@ const mockFirstImport = async (
   outcome: { status: 'ready' | 'failed'; collection: 'ready' | 'failed'; errors?: unknown[] }
 ) => {
   let catalogStatus = 'draft';
+  let created = false;
   let polls = 0;
   const collection = () => ({
     ...COLLECTION,
@@ -442,13 +451,13 @@ const mockFirstImport = async (
     })
   );
   await page.route(/\/api\/cloud-imagery\/collections\?/, (route) =>
-    route.fulfill({ json: { items: catalogStatus === 'draft' ? [] : [collection()] } })
+    route.fulfill({ json: { items: created ? [collection()] : [] } })
   );
-  await page.route('**/api/cloud-imagery/collections', (route) =>
-    route.request().method() === 'POST'
-      ? route.fulfill({ status: 201, json: collection() })
-      : route.fallback()
-  );
+  await page.route('**/api/cloud-imagery/collections', (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    created = true;
+    return route.fulfill({ status: 201, json: collection() });
+  });
   await page.route(`**/api/cloud-imagery/collections/${COLLECTION.id}`, (route) =>
     route.fulfill({ json: collection() })
   );
@@ -485,10 +494,12 @@ test('a first import that finishes while polling shows the catalog Ready everywh
   await mockFirstImport(page, { status: 'ready', collection: 'ready' });
 
   await expect(page.getByTestId('cloud-import-status')).toHaveText(/Ready/, { timeout: 15_000 });
-  const row = page.getByTestId('cloud-catalog-row').filter({ hasText: 'Drone flights' });
+  const row = page.getByTestId('cloud-catalog-summary').filter({ hasText: 'Drone flights' });
   await expect(row).toContainText('Ready');
   await expect(row).not.toContainText('Indexing');
-  await expect(page.getByText('Catalog settings')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Visualization presets', exact: true })
+  ).toBeVisible();
 });
 
 test('a first import that fails while polling offers the repair settings without a retry', async ({
@@ -501,10 +512,11 @@ test('a first import that fails while polling offers the repair settings without
   });
 
   await expect(page.getByTestId('cloud-import-status')).toHaveText(/Failed/, { timeout: 15_000 });
-  const row = page.getByTestId('cloud-catalog-row').filter({ hasText: 'Drone flights' });
+  const row = page.getByTestId('cloud-catalog-summary').filter({ hasText: 'Drone flights' });
   await expect(row).toContainText('Indexing failed');
   await expect(row.getByText('Indexing', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Catalog settings')).toBeVisible();
-  await expect(page.getByText(/replace the SAS token below/)).toBeVisible();
+  await page.getByRole('button', { name: 'Edit catalog', exact: true }).click();
+  await expect(page.getByLabel('SAS token', { exact: true })).toBeVisible();
+  await expect(page.getByText(/replace the SAS token, save/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Retry indexing' })).toHaveCount(0);
 });
