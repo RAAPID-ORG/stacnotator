@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type OrganizationDirectoryEntry } from '~/api/client';
 import {
@@ -30,13 +31,14 @@ const RequestForm = ({
   onCancel: () => void;
   onSent: () => void;
 }) => {
+  const { t } = useTranslation(['organizations', 'common']);
   const queryClient = useQueryClient();
   const refreshMine = useRefreshOrganizations();
   const [note, setNote] = useState('');
 
   const request = useMutation({
     ...requestOrganizationAccessMutation(),
-    meta: { errorMessage: 'Failed to send access request' },
+    meta: { errorMessage: t('browse.requestFailed') },
     // The row's own badge comes from the directory; an approved request turns
     // into a membership, so the sidebar's list of "my organizations" moves too.
     onSuccess: () => {
@@ -55,22 +57,22 @@ const RequestForm = ({
 
   return (
     <div className="mt-3 space-y-3 max-w-xl">
-      <Field label="Why do you need access?" htmlFor={`org-request-note-${org.id}`}>
+      <Field label={t('browse.noteLabel')} htmlFor={`org-request-note-${org.id}`}>
         <Textarea
           id={`org-request-note-${org.id}`}
           data-testid="access-request-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Optional - who you are and what you plan to work on."
+          placeholder={t('browse.notePlaceholder')}
           disabled={sending}
         />
       </Field>
       <div className="flex gap-2">
         <Button onClick={send} disabled={sending} data-testid="send-access-request">
-          {sending ? 'Sending…' : 'Send request'}
+          {sending ? t('browse.sending') : t('browse.sendRequest')}
         </Button>
         <Button variant="secondary" onClick={onCancel} disabled={sending}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
       </div>
     </div>
@@ -78,6 +80,7 @@ const RequestForm = ({
 };
 
 const OrganizationRow = ({ org }: { org: OrganizationDirectoryEntry }) => {
+  const { t } = useTranslation('organizations');
   const [requesting, setRequesting] = useState(false);
 
   return (
@@ -92,13 +95,13 @@ const OrganizationRow = ({ org }: { org: OrganizationDirectoryEntry }) => {
             to={organizationPath(org.id)}
             className="text-[11px] font-medium text-brand-700 hover:underline shrink-0"
           >
-            <Badge tone="green">Member</Badge>
+            <Badge tone="green">{t('browse.member')}</Badge>
           </Link>
         ) : org.membership === 'pending' ? (
-          <Badge tone="yellow">Requested</Badge>
+          <Badge tone="yellow">{t('browse.requested')}</Badge>
         ) : requesting ? null : (
           <Button size="sm" variant="secondary" onClick={() => setRequesting(true)}>
-            Request access
+            {t('browse.requestAccess')}
           </Button>
         )}
       </div>
@@ -114,6 +117,7 @@ const OrganizationRow = ({ org }: { org: OrganizationDirectoryEntry }) => {
 };
 
 export const BrowseOrganizationsPage = () => {
+  const { t } = useTranslation('organizations');
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
 
   const {
@@ -122,30 +126,26 @@ export const BrowseOrganizationsPage = () => {
     error,
   } = useQuery({
     ...listOrganizationDirectoryOptions(),
-    meta: { errorMessage: 'Failed to load organizations', showUser: false },
+    meta: { errorMessage: t('loadFailed'), showUser: false },
   });
   const items = data?.items ?? NO_ORGS;
 
   useEffect(() => {
-    setBreadcrumbs([{ label: 'Organizations' }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([{ label: t('browse.breadcrumb') }]);
+  }, [setBreadcrumbs, t]);
 
   return (
     <div className="flex-1 overflow-auto">
       <FadeIn className="page space-y-4">
         <header className="page-header">
           <div>
-            <h1 className="page-title">Organizations</h1>
-            <p className="page-subtitle">
-              Every organization on the platform. Ask an admin for access to the one you work with.
-            </p>
+            <h1 className="page-title">{t('browse.title')}</h1>
+            <p className="page-subtitle">{t('browse.subtitle')}</p>
           </div>
         </header>
 
         {error && (
-          <p className="text-sm text-red-600">
-            {extractErrorMessage(error, 'Failed to load organizations')}
-          </p>
+          <p className="text-sm text-red-600">{extractErrorMessage(error, t('loadFailed'))}</p>
         )}
 
         {loading ? (
@@ -156,7 +156,7 @@ export const BrowseOrganizationsPage = () => {
             </div>
           </Delayed>
         ) : items.length === 0 ? (
-          <p className="text-sm text-neutral-500">No organizations yet.</p>
+          <p className="text-sm text-neutral-500">{t('browse.empty')}</p>
         ) : (
           <ul
             className="divide-y divide-neutral-100 border border-neutral-200 rounded-xl bg-white"

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   newOrganizationPath,
   organizationPath,
@@ -22,6 +23,7 @@ const menuItemClass =
   'transition-colors hover:bg-neutral-100 focus:outline-none focus-visible:bg-neutral-100';
 
 export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
+  const { t } = useTranslation('organizations');
   const navigate = useNavigate();
   const { orgs, loading } = useOrganizations();
   const isPlatformAdmin = useAccountStore((s) => s.account?.is_admin ?? false);
@@ -110,7 +112,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
   return (
     <div className="px-3 py-2.5 border-t border-neutral-200">
       <span className="block text-[10px] font-medium text-neutral-400 uppercase tracking-wider mb-1">
-        Organization
+        {t('switcher.label')}
       </span>
       {loading ? (
         <div className="h-8 rounded-md bg-neutral-100 animate-pulse" />
@@ -121,7 +123,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
               ref={triggerRef}
               type="button"
               data-testid="org-switcher"
-              aria-label="Active organization"
+              aria-label={t('switcher.activeOrganization')}
               aria-haspopup="menu"
               aria-expanded={open}
               onClick={() => setOpen((v) => !v)}
@@ -138,9 +140,11 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                 className="flex-1 min-w-0 truncate text-left font-medium"
                 title={activeOrg?.name}
               >
-                {activeOrg?.name ?? 'No organization'}
+                {activeOrg?.name ?? t('switcher.noOrganization')}
               </span>
-              {activeOrg?.status === 'pending' && <Badge tone="yellow">Pending</Badge>}
+              {activeOrg?.status === 'pending' && (
+                <Badge tone="yellow">{t('switcher.pending')}</Badge>
+              )}
               <IconChevronDown
                 className={`w-3.5 h-3.5 text-neutral-400 shrink-0 transition-transform ${
                   open ? 'rotate-180' : ''
@@ -157,10 +161,10 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                 }}
                 className="flex w-fit items-center gap-1.5 px-2 text-[10px] text-neutral-400 rounded transition-colors hover:text-neutral-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
               >
-                Manage organization
+                {t('switcher.manage')}
                 <CountBadge
                   count={activeOrg.pending_access_requests ?? 0}
-                  label="access requests"
+                  label={t('switcher.accessRequests')}
                 />
               </Link>
             )}
@@ -170,7 +174,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
             <div
               ref={menuRef}
               role="menu"
-              aria-label="Switch organization"
+              aria-label={t('switcher.switchOrganization')}
               onKeyDown={handleMenuKeyDown}
               className="absolute bottom-full left-0 mb-1 w-56 p-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-50"
             >
@@ -184,7 +188,9 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                 <span className="w-3.5 shrink-0">
                   {activeOrgId === null && <IconCheck className="w-3.5 h-3.5 text-brand-600" />}
                 </span>
-                <span className="flex-1 min-w-0 truncate text-neutral-500">No organization</span>
+                <span className="flex-1 min-w-0 truncate text-neutral-500">
+                  {t('switcher.noOrganization')}
+                </span>
               </button>
               {orgs.map((org) => (
                 <button
@@ -206,8 +212,11 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                   >
                     {org.name}
                   </span>
-                  <CountBadge count={org.pending_access_requests ?? 0} label="access requests" />
-                  {org.status === 'pending' && <Badge tone="yellow">Pending</Badge>}
+                  <CountBadge
+                    count={org.pending_access_requests ?? 0}
+                    label={t('switcher.accessRequests')}
+                  />
+                  {org.status === 'pending' && <Badge tone="yellow">{t('switcher.pending')}</Badge>}
                 </button>
               ))}
 
@@ -221,7 +230,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                 className={menuItemClass}
               >
                 <IconBuilding className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                Browse organizations
+                {t('switcher.browse')}
               </button>
 
               <button
@@ -231,7 +240,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                 className={menuItemClass}
               >
                 <IconPlus className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                New organization
+                {t('switcher.new')}
               </button>
             </div>
           )}

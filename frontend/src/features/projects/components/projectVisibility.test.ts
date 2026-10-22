@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEAVE_PUBLIC_WARNING, visibilityConfirm } from './projectVisibility';
+import { visibilityConfirm } from './projectVisibility';
 
 /** ProjectSettingsSection defers updateProject behind a ConfirmDialog with
  *  exactly the copy this helper returns; null means the switch applies
@@ -31,6 +31,6 @@ describe('visibilityConfirm', () => {
   });
 
   it('warns about the stripped anyone audience', () => {
-    expect(LEAVE_PUBLIC_WARNING).toContain('"anyone" audience');
+    expect(visibilityConfirm('public', 'private')?.description).toContain('"anyone" audience');
   });
 });

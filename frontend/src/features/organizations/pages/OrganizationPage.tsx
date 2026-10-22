@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import { type OrganizationOut } from '~/api/client';
 import { updateOrganizationMutation } from '~/api/queries';
@@ -20,7 +21,12 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   rejected: 'red',
 };
 
+const STATUSES = ['pending', 'approved', 'rejected'] as const;
+const isKnownStatus = (status: string): status is (typeof STATUSES)[number] =>
+  (STATUSES as readonly string[]).includes(status);
+
 const DetailsForm = ({ org }: { org: OrganizationOut }) => {
+  const { t } = useTranslation(['organizations', 'common']);
   const refreshOrganizations = useRefreshOrganizations();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(org.name);
@@ -29,7 +35,7 @@ const DetailsForm = ({ org }: { org: OrganizationOut }) => {
 
   const save = useMutation({
     ...updateOrganizationMutation(),
-    meta: { errorMessage: 'Failed to save organization', showUser: false },
+    meta: { errorMessage: t('page.saveFailed'), showUser: false },
     onSuccess: () => {
       void refreshOrganizations();
       setEditing(false);
@@ -50,7 +56,7 @@ const DetailsForm = ({ org }: { org: OrganizationOut }) => {
   const submit = () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setNameError('Name is required');
+      setNameError(t('page.nameRequired'));
       return;
     }
     setNameError(null);
@@ -64,14 +70,14 @@ const DetailsForm = ({ org }: { org: OrganizationOut }) => {
     return (
       <div className="surface surface-section flex items-start justify-between gap-4">
         <div>
-          <h2 className="section-heading">Details</h2>
-          <p className="section-description">The name and description shown across the platform.</p>
+          <h2 className="section-heading">{t('page.details')}</h2>
+          <p className="section-description">{t('page.detailsDescription')}</p>
           <p className="text-sm text-neutral-600 mt-2">
-            {org.description || 'No description yet.'}
+            {org.description || t('page.noDescription')}
           </p>
         </div>
         <Button variant="secondary" size="sm" onClick={startEditing}>
-          Edit
+          {t('common:actions.edit')}
         </Button>
       </div>
     );
@@ -79,9 +85,9 @@ const DetailsForm = ({ org }: { org: OrganizationOut }) => {
 
   return (
     <div className="surface surface-section space-y-4">
-      <h2 className="section-heading">Details</h2>
+      <h2 className="section-heading">{t('page.details')}</h2>
       <div className="space-y-4 max-w-xl">
-        <Field label="Name" htmlFor="org-edit-name" required error={error}>
+        <Field label={t('page.name')} htmlFor="org-edit-name" required error={error}>
           <Input
             id="org-edit-name"
             value={name}
@@ -90,7 +96,7 @@ const DetailsForm = ({ org }: { org: OrganizationOut }) => {
             disabled={saving}
           />
         </Field>
-        <Field label="Description" htmlFor="org-edit-description">
+        <Field label={t('page.description')} htmlFor="org-edit-description">
           <Textarea
             id="org-edit-description"
             value={description}
@@ -100,10 +106,10 @@ const DetailsForm = ({ org }: { org: OrganizationOut }) => {
         </Field>
         <div className="flex gap-2">
           <Button onClick={submit} disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('page.saving') : t('common:actions.save')}
           </Button>
           <Button variant="secondary" onClick={() => setEditing(false)} disabled={saving}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
         </div>
       </div>
@@ -112,6 +118,7 @@ const DetailsForm = ({ org }: { org: OrganizationOut }) => {
 };
 
 export const OrganizationPage = () => {
+  const { t } = useTranslation('organizations');
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const { orgId } = useParams();
   const organizationId = Number(orgId);
@@ -121,8 +128,8 @@ export const OrganizationPage = () => {
   const org = orgs.find((o) => o.id === organizationId);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: org?.name ?? 'Organization' }]);
-  }, [setBreadcrumbs, org?.name]);
+    setBreadcrumbs([{ label: org?.name ?? t('page.breadcrumb') }]);
+  }, [setBreadcrumbs, org?.name, t]);
 
   if (!loading && !org && error) {
     return (
@@ -130,14 +137,14 @@ export const OrganizationPage = () => {
         <FadeIn className="page">
           <header className="page-header">
             <div>
-              <h1 className="page-title">Organization</h1>
+              <h1 className="page-title">{t('page.title')}</h1>
               <p className="page-subtitle">
-                Could not load organizations. {extractErrorMessage(error)}
+                {t('page.loadError', { error: extractErrorMessage(error) })}
               </p>
             </div>
           </header>
           <Button variant="secondary" onClick={() => refreshOrganizations()}>
-            Try again
+            {t('page.tryAgain')}
           </Button>
         </FadeIn>
       </div>
@@ -150,8 +157,8 @@ export const OrganizationPage = () => {
         <FadeIn className="page">
           <header className="page-header">
             <div>
-              <h1 className="page-title">Organization</h1>
-              <p className="page-subtitle">You are not an admin of this organization.</p>
+              <h1 className="page-title">{t('page.title')}</h1>
+              <p className="page-subtitle">{t('page.notAdmin')}</p>
             </div>
           </header>
         </FadeIn>
@@ -168,7 +175,7 @@ export const OrganizationPage = () => {
               <div className="flex items-center gap-2">
                 <h1 className="page-title">{org.name}</h1>
                 <Badge tone={STATUS_TONES[org.status] ?? 'neutral'} className="capitalize">
-                  {org.status}
+                  {isKnownStatus(org.status) ? t(`status.${org.status}`) : org.status}
                 </Badge>
               </div>
             ) : (

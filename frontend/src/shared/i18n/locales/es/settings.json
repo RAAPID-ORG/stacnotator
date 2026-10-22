@@ -1,1 +1,113 @@
-{}
+{
+  "breadcrumb": "Configuración",
+  "title": "Configuración",
+  "subtitle": "Gestiona tu perfil y la configuración de la plataforma.",
+  "refresh": "Actualizar",
+  "processing": "Procesando...",
+  "tabs": {
+    "profile": "Perfil",
+    "platform": "Plataforma",
+    "organizations": "Organizaciones",
+    "users": "Usuarios",
+    "organizationsToReview": "organizaciones por revisar"
+  },
+  "profile": {
+    "title": "Información del perfil",
+    "email": "Correo electrónico",
+    "username": "Nombre de usuario",
+    "usernamePlaceholder": "p. ej. ada.lovelace",
+    "noUsername": "Sin nombre de usuario",
+    "role": "Rol",
+    "administrator": "Administrador"
+  },
+  "password": {
+    "title": "Cambiar contraseña",
+    "description": "Actualiza la contraseña que usas para iniciar sesión.",
+    "change": "Cambiar contraseña",
+    "current": "Contraseña actual",
+    "new": "Nueva contraseña",
+    "confirmNew": "Confirmar nueva contraseña",
+    "saving": "Guardando…",
+    "update": "Actualizar contraseña",
+    "errors": {
+      "missingFields": "Completa todos los campos.",
+      "mismatch": "Las nuevas contraseñas no coinciden.",
+      "requirements": "La contraseña debe tener al menos 8 caracteres, con mayúsculas, minúsculas, un número y un carácter especial.",
+      "failed": "No se pudo cambiar la contraseña. Inténtalo de nuevo."
+    }
+  },
+  "signOut": {
+    "title": "Cerrar sesión",
+    "description": "Finaliza tu sesión en este dispositivo.",
+    "button": "Cerrar sesión"
+  },
+  "platform": {
+    "usersHeading": "Usuarios de la plataforma <count>({{count}})</count>",
+    "organizationsHeading": "Organizaciones <count>({{count}})</count>"
+  },
+  "toasts": {
+    "loadUsersFailed": "No se pudieron cargar los usuarios",
+    "loadTilersFailed": "No se pudieron cargar los tilers",
+    "grantAdminFailed": "No se pudo conceder el rol de administrador",
+    "adminGranted": "Se concedió el rol de administrador a {{count}} usuario(s)",
+    "revokeAdminFailed": "No se pudo revocar el rol de administrador",
+    "adminRevoked": "Se revocaron {{count}} rol(es) de administrador",
+    "approveOrgFailed": "No se pudo aprobar la organización",
+    "rejectOrgFailed": "No se pudo rechazar la organización",
+    "internalStorageFailed": "No se pudo actualizar el almacenamiento interno",
+    "saveAccessFailed": "No se pudo guardar el acceso de la organización",
+    "loadAccessFailed": "No se pudo cargar el acceso de la organización",
+    "usernameFailed": "No se pudo actualizar el nombre de usuario",
+    "usernameUpdated": "Nombre de usuario actualizado",
+    "orgApproved": "Organización '{{name}}' aprobada",
+    "orgRejected": "Organización '{{name}}' rechazada",
+    "internalStorageUpdated": "Almacenamiento interno actualizado",
+    "tileAccessUpdated": "Acceso a teselas actualizado",
+    "passwordChanged": "Contraseña cambiada correctamente",
+    "signOutFailed": "No se pudo cerrar sesión",
+    "noAccessChanges": "No hay cambios de acceso que aplicar"
+  },
+  "usersTable": {
+    "selected_one": "{{count}} usuario seleccionado",
+    "selected_many": "{{count}} usuarios seleccionados",
+    "selected_other": "{{count}} usuarios seleccionados",
+    "makeAdmin": "Hacer administrador",
+    "revokeAdmin": "Revocar administrador",
+    "email": "Correo electrónico",
+    "username": "Nombre de usuario",
+    "role": "Rol",
+    "actions": "Acciones",
+    "loading": "Cargando usuarios…",
+    "empty": "No se encontraron usuarios",
+    "admin": "Administrador",
+    "user": "Usuario"
+  },
+  "orgsTable": {
+    "organization": "Organización",
+    "status": "Estado",
+    "internalStorage": "Almacenamiento interno",
+    "actions": "Acciones",
+    "loading": "Cargando organizaciones…",
+    "empty": "No se encontraron organizaciones",
+    "allowed": "Permitido",
+    "off": "Desactivado",
+    "close": "Cerrar",
+    "editAccess": "Editar acceso",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "tileAccess": "Acceso a teselas",
+    "saving": "Guardando…",
+    "saveAccess": "Guardar acceso",
+    "statuses": {
+      "pending": "pendiente",
+      "approved": "aprobada",
+      "rejected": "rechazada"
+    },
+    "confirm": {
+      "approveTitle": "¿Aprobar {{name}}?",
+      "rejectTitle": "¿Rechazar {{name}}?",
+      "approveDescription": "Los miembros podrán crear proyectos y campañas en esta organización.",
+      "rejectDescription": "Los miembros pierden el acceso a esta organización hasta que se vuelva a aprobar."
+    }
+  }
+}

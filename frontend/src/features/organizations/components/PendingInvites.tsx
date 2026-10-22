@@ -1,8 +1,9 @@
+import { Trans, useTranslation } from 'react-i18next';
+import i18n from '~/shared/i18n';
 import type { InviteOut } from '~/api/client';
 
 /** Shown next to both add-by-email flows and on invited results. */
-export const INVITE_SIGNUP_NOTE =
-  'They need to sign up at stacnotator.io with this email address; they will join automatically after signing up.';
+export const inviteSignupNote = () => i18n.t('organizations:invites.signupNote');
 
 interface PendingInvitesProps {
   invites: InviteOut[];
@@ -21,17 +22,20 @@ export const PendingInvites = ({
   revokingId,
   className,
 }: PendingInvitesProps) => {
+  const { t } = useTranslation('organizations');
   if (invites.length === 0) return null;
 
   return (
     <div className={className}>
       <h3 className="text-sm font-medium text-neutral-900">
-        Pending signups <span className="text-neutral-400 font-normal">({invites.length})</span>
+        <Trans
+          t={t}
+          i18nKey="invites.pendingHeading"
+          values={{ count: invites.length }}
+          components={{ count: <span className="text-neutral-400 font-normal" /> }}
+        />
       </h3>
-      <p className="text-xs text-neutral-500 mt-0.5">
-        These addresses join automatically once they sign up. Revoking removes the
-        pre-authorization.
-      </p>
+      <p className="text-xs text-neutral-500 mt-0.5">{t('invites.pendingDescription')}</p>
       <ul className="mt-2 divide-y divide-neutral-100 border border-neutral-200 rounded-xl bg-white">
         {invites.map((invite) => (
           <li
@@ -41,7 +45,7 @@ export const PendingInvites = ({
           >
             <span className="flex-1 min-w-0 text-sm text-neutral-900 truncate">{invite.email}</span>
             <span className="text-[11px] text-neutral-500 shrink-0">
-              invited {new Date(invite.created_at).toLocaleDateString()}
+              {t('invites.invitedOn', { date: new Date(invite.created_at).toLocaleDateString() })}
             </span>
             <button
               type="button"
@@ -49,7 +53,7 @@ export const PendingInvites = ({
               disabled={revokingId === invite.id}
               className="inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Revoke
+              {t('invites.revoke')}
             </button>
           </li>
         ))}

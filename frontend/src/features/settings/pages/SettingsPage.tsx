@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
@@ -49,36 +50,40 @@ const NO_TILERS: string[] = [];
 const isDetailedUser = (user: UserOut | UserOutDetailed): user is UserOutDetailed =>
   'is_admin' in user;
 
-const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }) => (
-  <Button
-    variant="secondary"
-    onClick={onClick}
-    disabled={busy}
-    leading={
-      busy ? (
-        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
-      ) : undefined
-    }
-  >
-    Refresh
-  </Button>
-);
+const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }) => {
+  const { t } = useTranslation('settings');
+  return (
+    <Button
+      variant="secondary"
+      onClick={onClick}
+      disabled={busy}
+      leading={
+        busy ? (
+          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+        ) : undefined
+      }
+    >
+      {t('refresh')}
+    </Button>
+  );
+};
 
 export const SettingsPage = () => {
+  const { t } = useTranslation(['settings', 'common']);
   const navigate = useNavigate();
   const { auth } = useAuth();
   const queryClient = useQueryClient();
@@ -116,14 +121,14 @@ export const SettingsPage = () => {
   const usersQuery = useQuery({
     ...listUsersOptions({}),
     enabled: isPlatformAdmin && activeTab === 'platform' && platformTab === 'users',
-    meta: { errorMessage: 'Failed to load users' },
+    meta: { errorMessage: t('toasts.loadUsersFailed') },
   });
   const users = useMemo(() => (usersQuery.data ?? []).filter(isDetailedUser), [usersQuery.data]);
 
   const tilersQuery = useQuery({
     ...listGrantableTilersOptions(),
     enabled: isPlatformAdmin && activeTab === 'platform' && platformTab === 'organizations',
-    meta: { errorMessage: 'Failed to load tilers' },
+    meta: { errorMessage: t('toasts.loadTilersFailed') },
   });
 
   const refreshOrganizationsTab = () => {
@@ -132,55 +137,55 @@ export const SettingsPage = () => {
   };
 
   useEffect(() => {
-    setBreadcrumbs([{ label: 'Settings' }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([{ label: t('breadcrumb') }]);
+  }, [setBreadcrumbs, t]);
 
   const refetchUsers = () => queryClient.invalidateQueries({ queryKey: listUsersQueryKey({}) });
 
   const grant = useMutation({
     ...grantAdminMutation(),
-    meta: reportedByCaller('Failed to grant admin'),
+    meta: reportedByCaller(t('toasts.grantAdminFailed')),
     onSuccess: (result) => {
       void refetchUsers();
-      showAlert(`${result.success.length} user(s) granted admin successfully`, 'success');
+      showAlert(t('toasts.adminGranted', { count: result.success.length }), 'success');
     },
   });
   const revoke = useMutation({
     ...revokeAdminMutation(),
-    meta: reportedByCaller('Failed to revoke admin'),
+    meta: reportedByCaller(t('toasts.revokeAdminFailed')),
     onSuccess: (result) => {
       void refetchUsers();
-      showAlert(`${result.success.length} admin role(s) revoked successfully`, 'success');
+      showAlert(t('toasts.adminRevoked', { count: result.success.length }), 'success');
     },
   });
 
   const approve = useMutation({
     ...approveOrganizationMutation(),
-    meta: reportedByCaller('Failed to approve organization'),
+    meta: reportedByCaller(t('toasts.approveOrgFailed')),
     onSuccess: refreshOrganizations,
   });
   const reject = useMutation({
     ...rejectOrganizationMutation(),
-    meta: reportedByCaller('Failed to reject organization'),
+    meta: reportedByCaller(t('toasts.rejectOrgFailed')),
     onSuccess: refreshOrganizations,
   });
   const internalStorage = useMutation({
     ...updateInternalStorageMutation(),
-    meta: reportedByCaller('Failed to update internal storage'),
+    meta: reportedByCaller(t('toasts.internalStorageFailed')),
     onSuccess: refreshOrganizations,
   });
   const saveTilers = useMutation({
     ...setOrganizationTilersMutation(),
-    meta: reportedByCaller('Failed to save organization access'),
+    meta: reportedByCaller(t('toasts.saveAccessFailed')),
   });
 
   const editUsername = useMutation({
     ...editUserInfoMutation(),
-    meta: { errorMessage: 'Failed to update username' },
+    meta: { errorMessage: t('toasts.usernameFailed') },
     onSuccess: async () => {
       await fetchAccount();
       setIsEditingDisplayName(false);
-      showAlert('Username updated', 'success');
+      showAlert(t('toasts.usernameUpdated'), 'success');
     },
   });
 
@@ -197,14 +202,14 @@ export const SettingsPage = () => {
     const organization = await approve.mutateAsync({
       path: { organization_id: organizationId },
     });
-    showAlert(`Organization '${organization.name}' approved`, 'success');
+    showAlert(t('toasts.orgApproved', { name: organization.name }), 'success');
   };
 
   const handleRejectOrganization = async (organizationId: number) => {
     const organization = await reject.mutateAsync({
       path: { organization_id: organizationId },
     });
-    showAlert(`Organization '${organization.name}' rejected`, 'success');
+    showAlert(t('toasts.orgRejected', { name: organization.name }), 'success');
   };
 
   const handleSetInternalStorage = async (organizationId: number, allowed: boolean) => {
@@ -212,7 +217,7 @@ export const SettingsPage = () => {
       path: { organization_id: organizationId },
       body: { allows_internal_storage: allowed },
     });
-    showAlert('Internal storage updated', 'success');
+    showAlert(t('toasts.internalStorageUpdated'), 'success');
   };
 
   // An imperative read for one expanded row, not page state, so it stays a
@@ -230,7 +235,7 @@ export const SettingsPage = () => {
       path: { organization_id: organizationId },
       body: { tiler_names: tilerNames },
     });
-    showAlert('Tile access updated', 'success');
+    showAlert(t('toasts.tileAccessUpdated'), 'success');
   };
 
   const handleSaveDisplayName = () => {
@@ -253,17 +258,15 @@ export const SettingsPage = () => {
     setPasswordSuccess(false);
 
     if (!currentPassword || !newPassword) {
-      setPasswordError('Please fill in all fields.');
+      setPasswordError(t('password.errors.missingFields'));
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setPasswordError('New passwords do not match.');
+      setPasswordError(t('password.errors.mismatch'));
       return;
     }
     if (!newPasswordMeetsRequirements) {
-      setPasswordError(
-        'Password must be at least 8 characters with uppercase, lowercase, number, and special character.'
-      );
+      setPasswordError(t('password.errors.requirements'));
       return;
     }
 
@@ -275,15 +278,9 @@ export const SettingsPage = () => {
       setNewPassword('');
       setConfirmNewPassword('');
       setIsChangingPassword(false);
-      showAlert('Password changed successfully', 'success');
+      showAlert(t('toasts.passwordChanged'), 'success');
     } catch (err) {
-      setPasswordError(
-        authErrorMessage(
-          err,
-          CHANGE_PASSWORD_ERRORS,
-          'Failed to change password. Please try again.'
-        )
-      );
+      setPasswordError(authErrorMessage(err, CHANGE_PASSWORD_ERRORS, t('password.errors.failed')));
     } finally {
       setChangingPassword(false);
     }
@@ -294,7 +291,7 @@ export const SettingsPage = () => {
       await auth.logout();
       navigate('/');
     } catch (err) {
-      handleError(err, 'Sign out failed');
+      handleError(err, t('toasts.signOutFailed'));
     }
   };
 
@@ -320,8 +317,8 @@ export const SettingsPage = () => {
         <FadeIn className="page">
           <header className="page-header">
             <div>
-              <h1 className="page-title">Settings</h1>
-              <p className="page-subtitle">Manage your profile and platform settings.</p>
+              <h1 className="page-title">{t('title')}</h1>
+              <p className="page-subtitle">{t('subtitle')}</p>
             </div>
           </header>
 
@@ -337,7 +334,7 @@ export const SettingsPage = () => {
                 }`}
                 type="button"
               >
-                Profile
+                {t('tabs.profile')}
               </button>
               {isPlatformAdmin && (
                 <button
@@ -350,10 +347,10 @@ export const SettingsPage = () => {
                   type="button"
                 >
                   <span className="inline-flex items-center gap-1.5">
-                    Platform
+                    {t('tabs.platform')}
                     <CountBadge
                       count={pendingAdminActions(knownOrgs, account.is_admin).organizationApprovals}
-                      label="organizations to review"
+                      label={t('tabs.organizationsToReview')}
                     />
                   </span>
                 </button>
@@ -365,13 +362,13 @@ export const SettingsPage = () => {
               {activeTab === 'profile' && (
                 <div>
                   <section className={sectionCls}>
-                    <h2 className="section-heading">Profile information</h2>
+                    <h2 className="section-heading">{t('profile.title')}</h2>
                     <div className="space-y-4">
-                      <Field label="Email">
+                      <Field label={t('profile.email')}>
                         <Input type="text" value={account.email} disabled />
                       </Field>
                       <Field
-                        label="Username"
+                        label={t('profile.username')}
                         error={isEditingDisplayName ? usernameError(displayNameInput) : undefined}
                       >
                         {isEditingDisplayName ? (
@@ -381,7 +378,7 @@ export const SettingsPage = () => {
                               value={displayNameInput}
                               onChange={(e) => setDisplayNameInput(e.target.value)}
                               disabled={saving}
-                              placeholder="e.g. ada.lovelace"
+                              placeholder={t('profile.usernamePlaceholder')}
                               invalid={Boolean(usernameError(displayNameInput))}
                               autoFocus
                             />
@@ -412,14 +409,14 @@ export const SettingsPage = () => {
                                 ) : undefined
                               }
                             >
-                              Save
+                              {t('common:actions.save')}
                             </Button>
                             <Button
                               variant="secondary"
                               onClick={handleCancelEditDisplayName}
                               disabled={saving}
                             >
-                              Cancel
+                              {t('common:actions.cancel')}
                             </Button>
                           </div>
                         ) : (
@@ -428,18 +425,18 @@ export const SettingsPage = () => {
                               type="text"
                               value={account.display_name || ''}
                               disabled
-                              placeholder="No username set"
+                              placeholder={t('profile.noUsername')}
                             />
                             <Button variant="secondary" onClick={handleStartEditDisplayName}>
-                              Edit
+                              {t('common:actions.edit')}
                             </Button>
                           </div>
                         )}
                       </Field>
                       {account.is_admin && (
-                        <Field label="Role">
+                        <Field label={t('profile.role')}>
                           <span className="inline-flex px-3 py-1.5 text-xs font-medium rounded-full bg-brand-100 text-brand-800 border border-brand-200">
-                            Administrator
+                            {t('profile.administrator')}
                           </span>
                         </Field>
                       )}
@@ -452,10 +449,8 @@ export const SettingsPage = () => {
                       {!isChangingPassword ? (
                         <div className="flex items-center justify-between gap-4">
                           <div>
-                            <h2 className="section-heading">Change password</h2>
-                            <p className="section-description">
-                              Update the password you use to sign in.
-                            </p>
+                            <h2 className="section-heading">{t('password.title')}</h2>
+                            <p className="section-description">{t('password.description')}</p>
                           </div>
                           <Button
                             variant="secondary"
@@ -465,18 +460,18 @@ export const SettingsPage = () => {
                               setPasswordSuccess(false);
                             }}
                           >
-                            Change password
+                            {t('password.change')}
                           </Button>
                         </div>
                       ) : (
                         <div className="space-y-4 max-w-md">
-                          <h2 className="section-heading">Change password</h2>
+                          <h2 className="section-heading">{t('password.title')}</h2>
                           {passwordError && (
                             <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
                               {passwordError}
                             </div>
                           )}
-                          <Field label="Current password">
+                          <Field label={t('password.current')}>
                             <Input
                               type="password"
                               value={currentPassword}
@@ -485,7 +480,7 @@ export const SettingsPage = () => {
                               autoComplete="current-password"
                             />
                           </Field>
-                          <Field label="New password">
+                          <Field label={t('password.new')}>
                             <Input
                               type="password"
                               value={newPassword}
@@ -495,7 +490,7 @@ export const SettingsPage = () => {
                             />
                             <PasswordRequirementsList password={newPassword} />
                           </Field>
-                          <Field label="Confirm new password">
+                          <Field label={t('password.confirmNew')}>
                             <Input
                               type="password"
                               value={confirmNewPassword}
@@ -509,7 +504,7 @@ export const SettingsPage = () => {
                               onClick={handleChangePassword}
                               disabled={saving || !newPasswordMeetsRequirements}
                             >
-                              {saving ? 'Saving…' : 'Update password'}
+                              {saving ? t('password.saving') : t('password.update')}
                             </Button>
                             <Button
                               variant="secondary"
@@ -522,7 +517,7 @@ export const SettingsPage = () => {
                               }}
                               disabled={saving}
                             >
-                              Cancel
+                              {t('common:actions.cancel')}
                             </Button>
                           </div>
                         </div>
@@ -533,15 +528,15 @@ export const SettingsPage = () => {
                   <section className={sectionCls}>
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <h2 className="section-heading">Sign out</h2>
-                        <p className="section-description">Ends your session on this device.</p>
+                        <h2 className="section-heading">{t('signOut.title')}</h2>
+                        <p className="section-description">{t('signOut.description')}</p>
                       </div>
                       <Button
                         variant="dangerQuiet"
                         data-testid="sign-out-button"
                         onClick={handleSignOut}
                       >
-                        Sign out
+                        {t('signOut.button')}
                       </Button>
                     </div>
                   </section>
@@ -556,18 +551,18 @@ export const SettingsPage = () => {
                         id: 'organizations',
                         label: (
                           <span className="inline-flex items-center gap-1.5">
-                            Organizations
+                            {t('tabs.organizations')}
                             <CountBadge
                               count={
                                 pendingAdminActions(knownOrgs, account.is_admin)
                                   .organizationApprovals
                               }
-                              label="organizations to review"
+                              label={t('tabs.organizationsToReview')}
                             />
                           </span>
                         ),
                       },
-                      { id: 'users', label: 'Users' },
+                      { id: 'users', label: t('tabs.users') },
                     ]}
                     activeId={platformTab}
                     onChange={setPlatformTab}
@@ -576,8 +571,14 @@ export const SettingsPage = () => {
                     <section id="tab-users" role="tabpanel" className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h2 className="section-heading">
-                          Platform users{' '}
-                          <span className="text-neutral-400 font-normal">({users.length})</span>
+                          <Trans
+                            t={t}
+                            i18nKey="platform.usersHeading"
+                            values={{ count: users.length }}
+                            components={{
+                              count: <span className="text-neutral-400 font-normal" />,
+                            }}
+                          />
                         </h2>
                         <RefreshButton onClick={refetchUsers} busy={usersQuery.isFetching} />
                       </div>
@@ -594,8 +595,14 @@ export const SettingsPage = () => {
                     <section id="tab-organizations" role="tabpanel" className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h2 className="section-heading">
-                          Organizations{' '}
-                          <span className="text-neutral-400 font-normal">({knownOrgs.length})</span>
+                          <Trans
+                            t={t}
+                            i18nKey="platform.organizationsHeading"
+                            values={{ count: knownOrgs.length }}
+                            components={{
+                              count: <span className="text-neutral-400 font-normal" />,
+                            }}
+                          />
                         </h2>
                         <RefreshButton
                           onClick={refreshOrganizationsTab}
@@ -621,7 +628,7 @@ export const SettingsPage = () => {
         </FadeIn>
       </div>
 
-      <LoadingOverlay visible={saving} text="Processing..." />
+      <LoadingOverlay visible={saving} text={t('processing')} />
     </>
   );
 };

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '~/shared/ui/forms';
 import { IS_LOCAL_AUTH } from '~/features/auth';
@@ -20,6 +21,7 @@ function buildHandoff(): SdkHandoff | null {
 }
 
 export function SdkAuthPage() {
+  const { t } = useTranslation(['auth', 'common']);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [failed, setFailed] = useState(false);
@@ -29,11 +31,13 @@ export function SdkAuthPage() {
     return (
       <div className="flex-1 flex items-center justify-center py-16">
         <div className="max-w-md text-center">
-          <h1 className="text-2xl font-semibold text-neutral-900 mb-3">Invalid SDK login link</h1>
+          <h1 className="text-2xl font-semibold text-neutral-900 mb-3">{t('sdk.invalidTitle')}</h1>
           <p className="text-neutral-600">
-            This page authorizes the STACNotator Python SDK and can only hand credentials to a local
-            process on your own machine. Start the login from Python with{' '}
-            <code className="text-sm bg-neutral-100 px-1 rounded">stacnotator.login(url)</code>.
+            <Trans
+              t={t}
+              i18nKey="sdk.invalidBody"
+              components={{ code: <code className="text-sm bg-neutral-100 px-1 rounded" /> }}
+            />
           </p>
         </div>
       </div>
@@ -54,28 +58,18 @@ export function SdkAuthPage() {
   return (
     <div className="flex-1 flex items-center justify-center py-16" data-testid="sdk-auth-page">
       <div className="max-w-md text-center">
-        <h1 className="text-2xl font-semibold text-neutral-900 mb-3">
-          Authorize the STACNotator SDK
-        </h1>
-        <p className="text-neutral-600 mb-6">
-          A process on your machine (port {port}) is asking to act as your account. Authorizing
-          hands it a login token so scripts can read campaign labels and register prediction layers
-          without a password.
-        </p>
+        <h1 className="text-2xl font-semibold text-neutral-900 mb-3">{t('sdk.title')}</h1>
+        <p className="text-neutral-600 mb-6">{t('sdk.body', { port })}</p>
         <p className="text-sm text-neutral-500 mb-8">
-          Only continue if you just ran <code>stacnotator.login(...)</code> yourself.
+          <Trans t={t} i18nKey="sdk.onlyContinue" components={{ code: <code /> }} />
         </p>
-        {failed && (
-          <p className="text-sm text-red-600 mb-4">
-            Could not read your current session. Please reload and try again.
-          </p>
-        )}
+        {failed && <p className="text-sm text-red-600 mb-4">{t('sdk.sessionFailed')}</p>}
         <div className="space-y-3">
           <Button variant="primary" className="w-full" onClick={authorize}>
-            Authorize
+            {t('sdk.authorize')}
           </Button>
           <Button variant="secondary" className="w-full" onClick={() => navigate('/')}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
         </div>
       </div>

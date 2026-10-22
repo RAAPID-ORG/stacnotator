@@ -1,4 +1,5 @@
 import { useState, useMemo, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
 import { PasswordRequirementsList, passwordMeetsAllRequirements } from './PasswordRequirements';
 import { Button, Field, Input } from '~/shared/ui/forms';
@@ -12,7 +13,7 @@ import {
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
-const LegalLink = ({ doc, children }: { doc: LegalKey; children: ReactNode }) => (
+const LegalLink = ({ doc, children }: { doc: LegalKey; children?: ReactNode }) => (
   <a
     href={legalPath(doc)}
     target="_blank"
@@ -27,12 +28,16 @@ const LegalLink = ({ doc, children }: { doc: LegalKey; children: ReactNode }) =>
  * sign-in wrap as accepted only when the notice is next to the action it binds. */
 const LegalNotice = () => (
   <p className="text-center text-xs text-brand-500">
-    By continuing you agree to our <LegalLink doc="terms">Terms of Service</LegalLink> and to our{' '}
-    <LegalLink doc="privacy">Privacy Policy</LegalLink>.
+    <Trans
+      ns="auth"
+      i18nKey="login.legalNotice"
+      components={{ terms: <LegalLink doc="terms" />, privacy: <LegalLink doc="privacy" /> }}
+    />
   </p>
 );
 
 export function LoginScreen() {
+  const { t } = useTranslation('auth');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<AuthMode>('login');
@@ -55,7 +60,7 @@ export function LoginScreen() {
       }
       await googleProvider.login();
     } catch {
-      setError('Google login failed. Please try again.');
+      setError(t('login.errors.googleFailed'));
     } finally {
       setLoading(false);
     }
@@ -65,17 +70,17 @@ export function LoginScreen() {
     e.preventDefault();
 
     if (!email || !password) {
-      setError('Please enter email and password.');
+      setError(t('login.errors.missingCredentials'));
       return;
     }
 
     if (mode === 'register' && password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(t('login.errors.passwordsMismatch'));
       return;
     }
 
     if (mode === 'register' && !passwordMeetsRequirements) {
-      setError('Password does not meet all requirements.');
+      setError(t('login.errors.passwordRequirements'));
       return;
     }
 
@@ -96,8 +101,8 @@ export function LoginScreen() {
     } catch (err) {
       const fallback =
         mode === 'register'
-          ? 'Registration failed. Please try again.'
-          : 'Invalid email or password.';
+          ? t('login.errors.registrationFailed')
+          : t('login.errors.invalidCredentials');
       setError(authErrorMessage(err, SIGN_IN_ERRORS, fallback));
     } finally {
       setLoading(false);
@@ -107,7 +112,7 @@ export function LoginScreen() {
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      setError('Please enter your email address.');
+      setError(t('login.errors.missingEmail'));
       return;
     }
     try {
@@ -124,7 +129,7 @@ export function LoginScreen() {
         // Don't reveal whether the email exists - show success anyway
         setResetEmailSent(true);
       } else {
-        setError('Failed to send reset email. Please try again.');
+        setError(t('login.errors.resetFailed'));
       }
     } finally {
       setLoading(false);
@@ -142,16 +147,20 @@ export function LoginScreen() {
   return (
     <AuthCard>
       <h1 className="text-xl font-semibold text-brand-800 mb-4">
-        {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Reset password'}
+        {mode === 'login'
+          ? t('login.title.login')
+          : mode === 'register'
+            ? t('login.title.register')
+            : t('login.title.forgotPassword')}
       </h1>
 
       {!(mode === 'forgot-password' && resetEmailSent) && (
         <p className="text-sm text-brand-600 mb-6">
           {mode === 'login'
-            ? 'Please sign in to continue.'
+            ? t('login.intro.login')
             : mode === 'register'
-              ? 'Create a new account to get started.'
-              : "Enter your email and we'll send you a reset link."}
+              ? t('login.intro.register')
+              : t('login.intro.forgotPassword')}
         </p>
       )}
 
@@ -163,63 +172,67 @@ export function LoginScreen() {
 
       {mode === 'forgot-password' && resetEmailSent ? (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-          If an account exists for <strong>{email}</strong>, a password reset email has been sent.
-          Check your inbox and follow the link to reset your password.
+          <Trans
+            t={t}
+            i18nKey="login.resetSent"
+            values={{ email }}
+            components={{ strong: <strong /> }}
+          />
         </div>
       ) : null}
 
       {mode === 'forgot-password' ? (
         !resetEmailSent && (
           <form onSubmit={handlePasswordReset} className="space-y-4 mb-4">
-            <Field label="Email">
+            <Field label={t('login.email')}>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
-                placeholder="Enter your email"
+                placeholder={t('login.emailPlaceholder')}
               />
             </Field>
             <Button type="submit" disabled={loading} className="w-full">
-              {loading ? 'Sending…' : 'Send reset link'}
+              {loading ? t('login.sending') : t('login.sendResetLink')}
             </Button>
           </form>
         )
       ) : (
         <form onSubmit={handleEmailSubmit} className="space-y-4 mb-4">
-          <Field label="Email">
+          <Field label={t('login.email')}>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
-              placeholder="Enter your email"
+              placeholder={t('login.emailPlaceholder')}
             />
           </Field>
 
-          <Field label="Password">
+          <Field label={t('login.password')}>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
-              placeholder="Enter your password"
+              placeholder={t('login.passwordPlaceholder')}
             />
             {mode === 'register' && <PasswordRequirementsList password={password} />}
           </Field>
 
           {mode === 'register' && (
-            <Field label="Confirm password">
+            <Field label={t('login.confirmPassword')}>
               <Input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 disabled={loading}
-                placeholder="Confirm your password"
+                placeholder={t('login.confirmPasswordPlaceholder')}
               />
             </Field>
           )}
@@ -232,11 +245,11 @@ export function LoginScreen() {
           >
             {loading
               ? mode === 'login'
-                ? 'Signing in…'
-                : 'Creating account…'
+                ? t('login.signingIn')
+                : t('login.creatingAccount')
               : mode === 'login'
-                ? 'Sign in'
-                : 'Create account'}
+                ? t('login.signIn')
+                : t('login.createAccount')}
           </Button>
 
           <LegalNotice />
@@ -253,7 +266,7 @@ export function LoginScreen() {
               disabled={loading}
               className="w-full text-center text-sm text-brand-700 hover:text-brand-900 font-medium disabled:opacity-50 cursor-pointer"
             >
-              Forgot your password?
+              {t('login.forgotPasswordLink')}
             </button>
           )}
         </form>
@@ -266,7 +279,7 @@ export function LoginScreen() {
               <div className="w-full border-t border-brand-300"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-brand-700">or</span>
+              <span className="px-2 bg-white text-brand-700">{t('login.or')}</span>
             </div>
           </div>
 
@@ -275,7 +288,7 @@ export function LoginScreen() {
             disabled={loading}
             className="w-full px-4 py-2 bg-white border border-brand-300 text-brand-700 rounded hover:bg-brand-50 disabled:opacity-50 cursor-pointer"
           >
-            {loading ? 'Signing in…' : 'Continue with Google'}
+            {loading ? t('login.signingIn') : t('login.continueWithGoogle')}
           </button>
 
           <div className="mt-3">
@@ -296,18 +309,18 @@ export function LoginScreen() {
             disabled={loading}
             className="text-brand-700 hover:text-brand-900 font-medium disabled:opacity-50 cursor-pointer"
           >
-            Back to sign in
+            {t('login.backToSignIn')}
           </button>
         ) : (
           <>
-            {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+            {mode === 'login' ? t('login.noAccount') : t('login.haveAccount')}
             <button
               type="button"
               onClick={toggleMode}
               disabled={loading}
               className="text-brand-700 hover:text-brand-900 font-medium disabled:opacity-50 cursor-pointer"
             >
-              {mode === 'login' ? 'Register' : 'Sign in'}
+              {mode === 'login' ? t('login.register') : t('login.signIn')}
             </button>
           </>
         )}

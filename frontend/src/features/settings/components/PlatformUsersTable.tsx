@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { UserOutDetailed } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -18,6 +19,7 @@ export const PlatformUsersTable = ({
   onRevokeAdmin,
   loading,
 }: PlatformUsersTableProps) => {
+  const { t } = useTranslation('settings');
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [processingAction, setProcessingAction] = useState(false);
 
@@ -85,18 +87,18 @@ export const PlatformUsersTable = ({
       {selectedUsers.size > 0 && (
         <div className="bg-brand-50 border border-brand-200 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
           <span className="text-xs font-medium text-brand-800">
-            {selectedUsers.size} user{selectedUsers.size > 1 ? 's' : ''} selected
+            {t('usersTable.selected', { count: selectedUsers.size })}
           </span>
           <div className="flex gap-2">
             <Button onClick={() => handleBulkAction('grant-admin')} disabled={processingAction}>
-              Make admin
+              {t('usersTable.makeAdmin')}
             </Button>
             <Button
               variant="secondary"
               onClick={() => handleBulkAction('revoke-admin')}
               disabled={processingAction}
             >
-              Revoke admin
+              {t('usersTable.revokeAdmin')}
             </Button>
           </div>
         </div>
@@ -122,16 +124,16 @@ export const PlatformUsersTable = ({
                 />
               </th>
               <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                Email
+                {t('usersTable.email')}
               </th>
               <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                Username
+                {t('usersTable.username')}
               </th>
               <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                Role
+                {t('usersTable.role')}
               </th>
               <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                Actions
+                {t('usersTable.actions')}
               </th>
             </tr>
           </thead>
@@ -141,14 +143,14 @@ export const PlatformUsersTable = ({
                 <td colSpan={5} className="px-4 py-10">
                   <div className="flex flex-col items-center gap-2">
                     <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-200 border-t-brand-600" />
-                    <span className="text-xs text-neutral-500">Loading users…</span>
+                    <span className="text-xs text-neutral-500">{t('usersTable.loading')}</span>
                   </div>
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-10 text-center text-sm text-neutral-500">
-                  No users found
+                  {t('usersTable.empty')}
                 </td>
               </tr>
             ) : (
@@ -174,7 +176,7 @@ export const PlatformUsersTable = ({
                           : 'bg-neutral-50 text-neutral-700 border-neutral-200'
                       }`}
                     >
-                      {user.is_admin ? 'Admin' : 'User'}
+                      {user.is_admin ? t('usersTable.admin') : t('usersTable.user')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -186,7 +188,7 @@ export const PlatformUsersTable = ({
                           className={`${rowActionCls} text-brand-700 hover:bg-brand-50`}
                           type="button"
                         >
-                          Make admin
+                          {t('usersTable.makeAdmin')}
                         </button>
                       ) : (
                         <button
@@ -195,7 +197,7 @@ export const PlatformUsersTable = ({
                           className={`${rowActionCls} text-amber-700 hover:bg-amber-50`}
                           type="button"
                         >
-                          Revoke admin
+                          {t('usersTable.revokeAdmin')}
                         </button>
                       )}
                     </div>

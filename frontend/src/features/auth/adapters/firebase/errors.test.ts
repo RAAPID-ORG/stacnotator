@@ -12,7 +12,7 @@ describe('authErrorMessage', () => {
   it('names the cause for a known code', () => {
     expect(
       authErrorMessage(firebaseError('auth/email-already-in-use'), SIGN_IN_ERRORS, 'nope')
-    ).toBe(SIGN_IN_ERRORS['auth/email-already-in-use']);
+    ).toBe('An account with this email already exists. Try signing in instead.');
   });
 
   it('falls back for unknown codes and non-Firebase throws', () => {

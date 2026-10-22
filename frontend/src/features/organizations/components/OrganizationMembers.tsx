@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type AddUsersByEmailResult, type OrganizationUserOut } from '~/api/client';
 import {
@@ -18,7 +19,7 @@ import { Badge } from '~/shared/ui/Badge';
 import { Button, Field, Textarea } from '~/shared/ui/forms';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { parseEmailList } from '~/shared/utils/utility';
-import { INVITE_SIGNUP_NOTE, PendingInvites } from './PendingInvites';
+import { inviteSignupNote, PendingInvites } from './PendingInvites';
 
 export type OrganizationMembersProps = {
   organizationId: number;
@@ -31,6 +32,7 @@ const rowActionClass =
   'disabled:opacity-40 disabled:cursor-not-allowed';
 
 export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps) => {
+  const { t } = useTranslation('organizations');
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   // Emails only reach platform admins; everyone else manages members by name.
   const showEmails = useAccountStore((s) => s.account?.is_admin ?? false);
@@ -44,13 +46,13 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
 
   const membersQuery = useQuery({
     ...getOrganizationUsersOptions({ path }),
-    meta: { errorMessage: 'Failed to load organization members', showUser: false },
+    meta: { errorMessage: t('members.loadFailed'), showUser: false },
   });
   const members = membersQuery.data?.users ?? NO_MEMBERS;
 
   const invitesQuery = useQuery({
     ...listOrganizationInvitesOptions({ path }),
-    meta: { errorMessage: 'Failed to load pending signups' },
+    meta: { errorMessage: t('members.loadInvitesFailed') },
   });
 
   const refetchMembers = () =>
@@ -60,29 +62,29 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
 
   const promote = useMutation({
     ...makeOrganizationAdminMutation(),
-    meta: { errorMessage: 'Failed to update member role' },
+    meta: { errorMessage: t('members.roleFailed') },
     onSuccess: refetchMembers,
   });
   const demote = useMutation({
     ...demoteOrganizationAdminMutation(),
-    meta: { errorMessage: 'Failed to update member role' },
+    meta: { errorMessage: t('members.roleFailed') },
     onSuccess: refetchMembers,
   });
   const removeMemberMutation = useMutation({
     ...removeOrganizationMemberMutation(),
-    meta: { errorMessage: 'Failed to remove member' },
+    meta: { errorMessage: t('members.removeFailed') },
     onSuccess: refetchMembers,
   });
   const revoke = useMutation({
     ...revokeOrganizationInviteMutation(),
-    meta: { errorMessage: 'Failed to revoke invite' },
+    meta: { errorMessage: t('members.revokeFailed') },
     onSuccess: refetchInvites,
   });
   // An added address either becomes a member or waits as an invite, so both
   // lists below can have moved.
   const add = useMutation({
     ...addOrganizationUsersMutation(),
-    meta: { errorMessage: 'Failed to add members' },
+    meta: { errorMessage: t('members.addFailed') },
     onSuccess: (result) => {
       setAddResult(result);
       setEmailsText('');
@@ -103,9 +105,9 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
 
   const removeMember = async (member: OrganizationUserOut) => {
     const confirmed = await showConfirmDialog({
-      title: `Remove ${member.user.display_name}?`,
-      description: 'They lose access to this organization and its projects.',
-      confirmText: 'Remove',
+      title: t('members.confirmRemoveTitle', { name: member.user.display_name }),
+      description: t('members.confirmRemoveDescription'),
+      confirmText: t('members.remove'),
       isDangerous: true,
     });
     if (!confirmed) return;
@@ -125,33 +127,33 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
   return (
     <div className="surface">
       <section className="surface-section">
-        <h2 className="section-heading">Add members</h2>
+        <h2 className="section-heading">{t('members.addHeading')}</h2>
         <p className="section-description">
-          Invite users that are not yet registered on STACNotator. Paste one or more email
-          addresses, separated by commas, spaces or newlines. Addresses without an account yet, will
-          be automatically added to the project when signing up to STACNotator. {INVITE_SIGNUP_NOTE}
+          {t('members.addDescription', { note: inviteSignupNote() })}
         </p>
         <div className="space-y-3 max-w-xl">
-          <Field label="Emails" htmlFor="org-member-emails">
+          <Field label={t('members.emails')} htmlFor="org-member-emails">
             <Textarea
               id="org-member-emails"
               data-testid="org-member-emails"
               value={emailsText}
               onChange={(e) => setEmailsText(e.target.value)}
-              placeholder="ada@example.org, grace@example.org"
+              placeholder={t('members.emailsPlaceholder')}
               disabled={adding}
             />
           </Field>
           <Button onClick={addMembers} disabled={adding || emailsText.trim() === ''}>
-            {adding ? 'Adding…' : 'Add members'}
+            {adding ? t('members.adding') : t('members.add')}
           </Button>
 
           {malformed.length > 0 && (
-            <p className="text-xs text-red-600">Not an email address: {malformed.join(', ')}</p>
+            <p className="text-xs text-red-600">
+              {t('members.malformed', { emails: malformed.join(', ') })}
+            </p>
           )}
           {addResult && addResult.added.length > 0 && (
             <div className="text-xs text-green-700">
-              <p className="font-medium">Added</p>
+              <p className="font-medium">{t('members.added')}</p>
               <ul className="list-disc pl-4 mt-1 space-y-0.5">
                 {addResult.added.map((user) => (
                   <li key={user.id}>
@@ -166,13 +168,13 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
               data-testid="add-result-invited"
               className="text-xs px-3 py-2 rounded-lg bg-brand-50 border border-brand-200 text-brand-800"
             >
-              <p className="font-medium">Invited</p>
+              <p className="font-medium">{t('members.invited')}</p>
               <ul className="list-disc pl-4 mt-1 space-y-0.5">
                 {addResult.invited_emails.map((email) => (
                   <li key={email}>{email}</li>
                 ))}
               </ul>
-              <p className="mt-1">{INVITE_SIGNUP_NOTE}</p>
+              <p className="mt-1">{inviteSignupNote()}</p>
             </div>
           )}
         </div>
@@ -186,11 +188,16 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
 
       <section className="surface-section">
         <h2 className="section-heading">
-          Members <span className="text-neutral-400 font-normal">({members.length})</span>
+          <Trans
+            t={t}
+            i18nKey="members.heading"
+            values={{ count: members.length }}
+            components={{ count: <span className="text-neutral-400 font-normal" /> }}
+          />
         </h2>
         {membersQuery.error && (
           <p className="text-xs text-red-600 mb-3">
-            {extractErrorMessage(membersQuery.error, 'Failed to load organization members')}
+            {extractErrorMessage(membersQuery.error, t('members.loadFailed'))}
           </p>
         )}
 
@@ -199,18 +206,18 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
             <thead className="bg-neutral-50/50 border-b border-neutral-200">
               <tr>
                 <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                  Name
+                  {t('members.name')}
                 </th>
                 {showEmails && (
                   <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                    Email
+                    {t('members.email')}
                   </th>
                 )}
                 <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                  Role
+                  {t('members.role')}
                 </th>
                 <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                  Actions
+                  {t('members.actions')}
                 </th>
               </tr>
             </thead>
@@ -221,7 +228,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
                     colSpan={showEmails ? 4 : 3}
                     className="px-4 py-10 text-center text-sm text-neutral-500"
                   >
-                    Loading members…
+                    {t('members.loading')}
                   </td>
                 </tr>
               ) : members.length === 0 ? (
@@ -230,7 +237,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
                     colSpan={showEmails ? 4 : 3}
                     className="px-4 py-10 text-center text-sm text-neutral-500"
                   >
-                    No members yet.
+                    {t('members.empty')}
                   </td>
                 </tr>
               ) : (
@@ -244,7 +251,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
                     )}
                     <td className="px-4 py-3">
                       <Badge tone={member.is_admin ? 'brand' : 'neutral'}>
-                        {member.is_admin ? 'Admin' : 'Member'}
+                        {member.is_admin ? t('members.admin') : t('members.member')}
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
@@ -255,7 +262,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
                           disabled={busy}
                           className={`${rowActionClass} text-neutral-700 hover:bg-neutral-100`}
                         >
-                          {member.is_admin ? 'Demote admin' : 'Make admin'}
+                          {member.is_admin ? t('members.demoteAdmin') : t('members.makeAdmin')}
                         </button>
                         <button
                           type="button"
@@ -263,7 +270,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
                           disabled={busy}
                           className={`${rowActionClass} text-red-600 hover:bg-red-50`}
                         >
-                          Remove
+                          {t('members.remove')}
                         </button>
                       </div>
                     </td>

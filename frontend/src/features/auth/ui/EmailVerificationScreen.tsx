@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { authManager, AUTH_PROVIDERS } from '~/features/auth/index';
@@ -6,6 +7,7 @@ import { Button } from '~/shared/ui/forms';
 import { AuthCard } from './AuthCard';
 
 export function EmailVerificationScreen() {
+  const { t } = useTranslation('auth');
   const { auth } = useAuth();
   const fetchAccount = useAccountStore((s) => s.fetchAccount);
   const [checking, setChecking] = useState(false);
@@ -22,7 +24,7 @@ export function EmailVerificationScreen() {
       useAccountStore.setState({ emailNotVerified: false });
       await fetchAccount();
     } catch {
-      setError('Email not yet verified. Please check your inbox and try again.');
+      setError(t('verifyEmail.notVerified'));
     } finally {
       setChecking(false);
     }
@@ -41,7 +43,7 @@ export function EmailVerificationScreen() {
       }
       setResendSuccess(true);
     } catch {
-      setError('Failed to resend verification email. Please try again later.');
+      setError(t('verifyEmail.resendFailed'));
     } finally {
       setResending(false);
     }
@@ -69,12 +71,9 @@ export function EmailVerificationScreen() {
         </svg>
       </div>
 
-      <h1 className="text-xl font-semibold text-neutral-800 mb-2">Verify your email</h1>
+      <h1 className="text-xl font-semibold text-neutral-800 mb-2">{t('verifyEmail.title')}</h1>
 
-      <p className="text-sm text-neutral-600 mb-6">
-        We sent a verification link to your email address. Please check your inbox (and spam folder)
-        and click the link to verify your account.
-      </p>
+      <p className="text-sm text-neutral-600 mb-6">{t('verifyEmail.body')}</p>
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
@@ -84,13 +83,13 @@ export function EmailVerificationScreen() {
 
       {resendSuccess && (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-          Verification email sent! Check your inbox.
+          {t('verifyEmail.resent')}
         </div>
       )}
 
       <div className="space-y-3">
         <Button variant="primary" className="w-full" onClick={handleRefresh} disabled={checking}>
-          {checking ? 'Checking...' : "I've verified my email"}
+          {checking ? t('verifyEmail.checking') : t('verifyEmail.verified')}
         </Button>
 
         <button
@@ -98,14 +97,14 @@ export function EmailVerificationScreen() {
           disabled={resending}
           className="w-full px-4 py-2 border border-brand-300 text-brand-700 rounded hover:bg-brand-50 disabled:opacity-50 cursor-pointer transition-colors"
         >
-          {resending ? 'Sending...' : 'Resend verification email'}
+          {resending ? t('verifyEmail.sending') : t('verifyEmail.resend')}
         </button>
 
         <button
           onClick={handleSignOut}
           className="w-full px-4 py-2 text-neutral-600 hover:text-neutral-800 text-sm cursor-pointer transition-colors"
         >
-          Sign out and use a different account
+          {t('verifyEmail.signOutOther')}
         </button>
       </div>
     </AuthCard>

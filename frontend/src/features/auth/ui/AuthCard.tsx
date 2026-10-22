@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { HarvestMark } from '~/shared/ui/HarvestMark';
+import { LanguageSelect } from '~/shared/ui/LanguageSelect';
 
 interface AuthCardProps {
   children: ReactNode;
@@ -10,24 +12,29 @@ interface AuthCardProps {
 }
 
 /** Full-screen centered card used by the auth/onboarding screens. */
-export const AuthCard = ({ children, className, outerClassName }: AuthCardProps) => (
-  <div
-    className={`h-dvh w-full overflow-y-auto flex flex-col items-center px-4 py-6 ${outerClassName ?? ''}`}
-  >
-    <div
-      className={`bg-white border border-neutral-200 rounded-xl shadow-sm p-8 w-full max-w-md shrink-0 my-auto ${
-        className ?? ''
-      }`}
-    >
-      <div className="flex items-center gap-3 text-left border-b border-neutral-100 pb-4 mb-6">
-        <HarvestMark className="h-10 w-10 shrink-0" />
-        <div className="leading-tight">
-          <div className="text-[13px] font-semibold text-neutral-900">STACNotator</div>
-          <div className="text-[11px] text-neutral-500">by NASA Harvest</div>
-        </div>
-      </div>
+export const AuthCard = ({ children, className, outerClassName }: AuthCardProps) => {
+  const { t } = useTranslation('auth');
 
-      {children}
+  return (
+    <div
+      className={`h-dvh w-full overflow-y-auto flex flex-col items-center px-4 py-6 ${outerClassName ?? ''}`}
+    >
+      <div
+        className={`bg-white border border-neutral-200 rounded-xl shadow-sm p-8 w-full max-w-md shrink-0 my-auto ${
+          className ?? ''
+        }`}
+      >
+        <div className="flex items-center gap-3 text-left border-b border-neutral-100 pb-4 mb-6">
+          <HarvestMark className="h-10 w-10 shrink-0" />
+          <div className="leading-tight">
+            <div className="text-[13px] font-semibold text-neutral-900">STACNotator</div>
+            <div className="text-[11px] text-neutral-500">{t('card.byline')}</div>
+          </div>
+          <LanguageSelect className="ml-auto self-start text-xs text-neutral-500" />
+        </div>
+
+        {children}
+      </div>
     </div>
-  </div>
-);
+  );
+};

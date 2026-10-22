@@ -1,14 +1,17 @@
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import type { ProjectOut } from '~/api/client';
 import { IconGlobe } from '~/shared/ui/Icons';
 
-const roleLabel = (project: ProjectOut) => {
-  if (project.is_admin) return 'Admin';
-  if (project.is_member) return 'Member';
-  if (!project.has_access) return 'Listed';
-  return project.visibility === 'organization' ? 'Org access' : 'Public';
+const roleLabel = (project: ProjectOut, t: TFunction<'projects'>) => {
+  if (project.is_admin) return t('row.roles.admin');
+  if (project.is_member) return t('row.roles.member');
+  if (!project.has_access) return t('row.roles.listed');
+  return project.visibility === 'organization' ? t('row.roles.orgAccess') : t('row.roles.public');
 };
 
 export const ProjectRow = ({ project, onOpen }: { project: ProjectOut; onOpen: () => void }) => {
+  const { t } = useTranslation('projects');
   const canOpen = !!project.has_access;
   const campaigns = project.campaign_count ?? 0;
 
@@ -33,7 +36,7 @@ export const ProjectRow = ({ project, onOpen }: { project: ProjectOut; onOpen: (
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-neutral-900 truncate">{project.name}</h3>
           {project.visibility === 'public' && (
-            <span title="Public project" aria-label="Public project">
+            <span title={t('row.publicProject')} aria-label={t('row.publicProject')}>
               <IconGlobe className="w-3.5 h-3.5 text-brand-500 shrink-0" />
             </span>
           )}
@@ -42,8 +45,8 @@ export const ProjectRow = ({ project, onOpen }: { project: ProjectOut; onOpen: (
           <p className="text-xs text-neutral-600 mt-0.5 truncate">{project.description}</p>
         )}
         <p className="text-[11px] text-neutral-500 mt-0.5">
-          {roleLabel(project)} · {campaigns} campaign{campaigns === 1 ? '' : 's'}
-          {!canOpen && ' · Membership required to open'}
+          {t('row.summary', { role: roleLabel(project, t), count: campaigns })}
+          {!canOpen && t('row.membershipRequired')}
         </p>
       </div>
     </li>

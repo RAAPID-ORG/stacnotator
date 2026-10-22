@@ -1,3 +1,5 @@
+import i18n from '~/shared/i18n';
+
 /** Username rules, mirroring backend/src/auth/usernames.py so the form can say
  *  what is wrong before asking. The backend stays the authority - it owns
  *  uniqueness, which no client can know. */
@@ -5,14 +7,13 @@ const MIN_LENGTH = 3;
 const MAX_LENGTH = 30;
 const PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
-export const USERNAME_RULES =
-  'Letters, digits, dots, underscores or hyphens - 3 to 30 characters, starting with a letter or digit.';
+export const usernameRules = () => i18n.t('auth:username.rules');
 
 export const usernameError = (username: string): string | null => {
   const value = username.trim();
-  if (value.length < MIN_LENGTH) return `Username must be at least ${MIN_LENGTH} characters`;
-  if (value.length > MAX_LENGTH) return `Username must be at most ${MAX_LENGTH} characters`;
-  if (!PATTERN.test(value)) return USERNAME_RULES;
+  if (value.length < MIN_LENGTH) return i18n.t('auth:username.tooShort', { min: MIN_LENGTH });
+  if (value.length > MAX_LENGTH) return i18n.t('auth:username.tooLong', { max: MAX_LENGTH });
+  if (!PATTERN.test(value)) return usernameRules();
   return null;
 };
 
