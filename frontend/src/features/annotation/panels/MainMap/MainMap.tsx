@@ -10,7 +10,7 @@ import { collectionsInView } from '../../campaign/imagery';
 import { awaitingImageryRegistration } from '../../campaign/tileUrls';
 import { computeTaskProgress } from '../../campaign/tasks';
 import { handleProbeClick, useDrawingInteractions, useEditDrawnId } from '../../drawing';
-import { geometryTopRight, missingRequiredFields } from '../../campaign/annotation';
+import { bboxPolygon, geometryTopRight, missingRequiredFields } from '../../campaign/annotation';
 import { useCameraZoom } from '~/shared/map/Camera';
 import { applyCameraTarget, fitAnnotations, focusCameraTarget, mainCamera } from '../../map/camera';
 import { annotationsVisibleAt, composeLayers, type ComposeState } from '../../map/compose';
@@ -38,6 +38,8 @@ import { VectorLayerControls } from './controls/VectorLayerControls';
 import { ViewControls } from './controls/ViewControls';
 import { TimelineSidebar } from './TimelineSidebar';
 import { SelectionControls } from './SelectionControls';
+import { ProposalControls } from './ProposalControls';
+import { isWandBusy, useWandStore } from '../../stores/wand';
 import { usePreloading } from './usePreloading';
 import { useSceneNotice } from './SceneNotice';
 import { useSceneAutoLoad, useSceneSliceLayers } from '../../stores/scenes';
@@ -330,10 +332,25 @@ function DraftQuestionsHint({ missing }: { missing: string[] }) {
 function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean }) {
   const mode = useCampaignStore((s) => s.workMode);
   const needsLabel = useWorkStore((s) => s.tool === 'annotate' && s.selectedLabelId === null);
+  const wandStatus = useWandStore((s) => s.status);
   const sceneNotice = useSceneNotice();
   const loadingTiles = useForegroundLoading();
 
   if (waitingForRegistration) return <ImageryRegistrationNotice />;
+  if (isWandBusy(wandStatus)) {
+    return (
+      <StatusPill>
+        <PillSpinner />
+        <span data-testid="wand-busy-notice">
+          {wandStatus.phase === 'downloading'
+            ? `Downloading the segmentation model, ${Math.round((100 * wandStatus.loaded) / Math.max(1, wandStatus.total))}%`
+            : wandStatus.phase === 'fetching'
+              ? 'Fetching imagery under the box'
+              : 'Segmenting'}
+        </span>
+      </StatusPill>
+    );
+  }
   if (mode === 'explore' && needsLabel) {
     return (
       <StatusPill>
@@ -376,6 +393,9 @@ export function MainMapBody() {
   const formValues = useWorkStore((s) => s.formValues);
   const selection = useWorkStore((s) => s.selection);
   const selectionAnchor = useWorkStore((s) => s.selectionAnchor);
+  const wandProposals = useWandStore((s) => s.proposals);
+  const wandArea = useWandStore((s) => s.area);
+  const wandStatus = useWandStore((s) => s.status.phase);
   // Draw/edit/box-select belong to the map they act on, so this is where the
   // drawing feature's wiring is mounted.
   const { interactions, onMapClick: drawingClick } = useDrawingInteractions();
@@ -420,6 +440,20 @@ export function MainMapBody() {
     [unsaved, draft]
   );
 
+  const proposals = useMemo(
+    () =>
+      wandProposals.map((p) => ({
+        id: p.id,
+        geometry: p.geometry,
+        properties: { labelId: p.labelId, accepted: p.accepted },
+      })),
+    [wandProposals]
+  );
+  const segmentingArea = useMemo(
+    () => (wandArea ? { id: 'wand-area', geometry: bboxPolygon(wandArea) } : null),
+    [wandArea]
+  );
+
   const layers = useMemo(() => {
     const state: ComposeState = {
       ...imagery,
@@ -431,6 +465,8 @@ export function MainMapBody() {
       crosshairColor: focus?.crosshairColor ?? null,
       draftFeatures,
       draftLabelId: draft.phase === 'idle' ? null : draft.labelId,
+      proposals,
+      segmentingArea,
       probePoints,
       activeProbe,
       originTask,
@@ -445,6 +481,8 @@ export function MainMapBody() {
     focus,
     draftFeatures,
     draft,
+    proposals,
+    segmentingArea,
     probePoints,
     activeProbe,
     originTask,
@@ -501,9 +539,15 @@ export function MainMapBody() {
             content: <DraftQuestionsHint missing={missing.map((f) => f.title)} />,
             offset: [10, -5],
           }
-        : selection.length > 0 && selectionAnchor
-          ? { at: selectionAnchor, content: <SelectionControls />, offset: [10, -5] }
-          : null;
+        : wandProposals.length > 0
+          ? {
+              at: geometryTopRight(wandProposals[wandProposals.length - 1].geometry),
+              content: <ProposalControls />,
+              offset: [10, -5],
+            }
+          : selection.length > 0 && selectionAnchor
+            ? { at: selectionAnchor, content: <SelectionControls />, offset: [10, -5] }
+            : null;
 
   return (
     <div className="flex h-full w-full">
@@ -515,6 +559,8 @@ export function MainMapBody() {
         data-probe-lon={probePoints.at(-1)?.[0]}
         data-probe-lat={probePoints.at(-1)?.[1]}
         data-probe-count={probePoints.length}
+        data-wand-status={wandStatus}
+        data-wand-proposals={wandProposals.length}
         data-map-loading={mapLoading}
         // How many annotations this map is drawing itself because the tiles do
         // not carry them yet, and the version of the tiles it is drawing.

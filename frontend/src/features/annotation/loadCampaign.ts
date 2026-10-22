@@ -7,6 +7,7 @@ import { startCollectionFor, useCampaignStore, type WorkMode } from './stores/ca
 import { useImageryStore } from './stores/imagery';
 import { useLayoutStore } from './stores/layout';
 import { resetScenes } from './stores/scenes';
+import { useWandStore } from './stores/wand';
 import { useTasksStore } from './stores/tasks';
 import { useWorkStore } from './stores/work';
 
@@ -60,6 +61,7 @@ export async function loadCampaign(
   const startCollectionId = startCollectionFor(catalog, view, layout.windows);
 
   useWorkStore.getState().resetAll();
+  useWandStore.getState().reset();
   resetScenes();
   useCampaignStore.setState({
     campaign,

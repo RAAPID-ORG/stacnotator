@@ -48,6 +48,10 @@ export function extendedLabels(
   }));
 }
 
+/** The magic wand draws polygons, so only a polygon label can offer it. */
+export const usesWand = (label: ExtendedLabel | undefined): boolean =>
+  !!label?.auto_segment && label.geometry_type === 'polygon';
+
 /** Labels an annotation may be reassigned to on edit: the drawn geometry
  *  cannot change type, so only labels of the same type qualify. */
 export function labelsWithSameGeometry(labels: ExtendedLabel[], labelId: number | null) {
@@ -310,6 +314,26 @@ export function geometryCentroid(geometry: GeoJSON.Geometry): [number, number] {
 export function geometryTopRight(geometry: GeoJSON.Geometry): [number, number] {
   const [, , maxX, maxY] = extentOf(geometry);
   return [maxX, maxY];
+}
+
+export function bboxPolygon([west, south, east, north]: [
+  number,
+  number,
+  number,
+  number,
+]): GeoJSON.Polygon {
+  return {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [west, south],
+        [east, south],
+        [east, north],
+        [west, north],
+        [west, south],
+      ],
+    ],
+  };
 }
 
 const METERS_PER_DEGREE_LAT = 111_320;

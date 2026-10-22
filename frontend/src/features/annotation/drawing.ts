@@ -13,13 +13,20 @@ import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 import {
   featureDedupeKey,
   geometryToWkt,
+  usesWand,
   validateForm,
   type ExtendedLabel,
   type FormValues,
   type GeometryType,
 } from './campaign/annotation';
 import { resolveLabelStyle, toDraftStyleSpec } from './campaign/labelStyle';
-import { isAnnotationLayer, PROBE_LAYER_ID, probeIndexOf, vectorLayerId } from './map/compose';
+import {
+  isAnnotationLayer,
+  PROBE_LAYER_ID,
+  PROPOSAL_LAYER_ID,
+  probeIndexOf,
+  vectorLayerId,
+} from './map/compose';
 import type { Bbox, BoxHit, DrawShape, InteractionSpec, MapClickEvent } from '~/shared/map/types';
 import {
   campaignState,
@@ -32,7 +39,9 @@ import {
 } from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
 import { usePrefsStore } from './stores/prefs';
+import { useWandStore } from './stores/wand';
 import { useWorkStore } from './stores/work';
+import { segmentArea } from './wand';
 
 const DRAW_SHAPES: Record<GeometryType, DrawShape> = {
   point: 'Point',
@@ -83,10 +92,12 @@ export function dedupeHits(hits: BoxHit[]): GeoJSON.Geometry[] {
   return geometries;
 }
 
-export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<LabelOutcome> {
+export async function labelGeometries(
+  geometries: GeoJSON.Geometry[],
+  labelId = useWorkStore.getState().selectedLabelId
+): Promise<LabelOutcome> {
   if (geometries.length === 0) return { kind: 'noop' };
   const work = useWorkStore.getState();
-  const labelId = work.selectedLabelId;
   if (labelId === null) return { kind: 'noop' };
 
   const { ok, missing } = validateForm(formFields(), work.formValues);
@@ -120,6 +131,23 @@ function reportLabelOutcome(outcome: LabelOutcome): void {
     useWorkStore.getState().refreshTiles();
     alert(`Labeled ${outcome.count} feature(s)`, 'success');
   }
+}
+
+/** Save every accepted wand proposal, one batch per label, and drop the rest.
+ *  A label whose save is blocked or fails keeps its proposals for a retry;
+ *  the ones already saved are gone, so a retry cannot store them twice. */
+export async function acceptProposals(): Promise<void> {
+  const byLabel = new Map<number, GeoJSON.Geometry[]>();
+  for (const p of useWandStore.getState().proposals) {
+    if (p.accepted) byLabel.set(p.labelId, [...(byLabel.get(p.labelId) ?? []), p.geometry]);
+  }
+  for (const [labelId, geometries] of byLabel) {
+    const outcome = await labelGeometries(geometries, labelId);
+    reportLabelOutcome(outcome);
+    if (outcome.kind !== 'saved') return;
+    useWandStore.setState((s) => ({ proposals: s.proposals.filter((p) => p.labelId !== labelId) }));
+  }
+  useWandStore.getState().discard();
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +293,12 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
     return;
   }
 
+  // A click on a proposal changes its mind; the box drag is the wand's gesture.
+  if (event.layerId === PROPOSAL_LAYER_ID && event.featureId != null) {
+    useWandStore.getState().toggle(String(event.featureId));
+    return;
+  }
+
   // Pan opens an annotation for reading: the details panel fills in, and the
   // on-map controls come with it, but no vertex handles - editing is the edit
   // tool's.
@@ -393,6 +427,12 @@ export function useDrawingInteractions(): {
           onDrawEnd: (geometry) => void handleDrawEnd(geometry),
         },
         snap: true,
+      };
+    }
+    if (tool === 'wand') {
+      if (!usesWand(label)) return undefined;
+      return {
+        boxSelect: { onBox: (bbox: Bbox) => void segmentArea(bbox), condition: 'always' },
       };
     }
     if (tool === 'edit') {

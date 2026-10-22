@@ -12,7 +12,14 @@ import {
 } from '../campaign/labelStyle';
 import type { ExtendedLabel } from '../campaign/annotation';
 import type { OriginTask, WorkMode } from '../stores/campaign';
-import type { GeoFeature, LayerId, LayerSpec, LonLat, StyleSpec } from '~/shared/map/types';
+import type {
+  GeoFeature,
+  LayerId,
+  LayerSpec,
+  LonLat,
+  RasterLayerSpec,
+  StyleSpec,
+} from '~/shared/map/types';
 
 export const TILE_SKELETON_LAYER_ID = 'tile-skeleton';
 export const ANNOTATION_LAYER_ID = 'annotations';
@@ -30,6 +37,7 @@ export const EXTENT_LAYER_ID = 'task-extent';
 export const CROSSHAIR_LAYER_ID = 'crosshair';
 export const ORIGIN_TASK_LAYER_ID = 'origin-task';
 export const DRAFT_LAYER_ID = 'draft';
+export const PROPOSAL_LAYER_ID = 'wand-proposals';
 export const PROBE_LAYER_ID = 'probe';
 
 /** One colour per probe, shared with the chart so a marker and its lines
@@ -58,6 +66,7 @@ const ANNOTATION_Z = 10;
 const ANNOTATION_DELTA_Z = 11;
 const ANNOTATION_MARKER_Z = 12;
 const DRAFT_Z = 13;
+const PROPOSAL_Z = 13;
 const PROBE_Z = 14;
 const CROSSHAIR_Z = 15;
 
@@ -132,6 +141,11 @@ export interface ComposeState extends ImageryNavState {
   crosshairColor?: string | null;
   draftFeatures?: GeoFeature[];
   draftLabelId?: number | null;
+  /** Magic wand outlines awaiting a decision, each carrying its `labelId`
+   *  and whether accepting would save it (`accepted`) as properties. */
+  proposals?: GeoFeature[];
+  /** The box the wand is working on, outlined until its answer arrives. */
+  segmentingArea?: GeoFeature | null;
   probePoints?: LonLat[];
   /** The probe a click moves, drawn larger so it is obvious which one that is. */
   activeProbe?: number | null;
@@ -162,6 +176,18 @@ const styleForLabel = (
 const FALLBACK_TILE_STYLE: StyleSpec = {
   fill: { color: 'rgba(120,120,120,0.2)' },
   stroke: { color: 'rgba(120,120,120,1)', width: 2 },
+};
+
+const PROPOSAL_FALLBACK_STYLE: StyleSpec = {
+  fill: { color: 'rgba(59,130,246,0.15)' },
+  stroke: { color: '#3b82f6', width: 2, dash: [6, 4] },
+};
+const REJECTED_PROPOSAL_STYLE: StyleSpec = {
+  stroke: { color: 'rgba(148,163,184,0.9)', width: 1.5, dash: [3, 4] },
+};
+const SEGMENTING_AREA_STYLE: StyleSpec = {
+  fill: { color: 'rgba(255,255,255,0.08)' },
+  stroke: { color: 'rgba(255,255,255,0.95)', width: 1.5, dash: [4, 4] },
 };
 
 type TileStyleFn = (props: Record<string, unknown>) => StyleSpec;
@@ -236,6 +262,45 @@ const TILE_SKELETON_URL =
   "<rect width='256' height='256' fill='%23eceef1'/>" +
   "<rect x='0.5' y='0.5' width='255' height='255' fill='none' stroke='%23dcdfe4'/></svg>";
 
+function sliceLayer(
+  catalog: ImageryCatalog,
+  state: ComposeState,
+  cacheScope?: string
+): RasterLayerSpec | null {
+  if (!state.address) return null;
+  try {
+    const raster = sliceRaster(
+      catalog,
+      state.address,
+      state.legendOverrides?.[Number(state.address.vizId)]
+    );
+    return { kind: 'raster', ...raster, cacheScope };
+  } catch {
+    // A stale address costs the imagery layer, not the page.
+    return null;
+  }
+}
+
+/** The raster the main map shows: the slice, or the basemap when it is
+ *  selected or there is no imagery to show. */
+export function mainRaster(
+  catalog: ImageryCatalog,
+  state: ComposeState,
+  cacheScope?: string
+): RasterLayerSpec | null {
+  if (state.address && !state.showBasemap) return sliceLayer(catalog, state, cacheScope);
+  const basemap = selectedBasemap(catalog, state.selectedBasemapId);
+  if (!basemap) return null;
+  return {
+    kind: 'raster',
+    id: `basemap-${basemap.id}`,
+    url: resolveBasemapUrl(catalog.campaignId, basemap),
+    auth: 'none',
+    maxZoom: basemap.max_native_zoom ?? undefined,
+    attribution: basemapAttribution(basemap.url),
+  };
+}
+
 export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSpec[] {
   const { catalog, mode } = ctx;
   const isWindow = state.target === 'window';
@@ -261,32 +326,15 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
 
   // Imagery, or the basemap when selected - and also when there is no imagery
   // at all, so the map is never a blank canvas.
-  if ((state.showBasemap || !state.address) && !isWindow) {
-    const basemap = selectedBasemap(catalog, state.selectedBasemapId);
-    if (basemap) {
-      layers.push({
-        kind: 'raster',
-        id: `basemap-${basemap.id}`,
-        url: resolveBasemapUrl(catalog.campaignId, basemap),
-        auth: 'none',
-        maxZoom: basemap.max_native_zoom ?? undefined,
-        attribution: basemapAttribution(basemap.url),
-      });
-    }
+  if (!isWindow) {
+    const raster = mainRaster(catalog, state, taskScope);
+    if (raster) layers.push(raster);
     // No address means the view has nothing to navigate: the basemap is the
     // whole map, with nothing to overlay it with yet.
     if (!state.address) return layers;
   } else if (state.address) {
-    try {
-      const raster = sliceRaster(
-        catalog,
-        state.address,
-        state.legendOverrides?.[Number(state.address.vizId)]
-      );
-      layers.push({ kind: 'raster', ...raster, cacheScope: taskScope });
-    } catch {
-      // A stale address costs the imagery layer, not the page.
-    }
+    const raster = sliceLayer(catalog, state, taskScope);
+    if (raster) layers.push(raster);
   }
 
   if (!isWindow && state.overlay.id != null && state.overlay.visible) {
@@ -406,6 +454,31 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
         ? toDraftStyleSpec(style)
         : { stroke: { color: 'rgba(255,255,255,0.9)', width: 2, dash: [6, 4] } },
       zIndex: DRAFT_Z,
+    });
+  }
+
+  if (!isWindow && (state.proposals?.length || state.segmentingArea)) {
+    const accepted = new Map<number, StyleSpec>();
+    const acceptedStyle = (labelId: number) => {
+      if (!accepted.has(labelId)) {
+        const label = state.annotations?.labels.find((l) => l.id === labelId);
+        const style = styleForLabel(label, state.annotations?.labelStyles?.[labelId]);
+        accepted.set(labelId, style ? toDraftStyleSpec(style) : PROPOSAL_FALLBACK_STYLE);
+      }
+      return accepted.get(labelId)!;
+    };
+    const area = state.segmentingArea;
+    layers.push({
+      kind: 'features',
+      id: PROPOSAL_LAYER_ID,
+      features: [...(area ? [area] : []), ...(state.proposals ?? [])],
+      style: (feature) => {
+        if (feature === area) return SEGMENTING_AREA_STYLE;
+        return feature.properties?.accepted
+          ? acceptedStyle(Number(feature.properties.labelId))
+          : REJECTED_PROPOSAL_STYLE;
+      },
+      zIndex: PROPOSAL_Z,
     });
   }
 

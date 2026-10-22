@@ -13,6 +13,7 @@ import {
   extendedLabels,
   geometryToWkt,
   geometryTopRight,
+  usesWand,
   validateForm,
   wktToGeometry,
   type FormValues,
@@ -43,7 +44,7 @@ import { campaignState, formFields, originTaskId, useCampaignStore } from './cam
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';
 
-export type Tool = 'pan' | 'annotate' | 'edit' | 'labelVector' | 'timeseries';
+export type Tool = 'pan' | 'annotate' | 'wand' | 'edit' | 'labelVector' | 'timeseries';
 
 /**
  * A shape being drawn. `sketching` means the tool is armed, `draft` means the
@@ -236,6 +237,9 @@ const alert = (message: string, kind: 'error' | 'success') =>
  * working the same area already see each other before they collide.
  */
 const REMOTE_POLL_MS = 5_000;
+
+const labelById = (id: number | null) =>
+  extendedLabels(useCampaignStore.getState().campaign).find((l) => l.id === id);
 
 export const useWorkStore = create<WorkState>((set, get) => {
   /** Record a change the tiles do not have yet, refreshing them instead once
@@ -488,7 +492,11 @@ export const useWorkStore = create<WorkState>((set, get) => {
     selectLabel: (labelId) => {
       set({ selectedLabelId: labelId });
       const { tool } = get();
-      if (tool !== 'annotate' && tool !== 'labelVector') void get().selectTool('annotate');
+      const keepsTool =
+        tool === 'annotate' ||
+        tool === 'labelVector' ||
+        (tool === 'wand' && usesWand(labelById(labelId)));
+      if (!keepsTool) void get().selectTool('annotate');
     },
 
     selectTool: async (tool) => {
@@ -496,6 +504,12 @@ export const useWorkStore = create<WorkState>((set, get) => {
       // The tool changes first: the pointer must not lag a click behind the
       // button. Resolving the draft afterwards is what Escape does too.
       set({ tool });
+      // The wand needs a label it can segment for; arm the first one rather
+      // than leave a box drawing nothing.
+      if (tool === 'wand' && !usesWand(labelById(get().selectedLabelId))) {
+        const first = extendedLabels(useCampaignStore.getState().campaign).find(usesWand);
+        set({ selectedLabelId: first?.id ?? null });
+      }
 
       // Dropping the label on pan is Explore's "stop drawing". In Tasks the
       // selected label is the answer waiting to be submitted, not a draw arm.

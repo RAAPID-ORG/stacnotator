@@ -3,6 +3,7 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 import {
   extendedLabels,
   isLabelGroupActive,
+  usesWand,
   type ExtendedLabel,
   type GeometryType,
 } from '../../campaign/annotation';
@@ -18,6 +19,7 @@ import { LabelChips } from '../../components/LabelChips';
 import { DraftCatalog } from './DraftCatalog';
 import { EditDetails } from './EditDetails';
 import { LabelStyleEditor } from './LabelStyleEditor';
+import { WandPanel } from './WandPanel';
 
 interface ToolDef {
   id: Tool;
@@ -39,6 +41,12 @@ const TOOLS: ToolDef[] = [
     label: 'Annotate',
     shortcut: 'R',
     icon: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z',
+  },
+  {
+    id: 'wand',
+    label: 'Magic wand',
+    shortcut: 'W',
+    icon: 'M21.64 3.64l-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72M14 7l3 3M5 6v4M19 14v4M10 2v2M7 8H3M21 16h-4M11 3H9',
   },
   {
     id: 'edit',
@@ -103,7 +111,10 @@ function ShortcutLegend() {
       <span className="font-semibold text-neutral-700 text-[11px]">Shortcuts</span>
       <ul className="mt-1.5 space-y-0.5 max-w-xs">
         {rows.map((row) => (
-          <li key={row.key} className="flex items-center justify-between gap-3 text-[11px]">
+          <li
+            key={`${row.key}:${row.help}`}
+            className="flex items-center justify-between gap-3 text-[11px]"
+          >
             <span className="text-neutral-600">{row.help}</span>
             <kbd className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
               {row.key}
@@ -193,8 +204,11 @@ export function ExploreControls() {
   const availableTools = TOOLS.filter(
     (t) =>
       (t.id !== 'timeseries' || campaign.time_series.length > 0) &&
-      (t.id !== 'labelVector' || (campaign.vector_layers?.length ?? 0) > 0)
+      (t.id !== 'labelVector' || (campaign.vector_layers?.length ?? 0) > 0) &&
+      (t.id !== 'wand' || labels.some(usesWand))
   );
+  // The wand only segments for the labels it is enabled on.
+  const pickable = tool === 'wand' ? labels.filter(usesWand) : labels;
 
   /** The chip swatch shows the label as the map draws it: the user's resolved
    *  fill inside their resolved border. */
@@ -296,7 +310,7 @@ export function ExploreControls() {
             error={saveError}
           />
         ) : (
-          (tool === 'annotate' || tool === 'labelVector') && (
+          (tool === 'annotate' || tool === 'labelVector' || tool === 'wand') && (
             <>
               <div
                 className={`flex flex-col gap-1.5 -mx-2 px-2 py-2 ${
@@ -334,7 +348,7 @@ export function ExploreControls() {
                 ) : (
                   <LabelChips
                     fill
-                    labels={labels.map(swatch)}
+                    labels={pickable.map(swatch)}
                     selectedId={selectedLabelId}
                     onSelect={(label) => useWorkStore.getState().selectLabel(label.id)}
                     renderIcon={(label) => <span>{GEOMETRY_ICONS[label.geometry_type]}</span>}
@@ -369,8 +383,10 @@ export function ExploreControls() {
                 )}
               </div>
 
-              {/* Label-vector applies the answers on click, so it keeps the form inline. */}
-              {tool === 'labelVector' && (
+              {tool === 'wand' && <WandPanel label={selectedLabel} />}
+
+              {/* Label-vector and the wand apply the answers on save, so they keep the form inline. */}
+              {(tool === 'labelVector' || tool === 'wand') && (
                 <div className="flex flex-wrap border-t border-l border-neutral-100 rounded">
                   <FormFields
                     fields={fields}
@@ -381,7 +397,7 @@ export function ExploreControls() {
                 </div>
               )}
 
-              {selectedLabel && (
+              {selectedLabel && tool !== 'wand' && (
                 <p
                   className="text-[11px] text-neutral-500 leading-relaxed"
                   data-testid="label-hint"

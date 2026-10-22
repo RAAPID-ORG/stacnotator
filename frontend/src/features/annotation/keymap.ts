@@ -8,11 +8,13 @@ import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.s
 import { handleError } from '~/shared/utils/errorHandler';
 import { DIGIT_INPUT_TIMEOUT_MS } from '~/shared/utils/constants';
 import { focusFormFieldInput, reveal, revealAndFocus } from './components/FormFields';
-import { commitEdit, deleteSelection } from './drawing';
+import { acceptProposals, commitEdit, deleteSelection } from './drawing';
 import type { Binding } from './hotkeys';
 import {
+  extendedLabels,
   handleFormFieldKey,
   LABEL_FIELD_INDEX,
+  usesWand,
   type FormField,
   type FormKeyContext,
 } from './campaign/annotation';
@@ -30,6 +32,7 @@ import {
 import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useImageryStore } from './stores/imagery';
 import { currentTask, useTasksStore } from './stores/tasks';
+import { useWandStore } from './stores/wand';
 import { useWorkStore, type Tool } from './stores/work';
 import {
   advance,
@@ -297,6 +300,7 @@ function editBindings(): Binding[] {
 const TOOL_KEYS: Array<{ key: string; tool: Tool; help: string }> = [
   { key: 'p', tool: 'pan', help: 'Pan tool' },
   { key: 'r', tool: 'annotate', help: 'Annotate tool' },
+  { key: 'w', tool: 'wand', help: 'Magic wand' },
   { key: 'e', tool: 'edit', help: 'Edit tool' },
   { key: 'b', tool: 'labelVector', help: 'Label vector features' },
   { key: 't', tool: 'timeseries', help: 'Timeseries probe' },
@@ -308,6 +312,8 @@ function exploreBindings(): Binding[] {
   const hasTimeseries = campaign.time_series.length > 0;
   const hasVectorLayers = (campaign.vector_layers?.length ?? 0) > 0;
   const draftIsOpen = () => useWorkStore.getState().draft.phase === 'draft';
+  const hasWand = extendedLabels(campaign).some(usesWand);
+  const proposalsWaiting = () => !draftIsOpen() && useWandStore.getState().proposals.length > 0;
 
   const toolBinding = ({ key, tool, help }: (typeof TOOL_KEYS)[number]): Binding => ({
     key,
@@ -315,6 +321,7 @@ function exploreBindings(): Binding[] {
     when: () => {
       if (tool === 'timeseries') return hasTimeseries;
       if (tool === 'labelVector') return hasVectorLayers;
+      if (tool === 'wand') return hasWand;
       return true;
     },
     run: () => void useWorkStore.getState().selectTool(tool),
@@ -380,6 +387,18 @@ function exploreBindings(): Binding[] {
         : 'Close the questions (the annotation is already saved)',
       when: draftIsOpen,
       run: () => void useWorkStore.getState().closeDraft(),
+    },
+    {
+      key: 'enter',
+      help: 'Accept the magic wand outlines',
+      when: proposalsWaiting,
+      run: () => void acceptProposals(),
+    },
+    {
+      key: 'escape',
+      help: 'Discard the magic wand outlines',
+      when: proposalsWaiting,
+      run: () => useWandStore.getState().discard(),
     },
   ];
 }
