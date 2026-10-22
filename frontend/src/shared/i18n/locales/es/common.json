@@ -1,0 +1,20 @@
+{
+  "language": "Idioma",
+  "actions": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "delete": "Eliminar",
+    "close": "Cerrar",
+    "edit": "Editar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "retry": "Reintentar",
+    "remove": "Quitar",
+    "add": "Añadir",
+    "create": "Crear"
+  },
+  "status": {
+    "loading": "Cargando…"
+  }
+}

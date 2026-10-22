@@ -1,0 +1,20 @@
+{
+  "language": "Language",
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "close": "Close",
+    "edit": "Edit",
+    "back": "Back",
+    "next": "Next",
+    "retry": "Retry",
+    "remove": "Remove",
+    "add": "Add",
+    "create": "Create"
+  },
+  "status": {
+    "loading": "Loading…"
+  }
+}
