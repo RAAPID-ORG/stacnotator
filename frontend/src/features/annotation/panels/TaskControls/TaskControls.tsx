@@ -53,7 +53,7 @@ const MIN_LABELS_WIDTH = 128;
 const RIGHT_COLUMN_RESERVE = 192;
 
 const navButtonClass =
-  'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer';
+  'flex-1 min-w-7 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer';
 
 export function TaskControls() {
   const campaign = useCampaign();
@@ -347,58 +347,59 @@ export function TaskControls() {
             )}
           </div>
 
-          <div className="flex flex-col gap-2 p-3">
-            <div className="flex items-center justify-center gap-1.5">
-              <label className={sectionHeaderClass()}>Point</label>
-              <input
-                type="number"
-                value={gotoValue}
-                onChange={(e) => setGotoValue(e.target.value)}
-                min="1"
-                max={visibleTasks.length}
-                disabled={isBusy}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  goToTyped();
-                  e.currentTarget.blur();
-                }}
-                className="w-14 px-2 py-1 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 disabled:opacity-50 tabular-nums"
-                title="Press Enter to go"
-              />
-              {showGoButton && (
-                <button
-                  type="button"
-                  disabled={isBusy}
-                  onClick={goToTyped}
-                  title="Go to annotation"
-                  className="px-2 py-1 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Go
-                </button>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 p-3">
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => previous(catalog)}
+              aria-label="Previous point"
+              title="Previous point"
+              className={navButtonClass}
+            >
+              <IconChevronLeft className="w-3 h-3" />
+              <span className="@max-[15rem]:hidden">Prev</span>
+            </button>
+            <input
+              data-testid="goto-point"
+              type="number"
+              value={gotoValue}
+              onChange={(e) => setGotoValue(e.target.value)}
+              min="1"
+              max={visibleTasks.length}
+              disabled={isBusy}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                e.stopPropagation();
+                goToTyped();
+                e.currentTarget.blur();
+              }}
+              aria-label="Current point"
+              title="Current point - type a number and press Enter to go there"
+              className="w-14 shrink-0 px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 disabled:opacity-50 tabular-nums"
+            />
+            {showGoButton && (
               <button
                 type="button"
                 disabled={isBusy}
-                onClick={() => previous(catalog)}
-                className={navButtonClass}
+                onClick={goToTyped}
+                title="Go to point"
+                className="shrink-0 px-2 py-1.5 @max-[15rem]:hidden text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <IconChevronLeft className="w-3 h-3" />
-                Prev
+                Go
               </button>
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={() => void advance()}
-                className={navButtonClass}
-              >
-                Next
-                <IconChevronRight className="w-3 h-3" />
-              </button>
-            </div>
+            )}
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => void advance()}
+              aria-label="Next point"
+              title="Next point"
+              className={navButtonClass}
+            >
+              <span className="@max-[15rem]:hidden">Next</span>
+              <IconChevronRight className="w-3 h-3" />
+            </button>
           </div>
         </div>
       </div>

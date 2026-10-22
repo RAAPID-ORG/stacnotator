@@ -165,7 +165,7 @@ export async function waitForNavIdle(page: Page, timeout = 5000): Promise<void> 
   await controls.waitFor({ state: 'visible', timeout });
   await nextFrames(page);
   const idle = controls
-    .locator('input[type="number"][title="Press Enter to go"]:not([disabled])')
+    .locator('[data-testid="goto-point"]:not([disabled])')
     .or(controls.getByText('No tasks match the current filter.'));
   await idle.first().waitFor({ state: 'visible', timeout });
 }
