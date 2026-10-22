@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { ImageryCollectionOut } from '~/api/client';
 import { sliceLabel } from '../../campaign/imagery';
 import { emptyKey } from '../../campaign/imageryNav';
@@ -16,6 +17,7 @@ export interface ImageryWindowHeaderProps {
 }
 
 export function ImageryWindowHeader({ collection }: ImageryWindowHeaderProps) {
+  const { t } = useTranslation('panels');
   const catalog = useCatalog();
   const imagery = useImageryStore();
   const notes = useSliceNotes();
@@ -48,13 +50,15 @@ export function ImageryWindowHeader({ collection }: ImageryWindowHeaderProps) {
           <HeaderSelect
             compact
             value={address.sliceIndex}
-            title="Select time slice"
+            title={t('imageryWindow.selectSlice')}
             options={indices.map((index) => {
               const slice = collection.slices[index];
               const isEmpty = !!imagery.empties[emptyKey(collection.id, index)];
               return {
                 value: index,
-                label: `${sliceLabel(slice, index)}${isEmpty ? ' (no data)' : ''}`,
+                label: isEmpty
+                  ? t('imageryWindow.noData', { label: sliceLabel(slice, index) })
+                  : sliceLabel(slice, index),
                 dimmed: isEmpty,
                 badge: notes[slice.id] ? <NoteBadge /> : undefined,
               };
@@ -66,7 +70,7 @@ export function ImageryWindowHeader({ collection }: ImageryWindowHeaderProps) {
         </span>
       )}
       {sceneSource && <SceneLoadButton source={sceneSource} />}
-      <SliceCommentButton compact address={address} hint="or double-click the map" />
+      <SliceCommentButton compact address={address} hint={t('imageryWindow.commentHint')} />
     </div>
   );
 }

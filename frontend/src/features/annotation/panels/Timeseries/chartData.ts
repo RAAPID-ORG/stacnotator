@@ -1,5 +1,6 @@
 import type { ChartType, Plugin } from 'chart.js';
 import type { SpectralIndexOut } from '~/api/client';
+import i18n from '~/shared/i18n';
 import type { TimeSeriesData } from './cache';
 
 declare module 'chart.js' {
@@ -31,20 +32,12 @@ export function collectSeriesLabels(
   return Array.from(times).sort();
 }
 
-const MONTH_NAMES = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
+function shortMonth(monthIndex: number): string {
+  return new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'en', {
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(Date.UTC(2000, monthIndex, 1));
+}
 
 /** Format date string to "MMM 'YY" format. Handles both YYYYMMDD and ISO
  *  date formats. */
@@ -52,12 +45,12 @@ export function formatDateLabel(dateStr: string): string {
   if (/^\d{8}$/.test(dateStr)) {
     const year = dateStr.slice(0, 4);
     const month = parseInt(dateStr.slice(4, 6), 10);
-    return `${MONTH_NAMES[month - 1]} '${year.slice(2)}`;
+    return `${shortMonth(month - 1)} '${year.slice(2)}`;
   }
 
   const date = new Date(dateStr);
   if (!isNaN(date.getTime())) {
-    return `${MONTH_NAMES[date.getMonth()]} '${String(date.getFullYear()).slice(2)}`;
+    return `${shortMonth(date.getMonth())} '${String(date.getFullYear()).slice(2)}`;
   }
 
   return dateStr;
@@ -69,12 +62,12 @@ export function formatDateForTooltip(dateStr: string): string {
     const year = dateStr.slice(0, 4);
     const month = parseInt(dateStr.slice(4, 6), 10);
     const day = parseInt(dateStr.slice(6, 8), 10);
-    return `${day} ${MONTH_NAMES[month - 1]} ${year}`;
+    return `${day} ${shortMonth(month - 1)} ${year}`;
   }
 
   const date = new Date(dateStr);
   if (!isNaN(date.getTime())) {
-    return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+    return `${date.getDate()} ${shortMonth(date.getMonth())} ${date.getFullYear()}`;
   }
 
   return dateStr;

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCanModifyAnnotation } from '../../stores/campaign';
 import { useWorkStore } from '../../stores/work';
 import { commitEdit, deleteSelection } from '../../drawing';
@@ -29,6 +30,7 @@ const Icon = ({ path }: { path: string }) => (
  * geometry itself so the buttons are where the user is already looking.
  */
 export function SelectionControls() {
+  const { t } = useTranslation('panels');
   const selection = useWorkStore((s) => s.selection);
   const annotation = useWorkStore((s) => s.edit?.annotation ?? null);
   const pending = useWorkStore((s) => s.edit?.pending ?? null);
@@ -59,7 +61,7 @@ export function SelectionControls() {
           data-testid="edit-confirm-btn"
           disabled={busy}
           onClick={() => void commitEdit()}
-          title="Confirm edits (Enter)"
+          title={t('selection.confirm')}
           className={`${buttonClass} bg-green-500 hover:bg-green-600`}
         >
           <Icon path={CHECK_PATH} />
@@ -73,8 +75,8 @@ export function SelectionControls() {
           onClick={() => void deleteSelection()}
           title={
             selection.length > 1
-              ? `Delete ${selection.length} annotations (Delete)`
-              : 'Delete annotation (Delete)'
+              ? t('selection.deleteMany', { count: selection.length })
+              : t('selection.delete')
           }
           className={`${buttonClass} bg-red-500 hover:bg-red-600`}
         >
@@ -85,7 +87,7 @@ export function SelectionControls() {
         type="button"
         disabled={busy}
         onClick={() => useWorkStore.getState().clearEdit()}
-        title="Cancel (Esc)"
+        title={t('selection.cancel')}
         className={`${buttonClass} bg-neutral-700 hover:bg-neutral-600`}
       >
         <Icon path={CLOSE_PATH} />

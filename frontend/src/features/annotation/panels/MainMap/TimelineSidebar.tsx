@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useImageryStore } from '../../stores/imagery';
@@ -8,6 +9,7 @@ export function Timeline({
 }: {
   orientation?: 'horizontal' | 'vertical';
 }) {
+  const { t } = useTranslation('panels');
   const horizontal = orientation === 'horizontal';
   const catalog = useCatalog();
   const address = useImageryStore((s) => s.address);
@@ -104,12 +106,12 @@ export function Timeline({
         ref={trackRef}
         role="slider"
         tabIndex={collections.length ? 0 : -1}
-        aria-label="Imagery timeline"
+        aria-label={t('timeline.label')}
         aria-orientation={orientation}
         aria-valuemin={1}
         aria-valuemax={Math.max(1, collections.length)}
         aria-valuenow={Math.max(1, activeIndex + 1)}
-        aria-valuetext={activeCollection?.name ?? 'No imagery'}
+        aria-valuetext={activeCollection?.name ?? t('timeline.noImagery')}
         title={activeLabel || undefined}
         className={`group/timeline relative flex min-h-0 min-w-0 flex-1 touch-none outline-none ${
           horizontal ? 'h-full cursor-ew-resize' : 'w-full cursor-ns-resize flex-col'
@@ -184,13 +186,14 @@ export function Timeline({
 }
 
 export function TimelineSidebar() {
+  const { t } = useTranslation('panels');
   const [collapsed, setCollapsed] = useState(false);
   return (
     <div className="relative h-full">
       <button
         onClick={() => setCollapsed((c) => !c)}
         className="absolute right-0 top-1/2 z-[1001] flex h-12 w-4 -translate-y-1/2 translate-x-full cursor-pointer items-center justify-center rounded-r-md border border-l-0 border-neutral-200 bg-white text-neutral-400 shadow-sm transition-colors hover:bg-neutral-50 hover:text-neutral-700"
-        title={collapsed ? 'Show timeline' : 'Hide timeline'}
+        title={collapsed ? t('timeline.show') : t('timeline.hide')}
         type="button"
       >
         <svg

@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../../stores/layout';
 import { type ImageryCatalog } from '../../../campaign/imagery';
 import { type SliceAddress } from '../../../campaign/imageryNav';
@@ -33,6 +34,7 @@ export interface LayerSelectorProps {
 }
 
 export function LayerSelector({ catalog, sourceIds, title, expanded = false }: LayerSelectorProps) {
+  const { t } = useTranslation('panels');
   const radioName = useId();
   const forcedOpen = useLayoutStore((s) => s.forcedOpenControl);
   const address = useImageryStore((s) => s.address);
@@ -64,8 +66,8 @@ export function LayerSelector({ catalog, sourceIds, title, expanded = false }: L
   if (expanded) {
     return (
       <div data-tour="layer-selector" className="select-none">
-        <div className="text-[11px] font-medium text-neutral-500">Imagery sources</div>
-        <div role="radiogroup" aria-label="Imagery sources" className="space-y-1 p-0.5">
+        <div className="text-[11px] font-medium text-neutral-500">{t('layers.sources')}</div>
+        <div role="radiogroup" aria-label={t('layers.sources')} className="space-y-1 p-0.5">
           {sources.map((source) => {
             const viz =
               source.visualizations.find((item) => String(item.id) === address?.vizId) ??
@@ -90,7 +92,7 @@ export function LayerSelector({ catalog, sourceIds, title, expanded = false }: L
                 </label>
                 <div
                   role="group"
-                  aria-label={`${source.name} visualizations`}
+                  aria-label={t('layers.visualizations', { source: source.name })}
                   className="flex flex-wrap gap-0.5 pl-5"
                 >
                   {source.visualizations.map((item) => {
@@ -144,7 +146,7 @@ export function LayerSelector({ catalog, sourceIds, title, expanded = false }: L
     options.push({
       value: `${BASEMAP_PREFIX}${basemap.id}`,
       label: basemap.name,
-      group: 'Basemaps',
+      group: t('layers.basemaps'),
     });
   }
   const value = showBasemap

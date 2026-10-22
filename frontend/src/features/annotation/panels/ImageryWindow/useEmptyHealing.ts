@@ -1,3 +1,4 @@
+import i18n from '~/shared/i18n';
 import { fromLonLat } from 'ol/proj';
 import { createXYZ } from 'ol/tilegrid';
 import { useEffect, useRef, useState } from 'react';
@@ -100,7 +101,7 @@ export function candidateOrder(
 }
 
 function candidateLabel(collection: ImageryCollectionOut, index: number): string {
-  return collection.slices[index]?.name || `Slice ${index + 1}`;
+  return collection.slices[index]?.name || i18n.t('panels:imageryWindow.slice', { n: index + 1 });
 }
 
 /**

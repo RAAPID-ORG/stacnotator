@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../../stores/layout';
 import { sliceLabel, type ImageryCatalog } from '../../../campaign/imagery';
 import { emptyKey } from '../../../campaign/imageryNav';
@@ -18,6 +19,7 @@ export function SlicePicker({
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
 }) {
+  const { t } = useTranslation('panels');
   const forcedOpen = useLayoutStore((s) => s.forcedOpenControl);
   const editing = useLayoutStore((s) => s.editing);
   const address = useImageryStore((s) => s.address);
@@ -39,7 +41,9 @@ export function SlicePicker({
     const isEmpty = !!empties[emptyKey(collection.id, index)];
     return {
       value: index,
-      label: `${sliceLabel(slice, index)}${isEmpty ? ' (empty)' : ''}`,
+      label: isEmpty
+        ? t('slices.empty', { label: sliceLabel(slice, index) })
+        : sliceLabel(slice, index),
       dimmed: isEmpty,
       badge: notes[slice.id] ? <NoteBadge /> : undefined,
     };
@@ -54,7 +58,7 @@ export function SlicePicker({
         title={title}
         inline={expanded}
         onInlineChange={editing ? onExpandedChange : undefined}
-        label="Dates"
+        label={t('slices.dates')}
         forcedOpen={forcedOpen === 'slice-picker'}
         menuTourName="slice-picker-menu"
       />

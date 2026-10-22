@@ -1,5 +1,6 @@
 import { useCampaignStore, useCatalog } from '../../stores/campaign';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Chart as ChartJS,
   LineElement,
@@ -79,6 +80,7 @@ export interface ChartProps {
 }
 
 export function Chart({ series, points }: ChartProps) {
+  const { t } = useTranslation('panels');
   const catalog = useCatalog();
   const view = useCampaignStore((s) => s.view);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -376,7 +378,11 @@ export function Chart({ series, points }: ChartProps) {
                   key={`${point.key}-${ts.id}`}
                   className="flex items-center gap-1 cursor-pointer hover:opacity-80"
                   onClick={() => toggleDataset(dsIndex)}
-                  title={isHidden ? `Show ${name}` : `Hide ${name}`}
+                  title={
+                    isHidden
+                      ? t('timeseries.showSeries', { name })
+                      : t('timeseries.hideSeries', { name })
+                  }
                 >
                   {isProbe ? (
                     <div
@@ -408,9 +414,9 @@ export function Chart({ series, points }: ChartProps) {
             <button
               className="text-[9px] text-brand-600 hover:text-brand-700 font-medium ml-1 cursor-pointer"
               onClick={handleResetZoom}
-              title="Reset zoom"
+              title={t('timeseries.resetZoom')}
             >
-              Reset zoom
+              {t('timeseries.resetZoom')}
             </button>
           )}
         </div>

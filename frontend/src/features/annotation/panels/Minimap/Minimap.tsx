@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getAnnotationDensity, type AnnotationDensityCell } from '~/api/client';
 import { IconExternalLink } from '~/shared/ui/Icons';
 import { type GeocodingResult } from '~/shared/map/geocoding';
@@ -86,6 +87,7 @@ function ViewportCenter() {
 }
 
 function CenterActions() {
+  const { t } = useTranslation('panels');
   const center = useHeaderCenter();
 
   return (
@@ -96,7 +98,7 @@ function CenterActions() {
         onClick={() =>
           void navigator.clipboard?.writeText(`${center[1].toFixed(5)},${center[0].toFixed(5)}`)
         }
-        title="Copy coordinates to clipboard"
+        title={t('minimap.copyCoordinates')}
         className="p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 rounded transition-colors"
       >
         <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -108,7 +110,7 @@ function CenterActions() {
         href={`https://earth.google.com/web/search/${center[1]},${center[0]}`}
         target="_blank"
         rel="noopener noreferrer"
-        title="Open in Google Earth"
+        title={t('minimap.openInGoogleEarth')}
         data-tour="open-in-google-earth"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { AnnotationTaskOut } from '~/api/client';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
@@ -48,6 +49,7 @@ const navButtonClass =
   'flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer';
 
 export function TaskControls() {
+  const { t } = useTranslation(['panels', 'common']);
   const campaign = useCampaign();
   const catalog = useCatalog();
   const currentUserId = useCampaignStore((s) => s.currentUserId);
@@ -116,10 +118,10 @@ export function TaskControls() {
   });
 
   if (!loaded) {
-    return <div className="p-3 text-xs text-neutral-500">Loading tasks…</div>;
+    return <div className="p-3 text-xs text-neutral-500">{t('task.loading')}</div>;
   }
   if (!task) {
-    return <div className="p-3 text-xs text-neutral-500">No tasks match the current filter.</div>;
+    return <div className="p-3 text-xs text-neutral-500">{t('task.noMatch')}</div>;
   }
 
   const userAnnotation = task.annotations.find((a) => a.created_by_user_id === currentUserId);
@@ -135,18 +137,18 @@ export function TaskControls() {
   // it on assignment would put it out of reach on the whole unassigned pool.
   const isSkipDisabled = isBusy || !mayLabel;
   const submitLabel = isBusy
-    ? 'Submitting…'
+    ? t('task.submitting')
     : removingLabel
-      ? 'Remove Label'
+      ? t('task.removeLabel')
       : hasExistingLabel
-        ? 'Update'
-        : 'Submit';
+        ? t('task.update')
+        : t('task.submit');
 
   const goToTyped = () => {
     const num = parseInt(gotoValue, 10);
     if (Number.isNaN(num) || num < 1) return;
     if (!goToAnnotationNumber(num, catalog)) {
-      showAlert(`Point #${num} is not in the current filter`, 'error');
+      showAlert(t('task.pointNotInFilter', { num }), 'error');
     }
   };
   const showGoButton = gotoValue !== String(task.annotation_number);
@@ -163,7 +165,7 @@ export function TaskControls() {
             labelGroupActive ? activeGroupClass : ''
           } focus:outline-none`}
         >
-          <span className={sectionHeaderClass(labelGroupActive)}>Label</span>
+          <span className={sectionHeaderClass(labelGroupActive)}>{t('task.label')}</span>
           <LabelGrid
             labels={labels}
             selectedId={selectedLabelId}
@@ -189,7 +191,7 @@ export function TaskControls() {
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             disabled={isBusy}
-            placeholder="Add a comment…"
+            placeholder={t('task.commentPlaceholder')}
             rows={3}
             maxLength={5000}
             className={textareaClass}
@@ -202,17 +204,13 @@ export function TaskControls() {
         >
           <div className="flex flex-col gap-1">
             <div className="flex justify-between items-center">
-              <span className={sectionHeaderClass()}>Confidence</span>
+              <span className={sectionHeaderClass()}>{t('task.confidence')}</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   aria-pressed={flagged}
                   disabled={isBusy}
-                  title={
-                    flagged
-                      ? 'Flagged for reviewer attention. Click or press F to unflag.'
-                      : "Flag this annotation for reviewer attention. Useful when you're unsure about the label and want a reviewer to take a second look. Press F to toggle."
-                  }
+                  title={flagged ? t('task.flaggedTitle') : t('task.flagTitle')}
                   onClick={() => setFlagged(!flagged)}
                   className={`inline-flex items-center justify-center w-5 h-5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                     flagged
@@ -252,7 +250,7 @@ export function TaskControls() {
               value={flagComment}
               onChange={(e) => setFlagComment(e.target.value)}
               disabled={isBusy}
-              placeholder="Why are you flagging this? (optional)"
+              placeholder={t('editDetails.flagPlaceholder')}
               rows={2}
               maxLength={5000}
               className={textareaClass}
@@ -264,7 +262,7 @@ export function TaskControls() {
               data-testid="policy-not-allowed-notice"
               className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
             >
-              You are not allowed to label this task in this campaign.
+              {t('task.notAllowed')}
             </p>
           )}
           {mayLabel && taskHasAssignments && !countsTowardCompletion && (
@@ -272,13 +270,13 @@ export function TaskControls() {
               data-testid="policy-extra-label-notice"
               className="text-[11px] text-neutral-500 italic"
             >
-              Your label will be saved as extra and does not count toward completion.
+              {t('task.extraLabel')}
             </p>
           )}
 
           <label
             className="flex items-center gap-1.5 cursor-pointer select-none"
-            title="Validate against prior labels using embedding similarity (kNN)"
+            title={t('task.validateTitle')}
           >
             <span className="relative">
               <input
@@ -290,7 +288,7 @@ export function TaskControls() {
               <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
               <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
             </span>
-            <span className="text-[10px] text-neutral-600">Validate</span>
+            <span className="text-[10px] text-neutral-600">{t('task.validate')}</span>
           </label>
 
           <div className="flex gap-1.5">
@@ -305,11 +303,11 @@ export function TaskControls() {
             <button
               type="button"
               disabled={isSkipDisabled}
-              title={!mayLabel ? 'You are not allowed to label this task' : undefined}
+              title={!mayLabel ? t('task.notAllowedShort') : undefined}
               onClick={() => void skipCurrent()}
               className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Skip
+              {t('task.skip')}
             </button>
           </div>
 
@@ -320,19 +318,19 @@ export function TaskControls() {
               onClick={() => void submitAuthoritative()}
               title={
                 isAssignedToTask
-                  ? 'Submit as authoritative: overrides any other annotators on this task and marks it completed, even if their labels disagree.'
-                  : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
+                  ? t('task.authoritativeAssignedTitle')
+                  : t('task.authoritativeUnassignedTitle')
               }
               className="w-full inline-flex items-center justify-center h-8 px-3 text-xs font-medium border border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isBusy ? 'Submitting…' : 'Submit authoritative'}
+              {isBusy ? t('task.submitting') : t('task.submitAuthoritative')}
             </button>
           )}
         </div>
 
         <div className="flex flex-col gap-2 p-3 border-b border-neutral-100 flex-1 min-w-[10rem]">
           <div className="flex items-center gap-1.5">
-            <label className={sectionHeaderClass()}>Point</label>
+            <label className={sectionHeaderClass()}>{t('task.point')}</label>
             <input
               type="number"
               value={gotoValue}
@@ -348,17 +346,17 @@ export function TaskControls() {
                 e.currentTarget.blur();
               }}
               className="w-14 px-2 py-1 text-center text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 disabled:opacity-50 tabular-nums"
-              title="Press Enter to go"
+              title={t('task.gotoTitle')}
             />
             {showGoButton && (
               <button
                 type="button"
                 disabled={isBusy}
                 onClick={goToTyped}
-                title="Go to annotation"
+                title={t('task.goTitle')}
                 className="px-2 py-1 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Go
+                {t('task.go')}
               </button>
             )}
           </div>
@@ -370,7 +368,7 @@ export function TaskControls() {
               className={navButtonClass}
             >
               <IconChevronLeft className="w-3 h-3" />
-              Prev
+              {t('task.prev')}
             </button>
             <button
               type="button"
@@ -378,7 +376,7 @@ export function TaskControls() {
               onClick={() => void advance()}
               className={navButtonClass}
             >
-              Next
+              {t('common:actions.next')}
               <IconChevronRight className="w-3 h-3" />
             </button>
           </div>

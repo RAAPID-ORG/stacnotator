@@ -1,5 +1,6 @@
 import { useCampaignStore } from '../../stores/campaign';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TimeseriesWindow } from '../../campaign/timeseries';
 import { Spinner } from '~/shared/ui/Spinner';
 import type { LonLat } from '~/shared/map/types';
@@ -43,6 +44,7 @@ function chartPoints(taskCenter: LatLon | null, probes: LonLat[]): ChartPoint[] 
 }
 
 export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
+  const { t } = useTranslation('panels');
   const mode = useCampaignStore((s) => s.workMode);
   // Panel composition rebuilds the window (and with it this array) whenever
   // the page recomposes, e.g. on every collection change. Keying on the
@@ -126,7 +128,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
     return (
       <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-[10px] text-red-600">Failed to load time series data</p>
+          <p className="text-[10px] text-red-600">{t('timeseries.loadFailed')}</p>
         </div>
       </div>
     );
@@ -136,7 +138,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
     return (
       <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-[10px] text-neutral-500">No location selected</p>
+          <p className="text-[10px] text-neutral-500">{t('timeseries.noLocation')}</p>
         </div>
       </div>
     );
@@ -151,7 +153,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-2">
             <Spinner size="md" />
-            <span className="text-[10px] text-neutral-600">Loading time series...</span>
+            <span className="text-[10px] text-neutral-600">{t('timeseries.loading')}</span>
           </div>
         </div>
       </div>
@@ -164,7 +166,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
         <div className="absolute top-2 right-2 z-10">
           <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm border border-neutral-200">
             <Spinner size="xs" />
-            <span className="text-[9px] text-neutral-600">Updating...</span>
+            <span className="text-[9px] text-neutral-600">{t('timeseries.updating')}</span>
           </div>
         </div>
       )}

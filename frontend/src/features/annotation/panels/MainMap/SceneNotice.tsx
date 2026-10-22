@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconInfo } from '~/shared/ui/Icons';
 import { useCatalog } from '../../stores/campaign';
 import {
@@ -10,7 +11,6 @@ import {
   useShownSceneSource,
 } from '../../stores/scenes';
 import { PillSpinner, StatusPill } from '../../components/StatusPill';
-import { SCENE_LOAD_HINT } from '../ImageryWindow/SceneLoadButton';
 
 /**
  * Planet imagery belongs to the viewport it was searched over, so panning far enough
@@ -21,6 +21,7 @@ import { SCENE_LOAD_HINT } from '../ImageryWindow/SceneLoadButton';
  * Sentinel-2 map is an offer to fill something the annotator cannot see.
  */
 export function useSceneNotice(): ReactNode {
+  const { t } = useTranslation('panels');
   const catalog = useCatalog();
   const source = useShownSceneSource();
   const uncovered = useScenesUncovered(source);
@@ -33,7 +34,7 @@ export function useSceneNotice(): ReactNode {
     return (
       <StatusPill>
         <PillSpinner />
-        Loading Planet imagery for this viewport
+        {t('scenes.loadingViewport')}
       </StatusPill>
     );
   }
@@ -42,12 +43,12 @@ export function useSceneNotice(): ReactNode {
     return (
       <StatusPill>
         <PillSpinner />
-        Loading Planet imagery for this date
+        {t('scenes.loadingDate')}
       </StatusPill>
     );
   }
   if (!uncovered) return null;
-  if (!loadable) return <StatusPill>Zoom in to load Planet imagery</StatusPill>;
+  if (!loadable) return <StatusPill>{t('scenes.zoomIn')}</StatusPill>;
 
   return (
     <StatusPill interactive>
@@ -58,9 +59,9 @@ export function useSceneNotice(): ReactNode {
           onClick={() => loadScenesHere([source], catalog.campaignId)}
           className="cursor-pointer underline decoration-white/40 underline-offset-2 hover:decoration-white"
         >
-          Load Planet imagery for this viewport
+          {t('scenes.load')}
         </button>
-        <span title={SCENE_LOAD_HINT} className="cursor-help text-white/70 hover:text-white">
+        <span title={t('scenes.loadHint')} className="cursor-help text-white/70 hover:text-white">
           <IconInfo />
         </span>
       </span>

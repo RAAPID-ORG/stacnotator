@@ -15,6 +15,7 @@ import { TimeseriesHeader } from './Timeseries/TimeseriesHeader';
 import type { WorkMode } from '../stores/campaign';
 import { useImageryStore } from '../stores/imagery';
 import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
+import i18n from '~/shared/i18n';
 
 export const MAIN_MAP_PANEL = 'main';
 export const MINIMAP_PANEL = 'minimap';
@@ -89,14 +90,14 @@ export function buildPanels({
       ? {
           id: CONTROLS_PANEL,
           role: 'task-work',
-          title: 'Task',
+          title: i18n.t('panels:titles.task'),
           header: <TaskClaimBadge />,
           body: <TaskControls />,
         }
       : {
           id: CONTROLS_PANEL,
           role: 'explore-work',
-          title: 'Controls',
+          title: i18n.t('panels:titles.controls'),
           body: <ExploreControls />,
         },
   ];
@@ -105,7 +106,7 @@ export function buildPanels({
     panels.push({
       id: 'timeline',
       role: 'imagery-timeline',
-      title: 'Timeline',
+      title: i18n.t('panels:titles.timeline'),
       headerless: true,
       hideTarget: true,
       body: <Timeline orientation={layout.main.timeline.orientation ?? 'vertical'} />,
@@ -115,7 +116,7 @@ export function buildPanels({
     panels.push({
       id: 'imagery',
       role: 'imagery-controls',
-      title: 'Imagery',
+      title: i18n.t('panels:titles.imagery'),
       body: (
         <div className="h-full overflow-auto p-1">
           <ImageryControls detached orientation={layout.main.imagery.orientation ?? 'horizontal'} />

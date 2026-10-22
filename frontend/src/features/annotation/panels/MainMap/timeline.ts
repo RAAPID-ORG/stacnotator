@@ -1,12 +1,11 @@
 import type { ImageryCollectionOut } from '~/api/client';
+import i18n from '~/shared/i18n';
 import {
   collectionStartDate,
   collectionsInView,
   type ImageryCatalog,
 } from '../../campaign/imagery';
 import { sliceNavIndices } from '../../campaign/imageryNav';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** The collections the rail lays out: the view's, narrowed to the source the
  *  main map is on (the rail is a time axis, and two sources' periods are not
@@ -63,6 +62,11 @@ export function segmentIndexAt(count: number, offsetY: number, height: number): 
 export function monthYear(date: string | null): string {
   if (!date) return '';
   const match = /^(\d{4})-(\d{2})/.exec(date);
-  const month = match ? MONTHS[Number(match[2]) - 1] : undefined;
-  return match && month ? `${month} ${match[1]}` : date;
+  const monthIndex = match ? Number(match[2]) - 1 : -1;
+  if (!match || monthIndex < 0 || monthIndex > 11) return date;
+  const month = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'en', {
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(Date.UTC(2000, monthIndex, 1));
+  return `${month} ${match[1]}`;
 }

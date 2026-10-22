@@ -1,4 +1,6 @@
+import { useTranslation } from 'react-i18next';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
+import i18n from '~/shared/i18n';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { addressOfSlice, describeSlice } from '../../campaign/sliceComments';
 import type { SliceComment } from '../../campaign/sliceComments';
@@ -36,7 +38,7 @@ const FlagIcon = () => (
 );
 
 function resolveDisplayName(row: ReviewRow, currentUserId: string | null): string {
-  if (row.userId === currentUserId) return 'You';
+  if (row.userId === currentUserId) return i18n.t('panels:review.you');
   if (row.kind === 'pending') {
     const a = row.assignment;
     return a.user_display_name || a.user_email || a.user_id.substring(0, 8);
@@ -58,11 +60,12 @@ function PendingCard({
   row: Extract<ReviewRow, { kind: 'pending' }>;
   currentUserId: string | null;
 }) {
+  const { t } = useTranslation('panels');
   return (
     <div className={`${cardFrame} border-dashed border-neutral-300 bg-neutral-50`}>
       <div className="flex items-center justify-between gap-2">
         <span className="font-bold text-neutral-500">{resolveDisplayName(row, currentUserId)}</span>
-        <span className="text-neutral-400 italic">Not labeled yet</span>
+        <span className="text-neutral-400 italic">{t('review.notLabeled')}</span>
       </div>
     </div>
   );
@@ -77,6 +80,7 @@ function AnnotationCard({
   currentUserId: string | null;
   labels: LabelBase[];
 }) {
+  const { t } = useTranslation('panels');
   const { annotation, isConflict, isExtra, isSkipped, isAuthoritative } = row;
   const isOwn = row.userId === currentUserId;
 
@@ -86,7 +90,7 @@ function AnnotationCard({
     : annotation.label_id
       ? `#${annotation.label_id}`
       : isSkipped
-        ? 'Skipped'
+        ? t('review.skipped')
         : '-';
 
   const bg = isAuthoritative
@@ -109,14 +113,14 @@ function AnnotationCard({
         <span className={`font-bold ${nameColor}`}>
           {resolveDisplayName(row, currentUserId)}
           {isAuthoritative && (
-            <span className="ml-1 text-amber-600" title="Authoritative">
+            <span className="ml-1 text-amber-600" title={t('review.authoritative')}>
               🗲
             </span>
           )}
           {annotation.flagged_for_review && (
             <span
               className="ml-1 inline-flex items-center align-middle text-rose-600"
-              title={annotation.flag_comment || 'Flagged for review'}
+              title={annotation.flag_comment || t('review.flagged')}
             >
               <FlagIcon />
             </span>
@@ -124,9 +128,9 @@ function AnnotationCard({
           {isExtra && (
             <span
               className="ml-1.5 px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide align-middle"
-              title="Does not count toward completion"
+              title={t('review.extraTitle')}
             >
-              extra
+              {t('review.extra')}
             </span>
           )}
         </span>
@@ -135,7 +139,7 @@ function AnnotationCard({
           {annotation.confidence != null && (
             <>
               <span className="text-neutral-300">|</span>
-              <span title="Confidence">{annotation.confidence}/5</span>
+              <span title={t('task.confidence')}>{annotation.confidence}/5</span>
             </>
           )}
         </div>
@@ -150,7 +154,7 @@ function AnnotationCard({
       ))}
       {annotation.flagged_for_review && annotation.flag_comment?.trim() && (
         <div className="mt-1 text-rose-700 italic whitespace-pre-wrap">
-          Flag: &ldquo;{annotation.flag_comment}&rdquo;
+          {t('review.flagComment', { comment: annotation.flag_comment })}
         </div>
       )}
     </div>
@@ -161,6 +165,7 @@ function AnnotationCard({
  *  way back to it: the maps jump to that imagery, which is the only way to see
  *  what the note is talking about. */
 function SliceNote({ note }: { note: SliceComment }) {
+  const { t } = useTranslation('panels');
   const catalog = useCatalog();
   const address = addressOfSlice(catalog, note.slice_id);
 
@@ -170,7 +175,7 @@ function SliceNote({ note }: { note: SliceComment }) {
         <button
           type="button"
           data-testid="slice-note-link"
-          title="Show this imagery"
+          title={t('review.showImagery')}
           onClick={() => useImageryStore.getState().setAddress(address)}
           className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 underline decoration-dotted underline-offset-2 hover:text-amber-900 cursor-pointer"
         >
@@ -187,6 +192,7 @@ function SliceNote({ note }: { note: SliceComment }) {
 }
 
 export function ReviewList({ task, currentUserId, labels }: ReviewListProps) {
+  const { t } = useTranslation('panels');
   const hasContent = task.annotations.length > 0 || (task.assignments?.length ?? 0) > 0;
   if (!hasContent) return null;
 
@@ -200,12 +206,12 @@ export function ReviewList({ task, currentUserId, labels }: ReviewListProps) {
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-          All Annotations
+          {t('review.all')}
         </span>
         {isConflicting && (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] font-semibold uppercase tracking-wide border border-orange-300">
             <ConflictTriangleIcon />
-            Conflict
+            {t('review.conflict')}
           </span>
         )}
       </div>

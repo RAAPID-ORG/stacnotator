@@ -1,5 +1,6 @@
 import { IconProbe } from '~/shared/ui/Icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { pageKeymap } from '../../keymap';
 import { SliceCommentButton } from '../../chrome/SliceComments';
@@ -66,6 +67,7 @@ function useFocusCamera(mode: WorkMode, workingZoom: number | null): void {
 /** Both modes can drop probes - Explore arms the tool from its palette - so
  *  the way back off the map lives in the header both share. */
 function ClearProbes() {
+  const { t } = useTranslation('panels');
   const probeCount = useWorkStore((s) => s.probePoints.length);
   if (probeCount === 0) return null;
 
@@ -74,8 +76,8 @@ function ClearProbes() {
       type="button"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={() => useWorkStore.getState().clearProbePoints()}
-      title={`Clear ${probeCount} probe${probeCount > 1 ? 's' : ''}`}
-      aria-label="Clear probes"
+      title={t('probes.clearN', { count: probeCount })}
+      aria-label={t('probes.clearAll')}
       data-testid="clear-probes"
       className="flex h-5 items-center gap-0.5 rounded px-1 text-[10px] font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 cursor-pointer"
     >
@@ -91,6 +93,7 @@ function ClearProbes() {
  * another one is its own control rather than a side effect of clicking again.
  */
 function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
+  const { t } = useTranslation('panels');
   const active = useWorkStore((s) => s.tool === 'timeseries');
   const armed = useWorkStore((s) => s.probeAddArmed);
   const atCap = useWorkStore((s) => s.probePoints.length >= MAX_PROBES);
@@ -119,7 +122,7 @@ function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
         aria-pressed={armed}
         disabled={atCap}
         aria-label={addTitle}
-        title={atCap ? `At most ${MAX_PROBES} probes at once` : addTitle}
+        title={atCap ? t('probes.atCap', { max: MAX_PROBES }) : addTitle}
         data-testid="probe-add"
         className={`${segment} w-4 text-[13px] font-semibold leading-none disabled:cursor-not-allowed disabled:opacity-40 ${
           armed ? 'bg-brand-600 text-white hover:bg-brand-700' : off
@@ -136,12 +139,13 @@ function ProbeToggle({ title, addTitle }: { title: string; addTitle: string }) {
  *  share of the work the user is actually looking at rather than the whole
  *  campaign's. */
 function TaskProgressCounter() {
+  const { t } = useTranslation('panels');
   const { allTasks, filter } = useTasksStore(
     useShallow((state) => ({ allTasks: state.allTasks, filter: state.filter }))
   );
   const setId = filter.taskSetId;
   const inScope = useMemo(
-    () => (setId === null ? allTasks : allTasks.filter((t) => t.task_set_id === setId)),
+    () => (setId === null ? allTasks : allTasks.filter((task) => task.task_set_id === setId)),
     [allTasks, setId]
   );
   const { total, completed } = computeTaskProgress(inScope, filter.assignedTo);
@@ -149,14 +153,22 @@ function TaskProgressCounter() {
   return (
     <div className="flex items-center gap-2 shrink-0">
       <span className="text-[11px] text-neutral-500">
-        <span className="font-semibold text-neutral-900 tabular-nums">{completed}</span> of{' '}
-        <span className="tabular-nums">{total}</span> done
+        <Trans
+          t={t}
+          i18nKey="mainMap.progress"
+          values={{ completed, total }}
+          components={{
+            completed: <span className="font-semibold text-neutral-900 tabular-nums" />,
+            total: <span className="tabular-nums" />,
+          }}
+        />
       </span>
     </div>
   );
 }
 
 export function MainMapHeader() {
+  const { t } = useTranslation('panels');
   const detached = useLayoutStore((s) => !!s.currentLayout.main.imagery);
   const isMobile = useIsMobile();
   const isTaskMode = useCampaignStore((s) => s.workMode === 'tasks');
@@ -164,7 +176,7 @@ export function MainMapHeader() {
     <div className="flex min-w-0 flex-1 items-center gap-2">
       {detached && !isMobile ? (
         <span className="flex-1 text-[11px] font-medium uppercase tracking-wider text-neutral-500">
-          Main map
+          {t('mainMap.title')}
         </span>
       ) : (
         <ImageryControls />
@@ -182,6 +194,7 @@ export function ImageryControls({
   orientation?: 'horizontal' | 'vertical';
   detached?: boolean;
 }) {
+  const { t } = useTranslation('panels');
   const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
@@ -210,7 +223,10 @@ export function ImageryControls({
       <LayerSelector
         catalog={catalog}
         sourceIds={view?.source_ids ?? []}
-        title={`Select layer - ${hotkeyTip(bindings, 'i')}, ${hotkeyTip(bindings, 'shift+i')}`}
+        title={t('mainMap.selectLayer', {
+          next: hotkeyTip(bindings, 'i'),
+          previous: hotkeyTip(bindings, 'shift+i'),
+        })}
         expanded={detached}
       />
       <CollectionPicker
@@ -219,19 +235,24 @@ export function ImageryControls({
         isTaskMode={mode === 'tasks'}
         expanded={detached && !!expandedSections?.includes('collections')}
         onExpandedChange={detached ? (expanded) => setExpanded('collections', expanded) : undefined}
-        title={`Select collection - ${hotkeyTip(bindings, 'shift+d', 'Next collection')}`}
+        title={t('mainMap.selectCollection', {
+          shortcut: hotkeyTip(bindings, 'shift+d', t('mainMap.nextCollection')),
+        })}
       />
       <SlicePicker
         catalog={catalog}
         expanded={detached && !!expandedSections?.includes('slices')}
         onExpandedChange={detached ? (expanded) => setExpanded('slices', expanded) : undefined}
-        title={`Select time slice - ${hotkeyTip(bindings, 'd', 'Next slice')}`}
+        title={t('mainMap.selectSlice', {
+          shortcut: hotkeyTip(bindings, 'd', t('mainMap.nextSlice')),
+        })}
       />
     </div>
   );
 }
 
 function MainMapActions() {
+  const { t } = useTranslation('panels');
   const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
@@ -275,7 +296,7 @@ function MainMapActions() {
       {isTaskMode && campaign.time_series.length > 0 && (
         <ProbeToggle
           title={hotkeyTip(bindings, 't')}
-          addTitle={hotkeyTip(bindings, 'shift+t', 'Add another probe')}
+          addTitle={hotkeyTip(bindings, 'shift+t', t('probes.addAnother'))}
         />
       )}
       {isTaskMode && <ClearProbes />}
@@ -301,23 +322,25 @@ export function taskProbeClick(event: MapClickEvent): void {
  * that reads as a campaign nobody has worked on, so it is explained.
  */
 function AnnotationZoomNotice() {
+  const { t } = useTranslation('panels');
   const mode = useCampaignStore((s) => s.workMode);
   const showAnnotations = useImageryStore((s) => s.showAnnotations);
   const zoom = useCameraZoom(mainCamera);
 
   if (mode !== 'explore' || !showAnnotations || annotationsVisibleAt(zoom)) return null;
-  return <StatusPill>Zoom in to see annotations</StatusPill>;
+  return <StatusPill>{t('mainMap.zoomIn')}</StatusPill>;
 }
 
 /** Why a just-drawn shape is not saved yet, and how to finish it. */
 function DraftQuestionsHint({ missing }: { missing: string[] }) {
+  const { t } = useTranslation('panels');
   return (
     <div
       data-testid="draft-questions-hint"
       className="max-w-56 rounded-md border border-amber-300 bg-amber-50/95 px-2 py-1.5 text-[11px] leading-snug text-amber-900 shadow-sm"
     >
-      <p className="font-medium">Answer to save: {missing.join(', ')}</p>
-      <p className="mt-0.5 text-amber-700">Tab moves between questions, Enter saves.</p>
+      <p className="font-medium">{t('mainMap.answerToSave', { fields: missing.join(', ') })}</p>
+      <p className="mt-0.5 text-amber-700">{t('mainMap.answerHelp')}</p>
     </div>
   );
 }
@@ -328,6 +351,7 @@ function DraftQuestionsHint({ missing }: { missing: string[] }) {
  * the two can never stack.
  */
 function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean }) {
+  const { t } = useTranslation('panels');
   const mode = useCampaignStore((s) => s.workMode);
   const needsLabel = useWorkStore((s) => s.tool === 'annotate' && s.selectedLabelId === null);
   const sceneNotice = useSceneNotice();
@@ -337,9 +361,7 @@ function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean
   if (mode === 'explore' && needsLabel) {
     return (
       <StatusPill>
-        <span data-testid="pick-label-notice">
-          Pick a label in the controls panel (or press its number) to start drawing
-        </span>
+        <span data-testid="pick-label-notice">{t('mainMap.pickLabel')}</span>
       </StatusPill>
     );
   }
@@ -355,7 +377,7 @@ function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean
       <Delayed delayMs={400}>
         <StatusPill>
           <PillSpinner />
-          <span data-testid="imagery-loading-notice">Loading imagery</span>
+          <span data-testid="imagery-loading-notice">{t('mainMap.loadingImagery')}</span>
         </StatusPill>
       </Delayed>
     );

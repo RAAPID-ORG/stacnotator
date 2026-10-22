@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { IconInfo, IconSliders } from '~/shared/ui/Icons';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { usePrefsStore } from '../../stores/prefs';
@@ -14,6 +15,7 @@ import { OptionsPopover } from './TimeseriesOptions';
  * reaching into the chart.
  */
 export function TimeseriesHeader() {
+  const { t } = useTranslation('panels');
   const { removeCloudy, showDots, smoothEnabled, smoothing } = usePrefsStore(
     (s) => s.timeseriesChart
   );
@@ -41,7 +43,7 @@ export function TimeseriesHeader() {
         type="button"
         onMouseDown={(e) => e.stopPropagation()}
         className="flex h-5 w-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
-        aria-label="Time series legend explanation"
+        aria-label={t('timeseries.legendInfo')}
         onMouseEnter={showInfo}
         onMouseLeave={() => setInfoOpen(false)}
         onFocus={showInfo}
@@ -59,9 +61,9 @@ export function TimeseriesHeader() {
             ? 'bg-neutral-100 text-neutral-700'
             : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700'
         }`}
-        aria-label="Chart options"
+        aria-label={t('timeseries.chartOptions')}
         aria-expanded={optionsOpen}
-        title="Chart options"
+        title={t('timeseries.chartOptions')}
         onClick={() => setOptionsOpen((open) => !open)}
       >
         <IconSliders className="h-3.5 w-3.5" />
@@ -94,22 +96,15 @@ export function TimeseriesHeader() {
               ),
             }}
           >
-            <p>
-              Each dot is one observation. <strong>Colored dots</strong> are clear-day observations
-              (one color per series). <strong>Gray dots</strong> are observations flagged as cloudy.
-            </p>
-            <p>
-              <strong>Remove cloudy</strong> drops the gray observations from both the raw series
-              and the smoothed line.
-            </p>
-            <p>
-              <strong>Smooth</strong> fits a Savitzky-Golay filter. If you leave cloudy points in,
-              the filter pulls the smoothed line toward them - usually Remove cloudy + Smooth
-              together is what you want.
-            </p>
-            <p>
-              <strong>Dots</strong> toggles whether the per-observation markers are drawn.
-            </p>
+            {(['dots', 'removeCloudy', 'smooth', 'showDots'] as const).map((key) => (
+              <p key={key}>
+                <Trans
+                  t={t}
+                  i18nKey={`timeseries.info.${key}`}
+                  components={{ strong: <strong /> }}
+                />
+              </p>
+            ))}
           </div>,
           infoBtnRef.current?.ownerDocument.body ?? document.body
         )}

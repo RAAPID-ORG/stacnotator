@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePrefsStore, type PreloadTier } from '../../../stores/prefs';
 import {
   PRELOAD_TIER_CONCURRENCY,
@@ -9,14 +10,6 @@ import {
 
 /** Bars shown while nothing is queued yet, so the control keeps its width. */
 const IDLE_BARS = [0, 0, 0];
-
-const LABEL: Record<PreloadTier, string> = {
-  auto: 'Auto',
-  off: 'Off',
-  conservative: 'Conservative',
-  balanced: 'Balanced',
-  heavy: 'Heavy',
-};
 
 /** One bar per upcoming task, nearest first, filling as its tiles land. A
  *  bar that reaches the top fades back to a resting tone: warm is the calm
@@ -42,6 +35,7 @@ function PreloadBars({ percents, active }: { percents: readonly number[]; active
 }
 
 export function PreloadMenu() {
+  const { t } = useTranslation('panels');
   const tier = usePrefsStore((s) => s.preloadTier);
   const setPreloadTier = usePrefsStore((s) => s.setPreloadTier);
   const [open, setOpen] = useState(false);
@@ -62,19 +56,23 @@ export function PreloadMenu() {
   const active = effective !== 'off';
   const progress = usePreloadProgress();
   const percents = active && progress.length > 0 ? progress : IDLE_BARS;
+  const tierLabel = (value: PreloadTier) => t(`preload.tiers.${value}`);
   const ahead = active
-    ? `Next tasks ${percents.map((p) => `${p}%`).join(' / ')} preloaded`
-    : 'Nothing preloaded ahead';
+    ? t('preload.ahead', { percents: percents.map((p) => `${p}%`).join(' / ') })
+    : t('preload.nothingAhead');
 
   const options: Array<{ tier: PreloadTier; hint: string }> = [
-    { tier: 'auto', hint: `tuned to your connection (currently ${LABEL[auto].toLowerCase()})` },
-    { tier: 'off', hint: 'no preloading' },
+    { tier: 'auto', hint: t('preload.hints.auto', { current: tierLabel(auto).toLowerCase() }) },
+    { tier: 'off', hint: t('preload.hints.off') },
     {
       tier: 'conservative',
-      hint: `${PRELOAD_TIER_CONCURRENCY.conservative} parallel - slow links`,
+      hint: t('preload.hints.conservative', { n: PRELOAD_TIER_CONCURRENCY.conservative }),
     },
-    { tier: 'balanced', hint: `${PRELOAD_TIER_CONCURRENCY.balanced} parallel - typical 4G/wifi` },
-    { tier: 'heavy', hint: `${PRELOAD_TIER_CONCURRENCY.heavy} parallel - fast wired/wifi` },
+    {
+      tier: 'balanced',
+      hint: t('preload.hints.balanced', { n: PRELOAD_TIER_CONCURRENCY.balanced }),
+    },
+    { tier: 'heavy', hint: t('preload.hints.heavy', { n: PRELOAD_TIER_CONCURRENCY.heavy }) },
   ];
 
   return (
@@ -87,8 +85,11 @@ export function PreloadMenu() {
         aria-expanded={open}
         data-testid="preload-menu"
         data-preload-progress={percents.join(',')}
-        aria-label={`Tile preloading: ${LABEL[effective]}. ${ahead}.`}
-        title={`Tile preloading: ${LABEL[effective]}${tier === 'auto' ? ' (auto-tuned to your connection)' : ''}. ${ahead}. Click to change.`}
+        aria-label={t('preload.ariaLabel', { tier: tierLabel(effective), ahead })}
+        title={t(tier === 'auto' ? 'preload.titleAuto' : 'preload.title', {
+          tier: tierLabel(effective),
+          ahead,
+        })}
         className="flex h-6 items-center justify-center rounded-md px-1 cursor-pointer hover:bg-neutral-100"
       >
         <PreloadBars percents={percents} active={active} />
@@ -100,7 +101,7 @@ export function PreloadMenu() {
           className="absolute right-0 top-full z-50 mt-1 min-w-[200px] rounded-md border border-neutral-200 bg-white py-1 text-xs shadow-lg"
         >
           <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-400">
-            Tile preloading
+            {t('preload.heading')}
           </div>
           {options.map((option) => (
             <button
@@ -120,7 +121,7 @@ export function PreloadMenu() {
                 )}
               </span>
               <span className="flex-1">
-                <span className="block text-neutral-800">{LABEL[option.tier]}</span>
+                <span className="block text-neutral-800">{tierLabel(option.tier)}</span>
                 <span className="block text-[10px] text-neutral-400">{option.hint}</span>
               </span>
             </button>

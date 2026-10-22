@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SmoothingOptions } from '../../stores/prefs';
 
 interface ToggleRowProps {
@@ -57,6 +58,7 @@ export const OptionsPopover = forwardRef<HTMLDivElement, OptionsPopoverProps>(
     },
     ref
   ) {
+    const { t } = useTranslation('panels');
     return (
       <div
         ref={ref}
@@ -64,26 +66,25 @@ export const OptionsPopover = forwardRef<HTMLDivElement, OptionsPopoverProps>(
       >
         <ToggleRow
           option="remove-cloudy"
-          label="Remove cloudy"
-          title="Removes cloud-flagged days (shown as gray dots) from the series"
+          label={t('timeseries.options.removeCloudy')}
+          title={t('timeseries.options.removeCloudyTitle')}
           checked={removeCloudy}
           onChange={onRemoveCloudyChange}
         />
 
         <ToggleRow
           option="smooth"
-          label="Smooth"
-          title="Savitzky-Golay Smoothing."
+          label={t('timeseries.options.smooth')}
+          title={t('timeseries.options.smoothTitle')}
           checked={smoothEnabled}
           onChange={onSmoothEnabledChange}
         />
         {smoothEnabled && (
           <div className="flex items-center gap-2 pl-2">
-            <label
-              className="flex items-center gap-1"
-              title="Window size for Savitzky-Golay smoothing (odd number >= 5, larger = smoother)"
-            >
-              <span className="text-[9px] text-neutral-500">W</span>
+            <label className="flex items-center gap-1" title={t('timeseries.options.windowTitle')}>
+              <span className="text-[9px] text-neutral-500">
+                {t('timeseries.options.windowShort')}
+              </span>
               <input
                 type="number"
                 min={5}
@@ -102,11 +103,10 @@ export const OptionsPopover = forwardRef<HTMLDivElement, OptionsPopoverProps>(
                 className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
               />
             </label>
-            <label
-              className="flex items-center gap-1"
-              title="Polynomial order (>= 1, must be less than window size)"
-            >
-              <span className="text-[9px] text-neutral-500">P</span>
+            <label className="flex items-center gap-1" title={t('timeseries.options.orderTitle')}>
+              <span className="text-[9px] text-neutral-500">
+                {t('timeseries.options.orderShort')}
+              </span>
               <input
                 type="number"
                 min={1}
@@ -126,8 +126,8 @@ export const OptionsPopover = forwardRef<HTMLDivElement, OptionsPopoverProps>(
 
         <ToggleRow
           option="dots"
-          label="Dots"
-          title="Show or hide the per-observation dots (line is always shown)"
+          label={t('timeseries.options.dots')}
+          title={t('timeseries.options.dotsTitle')}
           checked={showDots}
           onChange={onShowDotsChange}
         />

@@ -1,1 +1,272 @@
-{}
+{
+  "titles": {
+    "task": "Task",
+    "controls": "Controls",
+    "timeline": "Timeline",
+    "imagery": "Imagery"
+  },
+  "minimap": {
+    "copyCoordinates": "Copy coordinates to clipboard",
+    "openInGoogleEarth": "Open in Google Earth"
+  },
+  "tools": {
+    "pan": "Pan",
+    "annotate": "Annotate",
+    "edit": "Edit",
+    "labelVector": "Label vector",
+    "timeseries": "Probe time series"
+  },
+  "explore": {
+    "tools": "Tools",
+    "shortcuts": "Shortcuts",
+    "hide": "Hide",
+    "show": "Show",
+    "hideDrawnTitle": "Hide drawn objects (Shift+X)",
+    "showDrawnTitle": "Show drawn objects (Shift+X)",
+    "fit": "Fit annotations",
+    "fitTitle": "Zoom to every annotation (Space)",
+    "labels": "Labels",
+    "customizeStyles": "Customize label styles",
+    "customizeLabelStyle": "Customize this label's style",
+    "customizeNamedStyle": "Customize {{name}} style",
+    "noLabels": "No labels defined",
+    "editTool": "Edit tool",
+    "editHelp": "Click a geometry to edit its vertices, alt-drag to move it whole, Shift+drag to select many. See <strong>Shortcuts</strong> below.",
+    "navigation": "Navigation",
+    "panHelp": "Drag to pan the map, scroll to zoom. Click an annotation to see its details.",
+    "panTip": "Tip: select a label to start annotating straight away.",
+    "display": "Display",
+    "showFromTasks": "Show from tasks",
+    "saveFailed": "Could not save. Check the required questions, then retry.",
+    "closeSaveFailed": "Could not save. Retry, or answer what is missing."
+  },
+  "probes": {
+    "help": "Click the map to move the active probe. Click another to pick it up, or click it again to take it off the chart.",
+    "atCap": "At most {{max}} probes at once",
+    "addTitle": "Add another probe (Shift+T)",
+    "addAnother": "Add another probe",
+    "armed": "Click the map...",
+    "add": "Add probe",
+    "clearTitle": "Remove every probe",
+    "clear": "Clear",
+    "clearCount": "Clear ({{count}})",
+    "clearAll": "Clear probes",
+    "clearN_one": "Clear {{count}} probe",
+    "clearN_other": "Clear {{count}} probes"
+  },
+  "labelVector": {
+    "title": "Label vector data",
+    "help": "Pick a label, then click a vector feature to label it. Shift+drag a box to label every feature inside it.",
+    "selectLayer": "Select a vector layer in the header first, then pick a label below."
+  },
+  "labelHint": {
+    "vector": "- click a vector feature to apply it, or Shift+drag a box for many.",
+    "draw": {
+      "point": "- click the map to draw a point.",
+      "line": "- click the map to draw a line.",
+      "polygon": "- click the map to draw a polygon. Double-click to finish."
+    }
+  },
+  "labelStyle": {
+    "reset": "Reset",
+    "fill": "Fill",
+    "fillColor": "Fill color",
+    "border": "Border",
+    "borderColor": "Border color",
+    "opacity": "Opacity",
+    "width": "Width"
+  },
+  "editDetails": {
+    "missingRequired": "Missing required: {{fields}}",
+    "updated": "Annotation updated successfully",
+    "updateFailed": "Could not update the annotation",
+    "selected": "Selected annotation #{{id}}",
+    "readOnly": "You are not authorized to edit other users annotations.",
+    "flagTitle": "Toggle flag-for-review on this annotation. Saves immediately. Press F to toggle.",
+    "flag": "Flag for review [F]",
+    "flagPlaceholder": "Why are you flagging this? (optional)",
+    "save": "Save changes"
+  },
+  "draft": {
+    "title": "{{label}} - answer questions",
+    "annotation": "Annotation",
+    "closeSaved": "Close (the annotation is saved, answers are kept)",
+    "closeUnsaved": "Close (unanswered required fields discard the annotation)",
+    "retry": "Retry save (Enter)",
+    "saveAnswers": "Save answers (Enter)",
+    "save": "Save annotation (Enter)",
+    "savedHint": {
+      "point": "The point is saved. Answers are added when you save.",
+      "line": "The line is saved. Answers are added when you save.",
+      "polygon": "The polygon is saved. Answers are added when you save."
+    },
+    "drawAnotherHint": {
+      "point": "Drawing another point saves this one too.",
+      "line": "Drawing another line saves this one too.",
+      "polygon": "Drawing another polygon saves this one too."
+    }
+  },
+  "mainMap": {
+    "title": "Main map",
+    "progress": "<completed>{{completed}}</completed> of <total>{{total}}</total> done",
+    "selectLayer": "Select layer - {{next}}, {{previous}}",
+    "selectCollection": "Select collection - {{shortcut}}",
+    "nextCollection": "Next collection",
+    "selectSlice": "Select time slice - {{shortcut}}",
+    "nextSlice": "Next slice",
+    "zoomIn": "Zoom in to see annotations",
+    "answerToSave": "Answer to save: {{fields}}",
+    "answerHelp": "Tab moves between questions, Enter saves.",
+    "pickLabel": "Pick a label in the controls panel (or press its number) to start drawing",
+    "loadingImagery": "Loading imagery"
+  },
+  "selection": {
+    "confirm": "Confirm edits (Enter)",
+    "delete": "Delete annotation (Delete)",
+    "deleteMany_one": "Delete {{count}} annotation (Delete)",
+    "deleteMany_other": "Delete {{count}} annotations (Delete)",
+    "cancel": "Cancel (Esc)"
+  },
+  "timeline": {
+    "label": "Imagery timeline",
+    "noImagery": "No imagery",
+    "show": "Show timeline",
+    "hide": "Hide timeline"
+  },
+  "scenes": {
+    "loadHint": "Load Planet imagery for this viewport: the dates with imagery here become steppable, each built from the clearest scenes it finds, and the rest stay empty. Worth doing when the imagery looks poor or there is none; moving the map only needs another load once you leave what was loaded.",
+    "tooWide": "Zoom in to load Planet imagery: a viewport this wide holds more archive than one search should ask for.",
+    "load": "Load Planet imagery for this viewport",
+    "loadingViewport": "Loading Planet imagery for this viewport",
+    "loadingDate": "Loading Planet imagery for this date",
+    "zoomIn": "Zoom in to load Planet imagery"
+  },
+  "vector": {
+    "none": "No vector layer",
+    "select": "Select vector layer"
+  },
+  "overlay": {
+    "none": "No overlay",
+    "select": "Select overlay map",
+    "openExperiment": "Open linked experiment",
+    "resetColoursTitle": "Go back to the colours set for this campaign",
+    "resetColours": "Reset colours",
+    "opacity": "Overlay opacity"
+  },
+  "slices": {
+    "dates": "Dates",
+    "empty": "{{label}} (empty)"
+  },
+  "collections": {
+    "label": "Collections",
+    "pinnedStart": "Show this collection first on every task (selected)",
+    "pinStart": "Show this collection first on every task"
+  },
+  "layers": {
+    "sources": "Imagery sources",
+    "visualizations": "{{source}} visualizations",
+    "basemaps": "Basemaps"
+  },
+  "preload": {
+    "tiers": {
+      "auto": "Auto",
+      "off": "Off",
+      "conservative": "Conservative",
+      "balanced": "Balanced",
+      "heavy": "Heavy"
+    },
+    "hints": {
+      "auto": "tuned to your connection (currently {{current}})",
+      "off": "no preloading",
+      "conservative": "{{n}} parallel - slow links",
+      "balanced": "{{n}} parallel - typical 4G/wifi",
+      "heavy": "{{n}} parallel - fast wired/wifi"
+    },
+    "ahead": "Next tasks {{percents}} preloaded",
+    "nothingAhead": "Nothing preloaded ahead",
+    "ariaLabel": "Tile preloading: {{tier}}. {{ahead}}.",
+    "title": "Tile preloading: {{tier}}. {{ahead}}. Click to change.",
+    "titleAuto": "Tile preloading: {{tier}} (auto-tuned to your connection). {{ahead}}. Click to change.",
+    "heading": "Tile preloading"
+  },
+  "imageryWindow": {
+    "selectSlice": "Select time slice",
+    "noData": "{{label}} (no data)",
+    "commentHint": "or double-click the map",
+    "noImagery": "No imagery",
+    "zoomHint": "Hold Ctrl/Cmd to zoom",
+    "searching": "Searching imagery... {{label}}",
+    "slice": "Slice {{n}}"
+  },
+  "timeseries": {
+    "loadFailed": "Failed to load time series data",
+    "noLocation": "No location selected",
+    "loading": "Loading time series...",
+    "updating": "Updating...",
+    "legendInfo": "Time series legend explanation",
+    "chartOptions": "Chart options",
+    "showSeries": "Show {{name}}",
+    "hideSeries": "Hide {{name}}",
+    "resetZoom": "Reset zoom",
+    "options": {
+      "removeCloudy": "Remove cloudy",
+      "removeCloudyTitle": "Removes cloud-flagged days (shown as gray dots) from the series",
+      "smooth": "Smooth",
+      "smoothTitle": "Savitzky-Golay Smoothing.",
+      "windowTitle": "Window size for Savitzky-Golay smoothing (odd number >= 5, larger = smoother)",
+      "windowShort": "W",
+      "orderTitle": "Polynomial order (>= 1, must be less than window size)",
+      "orderShort": "P",
+      "dots": "Dots",
+      "dotsTitle": "Show or hide the per-observation dots (line is always shown)"
+    },
+    "info": {
+      "dots": "Each dot is one observation. <strong>Colored dots</strong> are clear-day observations (one color per series). <strong>Gray dots</strong> are observations flagged as cloudy.",
+      "removeCloudy": "<strong>Remove cloudy</strong> drops the gray observations from both the raw series and the smoothed line.",
+      "smooth": "<strong>Smooth</strong> fits a Savitzky-Golay filter. If you leave cloudy points in, the filter pulls the smoothed line toward them - usually Remove cloudy + Smooth together is what you want.",
+      "showDots": "<strong>Dots</strong> toggles whether the per-observation markers are drawn."
+    }
+  },
+  "task": {
+    "loading": "Loading tasks…",
+    "noMatch": "No tasks match the current filter.",
+    "submitting": "Submitting…",
+    "removeLabel": "Remove Label",
+    "update": "Update",
+    "submit": "Submit",
+    "pointNotInFilter": "Point #{{num}} is not in the current filter",
+    "label": "Label",
+    "commentPlaceholder": "Add a comment…",
+    "confidence": "Confidence",
+    "flaggedTitle": "Flagged for reviewer attention. Click or press F to unflag.",
+    "flagTitle": "Flag this annotation for reviewer attention. Useful when you're unsure about the label and want a reviewer to take a second look. Press F to toggle.",
+    "notAllowed": "You are not allowed to label this task in this campaign.",
+    "notAllowedShort": "You are not allowed to label this task",
+    "extraLabel": "Your label will be saved as extra and does not count toward completion.",
+    "validateTitle": "Validate against prior labels using embedding similarity (kNN)",
+    "validate": "Validate",
+    "skip": "Skip",
+    "authoritativeAssignedTitle": "Submit as authoritative: overrides any other annotators on this task and marks it completed, even if their labels disagree.",
+    "authoritativeUnassignedTitle": "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees.",
+    "submitAuthoritative": "Submit authoritative",
+    "point": "Point",
+    "gotoTitle": "Press Enter to go",
+    "goTitle": "Go to annotation",
+    "go": "Go",
+    "prev": "Prev",
+    "claimFailed": "Could not claim this task"
+  },
+  "review": {
+    "you": "You",
+    "notLabeled": "Not labeled yet",
+    "skipped": "Skipped",
+    "authoritative": "Authoritative",
+    "flagged": "Flagged for review",
+    "extraTitle": "Does not count toward completion",
+    "extra": "extra",
+    "flagComment": "Flag: “{{comment}}”",
+    "showImagery": "Show this imagery",
+    "all": "All Annotations",
+    "conflict": "Conflict"
+  }
+}

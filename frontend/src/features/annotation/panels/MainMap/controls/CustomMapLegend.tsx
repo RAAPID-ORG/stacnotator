@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { readyCustomMaps, type ImageryCatalog } from '../../../campaign/imagery';
 import { RenderLegend } from '~/shared/imagery/RenderLegend';
 import { effectiveRenderConfig, isCustomized } from '~/shared/imagery/tileColors';
@@ -9,6 +10,7 @@ export interface CustomMapLegendProps {
 }
 
 export function CustomMapLegend({ catalog }: CustomMapLegendProps) {
+  const { t } = useTranslation('panels');
   const overlay = useImageryStore((s) => s.overlay);
   // Per view, like the overlay selection: switching views (U) restores the
   // opacity that view was left at.
@@ -43,10 +45,10 @@ export function CustomMapLegend({ catalog }: CustomMapLegendProps) {
           type="button"
           onClick={() => resetLegendOverride(map.id)}
           data-testid="custom-map-legend-reset"
-          title="Go back to the colours set for this campaign"
+          title={t('overlay.resetColoursTitle')}
           className="mt-1.5 cursor-pointer text-[10px] text-neutral-500 underline hover:text-neutral-800"
         >
-          Reset colours
+          {t('overlay.resetColours')}
         </button>
       )}
 
@@ -57,7 +59,7 @@ export function CustomMapLegend({ catalog }: CustomMapLegendProps) {
         value={Math.round(opacity * 100)}
         data-testid="custom-map-opacity"
         onChange={(e) => setOverlayOpacity(Number(e.target.value) / 100)}
-        title="Overlay opacity"
+        title={t('overlay.opacity')}
         className="mt-1.5 block w-28 cursor-pointer accent-brand-500"
       />
     </div>

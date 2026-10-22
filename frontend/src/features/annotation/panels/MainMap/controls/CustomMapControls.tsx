@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { type ImageryCatalog } from '../../../campaign/imagery';
 import { readyCustomMaps } from '../../../campaign/imagery';
 import { useImageryStore } from '../../../stores/imagery';
@@ -28,6 +29,7 @@ export function CustomMapControls({
   catalog: ImageryCatalog;
   toggleTitle: string;
 }) {
+  const { t } = useTranslation('panels');
   const overlay = useImageryStore((s) => s.overlay);
   const overlayAction = useImageryStore((s) => s.overlayAction);
 
@@ -42,7 +44,7 @@ export function CustomMapControls({
         icon={<OverlayIcon className="opacity-40" />}
         value={overlay.id ?? ''}
         options={[
-          { value: '', label: 'No overlay' },
+          { value: '', label: t('overlay.none') },
           ...maps.map((m) => ({ value: m.id, label: m.name })),
         ]}
         onChange={(v: string | number) => {
@@ -56,7 +58,7 @@ export function CustomMapControls({
               'cycle'
             );
         }}
-        title="Select overlay map"
+        title={t('overlay.select')}
       />
       {active?.mlops_url && (
         <a
@@ -64,7 +66,7 @@ export function CustomMapControls({
           target="_blank"
           rel="noopener noreferrer"
           data-testid="custom-map-mlops-link"
-          title="Open linked experiment"
+          title={t('overlay.openExperiment')}
           className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
         >
           <IconExternalLink className="h-3 w-3" />

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import type { FormField, FormValues } from '../../campaign/annotation';
 import type { ExtendedLabel } from '../../campaign/annotation';
@@ -29,23 +30,20 @@ export function DraftCatalog({
   saved,
   error = null,
 }: DraftCatalogProps) {
-  const noun = label?.geometry_type ?? 'polygon';
+  const { t } = useTranslation('panels');
+  const geometry = label?.geometry_type ?? 'polygon';
 
   return (
     <div data-testid="draft-catalog" className="flex flex-col gap-2 w-full">
       <div className="flex items-center justify-between gap-2">
         <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-          {label ? capitalizeFirst(label.name) : 'Annotation'} - answer questions
+          {t('draft.title', { label: label ? capitalizeFirst(label.name) : t('draft.annotation') })}
         </span>
         <button
           type="button"
           data-testid="draft-close"
           onClick={onClose}
-          title={
-            saved
-              ? 'Close (the annotation is saved, answers are kept)'
-              : 'Close (unanswered required fields discard the annotation)'
-          }
+          title={saved ? t('draft.closeSaved') : t('draft.closeUnsaved')}
           className="flex-shrink-0 px-1.5 py-0.5 rounded text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 cursor-pointer transition-colors"
         >
           ✕
@@ -75,12 +73,10 @@ export function DraftCatalog({
         disabled={saving}
         className="w-full px-2.5 py-1.5 rounded text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer transition-colors"
       >
-        {error ? 'Retry save (Enter)' : saved ? 'Save answers (Enter)' : 'Save annotation (Enter)'}
+        {error ? t('draft.retry') : saved ? t('draft.saveAnswers') : t('draft.save')}
       </button>
       <p className="text-[11px] text-neutral-500">
-        {saved
-          ? `The ${noun} is saved. Answers are added when you save.`
-          : `Drawing another ${noun} saves this one too.`}
+        {saved ? t(`draft.savedHint.${geometry}`) : t(`draft.drawAnotherHint.${geometry}`)}
       </p>
     </div>
   );

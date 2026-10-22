@@ -1,3 +1,4 @@
+import i18n from '~/shared/i18n';
 import { useEffect } from 'react';
 import { claimAnnotationTask, type AnnotationTaskOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -66,7 +67,7 @@ export function useClaims(options: UseClaimsOptions): void {
       try {
         updated = await claimTask({ campaignId, task, currentUserId, now: Date.now() });
       } catch (error) {
-        if (!cancelled) handleError(error, 'Could not claim this task');
+        if (!cancelled) handleError(error, i18n.t('panels:task.claimFailed'));
         return;
       }
       if (cancelled || !updated) return;
