@@ -1,16 +1,16 @@
 import { useTranslation } from 'react-i18next';
 
 export interface PasswordRequirement {
-  label: 'minLength' | 'uppercase' | 'lowercase' | 'number' | 'special';
+  id: 'minLength' | 'uppercase' | 'lowercase' | 'number' | 'special';
   test: (password: string) => boolean;
 }
 
 export const PASSWORD_REQUIREMENTS: PasswordRequirement[] = [
-  { label: 'minLength', test: (p) => p.length >= 8 },
-  { label: 'uppercase', test: (p) => /[A-Z]/.test(p) },
-  { label: 'lowercase', test: (p) => /[a-z]/.test(p) },
-  { label: 'number', test: (p) => /[0-9]/.test(p) },
-  { label: 'special', test: (p) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(p) },
+  { id: 'minLength', test: (p) => p.length >= 8 },
+  { id: 'uppercase', test: (p) => /[A-Z]/.test(p) },
+  { id: 'lowercase', test: (p) => /[a-z]/.test(p) },
+  { id: 'number', test: (p) => /[0-9]/.test(p) },
+  { id: 'special', test: (p) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(p) },
 ];
 
 export function passwordMeetsAllRequirements(password: string): boolean {
@@ -42,7 +42,7 @@ export function PasswordRequirementIndicator({
         )}
       </div>
       <span className={met ? 'text-brand-700' : 'text-neutral-600'}>
-        {t(`passwordRequirements.${requirement.label}`)}
+        {t(`passwordRequirements.${requirement.id}`)}
       </span>
     </div>
   );
