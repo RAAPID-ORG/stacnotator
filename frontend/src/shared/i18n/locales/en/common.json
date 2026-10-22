@@ -41,6 +41,7 @@
   },
   "errors": {
     "generic": "Something went wrong",
+    "requestFailed": "Request failed",
     "unreachable": "Can't reach the server. Try again in a moment.",
     "withRef": "{{message}} (ref: {{ref}})",
     "loadProject": "Failed to load project",

@@ -41,6 +41,7 @@
   },
   "errors": {
     "generic": "Algo salió mal",
+    "requestFailed": "La solicitud falló",
     "unreachable": "No se puede conectar con el servidor. Inténtalo de nuevo en un momento.",
     "withRef": "{{message}} (ref.: {{ref}})",
     "loadProject": "No se pudo cargar el proyecto",
