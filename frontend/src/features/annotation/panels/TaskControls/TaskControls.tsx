@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { AnnotationTaskOut } from '~/api/client';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
@@ -19,6 +19,7 @@ import {
 } from '../../taskActions';
 import { ColumnResizer } from './ColumnResizer';
 import { LabelGrid } from './LabelGrid';
+import { PointJumper } from './PointJumper';
 import { ReviewList } from './ReviewList';
 import { currentTask, useTasksStore } from '../../stores/tasks';
 import { useClaims } from './useClaims';
@@ -84,7 +85,6 @@ export function TaskControls() {
   );
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const showAlert = useLayoutStore((s) => s.showAlert);
-  const [gotoValue, setGotoValue] = useState('');
   const labelsRef = useRef<HTMLDivElement>(null);
   const labelsWidth = usePrefsStore((s) => s.taskLabelsWidth) ?? DEFAULT_LABELS_WIDTH;
   const setLabelsWidth = usePrefsStore((s) => s.setTaskLabelsWidth);
@@ -111,7 +111,6 @@ export function TaskControls() {
 
   useEffect(() => {
     loadTaskIntoForm(task, currentUserId);
-    setGotoValue(task ? String(task.annotation_number) : '');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload the form whenever the current task identity or user changes, not on every object replacement or keystroke against it
   }, [task?.id, currentUserId]);
 
@@ -152,15 +151,6 @@ export function TaskControls() {
       : hasExistingLabel
         ? 'Update'
         : 'Submit';
-
-  const goToTyped = () => {
-    const num = parseInt(gotoValue, 10);
-    if (Number.isNaN(num) || num < 1) return;
-    if (!goToAnnotationNumber(num, catalog)) {
-      showAlert(`Point #${num} is not in the current filter`, 'error');
-    }
-  };
-  const showGoButton = gotoValue !== String(task.annotation_number);
 
   return (
     // Narrow, everything stacks. From @md the labels keep a column of their own
@@ -359,36 +349,13 @@ export function TaskControls() {
               <IconChevronLeft className="w-3 h-3" />
               <span className="@max-[15rem]:hidden">Prev</span>
             </button>
-            <input
-              data-testid="goto-point"
-              type="number"
-              value={gotoValue}
-              onChange={(e) => setGotoValue(e.target.value)}
-              min="1"
-              max={visibleTasks.length}
+            <PointJumper
+              key={task.annotation_number}
+              current={task.annotation_number}
               disabled={isBusy}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter') return;
-                e.preventDefault();
-                e.stopPropagation();
-                goToTyped();
-                e.currentTarget.blur();
-              }}
-              aria-label="Current point"
-              title="Current point - type a number and press Enter to go there"
-              className="w-14 shrink-0 px-2 py-1.5 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 disabled:opacity-50 tabular-nums"
+              onJump={(num) => goToAnnotationNumber(num, catalog)}
+              onNotFound={(num) => showAlert(`Point #${num} is not in the current filter`, 'error')}
             />
-            {showGoButton && (
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={goToTyped}
-                title="Go to point"
-                className="shrink-0 px-2 py-1.5 @max-[15rem]:hidden text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Go
-              </button>
-            )}
             <button
               type="button"
               disabled={isBusy}
