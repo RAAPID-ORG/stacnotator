@@ -76,3 +76,23 @@ export function basemapAttribution(url: string): string | undefined {
   const lower = url.toLowerCase();
   return ATTRIBUTIONS.find(([needle]) => lower.includes(needle))?.[1];
 }
+
+/** Bing-style quadkey: interleave x/y bits per zoom level into base 4. */
+export function quadkey(x: number, y: number, z: number): string {
+  let q = '';
+  for (let i = z; i > 0; i--) {
+    const mask = 1 << (i - 1);
+    q += String((x & mask ? 1 : 0) + (y & mask ? 2 : 0));
+  }
+  return q;
+}
+
+/** One tile's URL from an XYZ template, the placeholders the map's sources accept. */
+export function tileUrl(template: string, z: number, x: number, y: number): string {
+  return template
+    .replace('{z}', String(z))
+    .replace('{x}', String(x))
+    .replace('{-y}', String(2 ** z - 1 - y))
+    .replace('{y}', String(y))
+    .replace('{q}', quadkey(x, y, z));
+}

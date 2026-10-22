@@ -15,3 +15,6 @@ dist/
 openapi-ts*.log
 
 test-results/
+
+# Segmentation model weights (built by scripts/prepare_segmentation_models.py)
+public/models/

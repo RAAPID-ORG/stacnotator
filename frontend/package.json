@@ -34,6 +34,7 @@
     "ol": "^10.8.0",
     "ol-mapbox-style": "^13.4.3",
     "ol-pmtiles": "^2.0.2",
+    "onnxruntime-web": "^1.30.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-error-boundary": "^6.0.0",

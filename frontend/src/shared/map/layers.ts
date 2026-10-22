@@ -12,6 +12,7 @@ import XYZ from 'ol/source/XYZ';
 import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text } from 'ol/style';
 import { createXYZ } from 'ol/tilegrid';
 import { PMTilesVectorSource } from 'ol-pmtiles';
+import { quadkey } from '~/shared/imagery/tileUrls';
 import { applyBackground, applyStyle } from 'ol-mapbox-style';
 import type {
   FeatureLayerSpec,
@@ -159,16 +160,6 @@ export function geoFeatureOf(feature: FeatureLike): GeoFeature | undefined {
 // ---------------------------------------------------------------------------
 // Sources
 // ---------------------------------------------------------------------------
-
-/** Bing-style quadkey: interleave x/y bits per zoom level into base 4. */
-function quadkey(x: number, y: number, z: number): string {
-  let q = '';
-  for (let i = z; i > 0; i--) {
-    const mask = 1 << (i - 1);
-    q += String((x & mask ? 1 : 0) + (y & mask ? 2 : 0));
-  }
-  return q;
-}
 
 function rasterSourceKey(spec: RasterLayerSpec, crossOrigin: CrossOrigin): string {
   return JSON.stringify([
