@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { ingestAnnotationsFromGeojson, type LabelBase } from '~/api/client';
 import { FileInput } from '~/shared/ui/FileInput';
 
@@ -15,6 +16,7 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
   onSuccess,
   onError,
 }) => {
+  const { t } = useTranslation('campaigns');
   const [file, setFile] = useState<File | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -22,7 +24,7 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
   const handleFileSelect = (selected: File) => {
     const name = selected.name.toLowerCase();
     if (!name.endsWith('.geojson') && !name.endsWith('.json')) {
-      onError('Please upload a .geojson or .json file');
+      onError(t('importFeatures.wrongFileType'));
       return;
     }
     setFile(selected);
@@ -39,15 +41,15 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
 
       if (error) {
         const detail = (error as { detail?: string })?.detail;
-        throw new Error(detail || 'Failed to import features');
+        throw new Error(detail || t('importFeatures.failed'));
       }
 
       const count = (data as { num_annotations_created?: number })?.num_annotations_created ?? 0;
-      onSuccess(`${count} feature(s) imported successfully`);
+      onSuccess(t('importFeatures.success', { count }));
       setFile(null);
       setConfirmed(false);
     } catch (err) {
-      onError(err instanceof Error ? err.message : 'Failed to import features');
+      onError(err instanceof Error ? err.message : t('importFeatures.failed'));
     } finally {
       setUploading(false);
     }
@@ -55,22 +57,23 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
 
   return (
     <div>
-      <h3 className="text-md font-semibold text-neutral-900 mb-3">Import Existing Features</h3>
+      <h3 className="text-md font-semibold text-neutral-900 mb-3">{t('importFeatures.title')}</h3>
       <p className="text-sm text-neutral-500 mb-4">
-        Upload a GeoJSON file of existing features. Each feature must carry a{' '}
-        <code className="text-xs">stacnotator_label_id</code> property whose value is one of this
-        campaign's label ids (listed below). The import is rejected if any feature is missing a
-        label or uses a label id that does not belong to this campaign.
+        <Trans
+          t={t}
+          i18nKey="importFeatures.description"
+          components={{ code: <code className="text-xs" /> }}
+        />
       </p>
 
       <div className="space-y-4">
         {/* Campaign label reference */}
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Campaign label ids
+            {t('importFeatures.labelIds')}
           </label>
           {labels.length === 0 ? (
-            <p className="text-sm text-neutral-500">This campaign has no labels defined.</p>
+            <p className="text-sm text-neutral-500">{t('importFeatures.noLabels')}</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {labels.map((label) => (
@@ -88,7 +91,9 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
 
         {/* File input */}
         <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-2">GeoJSON file</label>
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
+            {t('importFeatures.fileLabel')}
+          </label>
           <FileInput
             accept=".geojson,.json"
             disabled={uploading}
@@ -106,9 +111,7 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
             disabled={uploading}
             className="mt-0.5 mr-3"
           />
-          <span className="text-sm text-neutral-700">
-            I confirm the label ids in my file match the label ids of this campaign.
-          </span>
+          <span className="text-sm text-neutral-700">{t('importFeatures.confirm')}</span>
         </label>
 
         {/* Upload button */}
@@ -134,7 +137,7 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
               />
             </svg>
           )}
-          {uploading ? 'Importing...' : 'Import Features'}
+          {uploading ? t('importFeatures.importing') : t('importFeatures.submit')}
         </button>
       </div>
     </div>

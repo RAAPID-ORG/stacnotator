@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TaskSetOut } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 
@@ -19,6 +20,7 @@ export const MoveTasksDialog = ({
   onCreateSet,
   onCancel,
 }: Props) => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const [targetId, setTargetId] = useState<number | ''>('');
   const [newSetName, setNewSetName] = useState('');
   const [moving, setMoving] = useState(false);
@@ -57,7 +59,7 @@ export const MoveTasksDialog = ({
         data-testid="move-tasks-dialog"
       >
         <h3 className="text-md font-semibold text-neutral-900">
-          Move {numTasks} task(s) to another set
+          {t('moveTasks.title', { count: numTasks })}
         </h3>
         <select
           value={targetId}
@@ -69,17 +71,17 @@ export const MoveTasksDialog = ({
           data-testid="move-target-set"
         >
           <option value="" disabled>
-            Select target set
+            {t('moveTasks.selectTarget')}
           </option>
           {taskSets.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name} ({s.num_tasks} tasks)
+              {t('moveTasks.setOption', { name: s.name, count: s.num_tasks })}
             </option>
           ))}
         </select>
         <div className="flex items-center gap-2">
           <div className="h-px flex-1 bg-neutral-200" />
-          <span className="text-xs text-neutral-500">or create a new set</span>
+          <span className="text-xs text-neutral-500">{t('moveTasks.orCreate')}</span>
           <div className="h-px flex-1 bg-neutral-200" />
         </div>
         <input
@@ -89,16 +91,16 @@ export const MoveTasksDialog = ({
             setNewSetName(e.target.value);
             setTargetId('');
           }}
-          placeholder="New set name"
+          placeholder={t('moveTasks.newSetPlaceholder')}
           className="w-full h-9 px-2 border border-neutral-300 rounded-md text-sm bg-white"
           data-testid="move-new-set-name"
         />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onCancel} disabled={moving}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button onClick={handleMove} disabled={!canMove || moving}>
-            {moving ? 'Moving…' : 'Move'}
+            {moving ? t('moveTasks.moving') : t('moveTasks.move')}
           </Button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash } from '~/shared/ui/Icons';
@@ -29,15 +30,12 @@ interface VectorLayersEditorProps {
   description?: string;
 }
 
-const DEFAULT_DESCRIPTION =
-  'Toggle on/off in open mode, hover to highlight, and label features by clicking with the ' +
-  'Label vector tool.';
-
 export const VectorLayersEditor = ({
   ownerKind,
   ownerId,
-  description = DEFAULT_DESCRIPTION,
+  description,
 }: VectorLayersEditorProps) => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const api = useMemo(() => vectorLayerApi(ownerKind, ownerId), [ownerKind, ownerId]);
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(defaultForm());
@@ -53,14 +51,14 @@ export const VectorLayersEditor = ({
     // As above: an empty list is a usable editor, an alert is just noise.
     // No toast: the list reports its own failure, as in CustomMapsEditor. Silence
     // here is indistinguishable from having no layers.
-    meta: { errorMessage: 'Failed to load vector layers', showUser: false },
+    meta: { errorMessage: t('vectorLayers.loadFailed'), showUser: false },
   });
 
   const reloadLayers = () => queryClient.invalidateQueries({ queryKey: api.queryKey });
 
   const create = useMutation({
     mutationFn: api.create,
-    meta: { errorMessage: 'Failed to add vector layer' },
+    meta: { errorMessage: t('vectorLayers.addFailed') },
     onSuccess: () => {
       setForm(defaultForm());
       setShowForm(false);
@@ -71,7 +69,7 @@ export const VectorLayersEditor = ({
 
   const remove = useMutation({
     mutationFn: api.remove,
-    meta: { errorMessage: 'Failed to delete vector layer' },
+    meta: { errorMessage: t('vectorLayers.deleteFailed') },
     onSuccess: reloadLayers,
   });
 
@@ -94,9 +92,11 @@ export const VectorLayersEditor = ({
       <div className="flex items-center justify-between mb-2">
         <div>
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-            Vector layers (PMTiles)
+            {t('vectorLayers.title')}
           </h4>
-          <p className="text-xs text-neutral-500 mt-0.5">{description}</p>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            {description ?? t('vectorLayers.description')}
+          </p>
         </div>
         {!showForm && (
           <button
@@ -104,24 +104,24 @@ export const VectorLayersEditor = ({
             onClick={() => setShowForm(true)}
             className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           >
-            + Add vector layer
+            {t('vectorLayers.add')}
           </button>
         )}
       </div>
 
       {layersFailed ? (
         <div className="flex items-center gap-3 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-          <span className="flex-1">Could not load the vector layers.</span>
+          <span className="flex-1">{t('vectorLayers.loadError')}</span>
           <button
             type="button"
             onClick={() => void refetchLayers()}
             className="font-medium underline underline-offset-2 hover:text-red-900"
           >
-            Try again
+            {t('vectorLayers.tryAgain')}
           </button>
         </div>
       ) : layers.length === 0 && !showForm ? (
-        <p className="text-xs text-neutral-400 italic">No vector layers configured.</p>
+        <p className="text-xs text-neutral-400 italic">{t('vectorLayers.empty')}</p>
       ) : (
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
           {layers.map((l) => (
@@ -148,8 +148,8 @@ export const VectorLayersEditor = ({
               <IconButton
                 tone="danger"
                 onClick={() => handleDelete(l.id)}
-                aria-label="Delete vector layer"
-                title="Delete"
+                aria-label={t('vectorLayers.deleteLayer')}
+                title={t('common:actions.delete')}
               >
                 <IconTrash className="w-3.5 h-3.5" />
               </IconButton>
@@ -165,34 +165,39 @@ export const VectorLayersEditor = ({
         >
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">Name</label>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                {t('vectorLayers.name')}
+              </label>
               <Input
                 size="sm"
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Field predictions"
+                placeholder={t('vectorLayers.namePlaceholder')}
                 required
                 data-testid="vector-layer-name"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-neutral-700 mb-1">
-                Source layer <span className="text-neutral-400">(optional)</span>
+                {t('vectorLayers.sourceLayer')}{' '}
+                <span className="text-neutral-400">{t('optional')}</span>
               </label>
               <Input
                 size="sm"
                 type="text"
                 value={form.source_layer}
                 onChange={(e) => setForm((f) => ({ ...f, source_layer: e.target.value }))}
-                placeholder="All layers"
+                placeholder={t('vectorLayers.allLayers')}
                 data-testid="vector-layer-source-layer"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-neutral-700 mb-1">PMTiles URL</label>
+            <label className="block text-xs font-medium text-neutral-700 mb-1">
+              {t('vectorLayers.url')}
+            </label>
             <Input
               size="sm"
               type="text"
@@ -205,32 +210,34 @@ export const VectorLayersEditor = ({
             />
             <ul className="mt-1.5 space-y-0.5 text-[11px] text-neutral-500 leading-snug list-disc list-inside">
               <li>
-                Must be a{' '}
-                <strong className="font-medium text-neutral-600">PMTiles vector archive</strong>{' '}
-                (`.pmtiles`) -read directly by the browser, no tiler required.
+                <Trans
+                  t={t}
+                  i18nKey="vectorLayers.hints.archive"
+                  components={{ strong: <strong className="font-medium text-neutral-600" /> }}
+                />
               </li>
-              <li>Reachable over HTTPS -a public URL, or one that includes a SAS token.</li>
-              <li>
-                Set a source layer to render just one layer inside the archive; leave blank for all.
-              </li>
+              <li>{t('vectorLayers.hints.https')}</li>
+              <li>{t('vectorLayers.hints.sourceLayer')}</li>
             </ul>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-neutral-700 mb-1">Colour</label>
+            <label className="block text-xs font-medium text-neutral-700 mb-1">
+              {t('vectorLayers.colour')}
+            </label>
             <input
               type="color"
               value={form.color}
               onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
               className="h-8 w-12 rounded border border-neutral-300 cursor-pointer p-0.5 bg-white"
-              title="Layer colour"
+              title={t('vectorLayers.layerColour')}
               data-testid="vector-layer-color"
             />
           </div>
 
           <div className="flex items-center gap-2 pt-1">
             <Button type="submit" size="sm" disabled={submitting} data-testid="add-vector-layer">
-              {submitting ? 'Adding…' : 'Add layer'}
+              {submitting ? t('vectorLayers.adding') : t('vectorLayers.addLayer')}
             </Button>
             <Button
               type="button"
@@ -242,7 +249,7 @@ export const VectorLayersEditor = ({
               }}
               disabled={submitting}
             >
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
           </div>
         </form>

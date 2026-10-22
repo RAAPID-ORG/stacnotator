@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate } from 'react-router-dom';
 import type { CampaignCreate, ProjectUserOut } from '~/api/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -28,7 +29,7 @@ import { StepAccess } from '../components/creation/steps/StepAccess';
 import { StepReview } from '../components/creation/steps/StepReview';
 import { StepIndicator } from '~/shared/ui/StepIndicator';
 import { CollapsibleSection } from '~/shared/ui/CollapsibleSection';
-import { WIZARD_STEPS, WIZARD_STEP_NAMES } from '../components/creation/steps';
+import { WIZARD_STEPS } from '../components/creation/steps';
 import type { ImageryStepState } from '../components/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
@@ -37,6 +38,7 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 const NO_USERS: ProjectUserOut[] = [];
 
 export const CreateCampaignPage = () => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const navigate = useNavigate();
   const projectId = useProjectIdParam();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
@@ -51,24 +53,24 @@ export const CreateCampaignPage = () => {
   const path = { project_id: projectId };
   const { data: project, isPending: loadingProject } = useQuery({
     ...getProjectOptions({ path }),
-    meta: { errorMessage: 'Failed to load project' },
+    meta: { errorMessage: t('errors.loadProject') },
   });
   const { data: projectUsersData } = useQuery({
     ...getProjectUsersOptions({ path }),
-    meta: { errorMessage: 'Failed to load project members' },
+    meta: { errorMessage: t('errors.loadProjectMembers') },
   });
   const projectUsers = projectUsersData?.users ?? NO_USERS;
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: 'Projects', path: projectsPath() },
+      { label: t('breadcrumbs.projects'), path: projectsPath() },
       {
-        label: project ? capitalizeFirst(project.name) : 'Project',
+        label: project ? capitalizeFirst(project.name) : t('breadcrumbs.project'),
         path: projectPath(projectId),
       },
-      { label: 'New Campaign' },
+      { label: t('breadcrumbs.newCampaign') },
     ]);
-  }, [project, projectId, setBreadcrumbs]);
+  }, [project, projectId, setBreadcrumbs, t]);
 
   const [form, setForm] = useState<CampaignCreate>({
     name: '',
@@ -138,8 +140,8 @@ export const CreateCampaignPage = () => {
           <div className="space-y-6">
             <StepReview validation={validation} />
             <CollapsibleSection
-              title="Advanced options"
-              description="Most campaigns should keep the default access settings. Expand to choose who can label, complete tasks, or edit other people's annotations."
+              title={t('wizard.advancedOptions.title')}
+              description={t('wizard.advancedOptions.description')}
             >
               <StepAccess
                 form={form}
@@ -157,15 +159,15 @@ export const CreateCampaignPage = () => {
 
   const create = useMutation({
     ...createCampaignMutation(),
-    meta: { errorMessage: 'Failed to create campaign' },
-    onMutate: () => showLoadingOverlay('Creating campaign...'),
+    meta: { errorMessage: t('errors.createCampaign') },
+    onMutate: () => showLoadingOverlay(t('wizard.creatingOverlay')),
     onSettled: hideLoadingOverlay,
     onSuccess: (campaign) => {
       void queryClient.invalidateQueries({ queryKey: listProjectCampaignsQueryKey({ path }) });
       showAlert(
         campaign.registration_status === 'registering'
-          ? 'Campaign created. Mosaic registration is running in the background...'
-          : 'Campaign created successfully',
+          ? t('wizard.createdRegistering')
+          : t('wizard.created'),
         campaign.registration_status === 'registering' ? 'info' : 'success'
       );
       navigate(campaignPath(campaign.project_id, campaign.id, 'annotate'));
@@ -190,12 +192,16 @@ export const CreateCampaignPage = () => {
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">New campaign</h1>
+            <h1 className="page-title">{t('wizard.title')}</h1>
           </div>
         </header>
 
         <div className="mb-6">
-          <StepIndicator steps={WIZARD_STEP_NAMES} step={step} onStepClick={setStep} />
+          <StepIndicator
+            steps={WIZARD_STEPS.map((s) => t(`wizard.steps.${s.key}`))}
+            step={step}
+            onStepClick={setStep}
+          />
         </div>
 
         {loadingProject ? (
@@ -214,22 +220,22 @@ export const CreateCampaignPage = () => {
                   step === 1 ? () => navigate(projectPath(projectId)) : () => setStep(step - 1)
                 }
               >
-                {step === 1 ? 'Cancel' : 'Back'}
+                {step === 1 ? t('common:actions.cancel') : t('common:actions.back')}
               </Button>
 
               {step < totalSteps ? (
-                <Button onClick={() => setStep(step + 1)}>Continue</Button>
+                <Button onClick={() => setStep(step + 1)}>{t('wizard.continue')}</Button>
               ) : (
                 <div className="relative group">
                   <Button
                     onClick={handleSubmit}
                     disabled={isSubmitting || (showValidation && !validation.isValid)}
                   >
-                    {isSubmitting ? 'Creating...' : 'Create campaign'}
+                    {isSubmitting ? t('wizard.creating') : t('wizard.create')}
                   </Button>
                   {showValidation && !validation.isValid && !isSubmitting && (
                     <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs text-white bg-neutral-800 rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      Fix {totalErrors} issue{totalErrors !== 1 ? 's' : ''} to continue
+                      {t('wizard.fixIssues', { count: totalErrors })}
                     </span>
                   )}
                 </div>

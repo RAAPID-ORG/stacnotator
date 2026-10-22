@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   generateTasksFromSampling,
   type GenerateTasksResponse,
@@ -15,45 +16,28 @@ interface TaskGenerationSectionProps {
   onError: (message: string) => void;
 }
 
-const SAMPLING_STRATEGIES = [
-  {
-    value: 'random',
-    label: 'Random Sampling',
-    description: 'Randomly sample points within the region',
-  },
-  {
-    value: 'grid',
-    label: 'Grid Sampling',
-    description: 'Sample a regular grid of points, a fixed distance apart',
-  },
-] as const;
+const SAMPLING_STRATEGIES = ['random', 'grid'] as const;
 
-type StrategyType = (typeof SAMPLING_STRATEGIES)[number]['value'];
+type StrategyType = (typeof SAMPLING_STRATEGIES)[number];
 
 /**
  * What a grid run actually produces. Stated in the form because these three
  * properties are what someone has to be able to defend later, when asked how
  * the sample was drawn.
  */
-const GridExplainer = () => (
-  <div className="rounded-lg bg-neutral-50 border border-neutral-200 p-3 space-y-1.5">
-    <p className="text-xs font-medium text-neutral-700">How the grid is drawn</p>
-    <ul className="text-xs text-neutral-500 space-y-1 list-disc pl-4">
-      <li>
-        Spacing is ground distance, so points stay the same distance apart everywhere in the region,
-        however far north or south it reaches.
-      </li>
-      <li>
-        The grid is placed at a random offset rather than pinned to a corner, so it cannot line up
-        with roads, field edges or anything else laid out regularly.
-      </li>
-      <li>
-        Tasks are created in random order, so stopping part way through still leaves the whole
-        region covered.
-      </li>
-    </ul>
-  </div>
-);
+const GridExplainer = () => {
+  const { t } = useTranslation('campaigns');
+  return (
+    <div className="rounded-lg bg-neutral-50 border border-neutral-200 p-3 space-y-1.5">
+      <p className="text-xs font-medium text-neutral-700">{t('sampling.grid.title')}</p>
+      <ul className="text-xs text-neutral-500 space-y-1 list-disc pl-4">
+        <li>{t('sampling.grid.spacing')}</li>
+        <li>{t('sampling.grid.offset')}</li>
+        <li>{t('sampling.grid.order')}</li>
+      </ul>
+    </div>
+  );
+};
 
 export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   campaignId,
@@ -61,6 +45,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   onTasksGenerated,
   onError,
 }) => {
+  const { t } = useTranslation('campaigns');
   const [regionFile, setRegionFile] = useState<File | null>(null);
   const [strategyType, setStrategyType] = useState<StrategyType>('random');
   const [numSamples, setNumSamples] = useState<number>(100);
@@ -76,7 +61,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
     const isValid =
       file.name.endsWith('.zip') || file.name.endsWith('.geojson') || file.name.endsWith('.json');
     if (!isValid) {
-      onError('Please upload a .zip (shapefile) or .geojson file');
+      onError(t('sampling.errors.fileType'));
       return;
     }
     setRegionFile(file);
@@ -84,27 +69,27 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
   const handleGenerate = async () => {
     if (!useCampaignBbox && !regionFile) {
-      onError('Please select a region file or use campaign bounding box');
+      onError(t('sampling.errors.noRegion'));
       return;
     }
 
     if (strategyType === 'random' && numSamples < 1) {
-      onError('Number of samples must be at least 1');
+      onError(t('sampling.errors.minSamples'));
       return;
     }
 
     if (strategyType === 'grid' && !spacingValid) {
-      onError('Grid spacing must be greater than 0 km');
+      onError(t('sampling.errors.spacing'));
       return;
     }
 
     if (seed !== undefined && (!Number.isInteger(seed) || seed < 0)) {
-      onError('Seed must be a whole number of 0 or more');
+      onError(t('sampling.errors.seed'));
       return;
     }
 
     if (taskSetId === null) {
-      onError('Select a task set first');
+      onError(t('sampling.errors.noTaskSet'));
       return;
     }
 
@@ -134,14 +119,14 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
       });
 
       if (error) {
-        throw new Error(extractErrorMessage(error, 'Failed to generate tasks'));
+        throw new Error(extractErrorMessage(error, t('sampling.errors.failed')));
       }
 
       if (data) {
         onTasksGenerated(data);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to generate tasks';
+      const message = err instanceof Error ? err.message : t('sampling.errors.failed');
       onError(message);
     } finally {
       setGenerating(false);
@@ -150,24 +135,21 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
   return (
     <div>
-      <h3 className="text-md font-semibold text-neutral-900 mb-3">Generate Tasks via Sampling</h3>
-      <p className="text-sm text-neutral-500 mb-4">
-        Generate annotation tasks by sampling points within a region. You can either upload a
-        boundary file or use the campaign's bounding box.
-      </p>
+      <h3 className="text-md font-semibold text-neutral-900 mb-3">{t('sampling.title')}</h3>
+      <p className="text-sm text-neutral-500 mb-4">{t('sampling.description')}</p>
 
       <div className="space-y-4">
         {/* Sampling Strategy Selection */}
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Sampling Strategy
+            {t('sampling.strategy')}
           </label>
           <div className="space-y-2">
             {SAMPLING_STRATEGIES.map((strategy) => (
               <label
-                key={strategy.value}
+                key={strategy}
                 className={`flex items-start p-3 border rounded-lg cursor-pointer transition-colors ${
-                  strategyType === strategy.value
+                  strategyType === strategy
                     ? 'border-brand-600 bg-brand-50'
                     : 'border-neutral-300 hover:border-neutral-400'
                 }`}
@@ -175,14 +157,18 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
                 <input
                   type="radio"
                   name="samplingStrategy"
-                  value={strategy.value}
-                  checked={strategyType === strategy.value}
-                  onChange={() => setStrategyType(strategy.value)}
+                  value={strategy}
+                  checked={strategyType === strategy}
+                  onChange={() => setStrategyType(strategy)}
                   className="mt-0.5 mr-3"
                 />
                 <div>
-                  <span className="font-medium text-neutral-900">{strategy.label}</span>
-                  <p className="text-sm text-neutral-500">{strategy.description}</p>
+                  <span className="font-medium text-neutral-900">
+                    {t(`sampling.strategies.${strategy}.label`)}
+                  </span>
+                  <p className="text-sm text-neutral-500">
+                    {t(`sampling.strategies.${strategy}.description`)}
+                  </p>
                 </div>
               </label>
             ))}
@@ -192,7 +178,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
         {/* Region Selection */}
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-2">
-            Region Selection
+            {t('sampling.region')}
           </label>
 
           {/* Option 1: Upload File */}
@@ -211,8 +197,8 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
                 className="mt-0.5 mr-3"
               />
               <div className="flex-1">
-                <span className="font-medium text-neutral-900">Upload Boundary File</span>
-                <p className="text-xs text-neutral-500">Shapefile (.zip) or GeoJSON (.geojson)</p>
+                <span className="font-medium text-neutral-900">{t('sampling.upload')}</span>
+                <p className="text-xs text-neutral-500">{t('sampling.uploadHint')}</p>
               </div>
             </label>
 
@@ -251,10 +237,8 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
                 className="mt-0.5 mr-3"
               />
               <div>
-                <span className="font-medium text-neutral-900">Use Campaign Bounding Box</span>
-                <p className="text-xs text-neutral-500">
-                  Sample within the campaign's defined area
-                </p>
+                <span className="font-medium text-neutral-900">{t('sampling.useBbox')}</span>
+                <p className="text-xs text-neutral-500">{t('sampling.useBboxHint')}</p>
               </div>
             </label>
           </div>
@@ -264,10 +248,10 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
         {strategyType === 'grid' ? (
           <div className="space-y-3">
             <Field
-              label="Grid Spacing (km)"
+              label={t('sampling.spacingLabel')}
               htmlFor="grid-spacing"
-              hint="Distance between neighbouring points. The number of tasks follows from the size of the region."
-              error={spacingValid ? undefined : 'Must be a positive number'}
+              hint={t('sampling.spacingHint')}
+              error={spacingValid ? undefined : t('sampling.spacingError')}
             >
               <Input
                 id="grid-spacing"
@@ -283,7 +267,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
             <GridExplainer />
           </div>
         ) : (
-          <Field label="Number of Samples" htmlFor="num-samples">
+          <Field label={t('sampling.numSamples')} htmlFor="num-samples">
             <Input
               id="num-samples"
               type="number"
@@ -298,19 +282,15 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
         {/* Optional Seed (for reproducibility) */}
         <Field
-          label="Random Seed (optional)"
+          label={t('sampling.seedLabel')}
           htmlFor="sampling-seed"
-          hint={
-            strategyType === 'grid'
-              ? 'Fixes the offset the grid is placed at, so the same seed redraws the same grid'
-              : 'Set a seed for reproducible sampling results'
-          }
+          hint={strategyType === 'grid' ? t('sampling.seedHintGrid') : t('sampling.seedHintRandom')}
         >
           <Input
             id="sampling-seed"
             type="number"
             min="0"
-            placeholder="Leave empty for random"
+            placeholder={t('sampling.seedPlaceholder')}
             value={seed ?? ''}
             onChange={(e) => setSeed(e.target.value ? parseInt(e.target.value) : undefined)}
             disabled={generating}
@@ -344,7 +324,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
               />
             </svg>
           )}
-          {generating ? 'Generating...' : 'Generate Tasks'}
+          {generating ? t('sampling.generating') : t('sampling.generate')}
         </button>
       </div>
     </div>

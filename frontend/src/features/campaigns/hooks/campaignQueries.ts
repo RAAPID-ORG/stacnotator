@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import type {
   AnnotationListItemOut,
   AnnotationTaskOut,
@@ -59,9 +60,10 @@ const NO_ANNOTATIONS: AnnotationListItemOut[] = [];
  * actually needed: the settings editor and the annotation page.
  */
 export const useCampaignSummary = (campaignId: number) => {
+  const { t } = useTranslation('campaigns');
   const { data, isPending } = useQuery({
     ...getCampaignSummaryOptions({ path: { campaign_id: campaignId } }),
-    meta: { errorMessage: 'Failed to load campaign' },
+    meta: { errorMessage: t('errors.loadCampaign') },
     // These pages are reachable during setup, so what they say about it has to
     // stop being true on its own. Stops as soon as setup finishes.
     refetchInterval: (query) => (isRegistering(query.state.data) ? REGISTRATION_POLL_MS : false),
@@ -75,9 +77,10 @@ export const useCampaignSummary = (campaignId: number) => {
  *  `pollWhileRegistering` keeps re-reading while background setup runs; the campaign's
  *  own status fields are what say when to stop. */
 export const useCampaign = (campaignId: number, options?: { pollWhileRegistering?: boolean }) => {
+  const { t } = useTranslation('campaigns');
   const { data, isPending } = useQuery({
     ...getCampaignOptions({ path: { campaign_id: campaignId } }),
-    meta: { errorMessage: 'Failed to load campaign' },
+    meta: { errorMessage: t('errors.loadCampaign') },
     refetchInterval: (query) =>
       options?.pollWhileRegistering && isRegistering(query.state.data)
         ? REGISTRATION_POLL_MS
@@ -89,12 +92,13 @@ export const useCampaign = (campaignId: number, options?: { pollWhileRegistering
 /** Every task in the campaign. `enabled: false` is for the review table when a
  *  page hands it a scoped list of its own instead. */
 export const useCampaignTasks = (campaignId: number, options?: { enabled?: boolean }) => {
+  const { t } = useTranslation('campaigns');
   const enabled = options?.enabled ?? true;
   const { data, isPending } = useQuery({
     ...getAllAnnotationTasksOptions({ path: { campaign_id: campaignId } }),
     ...SHARED_WORK,
     enabled,
-    meta: { errorMessage: 'Failed to load tasks' },
+    meta: { errorMessage: t('errors.loadTasks') },
   });
   return { tasks: data?.tasks ?? NO_TASKS, loading: enabled && isPending };
 };
@@ -102,12 +106,13 @@ export const useCampaignTasks = (campaignId: number, options?: { enabled?: boole
 /** The campaign's task sets, whose labelled/total counters move as annotators
  *  submit, which is why they are shared work rather than settings. */
 export const useCampaignTaskSets = (campaignId: number, options?: { enabled?: boolean }) => {
+  const { t } = useTranslation('campaigns');
   const enabled = options?.enabled ?? true;
   const { data, isPending } = useQuery({
     ...listTaskSetsOptions({ path: { campaign_id: campaignId } }),
     ...SHARED_WORK,
     enabled,
-    meta: { errorMessage: 'Failed to load task sets' },
+    meta: { errorMessage: t('errors.loadTaskSets') },
   });
   return { taskSets: data ?? NO_TASK_SETS, loading: enabled && isPending };
 };
@@ -115,13 +120,14 @@ export const useCampaignTaskSets = (campaignId: number, options?: { enabled?: bo
 /** The agreement figures. The panel shows its own failure line, so no toast.
  *  `taskSetId` scopes them to one set; omitted means the whole campaign. */
 export const useCampaignStatistics = (campaignId: number, taskSetId?: number) => {
+  const { t } = useTranslation('campaigns');
   const { data, isPending, error } = useQuery({
     ...getCampaignStatisticsEndpointOptions({
       path: { campaign_id: campaignId },
       query: { task_set_id: taskSetId },
     }),
     ...SHARED_WORK,
-    meta: { errorMessage: 'Failed to load statistics', showUser: false },
+    meta: { errorMessage: t('errors.loadStatistics'), showUser: false },
   });
   return { statistics: data, loading: isPending, error };
 };
@@ -183,11 +189,12 @@ export const useAnnotationsPage = (
   campaignId: number,
   query: ListAnnotationsForCampaignData['query']
 ) => {
+  const { t } = useTranslation('campaigns');
   const { data, isPending, isPlaceholderData } = useQuery({
     ...listAnnotationsForCampaignOptions({ path: { campaign_id: campaignId }, query }),
     ...SHARED_WORK,
     placeholderData: keepPreviousData,
-    meta: { errorMessage: 'Failed to load annotations' },
+    meta: { errorMessage: t('errors.loadAnnotations') },
   });
   return {
     items: data?.items ?? NO_ANNOTATIONS,
@@ -207,10 +214,11 @@ export const useAnnotationsPage = (
  * the paged endpoint exists to avoid.
  */
 export const useAnnotationFacets = (campaignId: number) => {
+  const { t } = useTranslation('campaigns');
   const { data } = useQuery({
     ...getAnnotationFacetsOptions({ path: { campaign_id: campaignId } }),
     ...SHARED_WORK,
-    meta: { errorMessage: 'Failed to load annotation counts', showUser: false },
+    meta: { errorMessage: t('errors.loadAnnotationCounts'), showUser: false },
   });
   return data ?? null;
 };

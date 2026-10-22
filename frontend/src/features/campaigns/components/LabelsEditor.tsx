@@ -1,11 +1,12 @@
 import { useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { LabelBase } from '~/api/client';
 import { Input, Select } from '~/shared/ui/forms';
 
 const GEOMETRY_TYPES = [
-  { value: 'point', label: '● Point' },
-  { value: 'polygon', label: '▰ Polygon' },
-  { value: 'line', label: '━ Line' },
+  { value: 'point', icon: '●' },
+  { value: 'polygon', icon: '▰' },
+  { value: 'line', icon: '━' },
 ] as const;
 
 interface LabelsEditorProps {
@@ -26,6 +27,7 @@ export const LabelsEditor = ({
   showGeometryType = false,
   disableDelete = false,
 }: LabelsEditorProps) => {
+  const { t } = useTranslation('campaigns');
   const inputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
   const addLabel = useCallback(() => {
@@ -64,7 +66,7 @@ export const LabelsEditor = ({
             <Input
               type="text"
               value={label.name}
-              placeholder="Class name"
+              placeholder={t('labelsEditor.classPlaceholder')}
               ref={(el) => {
                 if (el) inputRefs.current.set(label.id, el);
                 else inputRefs.current.delete(label.id);
@@ -91,7 +93,7 @@ export const LabelsEditor = ({
               >
                 {GEOMETRY_TYPES.map((gt) => (
                   <option key={gt.value} value={gt.value}>
-                    {gt.label}
+                    {gt.icon} {t(`labelsEditor.geometry.${gt.value}`)}
                   </option>
                 ))}
               </Select>
@@ -103,7 +105,7 @@ export const LabelsEditor = ({
               onClick={() => removeLabel(label.id)}
               className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"
               type="button"
-              aria-label="Remove label"
+              aria-label={t('labelsEditor.removeLabel')}
             >
               ✕
             </button>
@@ -117,7 +119,7 @@ export const LabelsEditor = ({
           className="text-sm text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           type="button"
         >
-          + Add class
+          {t('labelsEditor.addClass')}
         </button>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { createTaskSet, type TaskSetOut } from '~/api/client';
@@ -27,6 +28,7 @@ import {
 } from '~/features/areaEstimation/AreaEstimation';
 
 export const CampaignOverviewPage = () => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
@@ -39,13 +41,13 @@ export const CampaignOverviewPage = () => {
   // with it - it renders without the number.
   const { data: facets } = useQuery({
     ...getAnnotationFacetsOptions({ path: { campaign_id: campaignId } }),
-    meta: { errorMessage: 'Failed to load annotation counts', showUser: false },
+    meta: { errorMessage: t('errors.loadAnnotationCounts'), showUser: false },
   });
   const annotationCount = facets?.total ?? null;
   // Only for the count next to the agents link, which is shown either way.
   const { data: agentsOverview } = useQuery({
     ...listAgentsOptions({ path: { campaign_id: campaignId } }),
-    meta: { errorMessage: 'Failed to load labelling agents', showUser: false },
+    meta: { errorMessage: t('errors.loadAgents'), showUser: false },
   });
   const isAdmin = campaign?.viewer_is_admin ?? false;
   const currentUserId = useAccountStore((s) => s.account?.id ?? null);
@@ -79,7 +81,7 @@ export const CampaignOverviewPage = () => {
       setNamingEstimate(null);
       navigate(`${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${created.data.id}`);
     } catch (err) {
-      handleError(err, 'Could not start the area estimate');
+      handleError(err, t('overview.estimate.startFailed'));
     } finally {
       setCreatingEstimate(false);
     }
@@ -88,7 +90,7 @@ export const CampaignOverviewPage = () => {
   if (!loading && !campaign) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-neutral-700">Campaign not found</p>
+        <p className="text-neutral-700">{t('notFound')}</p>
       </div>
     );
   }
@@ -119,7 +121,7 @@ export const CampaignOverviewPage = () => {
               <Skeleton className="h-7 w-52" />
             )}
             {campaign ? (
-              <p className="page-subtitle">Created {createdDate}</p>
+              <p className="page-subtitle">{t('overview.created', { date: createdDate })}</p>
             ) : (
               <Skeleton className="h-4 w-32 mt-2" />
             )}
@@ -129,7 +131,7 @@ export const CampaignOverviewPage = () => {
               variant="secondary"
               onClick={() => navigate(campaignPath(projectId, campaignId, 'annotations'))}
             >
-              Annotations
+              {t('overview.annotations')}
               {annotationCount != null && (
                 <span className="ml-1.5 text-neutral-400 tabular-nums font-normal">
                   {annotationCount.toLocaleString()}
@@ -142,7 +144,7 @@ export const CampaignOverviewPage = () => {
                 leading={<IconGear className="w-4 h-4" />}
                 onClick={() => navigate(campaignPath(projectId, campaignId, 'settings'))}
               >
-                Settings
+                {t('overview.settings')}
               </Button>
             )}
           </div>
@@ -155,13 +157,12 @@ export const CampaignOverviewPage = () => {
           >
             <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-600 animate-pulse" />
             <div>
-              <h2 className="text-sm font-semibold text-amber-900">Setting up this campaign</h2>
+              <h2 className="text-sm font-semibold text-amber-900">{t('overview.setup.title')}</h2>
               <p className="mt-0.5 text-[13px] text-amber-800">
                 {campaign?.registration_status === 'registering'
-                  ? 'Registering imagery mosaics.'
-                  : 'Computing embeddings.'}{' '}
-                Annotating opens when this finishes; settings can be edited now. This page updates
-                itself.
+                  ? t('overview.setup.registering')
+                  : t('overview.setup.embeddings')}{' '}
+                {t('overview.setup.body')}
               </p>
             </div>
           </div>
@@ -185,9 +186,11 @@ export const CampaignOverviewPage = () => {
                 <IconMap className="w-5 h-5 text-brand-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-base font-semibold text-neutral-900">Explore</h2>
+                <h2 className="text-base font-semibold text-neutral-900">
+                  {t('overview.explore.title')}
+                </h2>
                 <p className="text-sm text-neutral-500 mt-0.5">
-                  Free-form labeling across the whole campaign area.
+                  {t('overview.explore.description')}
                 </p>
               </div>
               <Button
@@ -196,7 +199,7 @@ export const CampaignOverviewPage = () => {
                 }
                 className="shrink-0"
               >
-                Start exploring
+                {t('overview.explore.start')}
               </Button>
             </div>
           </div>
@@ -205,7 +208,7 @@ export const CampaignOverviewPage = () => {
         <section>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-baseline gap-2.5">
-              <h2 className="section-heading">Task sets</h2>
+              <h2 className="section-heading">{t('overview.taskSets')}</h2>
               {isMember && (
                 <button
                   type="button"
@@ -213,10 +216,10 @@ export const CampaignOverviewPage = () => {
                   className="text-[11px] text-neutral-500 underline decoration-neutral-300 underline-offset-2 transition-colors hover:text-neutral-700 hover:decoration-neutral-500"
                 >
                   {agentCount == null
-                    ? 'Labelling agents'
+                    ? t('overview.agents.label')
                     : agentCount === 0
-                      ? 'No labelling agents yet'
-                      : `${agentCount} labelling agent${agentCount === 1 ? '' : 's'}`}
+                      ? t('overview.agents.none')
+                      : t('overview.agents.count', { count: agentCount })}
                 </button>
               )}
             </div>
@@ -224,7 +227,7 @@ export const CampaignOverviewPage = () => {
               <InlineAddAction
                 onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
               >
-                Add tasks
+                {t('tasksTab.addTasks')}
               </InlineAddAction>
             )}
           </div>
@@ -236,18 +239,18 @@ export const CampaignOverviewPage = () => {
                 <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
                   <IconFlag className="w-5 h-5 text-neutral-400" />
                 </div>
-                <p className="text-sm text-neutral-800 font-medium mb-1">No tasks yet</p>
+                <p className="text-sm text-neutral-800 font-medium mb-1">
+                  {t('overview.noTasks.title')}
+                </p>
                 <p className="text-sm text-neutral-500 mb-4">
-                  {isAdmin
-                    ? 'Set up task sets to guide annotators through specific locations.'
-                    : 'An admin can add task sets for this campaign.'}
+                  {isAdmin ? t('overview.noTasks.admin') : t('overview.noTasks.member')}
                 </p>
                 {isAdmin && (
                   <Button
                     variant="secondary"
                     onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
                   >
-                    Add tasks
+                    {t('tasksTab.addTasks')}
                   </Button>
                 )}
               </div>
@@ -288,10 +291,10 @@ export const CampaignOverviewPage = () => {
         {AREA_ESTIMATION_ENABLED && (estimateSets.length > 0 || isAdmin) && (
           <section className="mt-8 mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="section-heading">Area estimates</h2>
+              <h2 className="section-heading">{t('overview.estimate.heading')}</h2>
               {isAdmin && (
                 <InlineAddAction onClick={() => setNamingEstimate('')}>
-                  New area estimate
+                  {t('overview.estimate.new')}
                 </InlineAddAction>
               )}
             </div>
@@ -301,13 +304,12 @@ export const CampaignOverviewPage = () => {
                   <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
                     <IconChart className="w-5 h-5 text-neutral-400" />
                   </div>
-                  <p className="text-sm text-neutral-800 font-medium mb-1">No area estimates yet</p>
-                  <p className="text-sm text-neutral-500 mb-4">
-                    Turn a map and a sample of checked points into a published area with a
-                    confidence interval.
+                  <p className="text-sm text-neutral-800 font-medium mb-1">
+                    {t('overview.estimate.none')}
                   </p>
+                  <p className="text-sm text-neutral-500 mb-4">{t('overview.estimate.noneBody')}</p>
                   <Button variant="secondary" onClick={() => setNamingEstimate('')}>
-                    New area estimate
+                    {t('overview.estimate.new')}
                   </Button>
                 </div>
               </div>
@@ -344,7 +346,7 @@ export const CampaignOverviewPage = () => {
 
       {namingEstimate !== null && (
         <Modal
-          title="New area estimate"
+          title={t('overview.estimate.new')}
           onClose={() => setNamingEstimate(null)}
           maxWidth="max-w-md"
           footer={
@@ -355,7 +357,7 @@ export const CampaignOverviewPage = () => {
                 onClick={() => setNamingEstimate(null)}
                 disabled={creatingEstimate}
               >
-                Cancel
+                {t('common:actions.cancel')}
               </Button>
               <Button
                 size="sm"
@@ -363,24 +365,22 @@ export const CampaignOverviewPage = () => {
                 disabled={!namingEstimate.trim() || creatingEstimate}
                 data-testid="new-area-estimate-create"
               >
-                Create
+                {t('common:actions.create')}
               </Button>
             </div>
           }
         >
           <div className="px-5 py-4 space-y-4">
             <p className="text-xs leading-relaxed text-neutral-600">
-              An area estimate turns a classified map and a sample of checked points into a
-              published area with a confidence interval. Its points live in their own task set,
-              managed by the design.
+              {t('overview.estimate.modalBody')}
             </p>
-            <Field label="Name" hint="What this estimate covers, and for when.">
+            <Field label={t('overview.estimate.name')} hint={t('overview.estimate.nameHint')}>
               <Input
                 autoFocus
                 value={namingEstimate}
                 onChange={(e) => setNamingEstimate(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && void createEstimate()}
-                placeholder="Winter crops 2025"
+                placeholder={t('overview.estimate.namePlaceholder')}
                 data-testid="new-area-estimate-name"
               />
             </Field>
@@ -404,13 +404,16 @@ const AllTasksCard = ({
   // with the tasks is what admin rights gate, inside the page itself.
   onView: () => void;
 }) => {
+  const { t } = useTranslation('campaigns');
   const percent = Math.round((totalLabeled / totalTasks) * 100);
 
   return (
     <div className="surface h-full flex flex-col border-2 border-brand-300">
       <div className="surface-section flex-1 flex flex-col">
-        <h3 className="text-sm font-semibold text-neutral-900 truncate">All tasks</h3>
-        <p className="text-[11px] text-brand-600 mt-0.5 font-medium">Across all sets</p>
+        <h3 className="text-sm font-semibold text-neutral-900 truncate">
+          {t('taskScope.allTasks')}
+        </h3>
+        <p className="text-[11px] text-brand-600 mt-0.5 font-medium">{t('overview.acrossSets')}</p>
 
         <div className="mt-4">
           <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden">
@@ -420,16 +423,16 @@ const AllTasksCard = ({
             />
           </div>
           <p className="text-xs text-neutral-500 mt-1.5">
-            {totalLabeled} of {totalTasks} labeled
+            {t('overview.labeled', { labeled: totalLabeled, total: totalTasks })}
           </p>
         </div>
 
         <div className="mt-4 flex-1 flex items-end gap-2">
           <Button onClick={onOpen} className="flex-1">
-            Annotate
+            {t('overview.annotate')}
           </Button>
           <Button variant="secondary" onClick={onView} className="flex-1">
-            View
+            {t('overview.view')}
           </Button>
         </div>
       </div>
@@ -446,6 +449,7 @@ const TaskSetCard = ({
   onOpen: () => void;
   onView: () => void;
 }) => {
+  const { t } = useTranslation('campaigns');
   const isEmpty = taskSet.num_tasks === 0;
   const percent = isEmpty ? 0 : Math.round((taskSet.num_labeled / taskSet.num_tasks) * 100);
   const createdDate = new Date(taskSet.created_at).toLocaleDateString();
@@ -454,7 +458,9 @@ const TaskSetCard = ({
     <div className="surface h-full flex flex-col">
       <div className="surface-section flex-1 flex flex-col">
         <h3 className="text-sm font-semibold text-neutral-900 truncate">{taskSet.name}</h3>
-        <p className="text-[11px] text-neutral-500 mt-0.5">Created {createdDate}</p>
+        <p className="text-[11px] text-neutral-500 mt-0.5">
+          {t('overview.created', { date: createdDate })}
+        </p>
 
         <div className="mt-4">
           <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden">
@@ -464,16 +470,18 @@ const TaskSetCard = ({
             />
           </div>
           <p className="text-xs text-neutral-500 mt-1.5">
-            {isEmpty ? 'No tasks yet' : `${taskSet.num_labeled} of ${taskSet.num_tasks} labeled`}
+            {isEmpty
+              ? t('overview.noTasks.title')
+              : t('overview.labeled', { labeled: taskSet.num_labeled, total: taskSet.num_tasks })}
           </p>
         </div>
 
         <div className="mt-4 flex-1 flex items-end gap-2">
           <Button onClick={onOpen} className="flex-1" disabled={isEmpty}>
-            {isEmpty ? 'No tasks' : 'Annotate'}
+            {isEmpty ? t('overview.noTasksShort') : t('overview.annotate')}
           </Button>
           <Button variant="secondary" onClick={onView} className="flex-1">
-            View
+            {t('overview.view')}
           </Button>
         </div>
       </div>

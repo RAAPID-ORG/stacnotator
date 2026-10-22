@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { AnnotationTaskOut, ProjectUserOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 
@@ -23,6 +24,7 @@ export const TaskAssignmentModal = ({
   projectUsers,
   onAssign,
 }: TaskAssignmentModalProps) => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const [mode, setMode] = useState<AssignmentMode>('distribute-evenly');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [tasksPerUser, setTasksPerUser] = useState<{ [userId: string]: number }>({});
@@ -31,9 +33,9 @@ export const TaskAssignmentModal = ({
   const unassignedTasks = useMemo(
     () =>
       tasks.filter(
-        (t) =>
-          (!t.assignments || t.assignments.length === 0) &&
-          (!t.annotations || t.annotations.length === 0)
+        (task) =>
+          (!task.assignments || task.assignments.length === 0) &&
+          (!task.annotations || task.annotations.length === 0)
       ),
     [tasks]
   );
@@ -97,7 +99,7 @@ export const TaskAssignmentModal = ({
       setSelectedUsers([]);
       setTasksPerUser({});
     } catch (err) {
-      handleError(err, 'Assignment failed');
+      handleError(err, t('assignAll.failed'));
     } finally {
       setAssigning(false);
     }
@@ -109,9 +111,9 @@ export const TaskAssignmentModal = ({
     <div className="fixed inset-0 bg-neutral-900/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-neutral-300">
-          <h2 className="text-xl font-semibold text-neutral-900">Assign All Tasks</h2>
+          <h2 className="text-xl font-semibold text-neutral-900">{t('assignAll.title')}</h2>
           <p className="text-sm text-neutral-500 mt-1">
-            {unassignedTasks.length} unassigned tasks available
+            {t('assignAll.available', { count: unassignedTasks.length })}
           </p>
         </div>
 
@@ -119,7 +121,7 @@ export const TaskAssignmentModal = ({
           {/* Mode Selection */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Assignment Mode
+              {t('assignAll.mode')}
             </label>
             <div className="flex gap-3">
               <button
@@ -130,7 +132,7 @@ export const TaskAssignmentModal = ({
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
               >
-                Distribute Evenly
+                {t('assignAll.distributeEvenly')}
               </button>
               <button
                 onClick={() => setMode('fixed-count')}
@@ -140,21 +142,14 @@ export const TaskAssignmentModal = ({
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
               >
-                N Tasks per User
+                {t('assignAll.fixedCount')}
               </button>
             </div>
             {mode === 'distribute-evenly' && (
-              <p className="text-sm text-neutral-500 mt-2">
-                All unassigned/ not yet completed tasks are split as evenly as possible across the
-                selected users. Each user receives either ⌊N/users⌋ or ⌈N/users⌉ tasks, assigned in
-                random order.
-              </p>
+              <p className="text-sm text-neutral-500 mt-2">{t('assignAll.evenlyHelp')}</p>
             )}
             {mode === 'fixed-count' && (
-              <p className="text-sm text-neutral-500 mt-2">
-                Each user receives the exact number of tasks you specify. Tasks are drawn randomly
-                from the pool; once a task is taken it won't be assigned to anyone else.
-              </p>
+              <p className="text-sm text-neutral-500 mt-2">{t('assignAll.fixedHelp')}</p>
             )}
           </div>
 
@@ -162,13 +157,17 @@ export const TaskAssignmentModal = ({
           {(mode === 'distribute-evenly' || mode === 'fixed-count') && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Select Users {mode === 'fixed-count' && 'and Task Counts'}
+                {mode === 'fixed-count'
+                  ? t('assignAll.selectUsersAndCounts')
+                  : t('assignAll.selectUsers')}
               </label>
               <button
                 onClick={handleSelectAllUsers}
                 className="text-sm text-brand-700 hover:text-brand-600 mb-3"
               >
-                {selectedUsers.length === projectUsers.length ? 'Deselect All' : 'Select All'}
+                {selectedUsers.length === projectUsers.length
+                  ? t('assignAll.deselectAll')
+                  : t('assignAll.selectAll')}
               </button>
 
               <div className="space-y-2 max-h-96 overflow-y-auto border border-neutral-300 rounded-lg p-3">
@@ -190,11 +189,13 @@ export const TaskAssignmentModal = ({
                           <div className="text-sm text-neutral-500">{user.user.email}</div>
                         )}
                         {user.is_admin && (
-                          <span className="text-xs text-brand-700 font-semibold">Admin</span>
+                          <span className="text-xs text-brand-700 font-semibold">
+                            {t('assignAll.admin')}
+                          </span>
                         )}
                         {user.is_authoritative_reviewer && (
                           <span className="text-xs text-purple-500 font-semibold ml-2">
-                            Authoritative Reviewer
+                            {t('assignAll.authoritativeReviewer')}
                           </span>
                         )}
                       </div>
@@ -202,7 +203,9 @@ export const TaskAssignmentModal = ({
 
                     {mode === 'fixed-count' && selectedUsers.includes(user.user.id) && (
                       <div className="flex items-center gap-2 ml-4">
-                        <label className="text-sm text-neutral-600 whitespace-nowrap">Tasks:</label>
+                        <label className="text-sm text-neutral-600 whitespace-nowrap">
+                          {t('assignAll.tasksLabel')}
+                        </label>
                         <input
                           type="number"
                           min="1"
@@ -224,10 +227,16 @@ export const TaskAssignmentModal = ({
           {previewAssignmentCount > 0 && (
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Preview:</strong> Will assign {previewAssignmentCount} tasks
-                {mode === 'distribute-evenly' &&
-                  ` evenly distributed across ${selectedUsers.length} user(s)`}
-                {mode === 'fixed-count' && ` to ${selectedUsers.length} user(s)`}
+                <Trans
+                  t={t}
+                  i18nKey={
+                    mode === 'distribute-evenly'
+                      ? 'assignAll.previewEven'
+                      : 'assignAll.previewFixed'
+                  }
+                  values={{ count: previewAssignmentCount, users: selectedUsers.length }}
+                  components={{ strong: <strong /> }}
+                />
               </p>
             </div>
           )}
@@ -239,14 +248,16 @@ export const TaskAssignmentModal = ({
             disabled={assigning}
             className="px-4 py-2 border border-neutral-300 rounded-lg text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
           >
-            Cancel
+            {t('common:actions.cancel')}
           </button>
           <button
             onClick={handleAssign}
             disabled={assigning || previewAssignmentCount === 0}
             className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
           >
-            {assigning ? 'Assigning...' : `Assign ${previewAssignmentCount} Tasks`}
+            {assigning
+              ? t('assignAll.assigning')
+              : t('assignAll.submit', { count: previewAssignmentCount })}
           </button>
         </div>
       </div>

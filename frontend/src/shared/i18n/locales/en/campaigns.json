@@ -1,1 +1,797 @@
-{}
+{
+  "breadcrumbs": {
+    "projects": "Projects",
+    "project": "Project",
+    "newCampaign": "New Campaign"
+  },
+  "errors": {
+    "loadProject": "Failed to load project",
+    "loadProjectMembers": "Failed to load project members",
+    "createCampaign": "Failed to create campaign",
+    "loadTaskLocations": "Failed to load task locations",
+    "loadCampaign": "Failed to load campaign",
+    "loadTasks": "Failed to load tasks",
+    "loadTaskSets": "Failed to load task sets",
+    "loadStatistics": "Failed to load statistics",
+    "loadAnnotations": "Failed to load annotations",
+    "loadAnnotationCounts": "Failed to load annotation counts",
+    "loadProjects": "Failed to load projects",
+    "duplicateCampaign": "Failed to duplicate campaign",
+    "loadAgents": "Failed to load labelling agents"
+  },
+  "wizard": {
+    "title": "New campaign",
+    "steps": {
+      "campaign": "Campaign",
+      "settings": "Settings",
+      "imagery": "Imagery",
+      "timeseries": "Time Series",
+      "create": "Create"
+    },
+    "continue": "Continue",
+    "create": "Create campaign",
+    "creating": "Creating...",
+    "creatingOverlay": "Creating campaign...",
+    "created": "Campaign created successfully",
+    "createdRegistering": "Campaign created. Mosaic registration is running in the background...",
+    "fixIssues_one": "Fix {{count}} issue to continue",
+    "fixIssues_other": "Fix {{count}} issues to continue",
+    "advancedOptions": {
+      "title": "Advanced options",
+      "description": "Most campaigns should keep the default access settings. Expand to choose who can label, complete tasks, or edit other people's annotations."
+    },
+    "campaign": {
+      "nameLabel": "Campaign name",
+      "nameHint": "Pick a name that a colleague would recognise months from now - e.g. “Malawi maize 2024” rather than “test 3”.",
+      "namePlaceholder": "Your campaign name…"
+    },
+    "access": {
+      "title": "Labelling access",
+      "description": "Every campaign supports both task-by-task labelling and free exploration - annotators can switch between them anytime from the annotation view. The rules below decide who may label what, and whose labels count toward completing a task. You can change all of this later in campaign settings.",
+      "rulesHint": "Each rule is a list of groups. Hover a group to see who it means. Leaving a rule empty turns that activity off for everyone.",
+      "membersHint": "Members come from the project - manage them under the project’s Members tab."
+    },
+    "review": {
+      "intro": "Review everything before creating the campaign.",
+      "stepError": "{{step}}: {{message}}"
+    },
+    "settings": {
+      "labelsTitle": "Annotation class names",
+      "labelsDescription": "Define the different classes that annotators can assign to shapes / that they can choose from when labeling.",
+      "labelsExample": "<label>Example:</label> For a crop survey you might want to identify all fields with Maize, Cassava or Fallow, aswell as Farms. These would be your class names. You only need to select a geometry type for each class if you are planning on allowing users to draw the shapes of these. In our case, you would select polygon as the geometry types for the 3 field types and might want to select point for a farm.",
+      "formTitle": "Additional form questions",
+      "formDescription": "Add extra questions for annotations. These allow you to capture additional details beyond the main class label.",
+      "formExample": "<label>Example:</label> If you just drew a Maize field you might want to distinguish the crop stage of the fields. So you could specify a “Crop stage?” custom field with <em>“Crop stage?”</em> and <em>“Seedling / Mature / Harvested”</em> as options.",
+      "embeddingTitle": "Satellite embedding year",
+      "embeddingDescription": "Experimental. If set, satellite embeddings are fetched for the chosen year to enable KNN-based label validation during annotation: a new label is checked against the embeddings of every existing one. Leave it at None unless you plan to use this.",
+      "embeddingNone": "None (validation disabled)"
+    }
+  },
+  "validation": {
+    "summaryTitle": "Please address the following issues before creating the campaign:",
+    "successTitle": "Everything is configured",
+    "successBody": "All steps passed validation. Create the campaign below.",
+    "nameRequired": "Campaign name is required.",
+    "settingsRequired": "Settings are required.",
+    "bboxRequired": "All four bounding box coordinates are required.",
+    "bboxRange": "Longitude must be between -180 and 180, latitude between -90 and 90.",
+    "bboxWestEast": "West longitude must be less than East longitude. An area cannot cross the antimeridian (180°) - draw it on one side.",
+    "bboxSouthNorth": "South latitude must be less than North latitude.",
+    "labelsRequired": "At least one label is required.",
+    "emptyLabels_one": "{{count}} label has an empty name.",
+    "emptyLabels_other": "{{count}} labels have an empty name.",
+    "sourcesRequired": "Add at least one imagery source.",
+    "sourceNameRequired": "Source {{index}}: Name is required.",
+    "vizRequired": "Source \"{{source}}\": At least one visualization is required.",
+    "vizUnnamed_one": "Source \"{{source}}\": {{count}} visualization(s) have no name.",
+    "vizUnnamed_other": "Source \"{{source}}\": {{count}} visualization(s) have no name.",
+    "collectionsRequired": "Source \"{{source}}\": At least one collection is required.",
+    "noSlices": "Source \"{{source}}\", Collection \"{{collection}}\": Has no time slices.",
+    "missingVizUrls_one": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice(s) have missing visualization URLs.",
+    "missingVizUrls_other": "Source \"{{source}}\", Collection \"{{collection}}\": {{count}} slice(s) have missing visualization URLs.",
+    "timeseries": {
+      "name": "Timeseries {{index}}: Name is required.",
+      "start": "Timeseries {{index}}: Start date is required.",
+      "end": "Timeseries {{index}}: End date is required.",
+      "dates": "Timeseries {{index}}: Start date must be before end date.",
+      "source": "Timeseries {{index}}: Data source is required.",
+      "provider": "Timeseries {{index}}: Provider is required.",
+      "type": "Timeseries {{index}}: Type is required."
+    },
+    "formFields": {
+      "fallbackName": "field {{id}}",
+      "uniqueTitles": "Field titles must be unique.",
+      "needsTitle": "Field {{id}} needs a title.",
+      "needsOption": "\"{{field}}\" needs at least one option.",
+      "unnamedOption": "\"{{field}}\" has an option with no name.",
+      "minAboveMax": "\"{{field}}\" has a min greater than its max."
+    }
+  },
+  "settingsPage": {
+    "discard": "Discard",
+    "saving": "Saving…",
+    "saveChanges": "Save changes",
+    "imagery": {
+      "unsavedTitle": "Unsaved imagery changes",
+      "unsavedHint": "- your edits are local until you save.",
+      "leaveDescription": "Your imagery edits have not been saved and will be lost. Leave without saving?"
+    },
+    "timeseries": {
+      "addCount_one": "Add {{count}} timeseries",
+      "addCount_other": "Add {{count}} timeseries"
+    },
+    "setupFailed": "Background setup completed with some errors. Check settings.",
+    "setupDone": "Campaign setup completed successfully",
+    "errors": {
+      "saveName": "Failed to save campaign name",
+      "deleteCampaign": "Failed to delete campaign",
+      "deleteTimeseries": "Failed to delete timeseries",
+      "addTimeseries": "Failed to add timeseries",
+      "renamePanel": "Failed to rename timeseries panel"
+    },
+    "toasts": {
+      "nameSaved": "Campaign name updated successfully",
+      "campaignDeleted": "Campaign deleted successfully",
+      "timeseriesDeleted": "Timeseries deleted successfully",
+      "timeseriesAdded_one": "{{count}} timeseries added successfully",
+      "timeseriesAdded_other": "{{count}} timeseries added successfully",
+      "panelRenamed": "Panel renamed successfully"
+    },
+    "subtitle": "Manage your campaign settings and imagery.",
+    "waitingForSetup": "Waiting for background setup to complete...",
+    "banners": {
+      "registering": "<strong>Mosaic registration in progress...</strong> Tile imagery is being registered from the STAC catalog.",
+      "embedding": "<strong>Embedding generation in progress...</strong> Satellite embeddings are being computed for the campaign area. You can configure other settings while waiting.",
+      "registrationFailed": "<strong>Some mosaic registrations failed.</strong> The campaign is usable but some tiles may be missing. Check the Imagery tab to re-register individual collections.",
+      "showErrors_one": "Show {{count}} error",
+      "showErrors_other": "Show {{count}} errors",
+      "moreErrors_one": "...and {{count}} more",
+      "moreErrors_other": "...and {{count}} more",
+      "embeddingFailed": "<strong>Embedding generation failed.</strong> The campaign is usable but embedding-based features (similarity search) won't be available."
+    },
+    "tabs": {
+      "general": "General Settings",
+      "imagery": "Imagery",
+      "timeseries": "Timeseries"
+    },
+    "deleteTimeseries": {
+      "title": "Delete Timeseries?",
+      "description": "This action cannot be undone. The timeseries will be permanently removed from the campaign."
+    }
+  },
+  "notFound": "Campaign not found",
+  "reviewPage": {
+    "breadcrumb": "Annotations",
+    "importAnnotations": "Import annotations"
+  },
+  "deleteDialog": {
+    "title": "Delete Campaign",
+    "warning": "This action <strong>cannot be undone</strong>. This will permanently delete the campaign <name>\"{{name}}\"</name> and all associated data:",
+    "items": {
+      "tasks": "All annotation tasks",
+      "annotations": "All user annotations",
+      "imagery": "All imagery configurations",
+      "timeseries": "All timeseries configurations",
+      "settings": "All campaign settings"
+    },
+    "typeToConfirm": "Please type <name>{{name}}</name> to confirm:",
+    "placeholder": "Type campaign name here",
+    "confirm": "Delete campaign"
+  },
+  "moveTasks": {
+    "title_one": "Move {{count}} task(s) to another set",
+    "title_other": "Move {{count}} task(s) to another set",
+    "selectTarget": "Select target set",
+    "setOption_one": "{{name}} ({{count}} tasks)",
+    "setOption_other": "{{name}} ({{count}} tasks)",
+    "orCreate": "or create a new set",
+    "newSetPlaceholder": "New set name",
+    "moving": "Moving…",
+    "move": "Move"
+  },
+  "taskLocations": {
+    "title_one": "Task Locations ({{count}} total)",
+    "title_other": "Task Locations ({{count}} total)"
+  },
+  "assignmentsIO": {
+    "exportFailed": "Failed to export task assignments",
+    "importFailed": "Failed to import task assignments",
+    "exported": "Task assignments exported",
+    "imported": "Task assignments imported",
+    "importSummary": "Updated {{tasks}} task(s): {{assignees}} assignee(s), {{reviewers}} reviewer(s)",
+    "exporting": "Exporting…",
+    "export": "Export",
+    "chooseCsv": "Choose CSV",
+    "importing": "Importing…",
+    "import": "Import",
+    "taskSetScope": "Exports this task set only. Imports apply campaign-wide, matched on annotation number."
+  },
+  "labelsEditor": {
+    "classPlaceholder": "Class name",
+    "geometry": {
+      "point": "Point",
+      "polygon": "Polygon",
+      "line": "Line"
+    },
+    "removeLabel": "Remove label",
+    "addClass": "+ Add class"
+  },
+  "importFeatures": {
+    "wrongFileType": "Please upload a .geojson or .json file",
+    "failed": "Failed to import features",
+    "success_one": "{{count}} feature(s) imported successfully",
+    "success_other": "{{count}} feature(s) imported successfully",
+    "title": "Import Existing Features",
+    "description": "Upload a GeoJSON file of existing features. Each feature must carry a <code>stacnotator_label_id</code> property whose value is one of this campaign's label ids (listed below). The import is rejected if any feature is missing a label or uses a label id that does not belong to this campaign.",
+    "labelIds": "Campaign label ids",
+    "noLabels": "This campaign has no labels defined.",
+    "fileLabel": "GeoJSON file",
+    "confirm": "I confirm the label ids in my file match the label ids of this campaign.",
+    "importing": "Importing...",
+    "submit": "Import Features"
+  },
+  "assignSelected": {
+    "title_one": "Assign {{count}} selected task(s)",
+    "title_other": "Assign {{count}} selected task(s)",
+    "mode": "Assignment mode",
+    "everyUser": "Every selected user on every task",
+    "distribute": "Distribute tasks evenly among selected users",
+    "selectUsers": "Select users",
+    "searchPlaceholder": "Search by name or email…",
+    "noMatches": "No users match your search",
+    "assigning": "Assigning…",
+    "assign": "Assign"
+  },
+  "taskScope": {
+    "allTasks": "All tasks",
+    "managedSet": "Managed set",
+    "renameSet": "Rename set",
+    "deleteSet": "Delete set",
+    "needsOneSet": "A campaign needs at least one task set",
+    "setNamePlaceholder": "Set name",
+    "createSet": "Create set",
+    "cancelCreate": "Cancel creating set",
+    "newSet": "+ New set",
+    "deleteTitle": "Delete task set \"{{name}}\"?",
+    "deleteDescription_one": "This permanently deletes the set and its {{count}} task(s) with all associated annotations. This action cannot be undone.",
+    "deleteDescription_other": "This permanently deletes the set and its {{count}} task(s) with all associated annotations. This action cannot be undone."
+  },
+  "optional": "(optional)",
+  "vectorLayers": {
+    "loadFailed": "Failed to load vector layers",
+    "addFailed": "Failed to add vector layer",
+    "deleteFailed": "Failed to delete vector layer",
+    "title": "Vector layers (PMTiles)",
+    "description": "Toggle on/off in open mode, hover to highlight, and label features by clicking with the Label vector tool.",
+    "add": "+ Add vector layer",
+    "loadError": "Could not load the vector layers.",
+    "tryAgain": "Try again",
+    "empty": "No vector layers configured.",
+    "deleteLayer": "Delete vector layer",
+    "name": "Name",
+    "namePlaceholder": "Field predictions",
+    "sourceLayer": "Source layer",
+    "allLayers": "All layers",
+    "url": "PMTiles URL",
+    "hints": {
+      "archive": "Must be a <strong>PMTiles vector archive</strong> (`.pmtiles`) -read directly by the browser, no tiler required.",
+      "https": "Reachable over HTTPS -a public URL, or one that includes a SAS token.",
+      "sourceLayer": "Set a source layer to render just one layer inside the archive; leave blank for all."
+    },
+    "colour": "Colour",
+    "layerColour": "Layer colour",
+    "adding": "Adding…",
+    "addLayer": "Add layer"
+  },
+  "duplicate": {
+    "yes": "Yes",
+    "no": "No",
+    "title": "Duplicate \"{{name}}\"",
+    "answerFirst": "Answer the questions first",
+    "duplicating": "Duplicating…",
+    "submit": "Duplicate campaign",
+    "intro": "Creates a new campaign with the same setup: imagery sources and visualizations, views and layouts, labels and forms, labelling policy, time series, basemaps and overlays. Adjust the copy afterwards in its settings.",
+    "copyInto": "Copy into",
+    "adminOnlyHint": "Only projects you administer can receive a campaign.",
+    "thisProject": "This project",
+    "crossProjectNotice": "Annotations, task assignments and personal layouts are <strong>not</strong> copied into another project - the people they name need not be members there. Only the setup, and the task locations if you keep them, come along.",
+    "tasks": {
+      "title": "Also duplicate tasks?",
+      "crossProject": "Copies all task locations and task sets. They arrive unassigned, with no progress.",
+      "sameProject": "Copies all task locations and task sets. Task progress starts fresh unless annotations are copied too."
+    },
+    "assignments": {
+      "title": "Keep task assignments?",
+      "body": "Copies the explicit assignments to annotators. Without them every task in the copy is open for anyone to pick up. Tasks a labelling agent holds always arrive free: an agent is registered for one campaign and cannot work the copy."
+    },
+    "annotations": {
+      "title": "Also duplicate annotations?",
+      "body": "Copies every existing label with its author and timestamps into the new campaign."
+    },
+    "layouts": {
+      "title": "Keep personal layouts?",
+      "body": "Copies the canvas window arrangements individual users saved for themselves."
+    },
+    "withoutTasksNotice": "Without tasks, only annotations that are not linked to a task (open-mode labels) are copied."
+  },
+  "assignAll": {
+    "failed": "Assignment failed",
+    "title": "Assign All Tasks",
+    "available_one": "{{count}} unassigned tasks available",
+    "available_other": "{{count}} unassigned tasks available",
+    "mode": "Assignment Mode",
+    "distributeEvenly": "Distribute Evenly",
+    "fixedCount": "N Tasks per User",
+    "evenlyHelp": "All unassigned/ not yet completed tasks are split as evenly as possible across the selected users. Each user receives either ⌊N/users⌋ or ⌈N/users⌉ tasks, assigned in random order.",
+    "fixedHelp": "Each user receives the exact number of tasks you specify. Tasks are drawn randomly from the pool; once a task is taken it won't be assigned to anyone else.",
+    "selectUsers": "Select Users",
+    "selectUsersAndCounts": "Select Users and Task Counts",
+    "deselectAll": "Deselect All",
+    "selectAll": "Select All",
+    "admin": "Admin",
+    "authoritativeReviewer": "Authoritative Reviewer",
+    "tasksLabel": "Tasks:",
+    "previewEven_one": "<strong>Preview:</strong> Will assign {{count}} tasks evenly distributed across {{users}} user(s)",
+    "previewEven_other": "<strong>Preview:</strong> Will assign {{count}} tasks evenly distributed across {{users}} user(s)",
+    "previewFixed_one": "<strong>Preview:</strong> Will assign {{count}} tasks to {{users}} user(s)",
+    "previewFixed_other": "<strong>Preview:</strong> Will assign {{count}} tasks to {{users}} user(s)",
+    "assigning": "Assigning...",
+    "submit_one": "Assign {{count}} Tasks",
+    "submit_other": "Assign {{count}} Tasks"
+  },
+  "policy": {
+    "example": "<label>Example:</label> {{example}}",
+    "selectedMembers": "Selected members",
+    "noMembers": "No members in this project yet.",
+    "noOne": "No one - this axis is disabled.",
+    "kinds": {
+      "admins": {
+        "label": "Admins",
+        "help": "Admins of the project this campaign belongs to. They always keep full access."
+      },
+      "authoritative": {
+        "label": "Authoritative reviewers",
+        "help": "Project members marked as authoritative reviewers, under the project’s Members tab. Their labels are the ones treated as the reference when annotators disagree."
+      },
+      "assignees": {
+        "label": "Assignees",
+        "help": "Whoever a task is assigned to - each person, on their own tasks only."
+      },
+      "members": {
+        "label": "Members",
+        "help": "Everybody in the project, whatever their role."
+      },
+      "anyone": {
+        "label": "Anyone (public visitors)",
+        "help": "Visitors with no account, reaching the campaign through its public link. Only available while the project is public."
+      }
+    },
+    "axes": {
+      "explore": {
+        "title": "Explorative labelling",
+        "description": "Who may create free-form, standalone annotations that are not tied to a task.",
+        "example": "With Members, any project member can draw their own polygon anywhere on the map and label it. Everyone else can still browse the imagery, but their drawing tools stay off."
+      },
+      "unassigned_tasks": {
+        "title": "Unassigned tasks",
+        "description": "Who may label a task nobody is assigned to, and whose label counts toward completing it.",
+        "example": "A campaign of 500 points that annotators work through first come, first served. With Members, any project member can pick one up and their label completes it on its own."
+      },
+      "assigned_tasks": {
+        "title": "Assigned tasks - additional labels",
+        "description": "Who may add extra labels to a task that is already assigned to someone else. Extra labels are shown alongside the assignee’s but do not necessarily count toward completion.",
+        "example": "Point #42 is assigned to Alice. With Authoritative reviewers, a reviewer can add a second label beside hers for comparison. Picking up a task from the unassigned pool assigns it as well, so this rule applies to it from then on."
+      },
+      "complete_assigned": {
+        "title": "Assigned tasks - completion",
+        "description": "Whose labels on an assigned task count toward completing it, including satisfying review requirements.",
+        "example": "Point #42 is assigned to Alice and needs one review. Her label plus a reviewer’s marks it done. A label from anyone outside this list is still stored and shown, but the task stays open."
+      },
+      "modify_others": {
+        "title": "Editing and deleting other people’s annotations",
+        "description": "Who may change or remove an annotation somebody else made. Everyone can always change their own.",
+        "example": "With Admins, an annotator who spots a mistake in a colleague’s polygon can open it and read it, but not move or delete it. With Members, the campaign becomes a shared canvas that any member can correct."
+      }
+    }
+  },
+  "reviewerAssign": {
+    "failed": "Failed to assign reviewers",
+    "title": "Set Up Task Reviews",
+    "pattern": "Assignment Pattern",
+    "percentageBased": "Percentage-Based",
+    "fixedNumber": "Fixed Number",
+    "percentageHelp_one": "A random subset of tasks will be selected for review. For each selected task, <strong>{{count}}</strong> user(s) from your pool will be assigned to review it.",
+    "percentageHelp_other": "A random subset of tasks will be selected for review. For each selected task, <strong>{{count}}</strong> user(s) from your pool will be assigned to review it.",
+    "percentageOfTasks": "Percentage of tasks: {{percentage}}%",
+    "approxReviewed_one": "≈ {{count}} tasks will be reviewed",
+    "approxReviewed_other": "≈ {{count}} tasks will be reviewed",
+    "reviewersPerTask": "Reviewers per task:",
+    "fixedHelp_one": "An exact number of randomly selected tasks will each be reviewed by <strong>{{count}}</strong> user(s) from your pool.",
+    "fixedHelp_other": "An exact number of randomly selected tasks will each be reviewed by <strong>{{count}}</strong> user(s) from your pool.",
+    "numTasks": "Number of tasks to review:",
+    "totalAvailable_one": "Total tasks available: {{count}}",
+    "totalAvailable_other": "Total tasks available: {{count}}",
+    "pool": "Reviewer Pool",
+    "poolHelp_one": "The system randomly picks <strong>{{count}}</strong> of these users per task. Users are never assigned to review a task they originally annotated. Select at least {{count}}.",
+    "poolHelp_other": "The system randomly picks <strong>{{count}}</strong> of these users per task. Users are never assigned to review a task they originally annotated. Select at least {{count}}.",
+    "selected_one": "Selected: {{count}} reviewers",
+    "selected_other": "Selected: {{count}} reviewers",
+    "preview_one": "<strong>Preview:</strong> Randomly assign {{reviewers}} reviewer(s) from your {{pool}}-person pool to each of the {{count}} selected tasks. Users won't review tasks they annotated.",
+    "preview_other": "<strong>Preview:</strong> Randomly assign {{reviewers}} reviewer(s) from your {{pool}}-person pool to each of the {{count}} selected tasks. Users won't review tasks they annotated.",
+    "submit_one": "Assign to {{count}} Tasks",
+    "submit_other": "Assign to {{count}} Tasks"
+  },
+  "formFields": {
+    "addField": "+ Add field",
+    "maxFields": "Maximum of {{max}} fields reached.",
+    "questionTitle": "Question title",
+    "types": {
+      "category": "Category",
+      "multicategory": "Multi category",
+      "number": "Number",
+      "text": "Text",
+      "date": "Date",
+      "daterange": "Date range"
+    },
+    "descriptionPlaceholder": "Description (optional)",
+    "required": "Required",
+    "removeField": "Remove field",
+    "optionName": "Option name",
+    "removeOption": "Remove option",
+    "addOption": "+ Add option",
+    "maxOptions": "Maximum of {{max}} options reached.",
+    "float": "Float",
+    "integer": "Integer",
+    "min": "Min",
+    "max": "Max",
+    "step": "Step",
+    "slider": "Show as slider",
+    "multiline": "Multiline"
+  },
+  "sampling": {
+    "title": "Generate Tasks via Sampling",
+    "description": "Generate annotation tasks by sampling points within a region. You can either upload a boundary file or use the campaign's bounding box.",
+    "strategy": "Sampling Strategy",
+    "strategies": {
+      "random": {
+        "label": "Random Sampling",
+        "description": "Randomly sample points within the region"
+      },
+      "grid": {
+        "label": "Grid Sampling",
+        "description": "Sample a regular grid of points, a fixed distance apart"
+      }
+    },
+    "grid": {
+      "title": "How the grid is drawn",
+      "spacing": "Spacing is ground distance, so points stay the same distance apart everywhere in the region, however far north or south it reaches.",
+      "offset": "The grid is placed at a random offset rather than pinned to a corner, so it cannot line up with roads, field edges or anything else laid out regularly.",
+      "order": "Tasks are created in random order, so stopping part way through still leaves the whole region covered."
+    },
+    "errors": {
+      "fileType": "Please upload a .zip (shapefile) or .geojson file",
+      "noRegion": "Please select a region file or use campaign bounding box",
+      "minSamples": "Number of samples must be at least 1",
+      "spacing": "Grid spacing must be greater than 0 km",
+      "seed": "Seed must be a whole number of 0 or more",
+      "noTaskSet": "Select a task set first",
+      "failed": "Failed to generate tasks"
+    },
+    "region": "Region Selection",
+    "upload": "Upload Boundary File",
+    "uploadHint": "Shapefile (.zip) or GeoJSON (.geojson)",
+    "useBbox": "Use Campaign Bounding Box",
+    "useBboxHint": "Sample within the campaign's defined area",
+    "spacingLabel": "Grid Spacing (km)",
+    "spacingHint": "Distance between neighbouring points. The number of tasks follows from the size of the region.",
+    "spacingError": "Must be a positive number",
+    "numSamples": "Number of Samples",
+    "seedLabel": "Random Seed (optional)",
+    "seedHintGrid": "Fixes the offset the grid is placed at, so the same seed redraws the same grid",
+    "seedHintRandom": "Set a seed for reproducible sampling results",
+    "seedPlaceholder": "Leave empty for random",
+    "generating": "Generating...",
+    "generate": "Generate Tasks"
+  },
+  "tasksTab": {
+    "addIntro": "Tasks define the points or polygons annotators will label. Upload existing locations or generate them with random/grid sampling into <strong>{{name}}</strong>.",
+    "uploadFile": "Upload file",
+    "uploadFileHint": "Upload tasks from CSV or GeoJSON",
+    "generate": "Generate via sampling",
+    "generateHint": "Create tasks using random or grid sampling",
+    "uploadHelp": "Upload a <strong>CSV</strong> (<code>id,lon,lat</code>) for point locations, or a <strong>GeoJSON</strong> file with Point / Polygon features. Polygon geometries are preserved and shown as sample extents during annotation. For Points you may want to specify the sample extent (bbox size around the point) under the General Settings tab. The id <strong>must be unique within your whole campaign and must be numeric.</strong>",
+    "upload": "Upload",
+    "heading": "Annotation tasks",
+    "addTasks": "Add tasks",
+    "assignmentsButtonTitle": "Export or import who these tasks are assigned to",
+    "assignmentsTitle": "Export or import assignments",
+    "selectSetFirst": "Select the task set to upload or generate tasks into.",
+    "empty": {
+      "locked": "No sampling units drawn yet. They appear here once the design above is finished.",
+      "readOnly": "No annotation tasks in this set yet.",
+      "all": "No annotation tasks yet. Select a set to upload or generate tasks.",
+      "set": "No tasks in this set yet. Add tasks to upload a file or generate them."
+    },
+    "backToSets": "Back to task sets",
+    "taskSet": "Task set",
+    "addTitle": "Add annotation tasks to {{name}}",
+    "thisSet": "this set",
+    "assignmentsDescription": "Who each task is assigned to and who reviews it, as a CSV to edit and upload again. This never creates or removes tasks."
+  },
+  "timeseriesStep": {
+    "loadOptionsFailed": "Failed to load timeseries options",
+    "renameUnavailable": "Renaming saved panels is unavailable.",
+    "renameFailed": "Could not rename this panel. Please try again.",
+    "title": "Optional: Timeseries",
+    "description": "Graphs that plot a single pixel's value over time: at the annotated point the chosen spectral index is computed across the date range and drawn as a chart beside the imagery.",
+    "panelsDescription": "Panels organize timeseries on the annotation page. All series in a panel appear together. For example, put series for 2022 in one panel and series for 2023 in another, so each panel shows a manageable date range instead of one extremely long timeseries.",
+    "optionalHint": "Timeseries are optional. Leave the initial blank series untouched to skip them.",
+    "panelAria": "{{name}} panel",
+    "panel": "Panel",
+    "panelName": "Panel name",
+    "duplicatePanel": "A panel with this name already exists.",
+    "renamePanelAria": "Rename {{name}} panel",
+    "rename": "Rename",
+    "series": "Series {{number}}",
+    "name": "Timeseries name",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "dataSource": "Data source",
+    "selectDataSource": "Select data source",
+    "index": "Index",
+    "selectIndex": "Select index",
+    "pickSourceFirst": "Pick a data source first",
+    "provider": "Provider",
+    "selectProvider": "Select provider",
+    "addAnother": "+ Add another timeseries",
+    "add": "+ Add timeseries",
+    "newPanelName": "New panel name",
+    "createPanel": "Create panel",
+    "addPanel": "+ Add Panel"
+  },
+  "startAnnotating": "Start annotating",
+  "savingOverlay": "Saving...",
+  "tasksPage": {
+    "breadcrumb": "Tasks",
+    "title": "{{name}} tasks",
+    "subtitleAdmin": "Upload or generate annotation tasks and manage assignments.",
+    "subtitle": "The tasks in this campaign and how far they have got.",
+    "errors": {
+      "upload": "Failed to upload annotation tasks",
+      "createSet": "Failed to create task set",
+      "renameSet": "Failed to rename task set",
+      "deleteSet": "Failed to delete task set",
+      "move": "Failed to move tasks",
+      "assign": "Failed to assign tasks",
+      "unassign": "Failed to unassign tasks",
+      "delete": "Failed to delete tasks"
+    },
+    "toasts": {
+      "uploaded": "Annotation task(s) uploaded successfully",
+      "moved_one": "Moved {{count}} task(s)",
+      "moved_other": "Moved {{count}} task(s)",
+      "generated_one": "{{count}} tasks generated successfully",
+      "generated_other": "{{count}} tasks generated successfully",
+      "assignedBulk_one": "{{count}} task(s) assigned successfully",
+      "assignedBulk_other": "{{count}} task(s) assigned successfully",
+      "assigned_one": "{{count}} task(s) assigned",
+      "assigned_other": "{{count}} task(s) assigned",
+      "reviewersPercentage_one": "Assigned {{count}} reviewers to {{percentage}}% of tasks",
+      "reviewersPercentage_other": "Assigned {{count}} reviewers to {{percentage}}% of tasks",
+      "reviewersFixed_one": "Assigned {{count}} reviewers to {{tasks}} tasks",
+      "reviewersFixed_other": "Assigned {{count}} reviewers to {{tasks}} tasks",
+      "noneSelected": "No tasks selected",
+      "unassigned_one": "Unassigned all users from {{count}} task(s)",
+      "unassigned_other": "Unassigned all users from {{count}} task(s)",
+      "deleted_one": "{{count}} task(s) deleted successfully",
+      "deleted_other": "{{count}} task(s) deleted successfully"
+    }
+  },
+  "overview": {
+    "created": "Created {{date}}",
+    "annotations": "Annotations",
+    "settings": "Settings",
+    "setup": {
+      "title": "Setting up this campaign",
+      "registering": "Registering imagery mosaics.",
+      "embeddings": "Computing embeddings.",
+      "body": "Annotating opens when this finishes; settings can be edited now. This page updates itself."
+    },
+    "explore": {
+      "title": "Explore",
+      "description": "Free-form labeling across the whole campaign area.",
+      "start": "Start exploring"
+    },
+    "taskSets": "Task sets",
+    "agents": {
+      "label": "Labelling agents",
+      "none": "No labelling agents yet",
+      "count_one": "{{count}} labelling agent",
+      "count_other": "{{count}} labelling agents"
+    },
+    "noTasks": {
+      "title": "No tasks yet",
+      "admin": "Set up task sets to guide annotators through specific locations.",
+      "member": "An admin can add task sets for this campaign."
+    },
+    "noTasksShort": "No tasks",
+    "estimate": {
+      "startFailed": "Could not start the area estimate",
+      "heading": "Area estimates",
+      "new": "New area estimate",
+      "none": "No area estimates yet",
+      "noneBody": "Turn a map and a sample of checked points into a published area with a confidence interval.",
+      "modalBody": "An area estimate turns a classified map and a sample of checked points into a published area with a confidence interval. Its points live in their own task set, managed by the design.",
+      "name": "Name",
+      "nameHint": "What this estimate covers, and for when.",
+      "namePlaceholder": "Winter crops 2025"
+    },
+    "acrossSets": "Across all sets",
+    "labeled": "{{labeled}} of {{total}} labeled",
+    "annotate": "Annotate",
+    "view": "View"
+  },
+  "generalTab": {
+    "errors": {
+      "embeddingYear": "Failed to update embedding year",
+      "guide": "Failed to update guide",
+      "labels": "Failed to update labels",
+      "formFields": "Failed to update form fields",
+      "policy": "Failed to update labelling access",
+      "extent": "Failed to update sample extent",
+      "researchSharing": "Failed to update research sharing",
+      "bbox": "Failed to save settings"
+    },
+    "toasts": {
+      "embeddingsRecomputed": "Embeddings recomputed for {{year}}",
+      "embeddingYearUpdated": "Embedding year updated",
+      "guideUpdated": "Campaign guide updated",
+      "labelsUpdated": "Labels updated",
+      "formFieldsUpdated": "Form fields updated",
+      "policyUpdated": "Labelling access updated",
+      "extentUpdated": "Sample extent updated",
+      "researchOn": "Annotations from this campaign may now be published as research data",
+      "researchOff": "Research sharing turned off",
+      "bboxUpdated": "Campaign settings updated successfully"
+    },
+    "renameLabels": {
+      "title": "Rename existing labels?",
+      "description_one": "Renaming labels affects how existing annotations display - the underlying label IDs stay the same, so no data is lost, but every annotation tagged with this label will now show the new name everywhere (review, exports, statistics).",
+      "description_other": "Renaming labels affects how existing annotations display - the underlying label IDs stay the same, so no data is lost, but every annotation tagged with these labels will now show the new name everywhere (review, exports, statistics).",
+      "confirm": "Yes, rename"
+    },
+    "deleteFields": {
+      "title_one": "Delete form field?",
+      "title_other": "Delete {{count}} form fields?",
+      "description_one": "Saving deletes {{names}} and permanently deletes every answer annotators have recorded for it across all annotations in this campaign. This cannot be undone.",
+      "description_other": "Saving deletes {{names}} and permanently deletes every answer annotators have recorded for them across all annotations in this campaign. This cannot be undone.",
+      "confirm": "Delete and save"
+    },
+    "editFields": {
+      "title": "Edit existing form fields?",
+      "description_one": "Editing fields affects how existing annotations display - the underlying field IDs stay the same, so stored answers are kept, but annotators will see the updated question everywhere (annotation view, review, exports).",
+      "description_other": "Editing fields affects how existing annotations display - the underlying field IDs stay the same, so stored answers are kept, but annotators will see the updated questions everywhere (annotation view, review, exports).",
+      "confirm": "Yes, save changes"
+    },
+    "recompute": {
+      "title": "Recompute Embeddings?",
+      "description": "Changing the embedding year from {{from}} to {{to}} will delete all existing embeddings and re-fetch them from the satellite imagery for {{to}}. This may take a while for large campaigns.",
+      "confirm": "Recompute"
+    },
+    "name": {
+      "title": "Campaign name",
+      "description": "The display name shown across the app."
+    },
+    "guide": {
+      "title": "Campaign guide",
+      "description": "Markdown document shown to annotators via the book icon in the annotation toolbar.",
+      "placeholder": "# Campaign Guide\n\nWrite instructions for annotators here using Markdown...",
+      "save": "Save guide"
+    },
+    "research": {
+      "title": "Research data sharing",
+      "description": "Allow the annotations created in this campaign to be published as open research data, without any annotator's name. Off by default. Turning it off stops future releases - anything already published cannot be recalled. See the Terms of Service.",
+      "label": "Publishable as research data"
+    },
+    "saveSettings": "Save settings",
+    "extent": {
+      "title": "Sample extent",
+      "description": "Defines the exact size of a sample point. If lat/lon is the exact coordinate, the sample extent defines the dimensions around this centroid that constitute the actual sample. This helps to have a shared understanding of which area / pixels belong to a sample point. Leave empty if tasks were uploaded as polygons or if no extent should be visualized.",
+      "label": "Extent (meters)",
+      "placeholder": "e.g. 100"
+    },
+    "labels": {
+      "title": "Annotation labels",
+      "description": "The class names annotators choose from when labeling. You can add new labels and rename existing ones; renaming requires confirmation since it affects how prior annotations display. Deleting labels is not supported (it would orphan existing annotations).",
+      "save": "Save labels",
+      "invalid": "Label names must be non-empty and unique."
+    },
+    "formFields": {
+      "title": "Custom form fields",
+      "description": "Additional questions annotators answer per annotation. You can add new fields and edit existing ones; editing requires confirmation since it affects how prior answers display. Deleting a field also deletes every answer recorded for it, so it asks first. A field's type or options can only change while it has no answers yet.",
+      "save": "Save fields"
+    },
+    "policy": {
+      "description": "Control who may label what, and whose labels count toward completing a task. Members and visibility are managed at the project level - <link>open project members</link>.",
+      "save": "Save labelling access"
+    },
+    "embedding": {
+      "description": "The year from which satellite embeddings are sourced for KNN-based label validation. Changing this will recompute all embeddings for the campaign.",
+      "notSet": "No embedding year set - KNN-embeddings (AEF) based validation is currently unavailable for annotators.",
+      "year": "Year",
+      "recomputing": "Recomputing…"
+    },
+    "danger": {
+      "title": "Danger zone",
+      "description": "Once you delete a campaign, there is no going back."
+    }
+  },
+  "bbox": {
+    "title": "Region of Interest",
+    "description": "The region of interest defines your study region and limits the geographic area in which imagery will be prepared.",
+    "searchPlaceholder": "Search country or region...",
+    "sourceNote": "Boxes are derived from Natural Earth and OpenStreetMap boundaries and cover core national territory only. They are a starting point to drag, not an authoritative boundary.",
+    "noResults": "No results found",
+    "west": "West (Long)",
+    "south": "South (Lat)",
+    "east": "East (Long)",
+    "north": "North (Lat)",
+    "dragHint": "Drag the corner handles to resize, or drag the box to move it"
+  },
+  "customMaps": {
+    "status": {
+      "processing": "Processing…",
+      "ready": "Ready",
+      "processingFailed": "Processing failed",
+      "failed": "Failed"
+    },
+    "errors": {
+      "load": "Failed to load custom maps",
+      "add": "Failed to add custom map",
+      "save": "Failed to save map",
+      "delete": "Failed to delete custom map"
+    },
+    "addMap": "Add map",
+    "saveMap": "Save map",
+    "title": "Raster layers (COG)",
+    "description": "Predictions or classifications drawn over the imagery, toggled from the viewer’s panel.",
+    "add": "+ Add raster layer",
+    "loadError": "Could not load the raster layers.",
+    "empty": "No raster layers configured.",
+    "openExperiment": "Open linked experiment",
+    "editMap": "Edit custom map",
+    "deleteMap": "Delete custom map",
+    "namePlaceholder": "My COG layer",
+    "maxZoom": "Max native zoom",
+    "auto": "Auto",
+    "url": "COG URL",
+    "hints": {
+      "cog": "Must be a <strong>Cloud-Optimized GeoTIFF (COG)</strong> - internally tiled with overviews so the tiler can read only the pixels it needs.",
+      "singleBand": "Single-band raster (e.g. a class map or probability layer).",
+      "reachable": "Reachable by the tiler. For private Azure storage, provide a SAS token separately below so it is saved encrypted, not in the URL.",
+      "projection": "Any projection with a WGS84 datum (UTM zones and EPSG:4326/3857 are all handled).",
+      "notValidated": "Not validated automatically - an invalid or non-COG file will not render."
+    },
+    "privateStorage": "Private Azure storage (own SAS token)",
+    "replaceToken": "Paste a new token to replace it",
+    "provideToken": "Provide a read-only SAS token.",
+    "experimentLink": "Experiment link",
+    "experimentHint": "Linked from an icon next to the map, e.g. the MLflow run that produced it.",
+    "internalStorage": "Hosted in internal storage",
+    "internalStorageHint": "Check this if the file lives in our own Azure storage, so the tiler reads it with its managed identity. Leave unchecked for public or AWS-hosted files.",
+    "renderMode": "Render mode",
+    "modes": {
+      "continuous": "Continuous",
+      "categorical": "Categorical"
+    },
+    "colormap": "Colormap",
+    "rescaleMin": "Rescale min",
+    "rescaleMax": "Rescale max",
+    "classEntries": "Class entries",
+    "value": "Value",
+    "color": "Color",
+    "labelPlaceholder": "Label (optional)",
+    "removeEntry": "Remove entry",
+    "addClass": "Add class"
+  }
+}

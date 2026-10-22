@@ -1,8 +1,8 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TaskSetOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { IconCheck, IconClose, IconLock, IconPencil, IconTrash } from '~/shared/ui/Icons';
-import { LOCKED_TASK_SET_REASON } from '~/features/areaEstimation/AreaEstimation';
 
 export type TaskScope = 'all' | number;
 
@@ -31,6 +31,7 @@ export const TaskScopeBar = ({
   onDeleteSet,
   lockedSetIds,
 }: Props) => {
+  const { t } = useTranslation(['campaigns', 'common', 'areaEstimation']);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -83,7 +84,7 @@ export const TaskScopeBar = ({
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="task-scope-bar">
       <button type="button" className={pillCls(scope === 'all')} onClick={() => onSelect('all')}>
-        All tasks <span className="opacity-70 tabular-nums">({totalTasks})</span>
+        {t('taskScope.allTasks')} <span className="opacity-70 tabular-nums">({totalTasks})</span>
       </button>
       {taskSets.map((set) => {
         const active = scope === set.id;
@@ -115,7 +116,11 @@ export const TaskScopeBar = ({
               {set.name} <span className="opacity-70 tabular-nums">({set.num_tasks})</span>
             </button>
             {locked && (
-              <span className="opacity-70" title={LOCKED_TASK_SET_REASON} aria-label="Managed set">
+              <span
+                className="opacity-70"
+                title={t('areaEstimation:lockedTaskSetReason')}
+                aria-label={t('taskScope.managedSet')}
+              >
                 <IconLock className="w-3.5 h-3.5" />
               </span>
             )}
@@ -124,7 +129,7 @@ export const TaskScopeBar = ({
                 <button
                   type="button"
                   className="opacity-70 hover:opacity-100"
-                  title="Rename set"
+                  title={t('taskScope.renameSet')}
                   onClick={() => {
                     setRenameValue(set.name);
                     setRenamingId(set.id);
@@ -135,7 +140,7 @@ export const TaskScopeBar = ({
                 <button
                   type="button"
                   className="opacity-70 hover:opacity-100 disabled:opacity-30"
-                  title={canDelete ? 'Delete set' : 'A campaign needs at least one task set'}
+                  title={canDelete ? t('taskScope.deleteSet') : t('taskScope.needsOneSet')}
                   disabled={!canDelete}
                   onClick={() => setDeleteTarget(set)}
                 >
@@ -155,15 +160,15 @@ export const TaskScopeBar = ({
               if (e.key === 'Enter') handleCreate();
               if (e.key === 'Escape') cancelCreate();
             }}
-            placeholder="Set name"
+            placeholder={t('taskScope.setNamePlaceholder')}
             className="h-8 px-3 border border-brand-400 rounded-full text-sm"
             autoFocus
           />
           <button
             type="button"
             className="h-8 w-8 flex items-center justify-center rounded-full bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 disabled:hover:bg-brand-600"
-            title="Create set"
-            aria-label="Create set"
+            title={t('taskScope.createSet')}
+            aria-label={t('taskScope.createSet')}
             onClick={handleCreate}
             disabled={!newName.trim() || saving}
           >
@@ -172,8 +177,8 @@ export const TaskScopeBar = ({
           <button
             type="button"
             className="h-8 w-8 flex items-center justify-center rounded-full border border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:border-neutral-300"
-            title="Cancel"
-            aria-label="Cancel creating set"
+            title={t('common:actions.cancel')}
+            aria-label={t('taskScope.cancelCreate')}
             onClick={cancelCreate}
           >
             <IconClose className="w-4 h-4" />
@@ -186,16 +191,16 @@ export const TaskScopeBar = ({
           onClick={() => setCreating(true)}
           data-testid="scope-new-set"
         >
-          + New set
+          {t('taskScope.newSet')}
         </button>
       )}
 
       <ConfirmDialog
         isOpen={deleteTarget !== null}
-        title={`Delete task set "${deleteTarget?.name}"?`}
-        description={`This permanently deletes the set and its ${deleteTarget?.num_tasks ?? 0} task(s) with all associated annotations. This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title={t('taskScope.deleteTitle', { name: deleteTarget?.name })}
+        description={t('taskScope.deleteDescription', { count: deleteTarget?.num_tasks ?? 0 })}
+        confirmText={t('common:actions.delete')}
+        cancelText={t('common:actions.cancel')}
         isDangerous
         isLoading={deleting}
         onConfirm={handleDelete}

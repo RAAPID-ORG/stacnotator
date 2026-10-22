@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { ImagerySetup } from '~/features/campaigns/components/imagery/ImagerySetup';
 import type { ImageryController } from '~/features/campaigns/components/imagery/controller';
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 const ImageryTab = ({ controller }: Props) => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const { isDirty, pending, save, discard } = controller;
 
   return (
@@ -18,8 +20,10 @@ const ImageryTab = ({ controller }: Props) => {
         <div className="sticky bottom-0 left-0 right-0 mt-6 -mx-4 px-4 py-3 bg-white border-t border-amber-300 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] flex items-center justify-between gap-4 z-20">
           <div className="flex items-center gap-2 text-sm">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span className="text-neutral-700 font-medium">Unsaved imagery changes</span>
-            <span className="text-neutral-500">- your edits are local until you save.</span>
+            <span className="text-neutral-700 font-medium">
+              {t('settingsPage.imagery.unsavedTitle')}
+            </span>
+            <span className="text-neutral-500">{t('settingsPage.imagery.unsavedHint')}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -28,7 +32,7 @@ const ImageryTab = ({ controller }: Props) => {
               disabled={pending}
               className="px-3 py-1.5 text-sm rounded border border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
             >
-              Discard
+              {t('settingsPage.discard')}
             </button>
             <button
               type="button"
@@ -40,7 +44,7 @@ const ImageryTab = ({ controller }: Props) => {
               disabled={pending}
               className="px-4 py-1.5 text-sm rounded bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
             >
-              {pending ? 'Saving…' : 'Save changes'}
+              {pending ? t('settingsPage.saving') : t('settingsPage.saveChanges')}
             </button>
           </div>
         </div>

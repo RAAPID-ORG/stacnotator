@@ -1,21 +1,15 @@
 import { useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FormFieldOption } from '~/api/client';
 import { MAX_FIELDS, MAX_OPTIONS, type FormField } from '~/features/campaigns/utils/formFields';
 import { Input, Select, Switch } from '~/shared/ui/forms';
 
-const FIELD_TYPE_OPTIONS = [
-  { value: 'category', label: 'Category' },
-  { value: 'multicategory', label: 'Multi category' },
-  { value: 'number', label: 'Number' },
-  { value: 'text', label: 'Text' },
-  { value: 'date', label: 'Date' },
-  { value: 'daterange', label: 'Date range' },
-] as const;
+const FIELD_TYPES = ['category', 'multicategory', 'number', 'text', 'date', 'daterange'] as const;
 
-type FieldType = (typeof FIELD_TYPE_OPTIONS)[number]['value'];
+type FieldType = (typeof FIELD_TYPES)[number];
 
 function isFieldType(value: string): value is FieldType {
-  return FIELD_TYPE_OPTIONS.some((o) => o.value === value);
+  return FIELD_TYPES.some((type) => type === value);
 }
 
 type FieldBase = Pick<FormField, 'id' | 'title' | 'description' | 'required'>;
@@ -53,6 +47,7 @@ interface FormFieldsEditorProps {
 }
 
 export const FormFieldsEditor = ({ value, onChange }: FormFieldsEditorProps) => {
+  const { t } = useTranslation('campaigns');
   const titleRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
   const addField = useCallback(() => {
@@ -95,10 +90,12 @@ export const FormFieldsEditor = ({ value, onChange }: FormFieldsEditorProps) => 
           className="text-sm text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:text-neutral-400 disabled:no-underline disabled:cursor-not-allowed"
           type="button"
         >
-          + Add field
+          {t('formFields.addField')}
         </button>
         {value.length >= MAX_FIELDS && (
-          <p className="text-xs text-neutral-400 italic">Maximum of {MAX_FIELDS} fields reached.</p>
+          <p className="text-xs text-neutral-400 italic">
+            {t('formFields.maxFields', { max: MAX_FIELDS })}
+          </p>
         )}
       </div>
     </div>
@@ -116,6 +113,7 @@ const FieldRow = ({
   onRemove: () => void;
   titleInputRef: (el: HTMLInputElement | null) => void;
 }) => {
+  const { t } = useTranslation('campaigns');
   const changeType = (type: FieldType) => {
     if (field.type === type) return;
     onChange(
@@ -139,7 +137,7 @@ const FieldRow = ({
               <Input
                 type="text"
                 value={field.title}
-                placeholder="Question title"
+                placeholder={t('formFields.questionTitle')}
                 ref={titleInputRef}
                 onChange={(e) => onChange(withBase(field, { title: e.target.value }))}
                 maxLength={200}
@@ -153,9 +151,9 @@ const FieldRow = ({
                   if (isFieldType(next)) changeType(next);
                 }}
               >
-                {FIELD_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
+                {FIELD_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {t(`formFields.types.${type}`)}
                   </option>
                 ))}
               </Select>
@@ -165,7 +163,7 @@ const FieldRow = ({
           <Input
             type="text"
             value={field.description ?? ''}
-            placeholder="Description (optional)"
+            placeholder={t('formFields.descriptionPlaceholder')}
             onChange={(e) => onChange(withBase(field, { description: e.target.value || null }))}
             maxLength={2000}
           />
@@ -173,7 +171,7 @@ const FieldRow = ({
           <Switch
             checked={field.required ?? false}
             onChange={(checked) => onChange(withBase(field, { required: checked }))}
-            label="Required"
+            label={t('formFields.required')}
           />
 
           {(field.type === 'category' || field.type === 'multicategory') && (
@@ -187,7 +185,7 @@ const FieldRow = ({
           onClick={onRemove}
           className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"
           type="button"
-          aria-label="Remove field"
+          aria-label={t('formFields.removeField')}
         >
           ✕
         </button>
@@ -203,6 +201,7 @@ const CategoryOptionsConfig = ({
   field: Extract<FormField, { type: 'category' | 'multicategory' }>;
   onChange: (next: FormField) => void;
 }) => {
+  const { t } = useTranslation('campaigns');
   const setOptions = (options: FormFieldOption[]) => onChange({ ...field, options });
 
   const addOption = () => {
@@ -220,7 +219,7 @@ const CategoryOptionsConfig = ({
               type="text"
               size="sm"
               value={option.name}
-              placeholder="Option name"
+              placeholder={t('formFields.optionName')}
               onChange={(e) =>
                 setOptions(
                   field.options.map((o) =>
@@ -241,7 +240,7 @@ const CategoryOptionsConfig = ({
             onClick={() => setOptions(field.options.filter((o) => o.id !== option.id))}
             className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"
             type="button"
-            aria-label="Remove option"
+            aria-label={t('formFields.removeOption')}
           >
             ✕
           </button>
@@ -255,11 +254,11 @@ const CategoryOptionsConfig = ({
           className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:text-neutral-400 disabled:no-underline disabled:cursor-not-allowed"
           type="button"
         >
-          + Add option
+          {t('formFields.addOption')}
         </button>
         {field.options.length >= MAX_OPTIONS && (
           <p className="text-xs text-neutral-400 italic">
-            Maximum of {MAX_OPTIONS} options reached.
+            {t('formFields.maxOptions', { max: MAX_OPTIONS })}
           </p>
         )}
       </div>
@@ -274,6 +273,7 @@ const NumberConfig = ({
   field: Extract<FormField, { type: 'number' }>;
   onChange: (next: FormField) => void;
 }) => {
+  const { t } = useTranslation('campaigns');
   const boundsSet = field.min != null && field.max != null;
 
   return (
@@ -289,13 +289,13 @@ const NumberConfig = ({
           }}
           size="sm"
         >
-          <option value="float">Float</option>
-          <option value="int">Integer</option>
+          <option value="float">{t('formFields.float')}</option>
+          <option value="int">{t('formFields.integer')}</option>
         </Select>
         <Input
           type="number"
           size="sm"
-          placeholder="Min"
+          placeholder={t('formFields.min')}
           value={field.min ?? ''}
           onChange={(e) => {
             const min = e.target.value === '' ? null : Number(e.target.value);
@@ -306,7 +306,7 @@ const NumberConfig = ({
         <Input
           type="number"
           size="sm"
-          placeholder="Max"
+          placeholder={t('formFields.max')}
           value={field.max ?? ''}
           onChange={(e) => {
             const max = e.target.value === '' ? null : Number(e.target.value);
@@ -317,7 +317,7 @@ const NumberConfig = ({
         <Input
           type="number"
           size="sm"
-          placeholder="Step"
+          placeholder={t('formFields.step')}
           value={field.step ?? ''}
           onChange={(e) => {
             const step = e.target.value === '' ? null : Number(e.target.value);
@@ -329,7 +329,7 @@ const NumberConfig = ({
         checked={field.slider ?? false}
         onChange={(checked) => onChange({ ...field, slider: checked })}
         disabled={!boundsSet}
-        label="Show as slider"
+        label={t('formFields.slider')}
       />
     </div>
   );
@@ -341,10 +341,13 @@ const TextConfig = ({
 }: {
   field: Extract<FormField, { type: 'text' }>;
   onChange: (next: FormField) => void;
-}) => (
-  <Switch
-    checked={field.multiline ?? false}
-    onChange={(checked) => onChange({ ...field, multiline: checked })}
-    label="Multiline"
-  />
-);
+}) => {
+  const { t } = useTranslation('campaigns');
+  return (
+    <Switch
+      checked={field.multiline ?? false}
+      onChange={(checked) => onChange({ ...field, multiline: checked })}
+      label={t('formFields.multiline')}
+    />
+  );
+};

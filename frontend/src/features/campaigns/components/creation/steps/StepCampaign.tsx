@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { CampaignCreate } from '~/api/client';
 import { Field, Input } from '~/shared/ui/forms';
 
@@ -7,18 +8,21 @@ export const StepCampaign = ({
 }: {
   form: CampaignCreate;
   setForm: (f: CampaignCreate) => void;
-}) => (
-  <Field
-    label="Campaign name"
-    hint="Pick a name that a colleague would recognise months from now - e.g. “Malawi maize 2024” rather than “test 3”."
-    htmlFor="campaign-name"
-    required
-  >
-    <Input
-      id="campaign-name"
-      placeholder="Your campaign name…"
-      value={form.name}
-      onChange={(e) => setForm({ ...form, name: e.target.value })}
-    />
-  </Field>
-);
+}) => {
+  const { t } = useTranslation('campaigns');
+  return (
+    <Field
+      label={t('wizard.campaign.nameLabel')}
+      hint={t('wizard.campaign.nameHint')}
+      htmlFor="campaign-name"
+      required
+    >
+      <Input
+        id="campaign-name"
+        placeholder={t('wizard.campaign.namePlaceholder')}
+        value={form.name}
+        onChange={(e) => setForm({ ...form, name: e.target.value })}
+      />
+    </Field>
+  );
+};

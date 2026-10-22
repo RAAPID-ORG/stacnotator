@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { customMapApi, type OverlayOwnerKind } from './overlayOwner';
@@ -83,18 +84,19 @@ interface StatusBadgeProps {
 }
 
 const StatusBadge = ({ status, statusError }: StatusBadgeProps) => {
+  const { t } = useTranslation('campaigns');
   if (status === 'registering') {
     return (
       <span className="flex items-center gap-1.5 text-xs text-blue-700">
         <Spinner size="xs" />
-        Processing…
+        {t('customMaps.status.processing')}
       </span>
     );
   }
   if (status === 'ready') {
     return (
       <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-        Ready
+        {t('customMaps.status.ready')}
       </span>
     );
   }
@@ -102,13 +104,13 @@ const StatusBadge = ({ status, statusError }: StatusBadgeProps) => {
     const errMsg =
       statusError && typeof statusError === 'object' && 'error' in statusError
         ? String((statusError as { error: unknown }).error)
-        : 'Processing failed';
+        : t('customMaps.status.processingFailed');
     return (
       <span
         className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 cursor-help"
         title={errMsg}
       >
-        Failed
+        {t('customMaps.status.failed')}
       </span>
     );
   }
@@ -128,6 +130,7 @@ interface CustomMapsEditorProps {
 export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEditorProps) => {
   // Memoised so the effects below can depend on it rather than on the owner's
   // parts, and so a re-render never re-runs the fetch.
+  const { t } = useTranslation(['campaigns', 'common']);
   const api = useMemo(() => customMapApi(ownerKind, ownerId), [ownerKind, ownerId]);
   const { allowsInternalStorage } = useProjectTilers(projectId);
   const queryClient = useQueryClient();
@@ -177,7 +180,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
     // No toast: the list says so itself, in place, with a way to try again. An empty
     // list and silence is indistinguishable from having no layers, which is how a 500
     // here went unnoticed until someone tried to add the same layer twice.
-    meta: { errorMessage: 'Failed to load custom maps', showUser: false },
+    meta: { errorMessage: t('customMaps.errors.load'), showUser: false },
   });
 
   const reloadMaps = () => queryClient.invalidateQueries({ queryKey: api.queryKey });
@@ -185,7 +188,9 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
   const save = useMutation({
     mutationFn: (body: CustomMapCreate) =>
       editingId === null ? api.create(body) : api.update(editingId, body),
-    meta: { errorMessage: editingId === null ? 'Failed to add custom map' : 'Failed to save map' },
+    meta: {
+      errorMessage: editingId === null ? t('customMaps.errors.add') : t('customMaps.errors.save'),
+    },
     onSuccess: () => {
       closeForm();
       void reloadMaps();
@@ -198,7 +203,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
 
   const remove = useMutation({
     mutationFn: (mapId: number) => api.remove(mapId),
-    meta: { errorMessage: 'Failed to delete custom map' },
+    meta: { errorMessage: t('customMaps.errors.delete') },
     onSuccess: reloadMaps,
   });
 
@@ -265,7 +270,11 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
   const removeEntry = (idx: number) =>
     setForm((f) => ({ ...f, entries: f.entries.filter((_, i) => i !== idx) }));
 
-  const submitLabel = submitting ? 'Saving…' : editingId === null ? 'Add map' : 'Save map';
+  const submitLabel = submitting
+    ? t('settingsPage.saving')
+    : editingId === null
+      ? t('customMaps.addMap')
+      : t('customMaps.saveMap');
 
   // Rendered as a subsection of the settings "Overlays" section (ImagerySetup
   // owns the section header), alongside the vector-layers subsection.
@@ -274,12 +283,9 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
       <div className="flex items-center justify-between mb-2">
         <div>
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-            Raster layers (COG)
+            {t('customMaps.title')}
           </h4>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Predictions or classifications drawn over the imagery, toggled from the viewer&rsquo;s
-            panel.
-          </p>
+          <p className="text-xs text-neutral-500 mt-0.5">{t('customMaps.description')}</p>
         </div>
         {!showForm && (
           <button
@@ -287,24 +293,24 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
             onClick={startCreate}
             className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           >
-            + Add raster layer
+            {t('customMaps.add')}
           </button>
         )}
       </div>
 
       {mapsFailed ? (
         <div className="flex items-center gap-3 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-          <span className="flex-1">Could not load the raster layers.</span>
+          <span className="flex-1">{t('customMaps.loadError')}</span>
           <button
             type="button"
             onClick={() => void refetchMaps()}
             className="font-medium underline underline-offset-2 hover:text-red-900"
           >
-            Try again
+            {t('vectorLayers.tryAgain')}
           </button>
         </div>
       ) : maps.length === 0 && !showForm ? (
-        <p className="text-xs text-neutral-400 italic">No raster layers configured.</p>
+        <p className="text-xs text-neutral-400 italic">{t('customMaps.empty')}</p>
       ) : (
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
           {maps.map((m) => (
@@ -323,7 +329,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                       target="_blank"
                       rel="noopener noreferrer"
                       data-testid="custom-map-row-mlops-link"
-                      title="Open linked experiment"
+                      title={t('customMaps.openExperiment')}
                       className="shrink-0 text-neutral-400 hover:text-neutral-700 transition-colors"
                     >
                       <IconExternalLink className="w-3.5 h-3.5" />
@@ -335,8 +341,8 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
               <StatusBadge status={m.status} statusError={m.status_error} />
               <IconButton
                 onClick={() => startEdit(m)}
-                aria-label="Edit custom map"
-                title="Edit"
+                aria-label={t('customMaps.editMap')}
+                title={t('common:actions.edit')}
                 data-testid="edit-custom-map"
               >
                 <IconPencil className="w-3.5 h-3.5" />
@@ -344,8 +350,8 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
               <IconButton
                 tone="danger"
                 onClick={() => handleDelete(m.id)}
-                aria-label="Delete custom map"
-                title="Delete"
+                aria-label={t('customMaps.deleteMap')}
+                title={t('common:actions.delete')}
               >
                 <IconTrash className="w-3.5 h-3.5" />
               </IconButton>
@@ -361,20 +367,22 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
         >
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">Name</label>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                {t('vectorLayers.name')}
+              </label>
               <Input
                 size="sm"
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="My COG layer"
+                placeholder={t('customMaps.namePlaceholder')}
                 required
                 data-testid="custom-map-name"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-neutral-700 mb-1">
-                Max native zoom
+                {t('customMaps.maxZoom')}
               </label>
               <Input
                 size="sm"
@@ -383,13 +391,15 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                 max={24}
                 value={form.max_native_zoom}
                 onChange={(e) => setForm((f) => ({ ...f, max_native_zoom: e.target.value }))}
-                placeholder="Auto"
+                placeholder={t('customMaps.auto')}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-neutral-700 mb-1">COG URL</label>
+            <label className="block text-xs font-medium text-neutral-700 mb-1">
+              {t('customMaps.url')}
+            </label>
             <Input
               size="sm"
               type="text"
@@ -405,21 +415,16 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
               className="mt-1.5 space-y-0.5 text-[11px] text-neutral-500 leading-snug list-disc list-inside"
             >
               <li>
-                Must be a{' '}
-                <strong className="font-medium text-neutral-600">
-                  Cloud-Optimized GeoTIFF (COG)
-                </strong>{' '}
-                - internally tiled with overviews so the tiler can read only the pixels it needs.
+                <Trans
+                  t={t}
+                  i18nKey="customMaps.hints.cog"
+                  components={{ strong: <strong className="font-medium text-neutral-600" /> }}
+                />
               </li>
-              <li>Single-band raster (e.g. a class map or probability layer).</li>
-              <li>
-                Reachable by the tiler. For private Azure storage, provide a SAS token separately
-                below so it is saved encrypted, not in the URL.
-              </li>
-              <li>
-                Any projection with a WGS84 datum (UTM zones and EPSG:4326/3857 are all handled).
-              </li>
-              <li>Not validated automatically - an invalid or non-COG file will not render.</li>
+              <li>{t('customMaps.hints.singleBand')}</li>
+              <li>{t('customMaps.hints.reachable')}</li>
+              <li>{t('customMaps.hints.projection')}</li>
+              <li>{t('customMaps.hints.notValidated')}</li>
             </ul>
           </div>
 
@@ -438,7 +443,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                     }))
                   }
                 />
-                Private Azure storage (own SAS token)
+                {t('customMaps.privateStorage')}
               </label>
               {form.private_storage && (
                 <>
@@ -447,10 +452,10 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                     onChange={(sas_token) => setForm((f) => ({ ...f, sas_token }))}
                     configured={!!savedAccess}
                     expiresAt={form.storage_expiry}
-                    placeholder={savedAccess ? 'Paste a new token to replace it' : undefined}
+                    placeholder={savedAccess ? t('customMaps.replaceToken') : undefined}
                   />
                   {!savedAccess && !form.sas_token.trim() && (
-                    <p className="text-[11px] text-neutral-500">Provide a read-only SAS token.</p>
+                    <p className="text-[11px] text-neutral-500">{t('customMaps.provideToken')}</p>
                   )}
                 </>
               )}
@@ -459,7 +464,8 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
 
           <div>
             <label className="block text-xs font-medium text-neutral-700 mb-1">
-              Experiment link <span className="font-normal text-neutral-400">(optional)</span>
+              {t('customMaps.experimentLink')}{' '}
+              <span className="font-normal text-neutral-400">{t('optional')}</span>
             </label>
             <Input
               size="sm"
@@ -471,7 +477,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
               className="font-mono text-[11px]"
             />
             <p className="mt-1.5 text-[11px] text-neutral-500 leading-snug">
-              Linked from an icon next to the map, e.g. the MLflow run that produced it.
+              {t('customMaps.experimentHint')}
             </p>
           </div>
 
@@ -487,10 +493,9 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                   data-testid="custom-map-internal-storage"
                 />
                 <span className="text-xs text-neutral-700">
-                  <span className="font-medium">Hosted in internal storage</span>
+                  <span className="font-medium">{t('customMaps.internalStorage')}</span>
                   <span className="block text-[11px] text-neutral-500 leading-snug">
-                    Check this if the file lives in our own Azure storage, so the tiler reads it
-                    with its managed identity. Leave unchecked for public or AWS-hosted files.
+                    {t('customMaps.internalStorageHint')}
                   </span>
                 </span>
               </label>
@@ -498,7 +503,9 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
           )}
 
           <div>
-            <span className="block text-xs font-medium text-neutral-700 mb-1">Render mode</span>
+            <span className="block text-xs font-medium text-neutral-700 mb-1">
+              {t('customMaps.renderMode')}
+            </span>
             <div className="flex gap-2">
               {(['continuous', 'categorical'] as const).map((m) => (
                 <button
@@ -511,7 +518,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                       : 'bg-white text-neutral-600 border-neutral-300 hover:border-neutral-400'
                   }`}
                 >
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
+                  {t(`customMaps.modes.${m}`)}
                 </button>
               ))}
             </div>
@@ -520,7 +527,9 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
           {form.mode === 'continuous' && (
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">Colormap</label>
+                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                  {t('customMaps.colormap')}
+                </label>
                 <ColormapSelect
                   value={form.colormap_name}
                   onChange={(colormap_name) => setForm((f) => ({ ...f, colormap_name }))}
@@ -529,7 +538,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
               </div>
               <div>
                 <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Rescale min
+                  {t('customMaps.rescaleMin')}
                 </label>
                 <Input
                   size="sm"
@@ -541,7 +550,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
               </div>
               <div>
                 <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Rescale max
+                  {t('customMaps.rescaleMax')}
                 </label>
                 <Input
                   size="sm"
@@ -556,7 +565,9 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
 
           {form.mode === 'categorical' && (
             <div>
-              <span className="block text-xs font-medium text-neutral-700 mb-2">Class entries</span>
+              <span className="block text-xs font-medium text-neutral-700 mb-2">
+                {t('customMaps.classEntries')}
+              </span>
               {/* Enter adds the next entry instead of submitting the form, so classes can be typed
                   in one keyboard run; the new entry's value field takes focus (see pendingFocus). */}
               <ul className="space-y-2">
@@ -577,7 +588,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                         value={entry.value}
                         onChange={(e) => updateEntry(idx, { value: e.target.value })}
                         onKeyDown={addOnEnter}
-                        placeholder="Value"
+                        placeholder={t('customMaps.value')}
                         className="!w-20"
                       />
                       <input
@@ -585,7 +596,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                         value={entry.color}
                         onChange={(e) => updateEntry(idx, { color: e.target.value })}
                         className="h-8 w-10 rounded border border-neutral-300 cursor-pointer p-0.5 bg-white"
-                        title="Color"
+                        title={t('customMaps.color')}
                       />
                       <Input
                         size="sm"
@@ -593,7 +604,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                         value={entry.label}
                         onChange={(e) => updateEntry(idx, { label: e.target.value })}
                         onKeyDown={addOnEnter}
-                        placeholder="Label (optional)"
+                        placeholder={t('customMaps.labelPlaceholder')}
                         className="flex-1"
                       />
                       <IconButton
@@ -601,7 +612,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                         type="button"
                         onClick={() => removeEntry(idx)}
                         disabled={form.entries.length <= 1}
-                        aria-label="Remove entry"
+                        aria-label={t('customMaps.removeEntry')}
                       >
                         <IconTrash className="w-3.5 h-3.5" />
                       </IconButton>
@@ -615,7 +626,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                 className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-neutral-300 py-1.5 text-xs text-brand-700 hover:border-brand-400 hover:text-brand-900 cursor-pointer"
               >
                 <IconPlus className="w-3 h-3" />
-                Add class
+                {t('customMaps.addClass')}
               </button>
             </div>
           )}
@@ -636,7 +647,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
               onClick={closeForm}
               disabled={submitting}
             >
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
           </div>
         </form>

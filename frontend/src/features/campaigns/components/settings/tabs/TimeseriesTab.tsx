@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type {
   ImagerySourceOut,
   TimeSeriesCreate,
@@ -35,6 +36,7 @@ export const TimeseriesTab: React.FC<Props> = ({
   campaignMode,
   campaignSettings,
 }) => {
+  const { t } = useTranslation('campaigns');
   const knownWindowNames = Array.from(
     new Set(timeseries.map((t) => t.window_name?.trim()).filter((n): n is string => !!n))
   );
@@ -65,7 +67,7 @@ export const TimeseriesTab: React.FC<Props> = ({
 
         {newTimeseries.length > 0 && (
           <Button onClick={handleAddTimeseries} disabled={saving}>
-            Add {newTimeseries.length} timeseries
+            {t('settingsPage.timeseries.addCount', { count: newTimeseries.length })}
           </Button>
         )}
       </section>

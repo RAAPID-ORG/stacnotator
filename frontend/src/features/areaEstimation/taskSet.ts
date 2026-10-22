@@ -2,9 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { listPlannedTaskSets } from './api';
 import { AREA_ESTIMATION_ENABLED } from './enabled';
 
-export const LOCKED_TASK_SET_REASON =
-  'This set is managed by an area estimation design. Adding, importing or moving tasks into it would break the inclusion probabilities the estimate depends on.';
-
 /**
  * The sampling units of an area estimate live in one task set, and that set
  * has to stay exactly what the sampling protocol drew: every task in it carries
