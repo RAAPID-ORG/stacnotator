@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Toaster } from 'sonner';
 import {
   deleteVisualizerFeedback,
@@ -25,6 +26,7 @@ import {
   IconMap,
 } from '~/shared/ui/Icons';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import i18n from '~/shared/i18n';
 import { handleError } from '~/shared/utils/errorHandler';
 import { FEEDBACK_HASH, visualizerUrl } from './route';
 import { FeedbackPanel } from './viewer/FeedbackPanel';
@@ -59,8 +61,9 @@ const FEEDBACK_ZOOM_CAP = 17;
  * behind the login gate.
  */
 export function VisualizerPage({ slug }: { slug: string }) {
+  const { t } = useTranslation('visualizers');
   const [view, setView] = useState<VisualizerViewOut | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const [state, setState] = useState<ViewerState | null>(null);
   // On a touch device the panel covers the map, so it starts out of the way.
   // Same test the `desktop:` variant makes.
@@ -108,7 +111,7 @@ export function VisualizerPage({ slug }: { slug: string }) {
     // looking at it, so the whole page runs on that session.
     setTilerSessionMinter(async () => {
       const { data } = await getVisualizerTilerToken({ path: { slug } });
-      if (!data) throw new Error('Failed to open a tile session');
+      if (!data) throw new Error(i18n.t('visualizers:viewer.tileSessionFailed'));
       return data.expires_in;
     });
     return () => setTilerSessionMinter(null);
@@ -131,7 +134,7 @@ export function VisualizerPage({ slug }: { slug: string }) {
         }
         if (needsTilerSession(data)) await ensureTilerSession(slug);
       } catch {
-        if (!cancelled) setFailure('This visualizer is not available.');
+        if (!cancelled) setFailed(true);
       }
     })();
     return () => {
@@ -160,7 +163,7 @@ export function VisualizerPage({ slug }: { slug: string }) {
       setReview({ items, selectedId: null });
       if (items[0]) selectFeedback(items[0]);
     } catch (error) {
-      handleError(error, 'Failed to load feedback');
+      handleError(error, t('viewer.loadFeedbackFailed'));
     }
   };
 
@@ -195,7 +198,7 @@ export function VisualizerPage({ slug }: { slug: string }) {
           : current
       );
     } catch (error) {
-      handleError(error, 'Failed to delete the feedback');
+      handleError(error, t('viewer.deleteFeedbackFailed'));
     }
   };
 
@@ -225,14 +228,14 @@ export function VisualizerPage({ slug }: { slug: string }) {
     return feedback?.area ? [...drawn, feedbackAreaLayer(feedback.area)] : drawn;
   }, [view, state, feedback, review]);
 
-  if (failure) {
+  if (failed) {
     return (
       <Shell>
         <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
           <IconMap className="h-8 w-8 text-neutral-300" />
-          <p className="text-sm text-neutral-600">{failure}</p>
+          <p className="text-sm text-neutral-600">{t('viewer.notAvailable')}</p>
           <a href="/" className="text-xs text-brand-700 underline hover:text-brand-800">
-            Go to STACNotator
+            {t('viewer.goHome')}
           </a>
         </div>
       </Shell>
@@ -242,7 +245,7 @@ export function VisualizerPage({ slug }: { slug: string }) {
   if (!view || !state) {
     return (
       <Shell>
-        <LoadingSpinner fullScreen text="Loading visualizer…" />
+        <LoadingSpinner fullScreen text={t('viewer.loading')} />
       </Shell>
     );
   }
@@ -297,14 +300,14 @@ export function VisualizerPage({ slug }: { slug: string }) {
             {feedback && !feedback.area && (
               <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
                 <p className="rounded-full border border-neutral-200 bg-white/95 px-3 py-1 text-xs text-neutral-600 shadow-lg backdrop-blur-sm">
-                  Drag a box over the area you are commenting on
+                  {t('viewer.dragBox')}
                 </p>
               </div>
             )}
 
             {view.imagery.length === 0 && view.overlays.length === 0 && (
               <p className="pointer-events-none absolute inset-x-0 top-8 text-center text-sm text-neutral-500">
-                Nothing has been added to this visualizer yet.
+                {t('viewer.empty')}
               </p>
             )}
 
@@ -424,6 +427,7 @@ function ZoomNotice({
   camera: Camera;
   onZoomToArea: () => void;
 }) {
+  const { t } = useTranslation('visualizers');
   const [tooFar, setTooFar] = useState(false);
 
   useEffect(() => {
@@ -436,9 +440,9 @@ function ZoomNotice({
   return (
     <div className="pointer-events-auto absolute inset-x-0 top-3 flex justify-center">
       <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 py-1 pl-3 pr-1 text-xs text-neutral-600 shadow-lg backdrop-blur-sm">
-        Zoom in to see the imagery
+        {t('viewer.zoomIn')}
         <Button variant="quiet" size="sm" className="!h-6 !px-2" onClick={onZoomToArea}>
-          Zoom to area
+          {t('viewer.zoomToArea')}
         </Button>
       </div>
     </div>
@@ -462,6 +466,7 @@ function Header({
   reviewOpen: boolean;
   onToggleReview: () => void;
 }) {
+  const { t } = useTranslation('visualizers');
   const [copied, setCopied] = useState(false);
 
   const copyLink = () => {
@@ -484,8 +489,8 @@ function Header({
       </div>
 
       {!view.is_public && (
-        <span title="Only people with access to the project can open this link">
-          <Badge tone="yellow">Unpublished</Badge>
+        <span title={t('viewer.unpublishedTitle')}>
+          <Badge tone="yellow">{t('viewer.unpublished')}</Badge>
         </span>
       )}
 
@@ -494,11 +499,11 @@ function Header({
           variant={reviewOpen ? 'primary' : 'secondary'}
           size="sm"
           onClick={onToggleReview}
-          title="Read what people have said about places on this map"
+          title={t('viewer.reviewTitle')}
           data-testid="visualizer-review-toggle"
           leading={<IconComment className="h-3.5 w-3.5" />}
         >
-          <span className="hidden desktop:inline">Review</span>
+          <span className="hidden desktop:inline">{t('viewer.review')}</span>
         </Button>
       )}
 
@@ -507,10 +512,10 @@ function Header({
           variant={feedbackOpen ? 'primary' : 'secondary'}
           size="sm"
           onClick={onToggleFeedback}
-          title="Tell the people who made this map about a place on it"
+          title={t('viewer.feedbackTitle')}
           leading={<IconComment className="h-3.5 w-3.5" />}
         >
-          <span className="hidden desktop:inline">Feedback</span>
+          <span className="hidden desktop:inline">{t('viewer.feedback')}</span>
         </Button>
       )}
 
@@ -518,12 +523,14 @@ function Header({
         variant="secondary"
         size="sm"
         onClick={copyLink}
-        title="Copy the link to this visualizer"
+        title={t('viewer.shareTitle')}
         leading={
           copied ? <IconCheck className="h-3.5 w-3.5" /> : <IconCopy className="h-3.5 w-3.5" />
         }
       >
-        <span className="hidden desktop:inline">{copied ? 'Copied' : 'Share'}</span>
+        <span className="hidden desktop:inline">
+          {copied ? t('viewer.copied') : t('viewer.share')}
+        </span>
       </Button>
 
       {!sidebarOpen && (
@@ -531,10 +538,10 @@ function Header({
           variant="secondary"
           size="sm"
           onClick={onToggleSidebar}
-          title="Show layers"
+          title={t('viewer.showLayers')}
           leading={<IconChevronDoubleLeft className="h-3.5 w-3.5" />}
         >
-          <span className="hidden desktop:inline">Layers</span>
+          <span className="hidden desktop:inline">{t('viewer.layers')}</span>
         </Button>
       )}
     </header>

@@ -4,6 +4,7 @@ import type {
   VisualizerOptionsOut,
   VisualizerOverlayCreate,
 } from '~/api/client';
+import i18n from '~/shared/i18n';
 
 /** The generator inlines the backend's `LayerRestriction` union, so it is read
  *  back off the field rather than restated here. */
@@ -24,12 +25,6 @@ export interface RestrictedLayer {
   name: string;
   reason: LayerRestriction;
 }
-
-export const RESTRICTION_TEXT: Record<LayerRestriction, string> = {
-  api_key: "served with your organization's provider key",
-  internal_storage: 'read from internal storage',
-  storage_access: "read from private storage with its SAS token, which can't be published",
-};
 
 export function restrictedSelection(
   options: VisualizerOptionsOut,
@@ -71,15 +66,13 @@ export interface PublishConfirm {
 export function publishConfirm(restricted: RestrictedLayer[]): PublishConfirm | null {
   if (restricted.length === 0) return null;
   const names = restricted.map((layer) => layer.name).join(', ');
-  const layers = restricted.length === 1 ? 'layer is' : 'layers are';
   return {
-    title: 'Publish imagery that is not open data?',
-    description:
-      `Anyone with the link will be able to load ${names}. ` +
-      `${restricted.length === 1 ? 'That' : 'Those'} ${layers} fetched with your organization's own ` +
-      'credentials, so anonymous traffic spends that quota and reaches imagery your ' +
-      'licence may not let you redistribute.',
-    confirmText: 'Publish anyway',
+    title: i18n.t('visualizers:publishConfirm.title'),
+    description: i18n.t('visualizers:publishConfirm.description', {
+      count: restricted.length,
+      names,
+    }),
+    confirmText: i18n.t('visualizers:publishConfirm.confirm'),
     isDangerous: true,
   };
 }

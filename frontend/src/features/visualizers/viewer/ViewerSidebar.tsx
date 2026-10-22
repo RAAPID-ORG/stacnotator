@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { VisualizerViewOut } from '~/api/client';
 import type { Camera } from '~/shared/map/Camera';
 import type { GeocodingResult } from '~/shared/map/geocoding';
@@ -33,6 +34,7 @@ export function ViewerSidebar({
   overview: Camera;
   area: Bbox | null;
 }) {
+  const { t } = useTranslation('visualizers');
   const registering = view.registration_status === 'registering';
 
   return (
@@ -43,13 +45,13 @@ export function ViewerSidebar({
       <div className="flex items-center justify-between border-b border-neutral-100 px-4 pb-2 pt-3">
         <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-neutral-500">
           <IconSliders className="h-3.5 w-3.5" />
-          Layers
+          {t('sidebar.layers')}
         </span>
         <button
           type="button"
           onClick={onCollapse}
-          aria-label="Hide layers"
-          title="Hide layers"
+          aria-label={t('sidebar.hideLayers')}
+          title={t('sidebar.hideLayers')}
           className="cursor-pointer rounded p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
         >
           <IconChevronDoubleRight className="h-4 w-4" />
@@ -58,7 +60,7 @@ export function ViewerSidebar({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {view.imagery.length > 0 && (
-          <Section title="Imagery">
+          <Section title={t('sidebar.imagery')}>
             <div className="space-y-0.5">
               {view.imagery.map((entry) => {
                 const active = entry.id === state.sourceId;
@@ -68,7 +70,7 @@ export function ViewerSidebar({
                       active={active}
                       onClick={() => onChange(selectSource(view, state, active ? null : entry.id))}
                       testId="visualizer-source-option"
-                      title={active ? 'Hide this imagery' : 'Show this imagery'}
+                      title={active ? t('sidebar.hideImagery') : t('sidebar.showImagery')}
                       name={entry.name}
                       trailing={entry.steps.length || (registering ? '…' : 0)}
                     />
@@ -79,7 +81,7 @@ export function ViewerSidebar({
                     {active && entry.visualizations.length > 1 && (
                       <Select
                         size="sm"
-                        aria-label="Rendering"
+                        aria-label={t('sidebar.rendering')}
                         data-testid="visualizer-viz-select"
                         className="!mt-1 !h-7 !text-[11px]"
                         value={state.visualization ?? ''}
@@ -99,14 +101,14 @@ export function ViewerSidebar({
 
             {registering && (
               <p className="mt-2 text-[11px] leading-snug text-amber-700">
-                Imagery is still registering. Dates appear as they finish.
+                {t('sidebar.registering')}
               </p>
             )}
           </Section>
         )}
 
         {view.overlays.length > 0 && (
-          <Section title="Overlays">
+          <Section title={t('sidebar.overlays')}>
             <div className="space-y-2">
               {view.overlays.map((overlay) => {
                 const chosen = state.overlays[overlay.id] ?? { visible: false, opacity: 1 };
@@ -134,7 +136,7 @@ export function ViewerSidebar({
                         checked={chosen.visible}
                         disabled={pending}
                         onChange={(e) => setChosen({ visible: e.target.checked })}
-                        aria-label={`Show ${overlay.name}`}
+                        aria-label={t('sidebar.showOverlay', { name: overlay.name })}
                         className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-500"
                       />
                       {overlay.kind === 'vector' && (
@@ -151,7 +153,7 @@ export function ViewerSidebar({
                           href={overlay.mlops_url}
                           target="_blank"
                           rel="noreferrer"
-                          title="Open the model run behind this layer"
+                          title={t('sidebar.modelRun')}
                           className="shrink-0 text-neutral-400 transition-colors hover:text-neutral-700"
                         >
                           <IconExternalLink className="h-3 w-3" />
@@ -162,8 +164,8 @@ export function ViewerSidebar({
                     {pending && (
                       <p className="mt-1 pl-6 text-[11px] text-amber-700">
                         {overlay.status === 'failed'
-                          ? 'This layer failed to register.'
-                          : 'Still registering.'}
+                          ? t('sidebar.layerFailed')
+                          : t('sidebar.stillRegistering')}
                       </p>
                     )}
 
@@ -199,13 +201,15 @@ export function ViewerSidebar({
                                   }
                                   className="mt-1 cursor-pointer text-[10px] text-neutral-500 underline hover:text-neutral-800"
                                 >
-                                  Reset colours
+                                  {t('sidebar.resetColours')}
                                 </button>
                               )}
                           </div>
                         )}
                         <label className="flex items-center gap-2">
-                          <span className="w-12 shrink-0 text-neutral-500">Opacity</span>
+                          <span className="w-12 shrink-0 text-neutral-500">
+                            {t('sidebar.opacity')}
+                          </span>
                           <input
                             type="range"
                             min={0}
@@ -224,7 +228,7 @@ export function ViewerSidebar({
           </Section>
         )}
         {view.basemaps.length > 0 && (
-          <Section title="Base map">
+          <Section title={t('sidebar.baseMap')}>
             <div className="space-y-0.5">
               {view.basemaps.map((basemap) => {
                 const active = basemap.id === state.basemapId;
@@ -234,7 +238,7 @@ export function ViewerSidebar({
                     active={active}
                     onClick={() => onChange({ ...state, basemapId: active ? null : basemap.id })}
                     testId="visualizer-basemap-option"
-                    title={active ? 'Hide this backdrop' : 'Show this backdrop'}
+                    title={active ? t('sidebar.hideBackdrop') : t('sidebar.showBackdrop')}
                     name={basemap.name}
                   />
                 );
@@ -248,7 +252,7 @@ export function ViewerSidebar({
           looking does not belong to the layers, and a reviewer wants it in the
           same corner however many layers there happen to be. */}
       <div className="shrink-0 border-t border-neutral-200 px-4 py-3">
-        <Label>Location</Label>
+        <Label>{t('sidebar.location')}</Label>
         <div className="space-y-2">
           <LocationSearch onSelect={onGoTo} />
           <div className="h-32 overflow-hidden rounded border border-neutral-200">

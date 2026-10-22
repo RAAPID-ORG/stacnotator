@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   addVisualizerFeedback,
   type CategoricalEntry,
@@ -32,6 +33,7 @@ export function FeedbackPanel({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation(['visualizers', 'common']);
   const layers = classifiedOverlays(view);
   const [overlayId, setOverlayId] = useState<number | null>(layers[0]?.id ?? null);
   const [verdict, setVerdict] = useState<Verdict>(null);
@@ -58,10 +60,10 @@ export function FeedbackPanel({
           viewing,
         },
       });
-      showAlert('Thanks - your feedback was sent', 'success');
+      showAlert(t('feedbackPanel.sent'), 'success');
       onSaved();
     } catch (error) {
-      handleError(error, 'Could not send your feedback');
+      handleError(error, t('feedbackPanel.sendFailed'));
     } finally {
       setSaving(false);
     }
@@ -74,7 +76,7 @@ export function FeedbackPanel({
     >
       <div className="border-b border-neutral-100 px-4 pb-2 pt-3">
         <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">
-          Feedback on this area
+          {t('feedbackPanel.title')}
         </p>
         {viewing && <p className="mt-0.5 truncate text-xs text-neutral-500">{viewing}</p>}
       </div>
@@ -83,7 +85,7 @@ export function FeedbackPanel({
         {/* Answerable in one click, so feedback can be counted rather than only
             read. Everything below it stays optional. */}
         <div className="flex gap-1.5">
-          {VERDICTS.map(({ value, label, idle, on }) => (
+          {VERDICTS.map(({ value, idle, on }) => (
             <button
               key={value}
               type="button"
@@ -97,13 +99,13 @@ export function FeedbackPanel({
                 `!h-8 flex-1 justify-center !text-xs ${verdict === value ? on : idle}`
               )}
             >
-              {label}
+              {t(`verdict.${value}`)}
             </button>
           ))}
         </div>
 
         {layers.length > 1 && (
-          <Field label="About" htmlFor="feedback-layer">
+          <Field label={t('feedbackPanel.about')} htmlFor="feedback-layer">
             <Select
               id="feedback-layer"
               size="sm"
@@ -125,7 +127,9 @@ export function FeedbackPanel({
         {layer && (
           <div>
             <p className="mb-1.5 text-xs font-medium text-neutral-700">
-              It should be{layers.length === 1 ? ` (${layer.name})` : ''}
+              {layers.length === 1
+                ? t('feedbackPanel.shouldBeLayer', { layer: layer.name })
+                : t('feedbackPanel.shouldBe')}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {layer.entries.map((entry) => (
@@ -153,15 +157,15 @@ export function FeedbackPanel({
         )}
 
         <Field
-          label="Note"
+          label={t('feedbackPanel.note')}
           htmlFor="feedback-note"
-          hint={valid && !note ? 'Optional - add it if there is more to say.' : undefined}
+          hint={valid && !note ? t('feedbackPanel.noteHint') : undefined}
         >
           <Textarea
             id="feedback-note"
             rows={3}
             value={note}
-            placeholder="What is wrong here, and how do you know?"
+            placeholder={t('feedbackPanel.notePlaceholder')}
             onChange={(e) => setNote(e.target.value)}
           />
         </Field>
@@ -169,10 +173,10 @@ export function FeedbackPanel({
 
       <div className="flex items-center justify-end gap-2 border-t border-neutral-100 px-4 py-2.5">
         <Button variant="secondary" size="sm" onClick={onClose}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button size="sm" disabled={!valid || saving} onClick={() => void submit()}>
-          {saving ? 'Sending…' : 'Send feedback'}
+          {saving ? t('feedbackPanel.sending') : t('feedbackPanel.send')}
         </Button>
       </div>
     </div>
@@ -183,16 +187,14 @@ type Verdict = VisualizerFeedbackCreate['verdict'];
 
 /** Tinted the way badges and alerts are tinted elsewhere: the colour carries
  *  the meaning, the border carries the choice. */
-const VERDICTS: { value: NonNullable<Verdict>; label: string; idle: string; on: string }[] = [
+const VERDICTS: { value: NonNullable<Verdict>; idle: string; on: string }[] = [
   {
     value: 'good',
-    label: 'Looks good',
     idle: '!border-green-200 !text-green-800 hover:!bg-green-50',
     on: '!border-green-600 !bg-green-50 !text-green-900',
   },
   {
     value: 'wrong',
-    label: 'Looks wrong',
     idle: '!border-red-200 !text-red-800 hover:!bg-red-50',
     on: '!border-red-600 !bg-red-50 !text-red-900',
   },
