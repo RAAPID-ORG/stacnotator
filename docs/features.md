@@ -130,6 +130,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 ### Drawing Tools
 
 - Point, polygon, and line drawing
+- Magic wand (`W`, Explore): drag a box and the imagery under it is segmented in the browser on WebGPU. The outlines come back as proposals to accept (`Enter`) or discard (`Esc`); a click leaves one out. Enabled per polygon label, and a label with a text prompt can find every match inside the box instead of the one object. See [magic-wand.md](magic-wand.md)
 - Edit mode for modifying existing geometries
 - Pan/navigate mode
 
