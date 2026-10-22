@@ -33,6 +33,7 @@ import { isAudienceMember } from '~/features/campaigns/utils/labellingPolicy';
 import { useImageryStore } from './stores/imagery';
 import { currentTask, useTasksStore } from './stores/tasks';
 import { useWandStore } from './stores/wand';
+import { stepGrowth } from './wand';
 import { useWorkStore, type Tool } from './stores/work';
 import {
   advance,
@@ -387,6 +388,18 @@ function exploreBindings(): Binding[] {
         : 'Close the questions (the annotation is already saved)',
       when: draftIsOpen,
       run: () => void useWorkStore.getState().closeDraft(),
+    },
+    {
+      key: ']',
+      help: 'Grow the clicked outline',
+      when: () => useWandStore.getState().growth !== null,
+      run: () => void stepGrowth(1),
+    },
+    {
+      key: '[',
+      help: 'Shrink the clicked outline',
+      when: () => useWandStore.getState().growth !== null,
+      run: () => void stepGrowth(-1),
     },
     {
       key: 'enter',

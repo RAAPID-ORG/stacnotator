@@ -41,7 +41,7 @@ import { useImageryStore } from './stores/imagery';
 import { usePrefsStore } from './stores/prefs';
 import { useWandStore } from './stores/wand';
 import { useWorkStore } from './stores/work';
-import { segmentArea } from './wand';
+import { growAt, segmentArea } from './wand';
 
 const DRAW_SHAPES: Record<GeometryType, DrawShape> = {
   point: 'Point',
@@ -294,9 +294,12 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
   }
 
   // A click on a proposal changes its mind; the box drag is the wand's gesture.
+  // With the wand a click on a proposal changes its mind about it, and a
+  // click anywhere else grows a region there; dragging a box is the model's.
   if (work.tool === 'wand') {
-    if (event.layerId !== PROPOSAL_LAYER_ID || event.featureId == null) return;
-    useWandStore.getState().toggle(String(event.featureId));
+    if (event.layerId === PROPOSAL_LAYER_ID && event.featureId != null) {
+      useWandStore.getState().toggle(String(event.featureId));
+    } else await growAt(event.lonLat);
     return;
   }
 

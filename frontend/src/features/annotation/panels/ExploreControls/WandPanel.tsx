@@ -1,5 +1,7 @@
 import { SEGMENTATION_MODELS } from '~/shared/segmentation/models';
 import type { ExtendedLabel } from '../../campaign/annotation';
+import { useCatalog } from '../../stores/campaign';
+import { useImageryStore } from '../../stores/imagery';
 import { useWandStore, type WandMode } from '../../stores/wand';
 
 const segmentClass = (active: boolean) =>
@@ -20,6 +22,13 @@ export function WandPanel({ label }: { label: ExtendedLabel | null }) {
   const backend = useWandStore((s) => s.backend);
   const lastRun = useWandStore((s) => s.lastRun);
   const waiting = useWandStore((s) => s.proposals.length);
+  const multiDate = useWandStore((s) => s.multiDate);
+  const catalog = useCatalog();
+  const dates = useImageryStore((s) =>
+    s.showBasemap || !s.address
+      ? 0
+      : (catalog.sources.get(s.address.sourceId)?.collections.length ?? 0)
+  );
 
   const prompt = label?.segment_prompt ?? null;
   const all = !!prompt && mode === 'all';
@@ -51,11 +60,26 @@ export function WandPanel({ label }: { label: ExtendedLabel | null }) {
         </div>
       )}
       <p className="text-[11px] text-neutral-500 leading-relaxed">
+        <strong className="font-medium text-neutral-700">Click</strong> inside a field or roof to
+        outline it by its edges, instantly and without a model; <strong>[</strong> and{' '}
+        <strong>]</strong> shrink or grow it.{' '}
+        <strong className="font-medium text-neutral-700">Drag a box</strong>{' '}
         {all
-          ? `Drag a box over an area: every ${prompt} inside it is outlined.`
-          : 'Drag a box around one object to outline it.'}{' '}
-        The outlines are proposals until you accept them.
+          ? `over an area to outline every ${prompt} inside it.`
+          : 'around one object for the model to outline it.'}{' '}
+        Outlines are proposals until you accept them.
       </p>
+      {dates > 1 && (
+        <label className="flex items-center gap-1.5 text-[11px] text-neutral-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={multiDate}
+            onChange={(e) => useWandStore.getState().setMultiDate(e.target.checked)}
+            data-testid="wand-multi-date"
+          />
+          Clicks use edges from several dates (for fields)
+        </label>
+      )}
       {backend === null && (
         <p className="text-[11px] text-neutral-500 leading-relaxed">
           The first box downloads {model.title} (about {model.megabytes} MB) once; it runs in this
@@ -74,7 +98,8 @@ export function WandPanel({ label }: { label: ExtendedLabel | null }) {
       {lastRun && status.phase === 'idle' && (
         <p className="text-[11px] text-neutral-500" data-testid="wand-last-run">
           Found {lastRun.found} in {(lastRun.millis / 1000).toFixed(1)} s at{' '}
-          {lastRun.metresPerPixel.toFixed(lastRun.metresPerPixel < 10 ? 1 : 0)} m per pixel.
+          {lastRun.metresPerPixel.toFixed(lastRun.metresPerPixel < 10 ? 1 : 0)} m per pixel
+          {(lastRun.dates ?? 1) > 1 ? `, edges from ${lastRun.dates} dates` : ''}.
         </p>
       )}
       {waiting > 0 && (
