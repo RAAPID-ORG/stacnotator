@@ -16,6 +16,8 @@ Imagery registration runs per campaign but succeeds per source: each source repo
 ## Campaign Modes
 
 - **Task Mode** - Predefined annotation locations (points/polygons). Tasks are assigned to annotators who visit each location and label it.
+  - **Task output** (campaign setting, fixed once tasks are annotated): `classify` tasks are finished by picking a label for the task's own geometry; `draw` tasks by drawing shapes around it. In a draw campaign Task mode carries the drawing tools, every shape is saved against the current task (`output_of_task_id`), and the task is finished with **Done**, **Nothing here** or **Skip**.
+  - Each annotator's task row stores its outcome (`labelled`, `skipped`, `drawn`, `none_found`), which is what task status compares across annotators.
 - **Open/Explore Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
 
 Every campaign supports both; who may do what is governed by the labelling policy (four audience axes: explore, unassigned tasks, assigned tasks, counting toward completion). See [labelling-policy.md](labelling-policy.md). The campaign `mode` is the default work mode the UI opens in.
