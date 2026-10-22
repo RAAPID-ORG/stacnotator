@@ -177,7 +177,25 @@ export function TaskControls() {
             labelGroupActive ? activeGroupClass : ''
           } focus:outline-none`}
         >
-          <span className={sectionHeaderClass(labelGroupActive)}>Label</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className={sectionHeaderClass(labelGroupActive)}>Label</span>
+            <label
+              className="flex items-center gap-1.5 cursor-pointer select-none"
+              title="Validate against prior labels using embedding similarity (kNN)"
+            >
+              <span className="relative">
+                <input
+                  type="checkbox"
+                  checked={knnValidationEnabled}
+                  onChange={(e) => setKnnValidationEnabled(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
+                <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
+              </span>
+              <span className="text-[10px] text-neutral-600">Validate</span>
+            </label>
+          </div>
           <LabelGrid
             labels={labels}
             selectedId={selectedLabelId}
@@ -291,23 +309,6 @@ export function TaskControls() {
                 Your label will be saved as extra and does not count toward completion.
               </p>
             )}
-
-            <label
-              className="flex items-center gap-1.5 cursor-pointer select-none"
-              title="Validate against prior labels using embedding similarity (kNN)"
-            >
-              <span className="relative">
-                <input
-                  type="checkbox"
-                  checked={knnValidationEnabled}
-                  onChange={(e) => setKnnValidationEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
-                <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
-              </span>
-              <span className="text-[10px] text-neutral-600">Validate</span>
-            </label>
 
             <div className="flex gap-1.5">
               <button
