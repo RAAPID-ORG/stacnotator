@@ -294,7 +294,8 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
   }
 
   // A click on a proposal changes its mind; the box drag is the wand's gesture.
-  if (event.layerId === PROPOSAL_LAYER_ID && event.featureId != null) {
+  if (work.tool === 'wand') {
+    if (event.layerId !== PROPOSAL_LAYER_ID || event.featureId == null) return;
     useWandStore.getState().toggle(String(event.featureId));
     return;
   }

@@ -62,19 +62,17 @@ async function fetchFiles(model: SegmentationModelId, names: string[]): Promise<
       return { url, response, cached: false };
     })
   );
+  // Progress covers what crosses the network; files already in the cache
+  // load too fast to be worth a notice.
   const total = responses.reduce(
-    (sum, { response }) => sum + Number(response.headers.get('content-length') ?? 0),
+    (sum, { response, cached }) =>
+      cached ? sum : sum + Number(response.headers.get('content-length') ?? 0),
     0
   );
   let loaded = 0;
   return Promise.all(
     responses.map(async ({ url, response, cached }) => {
-      if (cached || !response.body) {
-        const buffer = await response.arrayBuffer();
-        loaded += buffer.byteLength;
-        post({ kind: 'progress', model, loaded, total });
-        return buffer;
-      }
+      if (cached || !response.body) return response.arrayBuffer();
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
       for (;;) {

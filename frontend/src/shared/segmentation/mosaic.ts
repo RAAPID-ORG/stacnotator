@@ -120,16 +120,21 @@ async function fetchTile(
   crossOrigin: CrossOrigin,
   signal?: AbortSignal
 ): Promise<ImageBitmap | null> {
-  const response = await fetch(url, {
-    mode: 'cors',
-    credentials: crossOrigin === 'use-credentials' ? 'include' : 'omit',
-    signal,
-  });
-  // Tilers answer "nothing here" with 204 or 404; that part of the image is
-  // simply empty, like on the map.
-  if (response.status === 204 || response.status === 404) return null;
-  if (!response.ok) throw new Error(`Tile request failed: ${response.status}`);
-  return createImageBitmap(await response.blob());
+  // Tilers answer "nothing here" with 204 or 404, and a tile that fails is a
+  // gap on the map too: that part of the image is simply empty. Only when no
+  // tile at all arrives is there nothing to segment.
+  try {
+    const response = await fetch(url, {
+      mode: 'cors',
+      credentials: crossOrigin === 'use-credentials' ? 'include' : 'omit',
+      signal,
+    });
+    if (!response.ok || response.status === 204) return null;
+    return await createImageBitmap(await response.blob());
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return null;
+  }
 }
 
 /**
