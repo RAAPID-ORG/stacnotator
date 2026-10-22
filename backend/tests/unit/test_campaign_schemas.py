@@ -12,6 +12,7 @@ from src.campaigns.schemas import (
     CampaignOut,
     CampaignOutFull,
     CampaignSettingsCreate,
+    LabelBase,
     default_labelling_policy,
 )
 
@@ -199,3 +200,27 @@ def test_settings_reject_duplicate_form_field_slugs():
                 {"id": 2, "title": "notes!", "type": "text"},
             ],
         )
+
+
+def test_label_wand_settings_round_trip_through_jsonb():
+    settings = CampaignSettingsCreate(
+        **{
+            **_minimal_settings(),
+            "labels": [
+                {"id": 1, "name": "Field"},
+                {"id": 2, "name": "Roof", "auto_segment": True, "segment_prompt": "  building "},
+            ],
+        }
+    )
+    stored = settings.to_orm()["labels"]
+    assert stored == {
+        "1": {"name": "Field"},
+        "2": {"name": "Roof", "auto_segment": True, "segment_prompt": "building"},
+    }
+    restored = [LabelBase.from_json(k, v) for k, v in stored.items()]
+    assert restored == settings.labels
+
+
+def test_label_wand_rejects_non_polygon_labels():
+    with pytest.raises(ValidationError, match="only draws polygons"):
+        LabelBase(id=1, name="Well", geometry_type="point", auto_segment=True)

@@ -56,11 +56,50 @@ def _check_bbox_order(west: float, east: float, south: float, north: float) -> N
 class LabelBase(BaseModel):
     """
     A label that can be assigned to an annotation within a campaign.
+
+    `auto_segment` offers the magic wand for the label: a box drawn on the map
+    is segmented in the browser and comes back as polygons to accept.
+    `segment_prompt` is the text a text-aligned model searches for, which lets
+    one box catch every matching object instead of the one inside it.
     """
 
     id: int  # ID that is used for annotation
     name: str
     geometry_type: Literal["point", "polygon", "line"] | None = None
+    auto_segment: bool = False
+    segment_prompt: Annotated[str, Field(max_length=200)] | None = None
+
+    @field_validator("segment_prompt")
+    @classmethod
+    def _blank_prompt_is_none(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return v.strip() or None
+
+    @model_validator(mode="after")
+    def _segments_polygons_only(self) -> "LabelBase":
+        if self.auto_segment and self.geometry_type not in (None, "polygon"):
+            raise ValueError(f"Label '{self.name}': the magic wand only draws polygons")
+        return self
+
+    @classmethod
+    def from_json(cls, label_id: str | int, data: dict) -> "LabelBase":
+        return cls(
+            id=int(label_id),
+            name=data["name"],
+            geometry_type=data.get("geometry_type"),
+            auto_segment=data.get("auto_segment", False),
+            segment_prompt=data.get("segment_prompt"),
+        )
+
+    def to_json(self) -> dict:
+        """The JSONB entry under the label's id. Defaults are left out so a
+        label without the wand stores exactly what it did before."""
+        return self.model_dump(exclude={"id"}, exclude_defaults=True)
+
+
+def labels_to_json(labels: list[LabelBase]) -> dict:
+    return {str(label.id): label.to_json() for label in labels}
 
 
 def label_id_to_name(labels: dict | None) -> dict[int, str]:
@@ -218,14 +257,7 @@ class CampaignSettingsOut(BaseModel):
         {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, ...}]."""
         if not isinstance(v, dict):
             return v
-        return [
-            LabelBase(
-                id=int(k),
-                name=vv["name"],
-                geometry_type=vv.get("geometry_type"),
-            )
-            for k, vv in v.items()
-        ]
+        return [LabelBase.from_json(k, vv) for k, vv in v.items()]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -247,14 +279,8 @@ class CampaignSettingsCreate(BaseModel):
 
     # Helper to convert labels to dict in DB
     def to_orm(self) -> dict:
-        labels_dict = {}
-        for label in self.labels:
-            label_data = {"name": label.name}
-            if label.geometry_type is not None:
-                label_data["geometry_type"] = label.geometry_type
-            labels_dict[str(label.id)] = label_data
         return {
-            "labels": labels_dict,
+            "labels": labels_to_json(self.labels),
             "bbox_west": self.bbox_west,
             "bbox_south": self.bbox_south,
             "bbox_east": self.bbox_east,

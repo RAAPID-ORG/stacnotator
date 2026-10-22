@@ -3106,6 +3106,11 @@ export type KnnValidationStatusOut = {
  * LabelBase
  *
  * A label that can be assigned to an annotation within a campaign.
+ *
+ * `auto_segment` offers the magic wand for the label: a box drawn on the map
+ * is segmented in the browser and comes back as polygons to accept.
+ * `segment_prompt` is the text a text-aligned model searches for, which lets
+ * one box catch every matching object instead of the one inside it.
  */
 export type LabelBase = {
     /**
@@ -3120,6 +3125,14 @@ export type LabelBase = {
      * Geometry Type
      */
     geometry_type?: 'point' | 'polygon' | 'line' | null;
+    /**
+     * Auto Segment
+     */
+    auto_segment?: boolean;
+    /**
+     * Segment Prompt
+     */
+    segment_prompt?: string | null;
 };
 
 /**

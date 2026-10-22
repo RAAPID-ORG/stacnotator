@@ -28,6 +28,7 @@ from src.campaigns.schemas import (
     CampaignSettingsCreate,
     LabellingPolicy,
     default_labelling_policy,
+    labels_to_json,
 )
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.canvas.service import new_default_main_layout
@@ -414,13 +415,7 @@ def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campa
                     ),
                 )
 
-    labels_dict: dict = {}
-    for label in labels:
-        entry: dict = {"name": label.name}
-        if label.geometry_type is not None:
-            entry["geometry_type"] = label.geometry_type
-        labels_dict[str(label.id)] = entry
-    campaign.settings.labels = labels_dict
+    campaign.settings.labels = labels_to_json(labels)
 
     flag_modified(campaign.settings, "labels")
     db.commit()
