@@ -16,7 +16,7 @@ def _make_assignment(user_id):
 
 def _make_annotation(user_id, label_id, is_authoritative=False):
     return {
-        "label_id": label_id,
+        "answer": label_id,
         "created_by_user_id": user_id,
         "is_authoritative": is_authoritative,
         "counts_toward_completion": True,
@@ -33,6 +33,8 @@ def _make_task(assignments, annotations, task_id=1):
     annotation_rows = [
         SimpleNamespace(
             id=i,
+            label_id=a["answer"],
+            outcome="labelled" if a["answer"] is not None else "skipped",
             comment=None,
             confidence=None,
             flagged_for_review=False,
@@ -45,7 +47,7 @@ def _make_task(assignments, annotations, task_id=1):
             imagery_start_date=None,
             imagery_end_date=None,
             creator=None,
-            **a,
+            **{k: v for k, v in a.items() if k != "answer"},
         )
         for i, a in enumerate(annotations, start=1)
     ]

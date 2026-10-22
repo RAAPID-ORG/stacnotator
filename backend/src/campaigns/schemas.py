@@ -198,6 +198,11 @@ class UpdateLabellingPolicyRequest(LabellingPolicy):
     complete_assigned: PolicyAudience
 
 
+# What finishing a task means: a label for the task's own geometry, or shapes
+# drawn around it.
+TaskOutput = Literal["classify", "draw"]
+
+
 class CampaignSettingsOut(BaseModel):
     labels: list[LabelBase]
     bbox_west: float
@@ -210,6 +215,7 @@ class CampaignSettingsOut(BaseModel):
     labelling_policy: LabellingPolicy
     form_fields: list[FormField] = []
     research_sharing: bool
+    task_output: TaskOutput = "classify"
 
     @field_validator("labels", mode="before")
     @classmethod
@@ -239,6 +245,7 @@ class CampaignSettingsCreate(BaseModel):
     embedding_year: int | None = None
     sample_extent_meters: float | None = None
     form_fields: ValidatedFormFields = []
+    task_output: TaskOutput = "classify"
 
     @model_validator(mode="after")
     def _check_bbox(self) -> "CampaignSettingsCreate":
@@ -262,6 +269,7 @@ class CampaignSettingsCreate(BaseModel):
             "embedding_year": self.embedding_year,
             "sample_extent_meters": self.sample_extent_meters,
             "form_fields": [f.model_dump() for f in self.form_fields],
+            "task_output": self.task_output,
         }
 
 
@@ -407,6 +415,10 @@ class UpdateSampleExtentRequest(BaseModel):
 
 class UpdateResearchSharingRequest(BaseModel):
     research_sharing: bool
+
+
+class UpdateTaskOutputRequest(BaseModel):
+    task_output: TaskOutput
 
 
 class UpdateCampaignBBoxRequest(BaseModel):

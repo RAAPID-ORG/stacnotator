@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import String, delete, func, insert, select, update
+from sqlalchemy import String, delete, exists, func, insert, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from src.annotation import claims, spatial
@@ -48,11 +48,13 @@ from src.annotation.schemas import (
     compute_task_status_value,
     derive_assignment_status,
     normalize_slice_comments,
+    resolve_task_outcome,
     task_status_inputs,
 )
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
+    PolicyContext,
     build_policy_context,
     counts_toward_completion,
     get_labelling_policy,
@@ -212,6 +214,27 @@ def validate_annotation_form_values(
         return validate_form_values(fields, form_values, enforce_required=enforce_required)
     except FormValidationError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
+
+
+def _require_task_access(
+    db: Session, campaign: Campaign, task: AnnotationTask, user_id: UUID
+) -> PolicyContext:
+    """Raise HTTP 403 unless the user may work this task, per the assigned or
+    unassigned tasks axis. Returns the policy context it checked."""
+    policy = get_labelling_policy(campaign)
+    has_assignments = bool(task.assignments)
+    ctx = build_policy_context(db, campaign, user_id, task=task)
+    axis = policy.assigned_tasks if has_assignments else policy.unassigned_tasks
+    if not is_allowed(axis, ctx):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You are not allowed to annotate assigned tasks in this campaign"
+                if has_assignments
+                else "You are not allowed to annotate unassigned tasks in this campaign"
+            ),
+        )
+    return ctx
 
 
 def _require_explore_access(db: Session, campaign: Campaign, user_id: UUID) -> None:
@@ -521,6 +544,33 @@ def _validate_origin_tasks(db: Session, campaign: Campaign, items: list[Annotati
         raise HTTPException(status_code=400, detail="Origin task not found in this campaign")
 
 
+def _require_drawing_access(
+    db: Session, campaign: Campaign, user_id: UUID, output_task_ids: set[int | None]
+) -> None:
+    """Raise unless the user may draw shapes linked this way: a draw task's
+    shapes need the right to work that task, every other shape the explore axis."""
+    if None in output_task_ids:
+        _require_explore_access(db, campaign, user_id)
+    task_ids = output_task_ids - {None}
+    if not task_ids:
+        return
+    if campaign.settings.task_output != "draw":
+        raise HTTPException(status_code=400, detail="This campaign's tasks take no shapes")
+    tasks = (
+        db.scalars(
+            select(AnnotationTask)
+            .where(AnnotationTask.campaign_id == campaign.id, AnnotationTask.id.in_(task_ids))
+            .options(joinedload(AnnotationTask.assignments))
+        )
+        .unique()
+        .all()
+    )
+    if len(tasks) != len(task_ids):
+        raise HTTPException(status_code=400, detail="Task not found in this campaign")
+    for task in tasks:
+        _require_task_access(db, campaign, task, user_id)
+
+
 def _standalone_annotation(
     geometry_id: int,
     campaign: Campaign,
@@ -537,6 +587,7 @@ def _standalone_annotation(
         created_by_user_id=user_id,
         annotation_task_id=None,  # Standalone annotation
         origin_task_id=item.origin_task_id,
+        output_of_task_id=item.output_of_task_id,
         imagery_slice_id=item.imagery_slice_id,
         imagery_source_name=item.imagery_source_name,
         imagery_start_date=item.imagery_start_date,
@@ -580,17 +631,7 @@ def add_annotation_for_task(
 
     policy = get_labelling_policy(campaign)
     has_assignments = bool(annotation_task.assignments)
-    ctx = build_policy_context(db, campaign, user_id, task=annotation_task)
-    axis = policy.assigned_tasks if has_assignments else policy.unassigned_tasks
-    if not is_allowed(axis, ctx):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "You are not allowed to annotate assigned tasks in this campaign"
-                if has_assignments
-                else "You are not allowed to annotate unassigned tasks in this campaign"
-            ),
-        )
+    ctx = _require_task_access(db, campaign, annotation_task, user_id)
 
     if annotation_create.is_authoritative and not is_authoritative_reviewer(
         db, annotation_task.campaign_id, user_id
@@ -600,13 +641,33 @@ def add_annotation_for_task(
             detail="Only campaign admins or authoritative reviewers can submit authoritative annotations",
         )
 
+    try:
+        outcome = resolve_task_outcome(
+            campaign.settings.task_output, annotation_create.label_id, annotation_create.outcome
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if outcome == "drawn" and not db.scalar(
+        select(
+            exists().where(
+                Annotation.output_of_task_id == annotation_task.id,
+                Annotation.created_by_user_id == user_id,
+            )
+        )
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Draw at least one shape for this task, or mark it as nothing here",
+        )
+
     if annotation_create.label_id is not None:
         validate_label_id(campaign, annotation_create.label_id)
 
     normalized_form_values = validate_annotation_form_values(
         campaign,
         annotation_create.form_values,
-        enforce_required=annotation_create.label_id is not None,
+        enforce_required=outcome == "labelled",
     )
 
     # Check if annotation already exists for this task
@@ -627,9 +688,10 @@ def add_annotation_for_task(
         form_values=normalized_form_values,
         is_authoritative=annotation_create.is_authoritative,
     )
+    values["outcome"] = outcome
 
-    # A submission with no label takes the same path: it is a skip, and the
-    # label-less row is the only record that this user acted on the task.
+    # A skip takes the same path: its row is the only record that this user
+    # acted on the task.
     if existing_annotation:
         for field, value in values.items():
             setattr(existing_annotation, field, value)
@@ -737,7 +799,7 @@ def create_annotation(
     Raises:
         HTTPException: If geometry is invalid or creation fails
     """
-    _require_explore_access(db, campaign, user_id)
+    _require_drawing_access(db, campaign, user_id, {annotation_create.output_of_task_id})
     _validate_origin_tasks(db, campaign, [annotation_create])
 
     if annotation_create.label_id is not None:
@@ -786,7 +848,9 @@ def create_annotations_bulk(
     if not annotations_create:
         return 0
 
-    _require_explore_access(db, campaign, user_id)
+    _require_drawing_access(
+        db, campaign, user_id, {a.output_of_task_id for a in annotations_create}
+    )
     _validate_origin_tasks(db, campaign, annotations_create)
 
     # Validate the distinct labels once rather than per-annotation.
@@ -867,7 +931,7 @@ def update_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")
 
-    _require_explore_access(db, campaign, user_id)
+    _require_drawing_access(db, campaign, user_id, {annotation.output_of_task_id})
 
     _require_own_annotations(db, [annotation], campaign, user_id, "edit")
 

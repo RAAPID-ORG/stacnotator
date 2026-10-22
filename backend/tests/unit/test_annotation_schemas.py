@@ -47,6 +47,7 @@ def _annotation_row(
     return SimpleNamespace(
         id=1,
         label_id=label_id,
+        outcome="labelled" if label_id is not None else "skipped",
         created_by_user_id=user_id,
         is_authoritative=is_authoritative,
         comment=None,
@@ -195,7 +196,7 @@ def test_assignment_status_is_literal_type():
 
 def _annotation(user_id, label_id, *, counts=True, is_authoritative=False):
     return {
-        "label_id": label_id,
+        "answer": label_id,
         "created_by_user_id": user_id,
         "is_authoritative": is_authoritative,
         "counts_toward_completion": counts,
@@ -272,7 +273,7 @@ def test_missing_counts_toward_completion_key_raises():
     with pytest.raises(KeyError):
         compute_task_status_value(
             [_assignment(user)],
-            [{"label_id": 1, "created_by_user_id": user, "is_authoritative": False}],
+            [{"answer": 1, "created_by_user_id": user, "is_authoritative": False}],
         )
 
 
