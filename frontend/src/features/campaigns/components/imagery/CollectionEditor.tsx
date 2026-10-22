@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type {
   CollectionItem,
   ImagerySlice,
@@ -46,6 +47,7 @@ export const CollectionEditor = ({
   onRemove,
   inModal,
 }: CollectionEditorProps) => {
+  const { t } = useTranslation('imagery');
   const { tilers, allowsInternalStorage } = useProjectTilers(projectId);
   const [expanded, setExpanded] = useState(true);
   const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
@@ -65,8 +67,8 @@ export const CollectionEditor = ({
     onChange({ data: { ...sb, ...updates } });
   };
 
-  const hostedTilers = tilers.filter((t) => t.kind === 'hosted');
-  const defaultTilerName = hostedTilers.find((t) => t.is_default)?.name;
+  const hostedTilers = tilers.filter((tiler) => tiler.kind === 'hosted');
+  const defaultTilerName = hostedTilers.find((tiler) => tiler.is_default)?.name;
   const availableCompositing = compositingMethods(
     servingTiler(sb?.catalogUrl ?? '', sb?.tiler, tilers)
   );
@@ -184,7 +186,7 @@ export const CollectionEditor = ({
     };
   }, [collection.data, projectId]);
 
-  const typeLabel = collection.data.type === 'stac_browser' ? 'Catalog' : 'XYZ';
+  const typeLabel = collection.data.type === 'stac_browser' ? t('collection.catalog') : 'XYZ';
 
   const updateSlice = (sliceId: string, updates: Partial<ImagerySlice>) => {
     onChange({
@@ -252,8 +254,8 @@ export const CollectionEditor = ({
           return (
             <div key={vizName} className="space-y-0.5">
               <label className="text-[11px] text-neutral-500 flex items-center gap-1">
-                {vizName || '(unnamed)'} URL
-                <Tooltip text="If this provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.example.com/{z}/{x}/{y}.png?api_key={api_key}. Then set the key under the source's Provider API key - it is stored encrypted and never reaches annotators." />
+                {t('collection.vizUrl', { name: vizName || t('collection.unnamed') })}
+                <Tooltip text={t('collection.vizUrlTooltip')} />
               </label>
               <Input
                 size="sm"
@@ -298,8 +300,8 @@ export const CollectionEditor = ({
               onClick={(e) => e.stopPropagation()}
               placeholder={
                 collection.slices.length > 0
-                  ? `${sliceDateRange(collection.slices)} (auto-generated from dates)`
-                  : 'Auto-generated from dates'
+                  ? t('collection.autoNameFrom', { range: sliceDateRange(collection.slices) })
+                  : t('collection.autoName')
               }
               className="text-sm font-medium text-neutral-800 truncate bg-transparent border-b border-transparent hover:border-neutral-300 focus:border-brand-600 outline-none focus:ring-0 min-w-0 flex-1"
             />
@@ -309,10 +311,10 @@ export const CollectionEditor = ({
             {collection.slices.length > 0 && (
               <span className="text-[10px] px-1.5 py-0.5 bg-brand-50 text-brand-700 rounded shrink-0 flex items-center gap-0.5">
                 <IconClock className="w-2.5 h-2.5" />
-                {collection.slices.length} slice{collection.slices.length !== 1 ? 's' : ''}
+                {t('planet.slices', { count: collection.slices.length })}
                 {collection.slices[collection.coverSliceIndex] && (
                   <span className="text-brand-700 ml-0.5">
-                    ({collection.slices[collection.coverSliceIndex].name || 'cover'})
+                    ({collection.slices[collection.coverSliceIndex].name || t('collection.cover')})
                   </span>
                 )}
               </span>
@@ -325,7 +327,7 @@ export const CollectionEditor = ({
                 e.stopPropagation();
                 onRemove();
               }}
-              aria-label="Remove collection"
+              aria-label={t('collection.remove')}
             >
               <IconTrash className="w-3.5 h-3.5" />
             </IconButton>
@@ -345,7 +347,7 @@ export const CollectionEditor = ({
           {/* Name field - in modal mode, show it here since no header */}
           {inModal && (
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700 font-medium">Name</label>
+              <label className="text-xs text-neutral-700 font-medium">{t('collection.name')}</label>
               <Input
                 size="sm"
                 type="text"
@@ -353,8 +355,8 @@ export const CollectionEditor = ({
                 onChange={(e) => onChange({ name: e.target.value })}
                 placeholder={
                   collection.slices.length > 0
-                    ? `${sliceDateRange(collection.slices)} (auto-generated from dates)`
-                    : 'Auto-generated from dates'
+                    ? t('collection.autoNameFrom', { range: sliceDateRange(collection.slices) })
+                    : t('collection.autoName')
                 }
               />
             </div>
@@ -364,8 +366,8 @@ export const CollectionEditor = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-                Temporal Slices
-                <Tooltip text="Each slice represents a time period with start and end dates. Data for each slice is loaded independently." />
+                {t('collection.slicesTitle')}
+                <Tooltip text={t('collection.slicesTooltip')} />
               </label>
               <button
                 type="button"
@@ -373,15 +375,13 @@ export const CollectionEditor = ({
                 className="flex items-center gap-1 text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
               >
                 <IconPlus className="w-3 h-3" />
-                Add Slice
+                {t('collection.addSlice')}
               </button>
             </div>
 
             {collection.slices.length === 0 && (
               <div className="rounded-md border border-dashed border-neutral-300 p-3 text-center">
-                <p className="text-xs text-neutral-500">
-                  No slices defined. Add slices manually or use the Temporal Series generator.
-                </p>
+                <p className="text-xs text-neutral-500">{t('collection.noSlices')}</p>
               </div>
             )}
 
@@ -413,14 +413,14 @@ export const CollectionEditor = ({
                         <Input
                           size="sm"
                           type="text"
-                          placeholder={`Slice ${originalIndex + 1}`}
+                          placeholder={t('collection.slicePlaceholder', { n: originalIndex + 1 })}
                           value={slice.name}
                           onChange={(e) => updateSlice(slice.id, { name: e.target.value })}
                           className="!w-28"
                         />
                         {isActiveCover ? (
                           <span className="text-[10px] px-1.5 py-0.5 bg-brand-100 text-brand-700 rounded shrink-0 font-medium">
-                            Cover
+                            {t('collection.coverBadge')}
                           </span>
                         ) : (
                           <button
@@ -432,24 +432,26 @@ export const CollectionEditor = ({
                               })
                             }
                             className="text-[10px] px-1.5 py-0.5 text-brand-700 border border-brand-300 hover:bg-brand-50 hover:border-brand-500 rounded transition-colors cursor-pointer shrink-0 font-medium"
-                            title="Set as cover slice"
+                            title={t('collection.setAsCoverTitle')}
                           >
-                            Set as cover
+                            {t('collection.setAsCover')}
                           </button>
                         )}
                       </div>
                       <IconButton
                         tone="danger"
                         onClick={() => removeSlice(slice.id)}
-                        title="Remove slice"
-                        aria-label="Remove slice"
+                        title={t('collection.removeSlice')}
+                        aria-label={t('collection.removeSlice')}
                       >
                         <IconTrash className="w-3 h-3" />
                       </IconButton>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-0.5">
-                        <label className="text-[11px] text-neutral-500">Start</label>
+                        <label className="text-[11px] text-neutral-500">
+                          {t('collection.start')}
+                        </label>
                         <DateField
                           size="sm"
                           value={slice.startDate}
@@ -457,7 +459,9 @@ export const CollectionEditor = ({
                         />
                       </div>
                       <div className="space-y-0.5">
-                        <label className="text-[11px] text-neutral-500">End</label>
+                        <label className="text-[11px] text-neutral-500">
+                          {t('collection.end')}
+                        </label>
                         <DateField
                           size="sm"
                           value={slice.endDate}
@@ -477,7 +481,7 @@ export const CollectionEditor = ({
                           ) : (
                             <IconChevronDown className="w-3 h-3" />
                           )}
-                          Cover overrides (search &amp; visualization)
+                          {t('collection.coverOverrides')}
                         </button>
                         {showCoverOptions &&
                           (collection.hasDedicatedCover ? (
@@ -498,28 +502,27 @@ export const CollectionEditor = ({
                                 )}
                               />
                               <p className="text-[11px] text-neutral-500 leading-snug">
-                                The cover visualization is edited below, next to the regular slices.
+                                {t('collection.coverVizBelow')}
                               </p>
                               <button
                                 type="button"
                                 onClick={disableDedicatedCover}
                                 className="text-[11px] text-neutral-500 hover:text-red-600 cursor-pointer"
                               >
-                                Reset to use the regular search &amp; visualization
+                                {t('collection.resetCover')}
                               </button>
                             </div>
                           ) : (
                             <div className="mt-1.5 space-y-1.5">
                               <p className="text-[11px] text-neutral-500 leading-snug">
-                                The cover currently uses the same search and visualization as the
-                                regular slices.
+                                {t('collection.coverSameAsRegular')}
                               </p>
                               <button
                                 type="button"
                                 onClick={enableDedicatedCover}
                                 className="text-[11px] px-2 py-1 text-brand-700 border border-brand-300 hover:bg-brand-50 hover:border-brand-500 rounded transition-colors cursor-pointer font-medium"
                               >
-                                Customize cover separately
+                                {t('collection.customizeCover')}
                               </button>
                             </div>
                           ))}
@@ -535,7 +538,7 @@ export const CollectionEditor = ({
                   {coverSlice && (
                     <div className="space-y-1.5">
                       <label className="text-[11px] text-neutral-500 uppercase tracking-wider font-semibold">
-                        Cover slice
+                        {t('bulk.coverSlice')}
                       </label>
                       {renderSliceCard(coverSlice, coverArrayIndex)}
                     </div>
@@ -544,7 +547,7 @@ export const CollectionEditor = ({
                     <div className="space-y-1.5">
                       {coverSlice && (
                         <label className="text-[11px] text-neutral-500 uppercase tracking-wider font-semibold">
-                          Regular slices
+                          {t('bulk.regularSlices')}
                         </label>
                       )}
                       <div className="space-y-2">
@@ -568,7 +571,7 @@ export const CollectionEditor = ({
                 <div className="space-y-2 p-2 rounded bg-neutral-50 border border-neutral-100">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">
-                      STAC Configuration
+                      {t('collection.stacConfig')}
                     </span>
                     {sb.isMpc && (
                       <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
@@ -576,13 +579,17 @@ export const CollectionEditor = ({
                       </span>
                     )}
                     <span className="text-[9px] bg-neutral-200 text-neutral-600 px-1.5 py-0.5 rounded-full font-medium">
-                      {sb.mode === 'single-item' ? 'Single Item' : 'Mosaic'}
+                      {sb.mode === 'single-item'
+                        ? t('collection.singleItem')
+                        : t('collection.mosaic')}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <label className="text-xs text-neutral-700">Catalog URL</label>
+                      <label className="text-xs text-neutral-700">
+                        {t('collection.catalogUrl')}
+                      </label>
                       <Input
                         size="sm"
                         type="url"
@@ -591,7 +598,9 @@ export const CollectionEditor = ({
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs text-neutral-700">STAC Collection ID</label>
+                      <label className="text-xs text-neutral-700">
+                        {t('collection.stacCollectionId')}
+                      </label>
                       <Input
                         size="sm"
                         type="text"
@@ -611,11 +620,9 @@ export const CollectionEditor = ({
                         data-testid="collection-internal-storage"
                       />
                       <span className="text-xs text-neutral-700">
-                        <span className="font-medium">Hosted in internal storage</span>
+                        <span className="font-medium">{t('collection.internalStorage')}</span>
                         <span className="block text-[11px] text-neutral-500 leading-snug">
-                          Check this if the assets live in our own Azure storage, so the tiler reads
-                          them with its managed identity. Leave unchecked for public or AWS-hosted
-                          imagery.
+                          {t('collection.internalStorageHelp')}
                         </span>
                       </span>
                     </label>
@@ -629,27 +636,28 @@ export const CollectionEditor = ({
                         className="text-[11px] font-medium text-neutral-500 hover:text-neutral-700 flex items-center gap-1"
                       >
                         {showAdvanced ? <IconChevronUp /> : <IconChevronDown />}
-                        Advanced
+                        {t('collection.advanced')}
                       </button>
                       {showAdvanced && (
                         <div className="space-y-1 mt-2">
                           <label className="text-xs text-neutral-700 flex items-center gap-1">
-                            Tile server
-                            <Tooltip text="Which hosted tiler renders this collection's tiles. Only tilers you're allowed to use are listed; defaults to the standard tiler." />
+                            {t('collection.tileServer')}
+                            <Tooltip text={t('collection.tileServerTooltip')} />
                           </label>
                           <Select
                             size="sm"
                             value={sb.tiler ?? defaultTilerName ?? ''}
                             onChange={(e) => updateSb({ tiler: e.target.value || null })}
                           >
-                            {hostedTilers.map((t) => {
+                            {hostedTilers.map((tiler) => {
                               const canServe =
-                                servingTiler(sb.catalogUrl, t.name, tilers)?.name === t.name;
+                                servingTiler(sb.catalogUrl, tiler.name, tilers)?.name ===
+                                tiler.name;
                               return (
-                                <option key={t.name} value={t.name} disabled={!canServe}>
-                                  {t.name}
-                                  {t.is_default ? ' (default)' : ''}
-                                  {canServe ? '' : ' - cannot serve this catalog'}
+                                <option key={tiler.name} value={tiler.name} disabled={!canServe}>
+                                  {tiler.name}
+                                  {tiler.is_default ? t('collection.tilerDefault') : ''}
+                                  {canServe ? '' : t('collection.tilerCannotServe')}
                                 </option>
                               );
                             })}
@@ -663,8 +671,8 @@ export const CollectionEditor = ({
                   {sb.maxCloudCover !== undefined && (
                     <div className="space-y-1">
                       <label className="text-xs text-neutral-700 flex items-center gap-1">
-                        Max Cloud Cover (%)
-                        <Tooltip text="Maximum cloud cover percentage for filtering scenes." />
+                        {t('collection.maxCloudCover')}
+                        <Tooltip text={t('collection.maxCloudCoverTooltip')} />
                       </label>
                       <div className="flex items-center gap-2">
                         <input
@@ -700,7 +708,7 @@ export const CollectionEditor = ({
                       {collection.hasDedicatedCover && coverVizs.length > 0 && (
                         <div className="space-y-2">
                           <label className="text-xs text-neutral-700 font-medium">
-                            Cover slice visualization
+                            {t('collection.coverViz')}
                           </label>
                           <VizTabs
                             visualizations={coverVizs}
@@ -719,8 +727,7 @@ export const CollectionEditor = ({
                             >
                               <IconInfo className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
                               <p className="flex-1 text-[11px] leading-snug text-amber-800">
-                                This changes only the cover. Should the regular slices use the same
-                                visualization?
+                                {t('collection.coverVizPrompt')}
                               </p>
                               <div className="flex shrink-0 items-center gap-1.5">
                                 <button
@@ -728,14 +735,14 @@ export const CollectionEditor = ({
                                   onClick={applyCoverVizToAllSlices}
                                   className="rounded bg-amber-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-amber-700"
                                 >
-                                  Apply to all slices
+                                  {t('collection.applyAllSlices')}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setCoverVizPrompt('dismissed')}
                                   className="rounded border border-amber-300 px-2 py-1 text-[11px] font-medium text-amber-800 transition-colors hover:bg-amber-100"
                                 >
-                                  Only cover
+                                  {t('collection.onlyCover')}
                                 </button>
                               </div>
                             </div>
@@ -745,8 +752,8 @@ export const CollectionEditor = ({
                       <div className="space-y-2">
                         <label className="text-xs text-neutral-700 font-medium">
                           {collection.hasDedicatedCover
-                            ? 'Regular slices visualization'
-                            : 'Visualization Parameters'}
+                            ? t('collection.regularViz')
+                            : t('collection.vizParams')}
                         </label>
                         <VizTabs
                           visualizations={orderedVizs}

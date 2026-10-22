@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { type OrganizationApiKeyOut } from '~/api/client';
 import { getProjectOrganizationKeysOptions } from '~/api/queries';
 import { useProject } from '~/app/projectRoute';
@@ -26,24 +27,19 @@ export const ApiKeyField = ({
   apiKey,
   onChange,
 }: ApiKeyFieldProps) => {
+  const { t } = useTranslation('imagery');
   const { project } = useProject(projectId);
   const { data: orgKeysData } = useQuery({
     ...getProjectOrganizationKeysOptions({ path: { project_id: projectId } }),
     // Without the shared keys the field still takes a typed value, so a
     // failure here narrows the choice rather than breaking the form.
-    meta: { errorMessage: 'Failed to load organization keys', showUser: false },
+    meta: { errorMessage: t('keys.loadOrgKeysFailed'), showUser: false },
   });
 
   return (
     <KeySourcePicker
-      label="Provider API key"
-      explainer={
-        <>
-          This provider needs an API key to serve its tiles. The key is encrypted on the server and
-          used only to load tiles on each annotator&apos;s behalf - it is never sent to their
-          browser, shown in tile links, or visible to them. You can replace it any time.
-        </>
-      }
+      label={t('keys.providerKey')}
+      explainer={t('keys.providerKeyExplainer')}
       orgKeys={orgKeysData?.items ?? NO_KEYS}
       projectIsPublic={project?.visibility === 'public'}
       organizationApiKeyId={organizationApiKeyId ?? null}

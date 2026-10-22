@@ -1,16 +1,17 @@
 import type { TilerOption } from '~/api/client';
+import i18n from '~/shared/i18n';
 
 /** Temporal compositing methods, in the order the wizard offers them. MPC's own tile
  *  endpoint only ever returns the first valid pixel; everything past it is computed by a
  *  self-hosted titiler-pgstac tiler, so it needs one that can serve the catalog. */
 export const COMPOSITING_METHODS = [
-  { value: 'first', label: 'First valid pixel' },
-  { value: 'mean', label: 'Mean' },
-  { value: 'median', label: 'Median' },
-  { value: 'max', label: 'Maximum' },
-  { value: 'min', label: 'Minimum' },
-  { value: 'ndvi_best', label: 'Best NDVI pixel' },
-];
+  { value: 'first', label: 'tiler.methods.first' },
+  { value: 'mean', label: 'tiler.methods.mean' },
+  { value: 'median', label: 'tiler.methods.median' },
+  { value: 'max', label: 'tiler.methods.max' },
+  { value: 'min', label: 'tiler.methods.min' },
+  { value: 'ndvi_best', label: 'tiler.methods.ndviBest' },
+] as const;
 
 const FIRST_VALID_ONLY = ['first'];
 
@@ -44,5 +45,4 @@ export const servingTiler = (
 export const compositingMethods = (tiler: TilerOption | undefined): string[] =>
   tiler ? COMPOSITING_METHODS.map((m) => m.value) : FIRST_VALID_ONLY;
 
-export const NO_TILER_NOTE =
-  'Your organization has no tile server that can serve imagery from external STAC catalogs.';
+export const noTilerNote = () => i18n.t('imagery:tiler.noTilerNote');

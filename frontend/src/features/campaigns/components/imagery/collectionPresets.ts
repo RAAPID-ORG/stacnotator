@@ -237,18 +237,18 @@ export function presetVizParams(
 }
 
 export const COLORMAPS = [
-  { value: 'viridis', label: 'Viridis' },
-  { value: 'plasma', label: 'Plasma' },
-  { value: 'inferno', label: 'Inferno' },
-  { value: 'magma', label: 'Magma' },
-  { value: 'terrain', label: 'Terrain' },
-  { value: 'rdylgn', label: 'Red-Yellow-Green' },
-  { value: 'spectral', label: 'Spectral' },
-  { value: 'greys', label: 'Grayscale' },
-  { value: 'blues', label: 'Blues' },
-  { value: 'ylgnbu', label: 'Yellow-Green-Blue' },
-  { value: 'coolwarm', label: 'Cool-Warm' },
-];
+  { value: 'viridis', label: 'colormaps.viridis' },
+  { value: 'plasma', label: 'colormaps.plasma' },
+  { value: 'inferno', label: 'colormaps.inferno' },
+  { value: 'magma', label: 'colormaps.magma' },
+  { value: 'terrain', label: 'colormaps.terrain' },
+  { value: 'rdylgn', label: 'colormaps.rdylgn' },
+  { value: 'spectral', label: 'colormaps.spectral' },
+  { value: 'greys', label: 'colormaps.greys' },
+  { value: 'blues', label: 'colormaps.blues' },
+  { value: 'ylgnbu', label: 'colormaps.ylgnbu' },
+  { value: 'coolwarm', label: 'colormaps.coolwarm' },
+] as const;
 
 const RGB_ASSET_KEYS = new Set(['visual', 'rendered_preview', 'true_color', 'image']);
 

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { isItemSortOption, type ItemSortOption } from './types';
 import { Select } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
@@ -24,16 +25,19 @@ export const CoverSearchParams = ({
   searchQuery,
   onSearchQueryChange,
   autoQuery,
-  queryLabel = 'Cover slice search query',
+  queryLabel,
 }: CoverSearchParamsProps) => {
+  const { t } = useTranslation('imagery');
   return (
     <div className="space-y-2">
       <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
-        Search parameters
+        {t('coverSearch.title')}
       </h5>
       {hasCloudCover && (
         <div className="space-y-1">
-          <label className="text-xs text-neutral-700 font-medium">Max cloud cover (%)</label>
+          <label className="text-xs text-neutral-700 font-medium">
+            {t('coverSearch.maxCloudCover')}
+          </label>
           <div className="flex items-center gap-2">
             <input
               type="range"
@@ -49,8 +53,8 @@ export const CoverSearchParams = ({
       )}
       <div className="space-y-1">
         <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-          Item sort order
-          <Tooltip text="Controls the order in which STAC items are returned for the cover slice." />
+          {t('coverSearch.itemSort')}
+          <Tooltip text={t('coverSearch.itemSortTooltip')} />
         </label>
         <Select
           size="sm"
@@ -59,9 +63,11 @@ export const CoverSearchParams = ({
             if (isItemSortOption(e.target.value)) onItemSortChange(e.target.value);
           }}
         >
-          <option value="date_desc">Date (newest first)</option>
-          <option value="date_asc">Date (oldest first)</option>
-          {hasCloudCover && <option value="cloud_cover_asc">Cloud cover (lowest first)</option>}
+          <option value="date_desc">{t('coverSearch.sort.dateDesc')}</option>
+          <option value="date_asc">{t('coverSearch.sort.dateAsc')}</option>
+          {hasCloudCover && (
+            <option value="cloud_cover_asc">{t('coverSearch.sort.cloudCoverAsc')}</option>
+          )}
         </Select>
       </div>
       {autoQuery && (
@@ -69,7 +75,7 @@ export const CoverSearchParams = ({
           value={searchQuery}
           onChange={onSearchQueryChange}
           autoQuery={autoQuery}
-          label={queryLabel}
+          label={queryLabel ?? t('coverSearch.queryLabel')}
         />
       )}
     </div>

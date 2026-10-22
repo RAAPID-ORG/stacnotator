@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import { IconTrash } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { Input } from '~/shared/ui/forms';
@@ -11,6 +12,7 @@ interface BasemapListProps {
 }
 
 export const BasemapList = ({ controller }: BasemapListProps) => {
+  const { t } = useTranslation('imagery');
   const basemaps = controller.state.basemaps;
 
   const update = (next: Basemap[]) => void controller.setBasemaps(next);
@@ -24,13 +26,16 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="section-heading flex items-center gap-1">
-            Supporting Basemaps
-            <Tooltip text="If a provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.planet.com/basemaps/v1/planet-tiles/global_monthly_2024_01_mosaic/gmap/{z}/{x}/{y}.png?api_key={api_key}. Then enter the key below - it is saved with the basemap, stored encrypted on the server and attached when tiles are fetched through the backend (never exposed to annotators)." />
+            {t('basemaps.title')}
+            <Tooltip text={t('basemaps.tooltip')} />
           </h3>
           <p className="section-description">
-            Additional background reference layers shown beneath imagery in every view. Use{' '}
-            <code className="font-mono bg-neutral-100 px-0.5 rounded">{'{api_key}'}</code> in the
-            URL for providers that require authentication.
+            <Trans
+              t={t}
+              i18nKey="basemaps.description"
+              values={{ placeholder: '{api_key}' }}
+              components={{ code: <code className="font-mono bg-neutral-100 px-0.5 rounded" /> }}
+            />
           </p>
         </div>
         <button
@@ -38,12 +43,12 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
           onClick={addBasemap}
           className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
         >
-          + Add basemap
+          {t('basemaps.add')}
         </button>
       </div>
 
       {basemaps.length === 0 ? (
-        <p className="text-xs text-neutral-400 italic">No basemaps configured.</p>
+        <p className="text-xs text-neutral-400 italic">{t('basemaps.empty')}</p>
       ) : (
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
           {basemaps.map((bm) => (
@@ -54,7 +59,7 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
                   type="text"
                   value={bm.name}
                   onChange={(e) => updateBasemap(bm.id, { name: e.target.value })}
-                  placeholder="Name"
+                  placeholder={t('basemaps.namePlaceholder')}
                   className="!w-40"
                 />
                 <Input
@@ -75,16 +80,16 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
                     const v = e.target.value;
                     updateBasemap(bm.id, { maxNativeZoom: v === '' ? undefined : Number(v) });
                   }}
-                  placeholder="Max z"
-                  title="Deepest zoom the provider serves. Past this, the deepest tile is upscaled instead of fetched. Leave empty for unlimited."
+                  placeholder={t('basemaps.maxZoomPlaceholder')}
+                  title={t('basemaps.maxZoomTitle')}
                   className="!w-20"
                 />
                 <button
                   type="button"
                   onClick={() => removeBasemap(bm.id)}
                   className="text-neutral-400 hover:text-red-600 transition-colors cursor-pointer p-1 shrink-0"
-                  aria-label="Remove basemap"
-                  title="Remove basemap"
+                  aria-label={t('basemaps.remove')}
+                  title={t('basemaps.remove')}
                 >
                   <IconTrash className="w-3.5 h-3.5" />
                 </button>

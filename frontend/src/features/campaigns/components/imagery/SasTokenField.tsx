@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
 import { SecretInput, SecretStatus } from '~/shared/ui/SecretInput';
 import { describeExpiry, expiresSoon, readSasToken } from './sasToken';
@@ -18,29 +19,28 @@ export const SasTokenField = ({
   expiresAt,
   configured = false,
 }: SasTokenFieldProps) => {
+  const { t } = useTranslation('imagery');
   const reading = value.trim() ? readSasToken(value) : null;
   const status =
     reading === null ? (
       configured ? (
-        <SecretStatus tone={expiresSoon(expiresAt) ? 'warn' : 'ok'}>Saved ✓</SecretStatus>
+        <SecretStatus tone={expiresSoon(expiresAt) ? 'warn' : 'ok'}>{t('keys.saved')}</SecretStatus>
       ) : undefined
     ) : 'error' in reading ? (
-      <SecretStatus tone="error">Not accepted</SecretStatus>
+      <SecretStatus tone="error">{t('sasToken.notAccepted')}</SecretStatus>
     ) : (
-      <SecretStatus tone={expiresSoon(reading.expiresAt) ? 'warn' : 'ok'}>Read-only ✓</SecretStatus>
+      <SecretStatus tone={expiresSoon(reading.expiresAt) ? 'warn' : 'ok'}>
+        {t('sasToken.readOnly')}
+      </SecretStatus>
     );
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1.5">
-        <span className="text-xs font-medium text-neutral-700">SAS token</span>
-        <InfoPopover>
-          A read-only SAS token for the container holding this data. It is encrypted on the server,
-          used only to read this storage host, and never sent to annotators. When it expires,
-          replace it in the layer settings. Paste the token here, not into the data URL.
-        </InfoPopover>
+        <span className="text-xs font-medium text-neutral-700">{t('sasToken.label')}</span>
+        <InfoPopover>{t('sasToken.explainer')}</InfoPopover>
       </div>
       <SecretInput
-        aria-label="SAS token"
+        aria-label={t('sasToken.label')}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
@@ -49,14 +49,14 @@ export const SasTokenField = ({
       {reading && 'error' in reading && <p className="text-[11px] text-red-600">{reading.error}</p>}
       {reading && 'expiresAt' in reading && (
         <p className="text-[11px] text-neutral-500">
-          Read-only access, {describeExpiry(reading.expiresAt)}
+          {t('sasToken.readOnlyAccess', { expiry: describeExpiry(reading.expiresAt) })}
         </p>
       )}
       {configured && expiresAt && !reading && (
         <p
           className={`text-[11px] ${expiresSoon(expiresAt) ? 'text-amber-600' : 'text-neutral-500'}`}
         >
-          Current token {describeExpiry(expiresAt)}
+          {t('sasToken.currentToken', { expiry: describeExpiry(expiresAt) })}
         </p>
       )}
     </div>

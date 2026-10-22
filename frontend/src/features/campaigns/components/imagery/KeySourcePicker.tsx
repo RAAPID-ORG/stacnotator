@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { OrganizationApiKeyOut } from '~/api/client';
 import { IconBuilding, IconLock } from '~/shared/ui/Icons';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
@@ -45,9 +46,10 @@ export const KeySourcePicker = ({
   organizationApiKeyId,
   apiKey,
   configured,
-  placeholder = 'Paste API key',
+  placeholder,
   onChange,
 }: KeySourcePickerProps) => {
+  const { t } = useTranslation('imagery');
   const [value, setValue] = useState(apiKey ?? '');
   const [confirmed, setConfirmed] = useState(!!apiKey);
   const [lastApiKey, setLastApiKey] = useState(apiKey);
@@ -75,13 +77,13 @@ export const KeySourcePicker = ({
   };
 
   const status = apiKey ? (
-    <SecretStatus tone="ok">Ready to save</SecretStatus>
+    <SecretStatus tone="ok">{t('keys.readyToSave')}</SecretStatus>
   ) : value.trim() && !confirmed ? (
-    <SecretStatus tone="warn">Confirm below</SecretStatus>
+    <SecretStatus tone="warn">{t('keys.confirmBelow')}</SecretStatus>
   ) : configured ? (
-    <SecretStatus tone="ok">Saved ✓</SecretStatus>
+    <SecretStatus tone="ok">{t('keys.saved')}</SecretStatus>
   ) : (
-    <SecretStatus tone="muted">No key</SecretStatus>
+    <SecretStatus tone="muted">{t('keys.noKey')}</SecretStatus>
   );
 
   return (
@@ -93,12 +95,12 @@ export const KeySourcePicker = ({
 
       {orgKeys.length > 0 && (
         <SegmentedControl
-          aria-label={`${label} source`}
+          aria-label={t('keys.sourceAria', { label })}
           value={source}
           onChange={pickSource}
           segments={[
-            { value: 'organization', label: 'Organization key', Icon: IconBuilding },
-            { value: 'own', label: 'Own key', Icon: IconLock },
+            { value: 'organization', label: t('keys.organizationKey'), Icon: IconBuilding },
+            { value: 'own', label: t('keys.ownKey'), Icon: IconLock },
           ]}
         />
       )}
@@ -110,7 +112,7 @@ export const KeySourcePicker = ({
               size="sm"
               value={String(organizationApiKeyId)}
               onChange={(e) => onChange({ organizationApiKeyId: Number(e.target.value) })}
-              aria-label="Organization key"
+              aria-label={t('keys.organizationKey')}
               data-testid="org-key-select"
             >
               {orgKeys.map((key) => (
@@ -121,8 +123,12 @@ export const KeySourcePicker = ({
             </Select>
           ) : (
             <p className="text-[11px] text-neutral-600">
-              Uses <strong className="font-medium">{orgKeys[0]?.name}</strong>, managed by your
-              organization.
+              <Trans
+                t={t}
+                i18nKey="keys.usesOrgKey"
+                values={{ name: orgKeys[0]?.name }}
+                components={{ strong: <strong className="font-medium" /> }}
+              />
             </p>
           )}
           <SharedKeyAudience projectIsPublic={projectIsPublic} />
@@ -136,7 +142,11 @@ export const KeySourcePicker = ({
               setValue(next);
               emitOwn(next, confirmed);
             }}
-            placeholder={configured ? 'Paste a new key to replace it' : placeholder}
+            placeholder={
+              configured
+                ? t('keys.replacePlaceholder')
+                : (placeholder ?? t('keys.pastePlaceholder'))
+            }
             status={status}
           />
           {value.trim() && (

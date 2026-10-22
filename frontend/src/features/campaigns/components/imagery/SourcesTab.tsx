@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { IconCheck, IconPlus, IconSettings } from '~/shared/ui/Icons';
 import type { ImageryController } from './controller';
 import { sourceRegistration } from './controller';
@@ -12,6 +13,7 @@ interface SourcesTabProps {
 }
 
 export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
+  const { t } = useTranslation('imagery');
   const [wizardOpen, setWizardOpen] = useState(false);
 
   const sources = controller.state.sources;
@@ -32,14 +34,17 @@ export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
               onClick={() => onEditSource(source.id)}
               title={
                 registration
-                  ? `Click to configure - ${registration.registered} of ${registration.total} slices registered`
-                  : 'Click to configure'
+                  ? t('sources.configureProgress', {
+                      registered: registration.registered,
+                      total: registration.total,
+                    })
+                  : t('sources.configure')
               }
               className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer px-4 py-3 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/10"
             >
               <IconSettings className="absolute inset-0 m-auto w-4 h-4 transition-opacity opacity-0 group-hover:opacity-100 text-brand-600" />
               <span className="text-xs font-medium leading-tight truncate max-w-[120px] transition-opacity group-hover:opacity-0">
-                {source.name || 'Untitled'}
+                {source.name || t('untitled')}
               </span>
               {registration && (
                 <span
@@ -67,7 +72,7 @@ export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
           className="flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 transition-all cursor-pointer px-4 py-3 shrink-0"
         >
           <IconPlus className="w-4 h-4 text-neutral-400" />
-          <span className="text-[11px] text-neutral-500 ml-1">Create source</span>
+          <span className="text-[11px] text-neutral-500 ml-1">{t('sources.create')}</span>
         </button>
       </div>
 
@@ -78,9 +83,12 @@ export const SourcesTab = ({ controller, onEditSource }: SourcesTabProps) => {
         >
           {expiring.map(({ source, expiry }) => (
             <p key={source.id}>
-              The SAS token of <strong>{source.name || 'Untitled'}</strong> {describeExpiry(expiry)}
-              . Once it has expired its imagery stops loading - replace it in the source&apos;s
-              settings.
+              <Trans
+                t={t}
+                i18nKey="sources.sasExpiryWarning"
+                values={{ name: source.name || t('untitled'), expiry: describeExpiry(expiry) }}
+                components={{ strong: <strong /> }}
+              />
             </p>
           ))}
         </div>

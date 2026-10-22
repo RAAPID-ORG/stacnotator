@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal } from '~/shared/ui/Modal';
 import { Button } from '~/shared/ui/forms';
 import { getCollections } from '~/api/client';
@@ -157,17 +158,22 @@ interface AspectSectionProps {
   children: ReactNode;
 }
 
-const AspectSection = ({ title, uniform, count, children }: AspectSectionProps) => (
-  <div className="space-y-2 p-2 rounded border border-neutral-200 bg-white">
-    <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">{title}</h5>
-    {!uniform && (
-      <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-        Differs across {count} collections - applying overwrites all of them with these values.
-      </p>
-    )}
-    {children}
-  </div>
-);
+const AspectSection = ({ title, uniform, count, children }: AspectSectionProps) => {
+  const { t } = useTranslation('imagery');
+  return (
+    <div className="space-y-2 p-2 rounded border border-neutral-200 bg-white">
+      <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
+        {title}
+      </h5>
+      {!uniform && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+          {t('bulk.differs', { count })}
+        </p>
+      )}
+      {children}
+    </div>
+  );
+};
 
 interface BulkApplyModalProps {
   source: ImagerySource;
@@ -235,16 +241,27 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
   );
 };
 
-const modalFooter = (onCancel: () => void, dirty: boolean, onApply: () => void): ReactNode => (
-  <div className="flex justify-end gap-2">
-    <Button variant="secondary" size="sm" onClick={onCancel}>
-      Cancel
-    </Button>
-    <Button variant="primary" size="sm" disabled={!dirty} onClick={onApply}>
-      Apply to all collections
-    </Button>
-  </div>
-);
+const BulkFooter = ({
+  onCancel,
+  dirty,
+  onApply,
+}: {
+  onCancel: () => void;
+  dirty: boolean;
+  onApply: () => void;
+}) => {
+  const { t } = useTranslation(['imagery', 'common']);
+  return (
+    <div className="flex justify-end gap-2">
+      <Button variant="secondary" size="sm" onClick={onCancel}>
+        {t('common:actions.cancel')}
+      </Button>
+      <Button variant="primary" size="sm" disabled={!dirty} onClick={onApply}>
+        {t('bulk.applyAll')}
+      </Button>
+    </div>
+  );
+};
 
 interface VizFocusProps {
   source: ImagerySource;
@@ -269,6 +286,7 @@ const VizFocus = ({
   hasCover,
   onClose,
 }: VizFocusProps) => {
+  const { t } = useTranslation('imagery');
   const regular = getRegularViz(source, name);
   const cover = getCoverViz(source, name);
   const [regularDraft, setRegularDraft] = useState<VizParams>(regular.value);
@@ -287,13 +305,17 @@ const VizFocus = ({
 
   return (
     <Modal
-      title={`Edit “${name}” · all collections`}
+      title={t('bulk.editVizTitle', { name })}
       onClose={onClose}
       maxWidth="max-w-xl"
-      footer={modalFooter(onClose, regularDirty || coverDirty, apply)}
+      footer={<BulkFooter onCancel={onClose} dirty={regularDirty || coverDirty} onApply={apply} />}
     >
       <div className="p-4 space-y-3">
-        <AspectSection title="Regular slices" uniform={regular.uniform} count={regular.count}>
+        <AspectSection
+          title={t('bulk.regularSlices')}
+          uniform={regular.uniform}
+          count={regular.count}
+        >
           <VizConfigPanel
             collectionId={collectionId}
             availableAssets={availableAssets}
@@ -305,7 +327,7 @@ const VizFocus = ({
         </AspectSection>
 
         {hasCover && (
-          <AspectSection title="Cover slice" uniform={cover.uniform} count={cover.count}>
+          <AspectSection title={t('bulk.coverSlice')} uniform={cover.uniform} count={cover.count}>
             <VizConfigPanel
               collectionId={collectionId}
               availableAssets={availableAssets}
@@ -338,6 +360,7 @@ const SearchFocus = ({
   hasCover,
   onClose,
 }: SearchFocusProps) => {
+  const { t } = useTranslation('imagery');
   const regular = getSearch(source);
   const cover = getCoverSearch(source);
   const [regularDraft, setRegularDraft] = useState<SearchValue>(regular.value);
@@ -377,19 +400,23 @@ const SearchFocus = ({
 
   return (
     <Modal
-      title="Search settings · all collections"
+      title={t('bulk.searchTitle')}
       onClose={onClose}
       maxWidth="max-w-xl"
-      footer={modalFooter(onClose, regularDirty || coverDirty, apply)}
+      footer={<BulkFooter onCancel={onClose} dirty={regularDirty || coverDirty} onApply={apply} />}
     >
       <div className="p-4 space-y-3">
-        <AspectSection title="Regular slices" uniform={regular.uniform} count={regular.count}>
-          {renderControls(regularDraft, setRegularDraft, 'Search query')}
+        <AspectSection
+          title={t('bulk.regularSlices')}
+          uniform={regular.uniform}
+          count={regular.count}
+        >
+          {renderControls(regularDraft, setRegularDraft, t('bulk.searchQuery'))}
         </AspectSection>
 
         {hasCover && (
-          <AspectSection title="Cover slice" uniform={cover.uniform} count={cover.count}>
-            {renderControls(coverDraft, setCoverDraft, 'Cover slice search query')}
+          <AspectSection title={t('bulk.coverSlice')} uniform={cover.uniform} count={cover.count}>
+            {renderControls(coverDraft, setCoverDraft, t('coverSearch.queryLabel'))}
           </AspectSection>
         )}
       </div>

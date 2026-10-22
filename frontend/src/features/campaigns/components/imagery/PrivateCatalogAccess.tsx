@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ImageryController } from './controller';
 import { privateCollections, readSasToken, sourceAccessExpiry } from './sasToken';
 import { SasTokenField } from './SasTokenField';
@@ -13,6 +14,7 @@ export const PrivateCatalogAccess = ({
   source: ImagerySource;
   controller: ImageryController;
 }) => {
+  const { t } = useTranslation('imagery');
   const [value, setValue] = useState('');
   const collections = privateCollections(source);
   if (collections.length === 0) return null;
@@ -34,7 +36,7 @@ export const PrivateCatalogAccess = ({
       <SasTokenField
         value={value}
         onChange={replace}
-        placeholder="Paste a new token to replace it"
+        placeholder={t('sasToken.replacePlaceholder')}
         configured
         expiresAt={expiry}
       />

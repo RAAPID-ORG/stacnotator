@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '~/shared/i18n';
 import {
   getProject,
   getProjectOrganizationKeys,
@@ -20,6 +22,7 @@ const TYPING_SETTLES_MS = 250;
 
 /** Pick which Planet key to browse with, shared by both Planet flows. */
 export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps) => {
+  const { t } = useTranslation('imagery');
   const [keys, setKeys] = useState<OrganizationApiKeyOut[]>([]);
   const [choice, setChoice] = useState<ProviderKeyChoice>({ organizationApiKeyId: null });
   const [projectIsPublic, setProjectIsPublic] = useState(false);
@@ -37,7 +40,9 @@ export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps)
         // A shared key is the better default when the organization has one.
         if (items[0]) setChoice({ organizationApiKeyId: items[0].id });
       })
-      .catch((err) => handleError(err, 'Failed to load organization keys', { showUser: false }));
+      .catch((err) =>
+        handleError(err, i18n.t('imagery:keys.loadOrgKeysFailed'), { showUser: false })
+      );
   }, [projectId]);
 
   useEffect(() => {
@@ -45,7 +50,9 @@ export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps)
     // picker still works, one caveat poorer.
     void getProject({ path: { project_id: projectId } })
       .then(({ data }) => setProjectIsPublic(data?.visibility === 'public'))
-      .catch((err) => handleError(err, 'Failed to load project', { showUser: false }));
+      .catch((err) =>
+        handleError(err, i18n.t('imagery:keys.loadProjectFailed'), { showUser: false })
+      );
   }, [projectId]);
 
   useEffect(() => {
@@ -67,18 +74,13 @@ export const PlanetKeyConnect = ({ projectId, onChange }: PlanetKeyConnectProps)
 
   return (
     <KeySourcePicker
-      label="Planet API key"
-      explainer={
-        <>
-          Used to browse Planet and to load its tiles on each annotator&apos;s behalf. The key is
-          encrypted on the server and never reaches their browser.
-        </>
-      }
+      label={t('keys.planetKey')}
+      explainer={t('keys.planetKeyExplainer')}
       orgKeys={keys}
       projectIsPublic={projectIsPublic}
       organizationApiKeyId={choice.organizationApiKeyId}
       apiKey={choice.apiKey}
-      placeholder="Paste your Planet API key"
+      placeholder={t('keys.planetKeyPlaceholder')}
       onChange={setChoice}
     />
   );
