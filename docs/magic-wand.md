@@ -67,13 +67,14 @@ and merged.
 The weights are not in the repository or the bundle.
 
 ```bash
-uv run frontend/scripts/prepare_segmentation_models.py            # -> frontend/public/models/segmentation
+uv run frontend/scripts/prepare_segmentation_models.py            # -> frontend/models/segmentation
 uv run frontend/scripts/prepare_segmentation_models.py /some/dir  # anywhere else
 ```
 
 The script downloads the ONNX exports X-AnyLabeling publishes, quantises SAM 3
 and fixes what onnxruntime-web refuses to load. The dev server serves the
-default output directly. In production, upload the folder to any host that
+default output at the wand's default URL; it is kept out of `public/`, so a
+build never carries the weights. In production, upload the folder to any host that
 serves it with CORS (a storage container works) and build the frontend with
 `VITE_SEGMENTATION_MODELS_URL` pointing at it. If that host is not the app's
 own origin, add it to `connect-src` where the CSP is set (`frontend/default.conf`;

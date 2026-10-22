@@ -6,9 +6,10 @@
 
     uv run frontend/scripts/prepare_segmentation_models.py [OUT_DIR]
 
-OUT_DIR defaults to frontend/public/models/segmentation, which the dev server
-serves as-is. In production, upload the folder anywhere that serves it with
-CORS (a storage container works) and build the frontend with
+OUT_DIR defaults to frontend/models/segmentation, which the dev server serves
+at the wand's default URL. It is kept out of public/ so builds never carry the
+weights: in production, upload the folder anywhere that serves it with CORS (a
+storage container works) and build the frontend with
 VITE_SEGMENTATION_MODELS_URL pointing at it.
 
 Starting from the ONNX exports X-AnyLabeling publishes:
@@ -140,7 +141,7 @@ def shrink_language_encoder(model: onnx.ModelProto) -> onnx.ModelProto:
 
 def main() -> None:
     root = Path(__file__).resolve().parent.parent
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "public/models/segmentation"
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "models/segmentation"
     downloads = out / ".downloads"
 
     sam2 = out / "sam2.1-hiera-tiny"

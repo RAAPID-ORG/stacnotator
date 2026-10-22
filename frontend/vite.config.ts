@@ -1,7 +1,38 @@
+import { createReadStream, statSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
+import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { compression } from 'vite-plugin-compression2';
+
+/**
+ * Serves `models/segmentation` (built by scripts/prepare_segmentation_models.py)
+ * at the magic wand's default URL, in dev only. The weights are hundreds of MB,
+ * so they live outside `public/` and never end up in a build; production points
+ * VITE_SEGMENTATION_MODELS_URL at wherever they are hosted.
+ */
+function segmentationModels(): Plugin {
+  const root = resolve(__dirname, 'models/segmentation');
+  return {
+    name: 'segmentation-models',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/models/segmentation', (req, res, next) => {
+        const file = resolve(root, decodeURIComponent((req.url ?? '').split('?')[0]).slice(1));
+        if (!file.startsWith(root + sep)) return next();
+        try {
+          const { size } = statSync(file);
+          res.setHeader('Content-Length', size);
+          res.setHeader('Content-Type', 'application/octet-stream');
+          createReadStream(file).pipe(res);
+        } catch {
+          next();
+        }
+      });
+    },
+  };
+}
 
 export default defineConfig({
   test: {
@@ -13,6 +44,7 @@ export default defineConfig({
     setupFiles: ['src/test-setup.ts'],
   },
   plugins: [
+    segmentationModels(),
     tailwindcss(),
     tsconfigPaths(),
     compression({ algorithms: ['gzip'], exclude: [/\.(br|gz)$/] }),
