@@ -229,9 +229,17 @@ let tokenizer: Promise<ClipTokenizer> | null = null;
 const languageCache = new Map<string, LanguageFeatures>();
 
 function getTokenizer(): Promise<ClipTokenizer> {
-  tokenizer ??= fetchFiles('text', [SEGMENTATION_MODELS.text.vocabulary!]).then(async ([gz]) => {
-    const stream = new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'));
-    return createClipTokenizer(await new Response(stream).text());
+  tokenizer ??= fetchFiles('text', [SEGMENTATION_MODELS.text.vocabulary!]).then(async ([file]) => {
+    // Hosts that serve .gz with Content-Encoding hand over the text already
+    // inflated, so only gunzip what still starts with the gzip magic bytes.
+    const bytes = new Uint8Array(file);
+    const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b;
+    const text = gzipped
+      ? await new Response(
+          new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
+        ).text()
+      : new TextDecoder().decode(bytes);
+    return createClipTokenizer(text);
   });
   return tokenizer;
 }
