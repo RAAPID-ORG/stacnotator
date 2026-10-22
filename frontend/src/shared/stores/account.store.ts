@@ -3,6 +3,8 @@ import { me, type MeOut } from 'src/api/client';
 import i18n from '~/shared/i18n';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 
+const t = i18n.getFixedT(null, 'common');
+
 type AccountState = {
   account: MeOut | null;
   loading: boolean;
@@ -24,7 +26,7 @@ export const useAccountStore = create<AccountState>((set) => ({
       const { data } = await me();
       set({ account: data, loading: false });
     } catch (e) {
-      set({ loading: false, error: extractErrorMessage(e, i18n.t('common:errors.loadAccount')) });
+      set({ loading: false, error: extractErrorMessage(e, t('errors.loadAccount')) });
     }
   },
 

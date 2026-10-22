@@ -26,6 +26,8 @@ import { usePrefsStore } from './stores/prefs';
 import { forgetTaskActiveMs, readTaskActiveMs } from './taskTiming';
 import { useWorkStore } from './stores/work';
 
+const t = i18n.getFixedT(null, ['annotation', 'common']);
+
 export const DEFAULT_CONFIDENCE = 5;
 
 // ---------------------------------------------------------------------------
@@ -188,7 +190,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
       },
     });
     const result: AnnotationTaskSubmitResponse | undefined = response.data;
-    if (!result) return { kind: 'error', message: i18n.t('annotation:taskActions.submitFailed') };
+    if (!result) return { kind: 'error', message: t('taskActions.submitFailed') };
 
     // Only once the backend has it: a failed submit keeps the time for the retry.
     forgetTaskActiveMs(task.id);
@@ -239,8 +241,7 @@ async function run(options: {
   const { catalog } = campaignState();
   const task = currentTask();
   const { currentUserId } = useCampaignStore.getState();
-  if (!task || !currentUserId)
-    return { kind: 'error', message: i18n.t('annotation:taskActions.noTask') };
+  if (!task || !currentUserId) return { kind: 'error', message: t('taskActions.noTask') };
 
   const work = useWorkStore.getState();
   const outcome = await submitCurrent({
@@ -261,7 +262,7 @@ async function run(options: {
 
   const tasks = useTasksStore.getState();
   if (outcome.kind === 'blocked')
-    alert(i18n.t('annotation:missingRequired', { fields: outcome.missing.join(', ') }), 'error');
+    alert(t('missingRequired', { fields: outcome.missing.join(', ') }), 'error');
   else if (outcome.kind === 'error') alert(outcome.message, 'error');
   else if (outcome.kind === 'submitted') {
     tasks.replaceTask(outcome.task, catalog);
@@ -299,17 +300,17 @@ export async function advance(): Promise<void> {
       },
     });
     if (data?.task) useTasksStore.getState().adoptTask(data.task, catalog);
-    else alert(i18n.t('annotation:taskActions.noneLeft'), 'success');
+    else alert(t('taskActions.noneLeft'), 'success');
   } catch (error) {
-    handleError(error, i18n.t('annotation:taskActions.nextFailed'));
+    handleError(error, t('taskActions.nextFailed'));
   }
 }
 
 const mismatchConfirm = () => ({
-  title: i18n.t('annotation:taskActions.mismatch.title'),
-  description: i18n.t('annotation:taskActions.mismatch.description'),
-  confirmText: i18n.t('annotation:taskActions.mismatch.confirm'),
-  cancelText: i18n.t('annotation:taskActions.mismatch.cancel'),
+  title: t('taskActions.mismatch.title'),
+  description: t('taskActions.mismatch.description'),
+  confirmText: t('taskActions.mismatch.confirm'),
+  cancelText: t('taskActions.mismatch.cancel'),
   isDangerous: true,
 });
 
@@ -331,17 +332,17 @@ async function guarded(body: () => Promise<void>): Promise<void> {
 async function submitWith(isAuthoritative?: boolean): Promise<void> {
   const readiness = currentSubmitReadiness();
   if (!readiness.mayLabel) {
-    alert(i18n.t('annotation:taskActions.notAllowed'), 'error');
+    alert(t('taskActions.notAllowed'), 'error');
     return;
   }
   if (!maySubmitTask(readiness)) return;
 
   if (isAuthoritative) {
     const confirmed = await useGlobalLayoutStore.getState().showConfirmDialog({
-      title: i18n.t('annotation:taskActions.authoritative.title'),
-      description: i18n.t('annotation:taskActions.authoritative.description'),
-      confirmText: i18n.t('annotation:taskActions.authoritative.confirm'),
-      cancelText: i18n.t('common:actions.cancel'),
+      title: t('taskActions.authoritative.title'),
+      description: t('taskActions.authoritative.description'),
+      confirmText: t('taskActions.authoritative.confirm'),
+      cancelText: t('common:actions.cancel'),
       isDangerous: true,
     });
     if (!confirmed) return;
@@ -367,15 +368,15 @@ export const submitAuthoritative = () => submitWith(true);
  *  annotation, which is the record that this user looked and moved on. */
 export async function skipCurrent(): Promise<void> {
   if (!taskLabellingPolicy(currentTask()).mayLabel) {
-    alert(i18n.t('annotation:taskActions.notAllowed'), 'error');
+    alert(t('taskActions.notAllowed'), 'error');
     return;
   }
   if (!usePrefsStore.getState().skipConfirmDisabled) {
     const confirmed = await useGlobalLayoutStore.getState().showConfirmDialog({
-      title: i18n.t('annotation:taskActions.skip.title'),
-      description: i18n.t('annotation:taskActions.skip.description'),
-      confirmText: i18n.t('annotation:taskActions.skip.confirm'),
-      cancelText: i18n.t('common:actions.cancel'),
+      title: t('taskActions.skip.title'),
+      description: t('taskActions.skip.description'),
+      confirmText: t('taskActions.skip.confirm'),
+      cancelText: t('common:actions.cancel'),
       showDontAskAgain: true,
       onDontAskAgain: () => usePrefsStore.getState().setSkipConfirmDisabled(true),
     });

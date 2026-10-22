@@ -1,5 +1,7 @@
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'auth');
+
 /** Username rules, mirroring backend/src/auth/usernames.py so the form can say
  *  what is wrong before asking. The backend stays the authority - it owns
  *  uniqueness, which no client can know. */
@@ -7,12 +9,12 @@ const MIN_LENGTH = 3;
 const MAX_LENGTH = 30;
 const PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
-export const usernameRules = () => i18n.t('auth:username.rules');
+export const usernameRules = () => t('username.rules');
 
 export const usernameError = (username: string): string | null => {
   const value = username.trim();
-  if (value.length < MIN_LENGTH) return i18n.t('auth:username.tooShort', { min: MIN_LENGTH });
-  if (value.length > MAX_LENGTH) return i18n.t('auth:username.tooLong', { max: MAX_LENGTH });
+  if (value.length < MIN_LENGTH) return t('username.tooShort', { min: MIN_LENGTH });
+  if (value.length > MAX_LENGTH) return t('username.tooLong', { max: MAX_LENGTH });
   if (!PATTERN.test(value)) return usernameRules();
   return null;
 };

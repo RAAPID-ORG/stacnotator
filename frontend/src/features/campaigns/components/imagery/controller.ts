@@ -26,6 +26,8 @@ import type {
   ImageryGenerationConfig,
 } from './types';
 
+const t = i18n.getFixedT(null, 'imagery');
+
 export type ControllerMode = 'draft' | 'persisted';
 
 export interface ImageryController {
@@ -473,10 +475,10 @@ export function usePersistedController({
     // about to exist for the first time.
     if (stateRef.current.sources.some((source) => !isRealId(source.id))) {
       const ok = await useLayoutStore.getState().showConfirmDialog({
-        title: i18n.t('imagery:controller.offCanvas.title'),
+        title: t('controller.offCanvas.title'),
         isWarning: true,
-        description: i18n.t('imagery:controller.offCanvas.description'),
-        confirmText: i18n.t('imagery:controller.offCanvas.confirm'),
+        description: t('controller.offCanvas.description'),
+        confirmText: t('controller.offCanvas.confirm'),
       });
       if (!ok) return;
     }
@@ -496,7 +498,7 @@ export function usePersistedController({
         }
       }, 5000);
     } catch (e) {
-      handleError(e, i18n.t('imagery:controller.saveFailed'));
+      handleError(e, t('controller.saveFailed'));
       refetch?.();
       setPending(false);
       throw e;
@@ -570,8 +572,8 @@ export function usePersistedController({
         // server-side, so unsaved edits would be ignored and confuse the result.
         if (isDirty) {
           handleError(
-            new Error(i18n.t('imagery:controller.saveBeforeReregister')),
-            i18n.t('imagery:controller.cannotReregister')
+            new Error(t('controller.saveBeforeReregister')),
+            t('controller.cannotReregister')
           );
           return;
         }
@@ -582,7 +584,7 @@ export function usePersistedController({
           });
           refetch?.();
         } catch (e) {
-          handleError(e, i18n.t('imagery:controller.reregisterFailed'));
+          handleError(e, t('controller.reregisterFailed'));
         } finally {
           setPending(false);
         }
@@ -593,10 +595,7 @@ export function usePersistedController({
         // mosaic) and operates against persisted state. Block when dirty so it
         // doesn't run against a stale config - user must Save first.
         if (isDirty) {
-          handleError(
-            new Error(i18n.t('imagery:controller.saveBeforeRefresh')),
-            i18n.t('imagery:controller.cannotRefresh')
-          );
+          handleError(new Error(t('controller.saveBeforeRefresh')), t('controller.cannotRefresh'));
           return;
         }
         setPending(true);
@@ -606,7 +605,7 @@ export function usePersistedController({
           });
           refetch?.();
         } catch (e) {
-          handleError(e, i18n.t('imagery:controller.refreshFailed'));
+          handleError(e, t('controller.refreshFailed'));
         } finally {
           setPending(false);
         }

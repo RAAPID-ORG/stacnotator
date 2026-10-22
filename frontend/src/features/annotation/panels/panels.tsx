@@ -17,6 +17,8 @@ import { useImageryStore } from '../stores/imagery';
 import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'panels');
+
 export const MAIN_MAP_PANEL = 'main';
 export const MINIMAP_PANEL = 'minimap';
 /** Both modes' controls resolve to the same grid slot. */
@@ -90,14 +92,14 @@ export function buildPanels({
       ? {
           id: CONTROLS_PANEL,
           role: 'task-work',
-          title: i18n.t('panels:titles.task'),
+          title: t('titles.task'),
           header: <TaskClaimBadge />,
           body: <TaskControls />,
         }
       : {
           id: CONTROLS_PANEL,
           role: 'explore-work',
-          title: i18n.t('panels:titles.controls'),
+          title: t('titles.controls'),
           body: <ExploreControls />,
         },
   ];
@@ -106,7 +108,7 @@ export function buildPanels({
     panels.push({
       id: 'timeline',
       role: 'imagery-timeline',
-      title: i18n.t('panels:titles.timeline'),
+      title: t('titles.timeline'),
       headerless: true,
       hideTarget: true,
       body: <Timeline orientation={layout.main.timeline.orientation ?? 'vertical'} />,
@@ -116,7 +118,7 @@ export function buildPanels({
     panels.push({
       id: 'imagery',
       role: 'imagery-controls',
-      title: i18n.t('panels:titles.imagery'),
+      title: t('titles.imagery'),
       body: (
         <div className="h-full overflow-auto p-1">
           <ImageryControls detached orientation={layout.main.imagery.orientation ?? 'horizontal'} />

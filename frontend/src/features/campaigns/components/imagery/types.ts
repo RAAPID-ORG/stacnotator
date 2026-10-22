@@ -1,6 +1,8 @@
 import i18n from '~/shared/i18n';
 import type { PlanetScenesGenerationConfigV1 } from '~/api/client';
 
+const t = i18n.getFixedT(null, 'imagery');
+
 export interface VisualizationOption {
   name: string;
 }
@@ -279,10 +281,10 @@ export function swap<T>(arr: T[], i: number, j: number): T[] {
 
 /** Date-range summary string for a collection's slices */
 export function sliceDateRange(slices: ImagerySlice[]): string {
-  if (slices.length === 0) return i18n.t('imagery:slices.none');
+  if (slices.length === 0) return t('slices.none');
   const sorted = [...slices].sort((a, b) => a.startDate.localeCompare(b.startDate));
   const first = sorted[0].startDate;
   const last = sorted[sorted.length - 1].endDate;
-  if (!first || !last) return i18n.t('imagery:planet.slices', { count: slices.length });
+  if (!first || !last) return t('planet.slices', { count: slices.length });
   return `${first} - ${last}`;
 }

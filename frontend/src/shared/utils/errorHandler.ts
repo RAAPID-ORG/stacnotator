@@ -1,6 +1,8 @@
 import i18n from '~/shared/i18n';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 
+const t = i18n.getFixedT(null, 'common');
+
 export type AlertType = 'success' | 'error' | 'warning' | 'info';
 
 export interface HandleErrorOptions {
@@ -36,7 +38,7 @@ export const isNetworkError = (err: unknown): boolean => {
 
 const extractBaseMessage = (err: unknown, fallback: string): string => {
   if (isNetworkError(err)) {
-    return i18n.t('common:errors.unreachable');
+    return t('errors.unreachable');
   }
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
@@ -67,15 +69,10 @@ const extractBaseMessage = (err: unknown, fallback: string): string => {
  * If the backend includes a `request_id`, appends an 8-char prefix as a
  * support reference. Falls back to `fallback` for anything else.
  */
-export const extractErrorMessage = (
-  err: unknown,
-  fallback = i18n.t('common:errors.generic')
-): string => {
+export const extractErrorMessage = (err: unknown, fallback = t('errors.generic')): string => {
   const base = extractBaseMessage(err, fallback);
   const requestId = extractRequestId(err);
-  return requestId
-    ? i18n.t('common:errors.withRef', { message: base, ref: requestId.slice(0, 8) })
-    : base;
+  return requestId ? t('errors.withRef', { message: base, ref: requestId.slice(0, 8) }) : base;
 };
 
 /**

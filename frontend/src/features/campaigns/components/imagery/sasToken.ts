@@ -1,6 +1,8 @@
 import i18n from '~/shared/i18n';
 import type { CollectionItem, ImagerySource, StacBrowserCollectionData } from './types';
 
+const t = i18n.getFixedT(null, 'imagery');
+
 /** Reading an Azure SAS token the admin pastes for a private catalog, so the form can say
  *  straight away whether it will be accepted and when it runs out. The server checks the
  *  same rules again; this is only the immediate feedback. */
@@ -11,26 +13,26 @@ const READ_ONLY = new Set(['r', 'l']);
 
 export function readSasToken(raw: string, now = new Date()): SasReading {
   const token = raw.trim().replace(/^\?/, '');
-  if (token.includes('://')) return { error: i18n.t('imagery:sasToken.errors.url') };
+  if (token.includes('://')) return { error: t('sasToken.errors.url') };
   const params = new URLSearchParams(token);
-  if (!params.get('sig')) return { error: i18n.t('imagery:sasToken.errors.noSignature') };
+  if (!params.get('sig')) return { error: t('sasToken.errors.noSignature') };
   if (params.has('ss') || params.has('srt')) {
-    return { error: i18n.t('imagery:sasToken.errors.accountSas') };
+    return { error: t('sasToken.errors.accountSas') };
   }
   const permissions = [...(params.get('sp') ?? '')];
   if (!permissions.length || permissions.some((p) => !READ_ONLY.has(p))) {
-    return { error: i18n.t('imagery:sasToken.errors.notReadOnly') };
+    return { error: t('sasToken.errors.notReadOnly') };
   }
   if ((params.get('spr') ?? 'https') !== 'https') {
-    return { error: i18n.t('imagery:sasToken.errors.notHttps') };
+    return { error: t('sasToken.errors.notHttps') };
   }
   const expiry = params.get('se');
-  if (!expiry) return { error: i18n.t('imagery:sasToken.errors.noExpiry') };
+  if (!expiry) return { error: t('sasToken.errors.noExpiry') };
   const expiresAt = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(expiry) ? expiry : `${expiry}Z`);
   if (Number.isNaN(expiresAt.getTime())) {
-    return { error: i18n.t('imagery:sasToken.errors.invalidExpiry') };
+    return { error: t('sasToken.errors.invalidExpiry') };
   }
-  if (expiresAt <= now) return { error: i18n.t('imagery:sasToken.errors.expired') };
+  if (expiresAt <= now) return { error: t('sasToken.errors.expired') };
   return { token, expiresAt };
 }
 
@@ -50,13 +52,10 @@ export function describeExpiry(expiresAt: Date | string, now = new Date()): stri
     month: 'short',
     year: 'numeric',
   });
-  if (date <= now) return i18n.t('imagery:sasToken.expired', { date: label });
+  if (date <= now) return t('sasToken.expired', { date: label });
   const days = daysUntil(date, now);
-  const left =
-    days < 1
-      ? i18n.t('imagery:sasToken.today')
-      : i18n.t('imagery:sasToken.inDays', { count: days });
-  return i18n.t('imagery:sasToken.expires', { date: label, left });
+  const left = days < 1 ? t('sasToken.today') : t('sasToken.inDays', { count: days });
+  return t('sasToken.expires', { date: label, left });
 }
 
 export function expiresSoon(expiresAt: Date | string | null | undefined, now = new Date()) {

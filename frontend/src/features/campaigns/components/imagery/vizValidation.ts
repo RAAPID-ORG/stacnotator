@@ -1,5 +1,7 @@
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'imagery');
+
 /**
  * rio-color color_formula syntax: comma-separated ops, each `<op> [bands] <args>`.
  *   gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55
@@ -55,7 +57,7 @@ export function validateColorFormula(input: string): string | null {
     const tokens = op.split(/\s+/);
     const name = tokens[0]?.toLowerCase() as OpName;
     if (!OP_NAMES.includes(name)) {
-      return i18n.t('imagery:colorFormula.unknownOp', {
+      return t('colorFormula.unknownOp', {
         op: tokens[0],
         supported: OP_NAMES.join(', '),
       });
@@ -65,7 +67,7 @@ export function validateColorFormula(input: string): string | null {
     const got = tokens.length - 1;
     if (got !== expected) {
       const bandsHint = sig.bands ? '<bands> ' : '';
-      return i18n.t('imagery:colorFormula.argCount', {
+      return t('colorFormula.argCount', {
         name,
         bands: bandsHint,
         count: sig.args,
@@ -73,11 +75,11 @@ export function validateColorFormula(input: string): string | null {
       });
     }
     if (sig.bands && !/^[RGBrgb]+$/.test(tokens[1])) {
-      return i18n.t('imagery:colorFormula.bands', { name, got: tokens[1] });
+      return t('colorFormula.bands', { name, got: tokens[1] });
     }
     for (let i = sig.bands ? 2 : 1; i < tokens.length; i++) {
       if (!Number.isFinite(Number(tokens[i]))) {
-        return i18n.t('imagery:colorFormula.notNumber', { name, index: i, got: tokens[i] });
+        return t('colorFormula.notNumber', { name, index: i, got: tokens[i] });
       }
     }
   }

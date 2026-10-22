@@ -13,6 +13,8 @@ import type {
   VisualizationTemplateOut,
 } from '~/api/client';
 
+const t = i18n.getFixedT(null, 'annotation');
+
 export type Bbox = [number, number, number, number];
 
 /** Indexed view over a campaign's imagery, built once per load so navigation
@@ -240,9 +242,7 @@ export function sliceDateRange(slice: {
 }
 
 export function sliceLabel(slice: ImagerySliceOut, index: number): string {
-  return (
-    slice.name || sliceDateRange(slice) || i18n.t('annotation:sliceFallback', { number: index + 1 })
-  );
+  return slice.name || sliceDateRange(slice) || t('sliceFallback', { number: index + 1 });
 }
 
 /** Custom maps the map can actually draw. Registration is asynchronous, so a

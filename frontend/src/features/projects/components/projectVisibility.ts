@@ -1,6 +1,8 @@
 import type { ProjectOut } from '~/api/client';
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'projects');
+
 export type ProjectVisibility = ProjectOut['visibility'];
 
 export interface VisibilityConfirm {
@@ -22,20 +24,20 @@ export const visibilityConfirm = (
   if (next === current) return null;
   if (next === 'public') {
     return {
-      title: i18n.t('projects:visibility.makePublicTitle'),
-      description: i18n.t('projects:visibility.makePublicWarning'),
-      confirmText: i18n.t('projects:visibility.makePublic'),
+      title: t('visibility.makePublicTitle'),
+      description: t('visibility.makePublicWarning'),
+      confirmText: t('visibility.makePublic'),
       isDangerous: false,
     };
   }
   if (current === 'public') {
     return {
-      title: i18n.t('projects:visibility.leavePublicTitle'),
-      description: i18n.t('projects:visibility.leavePublicWarning'),
+      title: t('visibility.leavePublicTitle'),
+      description: t('visibility.leavePublicWarning'),
       confirmText:
         next === 'organization'
-          ? i18n.t('projects:visibility.restrictToOrganization')
-          : i18n.t('projects:visibility.makePrivate'),
+          ? t('visibility.restrictToOrganization')
+          : t('visibility.makePrivate'),
       isDangerous: true,
     };
   }

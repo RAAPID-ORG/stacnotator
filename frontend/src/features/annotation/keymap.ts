@@ -40,6 +40,8 @@ import {
   DEFAULT_CONFIDENCE,
 } from './taskActions';
 
+const t = i18n.getFixedT(null, 'annotation');
+
 const alert = (message: string, kind: 'error' | 'success') =>
   useGlobalLayoutStore.getState().showAlert(message, kind);
 
@@ -211,7 +213,7 @@ function formFieldBindings(): Binding[] {
     ...DIGITS.map(
       (digit, index): Binding => ({
         key: digit,
-        help: index === 0 ? i18n.t('annotation:keymap.answerField') : undefined,
+        help: index === 0 ? t('keymap.answerField') : undefined,
         helpKey: index === 0 ? '0-9' : undefined,
         when: () => activeFormField() !== undefined,
         run: runFormKey,
@@ -224,21 +226,21 @@ function formFieldBindings(): Binding[] {
     // toolbar and panel buttons, which then answer Enter and Space.
     {
       key: 'tab',
-      help: i18n.t('annotation:keymap.cycleFields'),
+      help: t('keymap.cycleFields'),
       allowInInput: true,
       when: formKeysApply,
       run: runFormKey,
     },
     {
       key: 'shift+tab',
-      help: i18n.t('annotation:keymap.cycleFieldsBack'),
+      help: t('keymap.cycleFieldsBack'),
       allowInInput: true,
       when: formKeysApply,
       run: runFormKey,
     },
     {
       key: 'escape',
-      help: i18n.t('annotation:keymap.unfocusField'),
+      help: t('keymap.unfocusField'),
       allowInInput: true,
       // The comment box is focused by its own 'c' binding and has no other way
       // out, so Escape blurs it too - otherwise every key stays swallowed by
@@ -251,7 +253,7 @@ function formFieldBindings(): Binding[] {
     },
     {
       key: 'enter',
-      help: i18n.t('annotation:keymap.focusField'),
+      help: t('keymap.focusField'),
       when: () => {
         const field = activeFormField();
         return field !== undefined && field.type !== 'category' && field.type !== 'multicategory';
@@ -269,20 +271,20 @@ function editBindings(): Binding[] {
   const hasSelection = () => useWorkStore.getState().selection.length > 0;
   const del: Binding = {
     key: 'delete',
-    help: i18n.t('annotation:keymap.deleteSelection'),
+    help: t('keymap.deleteSelection'),
     when: hasSelection,
     run: () => void deleteSelection(),
   };
   return [
     {
       key: 'enter',
-      help: i18n.t('annotation:keymap.saveEdit'),
+      help: t('keymap.saveEdit'),
       when: () => useWorkStore.getState().edit?.pending != null,
       run: () => void commitEdit(),
     },
     {
       key: 'escape',
-      help: i18n.t('annotation:keymap.cancelEdit'),
+      help: t('keymap.cancelEdit'),
       when: hasSelection,
       run: () => useWorkStore.getState().clearEdit(),
     },
@@ -312,7 +314,7 @@ function exploreBindings(): Binding[] {
 
   const toolBinding = ({ key, tool }: (typeof TOOL_KEYS)[number]): Binding => ({
     key,
-    help: i18n.t(`annotation:keymap.tools.${tool}`),
+    help: t(`keymap.tools.${tool}`),
     when: () => {
       if (tool === 'timeseries') return hasTimeseries;
       if (tool === 'labelVector') return hasVectorLayers;
@@ -327,7 +329,7 @@ function exploreBindings(): Binding[] {
   const labelCount = Math.min(labels.length, 9);
   const digitBinding = (index: number): Binding => ({
     key: String(index + 1),
-    help: index === 0 ? i18n.t('annotation:keymap.selectLabel') : undefined,
+    help: index === 0 ? t('keymap.selectLabel') : undefined,
     helpKey: index === 0 ? `1-${labelCount}` : undefined,
     when: () => !draftIsOpen(),
     run: () => {
@@ -341,7 +343,7 @@ function exploreBindings(): Binding[] {
     ...Array.from({ length: labelCount }, (_, i) => digitBinding(i)),
     {
       key: 'f',
-      help: i18n.t('annotation:keymap.flagSelected'),
+      help: t('keymap.flagSelected'),
       when: () => useWorkStore.getState().edit !== null,
       run: () => {
         const edit = useWorkStore.getState().edit;
@@ -353,7 +355,7 @@ function exploreBindings(): Binding[] {
     },
     {
       key: 'enter',
-      help: i18n.t('annotation:keymap.saveDraft'),
+      help: t('keymap.saveDraft'),
       // Reachable from inside a field too: answering the last question and
       // pressing Enter is how a draft gets finished, without reaching for
       // Escape first.
@@ -366,7 +368,7 @@ function exploreBindings(): Binding[] {
           .commitDraft()
           .then((saved) => {
             if (!saved) {
-              alert(i18n.t('annotation:keymap.saveDraftFailed'), 'error');
+              alert(t('keymap.saveDraftFailed'), 'error');
             }
           });
       },
@@ -374,8 +376,8 @@ function exploreBindings(): Binding[] {
     {
       key: 'escape',
       help: (campaign.settings.form_fields ?? []).some((f) => f.required)
-        ? i18n.t('annotation:keymap.closeDraft')
-        : i18n.t('annotation:keymap.closeQuestions'),
+        ? t('keymap.closeDraft')
+        : t('keymap.closeQuestions'),
       when: draftIsOpen,
       run: () => void useWorkStore.getState().closeDraft(),
     },
@@ -405,9 +407,7 @@ function taskBindings(): Binding[] {
   const digits =
     labels.length >= 10 ? DIGITS : Array.from({ length: labels.length }, (_, i) => String(i + 1));
   const labelHelp =
-    labels.length >= 10
-      ? i18n.t('annotation:keymap.selectLabelTwoDigits')
-      : i18n.t('annotation:keymap.selectLabel');
+    labels.length >= 10 ? t('keymap.selectLabelTwoDigits') : t('keymap.selectLabel');
 
   return [
     ...digits.map(
@@ -423,7 +423,7 @@ function taskBindings(): Binding[] {
     ...([1, 2, 3, 4, 5] as const).map(
       (level): Binding => ({
         key: `shift+${level}`,
-        help: level === 1 ? i18n.t('annotation:keymap.setConfidence') : undefined,
+        help: level === 1 ? t('keymap.setConfidence') : undefined,
         helpKey: level === 1 ? 'Shift+1-5' : undefined,
         run: () => {
           useWorkStore.getState().setConfidence(level);
@@ -434,28 +434,28 @@ function taskBindings(): Binding[] {
 
     {
       key: 'w',
-      help: i18n.t('annotation:keymap.previousTask'),
+      help: t('keymap.previousTask'),
       run: () => useTasksStore.getState().previous(catalog),
     },
-    { key: 's', help: i18n.t('annotation:keymap.nextTask'), run: () => void advance() },
+    { key: 's', help: t('keymap.nextTask'), run: () => void advance() },
     {
       key: 'q',
-      help: i18n.t('annotation:keymap.decreaseConfidence'),
+      help: t('keymap.decreaseConfidence'),
       run: () => adjustConfidence(-1),
     },
     {
       key: 'e',
-      help: i18n.t('annotation:keymap.increaseConfidence'),
+      help: t('keymap.increaseConfidence'),
       run: () => adjustConfidence(1),
     },
     {
       key: 'c',
-      help: i18n.t('annotation:keymap.focusComment'),
+      help: t('keymap.focusComment'),
       run: () => revealAndFocus(document.querySelector('[data-task-comment]'), commentBox()),
     },
     {
       key: 'f',
-      help: i18n.t('annotation:keymap.toggleFlag'),
+      help: t('keymap.toggleFlag'),
       run: () => {
         const work = useWorkStore.getState();
         work.setFlagged(!work.flagged);
@@ -463,11 +463,9 @@ function taskBindings(): Binding[] {
     },
     {
       key: 'enter',
-      help: i18n.t('annotation:keymap.submit'),
+      help: t('keymap.submit'),
       run: () => {
-        void submitAnnotation().catch((error) =>
-          handleError(error, i18n.t('annotation:keymap.submitFailed'))
-        );
+        void submitAnnotation().catch((error) => handleError(error, t('keymap.submitFailed')));
       },
     },
   ];
@@ -517,7 +515,7 @@ function mapBindings(): Binding[] {
       ? [
           {
             key: 't',
-            help: i18n.t('annotation:keymap.probeTool'),
+            help: t('keymap.probeTool'),
             run: () => useWorkStore.getState().toggleProbeTool(),
           },
         ]
@@ -530,7 +528,7 @@ function mapBindings(): Binding[] {
       ? [
           {
             key: 'shift+t',
-            help: i18n.t('annotation:keymap.addProbe'),
+            help: t('keymap.addProbe'),
             run: () => useWorkStore.getState().armAddProbe(true),
           },
         ]
@@ -538,69 +536,62 @@ function mapBindings(): Binding[] {
 
   return [
     ...addProbe,
-    scrub('a', i18n.t('annotation:keymap.previousSlice'), () =>
-      imagery().stepSliceAction(catalog, -1)
-    ),
-    scrub('d', i18n.t('annotation:keymap.nextSlice'), () => imagery().stepSliceAction(catalog, 1)),
-    scrub('shift+a', i18n.t('annotation:keymap.previousCollection'), () =>
+    scrub('a', t('keymap.previousSlice'), () => imagery().stepSliceAction(catalog, -1)),
+    scrub('d', t('keymap.nextSlice'), () => imagery().stepSliceAction(catalog, 1)),
+    scrub('shift+a', t('keymap.previousCollection'), () =>
       imagery().stepCollectionAction(catalog, -1)
     ),
-    scrub('shift+d', i18n.t('annotation:keymap.nextCollection'), () =>
-      imagery().stepCollectionAction(catalog, 1)
-    ),
+    scrub('shift+d', t('keymap.nextCollection'), () => imagery().stepCollectionAction(catalog, 1)),
 
-    { key: 'i', help: i18n.t('annotation:keymap.cycleSource'), run: () => cycleSource(1) },
+    { key: 'i', help: t('keymap.cycleSource'), run: () => cycleSource(1) },
     {
       key: 'shift+i',
-      help: i18n.t('annotation:keymap.cycleVisualization'),
+      help: t('keymap.cycleVisualization'),
       run: () => imagery().cycleVizAction(catalog, 1),
     },
 
     {
       key: 'o',
-      help: i18n.t('annotation:keymap.toggleOverlay'),
+      help: t('keymap.toggleOverlay'),
       run: () => imagery().overlayAction(overlays(), 'toggle'),
     },
     {
       key: 'shift+o',
-      help: i18n.t('annotation:keymap.cycleOverlays'),
+      help: t('keymap.cycleOverlays'),
       run: () => imagery().overlayAction(overlays(), 'cycle'),
     },
 
     {
       key: 'v',
-      help: i18n.t('annotation:keymap.toggleVector'),
+      help: t('keymap.toggleVector'),
       when: hasVectorLayers,
       run: () => imagery().vectorAction(vectorLayers(), 'toggle'),
     },
     {
       key: 'shift+v',
-      help: i18n.t('annotation:keymap.cycleVectors'),
+      help: t('keymap.cycleVectors'),
       when: hasVectorLayers,
       run: () => imagery().vectorAction(vectorLayers(), 'cycle'),
     },
 
     ...probeTool,
 
-    { key: 'u', help: i18n.t('annotation:keymap.cycleView'), run: cycleView },
+    { key: 'u', help: t('keymap.cycleView'), run: cycleView },
     {
       // Both modes, one key: switching is the same idea from either side.
       key: 'm',
-      help:
-        workMode === 'tasks'
-          ? i18n.t('annotation:keymap.switchToExplore')
-          : i18n.t('annotation:keymap.switchToTasks'),
+      help: workMode === 'tasks' ? t('keymap.switchToExplore') : t('keymap.switchToTasks'),
       when: () => canEnterMode(workMode === 'tasks' ? 'explore' : 'tasks'),
       run: () => void switchWorkMode(workMode === 'tasks' ? 'explore' : 'tasks'),
     },
     {
       key: 'l',
-      help: i18n.t('annotation:keymap.toggleViewLink'),
+      help: t('keymap.toggleViewLink'),
       run: () => imagery().toggleViewSync(),
     },
     {
       key: 'shift+c',
-      help: i18n.t('annotation:keymap.commentImagery'),
+      help: t('keymap.commentImagery'),
       run: () => {
         const { address } = imagery();
         if (address) useWorkStore.getState().openSliceComment(address);
@@ -609,48 +600,48 @@ function mapBindings(): Binding[] {
 
     {
       key: 'x',
-      help: i18n.t('annotation:keymap.toggleCrosshair'),
+      help: t('keymap.toggleCrosshair'),
       run: () => imagery().toggleCrosshair(),
     },
     {
       key: 'shift+x',
-      help: i18n.t('annotation:keymap.toggleAnnotations'),
+      help: t('keymap.toggleAnnotations'),
       run: () => imagery().toggleAnnotations(),
     },
 
     {
       key: 'arrowup',
-      help: i18n.t('annotation:keymap.panUp'),
+      help: t('keymap.panUp'),
       allowRepeat: true,
       run: () => pan('up'),
     },
     {
       key: 'arrowdown',
-      help: i18n.t('annotation:keymap.panDown'),
+      help: t('keymap.panDown'),
       allowRepeat: true,
       run: () => pan('down'),
     },
     {
       key: 'arrowleft',
-      help: i18n.t('annotation:keymap.panLeft'),
+      help: t('keymap.panLeft'),
       allowRepeat: true,
       run: () => pan('left'),
     },
     {
       key: 'arrowright',
-      help: i18n.t('annotation:keymap.panRight'),
+      help: t('keymap.panRight'),
       allowRepeat: true,
       run: () => pan('right'),
     },
     {
       key: 'alt+arrowup',
-      help: i18n.t('annotation:keymap.zoomIn'),
+      help: t('keymap.zoomIn'),
       allowRepeat: true,
       run: () => zoom(1),
     },
     {
       key: 'alt+arrowdown',
-      help: i18n.t('annotation:keymap.zoomOut'),
+      help: t('keymap.zoomOut'),
       allowRepeat: true,
       run: () => zoom(-1),
     },
@@ -659,7 +650,7 @@ function mapBindings(): Binding[] {
       key: ' ',
       // One key, two meanings, so the help carries both rather than a panel
       // keeping a second copy of the rule.
-      help: i18n.t('annotation:keymap.recenter'),
+      help: t('keymap.recenter'),
       run: () => {
         if (workMode === 'tasks') {
           const focus = useTasksStore.getState().focus;
@@ -706,9 +697,7 @@ export async function switchWorkMode(mode: WorkMode): Promise<void> {
 
   const outcome = await useWorkStore.getState().closeDraft();
   if (outcome === 'save-failed') {
-    useGlobalLayoutStore
-      .getState()
-      .showAlert(i18n.t('annotation:keymap.switchSaveFailed'), 'error');
+    useGlobalLayoutStore.getState().showAlert(t('keymap.switchSaveFailed'), 'error');
     return;
   }
   const campaignStore = useCampaignStore.getState();

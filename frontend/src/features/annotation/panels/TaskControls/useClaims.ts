@@ -4,6 +4,8 @@ import { claimAnnotationTask, type AnnotationTaskOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 import { getActiveClaim, isClaimable } from '../../campaign/tasks';
 
+const t = i18n.getFixedT(null, 'panels');
+
 export const CLAIM_RENEW_MS = 10 * 60 * 1000;
 
 export interface ClaimTaskParams {
@@ -67,7 +69,7 @@ export function useClaims(options: UseClaimsOptions): void {
       try {
         updated = await claimTask({ campaignId, task, currentUserId, now: Date.now() });
       } catch (error) {
-        if (!cancelled) handleError(error, i18n.t('panels:task.claimFailed'));
+        if (!cancelled) handleError(error, t('task.claimFailed'));
         return;
       }
       if (cancelled || !updated) return;

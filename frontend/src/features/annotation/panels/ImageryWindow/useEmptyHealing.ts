@@ -10,6 +10,8 @@ import { addressAtSlice, sliceNavIndices } from '../../campaign/imageryNav';
 import { ensureTilerSession } from '~/api/tilerToken';
 import type { LonLat } from '~/shared/map/types';
 
+const t = i18n.getFixedT(null, 'panels');
+
 export interface ProbeCandidate {
   index: number;
   label: string;
@@ -101,7 +103,7 @@ export function candidateOrder(
 }
 
 function candidateLabel(collection: ImageryCollectionOut, index: number): string {
-  return collection.slices[index]?.name || i18n.t('panels:imageryWindow.slice', { n: index + 1 });
+  return collection.slices[index]?.name || t('imageryWindow.slice', { n: index + 1 });
 }
 
 /**

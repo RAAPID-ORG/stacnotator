@@ -1,6 +1,8 @@
 import type { TilerOption } from '~/api/client';
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'imagery');
+
 /** Temporal compositing methods, in the order the wizard offers them. MPC's own tile
  *  endpoint only ever returns the first valid pixel; everything past it is computed by a
  *  self-hosted titiler-pgstac tiler, so it needs one that can serve the catalog. */
@@ -32,12 +34,16 @@ export const servingTiler = (
   pinned: string | null | undefined,
   tilers: TilerOption[]
 ): TilerOption | undefined => {
-  const hosted = tilers.filter((t) => t.kind === 'hosted');
-  const own = hosted.find((t) => t.stac_url && originOf(t.stac_url) === originOf(catalogUrl));
+  const hosted = tilers.filter((tiler) => tiler.kind === 'hosted');
+  const own = hosted.find(
+    (tiler) => tiler.stac_url && originOf(tiler.stac_url) === originOf(catalogUrl)
+  );
   if (own) return own;
-  const ingesting = hosted.filter((t) => t.allows_ingest);
+  const ingesting = hosted.filter((tiler) => tiler.allows_ingest);
   return (
-    ingesting.find((t) => t.name === pinned) ?? ingesting.find((t) => t.is_default) ?? ingesting[0]
+    ingesting.find((tiler) => tiler.name === pinned) ??
+    ingesting.find((tiler) => tiler.is_default) ??
+    ingesting[0]
   );
 };
 
@@ -45,4 +51,4 @@ export const servingTiler = (
 export const compositingMethods = (tiler: TilerOption | undefined): string[] =>
   tiler ? COMPOSITING_METHODS.map((m) => m.value) : FIRST_VALID_ONLY;
 
-export const noTilerNote = () => i18n.t('imagery:tiler.noTilerNote');
+export const noTilerNote = () => t('tiler.noTilerNote');

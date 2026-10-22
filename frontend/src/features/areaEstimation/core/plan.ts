@@ -32,6 +32,8 @@ import {
   type PriorSourceId,
 } from './guidance';
 
+const t = i18n.getFixedT(null, 'areaEstimation');
+
 /** How named areas of interest are reported on. */
 export type DomainMode = 'combined' | 'per_area';
 
@@ -220,7 +222,7 @@ export const WHOLE_MAP_AREA_ID = 'whole-map';
 export const reportingAreas = (plan: AreaEstimationPlan): StudyArea[] =>
   plan.areas.length > 0
     ? plan.areas
-    : [{ id: WHOLE_MAP_AREA_ID, name: i18n.t('areaEstimation:names.wholeMap'), featureCount: 1 }];
+    : [{ id: WHOLE_MAP_AREA_ID, name: t('names.wholeMap'), featureCount: 1 }];
 
 /** Pixels the census counted for a set of map values, across every area. */
 export const pixelsFor = (plan: AreaEstimationPlan, values: readonly number[]): number =>
@@ -243,7 +245,7 @@ export const domainsOf = (plan: AreaEstimationPlan): Domain[] => {
       : [
           {
             id: 'all',
-            name: i18n.t('areaEstimation:names.wholeStudyArea'),
+            name: t('names.wholeStudyArea'),
             areaIds: areas.map((a) => a.id),
           },
         ];
@@ -261,7 +263,7 @@ export const domainsOf = (plan: AreaEstimationPlan): Domain[] => {
       strata.push({
         id: stratumId(group.id, NO_DATA_CLASS_ID),
         classId: NO_DATA_CLASS_ID,
-        className: i18n.t('areaEstimation:names.nodata'),
+        className: t('names.nodata'),
         isNoData: true,
         pixelCount: countPixels(plan.census, group.areaIds, plan.noDataValues),
         targetShare: 0,
@@ -465,7 +467,7 @@ export const PLAN_STEPS: PlanStep[] = ['data', 'classes', 'prior', 'design'];
 export const validatePlan = (plan: AreaEstimationPlan): StepIssue[] => {
   const issues: StepIssue[] = [];
   const add = (step: PlanStep, issue: keyof (typeof messages)['issues']) =>
-    issues.push({ step, message: i18n.t(`areaEstimation:issues.${issue}`) });
+    issues.push({ step, message: t(`issues.${issue}`) });
 
   if (!plan.raster) add('data', 'addMap');
   if (!plan.equalAreaCrs.trim()) add('data', 'chooseCrs');

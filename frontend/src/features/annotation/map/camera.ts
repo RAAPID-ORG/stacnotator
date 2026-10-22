@@ -4,6 +4,8 @@ import type { Bbox, CameraState, LonLat } from '~/shared/map/types';
 import { handleError } from '~/shared/utils/errorHandler';
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'annotation');
+
 // ---------------------------------------------------------------------------
 // The page's cameras. Module-scope because they outlive any one campaign and
 // the whole point is that every map can follow the same leader.
@@ -76,7 +78,7 @@ export async function fitAnnotations(campaignId: number, includeTasks: boolean):
   } catch (error) {
     // Pressing Space and having nothing happen is confusing enough without the
     // reason being invisible too.
-    handleError(error, i18n.t('annotation:camera.extentFailed'));
+    handleError(error, t('camera.extentFailed'));
     return false;
   }
 }

@@ -10,6 +10,8 @@ import type {
 } from '~/api/client';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 
+const t = i18n.getFixedT(null, 'annotation');
+
 export type FormField = NonNullable<CampaignSettingsOut['form_fields']>[number];
 export type FormValues = NonNullable<AnnotationOut['form_values']>;
 export type FormValue = FormValues[string];
@@ -116,7 +118,7 @@ export function missingRequiredFields(fields: FormField[], values: FormValues): 
 }
 
 export function formatMissingFieldsTitle(missing: FormField[]): string {
-  return i18n.t('annotation:missingRequired', {
+  return t('missingRequired', {
     fields: missing.map((f) => f.title).join(', '),
   });
 }

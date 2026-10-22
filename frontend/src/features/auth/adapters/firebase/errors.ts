@@ -1,5 +1,7 @@
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'auth');
+
 /** Firebase's error codes stay in this folder - the UI asks for a message, not a code. */
 
 function authErrorCode(err: unknown): string {
@@ -48,7 +50,7 @@ export function authErrorMessage(
   fallback: string
 ): string {
   const key = messages[authErrorCode(err)];
-  return key ? i18n.t(`auth:errors.${key}`) : fallback;
+  return key ? t(`errors.${key}`) : fallback;
 }
 
 /** True when no account can exist for the address, so callers can avoid confirming either way. */

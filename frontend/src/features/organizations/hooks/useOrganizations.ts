@@ -5,6 +5,8 @@ import i18n from '~/shared/i18n';
 import { listOrganizationsOptions, listOrganizationsQueryKey } from '~/api/queries';
 import { APPROVED } from '../utils/organizations';
 
+const t = i18n.getFixedT(null, 'organizations');
+
 const NO_ORGS: OrganizationOut[] = [];
 
 /** One cache entry for the viewer's organizations, shared by every consumer, so
@@ -12,7 +14,7 @@ const NO_ORGS: OrganizationOut[] = [];
  *  surfaces render their own failure, hence no toast. */
 const organizationsQuery = () => ({
   ...listOrganizationsOptions(),
-  meta: { errorMessage: i18n.t('organizations:loadFailed'), showUser: false },
+  meta: { errorMessage: t('loadFailed'), showUser: false },
 });
 
 /** The organizations the current user belongs to, with viewer-relative

@@ -6,6 +6,8 @@ import type {
 } from '~/api/client';
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'visualizers');
+
 /** The generator inlines the backend's `LayerRestriction` union, so it is read
  *  back off the field rather than restated here. */
 export type LayerRestriction = NonNullable<SourceOptionOut['restriction']>;
@@ -67,12 +69,12 @@ export function publishConfirm(restricted: RestrictedLayer[]): PublishConfirm | 
   if (restricted.length === 0) return null;
   const names = restricted.map((layer) => layer.name).join(', ');
   return {
-    title: i18n.t('visualizers:publishConfirm.title'),
-    description: i18n.t('visualizers:publishConfirm.description', {
+    title: t('publishConfirm.title'),
+    description: t('publishConfirm.description', {
       count: restricted.length,
       names,
     }),
-    confirmText: i18n.t('visualizers:publishConfirm.confirm'),
+    confirmText: t('publishConfirm.confirm'),
     isDangerous: true,
   };
 }

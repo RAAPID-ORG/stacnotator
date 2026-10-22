@@ -1,6 +1,8 @@
 import type { CampaignSettingsCreate } from '~/api/client';
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'campaigns');
+
 export type FormField = NonNullable<CampaignSettingsCreate['form_fields']>[number];
 
 export function formFieldSlug(title: string): string {
@@ -11,9 +13,7 @@ export function formFieldSlug(title: string): string {
 }
 
 function fieldLabel(field: FormField): string {
-  return (
-    field.title.trim() || i18n.t('campaigns:validation.formFields.fallbackName', { id: field.id })
-  );
+  return field.title.trim() || t('validation.formFields.fallbackName', { id: field.id });
 }
 
 export const MAX_FIELDS = 100;
@@ -27,31 +27,25 @@ export function validateFormFields(fields: FormField[]): string[] {
 
   const slugs = fields.map((f) => formFieldSlug(f.title));
   if (new Set(slugs).size !== slugs.length) {
-    errors.push(i18n.t('campaigns:validation.formFields.uniqueTitles'));
+    errors.push(t('validation.formFields.uniqueTitles'));
   }
 
   for (const field of fields) {
     if (!field.title.trim()) {
-      errors.push(i18n.t('campaigns:validation.formFields.needsTitle', { id: field.id }));
+      errors.push(t('validation.formFields.needsTitle', { id: field.id }));
     }
 
     if (field.type === 'category' || field.type === 'multicategory') {
       if (field.options.length === 0) {
-        errors.push(
-          i18n.t('campaigns:validation.formFields.needsOption', { field: fieldLabel(field) })
-        );
+        errors.push(t('validation.formFields.needsOption', { field: fieldLabel(field) }));
       } else if (field.options.some((o) => !o.name.trim())) {
-        errors.push(
-          i18n.t('campaigns:validation.formFields.unnamedOption', { field: fieldLabel(field) })
-        );
+        errors.push(t('validation.formFields.unnamedOption', { field: fieldLabel(field) }));
       }
     }
 
     if (field.type === 'number') {
       if (field.min != null && field.max != null && field.min > field.max) {
-        errors.push(
-          i18n.t('campaigns:validation.formFields.minAboveMax', { field: fieldLabel(field) })
-        );
+        errors.push(t('validation.formFields.minAboveMax', { field: fieldLabel(field) }));
       }
     }
   }

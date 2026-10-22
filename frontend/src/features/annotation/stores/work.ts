@@ -44,6 +44,8 @@ import { campaignState, formFields, originTaskId, useCampaignStore } from './cam
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';
 
+const t = i18n.getFixedT(null, 'annotation');
+
 export type Tool = 'pan' | 'annotate' | 'edit' | 'labelVector' | 'timeseries';
 
 /**
@@ -509,7 +511,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         // Parking the draft is only half the recovery: without a word the user
         // sees the tool change and assumes the annotation went with it.
         if ((await get().closeDraft()) === 'save-failed') {
-          alert(i18n.t('annotation:work.draftSaveFailed'), 'error');
+          alert(t('work.draftSaveFailed'), 'error');
         }
       }
     },
@@ -599,7 +601,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           selectionAnchor: geometryTopRight(geometry),
         });
       } catch (error) {
-        handleError(error, i18n.t('annotation:work.openFailed'));
+        handleError(error, t('work.openFailed'));
       }
     },
 
@@ -635,7 +637,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         if (result.data) get().setEditAnnotation(result.data);
       } catch (error) {
         get().setEditAnnotation(annotation);
-        handleError(error, i18n.t('annotation:work.sliceCommentFailed'));
+        handleError(error, t('work.sliceCommentFailed'));
       }
     },
 
@@ -665,7 +667,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         if (result.data) get().setEditAnnotation(result.data);
       } catch (error) {
         get().setEditAnnotation(annotation);
-        handleError(error, i18n.t('annotation:work.flagFailed'));
+        handleError(error, t('work.flagFailed'));
       }
     },
   };

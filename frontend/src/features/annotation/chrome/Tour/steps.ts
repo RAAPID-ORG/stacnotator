@@ -1,6 +1,8 @@
 import i18n from '~/shared/i18n';
 import type { TourStep, TourVariant } from './engine';
 
+const t = i18n.getFixedT(null, 'annotation');
+
 export interface TourConfig {
   hasTimeseries: boolean;
   /** The campaign asks extra questions per annotation, so the tour has to
@@ -37,8 +39,8 @@ const timeseries = { kind: 'role', name: 'timeseries' } as const;
 const collectionsAndSlicesStep = (): TourStep => ({
   id: 'collections-and-slices',
   target: [collectionPicker, slicePicker, slicePickerMenu],
-  title: i18n.t('annotation:tour.collectionsAndSlices.title'),
-  body: i18n.t('annotation:tour.collectionsAndSlices.body', { returnObjects: true }),
+  title: t('tour.collectionsAndSlices.title'),
+  body: t('tour.collectionsAndSlices.body', { returnObjects: true }),
   placement: 'bottom',
   effect: 'show-slice-menu',
 });
@@ -49,17 +51,17 @@ const collectionsAndSlicesStep = (): TourStep => ({
 const imageryWindowsStep = (): TourStep => ({
   id: 'imagery-windows',
   target: [imageryWindows, mainMap],
-  title: i18n.t('annotation:tour.imageryWindows.title'),
-  body: i18n.t('annotation:tour.imageryWindows.body', { returnObjects: true }),
+  title: t('tour.imageryWindows.title'),
+  body: t('tour.imageryWindows.body', { returnObjects: true }),
   placement: 'top',
 });
 
 const zoomAndPanStep = (): TourStep => ({
   id: 'practice-zoom',
   target: mainMap,
-  title: i18n.t('annotation:tour.zoomAndPan.title'),
-  body: i18n.t('annotation:tour.zoomAndPan.body', { returnObjects: true }),
-  hint: i18n.t('annotation:tour.zoomAndPan.hint'),
+  title: t('tour.zoomAndPan.title'),
+  body: t('tour.zoomAndPan.body', { returnObjects: true }),
+  hint: t('tour.zoomAndPan.hint'),
   requiredKeys: ['alt+arrowup', 'alt+arrowdown'],
   placement: 'bottom',
 });
@@ -70,9 +72,9 @@ const slicePracticeStep = (): TourStep => ({
   id: 'practice-slices',
   target: [slicePicker, mainMap],
   avoid: mapControls,
-  title: i18n.t('annotation:tour.practiceSlices.title'),
-  body: i18n.t('annotation:tour.practiceSlices.body', { returnObjects: true }),
-  hint: i18n.t('annotation:tour.practiceSlices.hint'),
+  title: t('tour.practiceSlices.title'),
+  body: t('tour.practiceSlices.body', { returnObjects: true }),
+  hint: t('tour.practiceSlices.hint'),
   placement: 'bottom',
   requiredKeys: ['a', 'd'],
   effect: 'slice-headroom',
@@ -81,20 +83,20 @@ const slicePracticeStep = (): TourStep => ({
 const guideStep = (): TourStep => ({
   id: 'campaign-guide',
   target: campaignGuide,
-  title: i18n.t('annotation:tour.guide.title'),
-  body: i18n.t('annotation:tour.guide.body', { returnObjects: true }),
+  title: t('tour.guide.title'),
+  body: t('tour.guide.body', { returnObjects: true }),
   placement: 'bottom',
 });
 
 const helpStep = (): TourStep => ({
   id: 'keyboard-help',
   target: keyboardHelp,
-  title: i18n.t('annotation:tour.help.title'),
-  body: i18n.t('annotation:tour.help.body', { returnObjects: true }),
-  hint: i18n.t('annotation:tour.help.hint'),
+  title: t('tour.help.title'),
+  body: t('tour.help.body', { returnObjects: true }),
+  hint: t('tour.help.hint'),
   placement: 'bottom',
   requiredClick: true,
-  requiredClickLabel: i18n.t('annotation:tour.help.clickLabel'),
+  requiredClickLabel: t('tour.help.clickLabel'),
 });
 
 const resizeStep = (): TourStep => ({
@@ -102,8 +104,8 @@ const resizeStep = (): TourStep => ({
   target: [canvas, layoutControls],
   // Keep the completion actions reachable while the tooltip covers the canvas.
   avoid: layoutControls,
-  title: i18n.t('annotation:tour.resize.title'),
-  body: i18n.t('annotation:tour.resize.body', { returnObjects: true }),
+  title: t('tour.resize.title'),
+  body: t('tour.resize.body', { returnObjects: true }),
   placement: 'bottom',
   effect: 'edit-layout',
 });
@@ -114,8 +116,8 @@ const resizeStep = (): TourStep => ({
 const viewSyncStep = (): TourStep => ({
   id: 'view-sync',
   target: [viewSync, imageryWindows],
-  title: i18n.t('annotation:tour.viewSync.title'),
-  body: i18n.t('annotation:tour.viewSync.body', { returnObjects: true }),
+  title: t('tour.viewSync.title'),
+  body: t('tour.viewSync.body', { returnObjects: true }),
   placement: 'bottom',
 });
 
@@ -126,9 +128,9 @@ const sourcePracticeStep = (): TourStep => ({
   id: 'imagery-sources',
   target: [layerSelector, mainMap],
   avoid: mapControls,
-  title: i18n.t('annotation:tour.sources.title'),
-  body: i18n.t('annotation:tour.sources.body', { returnObjects: true }),
-  hint: i18n.t('annotation:tour.sources.hint'),
+  title: t('tour.sources.title'),
+  body: t('tour.sources.body', { returnObjects: true }),
+  hint: t('tour.sources.hint'),
   placement: 'left',
   requiredKeys: ['i'],
   effect: 'imagery-sandbox',
@@ -138,9 +140,9 @@ const visualizationPracticeStep = (): TourStep => ({
   id: 'visualizations',
   target: [layerSelector, mainMap],
   avoid: mapControls,
-  title: i18n.t('annotation:tour.visualizations.title'),
-  body: i18n.t('annotation:tour.visualizations.body', { returnObjects: true }),
-  hint: i18n.t('annotation:tour.visualizations.hint'),
+  title: t('tour.visualizations.title'),
+  body: t('tour.visualizations.body', { returnObjects: true }),
+  hint: t('tour.visualizations.hint'),
   placement: 'left',
   requiredKeys: ['shift+i'],
   effect: 'visualization-sandbox',
@@ -149,8 +151,8 @@ const visualizationPracticeStep = (): TourStep => ({
 const layoutStep = (): TourStep => ({
   id: 'layout-controls',
   target: layoutControls,
-  title: i18n.t('annotation:tour.layout.title'),
-  body: i18n.t('annotation:tour.layout.body', { returnObjects: true }),
+  title: t('tour.layout.title'),
+  body: t('tour.layout.body', { returnObjects: true }),
   placement: 'bottom',
 });
 
@@ -160,21 +162,21 @@ const googleEarthStep = (body: string): TourStep => ({
   // The link lives in the minimap header, so "beside the link" is on top of
   // the minimap unless it is kept clear.
   avoid: minimap,
-  title: i18n.t('annotation:tour.googleEarth.title'),
+  title: t('tour.googleEarth.title'),
   body: [body],
-  hint: i18n.t('annotation:tour.googleEarth.hint'),
+  hint: t('tour.googleEarth.hint'),
   placement: 'left',
   requiredClick: true,
-  requiredClickLabel: i18n.t('annotation:tour.googleEarth.clickLabel'),
+  requiredClickLabel: t('tour.googleEarth.clickLabel'),
 });
 
 const practiceWindowsStep = (body: string): TourStep => ({
   id: 'practice-windows',
   target: [collectionPicker, mainMap],
   avoid: mapControls,
-  title: i18n.t('annotation:tour.practiceWindows.title'),
+  title: t('tour.practiceWindows.title'),
   body: [body],
-  hint: i18n.t('annotation:tour.practiceWindows.hint'),
+  hint: t('tour.practiceWindows.hint'),
   placement: 'bottom',
   requiredKeys: ['shift+a', 'shift+d'],
   effect: 'collection-headroom',
@@ -206,50 +208,50 @@ const cheat = (
     | 'cancelEdit'
     | 'deleteSelection'
     | 'cycleFormFields'
-) => i18n.t(`annotation:tour.cheatSheet.${key}`);
+) => t(`tour.cheatSheet.${key}`);
 
 function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[] {
   return [
     {
       id: 'welcome',
       target: toolbar,
-      title: i18n.t('annotation:tour.tasks.welcome.title'),
-      body: i18n.t('annotation:tour.tasks.welcome.body', { returnObjects: true }),
+      title: t('tour.tasks.welcome.title'),
+      body: t('tour.tasks.welcome.body', { returnObjects: true }),
       placement: 'bottom',
     },
     {
       id: 'task-filter',
       target: [taskFilter, taskFilterMenu],
-      title: i18n.t('annotation:tour.tasks.taskFilter.title'),
-      body: i18n.t('annotation:tour.tasks.taskFilter.body', { returnObjects: true }),
+      title: t('tour.tasks.taskFilter.title'),
+      body: t('tour.tasks.taskFilter.body', { returnObjects: true }),
       placement: 'bottom',
       effect: 'show-task-filter',
     },
     {
       id: 'main-map',
       target: mainMap,
-      title: i18n.t('annotation:tour.mainMapTitle'),
-      body: i18n.t('annotation:tour.tasks.mainMap', { returnObjects: true }),
+      title: t('tour.mainMapTitle'),
+      body: t('tour.tasks.mainMap', { returnObjects: true }),
       placement: 'right',
       avoid: [mapControls, controls],
     },
     collectionsAndSlicesStep(),
     slicePracticeStep(),
-    practiceWindowsStep(i18n.t('annotation:tour.tasks.practiceWindows')),
+    practiceWindowsStep(t('tour.tasks.practiceWindows')),
     {
       id: 'hold-to-cycle',
       target: [collectionPicker, mainMap],
       avoid: mapControls,
-      title: i18n.t('annotation:tour.tasks.holdToCycle.title'),
-      body: i18n.t('annotation:tour.tasks.holdToCycle.body', { returnObjects: true }),
-      hint: i18n.t('annotation:tour.tasks.holdToCycle.hint'),
+      title: t('tour.tasks.holdToCycle.title'),
+      body: t('tour.tasks.holdToCycle.body', { returnObjects: true }),
+      hint: t('tour.tasks.holdToCycle.hint'),
       placement: 'bottom',
     },
     {
       id: 'map-controls',
       target: [mapControls, mapActions],
-      title: i18n.t('annotation:tour.tasks.mapControls.title'),
-      body: i18n.t('annotation:tour.tasks.mapControls.body', { returnObjects: true }),
+      title: t('tour.tasks.mapControls.title'),
+      body: t('tour.tasks.mapControls.body', { returnObjects: true }),
       bullets: i18n
         .t('annotation:tour.tasks.mapControls.bullets', { returnObjects: true })
         .map((text) => ({ text })),
@@ -258,18 +260,18 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     {
       id: 'practice-recenter',
       target: mainMap,
-      title: i18n.t('annotation:tour.tasks.recenter.title'),
-      body: i18n.t('annotation:tour.tasks.recenter.body', { returnObjects: true }),
-      hint: i18n.t('annotation:tour.tasks.recenter.hint'),
+      title: t('tour.tasks.recenter.title'),
+      body: t('tour.tasks.recenter.body', { returnObjects: true }),
+      hint: t('tour.tasks.recenter.hint'),
       placement: 'bottom',
       requiredKeys: [' '],
     },
     {
       id: 'practice-crosshair',
       target: mainMap,
-      title: i18n.t('annotation:tour.tasks.crosshair.title'),
-      body: i18n.t('annotation:tour.tasks.crosshair.body', { returnObjects: true }),
-      hint: i18n.t('annotation:tour.tasks.crosshair.hint'),
+      title: t('tour.tasks.crosshair.title'),
+      body: t('tour.tasks.crosshair.body', { returnObjects: true }),
+      hint: t('tour.tasks.crosshair.hint'),
       placement: 'bottom',
       requiredKeys: ['x'],
     },
@@ -280,8 +282,8 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
           {
             id: 'timeseries',
             target: [timeseries, mainMap, mapControls],
-            title: i18n.t('annotation:tour.timeseriesTitle'),
-            body: i18n.t('annotation:tour.tasks.timeseries', { returnObjects: true }),
+            title: t('tour.timeseriesTitle'),
+            body: t('tour.tasks.timeseries', { returnObjects: true }),
             placement: 'left' as const,
           },
         ]
@@ -289,31 +291,31 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     {
       id: 'minimap',
       target: minimap,
-      title: i18n.t('annotation:tour.minimapTitle'),
-      body: i18n.t('annotation:tour.tasks.minimap', { returnObjects: true }),
+      title: t('tour.minimapTitle'),
+      body: t('tour.tasks.minimap', { returnObjects: true }),
       placement: 'left',
     },
-    googleEarthStep(i18n.t('annotation:tour.tasks.googleEarth')),
+    googleEarthStep(t('tour.tasks.googleEarth')),
     {
       id: 'controls',
       target: [controls, mainMap],
-      title: i18n.t('annotation:tour.controlsTitle'),
-      body: i18n.t('annotation:tour.tasks.controls.body', { returnObjects: true }),
+      title: t('tour.controlsTitle'),
+      body: t('tour.tasks.controls.body', { returnObjects: true }),
       bullets: [
-        { text: i18n.t('annotation:tour.tasks.controls.selectLabel') },
-        ...(hasFormFields ? [{ text: i18n.t('annotation:tour.tasks.controls.formFields') }] : []),
-        { text: i18n.t('annotation:tour.tasks.controls.comment') },
-        { text: i18n.t('annotation:tour.tasks.controls.confidence') },
-        { text: i18n.t('annotation:tour.tasks.controls.submit') },
+        { text: t('tour.tasks.controls.selectLabel') },
+        ...(hasFormFields ? [{ text: t('tour.tasks.controls.formFields') }] : []),
+        { text: t('tour.tasks.controls.comment') },
+        { text: t('tour.tasks.controls.confidence') },
+        { text: t('tour.tasks.controls.submit') },
       ],
       placement: 'left',
     },
     {
       id: 'practice-tasks',
       target: [controls, mainMap],
-      title: i18n.t('annotation:tour.tasks.practiceTasks.title'),
-      body: i18n.t('annotation:tour.tasks.practiceTasks.body', { returnObjects: true }),
-      hint: i18n.t('annotation:tour.tasks.practiceTasks.hint'),
+      title: t('tour.tasks.practiceTasks.title'),
+      body: t('tour.tasks.practiceTasks.body', { returnObjects: true }),
+      hint: t('tour.tasks.practiceTasks.hint'),
       placement: 'left',
       requiredKeys: ['s', 'w'],
     },
@@ -323,22 +325,22 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     {
       id: 'review-mode',
       target: reviewToggle,
-      title: i18n.t('annotation:tour.tasks.review.title'),
-      body: i18n.t('annotation:tour.tasks.review.body', { returnObjects: true }),
+      title: t('tour.tasks.review.title'),
+      body: t('tour.tasks.review.body', { returnObjects: true }),
       bullets: [
         {
-          text: i18n.t('annotation:tour.tasks.review.toggle'),
-          sub: i18n.t('annotation:tour.tasks.review.toggleOptions', { returnObjects: true }),
+          text: t('tour.tasks.review.toggle'),
+          sub: t('tour.tasks.review.toggleOptions', { returnObjects: true }),
         },
-        { text: i18n.t('annotation:tour.tasks.review.list') },
+        { text: t('tour.tasks.review.list') },
       ],
       placement: 'bottom',
     },
     {
       id: 'canvas-views',
       target: imagerySelector,
-      title: i18n.t('annotation:tour.tasks.canvasViews.title'),
-      body: i18n.t('annotation:tour.tasks.canvasViews.body', { returnObjects: true }),
+      title: t('tour.tasks.canvasViews.title'),
+      body: t('tour.tasks.canvasViews.body', { returnObjects: true }),
       placement: 'bottom',
     },
     layoutStep(),
@@ -348,8 +350,8 @@ function taskModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourStep[]
     {
       id: 'complete',
       target: toolbar,
-      title: i18n.t('annotation:tour.completeTitle'),
-      body: i18n.t('annotation:tour.tasks.complete', { returnObjects: true }),
+      title: t('tour.completeTitle'),
+      body: t('tour.tasks.complete', { returnObjects: true }),
       cheatSheet: [
         { label: cheat('navigateTasks'), keys: ['w', 's'] },
         { label: cheat('navigateSlices'), keys: ['a', 'd'] },
@@ -378,19 +380,19 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
     {
       id: 'welcome',
       target: toolbar,
-      title: i18n.t('annotation:tour.explore.welcome.title'),
-      body: i18n.t('annotation:tour.explore.welcome.body', { returnObjects: true }),
+      title: t('tour.explore.welcome.title'),
+      body: t('tour.explore.welcome.body', { returnObjects: true }),
       placement: 'bottom',
     },
     {
       id: 'main-map',
       target: mainMap,
-      title: i18n.t('annotation:tour.mainMapTitle'),
+      title: t('tour.mainMapTitle'),
       body: [
         hasTimeseries
-          ? i18n.t('annotation:tour.explore.mainMap.toolsWithTimeseries')
-          : i18n.t('annotation:tour.explore.mainMap.tools'),
-        i18n.t('annotation:tour.explore.mainMap.fit'),
+          ? t('tour.explore.mainMap.toolsWithTimeseries')
+          : t('tour.explore.mainMap.tools'),
+        t('tour.explore.mainMap.fit'),
       ],
       placement: 'right',
       // Both sets of controls the copy names: the header pickers and the tools
@@ -401,23 +403,23 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
     collectionsAndSlicesStep(),
     imageryWindowsStep(),
     slicePracticeStep(),
-    practiceWindowsStep(i18n.t('annotation:tour.explore.practiceWindows')),
+    practiceWindowsStep(t('tour.explore.practiceWindows')),
     sourcePracticeStep(),
     visualizationPracticeStep(),
     viewSyncStep(),
     {
       id: 'controls',
       target: [controls, mainMap],
-      title: i18n.t('annotation:tour.controlsTitle'),
-      body: i18n.t('annotation:tour.explore.controls', { returnObjects: true }),
+      title: t('tour.controlsTitle'),
+      body: t('tour.explore.controls', { returnObjects: true }),
       placement: 'left',
       effect: 'annotate-tool',
     },
     {
       id: 'drawing',
       target: [mainMap, controls],
-      title: i18n.t('annotation:tour.explore.drawing.title'),
-      body: i18n.t('annotation:tour.explore.drawing.body', { returnObjects: true }),
+      title: t('tour.explore.drawing.title'),
+      body: t('tour.explore.drawing.body', { returnObjects: true }),
       bullets: i18n
         .t('annotation:tour.explore.drawing.bullets', { returnObjects: true })
         .map((text) => ({ text })),
@@ -428,8 +430,8 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
           {
             id: 'annotation-questions',
             target: [controls, mainMap],
-            title: i18n.t('annotation:tour.explore.questions.title'),
-            body: i18n.t('annotation:tour.explore.questions.body', { returnObjects: true }),
+            title: t('tour.explore.questions.title'),
+            body: t('tour.explore.questions.body', { returnObjects: true }),
             placement: 'left' as const,
           },
         ]
@@ -437,33 +439,31 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
     {
       id: 'editing',
       target: [mainMap, controls],
-      title: i18n.t('annotation:tour.explore.editing.title'),
-      body: i18n.t('annotation:tour.explore.editing.body', { returnObjects: true }),
+      title: t('tour.explore.editing.title'),
+      body: t('tour.explore.editing.body', { returnObjects: true }),
       bullets: [
-        { text: i18n.t('annotation:tour.explore.editing.reshape') },
-        { text: i18n.t('annotation:tour.explore.editing.escape') },
+        { text: t('tour.explore.editing.reshape') },
+        { text: t('tour.explore.editing.escape') },
         {
           text: hasFormFields
-            ? i18n.t('annotation:tour.explore.editing.panelWithAnswers')
-            : i18n.t('annotation:tour.explore.editing.panel'),
+            ? t('tour.explore.editing.panelWithAnswers')
+            : t('tour.explore.editing.panel'),
         },
-        { text: i18n.t('annotation:tour.explore.editing.delete') },
+        { text: t('tour.explore.editing.delete') },
       ],
-      hint: i18n.t('annotation:tour.explore.editing.hint'),
+      hint: t('tour.explore.editing.hint'),
       placement: 'right',
     },
     {
       id: 'practice-tools',
       target: [controls, mainMap],
-      title: i18n.t('annotation:tour.explore.tools.title'),
+      title: t('tour.explore.tools.title'),
       body: [
-        hasTimeseries
-          ? i18n.t('annotation:tour.explore.tools.bodyWithTimeseries')
-          : i18n.t('annotation:tour.explore.tools.body'),
+        hasTimeseries ? t('tour.explore.tools.bodyWithTimeseries') : t('tour.explore.tools.body'),
       ],
       hint: hasTimeseries
-        ? i18n.t('annotation:tour.explore.tools.hintWithTimeseries')
-        : i18n.t('annotation:tour.explore.tools.hint'),
+        ? t('tour.explore.tools.hintWithTimeseries')
+        : t('tour.explore.tools.hint'),
       placement: 'bottom',
       requiredKeys: toolKeys,
     },
@@ -471,19 +471,19 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
     {
       id: 'minimap',
       target: minimap,
-      title: i18n.t('annotation:tour.minimapTitle'),
-      body: i18n.t('annotation:tour.explore.minimap', { returnObjects: true }),
+      title: t('tour.minimapTitle'),
+      body: t('tour.explore.minimap', { returnObjects: true }),
       placement: 'left',
     },
-    googleEarthStep(i18n.t('annotation:tour.explore.googleEarth')),
+    googleEarthStep(t('tour.explore.googleEarth')),
     ...(hasTimeseries
       ? [
           {
             id: 'timeseries',
             target: [timeseries, mainMap],
-            title: i18n.t('annotation:tour.timeseriesTitle'),
+            title: t('tour.timeseriesTitle'),
             effect: 'seed-probe' as const,
-            body: i18n.t('annotation:tour.explore.timeseries', { returnObjects: true }),
+            body: t('tour.explore.timeseries', { returnObjects: true }),
             placement: 'left' as const,
           },
         ]
@@ -491,8 +491,8 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
     {
       id: 'canvas-view',
       target: imagerySelector,
-      title: i18n.t('annotation:tour.explore.canvasView.title'),
-      body: i18n.t('annotation:tour.explore.canvasView.body', { returnObjects: true }),
+      title: t('tour.explore.canvasView.title'),
+      body: t('tour.explore.canvasView.body', { returnObjects: true }),
       placement: 'bottom',
     },
     layoutStep(),
@@ -502,8 +502,8 @@ function exploreModeSteps({ hasTimeseries, hasFormFields }: TourConfig): TourSte
     {
       id: 'complete',
       target: toolbar,
-      title: i18n.t('annotation:tour.completeTitle'),
-      body: i18n.t('annotation:tour.explore.complete', { returnObjects: true }),
+      title: t('tour.completeTitle'),
+      body: t('tour.explore.complete', { returnObjects: true }),
       cheatSheet: [
         { label: cheat('panTool'), keys: ['p'] },
         { label: cheat('annotateTool'), keys: ['r'] },

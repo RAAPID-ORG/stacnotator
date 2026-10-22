@@ -35,6 +35,8 @@ import { useImageryStore } from './stores/imagery';
 import { usePrefsStore } from './stores/prefs';
 import { useWorkStore } from './stores/work';
 
+const t = i18n.getFixedT(null, 'annotation');
+
 const DRAW_SHAPES: Record<GeometryType, DrawShape> = {
   point: 'Point',
   line: 'LineString',
@@ -114,14 +116,14 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
 
 function reportLabelOutcome(outcome: LabelOutcome): void {
   if (outcome.kind === 'blocked')
-    alert(i18n.t('annotation:missingRequired', { fields: outcome.missing.join(', ') }), 'error');
+    alert(t('missingRequired', { fields: outcome.missing.join(', ') }), 'error');
   else if (outcome.kind === 'error')
-    alert(i18n.t('annotation:drawing.labelFailed', { message: outcome.message }), 'error');
+    alert(t('drawing.labelFailed', { message: outcome.message }), 'error');
   else if (outcome.kind === 'saved') {
     // A batch reports how many it stored, not which ids: nothing to draw over
     // the tiles with, so the tiles are what catches up.
     useWorkStore.getState().refreshTiles();
-    alert(i18n.t('annotation:drawing.labeled', { count: outcome.count }), 'success');
+    alert(t('drawing.labeled', { count: outcome.count }), 'success');
   }
 }
 
@@ -161,11 +163,11 @@ export async function commitEdit(): Promise<boolean> {
       },
     ]);
     work.clearEdit();
-    alert(i18n.t('annotation:drawing.updated'), 'success');
+    alert(t('drawing.updated'), 'success');
     return true;
   } catch (error) {
     useWorkStore.getState().setEditBusy(false);
-    handleError(error, i18n.t('annotation:drawing.geometryFailed'));
+    handleError(error, t('drawing.geometryFailed'));
     return false;
   }
 }
@@ -190,10 +192,10 @@ export async function deleteSelection(): Promise<number> {
       });
     }
     work.recordDeletes(ids);
-    alert(i18n.t('annotation:drawing.deleted', { count: ids.length }), 'success');
+    alert(t('drawing.deleted', { count: ids.length }), 'success');
     return ids.length;
   } catch (error) {
-    handleError(error, i18n.t('annotation:drawing.deleteFailed'));
+    handleError(error, t('drawing.deleteFailed'));
     return 0;
   }
 }
@@ -215,7 +217,7 @@ async function selectInBox(bbox: Bbox): Promise<void> {
     // ids come from the server, the shapes never leave it.
     work.setSelection((result.data ?? []).map(Number).filter(Number.isFinite), [bbox[2], bbox[3]]);
   } catch (error) {
-    handleError(error, i18n.t('annotation:drawing.boxFailed'));
+    handleError(error, t('drawing.boxFailed'));
   }
 }
 
@@ -232,13 +234,13 @@ async function handleDrawEnd(geometry: GeoJSON.Geometry): Promise<void> {
   if (labelId === null) return;
 
   if (work.draft.phase === 'draft' && (await work.closeDraft()) === 'save-failed') {
-    alert(i18n.t('annotation:drawing.previousUnsaved'), 'error');
+    alert(t('drawing.previousUnsaved'), 'error');
     return;
   }
 
   useWorkStore.getState().beginDraft(labelId);
   if ((await useWorkStore.getState().drawEnd(geometry)) === 'save-failed') {
-    alert(i18n.t('annotation:drawing.saveFailed'), 'error');
+    alert(t('drawing.saveFailed'), 'error');
   }
 }
 
@@ -289,7 +291,7 @@ export async function handleMapClick(event: MapClickEvent): Promise<void> {
         // It opens for reading either way; saying so is what stops the click
         // looking like it did nothing.
         if (opened && !mayModifyAnnotation(opened)) {
-          alert(i18n.t('annotation:drawing.notAuthorized'), 'error');
+          alert(t('drawing.notAuthorized'), 'error');
         }
       }
       return;

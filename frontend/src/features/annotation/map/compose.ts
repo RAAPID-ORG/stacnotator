@@ -15,6 +15,8 @@ import type { ExtendedLabel } from '../campaign/annotation';
 import type { OriginTask, WorkMode } from '../stores/campaign';
 import type { GeoFeature, LayerId, LayerSpec, LonLat, StyleSpec } from '~/shared/map/types';
 
+const t = i18n.getFixedT(null, 'annotation');
+
 export const TILE_SKELETON_LAYER_ID = 'tile-skeleton';
 export const ANNOTATION_LAYER_ID = 'annotations';
 export const ANNOTATION_DELTA_LAYER_ID = 'annotations-delta';
@@ -454,7 +456,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
           stroke: { color: DEFAULT_CROSSHAIR_COLOR, width: 2.5 },
         },
         text: {
-          label: i18n.t('annotation:map.originTask', { number: state.originTask.annotationNumber }),
+          label: t('map.originTask', { number: state.originTask.annotationNumber }),
           color: DEFAULT_CROSSHAIR_COLOR,
           haloColor: '#ffffff',
           offsetY: -CROSSHAIR_SIZE_PX,

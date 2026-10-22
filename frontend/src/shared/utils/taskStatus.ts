@@ -1,6 +1,8 @@
 import type { AnnotationTaskOut } from '~/api/client';
 import i18n from '~/shared/i18n';
 
+const t = i18n.getFixedT(null, 'common');
+
 /**
  * Task-level status values, matching backend-computed task_status. The tuple is what
  * lets a caller walk every status without restating the list.
@@ -46,7 +48,7 @@ export function getTaskStatusColor(status: TaskStatus): string {
  * Format task status for display
  */
 export function formatTaskStatus(status: TaskStatus): string {
-  return i18n.t(`common:taskStatus.${status}`, { defaultValue: status });
+  return t(`taskStatus.${status}`, { defaultValue: status });
 }
 
 /**
@@ -63,8 +65,8 @@ export function countTasksByStatus(
     done: 0,
     skipped: 0,
   };
-  for (const t of tasks) {
-    const s = t.task_status;
+  for (const task of tasks) {
+    const s = task.task_status;
     if (s !== undefined && s in counts) counts[s]++;
   }
   return counts;

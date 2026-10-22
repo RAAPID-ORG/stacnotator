@@ -9,6 +9,8 @@ import i18n from '~/shared/i18n';
 import { sliceDateRange, type ImageryCatalog } from './imagery';
 import { collectionAddress, addressAtSlice, type SliceAddress } from './imageryNav';
 
+const t = i18n.getFixedT(null, 'annotation');
+
 export type SliceComment = NonNullable<AnnotationOut['slice_comments']>[number];
 
 /** Notes keyed by slice id. An address is positional, the id is not, and the
@@ -81,6 +83,6 @@ export function describeSlice(comment: SliceComment): string {
   const dates = sliceDateRange(comment);
   return (
     [comment.source_name, dates].filter(Boolean).join(', ') ||
-    i18n.t('annotation:sliceFallback', { number: comment.slice_id })
+    t('sliceFallback', { number: comment.slice_id })
   );
 }

@@ -161,8 +161,10 @@ UI copy goes through **react-i18next** (`shared/i18n/`); English and Spanish shi
 The language is detected from `localStorage`, then the browser, and switched with `LanguageSelect`
 (sidebar footer, login screen).
 
-- Components: `const { t } = useTranslation('campaigns')`. Outside React (stores, pure modules, toasts
-  fired from callbacks): `i18n.t('campaigns:key')` at call time, never at module scope.
+- Components: `const { t } = useTranslation('campaigns')`. Outside React (stores, pure modules):
+  `const t = i18n.getFixedT(null, 'campaigns')` once under the imports - it fixes the namespace, not the
+  language, so it follows a switch. Never resolve a string at module scope. Inside a component's effect,
+  where the hook's `t` would become a dependency, `i18n.t('campaigns:key')`.
 - Keys are typed from the English JSON (`i18next.d.ts`), so `tsc` catches a missing or misspelled key;
   `locales.test.ts` fails when a Spanish key is missing or a Spanish plural lacks `_one`/`_many`/`_other`.
 - One key per sentence with `{{variables}}`, i18next plurals instead of `n === 1 ? ... : ...`, `<Trans>`

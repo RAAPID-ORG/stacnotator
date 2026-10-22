@@ -6,6 +6,8 @@ import {
 } from '~/features/campaigns/components/imagery/types';
 import { validateFormFields } from './formFields';
 
+const t = i18n.getFixedT(null, 'campaigns');
+
 export type FieldErrors = Record<string, string>;
 
 export interface StepValidationResult {
@@ -17,7 +19,7 @@ export function validateCampaignStep(form: CampaignCreate): StepValidationResult
   const errors: FieldErrors = {};
 
   if (!form.name.trim()) {
-    errors.name = i18n.t('campaigns:validation.nameRequired');
+    errors.name = t('validation.nameRequired');
   }
 
   return { errors, isValid: Object.keys(errors).length === 0 };
@@ -28,14 +30,14 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
   const s = form.settings;
 
   if (s == null) {
-    errors.settings = i18n.t('campaigns:validation.settingsRequired');
+    errors.settings = t('validation.settingsRequired');
     return { errors, isValid: false };
   }
 
   const { bbox_west, bbox_south, bbox_east, bbox_north } = s;
 
   if (bbox_west == null || bbox_south == null || bbox_east == null || bbox_north == null) {
-    errors.bbox = i18n.t('campaigns:validation.bboxRequired');
+    errors.bbox = t('validation.bboxRequired');
   } else if (
     bbox_west < -180 ||
     bbox_west > 180 ||
@@ -48,19 +50,19 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
   ) {
     // A map panned past the antimeridian reports longitudes outside the range
     // the campaign area is stored in, and west < east alone does not catch it.
-    errors.bbox = i18n.t('campaigns:validation.bboxRange');
+    errors.bbox = t('validation.bboxRange');
   } else if (bbox_west >= bbox_east) {
-    errors.bbox = i18n.t('campaigns:validation.bboxWestEast');
+    errors.bbox = t('validation.bboxWestEast');
   } else if (bbox_south >= bbox_north) {
-    errors.bbox = i18n.t('campaigns:validation.bboxSouthNorth');
+    errors.bbox = t('validation.bboxSouthNorth');
   }
 
   if (!s.labels || s.labels.length === 0) {
-    errors.labels = i18n.t('campaigns:validation.labelsRequired');
+    errors.labels = t('validation.labelsRequired');
   } else {
     const emptyLabels = s.labels.filter((l) => !l.name.trim());
     if (emptyLabels.length > 0) {
-      errors.labels = i18n.t('campaigns:validation.emptyLabels', { count: emptyLabels.length });
+      errors.labels = t('validation.emptyLabels', { count: emptyLabels.length });
     }
   }
 
@@ -76,7 +78,7 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
 
   // Must have at least one source
   if (imageryState.sources.length === 0) {
-    errors.sources = i18n.t('campaigns:validation.sourcesRequired');
+    errors.sources = t('validation.sourcesRequired');
     return { errors, isValid: false };
   }
 
@@ -86,17 +88,17 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
     const sourceLabel = source.name || si + 1;
 
     if (!source.name.trim()) {
-      errors[`${prefix}_name`] = i18n.t('campaigns:validation.sourceNameRequired', {
+      errors[`${prefix}_name`] = t('validation.sourceNameRequired', {
         index: si + 1,
       });
     }
 
     if (source.visualizations.length === 0) {
-      errors[`${prefix}_viz`] = i18n.t('campaigns:validation.vizRequired', { source: sourceLabel });
+      errors[`${prefix}_viz`] = t('validation.vizRequired', { source: sourceLabel });
     } else {
       const emptyViz = source.visualizations.filter((v) => !v.name.trim());
       if (emptyViz.length > 0) {
-        errors[`${prefix}_viz_names`] = i18n.t('campaigns:validation.vizUnnamed', {
+        errors[`${prefix}_viz_names`] = t('validation.vizUnnamed', {
           source: sourceLabel,
           count: emptyViz.length,
         });
@@ -112,7 +114,7 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
     );
 
     if (source.collections.length === 0) {
-      errors[`${prefix}_collections`] = i18n.t('campaigns:validation.collectionsRequired', {
+      errors[`${prefix}_collections`] = t('validation.collectionsRequired', {
         source: sourceLabel,
       });
     } else {
@@ -120,7 +122,7 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
         const cp = `${prefix}_col_${ci}`;
 
         if (col.slices.length === 0) {
-          errors[`${cp}_slices`] = i18n.t('campaigns:validation.noSlices', {
+          errors[`${cp}_slices`] = t('validation.noSlices', {
             source: sourceLabel,
             collection: col.name || ci + 1,
           });
@@ -134,7 +136,7 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
             );
           });
           if (slicesWithMissing.length > 0) {
-            errors[`${cp}_vizurls`] = i18n.t('campaigns:validation.missingVizUrls', {
+            errors[`${cp}_vizurls`] = t('validation.missingVizUrls', {
               source: sourceLabel,
               collection: col.name || ci + 1,
               count: slicesWithMissing.length,
@@ -161,29 +163,29 @@ export function validateTimeseriesStep(form: CampaignCreate): StepValidationResu
   items.forEach((ts, i) => {
     const prefix = `ts_${i}`;
     if (!ts.name.trim()) {
-      errors[`${prefix}_name`] = i18n.t('campaigns:validation.timeseries.name', { index: i + 1 });
+      errors[`${prefix}_name`] = t('validation.timeseries.name', { index: i + 1 });
     }
     if (!ts.start_ym) {
-      errors[`${prefix}_start`] = i18n.t('campaigns:validation.timeseries.start', { index: i + 1 });
+      errors[`${prefix}_start`] = t('validation.timeseries.start', { index: i + 1 });
     }
     if (!ts.end_ym) {
-      errors[`${prefix}_end`] = i18n.t('campaigns:validation.timeseries.end', { index: i + 1 });
+      errors[`${prefix}_end`] = t('validation.timeseries.end', { index: i + 1 });
     }
     if (ts.start_ym && ts.end_ym && ts.start_ym > ts.end_ym) {
-      errors[`${prefix}_dates`] = i18n.t('campaigns:validation.timeseries.dates', { index: i + 1 });
+      errors[`${prefix}_dates`] = t('validation.timeseries.dates', { index: i + 1 });
     }
     if (!ts.data_source) {
-      errors[`${prefix}_source`] = i18n.t('campaigns:validation.timeseries.source', {
+      errors[`${prefix}_source`] = t('validation.timeseries.source', {
         index: i + 1,
       });
     }
     if (!ts.provider) {
-      errors[`${prefix}_provider`] = i18n.t('campaigns:validation.timeseries.provider', {
+      errors[`${prefix}_provider`] = t('validation.timeseries.provider', {
         index: i + 1,
       });
     }
     if (!ts.ts_type) {
-      errors[`${prefix}_type`] = i18n.t('campaigns:validation.timeseries.type', { index: i + 1 });
+      errors[`${prefix}_type`] = t('validation.timeseries.type', { index: i + 1 });
     }
   });
 
