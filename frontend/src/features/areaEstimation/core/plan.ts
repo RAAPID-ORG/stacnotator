@@ -7,6 +7,8 @@
  * what falls out of it, and the backend will eventually store exactly this.
  */
 
+import i18n from '~/shared/i18n';
+import type messages from '~/shared/i18n/locales/en/areaEstimation.json';
 import {
   allocate,
   anticipatedPrecision,
@@ -218,7 +220,7 @@ export const WHOLE_MAP_AREA_ID = 'whole-map';
 export const reportingAreas = (plan: AreaEstimationPlan): StudyArea[] =>
   plan.areas.length > 0
     ? plan.areas
-    : [{ id: WHOLE_MAP_AREA_ID, name: 'The whole map', featureCount: 1 }];
+    : [{ id: WHOLE_MAP_AREA_ID, name: i18n.t('areaEstimation:names.wholeMap'), featureCount: 1 }];
 
 /** Pixels the census counted for a set of map values, across every area. */
 export const pixelsFor = (plan: AreaEstimationPlan, values: readonly number[]): number =>
@@ -238,7 +240,13 @@ export const domainsOf = (plan: AreaEstimationPlan): Domain[] => {
   const groups =
     plan.domainMode === 'per_area'
       ? areas.map((a) => ({ id: a.id, name: a.name, areaIds: [a.id] }))
-      : [{ id: 'all', name: 'Whole study area', areaIds: areas.map((a) => a.id) }];
+      : [
+          {
+            id: 'all',
+            name: i18n.t('areaEstimation:names.wholeStudyArea'),
+            areaIds: areas.map((a) => a.id),
+          },
+        ];
 
   return groups.map((group) => {
     const strata: DomainStratum[] = plan.classes.map((cls) => ({
@@ -253,7 +261,7 @@ export const domainsOf = (plan: AreaEstimationPlan): Domain[] => {
       strata.push({
         id: stratumId(group.id, NO_DATA_CLASS_ID),
         classId: NO_DATA_CLASS_ID,
-        className: 'Nodata',
+        className: i18n.t('areaEstimation:names.nodata'),
         isNoData: true,
         pixelCount: countPixels(plan.census, group.areaIds, plan.noDataValues),
         targetShare: 0,
@@ -452,41 +460,29 @@ export type PlanStep = 'data' | 'classes' | 'prior' | 'design';
 // The conjectured accuracies come before the design because the design is
 // where the whole trade-off is settled, and the allocation cannot be solved
 // until they are stated. Nothing about them depends on the target class.
-export const PLAN_STEPS: { id: PlanStep; name: string }[] = [
-  { id: 'data', name: 'Map & areas' },
-  { id: 'classes', name: 'Classes & strata' },
-  { id: 'prior', name: 'Map accuracy' },
-  { id: 'design', name: 'Sample design' },
-];
+export const PLAN_STEPS: PlanStep[] = ['data', 'classes', 'prior', 'design'];
 
 export const validatePlan = (plan: AreaEstimationPlan): StepIssue[] => {
   const issues: StepIssue[] = [];
-  const add = (step: PlanStep, message: string) => issues.push({ step, message });
+  const add = (step: PlanStep, issue: keyof (typeof messages)['issues']) =>
+    issues.push({ step, message: i18n.t(`areaEstimation:issues.${issue}`) });
 
-  if (!plan.raster) add('data', 'Add the map that will be used to stratify the sample.');
-  if (!plan.equalAreaCrs.trim())
-    add('data', 'Choose the equal-area projection areas are computed in.');
-  if (plan.raster && !plan.census) add('data', 'Count the map’s pixels in the reporting area.');
-  if (plan.values.some((v) => !v.label.trim()))
-    add('data', 'Name every map class so the strata can be defined.');
+  if (!plan.raster) add('data', 'addMap');
+  if (!plan.equalAreaCrs.trim()) add('data', 'chooseCrs');
+  if (plan.raster && !plan.census) add('data', 'countPixels');
+  if (plan.values.some((v) => !v.label.trim())) add('data', 'nameValues');
 
-  if (plan.classes.length < 2)
-    add('classes', 'Define at least two reporting classes; one class cannot be estimated alone.');
-  if (plan.classes.some((c) => c.values.length === 0))
-    add('classes', 'Every reporting class needs at least one map class assigned to it.');
-  if (unassignedValues(plan).length > 0)
-    add('classes', 'Assign every map class to a stratum, or mark it as nodata.');
+  if (plan.classes.length < 2) add('classes', 'twoClasses');
+  if (plan.classes.some((c) => c.values.length === 0)) add('classes', 'emptyClass');
+  if (unassignedValues(plan).length > 0) add('classes', 'unassigned');
 
   // A pilot is sized by a flat budget per class, so it needs no target yet;
   // the target is chosen when the pilot's results size the full design.
-  if (!plan.targetClassId && !planNeedsPilot(plan))
-    add('design', 'Choose the target class the sample size is solved for.');
-  if (plan.targetCv <= 0 || plan.targetCv >= 1)
-    add('design', 'Target precision must be between 0 and 100 percent.');
+  if (!plan.targetClassId && !planNeedsPilot(plan)) add('design', 'chooseTarget');
+  if (plan.targetCv <= 0 || plan.targetCv >= 1) add('design', 'precisionRange');
 
   const designs = designsOf(plan);
-  if (plan.classes.length >= 2 && totalPoints(designs) === 0)
-    add('design', 'The design has no sampling units; check the pixel counts and the target class.');
+  if (plan.classes.length >= 2 && totalPoints(designs) === 0) add('design', 'noUnits');
 
   return issues;
 };

@@ -5,6 +5,7 @@
  * headings carry it.
  */
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * The wizard's inline offer to expand something, deliberately quieter than the
@@ -30,6 +31,7 @@ interface Explanation {
  * the difference between an aside and a sentence a user will actually follow.
  */
 const useLearnMore = ({ technical, source, moreLabel }: Explanation) => {
+  const { t } = useTranslation('areaEstimation');
   const [open, setOpen] = useState(false);
 
   const link = (label: string) => (
@@ -40,20 +42,23 @@ const useLearnMore = ({ technical, source, moreLabel }: Explanation) => {
 
   return {
     /** Goes at the end of the sentence it explains. */
-    inlineLink:
-      technical && !open ? (
-        <> {link(moreLabel ?? 'Learn more about the statistics behind this.')}</>
-      ) : null,
+    inlineLink: technical && !open ? <> {link(moreLabel ?? t('learnMore'))}</> : null,
     /** Goes directly below that sentence, once asked for. */
     expansion:
       technical && open ? (
         <div className="mt-2 text-xs leading-relaxed text-neutral-500">
           {technical}
           {source && <p className="mt-2 text-[11px] italic text-neutral-400">{source}</p>}
-          <p className="mt-2">{link('Show less')}</p>
+          <p className="mt-2">{link(t('showLess'))}</p>
         </div>
       ) : null,
   };
+};
+
+export const RICH_TEXT = {
+  sub: <sub />,
+  strong: <strong />,
+  em: <em />,
 };
 
 export const Note = ({ tone, children }: { tone: 'warning' | 'error'; children: ReactNode }) => (

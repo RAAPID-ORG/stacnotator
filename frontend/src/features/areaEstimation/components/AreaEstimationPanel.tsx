@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Badge } from '~/shared/ui/Badge';
 import { Button } from '~/shared/ui/forms';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
@@ -7,7 +8,7 @@ import type { AreaEstimates } from '../core/estimate';
 import { estimateAreas } from '../core/estimate';
 import type { AreaEstimationPlan } from '../core/plan';
 import { domainsOf, planNeedsPilot } from '../core/plan';
-import { Note, SubHeading } from './Explain';
+import { Note, RICH_TEXT, SubHeading } from './Explain';
 import { formatArea, formatCount, formatPercent } from './format';
 
 /**
@@ -37,6 +38,7 @@ export const AreaEstimationPanel = ({
   onAnnotate?: () => void;
   onOpenDesign?: () => void;
 }) => {
+  const { t } = useTranslation('areaEstimation');
   const [plan, setPlan] = useState<AreaEstimationPlan | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,14 +84,18 @@ export const AreaEstimationPanel = ({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-base font-semibold text-neutral-900 truncate">
-              {taskSetName ?? 'Area estimate'}
+              {taskSetName ?? t('panel.defaultTitle')}
             </p>
             <p className="text-sm text-neutral-500 mt-0.5">
-              {drawn ? (pilot ? 'Pilot sample running' : 'Sampling') : 'Design not finished yet'}
+              {drawn
+                ? pilot
+                  ? t('panel.pilotRunning')
+                  : t('panel.sampling')
+                : t('panel.notFinished')}
             </p>
           </div>
           <Badge tone={drawn ? (pilot ? 'yellow' : 'brand') : 'neutral'}>
-            {drawn ? (pilot ? 'Pilot' : 'Active') : 'Draft'}
+            {drawn ? (pilot ? t('badges.pilot') : t('badges.active')) : t('badges.draft')}
           </Badge>
         </div>
 
@@ -97,7 +103,7 @@ export const AreaEstimationPanel = ({
           <div>
             <div className="flex items-baseline justify-between text-sm">
               <span className="text-neutral-700">
-                {formatCount(done)} of {formatCount(planned)} sampling units annotated
+                {t('panel.progress', { done: formatCount(done), planned: formatCount(planned) })}
               </span>
               <span className="text-neutral-500 tabular-nums">
                 {planned > 0 ? formatPercent(done / planned, 0) : '-'}
@@ -113,38 +119,23 @@ export const AreaEstimationPanel = ({
         )}
 
         {showEstimates && drawn && done < planned && (
-          <Note tone="warning">
-            The sample is incomplete. These figures are already unbiased, but their confidence
-            intervals will keep narrowing, and any unit still unannotated could move them. Do not
-            publish them yet.
-          </Note>
+          <Note tone="warning">{t('panel.incomplete')}</Note>
         )}
 
         {showEstimates && drawn && (
           <SubHeading
-            title="Reading these numbers"
+            title={t('panel.reading.title')}
             technical={
               <>
                 <p>
-                  Areas come from the stratified estimator: p̂<sub>k</sub> = Σ W<sub>i</sub>
-                  (n<sub>ik</sub>/n<sub>i</sub>), with the standard error of Olofsson Eq. 10 and a
-                  95% interval of ±1.96 standard errors. The map column is the pixel-counting figure
-                  and is shown only so the size of the map&apos;s bias is visible.
+                  <Trans t={t} i18nKey="panel.reading.technical1" components={RICH_TEXT} />
                 </p>
-                <p className="mt-1.5">
-                  UA is user&apos;s accuracy (Eq. 1, variance Eq. 6); PA is producer&apos;s accuracy
-                  (Eq. 3, variance Eq. 7). They answer different questions and are rarely equal: a
-                  class the map over-calls scores low on the first and high on the second.
-                </p>
+                <p className="mt-1.5">{t('panel.reading.technical2')}</p>
               </>
             }
-            source="Olofsson et al. (2014), Eqs. 9 to 11."
+            source={t('panel.reading.source')}
           >
-            Each row is what the annotated units say the area really is, with the range it could
-            plausibly be. Where the map column sits outside that range, the map was systematically
-            over- or under-calling that class. <strong>UA</strong> (user&apos;s accuracy) is how
-            much of what the map called this class really was it; <strong>PA</strong>
-            (producer&apos;s accuracy) is how much of what really was this class the map caught.
+            <Trans t={t} i18nKey="panel.reading.body" components={RICH_TEXT} />
           </SubHeading>
         )}
 
@@ -169,12 +160,12 @@ export const AreaEstimationPanel = ({
         <div className="surface-section flex items-center gap-2">
           {onAnnotate && (
             <Button variant="secondary" onClick={onAnnotate} disabled={!drawn} className="flex-1">
-              Annotate
+              {t('panel.annotate')}
             </Button>
           )}
           {onOpenDesign && (
             <Button variant="secondary" onClick={onOpenDesign} className="flex-1">
-              {drawn ? 'Design' : 'Finish setup'}
+              {drawn ? t('panel.design') : t('panel.finishSetup')}
             </Button>
           )}
         </div>
@@ -191,78 +182,77 @@ const EstimateTable = ({
   title: string | null;
   plan: AreaEstimationPlan;
   estimates: AreaEstimates;
-}) => (
-  <div className="space-y-1.5">
-    {title && <h3 className="text-sm font-medium text-neutral-900">{title}</h3>}
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm min-w-[34rem]">
-        <thead>
-          <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
-            <th className="py-2 font-medium">Class</th>
-            <th className="py-2 font-medium text-right">Estimated area</th>
-            <th className="py-2 font-medium text-right w-20">±</th>
-            <th className="py-2 font-medium text-right w-28">Map says</th>
-            <th
-              className="py-2 font-medium text-right w-28"
-              title="User's accuracy: of what the map calls this class, how much really is it"
-            >
-              UA
-            </th>
-            <th
-              className="py-2 font-medium text-right w-28"
-              title="Producer's accuracy: of what really is this class, how much the map found"
-            >
-              PA
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {estimates.classes.map((estimate) => {
-            const name =
-              plan.classes.find((c) => c.id === estimate.classId)?.name ?? estimate.classId;
-            return (
-              <tr key={estimate.classId} className="border-b border-neutral-100">
-                <td className="py-2 text-neutral-800">
-                  {name}
-                  {estimate.classId === plan.targetClassId && (
-                    <Badge tone="brand" className="ml-2">
-                      target
-                    </Badge>
-                  )}
-                </td>
-                <td className="py-2 text-right tabular-nums font-medium text-neutral-900">
-                  {formatArea(estimate.area)}
-                </td>
-                <td className="py-2 text-right tabular-nums text-neutral-600">
-                  {formatArea(estimate.areaMarginOfError)}
-                </td>
-                <td className="py-2 text-right tabular-nums text-neutral-500">
-                  {formatArea(estimate.mappedArea)}
-                </td>
-                <td className="py-2 text-right tabular-nums text-neutral-500">
-                  {estimate.usersAccuracy ? formatPercent(estimate.usersAccuracy.value, 0) : '-'}
-                </td>
-                <td className="py-2 text-right tabular-nums text-neutral-500">
-                  {estimate.producersAccuracy
-                    ? formatPercent(estimate.producersAccuracy.value, 0)
-                    : '-'}
+}) => {
+  const { t } = useTranslation('areaEstimation');
+  return (
+    <div className="space-y-1.5">
+      {title && <h3 className="text-sm font-medium text-neutral-900">{title}</h3>}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[34rem]">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
+              <th className="py-2 font-medium">{t('panel.columns.class')}</th>
+              <th className="py-2 font-medium text-right">{t('panel.columns.estimatedArea')}</th>
+              <th className="py-2 font-medium text-right w-20">±</th>
+              <th className="py-2 font-medium text-right w-28">{t('panel.columns.mapSays')}</th>
+              <th className="py-2 font-medium text-right w-28" title={t('panel.columns.uaTitle')}>
+                {t('panel.columns.ua')}
+              </th>
+              <th className="py-2 font-medium text-right w-28" title={t('panel.columns.paTitle')}>
+                {t('panel.columns.pa')}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {estimates.classes.map((estimate) => {
+              const name =
+                plan.classes.find((c) => c.id === estimate.classId)?.name ?? estimate.classId;
+              return (
+                <tr key={estimate.classId} className="border-b border-neutral-100">
+                  <td className="py-2 text-neutral-800">
+                    {name}
+                    {estimate.classId === plan.targetClassId && (
+                      <Badge tone="brand" className="ml-2">
+                        {t('badges.target')}
+                      </Badge>
+                    )}
+                  </td>
+                  <td className="py-2 text-right tabular-nums font-medium text-neutral-900">
+                    {formatArea(estimate.area)}
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-neutral-600">
+                    {formatArea(estimate.areaMarginOfError)}
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-neutral-500">
+                    {formatArea(estimate.mappedArea)}
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-neutral-500">
+                    {estimate.usersAccuracy ? formatPercent(estimate.usersAccuracy.value, 0) : '-'}
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-neutral-500">
+                    {estimate.producersAccuracy
+                      ? formatPercent(estimate.producersAccuracy.value, 0)
+                      : '-'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          {estimates.overallAccuracy && (
+            <tfoot>
+              <tr>
+                <td colSpan={6} className="pt-3 text-xs text-neutral-500">
+                  {t('panel.overall', {
+                    accuracy: formatPercent(estimates.overallAccuracy.value, 1),
+                    margin: formatPercent(estimates.overallAccuracy.marginOfError, 1),
+                    units: formatCount(estimates.totalAnnotated),
+                  })}
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-        {estimates.overallAccuracy && (
-          <tfoot>
-            <tr>
-              <td colSpan={6} className="pt-3 text-xs text-neutral-500">
-                Overall map accuracy {formatPercent(estimates.overallAccuracy.value, 1)} ±{' '}
-                {formatPercent(estimates.overallAccuracy.marginOfError, 1)}, from{' '}
-                {formatCount(estimates.totalAnnotated)} annotated sampling units.
-              </td>
-            </tr>
-          </tfoot>
-        )}
-      </table>
+            </tfoot>
+          )}
+        </table>
+      </div>
     </div>
-  </div>
-);
+  );
+};

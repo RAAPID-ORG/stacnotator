@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Button, Field, IconButton, Input, Select } from '~/shared/ui/forms';
 import { IconTrash } from '~/shared/ui/Icons';
 import { Spinner } from '~/shared/ui/Spinner';
@@ -14,7 +15,7 @@ import {
   studyAreaPixels,
 } from '../core/plan';
 import { EQUAL_AREA_PROJECTIONS } from '../core/guidance';
-import { ChoiceCard, expandLinkCls, Note, StepHeading, SubHeading } from './Explain';
+import { ChoiceCard, expandLinkCls, Note, RICH_TEXT, StepHeading, SubHeading } from './Explain';
 import { formatPixels } from './format';
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export const StepData = ({ plan, update }: Props) => {
+  const { t } = useTranslation('areaEstimation');
   const [inspecting, setInspecting] = useState(false);
   const [crsOpen, setCrsOpen] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -45,7 +47,7 @@ export const StepData = ({ plan, update }: Props) => {
         targetClassId: null,
       });
     } catch (err) {
-      handleError(err, 'Could not read the map');
+      handleError(err, t('data.readFailed'));
     } finally {
       setInspecting(false);
     }
@@ -78,7 +80,7 @@ export const StepData = ({ plan, update }: Props) => {
         .map((a, i) => ({ ...a, id: `${a.id}-${plan.areas.length + i}` }));
       update({ areas: [...plan.areas, ...added], census: null });
     } catch (err) {
-      handleError(err, 'Could not read the area file');
+      handleError(err, t('data.areasFailed'));
     }
   };
 
@@ -110,7 +112,7 @@ export const StepData = ({ plan, update }: Props) => {
       })
       .catch((err) => {
         countedKey.current = null;
-        handleError(err, 'Could not count the map pixels');
+        handleError(err, t('data.countFailed'));
       })
       .finally(() => {
         if (!cancelled) setCounting(false);
@@ -138,33 +140,22 @@ export const StepData = ({ plan, update }: Props) => {
   return (
     <div className="space-y-8">
       <StepHeading
-        title="Map & Areas of Interest"
+        title={t('data.title')}
         technical={
           <>
-            <p>
-              Counting the pixels of a class and calling that its area is a biased estimator: a
-              classifier that confuses two classes moves area between them, and no amount of extra
-              pixels corrects it. The map is used only as a stratification variable, so its errors
-              cost precision rather than accuracy.
-            </p>
+            <p>{t('data.technical1')}</p>
             <p className="mt-1.5">
-              Pixel counts enter the design as stratum weights W<sub>i</sub>, and appear in the
-              results only as a contrast to the sample-based estimate.
+              <Trans t={t} i18nKey="data.technical2" components={RICH_TEXT} />
             </p>
           </>
         }
-        source="Olofsson et al. (2014), Good practices for estimating area and assessing accuracy of land change, Sections 2.1.1 and 4.4."
+        source={t('data.source')}
       >
-        The map you upload divides the reporting area into strata, so that the sample spends most of
-        its units where they matter. The area figures you publish come from what annotators see at
-        the sampling units, <strong>not</strong> from the map. That is what makes the result
-        unbiased even when the map itself is imperfect.
+        <Trans t={t} i18nKey="data.intro" components={RICH_TEXT} />
       </StepHeading>
 
       <section className="space-y-3">
-        <SubHeading title="Step 1 - Stratification map">
-          A classified raster: one integer per pixel giving the predicted class.
-        </SubHeading>
+        <SubHeading title={t('data.mapTitle')}>{t('data.mapIntro')}</SubHeading>
 
         {!plan.raster ? (
           <div className="space-y-3">
@@ -172,18 +163,18 @@ export const StepData = ({ plan, update }: Props) => {
               <ChoiceCard
                 selected={mapSource === 'file'}
                 onSelect={() => setMapSource('file')}
-                title="Upload a file"
+                title={t('data.uploadFile')}
                 testId="uae-map-source-file"
               >
-                A GeoTIFF from your own machine.
+                {t('data.uploadFileHint')}
               </ChoiceCard>
               <ChoiceCard
                 selected={mapSource === 'url'}
                 onSelect={() => setMapSource('url')}
-                title="Link a hosted map"
+                title={t('data.linkMap')}
                 testId="uae-map-source-url"
               >
-                A cloud-optimized GeoTIFF already on the web.
+                {t('data.linkMapHint')}
               </ChoiceCard>
             </div>
 
@@ -192,7 +183,7 @@ export const StepData = ({ plan, update }: Props) => {
                 accept=".tif,.tiff"
                 disabled={inspecting}
                 data-testid="uae-map-file"
-                busyText={inspecting ? 'Reading the map…' : undefined}
+                busyText={inspecting ? t('data.readingMap') : undefined}
                 onSelect={(file) => void loadRaster(file.name)}
               />
             ) : (
@@ -211,18 +202,20 @@ export const StepData = ({ plan, update }: Props) => {
                   onClick={() => void loadRaster(mapUrl.trim().split('/').pop() ?? mapUrl)}
                   leading={inspecting ? <Spinner size="xs" variant="white" /> : undefined}
                 >
-                  Read map
+                  {t('data.readMap')}
                 </Button>
               </div>
             )}
 
             <ul className="mt-1.5 space-y-0.5 text-[11px] text-neutral-500 leading-snug list-disc list-inside">
               <li>
-                One integer value per class.{' '}
-                <strong className="font-medium text-neutral-600">Continuous</strong> probability
-                rasters cannot be used as strata.
+                <Trans
+                  t={t}
+                  i18nKey="data.requirementInteger"
+                  components={{ strong: <strong className="font-medium text-neutral-600" /> }}
+                />
               </li>
-              <li>Covering all of the areas you want to report on.</li>
+              <li>{t('data.requirementCoverage')}</li>
             </ul>
           </div>
         ) : (
@@ -234,8 +227,11 @@ export const StepData = ({ plan, update }: Props) => {
                     {plan.raster.name}
                   </span>
                   <span className="block text-xs text-neutral-500">
-                    {plan.raster.crs} · {plan.raster.resolutionMeters} m pixels ·{' '}
-                    {(plan.raster.areaPerPixel / 10_000).toFixed(2)} ha per pixel
+                    {t('data.rasterDetails', {
+                      crs: plan.raster.crs,
+                      resolution: plan.raster.resolutionMeters,
+                      hectares: (plan.raster.areaPerPixel / 10_000).toFixed(2),
+                    })}
                   </span>
                 </span>
                 <Button
@@ -243,18 +239,14 @@ export const StepData = ({ plan, update }: Props) => {
                   variant="secondary"
                   onClick={() => update({ raster: null, values: [], census: null, classes: [] })}
                 >
-                  Replace
+                  {t('data.replace')}
                 </Button>
               </li>
             </ul>
 
             {plan.raster.bands.length > 1 && (
               <div className="flex flex-wrap items-start gap-6">
-                <Field
-                  label="Band"
-                  hint="Which band of the file holds the classification."
-                  className="w-56"
-                >
+                <Field label={t('data.band')} hint={t('data.bandHint')} className="w-56">
                   <Select
                     size="sm"
                     value={plan.bandIndex}
@@ -264,8 +256,12 @@ export const StepData = ({ plan, update }: Props) => {
                   >
                     {plan.raster.bands.map((b) => (
                       <option key={b.index} value={b.index}>
-                        Band {b.index}
-                        {b.description ? ` - ${b.description}` : ''}
+                        {b.description
+                          ? t('data.bandOptionDescribed', {
+                              index: b.index,
+                              description: b.description,
+                            })
+                          : t('data.bandOption', { index: b.index })}
                       </option>
                     ))}
                   </Select>
@@ -276,20 +272,16 @@ export const StepData = ({ plan, update }: Props) => {
             <div className="space-y-3">
               <p className="text-xs leading-snug text-neutral-500">
                 {plan.equalAreaCrs === proposedCrs ? (
-                  <>
-                    Areas are computed in a Lambert azimuthal equal-area projection centred on this
-                    map. It preserves area everywhere, which is the only property pixel counts
-                    depend on, so there is nothing to choose here unless your office publishes in a
-                    particular projection.
-                  </>
+                  t('data.crsProposed')
                 ) : (
-                  <>
-                    Areas are computed in{' '}
-                    <code className="font-mono text-[11px] text-neutral-700">
-                      {plan.equalAreaCrs}
-                    </code>
-                    .
-                  </>
+                  <Trans
+                    t={t}
+                    i18nKey="data.crsChosen"
+                    values={{ crs: plan.equalAreaCrs }}
+                    components={{
+                      code: <code className="font-mono text-[11px] text-neutral-700" />,
+                    }}
+                  />
                 )}{' '}
                 <button
                   type="button"
@@ -297,16 +289,13 @@ export const StepData = ({ plan, update }: Props) => {
                   className={expandLinkCls}
                   data-testid="uae-crs-advanced"
                 >
-                  {crsOpen ? 'Show less.' : 'Change the default equal-area projection.'}
+                  {crsOpen ? t('showLessDot') : t('data.changeCrs')}
                 </button>
               </p>
 
               {crsOpen && (
                 <>
-                  <Field
-                    label="Areas computed in"
-                    hint="Pixel counts only stand for area on an equal-area grid, so they are reprojected into this one before they become stratum weights. Any PROJ string or EPSG code is accepted."
-                  >
+                  <Field label={t('data.crsLabel')} hint={t('data.crsHint')}>
                     <Input
                       size="sm"
                       value={plan.equalAreaCrs}
@@ -315,7 +304,7 @@ export const StepData = ({ plan, update }: Props) => {
                       spellCheck={false}
                       list="uae-equal-area-crs-options"
                       data-testid="uae-equal-area-crs"
-                      aria-label="Projection areas are computed in"
+                      aria-label={t('data.crsAria')}
                     />
                     <datalist id="uae-equal-area-crs-options">
                       {proposedCrs && <option value={proposedCrs} />}
@@ -335,7 +324,7 @@ export const StepData = ({ plan, update }: Props) => {
                         className="cursor-pointer text-brand-700 underline decoration-brand-300 underline-offset-4 hover:decoration-brand-600"
                         data-testid="uae-use-proposed-crs"
                       >
-                        Use the projection proposed for this map.
+                        {t('data.useProposedCrs')}
                       </button>
                     </p>
                   )}
@@ -345,10 +334,7 @@ export const StepData = ({ plan, update }: Props) => {
               {/* Stays out of the collapsed section: a projection that does not
                   preserve area is wrong, not merely unusual. */}
               {looksNotEqualArea(plan.equalAreaCrs) && (
-                <Note tone="warning">
-                  This projection does not preserve area, so pixel counts taken in it are not
-                  proportional to ground area and the stratum weights would be wrong.
-                </Note>
+                <Note tone="warning">{t('data.notEqualArea')}</Note>
               )}
             </div>
           </div>
@@ -356,30 +342,21 @@ export const StepData = ({ plan, update }: Props) => {
 
         {plan.raster && (
           <div className="space-y-3 pt-2">
-            <SubHeading title="Map class names">
-              Every distinct value in the band, and the class it stands for. Which of them are
-              nodata is settled on the next step.
-            </SubHeading>
+            <SubHeading title={t('data.namesTitle')}>{t('data.namesIntro')}</SubHeading>
 
             {plan.values.length === 0 ? (
-              <Note tone="warning">
-                This band carries no class list, so the distinct values have to be read from the
-                pixels and named by hand.
-              </Note>
+              <Note tone="warning">{t('data.noLegend')}</Note>
             ) : missingNames > 0 ? (
-              <Note tone="warning">
-                {missingNames} value{missingNames === 1 ? '' : 's'} still need a name. The file did
-                not carry class names, so they have to be typed in.
-              </Note>
+              <Note tone="warning">{t('data.missingNames', { count: missingNames })}</Note>
             ) : null}
 
             {plan.values.length > 0 && (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500 border-b border-neutral-200">
-                    <th className="py-2 font-medium w-20">Value</th>
-                    <th className="py-2 font-medium">Name</th>
-                    <th className="py-2 font-medium w-32 text-right">Pixels</th>
+                    <th className="py-2 font-medium w-20">{t('table.value')}</th>
+                    <th className="py-2 font-medium">{t('table.name')}</th>
+                    <th className="py-2 font-medium w-32 text-right">{t('table.pixels')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -400,18 +377,12 @@ export const StepData = ({ plan, update }: Props) => {
 
       {plan.raster && (
         <section className="space-y-3">
-          <SubHeading title="Step 2 - Areas of interest (optional)">
-            Leave this empty and the whole of the map is the reporting area: one sample, one set of
-            figures, covering everything the raster spans. Add boundaries when the estimate has to
-            stop at one, or be reported region by region. Upload a file of oblasts, for example, and
-            each feature becomes an area you can report on; a feature made of several separate
-            pieces is still one area.
-          </SubHeading>
+          <SubHeading title={t('data.areasTitle')}>{t('data.areasIntro')}</SubHeading>
 
           <FileInput
             accept=".geojson,.json,.zip"
-            action="Add areas"
-            placeholder="GeoJSON, or a zipped shapefile"
+            action={t('data.addAreas')}
+            placeholder={t('data.areasPlaceholder')}
             data-testid="uae-areas-file"
             onSelect={(file) => void addAreas(file.name)}
           />
@@ -433,37 +404,34 @@ export const StepData = ({ plan, update }: Props) => {
             {counting ? (
               <>
                 <Spinner size="xs" />
-                Counting map pixels in the reporting area…
+                {t('data.counting')}
               </>
             ) : plan.census ? (
-              <>
-                {formatPixels(studyAreaPixels(plan))} pixels in the reporting area
-                {plan.areas.length === 0 ? ', which is the whole map' : ''}
-              </>
+              t(plan.areas.length === 0 ? 'data.pixelsCountedWholeMap' : 'data.pixelsCounted', {
+                pixels: formatPixels(studyAreaPixels(plan)),
+              })
             ) : null}
           </p>
 
           {plan.areas.length > 1 && (
             <div className="space-y-2 pt-1">
-              <SubHeading title="How should these areas be reported?" />
+              <SubHeading title={t('data.domainTitle')} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <ChoiceCard
                   selected={plan.domainMode === 'combined'}
                   onSelect={() => update({ domainMode: 'combined' })}
-                  title="One number for all areas together"
+                  title={t('data.combined')}
                   testId="uae-domain-combined"
                 >
-                  Cheapest. You get a national figure with the precision you ask for. Per-area
-                  numbers can still be produced afterwards, but they will be much less precise.
+                  {t('data.combinedHint')}
                 </ChoiceCard>
                 <ChoiceCard
                   selected={plan.domainMode === 'per_area'}
                   onSelect={() => update({ domainMode: 'per_area' })}
-                  title="A separate number for each area"
+                  title={t('data.perArea')}
                   testId="uae-domain-per-area"
                 >
-                  Each area gets its own sample and reaches the requested precision on its own.
-                  Expect the total sample size to multiply by the number of areas.
+                  {t('data.perAreaHint')}
                 </ChoiceCard>
               </div>
             </div>
@@ -482,24 +450,31 @@ const AreaRow = ({
   area: StudyArea;
   onRename: (name: string) => void;
   onRemove: () => void;
-}) => (
-  <li className="py-2.5 flex items-center gap-3">
-    <Input
-      size="sm"
-      value={area.name}
-      onChange={(e) => onRename(e.target.value)}
-      className="max-w-sm"
-      aria-label="Area name"
-    />
-    <span className="text-xs text-neutral-500">
-      {area.featureCount} feature{area.featureCount === 1 ? '' : 's'}
-    </span>
-    <span className="flex-1" />
-    <IconButton tone="danger" onClick={onRemove} aria-label={`Remove ${area.name}`}>
-      <IconTrash className="w-4 h-4" />
-    </IconButton>
-  </li>
-);
+}) => {
+  const { t } = useTranslation('areaEstimation');
+  return (
+    <li className="py-2.5 flex items-center gap-3">
+      <Input
+        size="sm"
+        value={area.name}
+        onChange={(e) => onRename(e.target.value)}
+        className="max-w-sm"
+        aria-label={t('data.areaName')}
+      />
+      <span className="text-xs text-neutral-500">
+        {t('data.features', { count: area.featureCount })}
+      </span>
+      <span className="flex-1" />
+      <IconButton
+        tone="danger"
+        onClick={onRemove}
+        aria-label={t('data.removeArea', { name: area.name })}
+      >
+        <IconTrash className="w-4 h-4" />
+      </IconButton>
+    </li>
+  );
+};
 
 const ValueRow = ({
   value,
@@ -509,22 +484,25 @@ const ValueRow = ({
   value: MapValue;
   pixels: number | null;
   onLabel: (label: string) => void;
-}) => (
-  <tr className="border-b border-neutral-100">
-    <td className="py-2 font-mono text-xs text-neutral-600">{value.value}</td>
-    <td className="py-2 pr-3">
-      <Input
-        size="sm"
-        className="max-w-md"
-        value={value.label}
-        placeholder="Name this class"
-        onChange={(e) => onLabel(e.target.value)}
-        invalid={!value.label.trim()}
-        aria-label={`Name for value ${value.value}`}
-      />
-    </td>
-    <td className="py-2 text-right text-xs text-neutral-600 tabular-nums">
-      {pixels === null ? '-' : formatPixels(pixels)}
-    </td>
-  </tr>
-);
+}) => {
+  const { t } = useTranslation('areaEstimation');
+  return (
+    <tr className="border-b border-neutral-100">
+      <td className="py-2 font-mono text-xs text-neutral-600">{value.value}</td>
+      <td className="py-2 pr-3">
+        <Input
+          size="sm"
+          className="max-w-md"
+          value={value.label}
+          placeholder={t('data.namePlaceholder')}
+          onChange={(e) => onLabel(e.target.value)}
+          invalid={!value.label.trim()}
+          aria-label={t('data.nameAria', { value: value.value })}
+        />
+      </td>
+      <td className="py-2 text-right text-xs text-neutral-600 tabular-nums">
+        {pixels === null ? '-' : formatPixels(pixels)}
+      </td>
+    </tr>
+  );
+};

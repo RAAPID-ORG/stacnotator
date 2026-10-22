@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CurveSeries } from '../core/plan';
 import { formatCount, formatPercent } from './format';
 
@@ -31,6 +32,7 @@ interface Props {
  * just left of it costs far more than one set just right.
  */
 export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }: Props) => {
+  const { t } = useTranslation('areaEstimation');
   const [hoverTotal, setHoverTotal] = useState<number | null>(null);
 
   const totals = series[0]?.points.map((p) => p.total) ?? [];
@@ -49,7 +51,8 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
 
   const nearest = (total: number) =>
     totals.reduce(
-      (best, t) => (Math.abs(t - total) < Math.abs(best - total) ? t : best),
+      (best, candidate) =>
+        Math.abs(candidate - total) < Math.abs(best - total) ? candidate : best,
       totals[0]
     );
   const readoutTotal = nearest(hoverTotal ?? currentTotal);
@@ -67,7 +70,7 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
         role="img"
-        aria-label={`Expected confidence interval against sample size for ${series.length} classes`}
+        aria-label={t('curve.aria', { n: series.length })}
         onMouseMove={onMove}
         onMouseLeave={() => setHoverTotal(null)}
       >
@@ -107,7 +110,7 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
           fontSize="9"
           fill="#737373"
         >
-          target ±{formatPercent(targetCv, 0)}
+          {t('curve.target', { cv: formatPercent(targetCv, 0) })}
         </text>
 
         <line
@@ -166,14 +169,15 @@ export const PrecisionCurve = ({ series, currentTotal, targetCv, targetClassId }
           {formatCount(maxTotal)}
         </text>
         <text x={PAD.left + PLOT_W / 2} y={H - 6} textAnchor="middle" fontSize="9" fill="#a3a3a3">
-          total sample size
+          {t('curve.totalSampleSize')}
         </text>
       </svg>
 
       <figcaption className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[11px] text-neutral-500">
         <span className="font-medium text-neutral-700">
-          At n = {formatCount(readoutTotal)}
-          {hoverTotal === null ? ' (this design)' : ''}:
+          {t(hoverTotal === null ? 'curve.readoutCurrent' : 'curve.readout', {
+            n: formatCount(readoutTotal),
+          })}
         </span>
         {series.map((s, i) => {
           const cv = cvAt(s, readoutTotal);
