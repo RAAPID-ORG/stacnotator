@@ -1,3 +1,4 @@
+import i18n from '~/shared/i18n';
 import { isDateRangeValue } from '~/shared/utils/formValues';
 import type {
   AnnotationOut,
@@ -115,7 +116,9 @@ export function missingRequiredFields(fields: FormField[], values: FormValues): 
 }
 
 export function formatMissingFieldsTitle(missing: FormField[]): string {
-  return `Missing required: ${missing.map((f) => f.title).join(', ')}`;
+  return i18n.t('annotation:missingRequired', {
+    fields: missing.map((f) => f.title).join(', '),
+  });
 }
 
 export { isDateRangeValue };

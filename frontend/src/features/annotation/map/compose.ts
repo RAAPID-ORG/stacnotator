@@ -1,6 +1,7 @@
 import { type ImageryCatalog } from '../campaign/imagery';
 import { type ImageryNavState } from '../campaign/imageryNav';
 import { apiUrl } from '~/api/base';
+import i18n from '~/shared/i18n';
 import { basemapAttribution, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
 import { sliceRaster } from '../campaign/tileUrls';
 import { applyRenderOverride, type LegendOverride } from '~/shared/imagery/tileColors';
@@ -453,7 +454,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
           stroke: { color: DEFAULT_CROSSHAIR_COLOR, width: 2.5 },
         },
         text: {
-          label: `Task #${state.originTask.annotationNumber}`,
+          label: i18n.t('annotation:map.originTask', { number: state.originTask.annotationNumber }),
           color: DEFAULT_CROSSHAIR_COLOR,
           haloColor: '#ffffff',
           offsetY: -CROSSHAIR_SIZE_PX,

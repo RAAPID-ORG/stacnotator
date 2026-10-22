@@ -1,1 +1,769 @@
-{}
+{
+  "keymap": {
+    "answerField": "Responder el campo enfocado",
+    "cycleFields": "Recorrer los campos del formulario",
+    "cycleFieldsBack": "Recorrer los campos del formulario hacia atrás",
+    "unfocusField": "Quitar el foco del campo activo",
+    "focusField": "Enfocar el campo activo",
+    "deleteSelection": "Eliminar las anotaciones seleccionadas",
+    "saveEdit": "Guardar la forma editada",
+    "cancelEdit": "Cancelar la edición",
+    "tools": {
+      "pan": "Herramienta de desplazamiento",
+      "annotate": "Herramienta de anotación",
+      "edit": "Herramienta de edición",
+      "labelVector": "Etiquetar entidades vectoriales",
+      "timeseries": "Sonda de serie temporal"
+    },
+    "selectLabel": "Seleccionar etiqueta por número",
+    "selectLabelTwoDigits": "Seleccionar etiqueta por número (dos dígitos para 10+)",
+    "flagSelected": "Marcar la anotación seleccionada para revisión",
+    "saveDraft": "Guardar la anotación dibujada",
+    "saveDraftFailed": "No se pudo guardar la anotación: revisa las preguntas obligatorias y vuelve a intentarlo.",
+    "closeDraft": "Cerrar el borrador (las respuestas incompletas lo descartan)",
+    "closeQuestions": "Cerrar las preguntas (la anotación ya está guardada)",
+    "setConfidence": "Establecer el nivel de confianza",
+    "previousTask": "Tarea anterior",
+    "nextTask": "Tarea siguiente",
+    "decreaseConfidence": "Reducir la confianza",
+    "increaseConfidence": "Aumentar la confianza",
+    "focusComment": "Enfocar el comentario",
+    "toggleFlag": "Alternar marca de revisión",
+    "submit": "Enviar",
+    "submitFailed": "No se pudo enviar la anotación",
+    "probeTool": "Herramienta de sonda de serie temporal: luego haz clic en el mapa para mover la sonda",
+    "addProbe": "Añadir otra sonda de serie temporal",
+    "previousSlice": "Corte anterior",
+    "nextSlice": "Corte siguiente",
+    "previousCollection": "Colección anterior",
+    "nextCollection": "Colección siguiente",
+    "cycleSource": "Cambiar de fuente de imágenes",
+    "cycleVisualization": "Cambiar de visualización",
+    "toggleOverlay": "Mostrar u ocultar la capa superpuesta",
+    "cycleOverlays": "Cambiar de capa superpuesta",
+    "toggleVector": "Mostrar u ocultar la capa vectorial",
+    "cycleVectors": "Cambiar de capa vectorial",
+    "cycleView": "Cambiar de vista",
+    "switchToExplore": "Cambiar a Explorar",
+    "switchToTasks": "Cambiar a Tareas",
+    "toggleViewLink": "Alternar vínculo de vistas (sincronizar paneles de imágenes)",
+    "commentImagery": "Comentar las imágenes que muestra el mapa principal",
+    "toggleCrosshair": "Mostrar u ocultar la retícula",
+    "toggleAnnotations": "Mostrar u ocultar los objetos dibujados",
+    "panUp": "Desplazar el mapa hacia arriba",
+    "panDown": "Desplazar el mapa hacia abajo",
+    "panLeft": "Desplazar el mapa a la izquierda",
+    "panRight": "Desplazar el mapa a la derecha",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar",
+    "recenter": "Recentrar el mapa en la tarea (tareas) / ajustar a todas las anotaciones (explorar)",
+    "switchSaveFailed": "No se pudo guardar la anotación abierta: sigue aquí, vuelve a intentarlo antes de cambiar."
+  },
+  "page": {
+    "breadcrumb": "Anotar",
+    "loadFailed": "No se pudo cargar la campaña",
+    "defaultViewName": "Vista predeterminada",
+    "createViewFailed": "No se pudo crear la vista",
+    "loadingTasks": "Cargando tareas...",
+    "screenBlocked": "El navegador bloqueó la nueva pantalla. Permite las ventanas emergentes para este sitio y vuelve a intentarlo."
+  },
+  "agents": {
+    "breadcrumb": "Agentes",
+    "title": "Agentes de etiquetado",
+    "subtitle": "Agentes registrados a través del servidor MCP de stacnotator y su progreso.",
+    "freeAll": "Liberar todas las tareas sin terminar",
+    "loadFailed": "No se pudieron cargar los agentes",
+    "updateFailed": "No se pudo actualizar el agente",
+    "releaseFailed": "No se pudieron liberar las tareas del agente",
+    "loadError": "No se pudieron cargar los agentes.",
+    "empty": "Todavía no hay agentes.",
+    "columns": {
+      "agent": "Agente",
+      "progress": "Progreso",
+      "lastActive": "Última actividad",
+      "lastActiveHint": "Cuándo envió o cambió este agente una etiqueta por última vez",
+      "takesOver": "Asume trabajo",
+      "takesOverHint": "Cuando este agente se queda sin tareas, asume las tareas que aún esperan a tus otros agentes",
+      "actions": "Acciones"
+    },
+    "progress": "{{done}} de {{total}}",
+    "noLabelsYet": "Todavía no ha enviado etiquetas",
+    "stopped": "(¿detenido?)",
+    "takesOverAria": "{{name}} asume el trabajo de otros agentes",
+    "freeUnfinished_one": "Liberar {{count}} sin terminar",
+    "freeUnfinished_many": "Liberar {{count}} sin terminar",
+    "freeUnfinished_other": "Liberar {{count}} sin terminar",
+    "lastActive": {
+      "notYet": "todavía no",
+      "justNow": "ahora mismo",
+      "minutes_one": "hace {{count}} min",
+      "minutes_many": "hace {{count}} min",
+      "minutes_other": "hace {{count}} min",
+      "hours_one": "hace {{count}} h",
+      "hours_many": "hace {{count}} h",
+      "hours_other": "hace {{count}} h",
+      "days_one": "hace {{count}} d",
+      "days_many": "hace {{count}} d",
+      "days_other": "hace {{count}} d"
+    },
+    "release": {
+      "titleAll": "¿Liberar las tareas sin terminar de todos tus agentes?",
+      "title": "¿Liberar las tareas sin terminar de {{name}}?",
+      "toYou": "Se te vuelven a asignar. Las tareas ya etiquetadas u omitidas se quedan como están.",
+      "toPool": "Vuelven al grupo abierto de la campaña. Las tareas ya etiquetadas u omitidas se quedan como están.",
+      "confirm": "Liberar tareas"
+    },
+    "howTo": {
+      "title": "Etiquetado con agentes",
+      "intro": "Un agente de etiquetado es una cuenta de anotador a través de la cual trabaja un modelo. Revisa una tarea a la vez (algunas fechas repartidas a lo largo de la temporada, la serie temporal, un mapa base), pide vistas más cercanas o distintas cuando un punto no queda claro y envía una etiqueta con un nivel de confianza y su razonamiento. Sus etiquetas son anotaciones normales, así que aparecen en las estadísticas de la campaña y en la revisión como las de cualquier otra persona. Una ejecución es temporal, por lo que los agentes no aparecen entre los miembros del proyecto; están aquí.",
+      "install": "Los agentes se registran desde tu propio editor, a través del servidor MCP de stacnotator, que también dibuja las imágenes en un navegador en tu equipo. Instala el plugin una vez; necesitas <link>uv</link> y no hay nada que clonar.",
+      "ask": "Reinicia el editor y luego pídelo con tus propias palabras indicando este despliegue, ya que el agente nunca adivina a cuál te refieres:",
+      "prompt": "etiqueta 20 puntos de la campaña {{campaign}} en {{origin}} con 3 agentes",
+      "exampleCampaign": "cultivos de invierno",
+      "run": "Inicia tu sesión, registra un agente por trabajador, reparte los puntos a partes iguales entre ellos y los procesa. Se abre una ventana en tu pantalla que muestra lo que mira cada agente; cerrarla no los detiene y esta página conserva el progreso en cualquier caso.",
+      "roles": "Las tareas que puede recibir un agente dependen de tu rol en el proyecto: los administradores de la campaña reparten tareas del grupo abierto de la campaña; los demás miembros, solo las tareas que tienen asignadas. Vuelve aquí para seguir el progreso, desactivar la asunción de trabajo o liberar las tareas sin terminar si detienes una ejecución antes de tiempo; lo que ya se haya etiquetado u omitido se mantiene."
+    }
+  },
+  "gates": {
+    "loading": "Cargando el anotador...",
+    "goToSettings": "Ir a la configuración",
+    "notFound": {
+      "title": "Campaña no encontrada",
+      "body": "No se pudo cargar la campaña solicitada."
+    },
+    "registering": {
+      "title": "Configuración de la campaña en curso",
+      "mosaics": "Se están preparando los mosaicos de imágenes a partir del catálogo STAC. Esto puede tardar varios minutos. ",
+      "embeddings": "Se están calculando los embeddings satelitales. ",
+      "autoOpen": "Esta página comprueba el progreso automáticamente y abrirá el espacio de trabajo en cuanto termine la configuración.",
+      "bypass": "Configurar el diseño de todos modos"
+    },
+    "noViews": {
+      "title": "Configura el espacio de trabajo",
+      "body": "Configuración única: nadie puede empezar a anotar hasta que esta campaña tenga un diseño de espacio de trabajo. Crea la primera vista (empieza con todas las fuentes de imágenes), luego organiza los paneles y guarda. Lo que guardes será el diseño inicial para todos los miembros de esta campaña, y cualquiera podrá reorganizar su propia copia después.",
+      "noSources": "Esta campaña todavía no tiene fuentes de imágenes. Añade fuentes en la configuración de la campaña y vuelve para configurar el espacio de trabajo.",
+      "create": "Crear la primera vista",
+      "waitTitle": "El espacio de trabajo aún no está configurado",
+      "waitBody": "Un administrador de la campaña todavía tiene que organizar el espacio de trabajo de esta campaña. Vuelve a consultarlo más tarde."
+    },
+    "noTasks": {
+      "title": "Todavía no hay tareas de anotación",
+      "body": "Esta campaña no tiene tareas configuradas. Las tareas definen los puntos o polígonos que etiquetarán los anotadores.",
+      "setUp": "Configurar tareas",
+      "switchToExplore": "Cambiar a Explorar",
+      "askAdmin": "Pide a un administrador de la campaña que cree tareas, o cambia a Explorar para empezar a anotar ya."
+    },
+    "allDone": {
+      "title": "Todas las tareas completadas",
+      "scoped": "Todas las tareas de {{name}} tienen respuesta, tuya o de otro anotador.",
+      "body": "Has completado todas las tareas pendientes que coinciden con tu filtro actual.",
+      "review": "Revisarlas ahora",
+      "viewAll": "Ver todas las tareas"
+    }
+  },
+  "sliceNav": {
+    "label": "Navegación de cortes y colecciones"
+  },
+  "sliceComments": {
+    "hasNote": "Tiene una nota",
+    "comment": "Comentar estas imágenes",
+    "noteTip": "Nota: {{text}}",
+    "dialogTitle": "Nota sobre las imágenes",
+    "clear": "Borrar",
+    "placeholder": "¿Qué vale la pena saber sobre estas imágenes?",
+    "footer": "Se guarda con tu anotación. Ctrl+Enter para guardar."
+  },
+  "guide": {
+    "title": "Guía de la campaña",
+    "toggleTip": "Guía de la campaña (G)",
+    "empty": "No hay ninguna guía disponible para esta campaña."
+  },
+  "helpMenu": {
+    "title": "Atajos de teclado",
+    "empty": "No hay atajos activos",
+    "groups": {
+      "edit": "Edición",
+      "form": "Formulario",
+      "mode": "Modo",
+      "map": "Mapa"
+    }
+  },
+  "modeSwitch": {
+    "title": "Estilo de trabajo",
+    "noTasks": "Esta campaña todavía no tiene tareas",
+    "tasks": "Tareas",
+    "explore": "Explorar",
+    "exploreNotAllowed": "El etiquetado en Explorar no está habilitado para ti en esta campaña"
+  },
+  "originTask": {
+    "tip": "Las anotaciones nuevas se guardan como encontradas cerca de esta tarea",
+    "label": "Cerca de la tarea n.º {{number}}",
+    "unlink": "Desvincular de la tarea"
+  },
+  "review": {
+    "exit": "Salir del modo de revisión",
+    "enter": "Entrar en el modo de revisión",
+    "label": "Revisión"
+  },
+  "export": {
+    "title": "Exportar anotaciones",
+    "label": "Exportar",
+    "exporting": "Exportando…",
+    "failedAs": "No se pudieron exportar las anotaciones como {{format}}",
+    "done": "Anotaciones exportadas como {{format}}",
+    "failed": "No se pudieron exportar las anotaciones",
+    "merge": "Combinar si hay acuerdo",
+    "mergeDisabledTip": "Deshabilitado: esta campaña tiene tareas en conflicto. Resuélvelas en el modo de revisión antes de combinar por acuerdo.",
+    "mergeDisabled": "Deshabilitado: resuelve primero las tareas en conflicto.",
+    "mergeHint": "Agrupa en una sola fila las tareas con varios anotadores cuando todos coinciden.",
+    "geojsonHint": "FeatureCollection (.geojson)",
+    "csvHint": "Exportación tabular (.csv)"
+  },
+  "toolbar": {
+    "viewTip": "Vista: {{name}}",
+    "switchView": "Cambiar de vista (u)",
+    "selectView": "Seleccionar vista",
+    "backTo": "Volver a {{name}}",
+    "filterTip": "Filtrar las tareas visibles",
+    "filter": "Filtrar tareas",
+    "settingsTip": "Configuración de la campaña",
+    "settings": "Configuración",
+    "allTasksTip": "Abrir la lista completa de tareas, con su estado y asignaciones",
+    "allAnnotationsTip": "Abrir la lista completa de anotaciones, con todo lo registrado hasta ahora",
+    "allTasks": "Todas las tareas",
+    "allAnnotations": "Todas las anotaciones",
+    "exitFullscreen": "Salir de pantalla completa",
+    "enterFullscreen": "Pantalla completa",
+    "tour": "Hacer el recorrido guiado"
+  },
+  "taskStatus": {
+    "pending": "Pendiente",
+    "partial": "Parcial",
+    "done": "Hecha",
+    "skipped": "Omitida",
+    "conflicting": "En conflicto"
+  },
+  "taskFilter": {
+    "assignedTo": "Asignada a",
+    "all": "Todas",
+    "mine": "Mías",
+    "unassigned": "Sin asignar",
+    "noUsers": "No hay usuarios asignados",
+    "status": "Estado",
+    "taskSet": "Conjunto de tareas",
+    "allSets": "Todos los conjuntos",
+    "reviewFilters": "Filtros de revisión",
+    "clear": "Borrar",
+    "label": "Etiqueta",
+    "any": "Cualquiera",
+    "skippedTip": "Tareas con una anotación omitida, que no lleva etiqueta",
+    "confidence": "Confianza",
+    "noConfidenceTip": "Tareas cuyas anotaciones no tienen nivel de confianza, o que no tienen anotaciones",
+    "none": "Ninguna",
+    "flaggedTip": "Mostrar solo las tareas con al menos una anotación marcada",
+    "flaggedOnly": "Solo marcadas"
+  },
+  "tour": {
+    "collectionsAndSlices": {
+      "title": "Colecciones y cortes",
+      "body": [
+        "Las imágenes vienen en dos niveles. Una colección es una ventana de tiempo amplia: casi siempre un mes, a veces una temporada o un año entero. Dentro de ella, los cortes dividen esa ventana con más detalle: las semanas o fechas concretas que la componen. La lista abierta aquí muestra los cortes de la colección en la que estás.",
+        "Esa división te permite trabajar con el nivel de detalle que necesite la pregunta. Avanzar mes a mes suele bastar para ver cómo cambia un campo a lo largo de una temporada. Cuando algo ocurrió en una fecha concreta (una inundación, una cosecha, un incendio), entras en ese mes y recorres sus semanas hasta encontrar la imagen que lo muestra, mientras el resto de meses sigue siendo un solo vistazo.",
+        "El selector de la izquierda elige la colección y el de la derecha, el corte dentro de ella. Ambos saltan directamente, lo que es más rápido que avanzar con {{shift+a}} / {{shift+d}} o {{a}} / {{d}} cuando ya sabes adónde vas."
+      ]
+    },
+    "imageryWindows": {
+      "title": "Paneles de imágenes",
+      "body": [
+        "Cada uno de estos paneles pequeños muestra una colección distinta sobre el mismo lugar, para que puedas comparar fechas de un vistazo.",
+        "Haz clic en cualquiera de ellos (en el encabezado o en el propio mapa) y el mapa principal cambiará a esa colección a tamaño completo, en la fecha que muestra el panel pequeño. Es la forma más rápida de pasar de «aquí cambió algo» a examinarlo con detalle."
+      ]
+    },
+    "zoomAndPan": {
+      "title": "Práctica: zoom y desplazamiento",
+      "body": [
+        "Pulsa {{alt+arrowup}} para acercar y {{alt+arrowdown}} para alejar. También puedes usar la rueda del ratón.",
+        "Usa las flechas ({{arrowup}} {{arrowdown}} {{arrowleft}} {{arrowright}}) para desplazar el mapa sin el ratón."
+      ],
+      "hint": "Prueba Alt y la flecha arriba para acercar, y luego Alt y la flecha abajo para volver a alejar."
+    },
+    "practiceSlices": {
+      "title": "Práctica: navegar por los cortes",
+      "body": [
+        "Pulsa {{a}} para ir al corte anterior y {{d}} para ir al siguiente. El selector de cortes te acompaña, así que siempre ves dónde estás."
+      ],
+      "hint": "Prueba a pulsar A y luego D, para moverte en ambas direcciones."
+    },
+    "guide": {
+      "title": "Guía de la campaña",
+      "body": [
+        "Cada campaña puede incluir una guía escrita por su propietario con instrucciones, definiciones de etiquetas y ejemplos. Ábrela desde la barra de herramientas.",
+        "Si la guía está vacía, pide al administrador de tu campaña que la complete desde la configuración de la campaña."
+      ]
+    },
+    "help": {
+      "title": "Ayuda del teclado",
+      "body": [
+        "Este botón abre la referencia completa de atajos de teclado. Se genera a partir de los atajos que están activos en este momento, así que siempre coincide con el modo en el que estás."
+      ],
+      "hint": "Ábrela ahora.",
+      "clickLabel": "el botón de atajos de teclado"
+    },
+    "resize": {
+      "title": "Práctica: redimensionar paneles",
+      "body": [
+        "Hemos activado Editar diseño por ti. Prueba a arrastrar el encabezado o el cuerpo de un panel para moverlo, o arrastra su borde o esquina para redimensionarlo. Los botones y campos siguen funcionando con normalidad.",
+        "Cuando termines, usa Guardar o Cancelar en la parte inferior del panel Editar diseño."
+      ]
+    },
+    "viewSync": {
+      "title": "Sincronización de paneles de imágenes",
+      "body": [
+        "{{l}} activa o desactiva la sincronización de vistas. Activada, los paneles pequeños de imágenes se desplazan y hacen zoom junto con el mapa principal, de modo que lo que miras lo ves en todas las fechas a la vez.",
+        "Desactivada, mantienen su propia posición y no cargan nada mientras mueves el mapa principal. Con una conexión lenta, o con muchos paneles abiertos, eso supone muchas menos imágenes que descargar.",
+        "El panel cuya colección está activa sigue al mapa principal en cualquier caso."
+      ]
+    },
+    "sources": {
+      "title": "Práctica: cambiar de fuente de imágenes",
+      "body": [
+        "Este desplegable muestra todas las fuentes de imágenes de la campaña: Sentinel-2, Landsat y los mapas base que haya junto a ellas. {{i}} las recorre sin necesidad de abrirlo.",
+        "Fíjate en el mapa principal mientras avanzas. Cada fuente es un sensor distinto sobre el mismo terreno, y los mapas base están en el mismo ciclo, así que alguna de las pulsaciones te llevará a un simple mapa de calles."
+      ],
+      "hint": "Pulsa I varias veces. Termines donde termines, el recorrido restaurará las imágenes como estaban."
+    },
+    "visualizations": {
+      "title": "Práctica: cambiar de capa de visualización",
+      "body": [
+        "El mismo desplegable muestra cada fuente como un encabezado con sus capas de visualización debajo: color verdadero, falso color, NDVI, etc. Son los mismos píxeles representados de otra forma, y {{shift+i}} recorre las de la fuente actual.",
+        "Te hemos llevado a una fuente y una fecha que publican más de una, para que haya algo que recorrer. No todas las fuentes las tienen: un mapa base es una sola representación y nada más.",
+        "No lo confundas con el desplegable de vistas de la barra de herramientas: ese elige con qué conjunto de imágenes se construye todo el espacio de trabajo, mientras que estos dos cambian la fuente y su representación dentro de él."
+      ],
+      "hint": "Pulsa Shift+I para ver la misma escena representada de otra manera."
+    },
+    "layout": {
+      "title": "Controles de diseño",
+      "body": [
+        "Haz clic en Editar diseño para arrastrar y redimensionar todos los paneles a tu gusto. Guárdalo como diseño personal o como diseño predeterminado de la campaña. Usa el botón de pantalla completa para maximizar el espacio de trabajo de anotación."
+      ]
+    },
+    "googleEarth": {
+      "title": "Práctica: abrir en Google Earth",
+      "hint": "Haz clic en el enlace ahora.",
+      "clickLabel": "Abrir en Google Earth"
+    },
+    "practiceWindows": {
+      "title": "Práctica: navegar por las colecciones",
+      "hint": "Prueba a pulsar Shift+A y luego Shift+D, para navegar en ambas direcciones."
+    },
+    "mainMapTitle": "Mapa principal",
+    "timeseriesTitle": "Gráfico de serie temporal",
+    "minimapTitle": "Minimapa",
+    "controlsTitle": "Controles de anotación",
+    "completeTitle": "Recorrido completado",
+    "cheatSheet": {
+      "navigateTasks": "Navegar por las tareas",
+      "navigateSlices": "Navegar por los cortes",
+      "navigateCollections": "Navegar por las colecciones",
+      "zoom": "Acercar / alejar",
+      "panMap": "Desplazar el mapa",
+      "recenter": "Recentrar",
+      "toggleCrosshair": "Mostrar u ocultar la retícula",
+      "cycleImagery": "Cambiar de imágenes",
+      "cycleVisualization": "Cambiar de visualización",
+      "toggleViewSync": "Alternar sincronización de vistas",
+      "selectLabel": "Seleccionar etiqueta",
+      "focusComment": "Enfocar el comentario",
+      "adjustConfidence": "Ajustar la confianza",
+      "submit": "Enviar",
+      "panTool": "Herramienta de desplazamiento",
+      "annotateTool": "Herramienta de anotación",
+      "editTool": "Herramienta de edición",
+      "labelVector": "Etiquetar entidades vectoriales",
+      "timeseriesTool": "Herramienta de serie temporal",
+      "fitAnnotations": "Ajustar a las anotaciones",
+      "saveShape": "Guardar la forma dibujada",
+      "cancelEdit": "Cancelar la edición",
+      "deleteSelection": "Eliminar la selección",
+      "cycleFormFields": "Recorrer los campos del formulario"
+    },
+    "tasks": {
+      "welcome": {
+        "title": "¡Te damos la bienvenida a STACNotator!",
+        "body": [
+          "Este recorrido guiado te mostrará todas las funciones clave del espacio de trabajo de anotación.",
+          "Casi todas las acciones tienen un atajo de teclado, lo que hace tu trabajo rápido y fluido. Te recomendamos intentar usar solo el teclado para una mejor experiencia."
+        ]
+      },
+      "taskFilter": {
+        "title": "Filtro de tareas",
+        "body": [
+          "Filtra qué tareas son visibles: por persona asignada, por estado, por conjunto de tareas o una combinación. Lo hemos abierto aquí para que veas lo que ofrece.",
+          "Así es como reduces una campaña de cientos de tareas a las que son tuyas y siguen pendientes, o recuperas el trabajo terminado de otra persona para revisarlo."
+        ]
+      },
+      "mainMap": [
+        "Esta es la vista principal del mapa. Muestra las imágenes seleccionadas en la colección y el corte actuales. Usa el ratón para desplazarte y la rueda para hacer zoom, o prueba los atajos de teclado que aprenderás a continuación."
+      ],
+      "practiceWindows": "Pulsa {{shift+a}} para ir a la colección anterior y {{shift+d}} para ir a la siguiente. A menudo querrás recorrer las imágenes en estos pasos más grandes en lugar de corte a corte, ya que el primer corte (la portada) suele ser representativo de toda la colección. Además, se precargan con tu nivel de zoom predeterminado para que trabajes más rápido. Configura el zoom predeterminado en la configuración de la campaña para obtener la mejor experiencia.",
+      "holdToCycle": {
+        "title": "Consejo: mantén pulsado para recorrer",
+        "body": [
+          "Puedes mantener pulsado {{a}} / {{d}} o {{shift+a}} / {{shift+d}} para recorrer los cortes o las colecciones de forma continua sin soltar la tecla. Es ideal para detectar cambios a lo largo del tiempo, como en una animación parpadeante."
+        ],
+        "hint": "Prueba a mantener pulsado Shift+D un momento para verlo en acción."
+      },
+      "mapControls": {
+        "title": "Controles del mapa",
+        "body": [
+          "Estos controles te permiten manejar el mapa. Los selectores de imágenes también pueden moverse a su propio panel:"
+        ],
+        "bullets": [
+          "Selectores de capa / colección / corte: cambian las imágenes directamente",
+          "Recentrar: vuelve a la ubicación de la tarea ({{ }})",
+          "Retícula: muestra u oculta la retícula sobre el mapa ({{x}})",
+          "Sonda de serie temporal: haz clic en el mapa para mover la sonda, + para añadir otra y comparar"
+        ]
+      },
+      "recenter": {
+        "title": "Práctica: recentrar el mapa",
+        "body": ["Pulsa {{ }} para recentrar el mapa en la ubicación de la tarea actual."],
+        "hint": "Prueba a pulsar Espacio ahora."
+      },
+      "crosshair": {
+        "title": "Práctica: mostrar u ocultar la retícula",
+        "body": ["Pulsa {{x}} para mostrar u ocultar la retícula sobre el mapa."],
+        "hint": "Prueba a pulsar X ahora."
+      },
+      "timeseries": [
+        "El gráfico de serie temporal muestra índices espectrales (p. ej., NDVI) de la ubicación de la tarea a lo largo del tiempo. Las barras verticales indican la colección o el corte seleccionados.",
+        "No estás limitado al punto de la tarea. Toma la herramienta de sonda ({{icon:probe}} en el encabezado del mapa, o {{t}}) y haz clic en cualquier parte del mapa para leer la curva allí: un campo vecino, una parcela que crees que es otro cultivo, un lugar cuya respuesta conoces.",
+        "El + que hay a su lado (o {{shift+t}}) añade una segunda sonda en lugar de mover la primera, de modo que se grafican dos lugares uno junto al otro y se pueden comparar directamente. Al hacer clic de nuevo en una sonda, se quita del gráfico.",
+        "El menú de opciones (icono de controles deslizantes) ofrece dos filtros útiles: «Quitar nubosos» oculta las observaciones marcadas como cubiertas de nubes, y «Suavizar» aplica un filtro de Savitzky-Golay a la curva para que los patrones estacionales sean más fáciles de ver. Con el suavizado activado puedes ajustar el tamaño de la ventana y el orden del polinomio para afinar el resultado."
+      ],
+      "minimap": [
+        "El minimapa te ofrece una vista general a vista de pájaro del área de la campaña. El marcador muestra la ubicación de la tarea actual. Las coordenadas aparecen en el encabezado: haz clic en el icono de copiar para copiarlas o en el enlace para abrirlas en Google Earth."
+      ],
+      "googleEarth": "Haz clic en el enlace resaltado Abrir en Google Earth para inspeccionar la ubicación de la tarea actual en Google Earth. Se abrirá una pestaña nueva con las coordenadas ya introducidas, muy útil para obtener contexto en alta resolución cuando las imágenes no bastan.",
+      "controls": {
+        "body": ["En este panel es donde anotas realmente:"],
+        "selectLabel": "Selecciona una etiqueta (o pulsa las teclas numéricas 1-9)",
+        "formFields": "Responde a las preguntas de la campaña debajo de las etiquetas: {{tab}} pasa de una a otra, y las obligatorias deben completarse antes de poder enviar la tarea",
+        "comment": "Si quieres, añade un comentario (pulsa {{c}} para enfocarlo)",
+        "confidence": "Ajusta tu nivel de confianza con {{q}} / {{e}}",
+        "submit": "Pulsa {{enter}} para enviar, o usa el botón Omitir para continuar"
+      },
+      "practiceTasks": {
+        "title": "Práctica: navegar por las tareas",
+        "body": ["Pulsa {{w}} para ir a la tarea anterior y {{s}} para ir a la siguiente."],
+        "hint": "Prueba a pulsar S y luego W para moverte en ambas direcciones."
+      },
+      "review": {
+        "title": "Modo de revisión",
+        "body": ["STACNotator ofrece dos formas de revisar anotaciones:"],
+        "toggle": "Botón de revisión (icono de ojo): activa el modo de revisión directamente en esta página de anotación. Verás las etiquetas de todos los anotadores para cada tarea en el panel de controles. Si varios anotadores no están de acuerdo en una tarea, hay dos formas de resolverlo:",
+        "toggleOptions": [
+          "Actualiza tu etiqueta para que coincida con la de los demás si crees que tienen razón",
+          "Actualiza tu comentario para explicar por qué crees que los otros anotadores se equivocan o por qué no estás de acuerdo con ellos, y espera a que revisen este punto.",
+          "Los revisores autorizados pueden saltarse el consenso estableciendo una etiqueta que tiene prioridad sobre las demás."
+        ],
+        "list": "Lista de revisión (icono de lista): te lleva a una página de revisión dedicada con una tabla de todas las anotaciones, estadísticas de acuerdo y opciones de filtrado."
+      },
+      "canvasViews": {
+        "title": "Vistas del lienzo",
+        "body": [
+          "Usa este desplegable para cambiar entre las distintas vistas del lienzo configuradas para esta campaña. Cada vista puede tener sus propias colecciones de imágenes, cortes y capas de visualización, y te ayuda a organizar distintas fuentes de imágenes de forma útil."
+        ]
+      },
+      "complete": [
+        "¡Todo listo! STACNotator está pensado para usarse principalmente con el teclado: casi todas las acciones tienen un atajo, así que puedes anotar de forma eficiente sin tocar el ratón. Aquí tienes tu chuleta:"
+      ]
+    },
+    "explore": {
+      "welcome": {
+        "title": "¡Te damos la bienvenida a Explorar!",
+        "body": [
+          "En Explorar dibujas las anotaciones directamente en el mapa. Este recorrido te mostrará las funciones clave. Como en el modo de tareas, casi todas las acciones tienen un atajo de teclado."
+        ]
+      },
+      "mainMap": {
+        "toolsWithTimeseries": "Este es tu lienzo de dibujo. Usa las herramientas ({{p}}, {{r}}, {{e}}, {{b}}, {{t}}) para desplazarte, anotar, editar entidades, etiquetar entidades vectoriales o sondear series temporales. Usa la rueda del ratón para hacer zoom y haz clic y arrastra para desplazarte.",
+        "tools": "Este es tu lienzo de dibujo. Usa las herramientas ({{p}}, {{r}}, {{e}}, {{b}}) para desplazarte, anotar, editar entidades o etiquetar entidades vectoriales. Usa la rueda del ratón para hacer zoom y haz clic y arrastra para desplazarte.",
+        "fit": "Pulsa {{ }} para ajustar la vista a todo lo que has dibujado. Todo lo que explica el resto del recorrido acaba aquí."
+      },
+      "practiceWindows": "Pulsa {{shift+a}} para ir a la colección anterior y {{shift+d}} para ir a la siguiente. Fíjate en el mapa principal: cada pulsación avanza un mes entero (o la agrupación que use esta campaña) en lugar de una sola fecha.",
+      "controls": [
+        "Hemos activado la herramienta de anotación por ti, así que las etiquetas están en pantalla: la sección de etiquetas muestra las clases de anotación de la campaña y sus tipos de geometría (punto, polígono, línea).",
+        "Elige una etiqueta y dibuja en el mapa. Las teclas numéricas 1-9 eligen una etiqueta y activan la herramienta de anotación de una sola vez."
+      ],
+      "drawing": {
+        "title": "Dibujar una anotación",
+        "body": ["Elige primero una etiqueta: la etiqueta decide la forma que dibujas."],
+        "bullets": [
+          "Etiquetas de punto: un clic en el mapa y queda colocado.",
+          "Etiquetas de polígono y de línea: haz clic en cada vértice por orden. Cierra la forma con {{enter}}, con un doble clic o haciendo clic de nuevo en el primer vértice, lo que tengas más a mano.",
+          "{{escape}} mientras dibujas descarta la forma y empiezas de nuevo."
+        ]
+      },
+      "questions": {
+        "title": "Responder a las preguntas",
+        "body": [
+          "Esta campaña hace algunas preguntas sobre cada anotación. En cuanto terminas una forma, la lista de etiquetas se sustituye aquí por esas preguntas.",
+          "{{tab}} y {{shift+tab}} pasan de una pregunta a otra, y {{enter}} guarda la anotación cuando están respondidas. Todo lo marcado como obligatorio debe completarse: si cierras el panel sin hacerlo, la anotación se descarta."
+        ]
+      },
+      "editing": {
+        "title": "Cambiar y eliminar anotaciones",
+        "body": [
+          "Cambia a la herramienta de edición con {{e}} y luego haz clic en una forma del mapa para seleccionarla."
+        ],
+        "reshape": "Arrastra sus vértices para cambiar su forma y luego pulsa {{enter}} para conservar el cambio.",
+        "escape": "{{escape}} quita la selección y deja la anotación como estaba.",
+        "panelWithAnswers": "El panel de la izquierda muestra su etiqueta y sus respuestas mientras está seleccionada; ambas pueden cambiarse ahí y guardarse.",
+        "panel": "El panel de la izquierda muestra su etiqueta mientras está seleccionada y te permite cambiarla.",
+        "delete": "{{delete}} elimina definitivamente la anotación seleccionada.",
+        "hint": "Solo puedes cambiar o eliminar anotaciones de otras personas si la campaña lo permite."
+      },
+      "tools": {
+        "title": "Práctica: cambiar de herramienta",
+        "bodyWithTimeseries": "{{p}} = Desplazar, {{r}} = Anotar, {{e}} = Editar, {{t}} = Serie temporal",
+        "body": "{{p}} = Desplazar, {{r}} = Anotar, {{e}} = Editar",
+        "hintWithTimeseries": "Prueba cada una: P, R, E y T.",
+        "hint": "Prueba cada una: P, R y E."
+      },
+      "minimap": [
+        "El minimapa te ofrece una vista general a vista de pájaro del área de la campaña. Haz clic en cualquier punto para mover allí el mapa principal: se mantiene el nivel de zoom actual del mapa principal, así que saltas por el área de la campaña sin cambiar de escala. Arrastrar el rectángulo de la vista hace lo mismo.",
+        "El encabezado muestra las coordenadas del centro de la vista actual (donde está la retícula). Haz clic en el icono de copiar para copiarlas al portapapeles, o en el icono de enlace para abrir la ubicación en Google Earth."
+      ],
+      "googleEarth": "Haz clic en el enlace resaltado Abrir en Google Earth para inspeccionar el centro de la vista actual en Google Earth. Se abrirá una pestaña nueva con las coordenadas ya introducidas, muy útil para obtener contexto en alta resolución cuando las imágenes no bastan.",
+      "timeseries": [
+        "El gráfico representa índices espectrales (p. ej., NDVI) a lo largo del tiempo. Hemos colocado una sonda en el centro de tu vista para que haya una curva que mirar; se quitará cuando avances.",
+        "Cambia a la herramienta de sonda ({{icon:probe}}, o {{t}}) y haz clic en cualquier parte del mapa para leer la curva allí. El + junto a la herramienta (o {{shift+t}}) añade otra sonda en lugar de mover la primera, de modo que se grafican dos lugares uno junto al otro; al hacer clic de nuevo en una sonda, se quita.",
+        "El menú de opciones (icono de controles deslizantes) ofrece dos filtros útiles: «Quitar nubosos» oculta las observaciones marcadas con nubes, y «Suavizar» aplica un filtro de Savitzky-Golay para que los patrones estacionales sean más fáciles de ver. Con el suavizado activado puedes ajustar el tamaño de la ventana y el orden del polinomio para afinar el resultado."
+      ],
+      "canvasView": {
+        "title": "Vista del lienzo",
+        "body": [
+          "Este desplegable selecciona la vista del lienzo activa. Una vista es una agrupación a nivel de campaña que define qué fuentes de imágenes y colecciones se muestran juntas; piensa en ella como un ajuste predefinido para todo el espacio de trabajo de anotación.",
+          "Cambiar de vista puede cambiar a la vez las colecciones, los cortes, las fuentes de imágenes y las capas de visualización disponibles."
+        ]
+      },
+      "complete": [
+        "¡Ya puedes empezar a anotar en Explorar! STACNotator está pensado para usarse principalmente con el teclado. Aquí tienes tu chuleta:"
+      ]
+    }
+  },
+  "tourOverlay": {
+    "notBound": "No está asignado en este modo",
+    "done": "Hecho: pulsa Siguiente cuando estés listo.",
+    "resizeHint": "Arrastra el borde de un panel para redimensionarlo y luego haz clic en Guardar o Cancelar.",
+    "click": "Haz clic en {{target}}",
+    "highlighted": "el elemento resaltado",
+    "press": "Pulsa",
+    "step": "Paso {{current}} de {{total}}",
+    "closeTip": "Cerrar el recorrido (Esc)",
+    "close": "Cerrar el recorrido",
+    "skip": "Omitir el recorrido",
+    "finish": "Finalizar"
+  },
+  "panelHost": {
+    "hideLabel": "Ocultar {{name}}",
+    "hide": "Ocultar",
+    "dragToMove": "Arrastra para mover"
+  },
+  "hiddenTray": {
+    "title": "Ocultos",
+    "show": "Mostrar {{title}}",
+    "dragToResize": "Arrastra para redimensionar",
+    "resize": "Redimensionar {{title}}",
+    "minimizeLabel": "Minimizar {{title}}",
+    "minimize": "Minimizar",
+    "empty": "No hay nada oculto"
+  },
+  "layoutEdit": {
+    "saved": "Diseño guardado",
+    "saveFailed": "No se pudo guardar el diseño",
+    "resetDone": "Diseño restablecido a los valores predeterminados",
+    "editTip": "Editar el diseño del lienzo y los paneles",
+    "edit": "Editar diseño",
+    "resetTip": "Restablecer los valores predeterminados de la campaña",
+    "reset": "Restablecer",
+    "cancelTip": "Descartar los cambios del diseño",
+    "resetConfirm": {
+      "title": "¿Restablecer el diseño?",
+      "description": "Esto restablecerá el diseño del lienzo a los valores predeterminados de la campaña."
+    },
+    "saveLayout": "Guardar diseño",
+    "savePersonal": "Guardar como personal",
+    "savePersonalHint": "Solo para ti",
+    "saveDefault": "Guardar como predeterminado",
+    "saveDefaultHint": "Para todos los usuarios",
+    "confirmDefault": {
+      "title": "¿Guardar como diseño predeterminado?",
+      "description": "Esto sobrescribe el diseño predeterminado para todos los miembros de esta campaña que no tengan un diseño personal propio. Tu diseño personal, si lo tienes, no se modifica; para adoptar también este como tuyo, guárdalo aquí, luego pulsa Restablecer y guárdalo como personal.",
+      "confirm": "Guardar predeterminado"
+    },
+    "confirmMain": {
+      "title": "Diseño principal modificado",
+      "description": "Has modificado el diseño principal (mapa principal, serie temporal o minimapa). Este cambio se aplica a todas las vistas de imágenes de esta campaña y puede hacer que los diseños se desplacen. ¿Quieres guardar este diseño?",
+      "confirm": "Guardar diseño"
+    }
+  },
+  "tray": {
+    "hiddenPanels": "Paneles ocultos ({{count}})",
+    "newSize": "Tamaño con el que se añaden los paneles nuevos",
+    "hideAll": "Ocultar todo",
+    "restoreHint": "Haz clic en un panel para restaurarlo.",
+    "perRow": "Por fila",
+    "perRowLabel": "Paneles por fila",
+    "height": "Altura",
+    "heightLabel": "Altura del panel",
+    "setup": {
+      "title": "Configurando el espacio de trabajo",
+      "body": "Arrastra y redimensiona los paneles hasta tener la disposición inicial de tu equipo y luego selecciona <strong>Guardar diseño</strong> en la parte inferior de este panel para mostrar las imágenes. Cada persona podrá reorganizar su propia copia más tarde con Editar diseño.",
+      "moveHint": "Arrastra este panel por su encabezado para apartarlo."
+    }
+  },
+  "navPanels": {
+    "title": "Navegación del mapa",
+    "timeline": {
+      "separate": "Línea de tiempo en un panel aparte",
+      "checkbox": "Panel de línea de tiempo",
+      "orientation": "Orientación de la línea de tiempo"
+    },
+    "imagery": {
+      "separate": "Controles de imágenes en un panel aparte",
+      "checkbox": "Panel de imágenes",
+      "orientation": "Orientación de los controles de imágenes"
+    },
+    "horizontal": "Horizontal",
+    "vertical": "Vertical",
+    "sliceNavigation": "Navegación de cortes en escritorio"
+  },
+  "views": {
+    "title": "Vistas",
+    "newName": "Vista nueva",
+    "createFailed": "No se pudo crear la vista",
+    "renameFailed": "No se pudo cambiar el nombre de la vista",
+    "deleteFailed": "No se pudo eliminar la vista",
+    "reorderFailed": "No se pudieron reordenar las vistas",
+    "sourcesFailed": "No se pudieron actualizar las fuentes de la vista",
+    "add": "Añadir vista",
+    "name": "Nombre de la vista",
+    "untitled": "Vista sin título",
+    "rename": "Cambiar nombre",
+    "renameLabel": "Cambiar el nombre de {{name}}",
+    "moveUp": "Subir",
+    "moveUpLabel": "Subir {{name}}",
+    "moveDown": "Bajar",
+    "moveDownLabel": "Bajar {{name}}",
+    "delete": "Eliminar vista",
+    "deleteLabel": "Eliminar {{name}}",
+    "sources": "Fuentes en esta vista",
+    "sourcesHint": "Compartidas por todos los anotadores. Los cambios se guardan al instante.",
+    "noSources": "Todavía no hay fuentes de imágenes: añade una en la configuración de la campaña.",
+    "firstTip": "La primera fuente con imágenes se abre por defecto, salvo que haya una colección inicial marcada con estrella",
+    "first": "Primera",
+    "sourceUp": "Mover la fuente antes",
+    "sourceUpLabel": "Subir la fuente {{name}}",
+    "sourceDown": "Mover la fuente después",
+    "sourceDownLabel": "Bajar la fuente {{name}}",
+    "deleteConfirm": {
+      "title": "¿Eliminar la vista?",
+      "description": "«{{name}}» y sus diseños guardados se eliminarán para todos los usuarios."
+    }
+  },
+  "screens": {
+    "empty": "Esta pantalla está vacía. Envía un panel aquí desde el lienzo principal y luego arrastra los paneles por su encabezado o su cuerpo para organizarlos.",
+    "screen": "Pantalla {{id}}",
+    "returnAll": "Devolver todas las tarjetas",
+    "moveBack": "Devolver {{name}} a la ventana principal o moverlo a otra pantalla",
+    "move": "Mover {{name}} a otra pantalla",
+    "mainWindow": "Ventana principal",
+    "new": "Pantalla nueva",
+    "restoreTip": "Vuelve a abrir tus pantallas guardadas con sus paneles",
+    "restore_one": "Restaurar pantalla",
+    "restore_many": "Restaurar {{count}} pantallas",
+    "restore_other": "Restaurar {{count}} pantallas",
+    "hideForNow": "Ocultar por ahora",
+    "hideForNowTip": "Ocultar por ahora: tu división de pantallas sigue guardada"
+  },
+  "formFields": {
+    "from": "Desde",
+    "to": "Hasta"
+  },
+  "headerSelect": {
+    "collapse": "Contraer",
+    "expand": "Expandir",
+    "collapseLabel": "Contraer {{label}}",
+    "expandLabel": "Expandir {{label}}"
+  },
+  "legend": {
+    "scale": "Escala de color de {{name}}",
+    "minAuto": "Mín. (auto)",
+    "maxAuto": "Máx. (auto)"
+  },
+  "registrationNotice": "Registro de imágenes en curso. Las imágenes aparecerán automáticamente.",
+  "missingRequired": "Faltan campos obligatorios: {{fields}}",
+  "claims": {
+    "you": "Reservada por ti",
+    "other": "{{name}} está trabajando en esto",
+    "someoneElse": "Otra persona"
+  },
+  "sliceFallback": "Corte {{number}}",
+  "taskActions": {
+    "submitFailed": "No se pudo enviar la tarea",
+    "noTask": "No hay ninguna tarea actual que enviar",
+    "noneLeft": "No quedan tareas sin asignar en las que trabajar.",
+    "nextFailed": "No se pudo obtener la siguiente tarea",
+    "notAllowed": "No tienes permiso para etiquetar esta tarea en esta campaña.",
+    "mismatch": {
+      "title": "Se detectó una discrepancia de etiqueta",
+      "description": "Esta etiqueta no coincide con la que predeciría el modelo de vecinos más cercanos basado en embeddings. ¿Seguro que quieres enviar esta etiqueta?",
+      "confirm": "Enviar de todos modos",
+      "cancel": "Volver"
+    },
+    "authoritative": {
+      "title": "¿Enviar como autoritativa?",
+      "description": "Tu etiqueta se registrará como la respuesta canónica de esta tarea y la marcará como completada, anulando a los demás anotadores y omitiendo el consenso entre las personas asignadas.",
+      "confirm": "Enviar como autoritativa"
+    },
+    "skip": {
+      "title": "¿Omitir la anotación?",
+      "description": "Puedes volver a ella más tarde.",
+      "confirm": "Omitir"
+    }
+  },
+  "drawing": {
+    "labelFailed": "No se pudieron etiquetar las entidades: {{message}}",
+    "labeled_one": "{{count}} entidad etiquetada",
+    "labeled_many": "{{count}} entidades etiquetadas",
+    "labeled_other": "{{count}} entidades etiquetadas",
+    "updated": "Anotación actualizada correctamente",
+    "geometryFailed": "No se pudo guardar la geometría",
+    "deleted_one": "Anotación eliminada",
+    "deleted_many": "{{count}} anotaciones eliminadas",
+    "deleted_other": "{{count}} anotaciones eliminadas",
+    "deleteFailed": "No se pudo eliminar",
+    "boxFailed": "Falló la selección por recuadro",
+    "previousUnsaved": "No se pudo guardar la anotación anterior: vuelve a intentarlo o descártala primero.",
+    "saveFailed": "No se pudo guardar la anotación: vuelve a intentarlo o descártala en el panel.",
+    "notAuthorized": "No tienes autorización para editar anotaciones de otros usuarios."
+  },
+  "work": {
+    "draftSaveFailed": "No se pudo guardar la anotación abierta: sigue en el panel, vuelve a intentarlo allí.",
+    "openFailed": "No se pudo abrir la anotación para editarla",
+    "sliceCommentFailed": "No se pudo guardar el comentario del corte",
+    "flagFailed": "No se pudo actualizar la marca"
+  },
+  "scenes": {
+    "viewportFailed": "No se pudieron cargar las imágenes de Planet para esta vista",
+    "dateFailed": "No se pudieron cargar las imágenes de Planet para esta fecha"
+  },
+  "camera": {
+    "extentFailed": "No se pudo cargar la extensión de las anotaciones"
+  },
+  "map": {
+    "originTask": "Tarea n.º {{number}}"
+  }
+}

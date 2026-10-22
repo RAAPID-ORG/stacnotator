@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createImageryView, getCampaignWithImageryWindows } from '~/api/client';
 import { ensureTilerSession } from '~/api/tilerToken';
@@ -105,6 +106,7 @@ export function AnnotationPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { t, i18n } = useTranslation('annotation');
 
   const [load, setLoad] = useState<LoadState>('loading');
   const [bypassRegistering, setBypassRegistering] = useState(false);
@@ -139,7 +141,7 @@ export function AnnotationPage() {
   const taskSets = useTasksStore((s) => s.taskSets);
   const scopedTaskSetName = taskSets.find((set) => set.id === taskFilter.taskSetId)?.name;
 
-  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Annotate');
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, t('page.breadcrumb'));
   useEffect(() => useCampaignStore.getState().setMobile(isMobile), [isMobile]);
 
   // ------------------------------------------------------------------
@@ -218,7 +220,7 @@ export function AnnotationPage() {
       .catch((error) => {
         if (cancelled) return;
         setLoad('failed');
-        handleError(error, 'Failed to load campaign');
+        handleError(error, t('page.loadFailed'));
       });
 
     // Leaving a campaign clears everything scoped to it. The stores are
@@ -245,7 +247,7 @@ export function AnnotationPage() {
   const bindings = useMemo(
     () => (campaign && catalog ? pageKeymap() : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [campaign, catalog, view, workMode, isMobile]
+    [campaign, catalog, view, workMode, isMobile, i18n.language]
   );
   useHotkeys(bindings, [bindings]);
 
@@ -361,6 +363,8 @@ export function AnnotationPage() {
             ),
           }
     );
+    // Panel titles are translated when built, so a language change rebuilds them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     campaign,
     catalog,
@@ -371,6 +375,7 @@ export function AnnotationPage() {
     isMobile,
     editing,
     screens,
+    i18n.language,
   ]);
 
   const panelIds = useMemo(() => panels.map((p) => p.id), [panels]);
@@ -494,7 +499,10 @@ export function AnnotationPage() {
         onCreateFirstView={() => {
           void createImageryView({
             path: { campaign_id: campaign.id },
-            body: { name: 'Default view', source_ids: campaign.imagery_sources.map((s) => s.id) },
+            body: {
+              name: t('page.defaultViewName'),
+              source_ids: campaign.imagery_sources.map((s) => s.id),
+            },
           })
             .then((res) => {
               const currentCampaign = useCampaignStore.getState().campaign;
@@ -506,7 +514,7 @@ export function AnnotationPage() {
               focusFirstViewSetup(currentCampaign.imagery_sources[0]?.default_zoom ?? null);
               useLayoutStore.getState().startEditing();
             })
-            .catch((error) => handleError(error, 'Could not create the view'));
+            .catch((error) => handleError(error, t('page.createViewFailed')));
         }}
       />
     );
@@ -562,7 +570,7 @@ export function AnnotationPage() {
           mobileLayout={mobileLayout}
         />
       ) : workMode === 'tasks' && !tasksLoaded ? (
-        <LoadingGate text="Loading tasks..." />
+        <LoadingGate text={t('page.loadingTasks')} />
       ) : allTasks.length === 0 ? (
         <NoTasksGate
           isCampaignAdmin={policy.isAdmin}
@@ -604,12 +612,7 @@ export function AnnotationPage() {
             onClose={() => useLayoutStore.getState().closeScreen(screen.id)}
             bounds={screen.bounds ?? SCREEN_DEFAULT_BOUNDS}
             onBounds={(b) => useLayoutStore.getState().rememberScreenBounds(screen.id, b)}
-            onBlocked={() =>
-              showAlert(
-                'The browser blocked the new screen. Allow popups for this site and try again.',
-                'error'
-              )
-            }
+            onBlocked={() => showAlert(t('page.screenBlocked'), 'error')}
             windowComponent={PopoutWindow}
           />
         ))}

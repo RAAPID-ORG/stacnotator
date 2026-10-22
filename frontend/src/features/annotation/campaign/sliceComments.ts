@@ -5,6 +5,7 @@
  * work is in progress and saved with it.
  */
 import type { AnnotationOut } from '~/api/client';
+import i18n from '~/shared/i18n';
 import { sliceDateRange, type ImageryCatalog } from './imagery';
 import { collectionAddress, addressAtSlice, type SliceAddress } from './imageryNav';
 
@@ -78,5 +79,8 @@ export function addressOfSlice(cat: ImageryCatalog, sliceId: number): SliceAddre
 /** The imagery a note is about, as one line: "Sentinel-2, Jun 1 - Jun 7, 2023". */
 export function describeSlice(comment: SliceComment): string {
   const dates = sliceDateRange(comment);
-  return [comment.source_name, dates].filter(Boolean).join(', ') || `Slice ${comment.slice_id}`;
+  return (
+    [comment.source_name, dates].filter(Boolean).join(', ') ||
+    i18n.t('annotation:sliceFallback', { number: comment.slice_id })
+  );
 }

@@ -1,4 +1,5 @@
 import { forwardRef, type HTMLAttributes } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { PanelDef } from '../panels/panels';
 
 /** Shared by both canvases and gesture recovery: interactive controls never
@@ -28,7 +29,8 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
   const showPlaceholder = editing && panel.hideTarget === true;
   const fullHeader = showPlaceholder && panel.headerless === true;
   const canHide = panel.hidable === true && onHidePanel != null;
-  const hideLabel = `Hide ${panel.title ?? panel.id}`;
+  const { t } = useTranslation('annotation');
+  const hideLabel = t('panelHost.hideLabel', { name: panel.title ?? panel.id });
 
   return (
     // data-panel-id is the panel's stable handle for anything that has to find
@@ -71,10 +73,10 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
                 onHidePanel(panel.id);
               }}
               aria-label={hideLabel}
-              title="Hide"
+              title={t('panelHost.hide')}
               data-testid={`hide-panel-${panel.id}`}
             >
-              Hide
+              {t('panelHost.hide')}
             </button>
           )}
         </div>
@@ -86,7 +88,7 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
             className={`${PANEL_DRAG_HANDLE_CLASS} flex min-h-0 w-full flex-1 cursor-move touch-none items-center justify-center text-xs text-neutral-500 select-none`}
             data-testid={`edit-placeholder-${panel.id}`}
           >
-            Drag to move
+            {t('panelHost.dragToMove')}
           </div>
         ) : (
           <div

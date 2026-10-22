@@ -1,5 +1,6 @@
 import { useCampaignStore, useCatalog } from '../stores/campaign';
 import type { MouseEvent, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { collectionsInView } from '../campaign/imagery';
 import { useImageryStore } from '../stores/imagery';
 import {
@@ -10,6 +11,7 @@ import {
 } from '~/shared/ui/Icons';
 
 export function SliceNavigation({ mobile = false }: { mobile?: boolean }) {
+  const { t } = useTranslation('annotation');
   const catalog = useCatalog();
   const view = useCampaignStore((s) => s.view);
   const address = useImageryStore((s) => s.address);
@@ -46,33 +48,33 @@ export function SliceNavigation({ mobile = false }: { mobile?: boolean }) {
       onPointerDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       role="group"
-      aria-label="Slice and collection navigation"
+      aria-label={t('sliceNav.label')}
       data-testid="slice-navigation"
     >
       <NavButton
         onClick={handle(() => stepCollection(catalog, -1))}
-        label="Previous collection"
+        label={t('keymap.previousCollection')}
         disabled={!hasMultipleCollections}
       >
         <IconChevronDoubleLeft className="h-4 w-4" />
       </NavButton>
       <NavButton
         onClick={handle(() => stepSlice(catalog, -1))}
-        label="Previous slice"
+        label={t('keymap.previousSlice')}
         disabled={!hasMultipleSlices}
       >
         <IconChevronLeft className="h-4 w-4" />
       </NavButton>
       <NavButton
         onClick={handle(() => stepSlice(catalog, 1))}
-        label="Next slice"
+        label={t('keymap.nextSlice')}
         disabled={!hasMultipleSlices}
       >
         <IconChevronRight className="h-4 w-4" />
       </NavButton>
       <NavButton
         onClick={handle(() => stepCollection(catalog, 1))}
-        label="Next collection"
+        label={t('keymap.nextCollection')}
         disabled={!hasMultipleCollections}
       >
         <IconChevronDoubleRight className="h-4 w-4" />

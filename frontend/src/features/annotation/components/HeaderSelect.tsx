@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { IconChevronDown } from '~/shared/ui/Icons';
 
 const MAX_LIST_HEIGHT_PX = 300;
@@ -94,6 +95,7 @@ export function HeaderSelect({
   onInlineChange,
   label,
 }: HeaderSelectProps) {
+  const { t } = useTranslation('annotation');
   const radioName = useId();
   const [selfOpen, setSelfOpen] = useState(false);
   const open = forcedOpen || selfOpen;
@@ -177,7 +179,11 @@ export function HeaderSelect({
         {onInlineChange && (
           <button
             type="button"
-            aria-label={`${inline ? 'Collapse' : 'Expand'} ${label}`}
+            aria-label={
+              inline
+                ? t('headerSelect.collapseLabel', { label })
+                : t('headerSelect.expandLabel', { label })
+            }
             aria-expanded={inline}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
@@ -188,7 +194,7 @@ export function HeaderSelect({
             }}
             className="rounded px-1.5 py-0.5 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
           >
-            {inline ? 'Collapse' : 'Expand'}
+            {inline ? t('headerSelect.collapse') : t('headerSelect.expand')}
           </button>
         )}
       </div>

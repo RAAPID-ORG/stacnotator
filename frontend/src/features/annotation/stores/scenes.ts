@@ -10,6 +10,7 @@ import { useCameraValue } from '~/shared/map/Camera';
 import { setForegroundMapLoading } from '~/shared/map/tileLoading';
 import type { Bbox, CameraSnapshot } from '~/shared/map/types';
 import { handleError } from '~/shared/utils/errorHandler';
+import i18n from '~/shared/i18n';
 import {
   MIN_SCENE_ZOOM,
   boxAround,
@@ -186,7 +187,7 @@ function pump(): void {
     .catch((error: unknown) => {
       if (era !== epoch) return;
       if (abort.signal.aborted) queue.push(job);
-      else if (job.show) handleError(error, 'Could not load Planet imagery for this viewport');
+      else if (job.show) handleError(error, i18n.t('annotation:scenes.viewportFailed'));
     })
     .finally(() => {
       if (era !== epoch) return;
@@ -372,7 +373,7 @@ function runMint(job: MintJob, urgent: boolean): void {
       if (era !== epoch || abort.signal.aborted) return;
       // Asked for again on the next step rather than left permanently unminted.
       for (const id of job.sliceIds) job.found.asked.delete(id);
-      handleError(error, 'Could not load Planet imagery for this date', { showUser: urgent });
+      handleError(error, i18n.t('annotation:scenes.dateFailed'), { showUser: urgent });
     })
     .finally(() => {
       mintRunning[lane] = null;

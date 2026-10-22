@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconProbe } from '~/shared/ui/Icons';
 import type { LonLat } from '~/shared/map/types';
 import {
@@ -163,6 +164,7 @@ function focusMultiVizSource(): void {
 }
 
 function KeyChip({ spec }: { spec: string }) {
+  const { t } = useTranslation('annotation');
   const bound = helpRows().some((row) => row.key === spec);
   return (
     <kbd
@@ -171,7 +173,7 @@ function KeyChip({ spec }: { spec: string }) {
           ? 'border-neutral-300 bg-neutral-100 text-neutral-700'
           : 'border-dashed border-neutral-300 text-neutral-400'
       }`}
-      title={bound ? undefined : 'Not bound in this mode'}
+      title={bound ? undefined : t('tourOverlay.notBound')}
       data-testid={`tour-key-${spec}`}
     >
       {keyLabel(spec)}
@@ -259,6 +261,7 @@ function StepBody({ step }: { step: TourStep }) {
 
 /** What the step still wants, shown under the copy. */
 function ActionHint({ step, state }: { step: TourStep; state: TourState }) {
+  const { t } = useTranslation('annotation');
   const done = state.fulfilled;
   const waitsForLayoutEdit = step.effect === 'edit-layout';
   if (!step.requiredKeys && !step.requiredClick && !waitsForLayoutEdit) return null;
@@ -270,15 +273,13 @@ function ActionHint({ step, state }: { step: TourStep; state: TourState }) {
       data-fulfilled={done}
     >
       <span className="text-xs font-medium text-neutral-600">
-        {done
-          ? 'Done - hit Next when you are ready.'
-          : waitsForLayoutEdit
-            ? 'Drag a panel edge to resize, then click Save or Cancel.'
-            : null}
+        {done ? t('tourOverlay.done') : waitsForLayoutEdit ? t('tourOverlay.resizeHint') : null}
         {!done &&
           step.requiredClick &&
-          `Click ${step.requiredClickLabel ?? 'the highlighted element'}`}
-        {!done && step.requiredKeys && 'Press'}
+          t('tourOverlay.click', {
+            target: step.requiredClickLabel ?? t('tourOverlay.highlighted'),
+          })}
+        {!done && step.requiredKeys && t('tourOverlay.press')}
       </span>
       {!done && step.requiredKeys && (
         <span className="flex gap-1">
@@ -310,9 +311,11 @@ export function TourOverlay({
   onRestoreFilter,
   onClose,
 }: TourOverlayProps) {
+  const { t, i18n } = useTranslation(['annotation', 'common']);
   const steps = useMemo(
     () => buildTourSteps(variant, { hasTimeseries, hasFormFields }),
-    [variant, hasTimeseries, hasFormFields]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [variant, hasTimeseries, hasFormFields, i18n.language]
   );
   const [state, setState] = useState<TourState>(INITIAL_TOUR_STATE);
   const [rects, setRects] = useState<DOMRect[]>([]);
@@ -575,13 +578,13 @@ export function TourOverlay({
 
         <div className="mb-2 flex items-center justify-between pt-1">
           <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
-            Step {state.index + 1} of {steps.length}
+            {t('tourOverlay.step', { current: state.index + 1, total: steps.length })}
           </span>
           <button
             type="button"
             onClick={() => dispatch({ type: 'close' })}
-            title="Close tour (Esc)"
-            aria-label="Close tour"
+            title={t('tourOverlay.closeTip')}
+            aria-label={t('tourOverlay.close')}
             className="text-neutral-400 transition-colors hover:text-neutral-600"
           >
             x
@@ -599,7 +602,7 @@ export function TourOverlay({
             disabled={state.index === 0}
             className="px-3 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            Back
+            {t('common:actions.back')}
           </button>
           <div className="flex gap-2">
             {!isLast && (
@@ -608,7 +611,7 @@ export function TourOverlay({
                 onClick={() => dispatch({ type: 'close' })}
                 className="px-3 py-1.5 text-xs font-medium text-neutral-500 transition-colors hover:text-neutral-700"
               >
-                Skip Tour
+                {t('tourOverlay.skip')}
               </button>
             )}
             <button
@@ -618,7 +621,7 @@ export function TourOverlay({
               data-testid="tour-next"
               className="rounded-md bg-brand-600 px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {isLast ? 'Finish' : 'Next'}
+              {isLast ? t('tourOverlay.finish') : t('common:actions.next')}
             </button>
           </div>
         </div>

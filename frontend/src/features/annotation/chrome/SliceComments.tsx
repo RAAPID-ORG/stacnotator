@@ -4,6 +4,7 @@
  * wherever a slice is on screen.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconComment, IconCommentFilled } from '~/shared/ui/Icons';
 import { Modal } from '~/shared/ui/Modal';
 import { sliceLabel } from '../campaign/imagery';
@@ -13,11 +14,14 @@ import { useCatalog } from '../stores/campaign';
 import { useSliceNotes, useWorkStore } from '../stores/work';
 
 /** Marks a slice that carries a note, in the lists that offer slices. */
-export const NoteBadge = () => (
-  <span title="Has a note" className="text-amber-500">
-    <IconCommentFilled className="w-2.5 h-2.5" />
-  </span>
-);
+export const NoteBadge = () => {
+  const { t } = useTranslation('annotation');
+  return (
+    <span title={t('sliceComments.hasNote')} className="text-amber-500">
+      <IconCommentFilled className="w-2.5 h-2.5" />
+    </span>
+  );
+};
 
 export interface SliceCommentButtonProps {
   address: SliceAddress | null;
@@ -27,6 +31,7 @@ export interface SliceCommentButtonProps {
 }
 
 export function SliceCommentButton({ address, hint, compact }: SliceCommentButtonProps) {
+  const { t } = useTranslation('annotation');
   const catalog = useCatalog();
   const notes = useSliceNotes();
   const openSliceComment = useWorkStore((s) => s.openSliceComment);
@@ -48,9 +53,11 @@ export function SliceCommentButton({ address, hint, compact }: SliceCommentButto
       }}
       data-slice-comment-open
       data-has-note={note !== undefined}
-      aria-label="Comment on this imagery"
+      aria-label={t('sliceComments.comment')}
       title={
-        note ? `Note: ${note.text}` : ['Comment on this imagery', hint].filter(Boolean).join(' - ')
+        note
+          ? t('sliceComments.noteTip', { text: note.text })
+          : [t('sliceComments.comment'), hint].filter(Boolean).join(' - ')
       }
       className={`flex ${size} shrink-0 items-center justify-center rounded-md cursor-pointer transition-colors ${
         note
@@ -64,6 +71,7 @@ export function SliceCommentButton({ address, hint, compact }: SliceCommentButto
 }
 
 export function SliceCommentDialog() {
+  const { t } = useTranslation(['annotation', 'common']);
   const catalog = useCatalog();
   const notes = useSliceNotes();
   const address = useWorkStore((s) => s.commenting);
@@ -100,7 +108,7 @@ export function SliceCommentDialog() {
 
   return (
     <Modal
-      title="Imagery note"
+      title={t('sliceComments.dialogTitle')}
       onClose={close}
       footer={
         <div className="flex items-center justify-between gap-2">
@@ -113,7 +121,7 @@ export function SliceCommentDialog() {
             disabled={!text}
             className="text-[11px] text-neutral-500 hover:text-rose-600 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
           >
-            Clear
+            {t('sliceComments.clear')}
           </button>
           <div className="flex gap-2">
             <button
@@ -121,7 +129,7 @@ export function SliceCommentDialog() {
               onClick={close}
               className="px-3 py-1.5 rounded-md text-xs font-medium text-neutral-700 border border-neutral-300 hover:bg-neutral-50 cursor-pointer transition-colors"
             >
-              Cancel
+              {t('common:actions.cancel')}
             </button>
             <button
               type="button"
@@ -129,7 +137,7 @@ export function SliceCommentDialog() {
               onClick={save}
               className="px-3 py-1.5 rounded-md text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 cursor-pointer transition-colors"
             >
-              {stored && !text.trim() ? 'Remove' : 'Save'}
+              {stored && !text.trim() ? t('common:actions.remove') : t('common:actions.save')}
             </button>
           </div>
         </div>
@@ -149,14 +157,12 @@ export function SliceCommentDialog() {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save();
             e.stopPropagation();
           }}
-          placeholder="What is worth knowing about this imagery?"
+          placeholder={t('sliceComments.placeholder')}
           rows={4}
           maxLength={2000}
           className="w-full resize-none rounded-md border border-neutral-300 px-2.5 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/15"
         />
-        <span className="text-[10px] text-neutral-400">
-          Saved with your annotation. Ctrl+Enter to save.
-        </span>
+        <span className="text-[10px] text-neutral-400">{t('sliceComments.footer')}</span>
       </div>
     </Modal>
   );

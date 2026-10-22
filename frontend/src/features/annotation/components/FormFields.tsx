@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { DateRangeValue } from '~/api/client';
 import { DateField } from '~/shared/ui/forms';
 import type { FormField } from '../campaign/annotation';
@@ -287,12 +288,13 @@ function DateFamilyField({
   onChange: (next: FormValues) => void;
   disabled: boolean;
 }) {
+  const { t } = useTranslation('annotation');
   if (field.type === 'daterange') {
     const { start, end } = readDateRange(values, field.id);
     return (
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-1.5">
-          <label className="text-[10px] text-neutral-500 w-8">From</label>
+          <label className="text-[10px] text-neutral-500 w-8">{t('formFields.from')}</label>
           <DateField
             size="sm"
             value={start}
@@ -301,7 +303,7 @@ function DateFamilyField({
           />
         </div>
         <div className="flex items-center gap-1.5">
-          <label className="text-[10px] text-neutral-500 w-8">To</label>
+          <label className="text-[10px] text-neutral-500 w-8">{t('formFields.to')}</label>
           <DateField
             size="sm"
             value={end}

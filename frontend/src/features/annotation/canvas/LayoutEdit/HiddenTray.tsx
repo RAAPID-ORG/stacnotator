@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconPlus } from '~/shared/ui/Icons';
 
 const MIN_PANEL_W = 280;
@@ -77,7 +78,7 @@ export interface HiddenTrayProps {
  *  component's. */
 export function HiddenTray({
   items,
-  title = 'Hidden',
+  title: titleProp,
   footerActions,
   sections,
   listHeader,
@@ -85,6 +86,8 @@ export function HiddenTray({
   onAdd,
   className = '',
 }: HiddenTrayProps) {
+  const { t } = useTranslation('annotation');
+  const title = titleProp ?? t('hiddenTray.title');
   const [expanded, setExpanded] = useState(true);
   const [panelGeometry, setPanelGeometry] = useState(() => loadPanelGeometry(storageKey));
   const [viewport, setViewport] = useState(() => ({
@@ -192,8 +195,8 @@ export function HiddenTray({
         onClick={() => setExpanded(true)}
         className={`fixed z-[900] inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-2 text-xs font-medium text-neutral-700 shadow-lg ${className}`}
         style={{ bottom: PANEL_MARGIN, right: PANEL_MARGIN }}
-        title={`Show ${title.toLowerCase()}`}
-        aria-label={`Show ${title.toLowerCase()}`}
+        title={t('hiddenTray.show', { title: title.toLowerCase() })}
+        aria-label={t('hiddenTray.show', { title: title.toLowerCase() })}
       >
         <span>{title}</span>
         <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-neutral-200 px-1 text-[10px] font-semibold tabular-nums text-neutral-600">
@@ -222,8 +225,8 @@ export function HiddenTray({
         onPointerCancel={onPanelResizePointerUp}
         onLostPointerCapture={onPanelResizePointerUp}
         className="absolute top-0 left-0 z-20 h-5 w-5 touch-none cursor-nwse-resize"
-        title="Drag to resize"
-        aria-label={`Resize ${title.toLowerCase()}`}
+        title={t('hiddenTray.dragToResize')}
+        aria-label={t('hiddenTray.resize', { title: title.toLowerCase() })}
         data-testid="resize-hidden-tray"
       />
 
@@ -234,15 +237,15 @@ export function HiddenTray({
         onPointerCancel={onPanelMovePointerUp}
         onLostPointerCapture={onPanelMovePointerUp}
         className="flex shrink-0 touch-none cursor-grab items-center justify-between gap-2 rounded-t-xl border-b border-neutral-100 bg-neutral-50/70 px-3 py-2 select-none active:cursor-grabbing"
-        title="Drag to move"
+        title={t('panelHost.dragToMove')}
         data-testid="move-hidden-tray"
       >
         <span className="truncate pl-3 text-xs font-semibold text-neutral-800">{title}</span>
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          aria-label={`Minimize ${title.toLowerCase()}`}
-          title="Minimize"
+          aria-label={t('hiddenTray.minimizeLabel', { title: title.toLowerCase() })}
+          title={t('hiddenTray.minimize')}
           className="grid h-5 w-5 shrink-0 place-items-center rounded text-neutral-400 hover:bg-neutral-200/70 hover:text-neutral-700"
         >
           -
@@ -267,7 +270,7 @@ export function HiddenTray({
         >
           {listHeader && <div className="shrink-0 px-1 pb-1.5">{listHeader}</div>}
           {items.length === 0 ? (
-            <p className="px-2 py-1 text-[11px] text-neutral-400">Nothing hidden</p>
+            <p className="px-2 py-1 text-[11px] text-neutral-400">{t('hiddenTray.empty')}</p>
           ) : (
             <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
               {items.map((item) => (

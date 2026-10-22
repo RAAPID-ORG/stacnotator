@@ -194,7 +194,7 @@ export function ImageryControls({
   orientation?: 'horizontal' | 'vertical';
   detached?: boolean;
 }) {
-  const { t } = useTranslation('panels');
+  const { t, i18n } = useTranslation('panels');
   const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
@@ -207,7 +207,7 @@ export function ImageryControls({
     setPanelOptions('imagery', { expanded_sections: sections });
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const bindings = useMemo(() => pageKeymap(), [campaign, catalog, mode, view]);
+  const bindings = useMemo(() => pageKeymap(), [campaign, catalog, mode, view, i18n.language]);
   const layoutClass = !detached
     ? 'flex-wrap items-center justify-center gap-1'
     : orientation === 'vertical'
@@ -252,7 +252,7 @@ export function ImageryControls({
 }
 
 function MainMapActions() {
-  const { t } = useTranslation('panels');
+  const { t, i18n } = useTranslation('panels');
   const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
@@ -264,7 +264,7 @@ function MainMapActions() {
   // pageKeymap() reads the stores directly; these are the inputs that should
   // rebuild the table, not what the closure literally names.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const bindings = useMemo(() => pageKeymap(), [campaign, catalog, mode, view]);
+  const bindings = useMemo(() => pageKeymap(), [campaign, catalog, mode, view, i18n.language]);
 
   // View sync only means something with more than one window to keep in step.
   const windowCount = collectionsInView(catalog, { source_ids: sourceIds }).filter(

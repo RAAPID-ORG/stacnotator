@@ -7,6 +7,7 @@ import {
   type AnnotationTaskOut,
   type AnnotationTaskSubmitResponse,
 } from '~/api/client';
+import i18n from '~/shared/i18n';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
@@ -187,7 +188,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
       },
     });
     const result: AnnotationTaskSubmitResponse | undefined = response.data;
-    if (!result) return { kind: 'error', message: 'The task could not be submitted' };
+    if (!result) return { kind: 'error', message: i18n.t('annotation:taskActions.submitFailed') };
 
     // Only once the backend has it: a failed submit keeps the time for the retry.
     forgetTaskActiveMs(task.id);
@@ -238,7 +239,8 @@ async function run(options: {
   const { catalog } = campaignState();
   const task = currentTask();
   const { currentUserId } = useCampaignStore.getState();
-  if (!task || !currentUserId) return { kind: 'error', message: 'No current task to submit' };
+  if (!task || !currentUserId)
+    return { kind: 'error', message: i18n.t('annotation:taskActions.noTask') };
 
   const work = useWorkStore.getState();
   const outcome = await submitCurrent({
@@ -258,7 +260,8 @@ async function run(options: {
   });
 
   const tasks = useTasksStore.getState();
-  if (outcome.kind === 'blocked') alert(`Missing required: ${outcome.missing.join(', ')}`, 'error');
+  if (outcome.kind === 'blocked')
+    alert(i18n.t('annotation:missingRequired', { fields: outcome.missing.join(', ') }), 'error');
   else if (outcome.kind === 'error') alert(outcome.message, 'error');
   else if (outcome.kind === 'submitted') {
     tasks.replaceTask(outcome.task, catalog);
@@ -296,20 +299,19 @@ export async function advance(): Promise<void> {
       },
     });
     if (data?.task) useTasksStore.getState().adoptTask(data.task, catalog);
-    else alert('No unassigned tasks left to work on.', 'success');
+    else alert(i18n.t('annotation:taskActions.noneLeft'), 'success');
   } catch (error) {
-    handleError(error, 'Could not get the next task');
+    handleError(error, i18n.t('annotation:taskActions.nextFailed'));
   }
 }
 
-const MISMATCH_CONFIRM = {
-  title: 'Label Mismatch Detected',
-  description:
-    'This label does not match what the nearest-neighbour embedding model would predict. Are you sure you want to submit this label?',
-  confirmText: 'Submit Anyway',
-  cancelText: 'Go Back',
+const mismatchConfirm = () => ({
+  title: i18n.t('annotation:taskActions.mismatch.title'),
+  description: i18n.t('annotation:taskActions.mismatch.description'),
+  confirmText: i18n.t('annotation:taskActions.mismatch.confirm'),
+  cancelText: i18n.t('annotation:taskActions.mismatch.cancel'),
   isDangerous: true,
-};
+});
 
 /** Runs `body` only while no submit is in flight - the same guard the buttons
  *  enforce through `isSubmitting`. */
@@ -329,18 +331,17 @@ async function guarded(body: () => Promise<void>): Promise<void> {
 async function submitWith(isAuthoritative?: boolean): Promise<void> {
   const readiness = currentSubmitReadiness();
   if (!readiness.mayLabel) {
-    alert('You are not allowed to label this task in this campaign.', 'error');
+    alert(i18n.t('annotation:taskActions.notAllowed'), 'error');
     return;
   }
   if (!maySubmitTask(readiness)) return;
 
   if (isAuthoritative) {
     const confirmed = await useGlobalLayoutStore.getState().showConfirmDialog({
-      title: 'Submit as authoritative?',
-      description:
-        'Your label will be recorded as the canonical answer for this task and mark it completed, overriding any other annotators and skipping consensus from assignees.',
-      confirmText: 'Submit Authoritative',
-      cancelText: 'Cancel',
+      title: i18n.t('annotation:taskActions.authoritative.title'),
+      description: i18n.t('annotation:taskActions.authoritative.description'),
+      confirmText: i18n.t('annotation:taskActions.authoritative.confirm'),
+      cancelText: i18n.t('common:actions.cancel'),
       isDangerous: true,
     });
     if (!confirmed) return;
@@ -350,7 +351,7 @@ async function submitWith(isAuthoritative?: boolean): Promise<void> {
     const labelId = useWorkStore.getState().selectedLabelId;
     const first = await run({ labelId, isAuthoritative });
     if (first.kind !== 'needsConfirm') return;
-    if (await useGlobalLayoutStore.getState().showConfirmDialog(MISMATCH_CONFIRM)) {
+    if (await useGlobalLayoutStore.getState().showConfirmDialog(mismatchConfirm())) {
       await run({ labelId, isAuthoritative, confirmMismatch: true });
     }
   });
@@ -366,15 +367,15 @@ export const submitAuthoritative = () => submitWith(true);
  *  annotation, which is the record that this user looked and moved on. */
 export async function skipCurrent(): Promise<void> {
   if (!taskLabellingPolicy(currentTask()).mayLabel) {
-    alert('You are not allowed to label this task in this campaign.', 'error');
+    alert(i18n.t('annotation:taskActions.notAllowed'), 'error');
     return;
   }
   if (!usePrefsStore.getState().skipConfirmDisabled) {
     const confirmed = await useGlobalLayoutStore.getState().showConfirmDialog({
-      title: 'Skip annotation?',
-      description: 'You can come back to it later.',
-      confirmText: 'Skip',
-      cancelText: 'Cancel',
+      title: i18n.t('annotation:taskActions.skip.title'),
+      description: i18n.t('annotation:taskActions.skip.description'),
+      confirmText: i18n.t('annotation:taskActions.skip.confirm'),
+      cancelText: i18n.t('common:actions.cancel'),
       showDontAskAgain: true,
       onDontAskAgain: () => usePrefsStore.getState().setSkipConfirmDisabled(true),
     });

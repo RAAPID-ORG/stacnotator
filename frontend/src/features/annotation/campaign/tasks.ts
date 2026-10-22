@@ -1,3 +1,4 @@
+import i18n from '~/shared/i18n';
 import type {
   AnnotationFromTaskOut,
   AnnotationTaskAssignmentOut,
@@ -53,8 +54,10 @@ export function claimedByLabel(
 ): string | null {
   const claim = getActiveClaim(task, now);
   if (!claim) return null;
-  if (claim.userId === currentUserId) return 'Claimed by you';
-  return `${claim.displayName || 'Someone else'} is working on this`;
+  if (claim.userId === currentUserId) return i18n.t('annotation:claims.you');
+  return i18n.t('annotation:claims.other', {
+    name: claim.displayName || i18n.t('annotation:claims.someoneElse'),
+  });
 }
 
 // ---------------------------------------------------------------------------
