@@ -3,7 +3,12 @@ import { deflateSync, crc32 } from 'node:zlib';
 import { test, expect } from './fixtures/annotator-fixture';
 import type { ApiCapture } from './fixtures/annotator-fixture';
 import { MOCK_CAMPAIGN_OPEN_MODE, MOCK_CAMPAIGN_OPEN_MODE_NO_TS } from './fixtures/mock-data';
-import { clickMapCenter, dragBoxOnMap, waitForCreate } from './fixtures/imagery-helpers';
+import {
+  clickMapAt,
+  clickMapCenter,
+  dragBoxOnMap,
+  waitForCreate,
+} from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
 
@@ -26,9 +31,11 @@ const WAND_CAMPAIGN = {
   settings: { ...MOCK_CAMPAIGN_OPEN_MODE.settings, labels: WAND_LABELS },
 };
 
-/** A flat grey 256px PNG: the wand stitches the tiles it actually gets, so a
- *  1px placeholder tile would make a 1px image. */
-function greyTile(): Buffer {
+/** A 256px tile of flat field bordered by a dark two-pixel road, so the map
+ *  is a grid of identical fields: wherever a click lands, the field around it
+ *  is one tile. The wand stitches the tiles it actually gets, so a 1px
+ *  placeholder tile would not do. */
+function fieldTile(): Buffer {
   const chunk = (type: string, data: Buffer) => {
     const body = Buffer.concat([Buffer.from(type), data]);
     const out = Buffer.alloc(12 + data.length);
@@ -41,8 +48,14 @@ function greyTile(): Buffer {
   header.writeUInt32BE(256, 0);
   header.writeUInt32BE(256, 4);
   header.set([8, 2, 0, 0, 0], 8);
-  const rows = Buffer.alloc(256 * (1 + 256 * 3), 0x80);
-  for (let y = 0; y < 256; y++) rows[y * (1 + 256 * 3)] = 0;
+  const stride = 1 + 256 * 3;
+  const rows = Buffer.alloc(256 * stride);
+  for (let y = 0; y < 256; y++) {
+    for (let x = 0; x < 256; x++) {
+      const road = x < 2 || y < 2;
+      rows.set(road ? [40, 40, 40] : [150, 170, 90], y * stride + 1 + x * 3);
+    }
+  }
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', header),
@@ -52,7 +65,7 @@ function greyTile(): Buffer {
 }
 
 async function loadWandCampaign(page: Page, api: ApiCapture, campaign: object = WAND_CAMPAIGN) {
-  const tile = greyTile();
+  const tile = fieldTile();
   await page.route('**/tiles.example.com/**', (route) =>
     route.fulfill({
       status: 200,
@@ -117,6 +130,24 @@ test.describe('Magic wand', () => {
     await annotationPage.keyboard.press('Escape');
     await expect(proposals(annotationPage)).toHaveAttribute('data-wand-proposals', '0');
     expect(api.filter(/create-annotation|batch-create/)).toHaveLength(0);
+  });
+
+  test('a click outlines the field around it without a model', async ({ annotationPage, api }) => {
+    await loadWandCampaign(annotationPage, api);
+    await annotationPage.keyboard.press('w');
+    // Off-centre, so the click is not on a road whichever tile is in the middle.
+    await clickMapAt(annotationPage, 37, 29);
+    await expect(annotationPage.getByTestId('wand-accept-btn')).toHaveText('Accept 1', {
+      timeout: 15_000,
+    });
+    await expect(annotationPage.getByTestId('wand-grow-btn')).toBeVisible();
+
+    const created = waitForCreate(annotationPage);
+    await annotationPage.keyboard.press('Enter');
+    const body = (await created).request().postDataJSON();
+    expect(body.label_id).toBe(2);
+    // One field: a square, so four corners once traced and simplified.
+    expect(body.geometry_wkt).toMatch(/^POLYGON\s*\(\((\S+ \S+, ){4}\S+ \S+\)\)$/);
   });
 
   test('is only offered when a label enables it', async ({ annotationPage, api }) => {

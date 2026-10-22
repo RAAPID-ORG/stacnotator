@@ -1,6 +1,6 @@
 # Magic wand
 
-Box-prompted and text-prompted segmentation that runs in the annotator's
+Click-, box- and text-prompted segmentation that runs in the annotator's
 browser. Nothing is computed on the server: the backend only stores two label
 settings, and the model weights are static files.
 
@@ -11,7 +11,12 @@ An admin turns it on per polygon label in the campaign's labels editor
 `solar panel, greenhouse`. In Explore the wand tool (`W`) then appears, and
 offers only those labels.
 
-- **The object in the box** - drag a box around one object; it is outlined.
+- **Click** - inside a field, roof or water body; the region around the click
+  is grown out to the edges that enclose it. No model and no download, and an
+  answer in a fraction of a second. `[` and `]` (or − / + beside the outline)
+  shrink and grow it.
+- **The object in the box** - drag a box around one object; the model
+  outlines it.
 - **Every "prompt"** - only for labels with a prompt; drag a box over an
   area and every match inside it is outlined.
 
@@ -19,6 +24,51 @@ Outlines are proposals, drawn dashed over the map until decided. A click on one
 leaves it out, `Enter` (or **Accept** beside them) saves the rest in one batch
 with the label and the current form answers, `Esc` discards them. Boxes drawn
 before deciding add to the same set.
+
+## Click: region growing
+
+The model-free path (`shared/segmentation/regionGrow.ts`, run in
+`grow.worker.ts`) follows the classical field-delineation recipe - edge
+strength, then a marker-based flood from the click, as in watershed:
+
+1. A 768 native-pixel window around the click is fetched and converted to
+   CIELAB.
+2. A 5x5 median (separable) flattens texture inside fields - crop rows, pivot
+   rings, blotches - while keeping the step at a field's edge.
+3. Sobel gradient magnitude in ΔE, then a 3x3 maximum so a one-pixel road is
+   a closed wall.
+4. With **Clicks use edges from several dates** on, the edges of up to four
+   dates of the same source (the cover slices of other collections) are
+   averaged. Neighbouring fields that look alike on one date usually differ in
+   crop stage on another; this is the multi-date edge approach that did best
+   among the classical methods in a Sentinel-2 comparison (Canny on several
+   growing-season images, then watershed).
+5. A minimax flood from the click records, for every pixel, the weakest edge
+   it can be reached across; pixels more than 20 ΔE from the click's colour
+   never join. Any tolerance is then a threshold on that map, which is why
+   grow and shrink are instant.
+6. The stops: the level before each jump in area, with a step for every ~25%
+   of growth in between. The first one shown is the level before the first
+   jump that looks like a spill (area at least triples and the added pixels
+   differ in colour), else before the biggest jump.
+
+Measured on a 10 m NAIP farmland scene (centre pivots, strip cropping, blotchy
+fields) and a 0.6 m residential scene:
+
+- About half of the fields came out right on the first click. Through grow
+  and shrink about three quarters could be outlined cleanly; the default
+  leans small, so the usual correction is one or two `]`.
+- Clean pivots, strips and rectangles bounded by roads work well, and rows of
+  roofs. Gabled roofs start at one roof plane (the ridge is an edge) and take
+  a few `]` to cover the whole roof.
+- It fails where the literature says classical methods fail: touching fields
+  of the same colour merge, and dark pivots with strong ring texture leak into
+  a neighbour before they fill. For those the box mode is the answer.
+- The multi-date path is unit-tested but has not been validated on a real
+  time series yet.
+
+In headless Chromium on a 4-core machine a click took 0.3-0.4 s including
+fetching the tiles; a grow or shrink step only re-thresholds the stored flood.
 
 ## Pipeline
 
