@@ -64,7 +64,8 @@ export function WandPanel({ label }: { label: ExtendedLabel | null }) {
       )}
       {backend === 'wasm' && (
         <p className="text-[11px] text-amber-700 leading-relaxed" data-testid="wand-cpu-notice">
-          This browser has no WebGPU, so segmenting runs on the CPU and takes several seconds.
+          This browser has no WebGPU, so segmenting runs on the CPU: expect tens of seconds a box,
+          and minutes for a prompt.
         </p>
       )}
       {status.phase === 'error' && (
