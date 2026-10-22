@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { type AnnotationListItemOut, type CampaignSummaryOut } from '~/api/client';
 import {
@@ -49,6 +50,7 @@ export const AnnotationsReview = ({
   headerActions,
   subHeader,
 }: AnnotationsReviewProps) => {
+  const { t } = useTranslation(['review', 'common']);
   const navigate = useNavigate();
   const annotatePath = campaignPath(campaign.project_id, campaignId, 'annotate');
   const currentUser = useAccountStore((state) => state.account);
@@ -189,7 +191,7 @@ export const AnnotationsReview = ({
   // invalidated rather than patched by hand: the server decides what is left.
   const batchDelete = useMutation({
     ...batchDeleteAnnotationsMutation(),
-    meta: { errorMessage: 'Failed to delete annotations' },
+    meta: { errorMessage: t('annotations.deleteFailed') },
     onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({
@@ -201,7 +203,7 @@ export const AnnotationsReview = ({
       ]);
       setSelectedAnnotationIds(new Set());
       setConfirmBatchDelete(false);
-      showAlert(`Deleted ${result.deleted_count} annotation(s)`, 'success');
+      showAlert(t('annotations.deleted', { count: result.deleted_count }), 'success');
     },
   });
 
@@ -234,7 +236,7 @@ export const AnnotationsReview = ({
 
   const getUserDisplayName = (ann: AnnotationListItemOut): string => {
     if (currentUser && ann.created_by_user_id === currentUser.id)
-      return currentUser.display_name || currentUser.email || 'You';
+      return currentUser.display_name || currentUser.email || t('youName');
     return (
       ann.created_by_user_display_name ||
       ann.created_by_user_email ||
@@ -243,9 +245,9 @@ export const AnnotationsReview = ({
   };
 
   const getLabelName = (labelId: number | null): string => {
-    if (labelId === null) return 'No label';
+    if (labelId === null) return t('noLabel');
     const label = labels.find((l) => l.id === labelId);
-    return label?.name || `Label #${labelId}`;
+    return label?.name || t('labelFallback', { id: labelId });
   };
 
   return (
@@ -253,13 +255,13 @@ export const AnnotationsReview = ({
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">{capitalizeFirst(campaign.name)} - Annotations</h1>
+            <h1 className="page-title">
+              {t('pageTitle', { name: capitalizeFirst(campaign.name) })}
+            </h1>
             {loading ? (
               <Skeleton className="h-4 w-56 mt-2" />
             ) : (
-              <p className="page-subtitle">
-                {stats.total} annotation{stats.total !== 1 ? 's' : ''} in this campaign.
-              </p>
+              <p className="page-subtitle">{t('annotations.subtitle', { count: stats.total })}</p>
             )}
           </div>
           <div className="flex items-center gap-3">
@@ -269,7 +271,7 @@ export const AnnotationsReview = ({
               disabled={stats.total === 0}
               showMergeToggle={false}
             />
-            <Button onClick={() => navigate(annotatePath)}>Start annotating</Button>
+            <Button onClick={() => navigate(annotatePath)}>{t('startAnnotating')}</Button>
           </div>
         </header>
 
@@ -280,7 +282,7 @@ export const AnnotationsReview = ({
           <div className="surface mb-6">
             <div className="px-5 py-4 border-b border-neutral-100">
               <h2 className="section-heading">
-                Annotation locations{' '}
+                {t('annotations.locations')}{' '}
                 <span className="text-neutral-400 font-normal">({stats.total})</span>
               </h2>
             </div>
@@ -304,14 +306,16 @@ export const AnnotationsReview = ({
         <div className="surface surface-unclipped mb-6">
           <div className="px-5 py-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="section-heading mb-0">Filters &amp; search</h3>
+              <h3 className="section-heading mb-0">{t('filtersAndSearch')}</h3>
               {headerActions}
             </div>
             <div className="flex flex-wrap items-center gap-4">
               {/* Label Filter */}
               {labels.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-neutral-700">Label:</label>
+                  <label className="text-sm font-medium text-neutral-700">
+                    {t('annotations.labelFilter')}
+                  </label>
                   <div className="flex gap-1 flex-wrap">
                     <button
                       onClick={() => setSelectedLabelIds([])}
@@ -321,7 +325,7 @@ export const AnnotationsReview = ({
                           : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                       }`}
                     >
-                      All
+                      {t('all')}
                     </button>
                     {labels.map((label) => (
                       <button
@@ -356,7 +360,9 @@ export const AnnotationsReview = ({
 
               {/* Confidence Filter */}
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-neutral-700">Confidence:</label>
+                <label className="text-sm font-medium text-neutral-700">
+                  {t('annotations.confidenceFilter')}
+                </label>
                 <div className="flex gap-1">
                   <button
                     onClick={() => setSelectedConfidences([])}
@@ -366,7 +372,7 @@ export const AnnotationsReview = ({
                         : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                     }`}
                   >
-                    All
+                    {t('all')}
                   </button>
                   {[1, 2, 3, 4, 5].map((c) => (
                     <button
@@ -400,9 +406,9 @@ export const AnnotationsReview = ({
                         ? 'bg-brand-600 text-white'
                         : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                     }`}
-                    title="Annotations without a confidence rating"
+                    title={t('annotations.noRatingTitle')}
                   >
-                    No rating
+                    {t('noRating')}
                   </button>
                 </div>
               </div>
@@ -415,15 +421,17 @@ export const AnnotationsReview = ({
                     ? 'bg-rose-100 text-rose-800 border-rose-300'
                     : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
                 }`}
-                title="Show only flagged annotations"
+                title={t('annotations.flaggedOnlyTitle')}
               >
                 <IconFlag className="w-3.5 h-3.5" />
-                <span>Flagged only</span>
+                <span>{t('flaggedOnly')}</span>
               </button>
 
               {/* Sort By */}
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-neutral-700">Sort by:</label>
+                <label className="text-sm font-medium text-neutral-700">
+                  {t('annotations.sortBy')}
+                </label>
                 <select
                   value={sortOption}
                   onChange={(e) => {
@@ -431,11 +439,11 @@ export const AnnotationsReview = ({
                   }}
                   className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
                 >
-                  <option value="default">Default</option>
-                  <option value="confidence-asc">Confidence (Low to High)</option>
-                  <option value="confidence-desc">Confidence (High to Low)</option>
-                  <option value="id-asc">ID (Ascending)</option>
-                  <option value="id-desc">ID (Descending)</option>
+                  <option value="default">{t('sort.default')}</option>
+                  <option value="confidence-asc">{t('sort.confidenceAsc')}</option>
+                  <option value="confidence-desc">{t('sort.confidenceDesc')}</option>
+                  <option value="id-asc">{t('sort.idAsc')}</option>
+                  <option value="id-desc">{t('sort.idDesc')}</option>
                 </select>
               </div>
 
@@ -443,7 +451,7 @@ export const AnnotationsReview = ({
               <div className="flex items-center gap-2 ml-auto">
                 <input
                   type="text"
-                  placeholder="Search by annotation ID..."
+                  placeholder={t('annotations.searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 w-64"
@@ -470,10 +478,11 @@ export const AnnotationsReview = ({
               {loading ? (
                 <Skeleton className="h-3.5 w-44" />
               ) : (
-                <>
-                  Showing {items.length === 0 ? 0 : offset + 1}&ndash;{offset + items.length} of{' '}
-                  {total} annotations
-                </>
+                t('annotations.showingRange', {
+                  from: items.length === 0 ? 0 : offset + 1,
+                  to: offset + items.length,
+                  total,
+                })
               )}
             </div>
           </div>
@@ -498,12 +507,10 @@ export const AnnotationsReview = ({
               />
             </svg>
             <p className="text-neutral-700 mb-2">
-              {stats.total === 0 ? 'No annotations yet' : 'No annotations match your filters'}
+              {stats.total === 0 ? t('annotations.emptyTitle') : t('annotations.noMatchesTitle')}
             </p>
             <p className="text-neutral-500 text-sm">
-              {stats.total === 0
-                ? 'Start annotating to see entries here'
-                : 'Try adjusting your filter criteria'}
+              {stats.total === 0 ? t('annotations.emptyHint') : t('noMatches')}
             </p>
           </div>
         ) : (
@@ -520,15 +527,15 @@ export const AnnotationsReview = ({
               <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-neutral-200 bg-neutral-50">
                 <span className="text-xs text-neutral-600">
                   {selectedAnnotationIds.size > 0
-                    ? `${selectedAnnotationIds.size} selected`
-                    : `Select annotations to delete (${deletablePageIds.length} available)`}
+                    ? t('selectedCount', { count: selectedAnnotationIds.size })
+                    : t('annotations.selectToDelete', { count: deletablePageIds.length })}
                 </span>
                 <Button
                   variant="danger"
                   onClick={() => setConfirmBatchDelete(true)}
                   disabled={selectedAnnotationIds.size === 0 || batchDelete.isPending}
                 >
-                  {batchDelete.isPending ? 'Deleting…' : 'Delete selected'}
+                  {batchDelete.isPending ? t('deleting') : t('deleteSelected')}
                 </Button>
               </div>
             )}
@@ -538,7 +545,7 @@ export const AnnotationsReview = ({
                   <th className="px-3 py-3 text-left">
                     <input
                       type="checkbox"
-                      aria-label="Select all deletable annotations"
+                      aria-label={t('annotations.selectAll')}
                       checked={allDeletableSelected}
                       onChange={toggleSelectAllDeletable}
                       disabled={deletablePageIds.length === 0}
@@ -546,31 +553,31 @@ export const AnnotationsReview = ({
                     />
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                    ID
+                    {t('annotations.columns.id')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                    Label
+                    {t('annotations.columns.label')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                    Annotator
+                    {t('annotations.columns.annotator')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                    Confidence
+                    {t('annotations.columns.confidence')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                    Coordinates
+                    {t('annotations.columns.coordinates')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                    Created
+                    {t('annotations.columns.created')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                    Comment
+                    {t('annotations.columns.comment')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                    Flag
+                    {t('annotations.columns.flag')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                    Actions
+                    {t('annotations.columns.actions')}
                   </th>
                   {formFields.length > 0 && <th className="w-10 px-2 py-3" />}
                 </tr>
@@ -599,15 +606,11 @@ export const AnnotationsReview = ({
                         <td className="px-3 py-3">
                           <input
                             type="checkbox"
-                            aria-label={`Select annotation ${ann.id}`}
+                            aria-label={t('annotations.selectOne', { id: ann.id })}
                             checked={isSelected}
                             onChange={() => toggleAnnotationSelected(ann.id)}
                             disabled={!canDelete}
-                            title={
-                              !canDelete
-                                ? 'You can only delete your own annotations in this campaign'
-                                : undefined
-                            }
+                            title={!canDelete ? t('annotations.onlyOwn') : undefined}
                             className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                           />
                         </td>
@@ -620,7 +623,9 @@ export const AnnotationsReview = ({
                           </span>
                         </td>
                         <td className="px-4 py-3 text-neutral-700 text-sm">
-                          {isMine && <span className="text-brand-600 font-medium">(You) </span>}
+                          {isMine && (
+                            <span className="text-brand-600 font-medium">{t('you')} </span>
+                          )}
                           {getUserDisplayName(ann)}
                         </td>
                         <td className="px-4 py-3">
@@ -671,7 +676,7 @@ export const AnnotationsReview = ({
                             ) : (
                               <span
                                 className="inline-flex items-center text-rose-600"
-                                title="Flagged for review"
+                                title={t('flaggedForReview')}
                               >
                                 <IconFlag className="w-4 h-4" />
                               </span>
@@ -685,7 +690,7 @@ export const AnnotationsReview = ({
                             onClick={() => handleNavigateToAnnotation(ann)}
                             className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
                           >
-                            View
+                            {t('view')}
                           </button>
                         </td>
                         {formFields.length > 0 && (
@@ -697,12 +702,16 @@ export const AnnotationsReview = ({
                               disabled={answers.length === 0}
                               title={
                                 answers.length === 0
-                                  ? 'No answers recorded'
+                                  ? t('answers.none')
                                   : expanded
-                                    ? 'Hide answers'
-                                    : `Show ${answers.length} answer${answers.length === 1 ? '' : 's'}`
+                                    ? t('answers.hide')
+                                    : t('answers.showCount', { count: answers.length })
                               }
-                              aria-label={`${expanded ? 'Hide' : 'Show'} answers for annotation ${ann.id}`}
+                              aria-label={
+                                expanded
+                                  ? t('answers.hideForAnnotation', { id: ann.id })
+                                  : t('answers.showForAnnotation', { id: ann.id })
+                              }
                               data-testid={`toggle-answers-${ann.id}`}
                               className="grid h-6 w-6 place-items-center rounded text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-700 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
                             >
@@ -738,19 +747,25 @@ export const AnnotationsReview = ({
               onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
               disabled={offset === 0 || refreshing}
             >
-              Previous
+              {t('previous')}
             </Button>
             <span className="text-sm text-neutral-600">
-              Page{' '}
-              <strong className="text-neutral-900">{Math.floor(offset / PAGE_SIZE) + 1}</strong> of{' '}
-              {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+              <Trans
+                t={t}
+                i18nKey="annotations.pageOf"
+                values={{
+                  page: Math.floor(offset / PAGE_SIZE) + 1,
+                  pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+                }}
+                components={{ strong: <strong className="text-neutral-900" /> }}
+              />
             </span>
             <Button
               variant="secondary"
               onClick={() => setOffset((o) => o + PAGE_SIZE)}
               disabled={offset + PAGE_SIZE >= total || refreshing}
             >
-              Next
+              {t('common:actions.next')}
             </Button>
           </div>
         )}
@@ -759,17 +774,18 @@ export const AnnotationsReview = ({
         {items.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-6 text-sm text-neutral-600">
             <span>
-              Showing:{' '}
+              {t('annotations.footerShowing')}{' '}
               <strong className="text-neutral-900">
                 {offset + 1}&ndash;{offset + items.length}
               </strong>
             </span>
             <span>
-              Matching: <strong className="text-neutral-900">{total}</strong>
+              {t('annotations.footerMatching')}{' '}
+              <strong className="text-neutral-900">{total}</strong>
             </span>
             {stats.withConfidence > 0 && (
               <span>
-                With Confidence:{' '}
+                {t('annotations.footerWithConfidence')}{' '}
                 <strong className="text-neutral-900">{stats.withConfidence}</strong>
               </span>
             )}
@@ -779,10 +795,12 @@ export const AnnotationsReview = ({
 
       <ConfirmDialog
         isOpen={confirmBatchDelete}
-        title="Delete selected annotations?"
-        description={`This will permanently delete ${selectedAnnotationIds.size} annotation(s). This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title={t('annotations.confirmDeleteTitle')}
+        description={t('annotations.confirmDeleteDescription', {
+          count: selectedAnnotationIds.size,
+        })}
+        confirmText={t('common:actions.delete')}
+        cancelText={t('common:actions.cancel')}
         isDangerous
         isLoading={batchDelete.isPending}
         onConfirm={handleBatchDelete}

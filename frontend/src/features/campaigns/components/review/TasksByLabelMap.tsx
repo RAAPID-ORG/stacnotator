@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import 'leaflet/dist/leaflet.css';
 import { getTaskDensity, type LabelBase, type TaskDensityCell } from '~/api/client';
+import i18n from '~/shared/i18n';
 import { handleError } from '~/shared/utils/errorHandler';
 import { DensityLegend } from './DensityLegend';
 import { drawDensityCells, TARGET_CELLS, useDensityViewport, useHiddenKeys } from './densityMap';
@@ -50,6 +52,7 @@ export const TasksByLabelMap: React.FC<TasksByLabelMapProps> = ({
   labels,
   bbox,
 }) => {
+  const { t } = useTranslation('review');
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
   const view = useDensityViewport(mapRef, mapReady);
@@ -72,7 +75,7 @@ export const TasksByLabelMap: React.FC<TasksByLabelMapProps> = ({
         if (!cancelled) setCells(res.data ?? []);
       })
       .catch((err) => {
-        if (!cancelled) handleError(err, 'Failed to load annotation distribution');
+        if (!cancelled) handleError(err, i18n.t('review:densityMap.loadFailed'));
       });
     return () => {
       cancelled = true;
@@ -85,9 +88,9 @@ export const TasksByLabelMap: React.FC<TasksByLabelMapProps> = ({
     return labelColors[key as number] ?? PENDING_COLOR;
   };
   const nameOf = (key: string | number) => {
-    if (key === PENDING_KEY) return 'Pending';
-    if (key === SKIPPED_KEY) return 'Skipped';
-    return labels.find((l) => l.id === key)?.name ?? `Label #${key}`;
+    if (key === PENDING_KEY) return t('densityMap.pending');
+    if (key === SKIPPED_KEY) return t('densityMap.skipped');
+    return labels.find((l) => l.id === key)?.name ?? t('labelFallback', { id: key });
   };
 
   useEffect(() => {
@@ -102,7 +105,7 @@ export const TasksByLabelMap: React.FC<TasksByLabelMapProps> = ({
       .filter((point) => !hidden.has(point.key));
     drawDensityCells(markersLayerRef.current, points, colorOf, nameOf);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- map refs are stable, from useLeafletMap
-  }, [cells, hidden, mapReady, labelColors, labels]);
+  }, [cells, hidden, mapReady, labelColors, labels, t]);
 
   const legend = [
     ...labels.map((label) => ({
@@ -111,14 +114,14 @@ export const TasksByLabelMap: React.FC<TasksByLabelMapProps> = ({
       color: labelColors[label.id],
       count: labelCounts.find((c) => c.labelId === label.id)?.count ?? 0,
     })),
-    { key: PENDING_KEY, name: 'Pending', color: PENDING_COLOR, count: pendingCount },
-    { key: SKIPPED_KEY, name: 'Skipped', color: SKIPPED_COLOR, count: skippedCount },
+    { key: PENDING_KEY, name: t('densityMap.pending'), color: PENDING_COLOR, count: pendingCount },
+    { key: SKIPPED_KEY, name: t('densityMap.skipped'), color: SKIPPED_COLOR, count: skippedCount },
   ].filter((entry) => entry.count > 0);
 
   return (
     <div className="bg-white rounded-lg border border-neutral-300 p-6">
       <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-        Annotation Distribution ({totalTasks} total)
+        {t('densityMap.taskHeading', { total: totalTasks })}
       </h2>
 
       <DensityLegend entries={legend} hidden={hidden} onToggle={toggle} />

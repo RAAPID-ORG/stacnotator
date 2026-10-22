@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import 'leaflet/dist/leaflet.css';
 import {
   getAnnotationDensityByLabel,
@@ -6,6 +7,7 @@ import {
   type LabelBase,
   type LabelFacet,
 } from '~/api/client';
+import i18n from '~/shared/i18n';
 import { handleError } from '~/shared/utils/errorHandler';
 import { DensityLegend } from './DensityLegend';
 import { drawDensityCells, TARGET_CELLS, useDensityViewport, useHiddenKeys } from './densityMap';
@@ -47,6 +49,7 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
   labels,
   bbox,
 }) => {
+  const { t } = useTranslation('review');
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
   const view = useDensityViewport(mapRef, mapReady);
@@ -69,7 +72,7 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
         if (!cancelled) setCells(res.data ?? []);
       })
       .catch((err) => {
-        if (!cancelled) handleError(err, 'Failed to load annotation distribution');
+        if (!cancelled) handleError(err, i18n.t('review:densityMap.loadFailed'));
       });
     return () => {
       cancelled = true;
@@ -81,8 +84,8 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
     labelId === null ? NO_LABEL_COLOR : (labelColors[labelId] ?? NO_LABEL_COLOR);
   const nameOf = (labelId: number | null) =>
     labelId === null
-      ? 'No label'
-      : (labels.find((l) => l.id === labelId)?.name ?? `Label #${labelId}`);
+      ? t('noLabel')
+      : (labels.find((l) => l.id === labelId)?.name ?? t('labelFallback', { id: labelId }));
 
   const visible = useMemo(
     () =>
@@ -106,7 +109,7 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
       (key) => nameOf(key === NO_LABEL_KEY ? null : key)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- map refs are stable, from useLeafletMap
-  }, [visible, mapReady, labelColors, labels]);
+  }, [visible, mapReady, labelColors, labels, t]);
 
   const legend = [
     ...labels.map((label) => ({
@@ -117,7 +120,7 @@ export const ClassDistributionMap: React.FC<ClassDistributionMapProps> = ({
     })),
     {
       key: NO_LABEL_KEY,
-      name: 'No label',
+      name: t('noLabel'),
       color: NO_LABEL_COLOR,
       count: labelCounts.find((c) => c.label_id === null)?.count ?? 0,
     },
