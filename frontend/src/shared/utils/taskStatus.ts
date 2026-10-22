@@ -10,44 +10,26 @@ export const TASK_STATUSES = ['pending', 'partial', 'conflicting', 'done', 'skip
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 /**
- * Task status configuration with colors and labels
+ * Task status colors
  */
-export const TASK_STATUS_CONFIG: Record<
-  TaskStatus,
-  { label: string; color: string; badgeClass: string }
-> = {
+export const TASK_STATUS_CONFIG: Record<TaskStatus, { color: string; badgeClass: string }> = {
   pending: {
-    get label() {
-      return i18n.t('common:taskStatus.pending');
-    },
     color: '#6B7280', // gray
     badgeClass: 'bg-gray-100 text-gray-700',
   },
   partial: {
-    get label() {
-      return i18n.t('common:taskStatus.partial');
-    },
     color: '#F59E0B', // amber
     badgeClass: 'bg-yellow-100 text-yellow-700',
   },
   conflicting: {
-    get label() {
-      return i18n.t('common:taskStatus.conflicting');
-    },
     color: '#EF4444', // red
     badgeClass: 'bg-red-100 text-red-700',
   },
   done: {
-    get label() {
-      return i18n.t('common:taskStatus.done');
-    },
     color: '#10B981', // green
     badgeClass: 'bg-green-100 text-green-700',
   },
   skipped: {
-    get label() {
-      return i18n.t('common:taskStatus.skipped');
-    },
     color: '#8B5CF6', // violet
     badgeClass: 'bg-violet-100 text-violet-700',
   },
@@ -64,7 +46,7 @@ export function getTaskStatusColor(status: TaskStatus): string {
  * Format task status for display
  */
 export function formatTaskStatus(status: TaskStatus): string {
-  return TASK_STATUS_CONFIG[status]?.label ?? status;
+  return i18n.t(`common:taskStatus.${status}`, { defaultValue: status });
 }
 
 /**
