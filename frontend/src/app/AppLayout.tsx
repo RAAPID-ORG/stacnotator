@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Toaster, toast, useSonner } from 'sonner';
@@ -16,6 +17,7 @@ const TOAST_TOP_OFFSET = 48;
 
 /** Dismisses the whole toast stack; only shown once toasts start piling up. */
 const ClearAllToasts = () => {
+  const { t } = useTranslation();
   const { toasts } = useSonner();
   if (toasts.length < 2) return null;
 
@@ -26,7 +28,7 @@ const ClearAllToasts = () => {
         onClick={() => toast.dismiss()}
         className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-500 shadow-sm transition-colors hover:text-neutral-800"
       >
-        Clear all ({toasts.length})
+        {t('toasts.clearAll', { count: toasts.length })}
       </button>
     </div>
   );

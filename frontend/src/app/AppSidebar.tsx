@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ANNOTATION_ROUTE, projectsPath } from '~/app/routes';
 import { LEGAL_DOCS, legalPath } from '~/features/legal/docs';
@@ -5,6 +6,7 @@ import { OrgSwitcher } from '~/features/organizations/components/OrgSwitcher';
 import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
 import { pendingAdminActions } from '~/features/organizations/utils/organizations';
 import { CountBadge } from '~/shared/ui/Badge';
+import { LanguageSelect } from '~/shared/ui/LanguageSelect';
 import { useAccountStore } from 'src/shared/stores/account.store';
 import { HarvestMark, HARVEST_SITE } from 'src/shared/ui/HarvestMark';
 
@@ -26,6 +28,7 @@ export const AppSidebar = ({
   mobileOpen = false,
   setMobileOpen,
 }: AppSidebarProps) => {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const account = useAccountStore((s) => s.account);
@@ -94,15 +97,20 @@ export const AppSidebar = ({
                   STACNotator
                 </button>
                 <span className="block text-[10px] text-neutral-500 truncate">
-                  by{' '}
-                  <a
-                    href={HARVEST_SITE}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:text-neutral-800 hover:underline transition-colors"
-                  >
-                    NASA Harvest
-                  </a>
+                  <Trans
+                    t={t}
+                    i18nKey="nav.byHarvest"
+                    components={{
+                      link: (
+                        <a
+                          href={HARVEST_SITE}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:text-neutral-800 hover:underline transition-colors"
+                        />
+                      ),
+                    }}
+                  />
                 </span>
               </span>
             </div>
@@ -115,7 +123,7 @@ export const AppSidebar = ({
                 collapsed ? 'mx-auto' : ''
               }`}
               type="button"
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={collapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
             >
               <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M16.5 4C17.3284 4 18 4.67157 18 5.5V14.5C18 15.3284 17.3284 16 16.5 16H3.5C2.67157 16 2 15.3284 2 14.5V5.5C2 4.67157 2.67157 4 3.5 4H16.5ZM7 15H16.5C16.7761 15 17 14.7761 17 14.5V5.5C17 5.22386 16.7761 5 16.5 5H7V15ZM3.5 5C3.22386 5 3 5.22386 3 5.5V14.5C3 14.7761 3.22386 15 3.5 15H6V5H3.5Z" />
@@ -130,7 +138,7 @@ export const AppSidebar = ({
             className={`${itemBase} ${collapsed ? 'justify-center' : 'px-2.5'} ${
               isHomeActive ? itemActive : itemInactive
             }`}
-            title="Home"
+            title={t('nav.home')}
           >
             <svg
               width="18"
@@ -141,7 +149,7 @@ export const AppSidebar = ({
             >
               <path d="M10.7071 2.29289C10.3166 1.90237 9.68342 1.90237 9.29289 2.29289L2.29289 9.29289C1.90237 9.68342 1.90237 10.3166 2.29289 10.7071C2.68342 11.0976 3.31658 11.0976 3.70711 10.7071L4 10.4142V16.5C4 17.3284 4.67157 18 5.5 18H8.5C9.05228 18 9.5 17.5523 9.5 17V13.5C9.5 13.2239 9.72386 13 10 13C10.2761 13 10.5 13.2239 10.5 13.5V17C10.5 17.5523 10.9477 18 11.5 18H14.5C15.3284 18 16 17.3284 16 16.5V10.4142L16.2929 10.7071C16.6834 11.0976 17.3166 11.0976 17.7071 10.7071C18.0976 10.3166 18.0976 9.68342 17.7071 9.29289L10.7071 2.29289ZM15 9.41421V16.5C15 16.7761 14.7761 17 14.5 17H11.5V13.5C11.5 12.6716 10.8284 12 10 12C9.17157 12 8.5 12.6716 8.5 13.5V17H5.5C5.22386 17 5 16.7761 5 16.5V9.41421L10 4.41421L15 9.41421Z" />
             </svg>
-            {!collapsed && <span className="truncate">Home</span>}
+            {!collapsed && <span className="truncate">{t('nav.home')}</span>}
           </button>
 
           <button
@@ -149,7 +157,7 @@ export const AppSidebar = ({
             className={`${itemBase} ${collapsed ? 'justify-center' : 'px-2.5'} ${
               isProjectsActive ? itemActive : itemInactive
             }`}
-            title="Projects"
+            title={t('nav.projects')}
           >
             <svg
               width="18"
@@ -160,7 +168,7 @@ export const AppSidebar = ({
             >
               <path d="M2 5.5C2 4.67157 2.67157 4 3.5 4H7.08579C7.351 4 7.60536 4.10536 7.79289 4.29289L9.20711 5.70711C9.39464 5.89464 9.649 6 9.91421 6H16.5C17.3284 6 18 6.67157 18 7.5V14.5C18 15.3284 17.3284 16 16.5 16H3.5C2.67157 16 2 15.3284 2 14.5V5.5ZM3.5 5C3.22386 5 3 5.22386 3 5.5V14.5C3 14.7761 3.22386 15 3.5 15H16.5C16.7761 15 17 14.7761 17 14.5V7.5C17 7.22386 16.7761 7 16.5 7H9.91421C9.649 7 9.39464 6.89464 9.20711 6.70711L7.79289 5.29289C7.60536 5.10536 7.351 5 7.08579 5H3.5Z" />
             </svg>
-            {!collapsed && <span className="truncate">Projects</span>}
+            {!collapsed && <span className="truncate">{t('nav.projects')}</span>}
           </button>
         </nav>
 
@@ -172,10 +180,10 @@ export const AppSidebar = ({
             type="button"
             title={
               pending.total > 0
-                ? `${pending.total} request(s) waiting on you - open settings`
-                : account?.display_name || account?.email || 'Open settings'
+                ? t('nav.pendingRequestsTitle', { count: pending.total })
+                : account?.display_name || account?.email || t('nav.openSettings')
             }
-            aria-label="Open settings"
+            aria-label={t('nav.openSettings')}
             className={`group flex items-center gap-3 w-full cursor-pointer ${
               collapsed ? 'justify-center' : ''
             } focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 rounded-md`}
@@ -186,30 +194,31 @@ export const AppSidebar = ({
               </span>
               <CountBadge
                 count={pending.total}
-                label="requests waiting on you"
+                label={t('nav.pendingRequests')}
                 className="absolute -right-1.5 -top-1.5 ring-2 ring-white"
               />
             </span>
             {!collapsed && (
               <span className="flex-1 min-w-0 text-left text-[13px] text-neutral-700 group-hover:text-brand-700 transition-colors truncate">
-                {account?.display_name || account?.email || 'Settings'}
+                {account?.display_name || account?.email || t('nav.settings')}
               </span>
             )}
           </button>
 
           {!collapsed && (
-            <nav className="-mx-3 mt-3 border-t border-neutral-200 px-3 pt-3 flex justify-center gap-x-3 whitespace-nowrap text-[11px] text-neutral-400">
+            <nav className="-mx-3 mt-3 border-t border-neutral-200 px-3 pt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 whitespace-nowrap text-[11px] text-neutral-400">
               {LEGAL_DOCS.map((doc) => (
                 <a
-                  key={doc.key}
-                  href={legalPath(doc.key)}
+                  key={doc}
+                  href={legalPath(doc)}
                   target="_blank"
                   rel="noreferrer"
                   className="hover:text-neutral-700 transition-colors"
                 >
-                  {doc.title}
+                  {t(`legal.${doc}`)}
                 </a>
               ))}
+              <LanguageSelect />
             </nav>
           )}
         </div>

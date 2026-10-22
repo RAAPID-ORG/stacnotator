@@ -1,4 +1,5 @@
 import type { AnnotationTaskOut } from '~/api/client';
+import i18n from '~/shared/i18n';
 
 /**
  * Task-level status values, matching backend-computed task_status. The tuple is what
@@ -16,27 +17,37 @@ export const TASK_STATUS_CONFIG: Record<
   { label: string; color: string; badgeClass: string }
 > = {
   pending: {
-    label: 'Pending',
+    get label() {
+      return i18n.t('common:taskStatus.pending');
+    },
     color: '#6B7280', // gray
     badgeClass: 'bg-gray-100 text-gray-700',
   },
   partial: {
-    label: 'Partial',
+    get label() {
+      return i18n.t('common:taskStatus.partial');
+    },
     color: '#F59E0B', // amber
     badgeClass: 'bg-yellow-100 text-yellow-700',
   },
   conflicting: {
-    label: 'Conflicting',
+    get label() {
+      return i18n.t('common:taskStatus.conflicting');
+    },
     color: '#EF4444', // red
     badgeClass: 'bg-red-100 text-red-700',
   },
   done: {
-    label: 'Complete',
+    get label() {
+      return i18n.t('common:taskStatus.done');
+    },
     color: '#10B981', // green
     badgeClass: 'bg-green-100 text-green-700',
   },
   skipped: {
-    label: 'Skipped',
+    get label() {
+      return i18n.t('common:taskStatus.skipped');
+    },
     color: '#8B5CF6', // violet
     badgeClass: 'bg-violet-100 text-violet-700',
   },

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
 import { projectsPath } from '~/app/routes';
@@ -6,6 +7,7 @@ import { IconPlay } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
 
 export const HomePage = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
 
@@ -19,10 +21,7 @@ export const HomePage = () => {
         <div className="mb-10">
           <h1 className="text-2xl font-semibold text-neutral-900 tracking-tight">STACNotator</h1>
           <p className="mt-3 text-[15px] text-neutral-600 leading-relaxed max-w-2xl">
-            STACNotator is a free and opensource collaborative annotation platform for satellite and
-            aerial imagery. It is compatible with the STAC standard for geospatial data and allows
-            visualizing and labelling features in a team. STACNotator is designed around temporal
-            imagery, providing functionality to easily navigate through time.
+            {t('home.intro')}
           </p>
         </div>
 
@@ -32,7 +31,7 @@ export const HomePage = () => {
             type="button"
             className="text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           >
-            Browse projects
+            {t('home.browseProjects')}
           </button>
           <a
             href="https://github.com/RAAPID-ORG/stacnotator"
@@ -40,13 +39,13 @@ export const HomePage = () => {
             rel="noreferrer"
             className="text-neutral-500 hover:text-neutral-800 underline underline-offset-4 decoration-neutral-300 hover:decoration-neutral-700 transition-colors"
           >
-            Source on GitHub
+            {t('home.sourceOnGithub')}
           </a>
         </div>
 
         <section className="mb-12">
           <h2 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider mb-3">
-            Tutorial
+            {t('home.tutorial')}
           </h2>
           <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden shadow-sm">
             <div className="aspect-video bg-neutral-900 flex items-center justify-center relative">
@@ -55,8 +54,8 @@ export const HomePage = () => {
                 <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center mx-auto mb-3">
                   <IconPlay className="w-7 h-7 text-white/90" />
                 </div>
-                <p className="text-sm font-medium text-white/90">Getting started</p>
-                <p className="text-xs text-white/50 mt-0.5">Video tutorial coming soon</p>
+                <p className="text-sm font-medium text-white/90">{t('home.gettingStarted')}</p>
+                <p className="text-xs text-white/50 mt-0.5">{t('home.videoComingSoon')}</p>
               </div>
             </div>
           </div>
@@ -64,45 +63,32 @@ export const HomePage = () => {
 
         <section className="mb-12">
           <h2 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider mb-4">
-            Features
+            {t('home.features')}
           </h2>
           <dl className="space-y-5">
-            <Feature
-              title="Connect any STAC catalog"
-              body="Microsoft Planetary Computer is best supported today, with experimental support for any public STAC endpoint. Imagery streams directly to the browser on the fly, without requiring
-              any downloading oe pre-processing."
-            />
-            <Feature
-              title="Run team campaigns"
-              body="Annotator and reviewer roles, task assignment, label validation against nearest neighbours, and built-in conflict resolution when annotators disagree."
-            />
-            <Feature
-              title="Inspect change over time"
-              body="Per-pixel NDVI history from Sentinel-2 and MODIS, cloud-masked by Cloud Score+ and SCL. Customisable spectral indices on the roadmap."
-            />
-            <Feature
-              title="Tasks and Exploration"
-              body="Work task-by-task through predefined points and polygons, or switch to Explore for free-form drawing on imagery you navigate yourself."
-            />
-            <Feature
-              title="Active Learning"
-              body="Register your maps as overlay layers over imagery and use the SDK to fetch annotations / generate new tasks."
-            />
+            <Feature title={t('home.stacTitle')} body={t('home.stacBody')} />
+            <Feature title={t('home.teamsTitle')} body={t('home.teamsBody')} />
+            <Feature title={t('home.changeTitle')} body={t('home.changeBody')} />
+            <Feature title={t('home.modesTitle')} body={t('home.modesBody')} />
+            <Feature title={t('home.activeLearningTitle')} body={t('home.activeLearningBody')} />
           </dl>
         </section>
 
         <div className="mt-16 pt-6 border-t border-neutral-200 text-[12px] text-neutral-500 leading-relaxed max-w-2xl">
-          STACNotator is in early access and under active development. Features may change and
-          results should be independently verified. Please report issues on{' '}
-          <a
-            href="https://github.com/RAAPID-ORG/stacnotator"
-            target="_blank"
-            rel="noreferrer"
-            className="text-neutral-700 hover:text-neutral-900 underline underline-offset-2"
-          >
-            GitHub
-          </a>
-          .
+          <Trans
+            t={t}
+            i18nKey="home.earlyAccess"
+            components={{
+              link: (
+                <a
+                  href="https://github.com/RAAPID-ORG/stacnotator"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-neutral-700 hover:text-neutral-900 underline underline-offset-2"
+                />
+              ),
+            }}
+          />
         </div>
       </FadeIn>
     </div>

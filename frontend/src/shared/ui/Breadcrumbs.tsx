@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 export interface BreadcrumbItem {
@@ -14,7 +15,8 @@ interface BreadcrumbsProps {
  * Breadcrumb navigation component
  */
 export const Breadcrumbs = ({ items, onMenuClick }: BreadcrumbsProps) => {
-  const allItems: BreadcrumbItem[] = [{ label: 'Home', path: '/' }, ...items];
+  const { t } = useTranslation();
+  const allItems: BreadcrumbItem[] = [{ label: t('nav.home'), path: '/' }, ...items];
 
   return (
     <header className="px-4 py-1.5 text-xs bg-white border-b border-neutral-200 flex-shrink-0 flex items-center gap-2">
@@ -22,7 +24,7 @@ export const Breadcrumbs = ({ items, onMenuClick }: BreadcrumbsProps) => {
         <button
           type="button"
           onClick={onMenuClick}
-          aria-label="Open menu"
+          aria-label={t('nav.openMenu')}
           className="desktop:hidden flex items-center justify-center w-7 h-7 -ml-1 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded transition-colors"
         >
           <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">

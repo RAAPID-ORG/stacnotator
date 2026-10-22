@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from './forms';
 import { AnimatedDialog } from './motion';
 import { Spinner } from './Spinner';
@@ -24,8 +25,8 @@ export const ConfirmDialog = ({
   isOpen,
   title,
   description,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText,
+  cancelText,
   isDangerous = false,
   isWarning = false,
   isLoading = false,
@@ -34,6 +35,7 @@ export const ConfirmDialog = ({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) => {
+  const { t } = useTranslation();
   const [dontAskAgain, setDontAskAgain] = useState(false);
 
   const handleConfirm = async () => {
@@ -69,14 +71,14 @@ export const ConfirmDialog = ({
               onChange={(e) => setDontAskAgain(e.target.checked)}
               className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer"
             />
-            <span className="text-xs text-neutral-600">Don&apos;t ask again this session</span>
+            <span className="text-xs text-neutral-600">{t('confirmDialog.dontAskAgain')}</span>
           </label>
         )}
       </div>
 
       <div className="border-t border-neutral-100 flex gap-2 p-4 justify-end bg-neutral-50/50 rounded-b-xl">
         <Button variant="secondary" onClick={handleCancel} disabled={isLoading}>
-          {cancelText}
+          {cancelText ?? t('actions.cancel')}
         </Button>
         <Button
           variant={isDangerous ? 'danger' : 'primary'}
@@ -84,7 +86,7 @@ export const ConfirmDialog = ({
           disabled={isLoading}
           leading={isLoading ? <Spinner size="xs" variant="white" /> : undefined}
         >
-          {confirmText}
+          {confirmText ?? t('actions.confirm')}
         </Button>
       </div>
     </AnimatedDialog>

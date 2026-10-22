@@ -1,3 +1,4 @@
+import i18n from '~/shared/i18n';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 
 export type AlertType = 'success' | 'error' | 'warning' | 'info';
@@ -35,7 +36,7 @@ export const isNetworkError = (err: unknown): boolean => {
 
 const extractBaseMessage = (err: unknown, fallback: string): string => {
   if (isNetworkError(err)) {
-    return "Can't reach the server. Try again in a moment.";
+    return i18n.t('common:errors.unreachable');
   }
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
@@ -66,10 +67,15 @@ const extractBaseMessage = (err: unknown, fallback: string): string => {
  * If the backend includes a `request_id`, appends an 8-char prefix as a
  * support reference. Falls back to `fallback` for anything else.
  */
-export const extractErrorMessage = (err: unknown, fallback = 'Something went wrong'): string => {
+export const extractErrorMessage = (
+  err: unknown,
+  fallback = i18n.t('common:errors.generic')
+): string => {
   const base = extractBaseMessage(err, fallback);
   const requestId = extractRequestId(err);
-  return requestId ? `${base} (ref: ${requestId.slice(0, 8)})` : base;
+  return requestId
+    ? i18n.t('common:errors.withRef', { message: base, ref: requestId.slice(0, 8) })
+    : base;
 };
 
 /**

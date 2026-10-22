@@ -1,24 +1,16 @@
 // TODO: should refactor at some point into semantically meaningfull files. Currently just a dump
 
+import i18n from '~/shared/i18n';
+
 export interface LatLon {
   lat: number;
   lon: number;
 }
 
-const MONTH_ABBREV = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
+const monthAbbrevs = (): string[] => {
+  const format = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'en', { month: 'short' });
+  return Array.from({ length: 12 }, (_, month) => format.format(new Date(2000, month, 1)));
+};
 
 /**
  * Capitalize the first letter of a string
@@ -140,6 +132,7 @@ export const formatSliceLabel = (
   slicingUnit: string | null,
   _sliceIndex: number
 ): string => {
+  const months = monthAbbrevs();
   const start = parseDate(startDate);
   const end = parseDate(endDate);
 
@@ -158,30 +151,30 @@ export const formatSliceLabel = (
     case 'month':
     case 'months':
       if (startMonth === endMonth && startYear === endYear) {
-        return MONTH_ABBREV[startMonth];
+        return months[startMonth];
       }
       if (startYear === endYear) {
-        return `${MONTH_ABBREV[startMonth]}-${MONTH_ABBREV[endMonth]}`;
+        return `${months[startMonth]}-${months[endMonth]}`;
       }
-      return `${MONTH_ABBREV[startMonth]} '${String(startYear).slice(2)}`;
+      return `${months[startMonth]} '${String(startYear).slice(2)}`;
 
     case 'week':
     case 'weeks':
       if (startMonth === endMonth) {
-        return `${MONTH_ABBREV[startMonth]} ${startDay}-${endDay}`;
+        return `${months[startMonth]} ${startDay}-${endDay}`;
       }
-      return `${MONTH_ABBREV[startMonth]} ${startDay} - ${MONTH_ABBREV[endMonth]} ${endDay}`;
+      return `${months[startMonth]} ${startDay} - ${months[endMonth]} ${endDay}`;
 
     case 'day':
     case 'days':
     default:
       if (startMonth === endMonth && startDay === endDay) {
-        return `${MONTH_ABBREV[startMonth]} ${startDay}`;
+        return `${months[startMonth]} ${startDay}`;
       }
       if (startMonth === endMonth) {
-        return `${MONTH_ABBREV[startMonth]} ${startDay}-${endDay}`;
+        return `${months[startMonth]} ${startDay}-${endDay}`;
       }
-      return `${MONTH_ABBREV[startMonth]} ${startDay} - ${MONTH_ABBREV[endMonth]} ${endDay}`;
+      return `${months[startMonth]} ${startDay} - ${months[endMonth]} ${endDay}`;
   }
 };
 
@@ -193,6 +186,7 @@ export const formatWindowLabel = (
   endDate: string,
   windowUnit: string | null
 ): string => {
+  const months = monthAbbrevs();
   const start = parseDate(startDate);
   const end = parseDate(endDate);
 
@@ -211,12 +205,12 @@ export const formatWindowLabel = (
     case 'month':
     case 'months':
       if (startMonth === endMonth && startYear === endYear) {
-        return `${MONTH_ABBREV[startMonth]} ${startYear}`;
+        return `${months[startMonth]} ${startYear}`;
       }
       if (startYear === endYear) {
-        return `${MONTH_ABBREV[startMonth]}-${MONTH_ABBREV[endMonth]} ${startYear}`;
+        return `${months[startMonth]}-${months[endMonth]} ${startYear}`;
       }
-      return `${MONTH_ABBREV[startMonth]} ${startYear} - ${MONTH_ABBREV[endMonth]} ${endYear}`;
+      return `${months[startMonth]} ${startYear} - ${months[endMonth]} ${endYear}`;
 
     case 'week':
     case 'weeks':
@@ -226,13 +220,13 @@ export const formatWindowLabel = (
       if (startYear === endYear) {
         if (startMonth === endMonth) {
           if (startDay === endDay) {
-            return `${MONTH_ABBREV[startMonth]} ${startDay}, ${startYear}`;
+            return `${months[startMonth]} ${startDay}, ${startYear}`;
           }
-          return `${MONTH_ABBREV[startMonth]} ${startDay}-${endDay}, ${startYear}`;
+          return `${months[startMonth]} ${startDay}-${endDay}, ${startYear}`;
         }
-        return `${MONTH_ABBREV[startMonth]} ${startDay} - ${MONTH_ABBREV[endMonth]} ${endDay}, ${startYear}`;
+        return `${months[startMonth]} ${startDay} - ${months[endMonth]} ${endDay}, ${startYear}`;
       }
-      return `${MONTH_ABBREV[startMonth]} ${startDay}, ${startYear} - ${MONTH_ABBREV[endMonth]} ${endDay}, ${endYear}`;
+      return `${months[startMonth]} ${startDay}, ${startYear} - ${months[endMonth]} ${endDay}, ${endYear}`;
   }
 };
 

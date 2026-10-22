@@ -1,4 +1,5 @@
 import { forwardRef, type InputHTMLAttributes } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface FileInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'onSelect'> {
   /** Called with the chosen file. The native input is reset so the same file can be picked twice. */
@@ -18,43 +19,34 @@ interface FileInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'ty
  * sits with the other form controls instead of looking like a browser default.
  */
 export const FileInput = forwardRef<HTMLInputElement, FileInputProps>(
-  (
-    {
-      onSelect,
-      action = 'Choose file',
-      placeholder = 'No file selected',
-      fileName,
-      busyText,
-      disabled,
-      className,
-      ...rest
-    },
-    ref
-  ) => (
-    <label
-      className={`relative flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
-        disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-neutral-400'
-      } ${className ?? ''}`}
-    >
-      <input
-        ref={ref}
-        type="file"
-        disabled={disabled}
-        className="sr-only"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) onSelect(file);
-        }}
-        {...rest}
-      />
-      <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
-        {action}
-      </span>
-      <span className="text-xs text-neutral-500 truncate">
-        {busyText ?? fileName ?? placeholder}
-      </span>
-    </label>
-  )
+  ({ onSelect, action, placeholder, fileName, busyText, disabled, className, ...rest }, ref) => {
+    const { t } = useTranslation();
+    return (
+      <label
+        className={`relative flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
+          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-neutral-400'
+        } ${className ?? ''}`}
+      >
+        <input
+          ref={ref}
+          type="file"
+          disabled={disabled}
+          className="sr-only"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) onSelect(file);
+          }}
+          {...rest}
+        />
+        <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
+          {action ?? t('fileInput.choose')}
+        </span>
+        <span className="text-xs text-neutral-500 truncate">
+          {busyText ?? fileName ?? placeholder ?? t('fileInput.none')}
+        </span>
+      </label>
+    );
+  }
 );
 FileInput.displayName = 'FileInput';

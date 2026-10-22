@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { acceptTerms } from 'src/api/client';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -10,6 +11,7 @@ import { legalPath } from './docs';
 /** Blocks the app until the signed-in user accepts the terms in force: new accounts
  * on their first visit, and everyone else once the version is bumped. */
 const TermsGate = ({ version }: { version: string }) => {
+  const { t } = useTranslation();
   const { auth } = useAuth();
   const fetchAccount = useAccountStore((s) => s.fetchAccount);
   const [submitting, setSubmitting] = useState(false);
@@ -22,7 +24,7 @@ const TermsGate = ({ version }: { version: string }) => {
       await acceptTerms({ body: { version } });
       await fetchAccount();
     } catch (e) {
-      setError(extractErrorMessage(e, 'Could not record your acceptance. Please try again.'));
+      setError(extractErrorMessage(e, t('legal.acceptFailed')));
       setSubmitting(false);
     }
   };
@@ -31,19 +33,22 @@ const TermsGate = ({ version }: { version: string }) => {
     <div className="h-screen w-screen bg-canvas">
       <div className="mx-auto flex h-full max-w-3xl flex-col gap-4 px-4 py-8">
         <div>
-          <h1 className="text-lg font-semibold text-neutral-900">Before you continue</h1>
+          <h1 className="text-lg font-semibold text-neutral-900">{t('legal.gateTitle')}</h1>
           <p className="mt-1 text-sm text-neutral-600">
-            Please read and accept the Terms of Service to use STACNotator. How we handle your data
-            is described in the{' '}
-            <a
-              href={legalPath('privacy')}
-              target="_blank"
-              rel="noreferrer"
-              className="underline hover:text-brand-700"
-            >
-              Privacy Policy
-            </a>
-            .
+            <Trans
+              t={t}
+              i18nKey="legal.gateIntro"
+              components={{
+                link: (
+                  <a
+                    href={legalPath('privacy')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-brand-700"
+                  />
+                ),
+              }}
+            />
           </p>
         </div>
 
@@ -58,13 +63,10 @@ const TermsGate = ({ version }: { version: string }) => {
         )}
 
         <div className="flex items-center justify-between gap-6">
-          <p className="text-xs text-neutral-600">
-            By clicking I agree you confirm that you are at least 13 years old and that you accept
-            these terms (version {version}).
-          </p>
+          <p className="text-xs text-neutral-600">{t('legal.gateConsent', { version })}</p>
           <div className="flex shrink-0 gap-2">
             <Button variant="quiet" onClick={() => auth.logout()} disabled={submitting}>
-              Sign out
+              {t('legal.signOut')}
             </Button>
             <Button
               variant="primary"
@@ -72,7 +74,7 @@ const TermsGate = ({ version }: { version: string }) => {
               disabled={submitting}
               data-testid="accept-terms"
             >
-              {submitting ? 'Saving…' : 'I agree'}
+              {submitting ? t('status.saving') : t('legal.agree')}
             </Button>
           </div>
         </div>

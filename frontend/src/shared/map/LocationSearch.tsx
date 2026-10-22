@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconClose, IconSearch } from '~/shared/ui/Icons';
 import { buildPhotonUrl, parseGeocodingResponse, type GeocodingResult } from './geocoding';
 
@@ -41,6 +42,7 @@ export function LocationSearch({
   onExpandedChange,
   className,
 }: LocationSearchProps) {
+  const { t } = useTranslation();
   const chrome = CHROME[variant];
   const collapsible = expandedProp !== undefined;
   const expanded = expandedProp ?? true;
@@ -166,7 +168,7 @@ export function LocationSearch({
           onClick={() => onExpandedChange?.(true)}
           onMouseDown={(e) => e.stopPropagation()}
           className="p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
-          title="Search location"
+          title={t('locationSearch.open')}
           data-testid="location-search-toggle"
         >
           <IconSearch className="w-3 h-3" />
@@ -198,7 +200,7 @@ export function LocationSearch({
             onBlur={() => setIsOpen(false)}
             onFocus={() => setIsOpen(suggestions.length > 0)}
             tabIndex={expanded ? 0 : -1}
-            placeholder="Search location…"
+            placeholder={t('locationSearch.placeholder')}
             className={`w-full font-normal text-neutral-900 bg-white border border-neutral-300 select-text focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 ${chrome.input}`}
           />
           {collapsible && (
@@ -210,7 +212,7 @@ export function LocationSearch({
               onClick={collapse}
               tabIndex={expanded ? 0 : -1}
               className="absolute right-0.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
-              title="Close search"
+              title={t('locationSearch.close')}
               data-testid="location-search-close"
             >
               <IconClose className="w-3 h-3" />
