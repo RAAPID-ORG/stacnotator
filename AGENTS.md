@@ -154,6 +154,23 @@ generated key after a write.
 - Component tests that touch a query use `renderWithQuery` and mock
   `~/api/client/sdk.gen` - mocking `~/api/client` only catches direct callers.
 
+### Translations
+
+UI copy goes through **react-i18next** (`shared/i18n/`); English and Spanish ship today. Strings live in
+`shared/i18n/locales/<lng>/<namespace>.json`, one namespace per feature (`common` for `app/` + `shared/`).
+The language is detected from `localStorage`, then the browser, and switched with `LanguageSelect`
+(sidebar footer, login screen).
+
+- Components: `const { t } = useTranslation('campaigns')`. Outside React (stores, pure modules, toasts
+  fired from callbacks): `i18n.t('campaigns:key')` at call time, never at module scope.
+- Keys are typed from the English JSON (`i18next.d.ts`), so `tsc` catches a missing or misspelled key;
+  `locales.test.ts` fails when a Spanish key is missing or a Spanish plural lacks `_one`/`_many`/`_other`.
+- One key per sentence with `{{variables}}`, i18next plurals instead of `n === 1 ? ... : ...`, `<Trans>`
+  only for inline markup.
+- Not translated: user and backend data (names, labels, backend error details) and the legal documents.
+- Tests run in English (`test-setup.ts`; Playwright's default locale), so keep English copy stable or
+  update the specs that assert on it.
+
 ### The annotation feature
 
 The heart of the app. Under `features/annotation/`, grouped by what a thing *is*:
