@@ -40,10 +40,14 @@ interface PrefsState {
   labelStyles: Record<number, Partial<LabelStyle>>;
   legendOverrides: Record<number, LegendOverride>;
   timeseriesChart: TimeseriesChartOptions;
+  /** Width in px the user dragged the task panel's label column to. Absent
+   *  means the default width. */
+  taskLabelsWidth: number | null;
 
   setPreloadTier: (tier: PreloadTier) => void;
   setTimeseriesChart: (patch: Partial<TimeseriesChartOptions>) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
+  setTaskLabelsWidth: (width: number | null) => void;
   /** `null` clears the pin for that view. */
   setPinnedStart: (viewId: number, collectionId: number | null) => void;
   markTourSeen: (tourId: string) => void;
@@ -70,11 +74,13 @@ export const usePrefsStore = create<PrefsState>()(
       labelStyles: {},
       legendOverrides: {},
       timeseriesChart: DEFAULT_TIMESERIES_CHART,
+      taskLabelsWidth: null,
 
       setPreloadTier: (preloadTier) => set({ preloadTier }),
       setTimeseriesChart: (patch) =>
         set((s) => ({ timeseriesChart: { ...s.timeseriesChart, ...patch } })),
       setSkipConfirmDisabled: (skipConfirmDisabled) => set({ skipConfirmDisabled }),
+      setTaskLabelsWidth: (taskLabelsWidth) => set({ taskLabelsWidth }),
 
       setPinnedStart: (viewId, collectionId) =>
         set((s) => ({
