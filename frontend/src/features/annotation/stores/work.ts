@@ -5,6 +5,7 @@ import {
   getAnnotation,
   getAnnotationChanges,
   updateAnnotationOpenmode,
+  type AnnotationCreate,
   type AnnotationOut,
 } from '~/api/client';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
@@ -39,11 +40,15 @@ import {
 } from '../campaign/sliceComments';
 import type { SavedAnnotations } from '../map/compose';
 import type { LonLat } from '~/shared/map/types';
-import { campaignState, formFields, originTaskId, useCampaignStore } from './campaign';
+import { campaignState, drawsShapes, formFields, useCampaignStore } from './campaign';
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';
 
 export type Tool = 'pan' | 'annotate' | 'edit' | 'labelVector' | 'timeseries';
+
+/** The task a shape is saved against, fixed when drawing starts so a shape
+ *  finished after moving on still belongs to the task it was drawn for. */
+export type TaskLink = Pick<AnnotationCreate, 'origin_task_id' | 'output_of_task_id'>;
 
 /**
  * A shape being drawn. `sketching` means the tool is armed, `draft` means the
@@ -97,6 +102,8 @@ interface WorkState {
   commenting: SliceAddress | null;
 
   draft: Draft;
+  /** The task the shape being drawn is saved against. */
+  draftLink: TaskLink;
   selection: number[];
   /** Where the selection's on-map controls sit: the top-right of the geometry
    *  being edited, or of the box that selected many. */
@@ -187,7 +194,7 @@ interface WorkState {
    *  and its key toggle rather than latch. */
   toggleProbeTool: () => void;
 
-  beginDraft: (labelId: number) => void;
+  beginDraft: (labelId: number, link?: TaskLink) => void;
   /** A shape finished drawing. Only an unanswered required question holds it
    *  back as a draft; otherwise it is stored right away, with its optional
    *  questions still open for answers. */
@@ -257,7 +264,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     labelId: number,
     geometry: GeoJSON.Geometry
   ): Promise<number | null> => {
-    const { comment, confidence, flagged, flagComment, formValues, sliceNotes } = get();
+    const { comment, confidence, flagged, flagComment, formValues, sliceNotes, draftLink } = get();
     try {
       const result = await createAnnotationOpenmode({
         path: { campaign_id: campaignState().campaign.id },
@@ -270,7 +277,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           flagged_for_review: flagged,
           flag_comment: flagged ? flagComment || null : null,
           slice_comments: listNotes(sliceNotes),
-          origin_task_id: originTaskId(),
+          ...draftLink,
         },
       });
       const id = result.data?.id ?? null;
@@ -354,6 +361,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     tool: 'pan',
     commenting: null,
     draft: { phase: 'idle' },
+    draftLink: {},
     selection: [],
     selectionAnchor: null,
     edit: null,
@@ -473,6 +481,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         tool: 'pan',
         commenting: null,
         draft: { phase: 'idle' },
+        draftLink: {},
         selection: [],
         selectionAnchor: null,
         edit: null,
@@ -497,9 +506,9 @@ export const useWorkStore = create<WorkState>((set, get) => {
       // button. Resolving the draft afterwards is what Escape does too.
       set({ tool });
 
-      // Dropping the label on pan is Explore's "stop drawing". In Tasks the
+      // Dropping the label on pan is "stop drawing". In classify tasks the
       // selected label is the answer waiting to be submitted, not a draw arm.
-      if (tool === 'pan' && campaignState().workMode === 'explore') set({ selectedLabelId: null });
+      if (tool === 'pan' && drawsShapes()) set({ selectedLabelId: null });
       // An unsaved drag would otherwise stay hidden in the tiles with nothing
       // on screen to confirm or cancel it.
       if (tool !== 'edit') get().clearEdit();
@@ -522,11 +531,12 @@ export const useWorkStore = create<WorkState>((set, get) => {
     // Slice notes survive the reset: noticing something about an image and
     // then drawing what it is about is one gesture, and the note belongs to
     // the shape that follows it.
-    beginDraft: (labelId) =>
+    beginDraft: (labelId, link = {}) =>
       set((s) => ({
         ...emptyForm,
         sliceNotes: s.sliceNotes,
         draft: { phase: 'sketching', labelId },
+        draftLink: link,
         selectedLabelId: labelId,
       })),
 

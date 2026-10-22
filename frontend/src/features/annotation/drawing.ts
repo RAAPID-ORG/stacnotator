@@ -26,13 +26,14 @@ import {
   formFields,
   mayModifyAnnotation,
   originTaskId,
-  useCampaignStore,
   useCanModifyAnnotation,
+  useDrawsShapes,
   useLabels,
 } from './stores/campaign';
 import { useImageryStore } from './stores/imagery';
 import { usePrefsStore } from './stores/prefs';
-import { useWorkStore } from './stores/work';
+import { currentTask } from './stores/tasks';
+import { useWorkStore, type TaskLink } from './stores/work';
 
 const DRAW_SHAPES: Record<GeometryType, DrawShape> = {
   point: 'Point',
@@ -53,6 +54,13 @@ type LabelOutcome =
   | { kind: 'error'; message: string }
   | { kind: 'noop' };
 
+/** The task a new shape belongs to: in Tasks the draw task it answers, in
+ *  Explore the task it was found near. */
+export function shapeTaskLink(): TaskLink {
+  if (campaignState().workMode === 'tasks') return { output_of_task_id: currentTask()?.id };
+  return { origin_task_id: originTaskId() };
+}
+
 export function annotationBody(
   geometry: GeoJSON.Geometry,
   labelId: number,
@@ -65,7 +73,7 @@ export function annotationBody(
     confidence: null,
     // An empty answer set is "no answers given", not "all answers cleared".
     form_values: Object.keys(formValues).length ? formValues : null,
-    origin_task_id: originTaskId(),
+    ...shapeTaskLink(),
   };
 }
 
@@ -233,7 +241,7 @@ async function handleDrawEnd(geometry: GeoJSON.Geometry): Promise<void> {
     return;
   }
 
-  useWorkStore.getState().beginDraft(labelId);
+  useWorkStore.getState().beginDraft(labelId, shapeTaskLink());
   if ((await useWorkStore.getState().drawEnd(geometry)) === 'save-failed') {
     alert('Could not save the annotation - retry or discard it in the panel.', 'error');
   }
@@ -339,7 +347,7 @@ export function useDrawingInteractions(): {
   interactions: InteractionSpec | undefined;
   onMapClick: ((e: MapClickEvent) => void) | undefined;
 } {
-  const isExplore = useCampaignStore((s) => s.workMode === 'explore');
+  const drawsShapes = useDrawsShapes();
   const tool = useWorkStore((s) => s.tool);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const edit = useWorkStore((s) => s.edit);
@@ -381,8 +389,8 @@ export function useDrawingInteractions(): {
   const onMapClick = useCallback((event: MapClickEvent) => void handleMapClick(event), []);
 
   const spec = useMemo<InteractionSpec | undefined>(() => {
-    // Tasks mode has no drawing tools: its map is the task's.
-    if (!isExplore) return undefined;
+    // Classify tasks have no drawing tools: their map is the task's.
+    if (!drawsShapes) return undefined;
 
     if (tool === 'annotate') {
       if (!label || !sketchStyle) return undefined;
@@ -421,7 +429,7 @@ export function useDrawingInteractions(): {
     // pending drag would tear the interaction down mid-gesture.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isExplore,
+    drawsShapes,
     tool,
     label,
     sketchStyle,
@@ -432,5 +440,5 @@ export function useDrawingInteractions(): {
     vector,
   ]);
 
-  return { interactions: spec, onMapClick: isExplore ? onMapClick : undefined };
+  return { interactions: spec, onMapClick: drawsShapes ? onMapClick : undefined };
 }

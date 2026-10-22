@@ -22,7 +22,13 @@ import { ImageryLegend } from '../../components/ImageryLegend';
 import { Delayed } from '~/shared/ui/Delayed';
 import { setForegroundMapLoading, useForegroundLoading } from '~/shared/map/tileLoading';
 import type { LonLat, MapClickEvent } from '~/shared/map/types';
-import { useCampaign, useCampaignStore, useCatalog, type WorkMode } from '../../stores/campaign';
+import {
+  useCampaign,
+  useCampaignStore,
+  useCatalog,
+  useDrawsShapes,
+  type WorkMode,
+} from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
 import { useLayoutStore } from '../../stores/layout';
 import { usePrefsStore } from '../../stores/prefs';
@@ -301,11 +307,11 @@ export function taskProbeClick(event: MapClickEvent): void {
  * that reads as a campaign nobody has worked on, so it is explained.
  */
 function AnnotationZoomNotice() {
-  const mode = useCampaignStore((s) => s.workMode);
+  const drawsShapes = useDrawsShapes();
   const showAnnotations = useImageryStore((s) => s.showAnnotations);
   const zoom = useCameraZoom(mainCamera);
 
-  if (mode !== 'explore' || !showAnnotations || annotationsVisibleAt(zoom)) return null;
+  if (!drawsShapes || !showAnnotations || annotationsVisibleAt(zoom)) return null;
   return <StatusPill>Zoom in to see annotations</StatusPill>;
 }
 
@@ -328,13 +334,13 @@ function DraftQuestionsHint({ missing }: { missing: string[] }) {
  * the two can never stack.
  */
 function MapNotice({ waitingForRegistration }: { waitingForRegistration: boolean }) {
-  const mode = useCampaignStore((s) => s.workMode);
+  const drawsShapes = useDrawsShapes();
   const needsLabel = useWorkStore((s) => s.tool === 'annotate' && s.selectedLabelId === null);
   const sceneNotice = useSceneNotice();
   const loadingTiles = useForegroundLoading();
 
   if (waitingForRegistration) return <ImageryRegistrationNotice />;
-  if (mode === 'explore' && needsLabel) {
+  if (drawsShapes && needsLabel) {
     return (
       <StatusPill>
         <span data-testid="pick-label-notice">
@@ -370,6 +376,7 @@ export function MainMapBody() {
   const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
+  const drawsShapes = useDrawsShapes();
   const imagery = useImageryStore();
   const legendOverrides = usePrefsStore((s) => s.legendOverrides);
   const draft = useWorkStore((s) => s.draft);
@@ -379,7 +386,7 @@ export function MainMapBody() {
   // Draw/edit/box-select belong to the map they act on, so this is where the
   // drawing feature's wiring is mounted.
   const { interactions, onMapClick: drawingClick } = useDrawingInteractions();
-  const onMapClick = mode === 'tasks' ? taskProbeClick : drawingClick;
+  const onMapClick = drawsShapes ? drawingClick : taskProbeClick;
   const probePoints = useWorkStore((s) => (s.probeMarkerHidden ? EMPTY_PROBES : s.probePoints));
   const activeProbe = useWorkStore((s) => s.activeProbe);
   const focus = useMapFocus();
@@ -435,10 +442,11 @@ export function MainMapBody() {
       activeProbe,
       originTask,
     };
-    return composeLayers({ catalog, mode }, state);
+    return composeLayers({ catalog, mode, drawsShapes }, state);
   }, [
     catalog,
     mode,
+    drawsShapes,
     imagery,
     annotations,
     legendOverrides,
@@ -492,18 +500,17 @@ export function MainMapBody() {
   // Confirm/delete ride on the geometry they act on rather than in a corner of
   // the page, which is what makes them findable on a big map. A draft outranks
   // a selection: it is the thing the user just did.
-  const anchor: MapAnchor | null =
-    mode !== 'explore'
-      ? null
-      : draft.phase === 'draft' && missing.length > 0
-        ? {
-            at: geometryTopRight(draft.geometry),
-            content: <DraftQuestionsHint missing={missing.map((f) => f.title)} />,
-            offset: [10, -5],
-          }
-        : selection.length > 0 && selectionAnchor
-          ? { at: selectionAnchor, content: <SelectionControls />, offset: [10, -5] }
-          : null;
+  const anchor: MapAnchor | null = !drawsShapes
+    ? null
+    : draft.phase === 'draft' && missing.length > 0
+      ? {
+          at: geometryTopRight(draft.geometry),
+          content: <DraftQuestionsHint missing={missing.map((f) => f.title)} />,
+          offset: [10, -5],
+        }
+      : selection.length > 0 && selectionAnchor
+        ? { at: selectionAnchor, content: <SelectionControls />, offset: [10, -5] }
+        : null;
 
   return (
     <div className="flex h-full w-full">
