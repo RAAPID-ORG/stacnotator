@@ -168,6 +168,23 @@ export async function clickMapAt(page: Page, dx: number, dy: number): Promise<vo
   await viewport.click({ position: { x: box.width / 2 + dx, y: box.height / 2 + dy } });
 }
 
+/** Drag a box between two (dx, dy) offsets from the main map centre, without
+ *  modifiers - the gesture of tools that draw boxes rather than pan. */
+export async function dragBoxOnMap(
+  page: Page,
+  from: [number, number],
+  to: [number, number]
+): Promise<void> {
+  const box = await mainViewport(page).boundingBox();
+  if (!box) throw new Error('main map viewport has no bounding box');
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx + from[0], cy + from[1]);
+  await page.mouse.down();
+  await page.mouse.move(cx + to[0], cy + to[1], { steps: 12 });
+  await page.mouse.up();
+}
+
 /** Draw a polygon/line: click each (dx, dy) offset, then double-click the last to finish. */
 export async function drawPolygon(page: Page, points: Array<[number, number]>): Promise<void> {
   const box = await mainViewport(page).boundingBox();
