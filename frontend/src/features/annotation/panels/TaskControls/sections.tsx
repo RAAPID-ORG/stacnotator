@@ -193,7 +193,7 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
       )}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-1.5">
+        <div className="flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-1.5">
           <button
             type="button"
             disabled={isSkipDisabled}
@@ -249,7 +249,7 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
                   : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
                 : undefined
             }
-            className={`flex-1 min-w-0 inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-white rounded-md shadow-sm transition-colors whitespace-nowrap disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed ${
+            className={`flex-1 min-w-[5rem] inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-white rounded-md shadow-sm transition-colors whitespace-nowrap disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed ${
               asAuthoritative
                 ? 'bg-amber-600 hover:bg-amber-700'
                 : 'bg-brand-600 hover:bg-brand-700'
