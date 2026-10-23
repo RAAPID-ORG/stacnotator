@@ -20,6 +20,7 @@ Please select `develop` as the target branch. All changes are first tested in a 
 - Ensure your code is well tested if applicable and provide a short description of what you are doing.
 - For contributions that rely on LLMs, please ensure your code is not testing mock functionality, but rather core business logic.
 - Code should be mostly self documenting.
+- UI text is never written into components: add it to the locale files in `frontend/src/shared/i18n/locales/` in both English and Spanish (see the Translations section in [AGENTS.md](AGENTS.md)).
 
 We will review the PR as soon as capacities free up, which might take a few days.
 

@@ -161,15 +161,28 @@ UI copy goes through **react-i18next** (`shared/i18n/`); English and Spanish shi
 The language is detected from `localStorage`, then the browser, and switched in Settings > Profile, or
 with `LanguageSelect` on the auth card before sign-in.
 
+**Rule: no user-visible text in code.** Every string a person can read - JSX text, `title`,
+`placeholder`, `aria-label`, toasts, `meta.errorMessage`, validation messages, confirm dialogs, labels
+in option tables - is a key in the locale JSON, and every change ships **both `en` and `es`** in the same
+commit. Adding a component, rewording copy or deleting UI means editing the JSON too (remove keys no code
+uses any more). An English-only string is a bug, not a follow-up.
+
 - Components: `const { t } = useTranslation('campaigns')`. Outside React (stores, pure modules):
   `const t = i18n.getFixedT(null, 'campaigns')` once under the imports - it fixes the namespace, not the
-  language, so it follows a switch. Never resolve a string at module scope. Inside a component's effect,
-  where the hook's `t` would become a dependency, `i18n.t('campaigns:key')`.
+  language, so it follows a switch. Never resolve a string at module scope; a constant table of options
+  keeps the value and resolves its label at render. Inside a component's effect, where the hook's `t`
+  would become a dependency, `i18n.t('campaigns:key')`.
 - Keys are typed from the English JSON (`i18next.d.ts`), so `tsc` catches a missing or misspelled key;
   `locales.test.ts` fails when a Spanish key is missing or a Spanish plural lacks `_one`/`_many`/`_other`.
-- One key per sentence with `{{variables}}`, i18next plurals instead of `n === 1 ? ... : ...`, `<Trans>`
-  only for inline markup.
-- Not translated: user and backend data (names, labels, backend error details) and the legal documents.
+  Neither catches a literal string left in JSX, so check your diff for one.
+- Keys are camelCase, nested by screen then purpose (`settings.language.title`), never the English
+  sentence. Reuse an existing key when the text is the same; `common` holds shared actions.
+- One key per sentence with `{{variables}}` (word order differs in Spanish), i18next plurals instead of
+  `n === 1 ? ... : ...`, `<Trans>` only for inline markup.
+- Spanish is neutral international Spanish with informal "tú", in sentence case like the English; keep
+  the established terms (campaña, proyecto, anotación, tarea, etiqueta, corte, capa, configuración).
+- Not translated: user and backend data (names, labels, backend error details), saved default names,
+  brand and format names, the legal documents, and the headless agent render page.
 - Tests run in English (`test-setup.ts`; Playwright's default locale), so keep English copy stable or
   update the specs that assert on it.
 
