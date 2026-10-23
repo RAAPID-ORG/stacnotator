@@ -72,7 +72,7 @@ export function LabelChips<L extends LabelChipItem>({
                 onClick={() => onSelect(label)}
                 className={`${
                   width != null || fill ? 'grow shrink basis-0' : 'w-40'
-                } min-w-0 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 justify-between ${
+                } self-stretch min-w-0 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 justify-between ${
                   selected
                     ? 'bg-brand-50 text-brand-700 border-brand-600 border font-semibold'
                     : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border-neutral-200 border'
