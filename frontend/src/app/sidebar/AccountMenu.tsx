@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '~/app/providers/AuthProvider';
 import {
@@ -26,6 +27,28 @@ import { handleError } from '~/shared/utils/errorHandler';
 import { MenuItem, MenuLabel, MenuSeparator, SidebarMenu } from './SidebarMenu';
 
 const initial = (text: string) => text.trim().charAt(0).toUpperCase() || '?';
+
+/** A small action beside the organization heading, so browsing and creating
+ *  read as about organizations rather than as one more organization to pick. */
+const OrgAction = ({
+  icon,
+  children,
+  onSelect,
+}: {
+  icon: ReactNode;
+  children: ReactNode;
+  onSelect: () => void;
+}) => (
+  <button
+    type="button"
+    role="menuitem"
+    onClick={onSelect}
+    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-neutral-500 cursor-pointer transition-colors hover:bg-neutral-100 hover:text-neutral-900 [&>svg]:w-3 [&>svg]:h-3"
+  >
+    {icon}
+    {children}
+  </button>
+);
 
 /**
  * Who is signed in and which organization they are working in - one row,
@@ -121,9 +144,34 @@ export const AccountMenu = ({
             <MenuItem icon={<IconGear />} onSelect={run(() => go(settingsPath()))}>
               Account settings
             </MenuItem>
+            {canManage && (
+              <MenuItem
+                icon={<IconGear />}
+                testId="organization-settings"
+                onSelect={run(() => go(organizationPath(activeOrg.id)))}
+                trailing={
+                  <CountBadge
+                    count={activeOrg.pending_access_requests ?? 0}
+                    label="access requests"
+                  />
+                }
+              >
+                Organization settings
+              </MenuItem>
+            )}
 
             <MenuSeparator />
-            <MenuLabel>Organization</MenuLabel>
+            <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-1">
+              <span className="text-[11px] font-medium text-neutral-400">Organization</span>
+              <span className="flex items-center gap-0.5">
+                <OrgAction icon={<IconBuilding />} onSelect={run(() => go(organizationsPath()))}>
+                  Browse
+                </OrgAction>
+                <OrgAction icon={<IconPlus />} onSelect={run(() => go(newOrganizationPath()))}>
+                  New
+                </OrgAction>
+              </span>
+            </div>
             {orgs.map((org) => (
               <MenuItem
                 key={org.id}
@@ -152,27 +200,6 @@ export const AccountMenu = ({
               onSelect={run(() => switchTo(null))}
             >
               <span className="text-neutral-500">No organization</span>
-            </MenuItem>
-            {canManage && (
-              <MenuItem
-                icon={<IconGear />}
-                testId="organization-settings"
-                onSelect={run(() => go(organizationPath(activeOrg.id)))}
-                trailing={
-                  <CountBadge
-                    count={activeOrg.pending_access_requests ?? 0}
-                    label="access requests"
-                  />
-                }
-              >
-                Organization settings
-              </MenuItem>
-            )}
-            <MenuItem icon={<IconBuilding />} onSelect={run(() => go(organizationsPath()))}>
-              Browse organizations
-            </MenuItem>
-            <MenuItem icon={<IconPlus />} onSelect={run(() => go(newOrganizationPath()))}>
-              New organization
             </MenuItem>
 
             <MenuSeparator />
