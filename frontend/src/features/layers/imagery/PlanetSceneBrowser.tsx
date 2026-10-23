@@ -5,7 +5,7 @@ import {
   type PlanetCredentials,
   type PlanetScenePeriodOut,
   type PlanetSceneWindowOut,
-  type PlanetScenesGenerationConfigV1,
+  type PlanetScenesGenerationConfig,
 } from '~/api/client';
 import { Modal } from '~/shared/ui/Modal';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
@@ -32,7 +32,7 @@ const VISUALIZATION = 'Visual';
 /** Long enough that a typed date or interval is not sent digit by digit. */
 const TYPING_SETTLES_MS = 250;
 
-type PeriodUnit = PlanetScenesGenerationConfigV1['slice_period_unit'];
+type PeriodUnit = PlanetScenesGenerationConfig['slice_period_unit'];
 interface Period {
   interval: number;
   unit: PeriodUnit;
@@ -163,10 +163,9 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
   const [windows, setWindows] = useState<PlanetSceneWindowOut[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const config: PlanetScenesGenerationConfigV1 = useMemo(
+  const config: PlanetScenesGenerationConfig = useMemo(
     () => ({
       kind: 'planet_scenes',
-      version: 1,
       item_types: ['PSScene'],
       start_date: startDate,
       end_date: endDate,

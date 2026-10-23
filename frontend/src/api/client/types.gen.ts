@@ -2624,118 +2624,6 @@ export type ImageryEditorStateCreate = {
 };
 
 /**
- * ImageryGenerationConfigV1
- *
- * Lossless, versioned input for the temporal imagery generator.
- */
-export type ImageryGenerationConfigV1 = {
-    /**
-     * Kind
-     */
-    kind: 'stac';
-    /**
-     * Version
-     */
-    version?: 1;
-    /**
-     * Catalog Url
-     */
-    catalog_url: string;
-    /**
-     * Stac Collection Id
-     */
-    stac_collection_id: string;
-    /**
-     * Collection Title
-     */
-    collection_title: string;
-    /**
-     * Is Mpc
-     */
-    is_mpc: boolean;
-    /**
-     * Has Cloud Cover
-     */
-    has_cloud_cover: boolean;
-    /**
-     * Tiler
-     */
-    tiler?: string | null;
-    /**
-     * Start Date
-     */
-    start_date: string;
-    /**
-     * End Date
-     */
-    end_date: string;
-    /**
-     * Collection Period Interval
-     */
-    collection_period_interval: number;
-    /**
-     * Collection Period Unit
-     */
-    collection_period_unit: 'weeks' | 'months' | 'years';
-    /**
-     * Slice Period Interval
-     */
-    slice_period_interval: number;
-    /**
-     * Slice Period Unit
-     */
-    slice_period_unit: 'days' | 'weeks' | 'months' | 'years';
-    /**
-     * Cover Mode
-     */
-    cover_mode: 'nth' | 'custom';
-    /**
-     * Cover Slice Nth
-     */
-    cover_slice_nth: number;
-    /**
-     * Max Cloud Cover
-     */
-    max_cloud_cover: number;
-    /**
-     * Item Sort
-     */
-    item_sort: 'date_desc' | 'date_asc' | 'cloud_cover_asc';
-    /**
-     * Cover Max Cloud Cover
-     */
-    cover_max_cloud_cover: number;
-    /**
-     * Cover Item Sort
-     */
-    cover_item_sort: 'date_desc' | 'date_asc' | 'cloud_cover_asc';
-    /**
-     * Visualizations
-     */
-    visualizations: Array<NamedVizParamsCreate>;
-    /**
-     * Cover Visualizations
-     */
-    cover_visualizations?: Array<NamedVizParamsCreate>;
-    /**
-     * Search Query
-     */
-    search_query?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Cover Search Query
-     */
-    cover_search_query?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Internal Storage
-     */
-    internal_storage?: boolean;
-};
-
-/**
  * ImageryGenerationSeriesCreate
  *
  * One source-level series in the full-editor write model.
@@ -2757,9 +2645,9 @@ export type ImageryGenerationSeriesCreate = {
      */
     config: ({
         kind: 'stac';
-    } & ImageryGenerationConfigV1) | ({
+    } & StacGenerationConfig) | ({
         kind: 'planet_scenes';
-    } & PlanetScenesGenerationConfigV1);
+    } & PlanetScenesGenerationConfig);
 };
 
 /**
@@ -2775,9 +2663,9 @@ export type ImageryGenerationSeriesOut = {
      */
     config: ({
         kind: 'stac';
-    } & ImageryGenerationConfigV1) | ({
+    } & StacGenerationConfig) | ({
         kind: 'planet_scenes';
-    } & PlanetScenesGenerationConfigV1);
+    } & PlanetScenesGenerationConfig);
 };
 
 /**
@@ -3127,7 +3015,7 @@ export type LabelOut = {
  *
  * Who may label what, and whose labels count toward task completion.
  *
- * See docs/labelling-policy.md for what each axis governs. A PATCH replaces
+ * See docs/labelling-policy.md for what each axis governs. An update replaces
  * the whole policy, so every axis is required.
  */
 export type LabellingPolicy = {
@@ -3641,7 +3529,7 @@ export type PlanetScenePlan = {
      * Project Id
      */
     project_id: number;
-    config: PlanetScenesGenerationConfigV1;
+    config: PlanetScenesGenerationConfig;
 };
 
 /**
@@ -3722,22 +3610,18 @@ export type PlanetSceneWindowOut = {
 };
 
 /**
- * PlanetScenesGenerationConfigV1
+ * PlanetScenesGenerationConfig
  *
- * Lossless, versioned input for a Planet scene-stack source.
+ * The search a Planet scene-stack source was planned from.
  *
  * Saved on the source's generation series the way the STAC generator's config is, so
  * the source can be regenerated later without anyone remembering what was searched.
  */
-export type PlanetScenesGenerationConfigV1 = {
+export type PlanetScenesGenerationConfig = {
     /**
      * Kind
      */
     kind: 'planet_scenes';
-    /**
-     * Version
-     */
-    version?: 1;
     /**
      * Item Types
      */
@@ -4471,6 +4355,61 @@ export type StacCollectionOut = {
      * Unavailable Reason
      */
     unavailable_reason?: string | null;
+};
+
+/**
+ * StacGenerationConfig
+ *
+ * What the temporal generator was asked for: the period it covers and how it
+ * cut that period into windows and slices. Only what nothing else stores - the
+ * search and the renderings live on each generated collection, where they can
+ * be edited one window at a time.
+ */
+export type StacGenerationConfig = {
+    /**
+     * Kind
+     */
+    kind: 'stac';
+    /**
+     * Collection Title
+     */
+    collection_title: string;
+    /**
+     * Has Cloud Cover
+     */
+    has_cloud_cover: boolean;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Collection Period Interval
+     */
+    collection_period_interval: number;
+    /**
+     * Collection Period Unit
+     */
+    collection_period_unit: 'weeks' | 'months' | 'years';
+    /**
+     * Slice Period Interval
+     */
+    slice_period_interval: number;
+    /**
+     * Slice Period Unit
+     */
+    slice_period_unit: 'days' | 'weeks' | 'months' | 'years';
+    /**
+     * Cover Mode
+     */
+    cover_mode: 'nth' | 'custom';
+    /**
+     * Cover Slice Nth
+     */
+    cover_slice_nth: number;
 };
 
 /**

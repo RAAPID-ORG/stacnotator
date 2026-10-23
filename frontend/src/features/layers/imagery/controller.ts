@@ -5,7 +5,7 @@ import {
 } from '~/api/client';
 import type {
   ImageryEditorStateCreate,
-  ImageryGenerationConfigV1,
+  StacGenerationConfig,
   ImagerySourceOut,
   ImageryCollectionOut,
 } from '~/api/client';
@@ -23,7 +23,7 @@ import type {
   ManualCollectionData,
   StacBrowserCollectionData,
   VizParams,
-  ImageryGenerationConfig,
+  GenerationRecipe,
 } from './types';
 
 const t = i18n.getFixedT(null, 'imagery');
@@ -245,15 +245,10 @@ function isMpcCatalogUrl(url: string | null | undefined): boolean {
   }
 }
 
-function generationConfigToFrontend(config: ImageryGenerationConfigV1): ImageryGenerationConfig {
+function generationRecipeToFrontend(config: StacGenerationConfig): GenerationRecipe {
   return {
-    version: 1,
-    catalogUrl: config.catalog_url,
-    stacCollectionId: config.stac_collection_id,
     collectionTitle: config.collection_title,
-    isMpc: config.is_mpc,
     hasCloudCover: config.has_cloud_cover,
-    tiler: config.tiler,
     startDate: config.start_date,
     endDate: config.end_date,
     collectionPeriodInterval: config.collection_period_interval,
@@ -262,21 +257,6 @@ function generationConfigToFrontend(config: ImageryGenerationConfigV1): ImageryG
     slicePeriodUnit: config.slice_period_unit,
     coverMode: config.cover_mode,
     coverSliceNth: config.cover_slice_nth,
-    maxCloudCover: config.max_cloud_cover,
-    itemSort: config.item_sort,
-    coverMaxCloudCover: config.cover_max_cloud_cover,
-    coverItemSort: config.cover_item_sort,
-    visualizations: config.visualizations.map((viz) => ({
-      name: viz.name,
-      vizParams: vizParamsToFrontend(viz.viz_params),
-    })),
-    coverVisualizations: (config.cover_visualizations ?? []).map((viz) => ({
-      name: viz.name,
-      vizParams: vizParamsToFrontend(viz.viz_params),
-    })),
-    searchQuery: config.search_query ?? undefined,
-    coverSearchQuery: config.cover_search_query ?? undefined,
-    internalStorage: config.internal_storage,
   };
 }
 
@@ -363,7 +343,7 @@ export function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
       config:
         series.config.kind === 'planet_scenes'
           ? series.config
-          : generationConfigToFrontend(series.config),
+          : generationRecipeToFrontend(series.config),
     })),
     collections: src.collections.map((col) => mapCollectionOutToFe(col, vizNames)),
     hasApiKey: src.has_api_key,

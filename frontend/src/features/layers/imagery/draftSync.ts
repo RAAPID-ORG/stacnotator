@@ -2,14 +2,14 @@ import type {
   BasemapCreate,
   CampaignCreate,
   ImageryCollectionCreate,
-  ImageryGenerationConfigV1,
+  StacGenerationConfig,
   ImagerySourceCreate,
   VizParamsCreate,
 } from '~/api/client';
 import type {
   Basemap,
   CollectionItem,
-  ImageryGenerationConfig,
+  GenerationRecipe,
   ImagerySource,
   ImageryStepState,
   VizParams,
@@ -49,15 +49,10 @@ const toVizParamsPayload = (v: VizParams): VizParamsCreate => ({
   max_items: v.maxItems,
 });
 
-const generationConfigToBackend = (config: ImageryGenerationConfig): ImageryGenerationConfigV1 => ({
+const generationRecipeToBackend = (config: GenerationRecipe): StacGenerationConfig => ({
   kind: 'stac',
-  version: 1,
-  catalog_url: config.catalogUrl,
-  stac_collection_id: config.stacCollectionId,
   collection_title: config.collectionTitle,
-  is_mpc: config.isMpc,
   has_cloud_cover: config.hasCloudCover,
-  tiler: config.tiler,
   start_date: config.startDate,
   end_date: config.endDate,
   collection_period_interval: config.collectionPeriodInterval,
@@ -66,21 +61,6 @@ const generationConfigToBackend = (config: ImageryGenerationConfig): ImageryGene
   slice_period_unit: config.slicePeriodUnit,
   cover_mode: config.coverMode,
   cover_slice_nth: config.coverSliceNth,
-  max_cloud_cover: config.maxCloudCover,
-  item_sort: config.itemSort,
-  cover_max_cloud_cover: config.coverMaxCloudCover,
-  cover_item_sort: config.coverItemSort,
-  visualizations: config.visualizations.map((viz) => ({
-    name: viz.name,
-    viz_params: toVizParamsPayload(viz.vizParams),
-  })),
-  cover_visualizations: config.coverVisualizations.map((viz) => ({
-    name: viz.name,
-    viz_params: toVizParamsPayload(viz.vizParams),
-  })),
-  search_query: config.searchQuery,
-  cover_search_query: config.coverSearchQuery,
-  internal_storage: config.internalStorage ?? false,
 });
 
 function collectionToBackend(
@@ -169,7 +149,7 @@ export function sourceToBackend(src: ImagerySource): ImagerySourceCreate {
       id: toIdField(series.id),
       config: isPlanetSceneConfig(series.config)
         ? series.config
-        : generationConfigToBackend(series.config),
+        : generationRecipeToBackend(series.config),
     })),
     collections: src.collections.map((c) =>
       collectionToBackend(

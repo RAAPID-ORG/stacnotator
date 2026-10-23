@@ -21,7 +21,7 @@ import httpx
 
 from src import net_guard
 from src.planet import scenes, tiles
-from src.planet.schemas import PlanetScenesGenerationConfigV1
+from src.planet.schemas import PlanetScenesGenerationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -333,7 +333,7 @@ class _Budget:
 
 def search_range(
     api_key: str,
-    config: PlanetScenesGenerationConfigV1,
+    config: PlanetScenesGenerationConfig,
     geometry: dict[str, Any],
     start: date,
     end: date,
@@ -378,7 +378,7 @@ def search_range(
 
 
 def search_config(
-    api_key: str, config: PlanetScenesGenerationConfigV1, geometry: dict[str, Any]
+    api_key: str, config: PlanetScenesGenerationConfig, geometry: dict[str, Any]
 ) -> list[dict[str, Any]]:
     """Every scene the config's slices can draw on over ``geometry``.
 

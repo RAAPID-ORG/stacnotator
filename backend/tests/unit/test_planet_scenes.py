@@ -4,7 +4,7 @@ import pytest
 
 from src.planet import client as planet_client
 from src.planet import scene_search, scenes
-from src.planet.schemas import PlanetScenesGenerationConfigV1
+from src.planet.schemas import PlanetScenesGenerationConfig
 
 
 def feature(scene_id: str, acquired: str, **properties):
@@ -14,7 +14,7 @@ def feature(scene_id: str, acquired: str, **properties):
     }
 
 
-def config(**overrides) -> PlanetScenesGenerationConfigV1:
+def config(**overrides) -> PlanetScenesGenerationConfig:
     defaults = dict(
         kind="planet_scenes",
         start_date="2024-01-01",
@@ -25,7 +25,7 @@ def config(**overrides) -> PlanetScenesGenerationConfigV1:
         slice_period_unit="days",
         whole_window_cover=True,
     )
-    return PlanetScenesGenerationConfigV1(**{**defaults, **overrides})
+    return PlanetScenesGenerationConfig(**{**defaults, **overrides})
 
 
 class TestQuality:

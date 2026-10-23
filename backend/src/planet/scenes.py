@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from src.planet.schemas import PlanetScenesGenerationConfigV1
+from src.planet.schemas import PlanetScenesGenerationConfig
 
 # One POST carries every id, and the clearest few hundred already leave no gaps.
 MAX_SCENES_PER_LAYER = 200
@@ -151,7 +151,7 @@ class MatchedSlice:
 
 def matched(
     features: Iterable[dict[str, Any]],
-    config: PlanetScenesGenerationConfigV1,
+    config: PlanetScenesGenerationConfig,
     slice_ids: dict[tuple[str, str], int],
 ) -> list[MatchedSlice]:
     """The stored slices a search found imagery for, paired with what to mint for them.
@@ -206,7 +206,7 @@ def bbox_polygon(bbox: list[float]) -> dict[str, Any]:
     }
 
 
-def plan(config: PlanetScenesGenerationConfigV1) -> list[WindowGroup]:
+def plan(config: PlanetScenesGenerationConfig) -> list[WindowGroup]:
     """The windows and slices a config describes, before any scene is known.
 
     What the wizard shows and what the source is built from: the dates come from the
@@ -237,7 +237,7 @@ def plan(config: PlanetScenesGenerationConfigV1) -> list[WindowGroup]:
 
 
 def group(
-    features: Iterable[dict[str, Any]], config: PlanetScenesGenerationConfigV1
+    features: Iterable[dict[str, Any]], config: PlanetScenesGenerationConfig
 ) -> list[WindowGroup]:
     """Expand a search result into the windows and slices the source is made of.
 

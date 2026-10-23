@@ -51,11 +51,7 @@ const source: ImagerySource = {
     {
       id: '12',
       config: {
-        version: 1,
-        catalogUrl: data.catalogUrl,
-        stacCollectionId: data.stacCollectionId,
         collectionTitle: 'Sentinel',
-        isMpc: false,
         hasCloudCover: true,
         startDate: '2025-01',
         endDate: '2025-01',
@@ -65,12 +61,6 @@ const source: ImagerySource = {
         slicePeriodUnit: 'weeks',
         coverMode: 'custom',
         coverSliceNth: 1,
-        maxCloudCover: 90,
-        itemSort: 'date_desc',
-        coverMaxCloudCover: 90,
-        coverItemSort: 'date_desc',
-        visualizations: data.visualizations,
-        coverVisualizations: data.coverVisualizations ?? [],
       },
     },
   ],
@@ -114,7 +104,7 @@ describe('visualization preservation', () => {
     });
   });
 
-  it('renames params, covers, URLs and generator snapshots together', () => {
+  it('renames params, covers and URLs together, and a reopened generator follows', () => {
     const renamed = { ...source, ...rewriteVisualization(source, 0, 'NDVI') };
     const payload = sourceToBackend(renamed);
     const viz = payload.collections[0].stac_config?.visualizations?.[0];
@@ -124,10 +114,6 @@ describe('visualization preservation', () => {
     expect(renamed.collections[0].data.vizUrls[0].vizName).toBe('NDVI');
     expect(renamed.collections[0].slices[0].vizUrls?.[0].vizName).toBe('NDVI');
     expect(editableGenerationSeries(renamed)[0].config.visualizations[0].name).toBe('NDVI');
-    expect(payload.generation_series?.[0].config).toMatchObject({
-      visualizations: [{ name: 'NDVI' }],
-      cover_visualizations: [{ name: 'NDVI' }],
-    });
   });
 
   it('removes only the selected visualization from all representations', () => {
@@ -155,10 +141,6 @@ describe('visualization preservation', () => {
       ndvi.expression
     );
     expect(removed.collections[0].data.vizUrls).toEqual([]);
-    expect(payload.generation_series?.[0].config).toMatchObject({
-      visualizations: [],
-      cover_visualizations: [],
-    });
   });
 
   it('does not clone another visualization when a named configuration is missing', () => {

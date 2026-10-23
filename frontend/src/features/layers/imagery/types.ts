@@ -1,5 +1,5 @@
 import i18n from '~/shared/i18n';
-import type { PlanetScenesGenerationConfigV1 } from '~/api/client';
+import type { PlanetScenesGenerationConfig } from '~/api/client';
 
 const t = i18n.getFixedT(null, 'imagery');
 
@@ -57,17 +57,11 @@ export interface NamedVizParams {
   vizParams: VizParams;
 }
 
-/** Lossless, versioned snapshot of the inputs used to produce a temporal
- * collection series. Runtime rendering uses the normalized collection data;
- * this exists so the same generator can be reopened later. */
-export interface ImageryGenerationConfig {
-  version: 1;
-  catalogUrl: string;
-  stacCollectionId: string;
+/** What the temporal generator was asked for, as its series stores it: the
+ *  period and how it was cut into windows and slices. */
+export interface GenerationRecipe {
   collectionTitle: string;
-  isMpc: boolean;
   hasCloudCover: boolean;
-  tiler?: string | null;
   startDate: string;
   endDate: string;
   collectionPeriodInterval: number;
@@ -76,6 +70,16 @@ export interface ImageryGenerationConfig {
   slicePeriodUnit: 'days' | 'weeks' | 'months' | 'years';
   coverMode: 'nth' | 'custom';
   coverSliceNth: number;
+}
+
+/** The generator's whole input: its recipe plus the search and renderings it
+ *  gives every window. Only the recipe is stored on the series; reopening one
+ *  reads the rest off its collections, which is where it is edited. */
+export interface ImageryGenerationConfig extends GenerationRecipe {
+  catalogUrl: string;
+  stacCollectionId: string;
+  isMpc: boolean;
+  tiler?: string | null;
   maxCloudCover: number;
   itemSort: ItemSortOption;
   coverMaxCloudCover: number;
@@ -92,12 +96,12 @@ export interface ImageryGenerationConfig {
  * backend planned it from, since that is what a later search is matched against. */
 export interface ImageryGenerationSeries {
   id: string;
-  config: ImageryGenerationConfig | PlanetScenesGenerationConfigV1;
+  config: GenerationRecipe | PlanetScenesGenerationConfig;
 }
 
 export const isPlanetSceneConfig = (
   config: ImageryGenerationSeries['config']
-): config is PlanetScenesGenerationConfigV1 => 'kind' in config && config.kind === 'planet_scenes';
+): config is PlanetScenesGenerationConfig => 'kind' in config && config.kind === 'planet_scenes';
 
 export const ITEM_SORT_OPTIONS = ['date_desc', 'date_asc', 'cloud_cover_asc'] as const;
 export type ItemSortOption = (typeof ITEM_SORT_OPTIONS)[number];

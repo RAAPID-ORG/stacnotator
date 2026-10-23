@@ -13,7 +13,7 @@ import type {
   ImageryGenerationSeriesOut,
   ImagerySourceOut,
   ImageryViewOut,
-  PlanetScenesGenerationConfigV1,
+  PlanetScenesGenerationConfig,
   SliceTileUrlOut,
   TaskSetOut,
   TimeseriesOut,
@@ -122,7 +122,7 @@ export function makeSource(overrides: Partial<ImagerySourceOut> = {}): ImagerySo
 /** A Planet scene series - the mark that makes a source one whose imagery is searched
  *  for at annotation time rather than registered up front. */
 export function makeSceneSeries(
-  overrides: Partial<PlanetScenesGenerationConfigV1> = {}
+  overrides: Partial<PlanetScenesGenerationConfig> = {}
 ): ImageryGenerationSeriesOut {
   return {
     id: 1,

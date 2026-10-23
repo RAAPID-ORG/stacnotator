@@ -20,7 +20,7 @@ from src.planet import client as planet_client
 from src.planet import scenes as planet_scenes
 from src.planet.schemas import (
     PlanetSceneSearchOut,
-    PlanetScenesGenerationConfigV1,
+    PlanetScenesGenerationConfig,
     PlanetSceneSliceOut,
 )
 
@@ -32,7 +32,7 @@ class PlanetSceneSeries:
     """One scene series of a source, ready to search: what it asks Planet for, and the
     slices its dates already own."""
 
-    config: PlanetScenesGenerationConfigV1
+    config: PlanetScenesGenerationConfig
     slice_ids: dict[tuple[str, str], int]
 
 
@@ -50,7 +50,7 @@ def planet_scene_series(db: Session, source: ImagerySource) -> list[PlanetSceneS
         ).all()
         series.append(
             PlanetSceneSeries(
-                config=PlanetScenesGenerationConfigV1.model_validate(stored.config),
+                config=PlanetScenesGenerationConfig.model_validate(stored.config),
                 slice_ids={(row[1], row[2]): row[0] for row in rows},
             )
         )

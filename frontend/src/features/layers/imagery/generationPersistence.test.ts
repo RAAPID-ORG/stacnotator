@@ -3,7 +3,6 @@ import { sourceToBackend } from './draftSync';
 import type { ImageryGenerationConfig, ImagerySource } from './types';
 
 const config: ImageryGenerationConfig = {
-  version: 1,
   catalogUrl: 'https://example.test/stac',
   stacCollectionId: 'sentinel',
   collectionTitle: 'Sentinel',
@@ -28,7 +27,7 @@ const config: ImageryGenerationConfig = {
 };
 
 describe('generation-series persistence payload', () => {
-  it('writes configuration once at source level and collection references by key', () => {
+  it('stores the recipe on the series and the search on its collections', () => {
     const source: ImagerySource = {
       id: '7',
       name: 'Source',
@@ -62,8 +61,10 @@ describe('generation-series persistence payload', () => {
     expect(payload.generation_series?.[0]).toMatchObject({
       key: '12',
       id: 12,
-      config: { version: 1, collection_title: 'Sentinel' },
+      config: { kind: 'stac', collection_title: 'Sentinel' },
     });
+    expect(payload.generation_series?.[0].config).not.toHaveProperty('catalog_url');
+    expect(payload.collections[0].stac_config?.catalog_url).toBe(config.catalogUrl);
     expect(payload.collections[0].generation_series_key).toBe('12');
     expect(payload.collections[0]).not.toHaveProperty('generation_config');
   });

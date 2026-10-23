@@ -54,15 +54,14 @@ class PlanetSeriesMosaicsOut(BaseModel):
     mosaics: list[PlanetMosaicOut]
 
 
-class PlanetScenesGenerationConfigV1(BaseModel):
-    """Lossless, versioned input for a Planet scene-stack source.
+class PlanetScenesGenerationConfig(BaseModel):
+    """The search a Planet scene-stack source was planned from.
 
     Saved on the source's generation series the way the STAC generator's config is, so
     the source can be regenerated later without anyone remembering what was searched.
     """
 
     kind: Literal["planet_scenes"]
-    version: Literal[1] = 1
     item_types: list[str] = ["PSScene"]
     start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
@@ -81,7 +80,7 @@ class PlanetScenesGenerationConfigV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="after")
-    def dates_are_ordered(self) -> "PlanetScenesGenerationConfigV1":
+    def dates_are_ordered(self) -> "PlanetScenesGenerationConfig":
         if self.end_date < self.start_date:
             raise ValueError("end_date must not precede start_date")
         return self
@@ -107,7 +106,7 @@ class PlanetScenePlan(BaseModel):
     hold imagery depends on where you are standing, and is asked at annotation time."""
 
     project_id: int
-    config: PlanetScenesGenerationConfigV1
+    config: PlanetScenesGenerationConfig
 
 
 class PlanetSceneSearchIn(BaseModel):

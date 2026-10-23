@@ -4,22 +4,18 @@ from pydantic import ValidationError
 
 from src.imagery.models import ImageryCollection, ImageryGenerationSeries, ImagerySource
 from src.imagery.schemas import (
-    ImageryGenerationConfigV1,
     ImageryGenerationSeriesCreate,
     ImagerySourceCreate,
+    StacGenerationConfig,
 )
 from src.imagery.service import _save_generation_series
-from src.planet.schemas import PlanetScenesGenerationConfigV1
+from src.planet.schemas import PlanetScenesGenerationConfig
 
 
 def generation_config(**overrides):
     value = {
         "kind": "stac",
-        "version": 1,
-        "catalog_url": "https://example.test/stac",
-        "stac_collection_id": "sentinel-2",
         "collection_title": "Sentinel-2",
-        "is_mpc": False,
         "has_cloud_cover": True,
         "start_date": "2025-01",
         "end_date": "2025-12",
@@ -29,16 +25,6 @@ def generation_config(**overrides):
         "slice_period_unit": "weeks",
         "cover_mode": "nth",
         "cover_slice_nth": 1,
-        "max_cloud_cover": 90,
-        "item_sort": "date_desc",
-        "cover_max_cloud_cover": 90,
-        "cover_item_sort": "date_desc",
-        "visualizations": [
-            {
-                "name": "RGB",
-                "viz_params": {"assets": ["red", "green", "blue"]},
-            }
-        ],
     }
     value.update(overrides)
     return value
@@ -79,13 +65,13 @@ class FakeSession:
         pass
 
 
-def test_generation_config_is_versioned_typed_and_strict():
-    assert ImageryGenerationConfigV1.model_validate(generation_config()).version == 1
-
+def test_generation_config_holds_only_the_generator_inputs():
+    """The search and renderings live on the collections; repeating them here is
+    what let the two disagree."""
     with pytest.raises(ValidationError):
-        ImageryGenerationConfigV1.model_validate(generation_config(version=2))
+        StacGenerationConfig.model_validate(generation_config(catalog_url="https://x"))
     with pytest.raises(ValidationError):
-        ImageryGenerationConfigV1.model_validate(generation_config(accidental_field=True))
+        StacGenerationConfig.model_validate(generation_config(accidental_field=True))
 
 
 def test_source_requires_series_keys_to_be_valid_and_referenced():
@@ -163,7 +149,7 @@ class TestGenerationConfigKinds:
     def test_a_stac_config_parses_as_stac(self):
         series = self._series(generation_config())
 
-        assert isinstance(series.config, ImageryGenerationConfigV1)
+        assert isinstance(series.config, StacGenerationConfig)
 
     def test_a_config_without_a_kind_is_rejected(self):
         config = generation_config()
@@ -185,7 +171,7 @@ class TestGenerationConfigKinds:
             }
         )
 
-        assert isinstance(series.config, PlanetScenesGenerationConfigV1)
+        assert isinstance(series.config, PlanetScenesGenerationConfig)
         assert series.config.item_types == ["PSScene"]
 
     def test_a_config_matching_neither_shape_is_rejected(self):
@@ -235,5 +221,5 @@ def test_a_planet_series_config_is_stored_so_the_dates_survive():
 
     _save_generation_series(session, source, planet_payload())
 
-    stored = PlanetScenesGenerationConfigV1.model_validate(session.added[0].config)
+    stored = PlanetScenesGenerationConfig.model_validate(session.added[0].config)
     assert (stored.start_date, stored.slice_period_unit) == ("2024-01-01", "days")

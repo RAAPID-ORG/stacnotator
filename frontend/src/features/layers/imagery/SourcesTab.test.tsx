@@ -70,7 +70,6 @@ describe('SourcesTab registration progress', () => {
               id: 'series-a',
               config: {
                 kind: 'planet_scenes',
-                version: 1,
                 item_types: ['PSScene'],
                 start_date: '2024-01-01',
                 end_date: '2024-01-31',

@@ -10,7 +10,7 @@ from pydantic import (
 )
 
 from src.canvas.schemas import CanvasLayoutOut, viewer_layouts
-from src.planet.schemas import PlanetScenesGenerationConfigV1
+from src.planet.schemas import PlanetScenesGenerationConfig
 from src.storage_access import StorageAccessCreate, StorageAccessOut
 
 # ============================================================================
@@ -88,17 +88,17 @@ class VisualizationTemplateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ImageryGenerationConfigV1(BaseModel):
-    """Lossless, versioned input for the temporal imagery generator."""
+class StacGenerationConfig(BaseModel):
+    """What the temporal generator was asked for: the period it covers and how it
+    cut that period into windows and slices. Only what nothing else stores - the
+    search and the renderings live on each generated collection, where they can
+    be edited one window at a time."""
 
     kind: Literal["stac"]
-    version: Literal[1] = 1
-    catalog_url: str
-    stac_collection_id: str
     collection_title: str
-    is_mpc: bool
+    # Whether the catalog's items carry eo:cloud_cover, which decides whether the
+    # generator offers a cloud filter at all.
     has_cloud_cover: bool
-    tiler: str | None = None
     start_date: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     end_date: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     collection_period_interval: int = Field(ge=1)
@@ -107,21 +107,12 @@ class ImageryGenerationConfigV1(BaseModel):
     slice_period_unit: Literal["days", "weeks", "months", "years"]
     cover_mode: Literal["nth", "custom"]
     cover_slice_nth: int = Field(ge=1)
-    max_cloud_cover: float = Field(ge=0, le=100)
-    item_sort: Literal["date_desc", "date_asc", "cloud_cover_asc"]
-    cover_max_cloud_cover: float = Field(ge=0, le=100)
-    cover_item_sort: Literal["date_desc", "date_asc", "cloud_cover_asc"]
-    visualizations: list["NamedVizParamsCreate"]
-    cover_visualizations: list["NamedVizParamsCreate"] = []
-    search_query: dict | None = None
-    cover_search_query: dict | None = None
-    internal_storage: bool = False
 
     model_config = ConfigDict(extra="forbid")
 
 
 GenerationConfig = Annotated[
-    ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1, Field(discriminator="kind")
+    StacGenerationConfig | PlanetScenesGenerationConfig, Field(discriminator="kind")
 ]
 
 

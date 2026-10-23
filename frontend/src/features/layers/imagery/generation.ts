@@ -22,6 +22,9 @@ export interface PrivateCatalog {
   sasToken?: string;
 }
 
+/** What the generator offers until someone picks otherwise. */
+export const DEFAULT_MAX_CLOUD_COVER = 90;
+
 const regularSlices = (collection: CollectionItem): ImagerySlice[] =>
   collection.hasDedicatedCover
     ? collection.slices.filter((_, i) => i !== collection.coverSliceIndex)
@@ -45,25 +48,30 @@ export function editableGenerationSeries(source: ImagerySource): EditableGenerat
     );
     if (candidates.length === 0) return [];
     const candidateIds = new Set(candidates.map((collection) => collection.id));
-    const savedConfig = series.config;
-    const currentData = candidates[0].data as StacBrowserCollectionData;
-    const config = {
-      ...savedConfig,
-      // Rendering configuration may have been edited through per-collection
-      // tools since generation; temporal inputs still come from the snapshot.
+    const ordered = earliest(candidates);
+    const currentData = ordered[0].data as StacBrowserCollectionData;
+    // The series stores the period and how it was cut; the search and
+    // renderings are its collections', which is where they are edited.
+    const config: ImageryGenerationConfig = {
+      ...series.config,
       catalogUrl: currentData.catalogUrl,
       stacCollectionId: currentData.stacCollectionId,
       isMpc: currentData.isMpc,
       tiler: currentData.tiler,
-      maxCloudCover: currentData.maxCloudCover ?? savedConfig.maxCloudCover,
+      maxCloudCover: currentData.maxCloudCover ?? DEFAULT_MAX_CLOUD_COVER,
+      itemSort: currentData.itemSort ?? 'date_desc',
+      coverMaxCloudCover: currentData.coverMaxCloudCover ?? DEFAULT_MAX_CLOUD_COVER,
+      coverItemSort: currentData.coverItemSort ?? 'cloud_cover_asc',
       visualizations: currentData.visualizations,
       coverVisualizations: currentData.coverVisualizations ?? [],
+      searchQuery: currentData.searchQuery,
+      coverSearchQuery: currentData.coverSearchQuery,
       internalStorage: currentData.internalStorage,
     };
     return [
       {
         id: series.id,
-        collections: earliest(candidates),
+        collections: ordered,
         otherCollections: source.collections.filter((c) => !candidateIds.has(c.id)),
         config,
         privateCatalog:

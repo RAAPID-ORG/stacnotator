@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CampaignCreate, PlanetScenesGenerationConfigV1 } from '~/api/client';
+import type { CampaignCreate, PlanetScenesGenerationConfig } from '~/api/client';
 import {
   emptySource,
   type ImageryGenerationSeries,
@@ -48,9 +48,8 @@ describe('the campaign area', () => {
   });
 });
 
-const sceneConfig: PlanetScenesGenerationConfigV1 = {
+const sceneConfig: PlanetScenesGenerationConfig = {
   kind: 'planet_scenes',
-  version: 1,
   item_types: ['PSScene'],
   start_date: '2025-02-01',
   end_date: '2025-02-28',

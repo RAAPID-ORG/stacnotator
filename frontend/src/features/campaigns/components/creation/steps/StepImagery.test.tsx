@@ -5,7 +5,7 @@ import { StepImagery, createInitialImageryState } from './StepImagery';
 
 vi.mock('~/features/layers/imagery/controller', async () => {
   const actual = await vi.importActual<typeof import('~/features/layers/imagery/controller')>(
-    '../../imagery/controller'
+    '~/features/layers/imagery/controller'
   );
   return { ...actual, useDraftController: vi.fn(actual.useDraftController) };
 });

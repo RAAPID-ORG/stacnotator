@@ -93,17 +93,5 @@ export function rewriteVisualization(
         ...(slice.vizUrls ? { vizUrls: urls(slice.vizUrls) } : {}),
       })),
     })),
-    generationSeries: source.generationSeries.map((series) =>
-      isPlanetSceneConfig(series.config)
-        ? series
-        : {
-            ...series,
-            config: {
-              ...series.config,
-              visualizations: names(series.config.visualizations),
-              coverVisualizations: names(series.config.coverVisualizations),
-            },
-          }
-    ),
   };
 }

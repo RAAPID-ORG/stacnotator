@@ -5,7 +5,6 @@ import { SourceEditor } from './SourceEditor';
 import type { ImageryGenerationConfig, ImagerySource } from './types';
 
 const config = (title: string): ImageryGenerationConfig => ({
-  version: 1,
   catalogUrl: 'https://example.test/stac',
   stacCollectionId: title,
   collectionTitle: title,

@@ -8,7 +8,6 @@ import type {
 } from './types';
 
 const generationConfig = (title: string): ImageryGenerationConfig => ({
-  version: 1,
   catalogUrl: 'https://example.test/stac',
   stacCollectionId: title.toLowerCase(),
   collectionTitle: title,

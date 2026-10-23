@@ -146,7 +146,6 @@ describe('CatalogBrowser, private catalogs', () => {
 
   it('guides saved mosaic series through grouping patterns and custom periods', async () => {
     const saved: ImageryGenerationConfig = {
-      version: 1,
       catalogUrl: 'https://example.test/stac',
       stacCollectionId: 'imagery',
       collectionTitle: 'Imagery',
@@ -188,7 +187,6 @@ describe('CatalogBrowser, private catalogs', () => {
 
   it('asks again for the SAS before reading a saved private series', async () => {
     const saved: ImageryGenerationConfig = {
-      version: 1,
       catalogUrl: CATALOG,
       stacCollectionId: 'monthly',
       collectionTitle: 'Monthly',
