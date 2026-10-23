@@ -78,7 +78,7 @@ describe('setCampaign during registration', () => {
           collections: [
             {
               ...source.collections[0],
-              slices: [makeSlice({ id: 100, tile_urls: [] })],
+              slices: [makeSlice({ id: 100, tiles: [] })],
             },
           ],
         },

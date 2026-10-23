@@ -5,7 +5,6 @@ from pydantic import (
     ConfigDict,
     Field,
     ValidationInfo,
-    field_validator,
     model_validator,
 )
 
@@ -18,12 +17,11 @@ from src.storage_access import StorageAccessCreate, StorageAccessOut
 # ============================================================================
 
 
-class SliceTileUrlOut(BaseModel):
-    id: int
-    visualization_name: str
-    tile_url: str
+class SliceTileOut(BaseModel):
+    visualization_id: int
+    url: str
+    # "mpc", a hosted tiler's name, or None for a template a provider serves.
     tiler: str | None = None
-    mosaic_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -34,35 +32,31 @@ class ImagerySliceOut(BaseModel):
     start_date: str
     end_date: str
     display_order: int
-    tile_urls: list[SliceTileUrlOut]
+    # The visualizations that can be drawn now; one still registering is absent.
+    tiles: list[SliceTileOut]
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class CollectionVizConfigOut(BaseModel):
-    """Per-collection, per-visualization render params (new authoritative representation)."""
-
-    id: int
-    name: str
-    display_order: int
-    render_params: dict
-    cover_render_params: dict | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class CollectionStacConfigOut(BaseModel):
-    catalog_url: str | None = None
-    stac_collection_id: str | None = None
+class CollectionSearchOut(BaseModel):
+    catalog_url: str
+    stac_collection_id: str
     # null => default tiler.
     tiler: str | None = None
-    viz_configs: list[CollectionVizConfigOut] = []
     max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
     internal_storage: bool = False
     # The private catalog's access, as its kind and expiry only - never the secret.
     storage_access: StorageAccessOut | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CollectionVisualizationOut(BaseModel):
+    visualization_id: int
+    params: dict
+    cover_params: dict | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -75,12 +69,14 @@ class ImageryCollectionOut(BaseModel):
     display_order: int
     generation_series_id: int | None = None
     slices: list[ImagerySliceOut]
-    stac_config: CollectionStacConfigOut | None = None
+    # Null for a collection whose slices are given by URL templates.
+    search: CollectionSearchOut | None = None
+    visualizations: list[CollectionVisualizationOut] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class VisualizationTemplateOut(BaseModel):
+class VisualizationOut(BaseModel):
     id: int
     name: str
     display_order: int
@@ -91,7 +87,7 @@ class VisualizationTemplateOut(BaseModel):
 class StacGenerationConfig(BaseModel):
     """What the temporal generator was asked for: the period it covers and how it
     cut that period into windows and slices. Only what nothing else stores - the
-    search and the renderings live on each generated collection, where they can
+    search and the visualizations live on each generated collection, where they can
     be edited one window at a time."""
 
     kind: Literal["stac"]
@@ -130,7 +126,7 @@ class ImagerySourceOut(BaseModel):
     default_zoom: int
     max_native_zoom: int | None = None
     display_order: int
-    visualizations: list[VisualizationTemplateOut]
+    visualizations: list[VisualizationOut]
     collections: list[ImageryCollectionOut]
     generation_series: list[ImageryGenerationSeriesOut] = []
     # Whether a provider API key is configured (drives the admin UI), and which
@@ -203,9 +199,10 @@ class ImageryViewOut(BaseModel):
 # ============================================================================
 
 
-class SliceTileUrlCreate(BaseModel):
-    visualization_name: str
-    tile_url: str
+class SliceTemplateCreate(BaseModel):
+    # A visualization of the same source, by name.
+    visualization: str
+    url: str
 
 
 class ImagerySliceCreate(BaseModel):
@@ -213,11 +210,12 @@ class ImagerySliceCreate(BaseModel):
     name: str = ""
     start_date: str
     end_date: str
-    tile_urls: list[SliceTileUrlCreate] = []
+    # A manual slice's tile template per visualization; a STAC slice has none.
+    templates: list[SliceTemplateCreate] = []
 
 
-class VizParamsCreate(BaseModel):
-    """Structured visualization parameters for TiTiler tile rendering."""
+class RenderParams(BaseModel):
+    """How a tiler draws a visualization of a STAC search."""
 
     assets: list[str] = []
     asset_as_band: bool = False
@@ -239,17 +237,17 @@ class VizParamsCreate(BaseModel):
     max_items: int | None = None
 
 
-class NamedVizParamsCreate(BaseModel):
-    name: str
-    viz_params: VizParamsCreate
-    cover_viz_params: VizParamsCreate | None = None
+class CollectionVisualizationCreate(BaseModel):
+    # A visualization of the same source, by name.
+    visualization: str
+    params: RenderParams
+    cover_params: RenderParams | None = None
 
 
-class CollectionStacConfigCreate(BaseModel):
-    catalog_url: str | None = None
-    stac_collection_id: str | None = None
+class CollectionSearchCreate(BaseModel):
+    catalog_url: str
+    stac_collection_id: str
     tiler: str | None = None  # hosted tiler name; null => DEFAULT_TILER
-    visualizations: list[NamedVizParamsCreate] = []
     max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
@@ -265,7 +263,9 @@ class ImageryCollectionCreate(BaseModel):
     has_dedicated_cover: bool = False
     generation_series_key: str | None = None
     slices: list[ImagerySliceCreate]
-    stac_config: CollectionStacConfigCreate | None = None
+    search: CollectionSearchCreate | None = None
+    # A STAC collection's parameters for every visualization of its source.
+    visualizations: list[CollectionVisualizationCreate] = []
 
 
 class ImageryGenerationSeriesCreate(BaseModel):
@@ -280,8 +280,12 @@ class ImageryGenerationSeriesCreate(BaseModel):
     config: GenerationConfig
 
 
-class VisualizationTemplateCreate(BaseModel):
-    name: str
+class VisualizationCreate(BaseModel):
+    """A visualization of the source. ``id`` keeps a stored one, so renaming it keeps its
+    parameters; the name is what the rest of the payload refers to it by."""
+
+    id: int | None = None
+    name: str = Field(min_length=1)
 
 
 class ImagerySourceCreate(ProviderKeyCreate):
@@ -291,19 +295,33 @@ class ImagerySourceCreate(ProviderKeyCreate):
     crosshair_hex6: str = Field(default="ff0000", pattern=r"^[0-9a-fA-F]{6}$")
     default_zoom: int = 15
     max_native_zoom: int | None = Field(default=None, ge=0, le=22)
-    visualizations: list[VisualizationTemplateCreate]
+    visualizations: list[VisualizationCreate]
     generation_series: list[ImageryGenerationSeriesCreate] = []
     collections: list[ImageryCollectionCreate]
 
-    @field_validator("visualizations")
-    @classmethod
-    def visualization_names_unique(
-        cls, v: list[VisualizationTemplateCreate]
-    ) -> list[VisualizationTemplateCreate]:
-        names = [viz.name for viz in v]
+    @model_validator(mode="after")
+    def visualizations_are_consistent(self) -> "ImagerySourceCreate":
+        names = [r.name for r in self.visualizations]
         if len(names) != len(set(names)):
             raise ValueError("visualization names must be unique per source")
-        return v
+        ids = [r.id for r in self.visualizations if r.id is not None]
+        if len(ids) != len(set(ids)):
+            raise ValueError("visualization ids must be unique per source")
+        for col in self.collections:
+            drawn = [r.visualization for r in col.visualizations]
+            if col.search is not None and sorted(drawn) != sorted(names):
+                raise ValueError(
+                    f"collection '{col.name}' must give parameters for each visualization once"
+                )
+            if col.search is None and drawn:
+                raise ValueError(f"collection '{col.name}' has no search to render")
+            for sl in col.slices:
+                templated = [t.visualization for t in sl.templates]
+                if col.search is not None and templated:
+                    raise ValueError(f"STAC collection '{col.name}' takes no tile templates")
+                if len(templated) != len(set(templated)) or not set(templated) <= set(names):
+                    raise ValueError(f"slice templates of '{col.name}' name unknown visualizations")
+        return self
 
     @model_validator(mode="after")
     def generation_series_references_are_valid(self) -> "ImagerySourceCreate":

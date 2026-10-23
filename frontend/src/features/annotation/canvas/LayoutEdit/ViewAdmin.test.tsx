@@ -8,7 +8,7 @@ import {
   makeCollection,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeView,
   makeViz,
 } from '~/features/annotation/testing/fixtures';
@@ -40,10 +40,10 @@ const CAMPAIGN: CampaignOutFull = makeCampaign({
             makeSlice({
               id: 1000,
               name: 'cover',
-              tile_urls: [
-                makeTileUrl({
-                  visualization_name: 'rgb',
-                  tile_url: 'https://t.test/{z}/{x}/{y}.png',
+              tiles: [
+                makeTile({
+                  visualization_id: 10,
+                  url: 'https://t.test/{z}/{x}/{y}.png',
                 }),
               ],
             }),

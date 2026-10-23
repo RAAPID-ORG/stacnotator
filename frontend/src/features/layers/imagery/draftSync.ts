@@ -4,7 +4,7 @@ import type {
   ImageryCollectionCreate,
   StacGenerationConfig,
   ImagerySourceCreate,
-  VizParamsCreate,
+  RenderParams,
 } from '~/api/client';
 import type {
   Basemap,
@@ -30,7 +30,7 @@ const toIdField = (id: string): number | undefined => {
 
 export const isRealId = (id: string): boolean => toIdField(id) !== undefined;
 
-const toVizParamsPayload = (v: VizParams): VizParamsCreate => ({
+const toVizParamsPayload = (v: VizParams): RenderParams => ({
   assets: v.assets,
   asset_as_band: v.assetAsBand,
   bidx: v.bidx?.length ? v.bidx : undefined,
@@ -63,6 +63,27 @@ const generationRecipeToBackend = (config: GenerationRecipe): StacGenerationConf
   cover_slice_nth: config.coverSliceNth,
 });
 
+/** A STAC collection's parameters for each of its source's visualizations; one the
+ *  collection has none for yet goes out empty rather than borrowing another's. */
+function stacVisualizations(
+  col: CollectionItem,
+  sourceVizNames: string[]
+): ImageryCollectionCreate['visualizations'] {
+  if (col.data.type !== 'stac_browser') return [];
+  const data = col.data;
+  const configured = (data.visualizations ?? []).filter((v) => v.vizParams);
+  const paramsByName = new Map(configured.map((v) => [v.name, v.vizParams]));
+  const names = sourceVizNames.length ? sourceVizNames : configured.map((v) => v.name);
+  return names.map((name) => {
+    const cover = data.coverVisualizations?.find((c) => c.name === name);
+    return {
+      visualization: name,
+      params: toVizParamsPayload(paramsByName.get(name) ?? emptyVizParams()),
+      cover_params: cover?.vizParams ? toVizParamsPayload(cover.vizParams) : undefined,
+    };
+  });
+}
+
 function collectionToBackend(
   col: CollectionItem,
   sourceVizNames: string[] = []
@@ -78,34 +99,22 @@ function collectionToBackend(
       name: sl.name || undefined,
       start_date: sl.startDate,
       end_date: sl.endDate,
-      tile_urls:
+      templates:
         col.data.type === 'stac_browser'
           ? []
           : (sl.vizUrls ?? [])
               .filter((v) => v.url)
-              .map((v) => ({ visualization_name: v.vizName, tile_url: v.url })),
+              .map((v) => ({ visualization: v.vizName, url: v.url })),
     })),
-    stac_config:
+    visualizations: stacVisualizations(col, sourceVizNames),
+    search:
       col.data.type === 'stac_browser'
         ? (() => {
             const data = col.data;
-            const configured = (data.visualizations ?? []).filter((v) => v.vizParams);
-            const paramsByName = new Map(configured.map((v) => [v.name, v.vizParams]));
-            const names = sourceVizNames.length ? sourceVizNames : configured.map((v) => v.name);
             return {
               catalog_url: data.catalogUrl,
               stac_collection_id: data.stacCollectionId,
               tiler: data.tiler ?? null,
-              visualizations: names.map((name) => {
-                const cover = data.coverVisualizations?.find((c) => c.name === name);
-                return {
-                  name,
-                  viz_params: toVizParamsPayload(paramsByName.get(name) ?? emptyVizParams()),
-                  cover_viz_params: cover?.vizParams
-                    ? toVizParamsPayload(cover.vizParams)
-                    : undefined,
-                };
-              }),
               max_cloud_cover: data.maxCloudCover,
               // A query left to the settings is built from them here, so the
               // stored search always matches what the editor shows.
@@ -143,7 +152,7 @@ export function sourceToBackend(src: ImagerySource): ImagerySourceCreate {
     max_native_zoom: src.maxNativeZoom ?? null,
     organization_api_key_id: src.organizationApiKeyId ?? null,
     api_key: src.apiKey || null,
-    visualizations: src.visualizations.map((v) => ({ name: v.name })),
+    visualizations: src.visualizations.map((v) => ({ id: toIdField(v.id ?? ''), name: v.name })),
     generation_series: src.generationSeries.map((series) => ({
       key: series.id,
       id: toIdField(series.id),

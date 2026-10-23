@@ -4,6 +4,8 @@ import type { PlanetScenesGenerationConfig } from '~/api/client';
 const t = i18n.getFixedT(null, 'imagery');
 
 export interface VisualizationOption {
+  /** The stored visualization this is, so a rename keeps it; a new one has none. */
+  id?: string;
   name: string;
 }
 

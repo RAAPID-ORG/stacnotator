@@ -134,7 +134,7 @@ function focusMultiVizSource(): void {
     const slice = catalog.collections.get(collectionId)?.slices[sliceIndex];
     if (!source || !slice) return false;
     const published = source.visualizations.filter((viz) =>
-      slice.tile_urls.some((tile) => tile.visualization_name === viz.name)
+      slice.tiles.some((tile) => tile.visualization_id === viz.id)
     );
     return published.length > 1;
   };

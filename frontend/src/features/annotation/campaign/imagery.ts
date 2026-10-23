@@ -10,7 +10,7 @@ import type {
   ImageryViewOut,
   PlanetSceneSliceOut,
   VectorLayerOut,
-  VisualizationTemplateOut,
+  VisualizationOut,
 } from '~/api/client';
 
 const t = i18n.getFixedT(null, 'annotation');
@@ -24,7 +24,7 @@ export interface ImageryCatalog {
   sources: Map<number, ImagerySourceOut>;
   collections: Map<number, ImageryCollectionOut>;
   slices: Map<number, ImagerySliceOut>;
-  vizzes: Map<number, VisualizationTemplateOut>;
+  vizzes: Map<number, VisualizationOut>;
   basemaps: Map<number, BasemapOut>;
   customMaps: Map<number, CustomMapOut>;
   vectorLayers: Map<number, VectorLayerOut>;
@@ -39,7 +39,7 @@ export function buildImageryCatalog(campaign: CampaignOutFull): ImageryCatalog {
   const sources = new Map<number, ImagerySourceOut>();
   const collections = new Map<number, ImageryCollectionOut>();
   const slices = new Map<number, ImagerySliceOut>();
-  const vizzes = new Map<number, VisualizationTemplateOut>();
+  const vizzes = new Map<number, VisualizationOut>();
   const sourceOf = new Map<number, number>();
 
   for (const source of campaign.imagery_sources) {
@@ -81,7 +81,7 @@ export function buildImageryCatalog(campaign: CampaignOutFull): ImageryCatalog {
 export function withSceneSearch(
   cat: ImageryCatalog,
   sourceId: number,
-  vizName: string,
+  vizId: number,
   found: PlanetSceneSliceOut[]
 ): ImageryCatalog {
   const source = cat.sources.get(sourceId);
@@ -95,7 +95,7 @@ export function withSceneSearch(
   for (const id of searched) sceneSlices.add(id);
 
   return {
-    ...writeSliceUrls(cat, source, vizName, urlsFrom(cat.campaignId, sourceId, found), true),
+    ...writeSliceUrls(cat, source, vizId, urlsFrom(cat.campaignId, sourceId, found), true),
     sceneSlices,
   };
 }
@@ -106,12 +106,12 @@ export function withSceneSearch(
 export function withSceneLayers(
   cat: ImageryCatalog,
   sourceId: number,
-  vizName: string,
+  vizId: number,
   minted: PlanetSceneSliceOut[]
 ): ImageryCatalog {
   const source = cat.sources.get(sourceId);
   if (!source) return cat;
-  return writeSliceUrls(cat, source, vizName, urlsFrom(cat.campaignId, sourceId, minted), false);
+  return writeSliceUrls(cat, source, vizId, urlsFrom(cat.campaignId, sourceId, minted), false);
 }
 
 function urlsFrom(
@@ -131,7 +131,7 @@ function urlsFrom(
 function writeSliceUrls(
   cat: ImageryCatalog,
   source: ImagerySourceOut,
-  vizName: string,
+  vizId: number,
   urlBySliceId: Map<number, string>,
   replace: boolean
 ): ImageryCatalog {
@@ -147,10 +147,8 @@ function writeSliceUrls(
         slices: collection.slices.map((slice) => {
           const url = urlBySliceId.get(slice.id);
           if (!url && !replace) return slice;
-          const tile_urls = url
-            ? [{ id: slice.id, visualization_name: vizName, tile_url: url }]
-            : [];
-          const updated = { ...slice, tile_urls };
+          const tiles = url ? [{ visualization_id: vizId, url }] : [];
+          const updated = { ...slice, tiles };
           slices.set(slice.id, updated);
           return updated;
         }),
@@ -169,8 +167,8 @@ function writeSliceUrls(
  *  layer that draws one of them may still be on its way. */
 export const sliceHasImagery = (
   cat: ImageryCatalog,
-  slice: Pick<ImagerySliceOut, 'id' | 'tile_urls'>
-): boolean => slice.tile_urls.length > 0 || cat.sceneSlices.has(slice.id);
+  slice: Pick<ImagerySliceOut, 'id' | 'tiles'>
+): boolean => slice.tiles.length > 0 || cat.sceneSlices.has(slice.id);
 
 /** Collections a view browses, in the view's source order then each source's own. */
 export function collectionsInView(

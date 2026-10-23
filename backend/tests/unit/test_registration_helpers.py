@@ -1,25 +1,15 @@
-"""DB-free characterization tests for three pure helpers used by mosaic registration:
+"""DB-free characterization tests for two pure helpers used by mosaic registration:
 
-- `_inject_datetime_into_query` (`src.imagery.registration`): placeholder substitution
-  vs top-level datetime injection into a CQL2-JSON search body.
-- `_sanitize_stac_error` (`src.imagery.registration`): turns a registration exception
-  into a user-facing message without leaking internal paths.
-- `_save_stac_config` (`src.imagery.service`): writes a collection's STAC config and
-  says whether the edit requires mosaic re-registration.
-
-The stored collection and config are `SimpleNamespace` stand-ins - no DB, no session.
-`incoming` is the real Pydantic `CollectionStacConfigCreate` schema the router receives.
+- `_inject_datetime_into_query`: placeholder substitution vs top-level datetime
+  injection into a CQL2-JSON search body.
+- `_sanitize_stac_error`: turns a registration exception into a user-facing message
+  without leaking internal paths.
 """
-
-from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import httpx
 from fastapi import HTTPException
 
 from src.imagery.registration import _inject_datetime_into_query, _sanitize_stac_error
-from src.imagery.schemas import CollectionStacConfigCreate, NamedVizParamsCreate, VizParamsCreate
-from src.imagery.service import _save_stac_config
 
 # ============================================================================
 # _inject_datetime_into_query
@@ -189,147 +179,3 @@ def test_sanitize_error_generic_truncates_to_200_chars():
 
 def test_sanitize_error_generic_empty_message_falls_back_to_type_name():
     assert _sanitize_stac_error(Exception()) == "Registration failed (Exception)"
-
-
-# ============================================================================
-# _save_stac_config
-# ============================================================================
-
-_RENDER_PARAMS = VizParamsCreate(assets=["B04"]).model_dump(exclude_none=True)
-
-
-def _existing_viz(name="true_color", render_params=None, cover_render_params=None):
-    return SimpleNamespace(
-        name=name,
-        render_params=_RENDER_PARAMS if render_params is None else render_params,
-        cover_render_params=cover_render_params,
-    )
-
-
-def _existing_config(
-    *,
-    viz_configs=(),
-    max_cloud_cover=20.0,
-    search_query=None,
-    cover_search_query=None,
-    tiler=None,
-    internal_storage=False,
-):
-    return SimpleNamespace(
-        viz_configs=list(viz_configs),
-        max_cloud_cover=max_cloud_cover,
-        search_query=search_query,
-        cover_search_query=cover_search_query,
-        tiler=tiler,
-        internal_storage=internal_storage,
-    )
-
-
-def _incoming_viz(name="true_color", viz_params=None, cover_viz_params=None):
-    return NamedVizParamsCreate(
-        name=name,
-        viz_params=viz_params or VizParamsCreate(assets=["B04"]),
-        cover_viz_params=cover_viz_params,
-    )
-
-
-def _incoming_config(
-    *,
-    visualizations=(),
-    max_cloud_cover=20.0,
-    search_query=None,
-    cover_search_query=None,
-    tiler=None,
-    internal_storage=False,
-):
-    return CollectionStacConfigCreate(
-        visualizations=list(visualizations),
-        max_cloud_cover=max_cloud_cover,
-        search_query=search_query,
-        cover_search_query=cover_search_query,
-        tiler=tiler,
-        internal_storage=internal_storage,
-    )
-
-
-def _stac_config_changed(existing, incoming) -> bool:
-    collection = SimpleNamespace(
-        id=1,
-        has_dedicated_cover=True,
-        viz_configs=existing.viz_configs if existing else [],
-        stac_config=existing,
-    )
-    if existing is not None:
-        existing.storage_auth = None
-    return _save_stac_config(MagicMock(), collection, incoming, {})
-
-
-def test_stac_config_changed_no_existing_config_always_changed():
-    assert _stac_config_changed(None, _incoming_config()) is True
-
-
-def test_stac_config_changed_identical_config_is_unchanged():
-    existing = _existing_config(viz_configs=[_existing_viz()], tiler="mpc")
-    incoming = _incoming_config(visualizations=[_incoming_viz()], tiler="mpc")
-
-    assert _stac_config_changed(existing, incoming) is False
-
-
-def test_stac_config_changed_viz_render_params_change_is_detected():
-    existing = _existing_config(viz_configs=[_existing_viz()])
-    incoming = _incoming_config(
-        visualizations=[_incoming_viz(viz_params=VizParamsCreate(assets=["B08"]))]
-    )
-
-    assert _stac_config_changed(existing, incoming) is True
-
-
-def test_stac_config_changed_viz_added_is_detected():
-    existing = _existing_config(viz_configs=[_existing_viz()])
-    incoming = _incoming_config(visualizations=[_incoming_viz(), _incoming_viz(name="false_color")])
-
-    assert _stac_config_changed(existing, incoming) is True
-
-
-def test_stac_config_changed_cover_render_params_change_is_detected():
-    existing = _existing_config(viz_configs=[_existing_viz(cover_render_params=None)])
-    incoming = _incoming_config(
-        visualizations=[_incoming_viz(cover_viz_params=VizParamsCreate(assets=["B04"]))]
-    )
-
-    assert _stac_config_changed(existing, incoming) is True
-
-
-def test_stac_config_changed_cloud_cover_change_is_detected():
-    existing = _existing_config(viz_configs=[_existing_viz()], max_cloud_cover=20.0)
-    incoming = _incoming_config(visualizations=[_incoming_viz()], max_cloud_cover=50.0)
-
-    assert _stac_config_changed(existing, incoming) is True
-
-
-def test_stac_config_changed_search_query_change_is_detected():
-    existing = _existing_config(viz_configs=[_existing_viz()], search_query={"a": 1})
-    incoming = _incoming_config(visualizations=[_incoming_viz()], search_query={"a": 2})
-
-    assert _stac_config_changed(existing, incoming) is True
-
-
-def test_stac_config_changed_cover_search_query_change_is_detected():
-    existing = _existing_config(viz_configs=[_existing_viz()], cover_search_query={"a": 1})
-    incoming = _incoming_config(visualizations=[_incoming_viz()], cover_search_query={"a": 2})
-
-    assert _stac_config_changed(existing, incoming) is True
-
-
-def test_stac_config_changed_tiler_change_is_detected():
-    existing = _existing_config(viz_configs=[_existing_viz()], tiler="mpc")
-    incoming = _incoming_config(visualizations=[_incoming_viz()], tiler="planetary-tiler")
-
-    assert _stac_config_changed(existing, incoming) is True
-
-
-def test_stac_config_changed_internal_storage_change_is_detected():
-    existing = _existing_config(viz_configs=[_existing_viz()], internal_storage=False)
-    incoming = _incoming_config(visualizations=[_incoming_viz()], internal_storage=True)
-
-    assert _stac_config_changed(existing, incoming) is True

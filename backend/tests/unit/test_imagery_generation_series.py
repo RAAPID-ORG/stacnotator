@@ -66,7 +66,7 @@ class FakeSession:
 
 
 def test_generation_config_holds_only_the_generator_inputs():
-    """The search and renderings live on the collections; repeating them here is
+    """The search and visualizations live on the collections; repeating them here is
     what let the two disagree."""
     with pytest.raises(ValidationError):
         StacGenerationConfig.model_validate(generation_config(catalog_url="https://x"))

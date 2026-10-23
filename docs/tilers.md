@@ -154,7 +154,7 @@ Hosted tilers (and their flags) come from the `TILERS` env var; adding one is co
 
 ## Per-collection tiler selection
 
-A collection can name which hosted tiler it uses (`stac_config.tiler`); unset means the default
+A collection can name which hosted tiler it uses (its search's `tiler`); unset means the default
 tiler. Collections saved together can target different tilers. In the wizard the tiler is
 normally set automatically by the catalog you browse (next section); an **Advanced → Tile
 server** dropdown lets you override it for non-MPC collections.

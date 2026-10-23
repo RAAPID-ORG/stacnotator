@@ -24,7 +24,7 @@ const collections = Array.from({ length: COLLECTION_COUNT }, (_, index) => {
           cover_slice_index: 0,
           has_dedicated_cover: true,
           display_order: index,
-          stac_config: null,
+          search: null,
           slices: [
             {
               id,
@@ -32,10 +32,10 @@ const collections = Array.from({ length: COLLECTION_COUNT }, (_, index) => {
               start_date: '2024-01-01',
               end_date: '2024-12-31',
               display_order: 0,
-              tile_urls: [
+              tiles: [
                 {
-                  visualization_name: 'True Color',
-                  tile_url: `https://tiles.example.com/mosaic/source-${index + 1}/tiles/WebMercatorQuad/{z}/{x}/{y}`,
+                  visualization_id: id,
+                  url: `https://tiles.example.com/mosaic/source-${index + 1}/tiles/WebMercatorQuad/{z}/{x}/{y}`,
                 },
               ],
             },

@@ -87,9 +87,9 @@ export function ViewerSidebar({
                         value={state.visualization ?? ''}
                         onChange={(e) => onChange({ ...state, visualization: e.target.value })}
                       >
-                        {entry.visualizations.map((name) => (
-                          <option key={name} value={name}>
-                            {name}
+                        {entry.visualizations.map((viz) => (
+                          <option key={viz.id} value={viz.name}>
+                            {viz.name}
                           </option>
                         ))}
                       </Select>

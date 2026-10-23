@@ -24,11 +24,12 @@ from src.imagery.models import (
     ImagerySlice,
     ImagerySource,
 )
-from src.imagery.registration import StacRegistrationSpec
 from src.imagery.schemas import (
     BasemapOut,
     ImagerySourceCreate,
     ImagerySourceOut,
+    SliceTileOut,
+    VisualizationOut,
 )
 from src.projects.models import Project
 from src.visualizers import timeline
@@ -57,7 +58,6 @@ from src.visualizers.schemas import (
     VisualizerOptionsOut,
     VisualizerOverlayCreate,
     VisualizerStepOut,
-    VisualizerTileOut,
     VisualizerUpdate,
     VisualizerViewOut,
 )
@@ -79,9 +79,12 @@ def _source_loads():
         .selectinload(VisualizerImagery.source)
         .options(
             selectinload(ImagerySource.visualizations),
-            selectinload(ImagerySource.collections)
-            .selectinload(ImageryCollection.slices)
-            .selectinload(ImagerySlice.tile_urls),
+            selectinload(ImagerySource.collections).options(
+                selectinload(ImageryCollection.visualizations),
+                selectinload(ImageryCollection.slices).options(
+                    selectinload(ImagerySlice.mosaics), selectinload(ImagerySlice.templates)
+                ),
+            ),
         )
     )
 
@@ -156,9 +159,9 @@ def create(db: Session, project: Project, payload: VisualizerCreate, user_id) ->
     db.add(visualizer)
     db.flush()
     _replace_layers(db, visualizer, payload.imagery, payload.overlays)
-    pending = _save_own_imagery(db, visualizer, payload.own_imagery)
+    _save_own_imagery(db, visualizer, payload.own_imagery)
     imagery_service.save_visualizer_basemaps(db, visualizer, payload.basemaps)
-    registration.commit_and_register(db, visualizer, pending, _bbox(visualizer))
+    registration.commit_and_register(db, visualizer, _bbox(visualizer))
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -183,25 +186,16 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
             payload.imagery if payload.imagery is not None else _imagery_config(visualizer),
             payload.overlays if payload.overlays is not None else _overlay_config(visualizer),
         )
-    pending = (
+    if payload.own_imagery is not None:
         _save_own_imagery(db, visualizer, payload.own_imagery)
-        if payload.own_imagery is not None
-        else []
-    )
     if area_moved:
-        # Every search was registered over the old area. Collections the save just
-        # queued are already in ``pending``; the rest are queued here.
-        queued = {spec.collection_id for spec in pending}
+        # Every search was registered over the old area.
         db.flush()
         db.expire(visualizer, ["imagery_sources"])
-        pending += [
-            spec
-            for spec in registration.prepare_reregistration(visualizer.imagery_sources)
-            if spec.collection_id not in queued
-        ]
+        registration.drop_mosaics(visualizer.imagery_sources)
     if payload.basemaps is not None:
         imagery_service.save_visualizer_basemaps(db, visualizer, payload.basemaps)
-    registration.commit_and_register(db, visualizer, pending, _bbox(visualizer))
+    registration.commit_and_register(db, visualizer, _bbox(visualizer))
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -212,7 +206,7 @@ def delete(db: Session, visualizer: Visualizer) -> None:
 
 def _save_own_imagery(
     db: Session, visualizer: Visualizer, sources: list[ImagerySourceCreate]
-) -> list[StacRegistrationSpec]:
+) -> None:
     """Set up imagery for this visualizer alone, searched over its own area.
 
     An area is what a STAC search is registered over, so imagery cannot be set
@@ -224,7 +218,7 @@ def _save_own_imagery(
             status_code=400,
             detail="Choose the area this visualizer covers before adding imagery to it",
         )
-    return imagery_service.save_visualizer_imagery(db, visualizer, sources)
+    imagery_service.save_visualizer_imagery(db, visualizer, sources)
 
 
 def _bbox(visualizer: Visualizer) -> list[float]:
@@ -485,10 +479,7 @@ def _imagery_out(source: ImagerySource, visualizer: Visualizer) -> list[Visualiz
     and the cadence is what distinguishes them by name.
     """
     tiles_by_slice = {
-        s.id: {
-            t.visualization_name: VisualizerTileOut(url=t.tile_url, tiler=t.tiler)
-            for t in s.tile_urls
-        }
+        s.id: [SliceTileOut.model_validate(t) for t in s.tiles]
         for collection in source.collections
         for s in collection.slices
     }
@@ -498,7 +489,7 @@ def _imagery_out(source: ImagerySource, visualizer: Visualizer) -> list[Visualiz
             id=f"{source.id}:{record.cadence}" if len(records) > 1 else str(source.id),
             tile_proxy_base=tile_proxy_base(visualizer),
             name=f"{source.name} {record.cadence}" if len(records) > 1 else source.name,
-            visualizations=[v.name for v in source.visualizations],
+            visualizations=[VisualizationOut.model_validate(r) for r in source.visualizations],
             default_zoom=source.default_zoom,
             max_native_zoom=source.max_native_zoom,
             has_api_key=source.has_api_key,
@@ -508,7 +499,7 @@ def _imagery_out(source: ImagerySource, visualizer: Visualizer) -> list[Visualiz
                     label=step.label,
                     start_date=step.start_date,
                     end_date=step.end_date,
-                    tiles=tiles_by_slice.get(step.slice_id, {}),
+                    tiles=tiles_by_slice.get(step.slice_id, []),
                 )
                 for step in record.steps
                 if tiles_by_slice.get(step.slice_id)
@@ -572,10 +563,7 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
             .options(
                 selectinload(Campaign.imagery_sources).options(
                     selectinload(ImagerySource.visualizations),
-                    selectinload(ImagerySource.collections).options(
-                        selectinload(ImageryCollection.slices),
-                        selectinload(ImageryCollection.stac_config),
-                    ),
+                    selectinload(ImagerySource.collections).selectinload(ImageryCollection.slices),
                 ),
                 selectinload(Campaign.custom_maps),
                 selectinload(Campaign.vector_layers),
@@ -637,7 +625,7 @@ def _source_option(source: ImagerySource) -> SourceOptionOut:
         # What the picker will actually add. Two cadences means two entries in
         # the viewer, which is worth knowing before ticking the box.
         cadences=[record.cadence for record in records],
-        visualizations=[v.name for v in source.visualizations],
+        visualizations=[r.name for r in source.visualizations],
         start_date=steps[0].start_date if steps else None,
         end_date=steps[-1].end_date if steps else None,
         restriction=source_restriction(source),
@@ -645,7 +633,7 @@ def _source_option(source: ImagerySource) -> SourceOptionOut:
 
 
 def _reads_private_catalog(source: ImagerySource) -> bool:
-    return any(c.stac_config is not None and c.stac_config.storage_auth for c in source.collections)
+    return any(c.storage_auth for c in source.collections)
 
 
 PRIVATE_CATALOG_NOT_PUBLISHABLE = (
@@ -665,9 +653,7 @@ def source_restriction(source: ImagerySource) -> LayerRestriction | None:
         return "storage_access"
     if source.has_api_key:
         return "api_key"
-    if any(
-        c.stac_config is not None and c.stac_config.internal_storage for c in source.collections
-    ):
+    if any(c.internal_storage for c in source.collections):
         return "internal_storage"
     return None
 

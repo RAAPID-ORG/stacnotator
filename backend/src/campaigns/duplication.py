@@ -1,8 +1,8 @@
 """Deep-copy a campaign, into its own project or into another one.
 
 The full setup is always copied: settings, imagery sources/collections/slices
-with their registered tile URLs (pgstac/MPC mosaic searches are content
-addressed, so both campaigns can safely point at the same mosaics), basemaps,
+with their registered mosaics (pgstac/MPC mosaic searches are content
+addressed, so both campaigns can safely point at the same ones), basemaps,
 views, default canvas layouts, time series and overlay layers. Tasks,
 annotations and personal canvas layouts are opt-in. Task claims are runtime
 state of the original campaign and are never copied.
@@ -33,13 +33,12 @@ from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.canvas.models import CanvasLayout
 from src.custom_layers.models import CustomMap
 from src.imagery.models import (
-    CollectionStacConfig,
     ImageryCollection,
     ImageryGenerationSeries,
     ImagerySlice,
     ImagerySource,
     ImageryView,
-    SliceTileUrl,
+    SliceMosaic,
 )
 from src.organizations.models import Organization
 from src.projects.models import Project
@@ -118,13 +117,11 @@ def unmet_org_requirements(
     # What the collections are pinned to, plus what registration actually
     # resolved them to: a campaign can be either side of a registration run.
     pinned = db.scalars(
-        select(CollectionStacConfig.tiler).where(
-            CollectionStacConfig.collection_id.in_(collections)
-        )
+        select(ImageryCollection.tiler).where(ImageryCollection.id.in_(collections))
     )
     registered = db.scalars(
-        select(SliceTileUrl.tiler)
-        .join(ImagerySlice, ImagerySlice.id == SliceTileUrl.slice_id)
+        select(SliceMosaic.provider)
+        .join(ImagerySlice, ImagerySlice.id == SliceMosaic.slice_id)
         .where(ImagerySlice.collection_id.in_(collections))
     )
     allowed = set(organization.allowed_tiler_names)
@@ -135,8 +132,8 @@ def unmet_org_requirements(
         db.scalar(
             select(
                 exists().where(
-                    CollectionStacConfig.collection_id.in_(collections),
-                    CollectionStacConfig.internal_storage,
+                    ImageryCollection.id.in_(collections),
+                    ImageryCollection.internal_storage,
                 )
             )
         )
@@ -150,8 +147,8 @@ def unmet_org_requirements(
         db.scalar(
             select(
                 exists().where(
-                    CollectionStacConfig.collection_id.in_(collections),
-                    CollectionStacConfig.storage_auth.is_not(None),
+                    ImageryCollection.id.in_(collections),
+                    ImageryCollection.storage_auth.is_not(None),
                 )
             )
         )
@@ -247,9 +244,11 @@ def _duplicate_imagery(
             [clone_row(s, campaign_id=dup.id, **_key_overrides(keep_shared_keys)) for s in sources],
         ),
     )
-    for source in sources:
-        for viz in source.visualizations:
-            db.add(clone_row(viz, source_id=source_map[source.id]))
+    visualizations = [r for source in sources for r in source.visualizations]
+    rendering_map = id_map(
+        visualizations,
+        insert_all(db, [clone_row(r, source_id=source_map[r.source_id]) for r in visualizations]),
+    )
 
     series = list(
         db.scalars(
@@ -267,10 +266,7 @@ def _duplicate_imagery(
         db.scalars(
             select(ImageryCollection)
             .where(ImageryCollection.source_id.in_(source_map))
-            .options(
-                selectinload(ImageryCollection.stac_config),
-                selectinload(ImageryCollection.viz_configs),
-            )
+            .options(selectinload(ImageryCollection.visualizations))
         )
     )
     collection_map = id_map(
@@ -292,16 +288,20 @@ def _duplicate_imagery(
         ),
     )
     for col in collections:
-        if col.stac_config is not None:
-            db.add(clone_row(col.stac_config, collection_id=collection_map[col.id]))
-        for viz_config in col.viz_configs:
-            db.add(clone_row(viz_config, collection_id=collection_map[col.id]))
+        for cr in col.visualizations:
+            db.add(
+                clone_row(
+                    cr,
+                    collection_id=collection_map[col.id],
+                    visualization_id=rendering_map[cr.visualization_id],
+                )
+            )
 
     slices = list(
         db.scalars(
             select(ImagerySlice)
             .where(ImagerySlice.collection_id.in_(collection_map))
-            .options(selectinload(ImagerySlice.tile_urls))
+            .options(selectinload(ImagerySlice.mosaics), selectinload(ImagerySlice.templates))
         )
     )
     slice_map = id_map(
@@ -311,8 +311,16 @@ def _duplicate_imagery(
         ),
     )
     for sl in slices:
-        for tile_url in sl.tile_urls:
-            db.add(clone_row(tile_url, slice_id=slice_map[sl.id]))
+        for mosaic in sl.mosaics:
+            db.add(clone_row(mosaic, slice_id=slice_map[sl.id]))
+        for template in sl.templates:
+            db.add(
+                clone_row(
+                    template,
+                    slice_id=slice_map[sl.id],
+                    visualization_id=rendering_map[template.visualization_id],
+                )
+            )
 
     return source_map, collection_map, slice_map
 

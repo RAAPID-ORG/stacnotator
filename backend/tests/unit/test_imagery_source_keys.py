@@ -13,6 +13,7 @@ from src.imagery.models import Basemap
 from src.imagery.schemas import BasemapCreate, ImagerySourceCreate
 from src.imagery.service import _check_layers, _save_basemaps
 from src.layers import LayerOwner
+from src.tilers.registry import MPC_STAC_URL
 
 CAMPAIGN = LayerOwner(campaign_id=7)
 
@@ -159,15 +160,23 @@ def test_internal_storage_needs_an_organization_cleared_for_it():
             {
                 "name": "2024",
                 "slices": [],
-                "stac_config": {"stac_collection_id": "c", "internal_storage": True},
+                "search": {
+                    "catalog_url": MPC_STAC_URL,
+                    "stac_collection_id": "c",
+                    "internal_storage": True,
+                },
+                "visualizations": [{"visualization": "Visual", "params": {}}],
             }
         ]
     )
 
+    mpc_only = org_with_keys()
+    mpc_only.allowed_tiler_names = ["mpc"]
     with pytest.raises(HTTPException) as exc:
-        _check_layers(org_with_keys(), source, [])
+        _check_layers(mpc_only, source, [])
     assert exc.value.status_code == 403
 
     cleared = org_with_keys()
+    cleared.allowed_tiler_names = ["mpc"]
     cleared.allows_internal_storage = True
     _check_layers(cleared, source, [])

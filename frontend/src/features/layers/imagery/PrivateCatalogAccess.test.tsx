@@ -72,7 +72,7 @@ describe('PrivateCatalogAccess', () => {
 describe('the save payload', () => {
   it('sends a typed token once and leaves a saved one alone', () => {
     const typed = sourceToBackend(source([collection('a', { sasToken: SAS })]));
-    expect(typed.collections[0].stac_config?.storage_access).toEqual({
+    expect(typed.collections[0].search?.storage_access).toEqual({
       kind: 'azure_sas',
       secret: SAS,
     });
@@ -80,6 +80,6 @@ describe('the save payload', () => {
     const saved = sourceToBackend(
       source([collection('a', { storageAccess: { kind: 'azure_sas', expiresAt: null } })])
     );
-    expect(saved.collections[0].stac_config?.storage_access).toBeNull();
+    expect(saved.collections[0].search?.storage_access).toBeNull();
   });
 });

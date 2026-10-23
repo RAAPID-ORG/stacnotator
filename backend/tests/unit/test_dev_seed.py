@@ -33,7 +33,11 @@ def test_monthly_slices_cover_the_year_without_overlap():
 def test_seed_search_query_resolves_the_slice_dates():
     query = _stac_search_query()
     bbox = list(UKRAINE_BBOX.values())
-    body = _resolved_search_body(query, bbox, _monthly_slices(2024)[0])
+    january = _monthly_slices(2024)[0]
+    order = SimpleNamespace(
+        search_query=query, start_date=january.start_date, end_date=january.end_date
+    )
+    body = _resolved_search_body(order, bbox)
     assert body["collections"] == ["sentinel-2-l2a"]
     assert body["filterLang"] == "cql2-json"
     assert body["bbox"] == bbox

@@ -27,7 +27,7 @@ const source: ImagerySource = {
   name: 'Sentinel',
   crosshairHex6: 'ff0000',
   defaultZoom: 15,
-  visualizations: [{ name: 'Vegetation' }],
+  visualizations: [{ id: '5', name: 'Vegetation' }],
   collections: [
     {
       id: '42',
@@ -107,10 +107,11 @@ describe('visualization preservation', () => {
   it('renames params, covers and URLs together, and a reopened generator follows', () => {
     const renamed = { ...source, ...rewriteVisualization(source, 0, 'NDVI') };
     const payload = sourceToBackend(renamed);
-    const viz = payload.collections[0].stac_config?.visualizations?.[0];
-    expect(viz?.name).toBe('NDVI');
-    expect(viz?.viz_params.assets).toEqual(falseColor.assets);
-    expect(viz?.cover_viz_params?.assets).toEqual(falseColor.assets);
+    expect(payload.visualizations).toEqual([{ id: 5, name: 'NDVI' }]);
+    const viz = payload.collections[0].visualizations?.[0];
+    expect(viz?.visualization).toBe('NDVI');
+    expect(viz?.params.assets).toEqual(falseColor.assets);
+    expect(viz?.cover_params?.assets).toEqual(falseColor.assets);
     expect(renamed.collections[0].data.vizUrls[0].vizName).toBe('NDVI');
     expect(renamed.collections[0].slices[0].vizUrls?.[0].vizName).toBe('NDVI');
     expect(editableGenerationSeries(renamed)[0].config.visualizations[0].name).toBe('NDVI');
@@ -137,9 +138,7 @@ describe('visualization preservation', () => {
     const removed = { ...multiple, ...rewriteVisualization(multiple, 0, null) };
     const payload = sourceToBackend(removed);
     expect(payload.visualizations).toEqual([{ name: 'NDVI' }]);
-    expect(payload.collections[0].stac_config?.visualizations?.[0].viz_params.expression).toBe(
-      ndvi.expression
-    );
+    expect(payload.collections[0].visualizations?.[0].params.expression).toBe(ndvi.expression);
     expect(removed.collections[0].data.vizUrls).toEqual([]);
   });
 
@@ -148,7 +147,7 @@ describe('visualization preservation', () => {
       ...source,
       visualizations: [{ name: 'Vegetation' }, { name: 'Unconfigured' }],
     });
-    expect(payload.collections[0].stac_config?.visualizations?.[1].viz_params.assets).toEqual([]);
+    expect(payload.collections[0].visualizations?.[1].params.assets).toEqual([]);
   });
 
   it('retains all NDVI parameters when saving, reloading, editing and saving again', () => {
@@ -173,7 +172,7 @@ describe('visualization preservation', () => {
       ],
     };
     const first = sourceToBackend(updated);
-    const saved = first.collections[0].stac_config!;
+    const saved = first.collections[0];
     const response: ImagerySourceOut = {
       id: 7,
       name: source.name,
@@ -189,23 +188,19 @@ describe('visualization preservation', () => {
           cover_slice_index: 0,
           has_dedicated_cover: true,
           slices: [],
-          stac_config: {
-            catalog_url: saved.catalog_url,
-            stac_collection_id: saved.stac_collection_id,
-            viz_configs: saved.visualizations?.map((viz, i) => ({
-              id: i,
-              display_order: i,
-              name: viz.name,
-              render_params: { ...viz.viz_params },
-              cover_render_params: { ...viz.cover_viz_params },
-            })),
+          search: {
+            catalog_url: saved.search!.catalog_url,
+            stac_collection_id: saved.search!.stac_collection_id,
           },
+          visualizations: saved.visualizations?.map((viz) => ({
+            visualization_id: 1,
+            params: { ...viz.params },
+            cover_params: { ...viz.cover_params },
+          })),
         },
       ],
     };
     const reloaded = mapSourceOutToFe(response);
-    expect(sourceToBackend(reloaded).collections[0].stac_config?.visualizations).toEqual(
-      saved.visualizations
-    );
+    expect(sourceToBackend(reloaded).collections[0].visualizations).toEqual(saved.visualizations);
   });
 });

@@ -4,7 +4,14 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.custom_layers.schemas import RenderConfig
-from src.imagery.schemas import BasemapCreate, BasemapOut, ImagerySourceCreate, ImagerySourceOut
+from src.imagery.schemas import (
+    BasemapCreate,
+    BasemapOut,
+    ImagerySourceCreate,
+    ImagerySourceOut,
+    SliceTileOut,
+    VisualizationOut,
+)
 from src.visualizers.models import FeedbackVerdict
 
 
@@ -72,19 +79,12 @@ class VisualizerListItemOut(BaseModel):
     feedback_count: int
 
 
-class VisualizerTileOut(BaseModel):
-    url: str
-    # "mpc", a hosted tiler name, or null for a direct XYZ template. Decides
-    # whether the browser must send its tiler cookie with the tile request.
-    tiler: str | None
-
-
 class VisualizerStepOut(BaseModel):
     slice_id: int
     label: str
     start_date: str
     end_date: str
-    tiles: dict[str, VisualizerTileOut]
+    tiles: list[SliceTileOut]
 
 
 class VisualizerImageryOut(BaseModel):
@@ -96,7 +96,7 @@ class VisualizerImageryOut(BaseModel):
     # and the viewer has no reason to care which it is looking at.
     tile_proxy_base: str
     name: str
-    visualizations: list[str]
+    visualizations: list[VisualizationOut]
     default_zoom: int
     max_native_zoom: int | None
     has_api_key: bool

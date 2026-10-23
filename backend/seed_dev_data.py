@@ -35,15 +35,15 @@ from src.config import get_settings
 from src.database import SessionLocal
 from src.earth_engine import ensure_earth_engine
 from src.imagery.schemas import (
-    CollectionStacConfigCreate,
+    CollectionSearchCreate,
+    CollectionVisualizationCreate,
     ImageryCollectionCreate,
     ImageryEditorStateCreate,
     ImagerySliceCreate,
     ImagerySourceCreate,
     ImageryViewCreate,
-    NamedVizParamsCreate,
-    VisualizationTemplateCreate,
-    VizParamsCreate,
+    RenderParams,
+    VisualizationCreate,
 )
 from src.imagery.service import create_view
 from src.organizations.models import (
@@ -291,8 +291,8 @@ def seed_dev_data(firebase_uid: str | None = None):
         db.commit()
 
         # One Sentinel-2 imagery source spanning all of 2024: one MPC stac-browser
-        # collection with 12 monthly slices and two named visualizations. Tile URLs
-        # are built by the background mosaic registration, not seeded.
+        # collection with 12 monthly slices and two visualizations. Its mosaics are
+        # registered in the background, not seeded.
         imagery_editor_state = ImageryEditorStateCreate(
             sources=[
                 ImagerySourceCreate(
@@ -300,41 +300,41 @@ def seed_dev_data(firebase_uid: str | None = None):
                     crosshair_hex6="FF0000",
                     default_zoom=14,
                     visualizations=[
-                        VisualizationTemplateCreate(name="True Color"),
-                        VisualizationTemplateCreate(name="False Color Infrared"),
+                        VisualizationCreate(name="True Color"),
+                        VisualizationCreate(name="False Color Infrared"),
                     ],
                     collections=[
                         ImageryCollectionCreate(
                             name="2024 Monthly Mosaics",
                             cover_slice_index=5,
-                            stac_config=CollectionStacConfigCreate(
+                            search=CollectionSearchCreate(
                                 catalog_url=MPC_CATALOG_URL,
                                 stac_collection_id="sentinel-2-l2a",
                                 max_cloud_cover=70,
                                 search_query=_stac_search_query(),
-                                visualizations=[
-                                    NamedVizParamsCreate(
-                                        name="True Color",
-                                        viz_params=VizParamsCreate(
-                                            assets=["B04", "B03", "B02"],
-                                            nodata=0,
-                                            color_formula=(
-                                                "Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35"
-                                            ),
-                                        ),
-                                    ),
-                                    NamedVizParamsCreate(
-                                        name="False Color Infrared",
-                                        viz_params=VizParamsCreate(
-                                            assets=["B08", "B04", "B03"],
-                                            nodata=0,
-                                            color_formula=(
-                                                "Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35"
-                                            ),
-                                        ),
-                                    ),
-                                ],
                             ),
+                            visualizations=[
+                                CollectionVisualizationCreate(
+                                    visualization="True Color",
+                                    params=RenderParams(
+                                        assets=["B04", "B03", "B02"],
+                                        nodata=0,
+                                        color_formula=(
+                                            "Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35"
+                                        ),
+                                    ),
+                                ),
+                                CollectionVisualizationCreate(
+                                    visualization="False Color Infrared",
+                                    params=RenderParams(
+                                        assets=["B08", "B04", "B03"],
+                                        nodata=0,
+                                        color_formula=(
+                                            "Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35"
+                                        ),
+                                    ),
+                                ),
+                            ],
                             slices=_monthly_slices(2024),
                         ),
                     ],

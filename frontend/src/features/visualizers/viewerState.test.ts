@@ -9,19 +9,19 @@ import {
   zoomedPastArea,
 } from './viewerState';
 
-const step = (id: number, start: string, end: string, viz = 'True Color'): VisualizerStepOut => ({
+const step = (id: number, start: string, end: string, vizId = 1): VisualizerStepOut => ({
   slice_id: id,
   label: start,
   start_date: start,
   end_date: end,
-  tiles: { [viz]: { url: `https://tiles/${id}/{z}/{x}/{y}`, tiler: 'mpc' } },
+  tiles: [{ visualization_id: vizId, url: `https://tiles/${id}/{z}/{x}/{y}`, tiler: 'mpc' }],
 });
 
 const source = (over: Partial<VisualizerImageryOut> = {}): VisualizerImageryOut => ({
   id: '1',
   tile_proxy_base: '/api/visualizers/1/imagery/slices',
   name: 'Sentinel-2',
-  visualizations: ['True Color'],
+  visualizations: [{ id: 1, name: 'True Color', display_order: 0 }],
   default_zoom: 15,
   max_native_zoom: null,
   has_api_key: false,
@@ -75,11 +75,11 @@ describe('selectSource', () => {
   const landsat = source({
     id: '2',
     name: 'Landsat',
-    visualizations: ['Natural'],
+    visualizations: [{ id: 2, name: 'Natural', display_order: 0 }],
     steps: [
-      step(10, '2023-12-20', '2023-12-27', 'Natural'),
-      step(11, '2024-01-05', '2024-01-12', 'Natural'),
-      step(12, '2024-09-01', '2024-09-08', 'Natural'),
+      step(10, '2023-12-20', '2023-12-27', 2),
+      step(11, '2024-01-05', '2024-01-12', 2),
+      step(12, '2024-09-01', '2024-09-08', 2),
     ],
   });
   const both = view({ imagery: [source(), landsat] });
@@ -168,7 +168,7 @@ describe('restoreViewing', () => {
 describe('composeLayers', () => {
   it('draws the basemap under the imagery', () => {
     const layers = composeLayers(view(), initialState(view()));
-    expect(layers.map((l) => l.id)).toEqual(['basemap', 'slice-2-True Color']);
+    expect(layers.map((l) => l.id)).toEqual(['basemap', 'slice-2-1']);
   });
 
   it('leaves out an overlay the viewer has hidden', () => {
@@ -204,9 +204,9 @@ describe('composeLayers', () => {
           steps: [
             {
               ...step(3, '2024-01-01', '2024-01-31'),
-              tiles: {
-                'True Color': { url: 'https://p/{z}/{x}/{y}?key={api_key}', tiler: null },
-              },
+              tiles: [
+                { visualization_id: 1, url: 'https://p/{z}/{x}/{y}?key={api_key}', tiler: null },
+              ],
             },
           ],
         }),
@@ -215,9 +215,7 @@ describe('composeLayers', () => {
     const layers = composeLayers(keyed, initialState(keyed));
     const imagery = layers.find((l) => l.id.startsWith('slice-'));
     expect(imagery).toMatchObject({
-      url: expect.stringContaining(
-        '/api/visualizers/1/imagery/slices/3/tiles/True%20Color/{z}/{x}/{y}'
-      ),
+      url: expect.stringContaining('/api/visualizers/1/imagery/slices/3/tiles/1/{z}/{x}/{y}'),
       auth: 'cookie',
     });
   });

@@ -278,7 +278,7 @@ See `docs/agentic-labelling.md` for setup and how it works.
 
 Campaign creation kicks off async background threads for:
 
-- **Mosaic registration** - STAC searches, item storage, tile URL generation
+- **Mosaic registration** - registers each STAC search a slice is missing on MPC or a hosted tiler; tile URLs are derived from those mosaics when read
 - **Embedding computation** - Earth Engine calls for satellite embeddings
 
 Both run independently with status tracking (`registering` → `ready`/`failed`), each keeping its own errors. Annotation access is blocked until completion (campaign admins can still enter edit mode via "Set up layout anyway" to author views and layout). Errors are stored and displayed in settings. A published visualizer polls while its own imagery registers.

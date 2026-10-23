@@ -38,7 +38,7 @@ from src.imagery.models import (
     ImagerySlice,
     ImagerySource,
     ProviderKey,
-    SliceTileUrl,
+    SliceTemplate,
 )
 from src.imagery.proxy import build_upstream_tile_url
 from src.layers import LayerOwner
@@ -261,7 +261,7 @@ def _serves(db: Session, source: ImagerySource, owner: LayerOwner) -> bool:
     )
 
 
-def _slice_lookup(slice_id: int, visualization_name: str, owner: LayerOwner):
+def _slice_lookup(slice_id: int, visualization_id: int, owner: LayerOwner):
     """Resolve one slice's upstream template and key, scoped to its owner."""
 
     def lookup(db: Session) -> TileTarget:
@@ -273,35 +273,30 @@ def _slice_lookup(slice_id: int, visualization_name: str, owner: LayerOwner):
         ).scalar_one_or_none()
         if source is None or not _serves(db, source, owner):
             raise HTTPException(status_code=404, detail="Slice not found")
-        tile = db.execute(
-            select(SliceTileUrl).where(
-                SliceTileUrl.slice_id == slice_id,
-                SliceTileUrl.visualization_name == visualization_name,
-            )
-        ).scalar_one_or_none()
-        if tile is None:
-            raise HTTPException(status_code=404, detail="Tile URL not found")
-        return TileTarget(tile.tile_url, source.provider_key)
+        template = db.get(SliceTemplate, (slice_id, visualization_id))
+        if template is None:
+            raise HTTPException(status_code=404, detail="Tile template not found")
+        return TileTarget(template.url, source.provider_key)
 
     return lookup
 
 
 @router.get(
-    "/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}",
+    "/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}",
     dependencies=[Depends(require_tile_access)],
 )
 async def proxy_slice_tile(
     campaign_id: int,
     slice_id: int,
-    visualization_name: str,
+    visualization_id: int,
     z: int,
     x: int,
     y: int,
 ) -> Response:
     owner = LayerOwner(campaign_id=campaign_id)
     target = await _resolve(
-        ("slice", owner.tile_scope, slice_id, visualization_name),
-        _slice_lookup(slice_id, visualization_name, owner),
+        ("slice", owner.tile_scope, slice_id, visualization_id),
+        _slice_lookup(slice_id, visualization_id, owner),
     )
     return await _proxy(target, z, x, y)
 
@@ -367,20 +362,20 @@ async def proxy_visualizer_basemap_tile(
 
 
 @router.get(
-    "/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}",
+    "/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}",
     dependencies=[Depends(require_visualizer_tile_access)],
 )
 async def proxy_visualizer_slice_tile(
     visualizer_id: int,
     slice_id: int,
-    visualization_name: str,
+    visualization_id: int,
     z: int,
     x: int,
     y: int,
 ) -> Response:
     owner = LayerOwner(visualizer_id=visualizer_id)
     target = await _resolve(
-        ("slice", owner.tile_scope, slice_id, visualization_name),
-        _slice_lookup(slice_id, visualization_name, owner),
+        ("slice", owner.tile_scope, slice_id, visualization_id),
+        _slice_lookup(slice_id, visualization_id, owner),
     )
     return await _proxy(target, z, x, y)

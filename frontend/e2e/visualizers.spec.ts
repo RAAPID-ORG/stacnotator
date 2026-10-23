@@ -9,7 +9,7 @@ const step = (id: number, start: string, end: string, label: string) => ({
   label,
   start_date: start,
   end_date: end,
-  tiles: { 'True Color': { url: `https://tiles.test/${id}/{z}/{x}/{y}.png`, tiler: 'mpc' } },
+  tiles: [{ visualization_id: 1, url: `https://tiles.test/${id}/{z}/{x}/{y}.png`, tiler: 'mpc' }],
 });
 
 const SHARED_VISUALIZER = {
@@ -26,7 +26,7 @@ const SHARED_VISUALIZER = {
       id: '11',
       tile_proxy_base: '/api/visualizers/3/imagery/slices',
       name: 'Sentinel-2',
-      visualizations: ['True Color'],
+      visualizations: [{ id: 1, name: 'True Color', display_order: 0 }],
       default_zoom: 12,
       max_native_zoom: null,
       has_api_key: false,

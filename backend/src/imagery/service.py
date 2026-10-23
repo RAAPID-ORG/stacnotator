@@ -15,23 +15,20 @@ from src.canvas.service import (
 from src.crypto import encrypt
 from src.imagery.models import (
     Basemap,
-    CollectionStacConfig,
-    CollectionVizConfig,
+    CollectionVisualization,
     ImageryCollection,
     ImageryGenerationSeries,
     ImagerySlice,
     ImagerySource,
     ImageryView,
-    SliceTileUrl,
-    VisualizationTemplate,
+    SliceTemplate,
+    Visualization,
 )
-from src.imagery.registration import StacRegistrationSpec, discard_for_registration
 from src.imagery.schemas import (
     BasemapCreate,
-    CollectionStacConfigCreate,
+    CollectionSearchCreate,
     ImageryCollectionCreate,
     ImageryEditorStateCreate,
-    ImagerySliceCreate,
     ImagerySourceCreate,
     ImageryViewCreate,
     ImageryViewUpdate,
@@ -64,32 +61,10 @@ def _held_storage_access(source: ImagerySource) -> dict[str, storage_access.Held
     """
     out: dict[str, storage_access.Held] = {}
     for collection in source.collections:
-        config = collection.stac_config
-        access = storage_access.held(config)
-        if config is not None and config.catalog_url and access is not None:
-            out[config.catalog_url] = access
+        access = storage_access.held(collection)
+        if collection.catalog_url and access is not None:
+            out[collection.catalog_url] = access
     return out
-
-
-def _save_viz_configs(db: Session, collection: ImageryCollection, visualizations) -> None:
-    """Leave the collection holding exactly these visualizations, matched by name."""
-    existing = {row.name: row for row in collection.viz_configs}
-    incoming = {v.name for v in visualizations}
-    for name, row in existing.items():
-        if name not in incoming:
-            db.delete(row)
-    for order, viz in enumerate(visualizations):
-        row = existing.get(viz.name) or CollectionVizConfig(
-            collection_id=collection.id, name=viz.name
-        )
-        db.add(row)
-        row.display_order = order
-        row.render_params = viz.viz_params.model_dump(exclude_none=True)
-        row.cover_render_params = (
-            viz.cover_viz_params.model_dump(exclude_none=True)
-            if collection.has_dedicated_cover and viz.cover_viz_params
-            else None
-        )
 
 
 # ============================================================================
@@ -97,18 +72,18 @@ def _save_viz_configs(db: Session, collection: ImageryCollection, visualizations
 # ============================================================================
 
 
-def _collection_providers(stac: CollectionStacConfigCreate) -> set[str]:
-    """Providers a collection's tiles will actually come from, decided exactly as
-    registration decides it (catalog URL + per-viz MPC eligibility). Cover overrides
-    count too: they render the cover slice. A collection without visualizations still
-    routes somewhere, so it is judged on empty params."""
-    viz_params = [
-        params.model_dump()
-        for viz in stac.visualizations
-        for params in (viz.viz_params, viz.cover_viz_params)
-        if params is not None
+def _collection_providers(col: ImageryCollectionCreate) -> set[str]:
+    """Providers a collection's tiles will come from, decided as ``tiles.provider_for``
+    decides it. Cover overrides count too: they draw the cover slice. A collection
+    without visualizations still routes somewhere, so it is judged on empty params."""
+    assert col.search is not None  # noqa: S101
+    params = [
+        p.model_dump()
+        for r in col.visualizations
+        for p in (r.params, r.cover_params)
+        if p is not None
     ] or [{}]
-    return {providers.select_provider(stac.catalog_url, p) for p in viz_params}
+    return {providers.select_provider(col.search.catalog_url, p) for p in params}
 
 
 def _forbidden(tiler_name: str, collection_name: str) -> HTTPException:
@@ -135,11 +110,11 @@ def _resolve_tilers(org: Organization, sources: list[ImagerySourceCreate]) -> No
     allowed = set(org.allowed_tiler_names)
     for src in sources:
         for col in src.collections:
-            stac = col.stac_config
-            if not stac or not stac.catalog_url:
+            stac = col.search
+            if stac is None:
                 continue
 
-            routes = _collection_providers(stac)
+            routes = _collection_providers(col)
             if registry.MPC in routes and registry.MPC not in allowed:
                 raise _forbidden(registry.MPC, col.name)
             if registry.HOSTED not in routes:
@@ -187,9 +162,7 @@ def _check_layers(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Organization API key not found"
             )
     if not org.allows_internal_storage and any(
-        col.stac_config and col.stac_config.internal_storage
-        for src in sources
-        for col in src.collections
+        col.search and col.search.internal_storage for src in sources for col in src.collections
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -204,25 +177,23 @@ def _check_layers(
 
 @dataclass
 class SavedImagery:
-    """What a save leaves behind: the owner's sources after it, the sources it deleted,
-    and the collections to register once the caller has committed."""
+    """What a save leaves behind: the owner's sources after it, and the ones it deleted."""
 
     sources: list[ImagerySource]
     deleted_source_ids: set[int]
-    registrations: list[StacRegistrationSpec]
 
 
 def save_imagery_editor_state(
     db: Session, campaign: Campaign, editor_state: ImageryEditorStateCreate
-) -> list[StacRegistrationSpec]:
+) -> None:
     """Reconcile a campaign's imagery with the editor's full state: sources, collections,
     slices and basemaps.
 
     Views are managed through their own endpoints; here they are only kept consistent -
     deleted sources leave their views, and layout windows follow collection changes.
 
-    Does not commit. The caller commits, then hands the returned work orders to
-    ``spawn_background_registration`` so the provider calls run off the request path.
+    Does not commit. The caller commits through ``registration.commit_and_register``,
+    which registers whatever mosaics the save left missing.
     """
     organization = campaign.project.organization
     _check_layers(organization, editor_state.sources, editor_state.basemaps)
@@ -259,28 +230,20 @@ def save_imagery_editor_state(
         db, LayerOwner(campaign_id=campaign.id), campaign.basemaps, editor_state.basemaps
     )
     db.flush()
-    return saved.registrations
 
 
 def save_visualizer_imagery(
     db: Session, visualizer: Visualizer, sources: list[ImagerySourceCreate]
-) -> list[StacRegistrationSpec]:
+) -> None:
     """Reconcile a visualizer's own imagery, by the same rules as a campaign's. A
     visualizer has no views or canvas layouts to keep in step. Does not commit."""
-    if any(
-        col.stac_config and col.stac_config.storage_access
-        for src in sources
-        for col in src.collections
-    ):
+    if any(col.search and col.search.storage_access for src in sources for col in src.collections):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A private catalog read with a SAS token can't be published in a visualizer",
         )
     _check_layers(visualizer.project.organization, sources, [])
-    saved = _save_sources(
-        db, LayerOwner(visualizer_id=visualizer.id), visualizer.imagery_sources, sources
-    )
-    return saved.registrations
+    _save_sources(db, LayerOwner(visualizer_id=visualizer.id), visualizer.imagery_sources, sources)
 
 
 def save_visualizer_basemaps(
@@ -300,11 +263,7 @@ def _save_sources(
 ) -> SavedImagery:
     """An entry with a known id updates that source in place, any other is created, and
     a stored source the payload leaves out is deleted - the same one level down for
-    collections and slices.
-
-    A collection is registered again only when something its tiles depend on changed
-    (search, visualizations, tiler, cover, slice dates) or a past registration left a
-    slice without them; a rename alone keeps its tile URLs.
+    visualizations, collections and slices.
     """
     by_id = {s.id: s for s in existing}
     # Taken before anything is deleted: a series regenerated in the editor replaces its
@@ -325,23 +284,16 @@ def _save_sources(
             if collection.id not in keep_cols:
                 db.delete(collection)
     db.flush()
+    for source in by_id.values():
+        db.expire(source, ["collections"])
 
-    sources: list[ImagerySource] = []
-    to_register: list[ImageryCollection] = []
+    sources = []
     for order, src in enumerate(payload):
         source = by_id.get(src.id) if src.id is not None else None
         held = held_access.get(source.id, {}) if source is not None else {}
-        source, changed = _save_source(db, owner, source, src, order, held)
-        sources.append(source)
-        to_register.extend(changed)
+        sources.append(_save_source(db, owner, source, src, order, held))
     db.flush()
-
-    registrations = []
-    for collection in to_register:
-        if (spec := discard_for_registration(collection)) is not None:
-            registrations.append(spec)
-    db.flush()
-    return SavedImagery(sources, deleted, registrations)
+    return SavedImagery(sources, deleted)
 
 
 def _save_source(
@@ -351,9 +303,8 @@ def _save_source(
     src: ImagerySourceCreate,
     order: int,
     held_access: dict[str, storage_access.Held],
-) -> tuple[ImagerySource, list[ImageryCollection]]:
-    """Create or update one source and its collections. Returns the source and the
-    collections whose tiles have to be registered again."""
+) -> ImagerySource:
+    """Create or update one source with its visualizations and collections."""
     if source is None:
         source = ImagerySource(**owner.as_columns())
         db.add(source)
@@ -365,38 +316,72 @@ def _save_source(
     _apply_provider_key(source, src)
     db.flush()
 
-    templates = {v.name: v for v in source.visualizations}
-    wanted = [v.name for v in src.visualizations]
-    for name, template in templates.items():
-        if name not in wanted:
-            db.delete(template)
-    for viz_order, name in enumerate(wanted):
-        template = templates.get(name) or VisualizationTemplate(source_id=source.id, name=name)
-        db.add(template)
-        template.display_order = viz_order
-
+    visualization_ids = _save_visualizations(db, source, src)
     series_ids, stale_series = _save_generation_series(db, source, src)
     collections = {c.id: c for c in source.collections}
-    changed = []
     for col_order, col in enumerate(src.collections):
-        collection = collections.get(col.id) if col.id is not None else None
-        collection, needs_registration = _save_collection(
+        _save_collection(
             db,
             source,
-            collection,
+            collections.get(col.id) if col.id is not None else None,
             col,
             col_order,
+            visualization_ids,
             series_ids.get(col.generation_series_key or ""),
             held_access,
         )
-        if needs_registration:
-            changed.append(collection)
     db.flush()
     for series in stale_series:
         db.delete(series)
     db.flush()
     db.refresh(source)
-    return source, changed
+    return source
+
+
+def _save_visualizations(
+    db: Session, source: ImagerySource, src: ImagerySourceCreate
+) -> dict[str, int]:
+    """Keep the visualizations the payload names - by id, else by name - delete the others
+    with every parameter and template drawn with them, and add the rest. Returns the
+    id each name in the payload refers to."""
+    by_id = {r.id: r for r in source.visualizations}
+    claimed = {r.id for r in src.visualizations if r.id is not None}
+    unclaimed = {r.name: r for r in source.visualizations if r.id not in claimed}
+    matched: list[Visualization | None] = []
+    for incoming in src.visualizations:
+        if incoming.id is None:
+            matched.append(unclaimed.get(incoming.name))
+        elif incoming.id in by_id:
+            matched.append(by_id[incoming.id])
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Visualization {incoming.id} does not belong to source {source.id}",
+            )
+
+    kept = {r.id for r in matched if r is not None}
+    for dropped in [r for r in source.visualizations if r.id not in kept]:
+        for collection in source.collections:
+            collection.visualizations[:] = [
+                cr for cr in collection.visualizations if cr.visualization_id != dropped.id
+            ]
+            for sl in collection.slices:
+                sl.templates[:] = [t for t in sl.templates if t.visualization_id != dropped.id]
+        source.visualizations.remove(dropped)
+    db.flush()
+
+    ids: dict[str, int] = {}
+    for display_order, (incoming, visualization) in enumerate(
+        zip(src.visualizations, matched, strict=True)
+    ):
+        if visualization is None:
+            visualization = Visualization()
+            source.visualizations.append(visualization)
+        visualization.name = incoming.name
+        visualization.display_order = display_order
+        db.flush()
+        ids[incoming.name] = visualization.id
+    return ids
 
 
 def _save_generation_series(
@@ -433,138 +418,137 @@ def _save_collection(
     collection: ImageryCollection | None,
     col: ImageryCollectionCreate,
     order: int,
+    visualization_ids: dict[str, int],
     generation_series_id: int | None,
     held_access: dict[str, storage_access.Held],
-) -> tuple[ImageryCollection, bool]:
-    """Create or update one collection with its STAC search, visualizations and slices.
-    Returns it and whether its tiles have to be registered again."""
-    changed = collection is None
+) -> None:
+    """Create or update one collection with its search, visualizations and slices.
+
+    Mosaics are what a search registered, so a change to what is searched - the query,
+    the catalog, where the cover sits - drops them; the next registration run replaces
+    them. Visualization parameters are not searched and drop nothing.
+    """
     if collection is None:
         collection = ImageryCollection(source_id=source.id)
         db.add(collection)
-    elif (collection.has_dedicated_cover, collection.cover_slice_index) != (
-        col.has_dedicated_cover,
-        col.cover_slice_index,
-    ):
-        changed = True
+    searched_before = _searched(collection)
     collection.name = col.name
     collection.cover_slice_index = col.cover_slice_index
     collection.has_dedicated_cover = col.has_dedicated_cover
     collection.display_order = order
     collection.generation_series_id = generation_series_id
+    access_changed = _save_search(collection, col.search, held_access)
     db.flush()
 
-    if col.stac_config is not None:
-        changed |= _save_stac_config(db, collection, col.stac_config, held_access)
-    changed |= _save_slices(db, collection, col.slices, manual=col.stac_config is None)
+    by_rendering = {r.visualization_id: r for r in collection.visualizations}
+    wanted = {visualization_ids[r.visualization]: r for r in col.visualizations}
+    for visualization_id, row in by_rendering.items():
+        if visualization_id not in wanted:
+            db.delete(row)
+    for visualization_id, incoming in wanted.items():
+        row = by_rendering.get(visualization_id) or CollectionVisualization(
+            collection_id=collection.id, visualization_id=visualization_id
+        )
+        db.add(row)
+        row.params = incoming.params.model_dump(exclude_none=True)
+        row.cover_params = (
+            incoming.cover_params.model_dump(exclude_none=True)
+            if col.has_dedicated_cover and incoming.cover_params
+            else None
+        )
+
+    _save_slices(db, collection, col, visualization_ids)
     db.flush()
     db.refresh(collection)
-
-    if col.stac_config is None:
-        return collection, False
-    names = {v.name for v in col.stac_config.visualizations}
-    registered = {tu.visualization_name for sl in collection.slices for tu in sl.tile_urls}
-    return collection, changed or registered != names
+    if access_changed or _searched(collection) != searched_before:
+        for sl in collection.slices:
+            sl.mosaics.clear()
 
 
-def _save_stac_config(
-    db: Session,
+def _searched(collection: ImageryCollection) -> tuple:
+    """Everything a collection's mosaics were registered from, apart from slice dates."""
+    return (
+        collection.catalog_url,
+        collection.stac_collection_id,
+        collection.tiler,
+        collection.max_cloud_cover,
+        collection.search_query,
+        collection.cover_search_query,
+        collection.internal_storage,
+        collection.has_dedicated_cover,
+        collection.cover_slice_index,
+    )
+
+
+def _save_search(
     collection: ImageryCollection,
-    incoming: CollectionStacConfigCreate,
+    incoming: CollectionSearchCreate | None,
     held_access: dict[str, storage_access.Held],
 ) -> bool:
-    """Write the collection's STAC search and visualizations; returns whether anything
-    its tiles depend on changed."""
-    has_cover = collection.has_dedicated_cover
-    stac = collection.stac_config
-    is_new = stac is None
-    if stac is None:
-        stac = CollectionStacConfig(
-            collection_id=collection.id,
-            catalog_url=incoming.catalog_url,
-            stac_collection_id=incoming.stac_collection_id,
-        )
-        db.add(stac)
-    before = (
-        stac.tiler,
-        stac.max_cloud_cover,
-        stac.search_query,
-        stac.cover_search_query,
-        stac.internal_storage,
-        {vc.name: (vc.render_params, vc.cover_render_params) for vc in collection.viz_configs},
+    """Write the collection's STAC search, or clear it; returns whether the private
+    catalog's access changed (searches carry the access they were registered with)."""
+    if incoming is None:
+        collection.catalog_url = collection.stac_collection_id = collection.tiler = None
+        collection.search_query = collection.cover_search_query = None
+        collection.max_cloud_cover = None
+        collection.internal_storage = False
+        storage_access.clear(collection)
+        return False
+    is_new = collection.catalog_url is None
+    collection.catalog_url = incoming.catalog_url
+    collection.stac_collection_id = incoming.stac_collection_id
+    collection.tiler = incoming.tiler
+    collection.max_cloud_cover = incoming.max_cloud_cover
+    collection.search_query = incoming.search_query
+    collection.cover_search_query = (
+        incoming.cover_search_query if collection.has_dedicated_cover else None
     )
-    stac.tiler = incoming.tiler
-    stac.max_cloud_cover = incoming.max_cloud_cover
-    stac.search_query = incoming.search_query
-    stac.cover_search_query = incoming.cover_search_query if has_cover else None
-    stac.internal_storage = incoming.internal_storage
-    _save_viz_configs(db, collection, incoming.visualizations)
-    after = (
-        stac.tiler,
-        stac.max_cloud_cover,
-        stac.search_query,
-        stac.cover_search_query,
-        stac.internal_storage,
-        {
-            v.name: (
-                v.viz_params.model_dump(exclude_none=True),
-                v.cover_viz_params.model_dump(exclude_none=True)
-                if has_cover and v.cover_viz_params
-                else None,
-            )
-            for v in incoming.visualizations
-        },
-    )
-
-    # Searches carry the access they were registered with, so new access means
-    # registering them again.
+    collection.internal_storage = incoming.internal_storage
     if incoming.storage_access is not None:
         try:
-            storage_access.check_catalog(incoming.catalog_url or stac.catalog_url)
+            storage_access.check_catalog(incoming.catalog_url)
         except storage_access.InvalidStorageAccess as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    access_changed = storage_access.store(stac, incoming.storage_access)
+    changed = storage_access.store(collection, incoming.storage_access)
     if is_new:
-        storage_access.inherit(stac, held_access.get(stac.catalog_url or ""))
-    return is_new or access_changed or before != after
+        storage_access.inherit(collection, held_access.get(incoming.catalog_url))
+    return changed
 
 
 def _save_slices(
-    db: Session, collection: ImageryCollection, slices: list[ImagerySliceCreate], *, manual: bool
-) -> bool:
-    """Reconcile the collection's slices; returns whether any date range changed.
-
-    A manual collection's tile URLs are the payload's; a STAC collection's come from
-    registration, so the payload's are only taken for a slice it creates.
-    """
+    db: Session,
+    collection: ImageryCollection,
+    col: ImageryCollectionCreate,
+    visualization_ids: dict[str, int],
+) -> None:
+    """Reconcile the collection's slices. A slice whose dates moved loses its mosaics;
+    a manual slice's templates are the payload's."""
     existing = {sl.id: sl for sl in collection.slices}
-    keep = {sl.id for sl in slices if sl.id is not None}
-    changed = False
+    keep = {sl.id for sl in col.slices if sl.id is not None}
     for sid, dropped in existing.items():
         if sid not in keep:
             db.delete(dropped)
-            changed = True
-    for order, incoming in enumerate(slices):
-        stored = existing.get(incoming.id) if incoming.id is not None else None
-        is_new = stored is None
-        sl = stored or ImagerySlice(collection_id=collection.id)
-        db.add(sl)
-        if is_new or (sl.start_date, sl.end_date) != (incoming.start_date, incoming.end_date):
-            changed = True
+    for order, incoming in enumerate(col.slices):
+        sl = existing.get(incoming.id) if incoming.id is not None else None
+        if sl is None:
+            sl = ImagerySlice(collection_id=collection.id)
+            db.add(sl)
+        elif (sl.start_date, sl.end_date) != (incoming.start_date, incoming.end_date):
+            sl.mosaics.clear()
         sl.name = incoming.name
         sl.start_date = incoming.start_date
         sl.end_date = incoming.end_date
         sl.display_order = order
-        if is_new or manual:
-            sl.tile_urls.clear()
-            # Flush the deletes first: the unit of work emits same-table INSERTs before
-            # DELETEs, which would trip the (slice_id, visualization_name) constraint.
-            db.flush()
-            sl.tile_urls.extend(
-                SliceTileUrl(visualization_name=t.visualization_name, tile_url=t.tile_url)
-                for t in incoming.tile_urls
-            )
-    return changed
+        templates = {t.visualization_id: t for t in sl.templates}
+        wanted = {visualization_ids[t.visualization]: t.url for t in incoming.templates}
+        for visualization_id, template in templates.items():
+            if visualization_id not in wanted:
+                sl.templates.remove(template)
+        for visualization_id, url in wanted.items():
+            if visualization_id in templates:
+                templates[visualization_id].url = url
+            else:
+                sl.templates.append(SliceTemplate(visualization_id=visualization_id, url=url))
 
 
 def _save_basemaps(

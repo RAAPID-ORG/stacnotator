@@ -53,8 +53,8 @@ export async function withTaskScenes(
   const errors: string[] = [];
   for (const [sourceId, { sliceIds, meters }] of bySource) {
     const source = cat.sources.get(sourceId)!;
-    const vizName = source.visualizations[0]?.name;
-    if (!vizName) continue;
+    const vizId = source.visualizations[0]?.id;
+    if (vizId === undefined) continue;
     const box = bboxOf(squareAround(center, meters));
     const found = await search(cat.campaignId, sourceId, box);
 
@@ -70,7 +70,7 @@ export async function withTaskScenes(
     }
 
     for (const id of sliceIds) if (!found.get(id)?.layer_id) empty.add(id);
-    catalog = withSceneLayers(catalog, sourceId, vizName, [...found.values()]);
+    catalog = withSceneLayers(catalog, sourceId, vizId, [...found.values()]);
   }
   return { catalog, empty, errors };
 }

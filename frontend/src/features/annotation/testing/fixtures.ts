@@ -14,11 +14,11 @@ import type {
   ImagerySourceOut,
   ImageryViewOut,
   PlanetScenesGenerationConfig,
-  SliceTileUrlOut,
+  SliceTileOut,
   TaskSetOut,
   TimeseriesOut,
   VectorLayerOut,
-  VisualizationTemplateOut,
+  VisualizationOut,
 } from '~/api/client';
 
 /**
@@ -71,19 +71,12 @@ export function makeCampaign(overrides: Partial<CampaignOutFull> = {}): Campaign
   };
 }
 
-export function makeViz(
-  overrides: Partial<VisualizationTemplateOut> = {}
-): VisualizationTemplateOut {
+export function makeViz(overrides: Partial<VisualizationOut> = {}): VisualizationOut {
   return { id: 1, name: 'True Color', display_order: 0, ...overrides };
 }
 
-export function makeTileUrl(overrides: Partial<SliceTileUrlOut> = {}): SliceTileUrlOut {
-  return {
-    id: 1,
-    visualization_name: 'True Color',
-    tile_url: 'https://tiles/{z}/{x}/{y}',
-    ...overrides,
-  };
+export function makeTile(overrides: Partial<SliceTileOut> = {}): SliceTileOut {
+  return { visualization_id: 1, url: 'https://tiles/{z}/{x}/{y}', ...overrides };
 }
 
 export function makeSlice(overrides: Partial<ImagerySliceOut> = {}): ImagerySliceOut {
@@ -93,9 +86,9 @@ export function makeSlice(overrides: Partial<ImagerySliceOut> = {}): ImagerySlic
     start_date: '2024-01-01',
     end_date: '2024-01-31',
     display_order: 0,
-    // Resolved by default: a slice with no tile URL is one nothing can draw, which
-    // navigation now skips. Pass `tile_urls: []` to build that case on purpose.
-    tile_urls: [makeTileUrl()],
+    // Resolved by default: a slice with no tiles is one nothing can draw, which
+    // navigation skips. Pass `tiles: []` to build that case on purpose.
+    tiles: [makeTile()],
     ...overrides,
   };
 }

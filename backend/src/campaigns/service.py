@@ -37,7 +37,7 @@ from src.imagery.models import (
     ImagerySource,
     ImageryView,
 )
-from src.imagery.registration import commit_and_register, prepare_reregistration
+from src.imagery.registration import commit_and_register, drop_mosaics
 from src.imagery.service import save_imagery_editor_state
 from src.organizations.service import active_organization_ids
 from src.projects.access import VISIBILITY_ORGANIZATION, VISIBILITY_PUBLIC
@@ -97,7 +97,7 @@ def visible_campaign_ids(db: Session, user: User) -> list[int]:
 
 # Eager-load options covering every relationship that CampaignOut(+Full) serializes.
 # Without these, Pydantic serialization lazy-loads each relationship one row at a
-# time - on large campaigns (thousands of slices/tile_urls) that turns a single
+# time - on large campaigns (thousands of slices) that turns a single
 # response into thousands of cross-region round-trips.
 _CAMPAIGN_FULL_LOAD_OPTIONS = (
     joinedload(Campaign.project),
@@ -111,8 +111,10 @@ _CAMPAIGN_FULL_LOAD_OPTIONS = (
     selectinload(Campaign.imagery_sources).options(
         selectinload(ImagerySource.visualizations),
         selectinload(ImagerySource.collections).options(
-            selectinload(ImageryCollection.slices).selectinload(ImagerySlice.tile_urls),
-            joinedload(ImageryCollection.stac_config),
+            selectinload(ImageryCollection.visualizations),
+            selectinload(ImageryCollection.slices).options(
+                selectinload(ImagerySlice.mosaics), selectinload(ImagerySlice.templates)
+            ),
         ),
     ),
     selectinload(Campaign.imagery_views).selectinload(ImageryView.canvas_layouts),
@@ -206,14 +208,11 @@ def create_campaign(
         add_timeseries(db, campaign.id, timeseries_configs)
         db.refresh(campaign)
 
-    pending = (
+    if imagery_editor_state:
         save_imagery_editor_state(db, campaign, imagery_editor_state)
-        if imagery_editor_state
-        else []
-    )
     campaign.registration_status = "ready"
     campaign.embedding_status = "ready"
-    commit_and_register(db, campaign, pending, campaign.bbox)
+    commit_and_register(db, campaign, campaign.bbox)
     embeddings_service.start_embedding_run(db, campaign)
     return get_campaign_full(db, campaign.id)
 
@@ -263,9 +262,8 @@ def update_campaign(db: Session, campaign: Campaign, update: CampaignUpdate) -> 
         campaign.bbox_west, campaign.bbox_south, campaign.bbox_east, campaign.bbox_north = (
             update.bbox
         )
-        commit_and_register(
-            db, campaign, prepare_reregistration(campaign.imagery_sources), campaign.bbox
-        )
+        drop_mosaics(campaign.imagery_sources)
+        commit_and_register(db, campaign, campaign.bbox)
     db.commit()
     if recompute_embeddings:
         embeddings_service.start_embedding_run(db, campaign)

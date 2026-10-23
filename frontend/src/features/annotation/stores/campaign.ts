@@ -62,9 +62,9 @@ interface CampaignState {
   setTaskStartCollection: (collectionId: number) => void;
   /** What a viewport search found for a scene source: which dates hold imagery
    *  here, and the covers that are already drawable. */
-  applySceneSearch: (sourceId: number, vizName: string, found: PlanetSceneSliceOut[]) => void;
+  applySceneSearch: (sourceId: number, vizId: number, found: PlanetSceneSliceOut[]) => void;
   /** Layers minted for dates that were already found, as they are opened. */
-  applySceneLayers: (sourceId: number, vizName: string, minted: PlanetSceneSliceOut[]) => void;
+  applySceneLayers: (sourceId: number, vizId: number, minted: PlanetSceneSliceOut[]) => void;
   /** Make `view` the selected one. Its imagery nav state and its canvas
    *  windows both come with it, so the whole page belongs to one view. */
   selectView: (view: ImageryViewOut) => void;
@@ -152,14 +152,14 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
     imagery.setEmptyScope(null);
   },
 
-  applySceneSearch: (sourceId, vizName, found) => {
+  applySceneSearch: (sourceId, vizId, found) => {
     const catalog = get().catalog;
-    if (catalog) set({ catalog: withSceneSearch(catalog, sourceId, vizName, found) });
+    if (catalog) set({ catalog: withSceneSearch(catalog, sourceId, vizId, found) });
   },
 
-  applySceneLayers: (sourceId, vizName, minted) => {
+  applySceneLayers: (sourceId, vizId, minted) => {
     const catalog = get().catalog;
-    if (catalog) set({ catalog: withSceneLayers(catalog, sourceId, vizName, minted) });
+    if (catalog) set({ catalog: withSceneLayers(catalog, sourceId, vizId, minted) });
   },
 
   setOriginTask: (originTask) => set({ originTask }),

@@ -101,12 +101,12 @@ const visibleIds = new Set<number>(
 );
 const markerToCollection = new Map<string, number>();
 for (const source of real?.campaign.imagery_sources ?? []) {
-  const visualization = source.visualizations[0]?.name;
+  const visualization = source.visualizations[0]?.id;
   for (const collection of source.collections) {
     if (!visibleIds.has(collection.id)) continue;
     const slice = collection.slices[collection.cover_slice_index ?? 0];
-    const tile = slice?.tile_urls.find((entry: any) => entry.visualization_name === visualization);
-    const marker = tile ? mosaicId(tile.tile_url) : null;
+    const tile = slice?.tiles.find((entry: any) => entry.visualization_id === visualization);
+    const marker = tile ? mosaicId(tile.url) : null;
     if (marker) markerToCollection.set(marker, collection.id);
   }
 }
@@ -118,11 +118,9 @@ test(`campaign ${CAMPAIGN_ID} retries a transient foreground tile after cycling 
   const task = tasks[0];
   const source = real?.campaign.imagery_sources[0];
   const collection = source?.collections[0];
-  const visualization = source?.visualizations[0]?.name;
+  const visualization = source?.visualizations[0]?.id;
   const slice = collection?.slices[collection.cover_slice_index ?? 0];
-  const tileUrl = slice?.tile_urls.find(
-    (entry: any) => entry.visualization_name === visualization
-  )?.tile_url;
+  const tileUrl = slice?.tiles.find((entry: any) => entry.visualization_id === visualization)?.url;
   const marker = tileUrl ? mosaicId(tileUrl) : null;
   expect(task).toBeTruthy();
   expect(marker).toBeTruthy();

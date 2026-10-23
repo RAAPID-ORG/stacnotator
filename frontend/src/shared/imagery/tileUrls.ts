@@ -32,8 +32,8 @@ export function planetLayerProxyUrl(campaignId: number, sourceId: number, layerI
 
 /** One slice's tiles under a named visualization, off the proxy route its
  *  owner is served from (a campaign's and a visualizer's differ). */
-export function sliceProxyUrl(base: string, sliceId: number, vizName: string): string {
-  return apiUrl(`${base}/${sliceId}/tiles/${encodeURIComponent(vizName)}/{z}/{x}/{y}`);
+export function sliceProxyUrl(base: string, sliceId: number, visualizationId: number): string {
+  return apiUrl(`${base}/${sliceId}/tiles/${visualizationId}/{z}/{x}/{y}`);
 }
 
 /** Where a campaign's key-proxied slice and basemap tiles are fetched from. */

@@ -5,7 +5,7 @@ import {
   makeCustomMap,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeVectorLayer,
   makeViz,
 } from '../testing/fixtures';
@@ -30,16 +30,14 @@ const source = makeSource({
         makeSlice({
           id: 100,
           name: 'Slice A',
-          tile_urls: [
-            makeTileUrl({
-              id: 1,
-              visualization_name: 'True Color',
-              tile_url: 'https://tiler/1/{z}/{x}/{y}.png',
+          tiles: [
+            makeTile({
+              visualization_id: 1000,
+              url: 'https://tiler/1/{z}/{x}/{y}.png',
             }),
-            makeTileUrl({
-              id: 2,
-              visualization_name: 'Needs Key',
-              tile_url: 'https://p/{z}/{x}/{y}.png?api_key={api_key}',
+            makeTile({
+              visualization_id: 1001,
+              url: 'https://p/{z}/{x}/{y}.png?api_key={api_key}',
             }),
           ],
         }),
@@ -128,10 +126,7 @@ describe('a scene source over one viewport', () => {
             collections: [
               makeCollection({
                 id: 10,
-                slices: [
-                  makeSlice({ id: 100, tile_urls: [] }),
-                  makeSlice({ id: 101, tile_urls: [] }),
-                ],
+                slices: [makeSlice({ id: 100, tiles: [] }), makeSlice({ id: 101, tiles: [] })],
               }),
             ],
           }),
@@ -140,46 +135,46 @@ describe('a scene source over one viewport', () => {
     );
 
   it('mints nothing but what came back with a layer, and keeps the rest steppable', () => {
-    const cat = withSceneSearch(catalogWithScenes(), 1, 'Visual', [
+    const cat = withSceneSearch(catalogWithScenes(), 1, 1000, [
       { slice_id: 100, scene_count: 3, layer_id: 'abc' },
       { slice_id: 101, scene_count: 2, layer_id: null },
     ]);
 
     const [cover, date] = cat.collections.get(10)!.slices;
-    expect(cover.tile_urls[0].tile_url).toContain('abc');
-    expect(cover.tile_urls[0].visualization_name).toBe('Visual');
+    expect(cover.tiles[0].url).toContain('abc');
+    expect(cover.tiles[0].visualization_id).toBe(1000);
     // Found here, so it is worth stepping to - its layer is minted when it is opened.
-    expect(date.tile_urls).toEqual([]);
+    expect(date.tiles).toEqual([]);
     expect(sliceHasImagery(cat, date)).toBe(true);
     // The slice index has to agree with the collection, or the map draws one thing
     // and navigation reasons about another.
-    expect(cat.slices.get(100)!.tile_urls).toHaveLength(1);
+    expect(cat.slices.get(100)!.tiles).toHaveLength(1);
   });
 
   it('draws a minted layer in without disturbing what the search left', () => {
-    const searched = withSceneSearch(catalogWithScenes(), 1, 'Visual', [
+    const searched = withSceneSearch(catalogWithScenes(), 1, 1000, [
       { slice_id: 100, scene_count: 3, layer_id: 'abc' },
       { slice_id: 101, scene_count: 2, layer_id: null },
     ]);
 
-    const opened = withSceneLayers(searched, 1, 'Visual', [
+    const opened = withSceneLayers(searched, 1, 1000, [
       { slice_id: 101, scene_count: 2, layer_id: 'def' },
     ]);
 
-    expect(opened.slices.get(100)!.tile_urls[0].tile_url).toContain('abc');
-    expect(opened.slices.get(101)!.tile_urls[0].tile_url).toContain('def');
+    expect(opened.slices.get(100)!.tiles[0].url).toContain('abc');
+    expect(opened.slices.get(101)!.tiles[0].url).toContain('def');
   });
 
   it('replaces what a previous search left, because it was over somewhere else', () => {
-    const first = withSceneSearch(catalogWithScenes(), 1, 'Visual', [
+    const first = withSceneSearch(catalogWithScenes(), 1, 1000, [
       { slice_id: 100, scene_count: 1, layer_id: 'abc' },
     ]);
-    const second = withSceneSearch(first, 1, 'Visual', [
+    const second = withSceneSearch(first, 1, 1000, [
       { slice_id: 101, scene_count: 1, layer_id: 'def' },
     ]);
 
-    expect(second.slices.get(100)!.tile_urls).toEqual([]);
+    expect(second.slices.get(100)!.tiles).toEqual([]);
     expect(sliceHasImagery(second, second.slices.get(100)!)).toBe(false);
-    expect(second.slices.get(101)!.tile_urls[0].tile_url).toContain('def');
+    expect(second.slices.get(101)!.tiles[0].url).toContain('def');
   });
 });

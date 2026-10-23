@@ -106,7 +106,7 @@ for (const readyAtCreation of [false, true]) {
                   ...COLLECTION_S2,
                   slices: COLLECTION_S2.slices.map((slice) => ({
                     ...slice,
-                    tile_urls: ready ? slice.tile_urls : [],
+                    tiles: ready ? slice.tiles : [],
                   })),
                 },
               ],

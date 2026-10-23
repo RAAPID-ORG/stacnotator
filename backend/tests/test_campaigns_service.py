@@ -267,7 +267,6 @@ class TestUpdateCampaignArea:
     def test_commits_registration_status_before_spawning_for_new_area(self):
         db = _mock_db()
         campaign = _campaign_row(registration_errors=[{"error": "old"}])
-        pending = [MagicMock()]
 
         def committed():
             assert campaign.bbox_west == -10
@@ -281,21 +280,23 @@ class TestUpdateCampaignArea:
             db.commit.assert_called_once()
 
         with (
-            patch("src.campaigns.service.prepare_reregistration", return_value=pending) as prepare,
+            patch("src.campaigns.service.drop_mosaics") as drop,
+            patch("src.imagery.registration.missing_mosaics", return_value=[MagicMock()]),
             patch(
                 "src.imagery.registration.spawn_background_registration", side_effect=spawned
             ) as spawn,
         ):
             _move_area(db, campaign)
 
-        prepare.assert_called_once_with(campaign.imagery_sources)
-        spawn.assert_called_once_with(LayerOwner(campaign_id=1), pending, [-10, -20, 10, 20])
+        drop.assert_called_once_with(campaign.imagery_sources)
+        spawn.assert_called_once_with(LayerOwner(campaign_id=1), [-10, -20, 10, 20])
 
     def test_without_stac_imagery_does_not_start_registration(self):
         db = _mock_db()
         campaign = _campaign_row()
         with (
-            patch("src.campaigns.service.prepare_reregistration", return_value=[]),
+            patch("src.campaigns.service.drop_mosaics"),
+            patch("src.imagery.registration.missing_mosaics", return_value=[]),
             patch("src.imagery.registration.spawn_background_registration") as spawn,
         ):
             _move_area(db, campaign)

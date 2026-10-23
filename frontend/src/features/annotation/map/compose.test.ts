@@ -8,7 +8,7 @@ import {
   makeCustomMap,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeVectorLayer,
   makeView,
   makeViz,
@@ -73,10 +73,10 @@ const CAMPAIGN: CampaignOutFull = makeCampaign({
             makeSlice({
               id: 1000,
               name: 'jan',
-              tile_urls: [
-                makeTileUrl({
-                  visualization_name: 'rgb',
-                  tile_url: 'https://tiler.test/slices/1000/rgb/{z}/{x}/{y}.png',
+              tiles: [
+                makeTile({
+                  visualization_id: 11,
+                  url: 'https://tiler.test/slices/1000/rgb/{z}/{x}/{y}.png',
                 }),
               ],
             }),

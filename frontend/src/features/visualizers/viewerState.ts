@@ -19,6 +19,7 @@ import type { LayerSpec } from '~/shared/map/types';
  */
 export interface ViewerState {
   sourceId: string | null;
+  /** By name, which is what carries across sources. */
   visualization: string | null;
   stepIndex: number;
   /**
@@ -47,7 +48,7 @@ export function initialState(view: VisualizerViewOut): ViewerState {
   const source = view.imagery[0] ?? null;
   return {
     sourceId: source?.id ?? null,
-    visualization: source?.visualizations[0] ?? null,
+    visualization: source?.visualizations[0]?.name ?? null,
     // The newest imagery is what people want to see first.
     stepIndex: Math.max(0, (source?.steps.length ?? 1) - 1),
     anchor: midpointOf(source?.steps[(source?.steps.length ?? 1) - 1]),
@@ -86,9 +87,9 @@ export function selectSource(
   return {
     ...state,
     sourceId,
-    visualization: next.visualizations.includes(state.visualization ?? '')
+    visualization: next.visualizations.some((viz) => viz.name === state.visualization)
       ? state.visualization
-      : (next.visualizations[0] ?? null),
+      : (next.visualizations[0]?.name ?? null),
     stepIndex: nearestStepIndex(next.steps, state.anchor),
   };
 }
@@ -170,9 +171,13 @@ const midpointOf = (step: VisualizerStepOut | undefined): number =>
  * Falling back to whatever that step does have keeps the map showing imagery
  * instead of going blank on one date.
  */
-function tileFor(step: VisualizerStepOut, visualization: string | null) {
-  const preferred = visualization ? step.tiles[visualization] : undefined;
-  return preferred ?? Object.values(step.tiles)[0] ?? null;
+function tileFor(
+  source: VisualizerImageryOut,
+  step: VisualizerStepOut,
+  visualization: string | null
+) {
+  const id = source.visualizations.find((viz) => viz.name === visualization)?.id;
+  return step.tiles.find((tile) => tile.visualization_id === id) ?? step.tiles[0] ?? null;
 }
 
 export function composeLayers(view: VisualizerViewOut, state: ViewerState): LayerSpec[] {
@@ -189,14 +194,14 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
 
   const source = activeSource(view, state);
   const step = source?.steps[state.stepIndex];
-  const tile = step ? tileFor(step, state.visualization) : null;
+  const tile = source && step ? tileFor(source, step, state.visualization) : null;
   if (source && step && tile) {
     const url = needsKeyProxy(tile.url)
-      ? sliceProxyUrl(source.tile_proxy_base, step.slice_id, state.visualization ?? '')
+      ? sliceProxyUrl(source.tile_proxy_base, step.slice_id, tile.visualization_id)
       : tile.url;
     layers.push({
       kind: 'raster',
-      id: `slice-${step.slice_id}-${state.visualization ?? 'default'}`,
+      id: `slice-${step.slice_id}-${tile.visualization_id}`,
       url,
       auth: tileAuth(url, tile.tiler),
       maxZoom: source.max_native_zoom ?? undefined,

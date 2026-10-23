@@ -69,8 +69,8 @@ function seedCampaign(): ImagerySourceOut {
       makeCollection({
         id: 10,
         slices: [
-          makeSlice({ id: 1000, tile_urls: [] }),
-          ...DATE_IDS.map((id) => makeSlice({ id, tile_urls: [] })),
+          makeSlice({ id: 1000, tiles: [] }),
+          ...DATE_IDS.map((id) => makeSlice({ id, tiles: [] })),
         ],
       }),
     ],
@@ -118,7 +118,7 @@ describe('scene searches', () => {
     await flush();
 
     const catalog = useCampaignStore.getState().catalog!;
-    expect(catalog.slices.get(1000)!.tile_urls[0].tile_url).toContain('planet-layers/abc');
+    expect(catalog.slices.get(1000)!.tiles[0].url).toContain('planet-layers/abc');
     expect(useScenesStore.getState().loading[1]).toBe(false);
 
     wantScenes(source, CAMPAIGN_ID, [-0.5, -0.5, 0.5, 0.5], true);
@@ -159,11 +159,11 @@ describe('scene searches', () => {
     calls[0].answer(found);
     await flush();
 
-    expect(useCampaignStore.getState().catalog!.slices.get(1000)!.tile_urls).toEqual([]);
+    expect(useCampaignStore.getState().catalog!.slices.get(1000)!.tiles).toEqual([]);
     // ...and the view it covers now needs no search of its own.
     wantScenes(source, CAMPAIGN_ID, [0.4, 0.4, 0.6, 0.6], true);
     expect(calls).toHaveLength(1);
-    expect(useCampaignStore.getState().catalog!.slices.get(1000)!.tile_urls).toHaveLength(1);
+    expect(useCampaignStore.getState().catalog!.slices.get(1000)!.tiles).toHaveLength(1);
   });
 
   it('draws the covers it minted and reports the rest as dates worth stepping to', async () => {
@@ -172,8 +172,8 @@ describe('scene searches', () => {
     await flush();
 
     const catalog = useCampaignStore.getState().catalog!;
-    expect(catalog.slices.get(1000)!.tile_urls).toHaveLength(1);
-    expect(catalog.slices.get(1001)!.tile_urls).toEqual([]);
+    expect(catalog.slices.get(1000)!.tiles).toHaveLength(1);
+    expect(catalog.slices.get(1001)!.tiles).toEqual([]);
     // Steppable all the same: the layer for a date follows behind the search.
     expect(catalog.sceneSlices.has(1001)).toBe(true);
   });
@@ -262,7 +262,7 @@ describe('the layers for the dates a search found', () => {
 
     const catalog = useCampaignStore.getState().catalog!;
     for (const id of DATE_IDS) {
-      expect(catalog.slices.get(id)!.tile_urls[0].tile_url).toContain(`layer-${id}`);
+      expect(catalog.slices.get(id)!.tiles[0].url).toContain(`layer-${id}`);
     }
   });
 
@@ -296,14 +296,14 @@ describe('the layers for the dates a search found', () => {
     await answerAll();
     const requests = mints.length;
     // Nothing is drawn while it is only being prepared.
-    expect(useCampaignStore.getState().catalog!.slices.get(1001)!.tile_urls).toEqual([]);
+    expect(useCampaignStore.getState().catalog!.slices.get(1001)!.tiles).toEqual([]);
 
     wantScenes(source, CAMPAIGN_ID, [10.4, 10.4, 10.6, 10.6], true);
     await flush();
 
     const catalog = useCampaignStore.getState().catalog!;
     for (const id of DATE_IDS) {
-      expect(catalog.slices.get(id)!.tile_urls[0].tile_url).toContain(`layer-${id}`);
+      expect(catalog.slices.get(id)!.tiles[0].url).toContain(`layer-${id}`);
     }
     expect(mints).toHaveLength(requests);
   });

@@ -15,15 +15,15 @@ export function sliceLegend(
   const collection = cat.collections.get(address.collectionId);
   const viz = cat.vizzes.get(Number(address.vizId));
   if (!collection || !viz) return null;
-  const config = collection.stac_config?.viz_configs?.find((entry) => entry.name === viz.name);
-  const render =
+  const config = collection.visualizations?.find((entry) => entry.visualization_id === viz.id);
+  const render: Record<string, unknown> | undefined =
     collection.has_dedicated_cover && address.sliceIndex === collection.cover_slice_index
-      ? (config?.cover_render_params ?? config?.render_params)
-      : config?.render_params;
-  const tile = collection.slices[address.sliceIndex]?.tile_urls.find(
-    (entry) => entry.visualization_name === viz.name
+      ? (config?.cover_params ?? config?.params)
+      : config?.params;
+  const tile = collection.slices[address.sliceIndex]?.tiles.find(
+    (entry) => entry.visualization_id === viz.id
   );
-  const query = new URLSearchParams(tile?.tile_url.split('?')[1] ?? '');
+  const query = new URLSearchParams(tile?.url.split('?')[1] ?? '');
   const expression = render?.expression ?? query.get('expression');
   const extra = render?.extra_params;
   const assetBands =
@@ -76,8 +76,7 @@ export function awaitingImageryRegistration(
   if (status !== 'registering') return false;
   if (!address) return true;
   const slice = cat.collections.get(address.collectionId)?.slices[address.sliceIndex];
-  const viz = cat.vizzes.get(Number(address.vizId));
-  return !slice?.tile_urls.some((entry) => entry.visualization_name === viz?.name);
+  return !slice?.tiles.some((entry) => entry.visualization_id === Number(address.vizId));
 }
 
 export interface SliceRaster {
@@ -103,12 +102,12 @@ export function sliceRaster(cat: ImageryCatalog, addr: SliceAddress): SliceRaste
   const viz = cat.vizzes.get(Number(addr.vizId));
   if (!viz) throw new Error(`unknown visualization ${addr.vizId}`);
 
-  const entry = slice.tile_urls.find((e) => e.visualization_name === viz.name);
-  if (!entry) throw new Error(`no tile url for "${viz.name}" on slice ${slice.id}`);
+  const entry = slice.tiles.find((e) => e.visualization_id === viz.id);
+  if (!entry) throw new Error(`no tiles for "${viz.name}" on slice ${slice.id}`);
 
-  const url = needsKeyProxy(entry.tile_url)
-    ? sliceProxyUrl(campaignProxyBase(cat.campaignId), slice.id, viz.name)
-    : entry.tile_url;
+  const url = needsKeyProxy(entry.url)
+    ? sliceProxyUrl(campaignProxyBase(cat.campaignId), slice.id, viz.id)
+    : entry.url;
 
   return {
     id: `slice-${slice.id}-${viz.id}`,

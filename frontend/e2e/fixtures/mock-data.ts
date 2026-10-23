@@ -26,16 +26,14 @@ const SLICE_2024_01 = {
   start_date: '2024-01-01',
   end_date: '2024-01-31',
   display_order: 0,
-  tile_urls: [
+  tiles: [
     {
-      visualization_name: 'True Color',
-      tile_url:
-        'https://tiles.example.com/mosaic/search-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=truecolor',
+      visualization_id: 1,
+      url: 'https://tiles.example.com/mosaic/search-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=truecolor',
     },
     {
-      visualization_name: 'False Color',
-      tile_url:
-        'https://tiles.example.com/mosaic/search-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=falsecolor',
+      visualization_id: 2,
+      url: 'https://tiles.example.com/mosaic/search-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=falsecolor',
     },
   ],
 };
@@ -46,16 +44,14 @@ const SLICE_2024_06 = {
   start_date: '2024-06-01',
   end_date: '2024-06-30',
   display_order: 1,
-  tile_urls: [
+  tiles: [
     {
-      visualization_name: 'True Color',
-      tile_url:
-        'https://tiles.example.com/mosaic/search-jun-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=truecolor',
+      visualization_id: 1,
+      url: 'https://tiles.example.com/mosaic/search-jun-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=truecolor',
     },
     {
-      visualization_name: 'False Color',
-      tile_url:
-        'https://tiles.example.com/mosaic/search-jun-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=falsecolor',
+      visualization_id: 2,
+      url: 'https://tiles.example.com/mosaic/search-jun-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=falsecolor',
     },
   ],
 };
@@ -66,7 +62,7 @@ const COLLECTION_S2 = {
   cover_slice_index: 0,
   display_order: 0,
   slices: [SLICE_2024_01, SLICE_2024_06],
-  stac_config: null,
+  search: null,
 };
 
 // A second collection for multi-window testing
@@ -82,11 +78,10 @@ const COLLECTION_NDVI = {
       start_date: '2024-01-01',
       end_date: '2024-01-31',
       display_order: 0,
-      tile_urls: [
+      tiles: [
         {
-          visualization_name: 'NDVI',
-          tile_url:
-            'https://tiles.example.com/mosaic/ndvi-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=ndvi',
+          visualization_id: 1,
+          url: 'https://tiles.example.com/mosaic/ndvi-jan-2024/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=ndvi',
         },
       ],
     },
@@ -501,7 +496,7 @@ export const COLLECTION_VHR = {
   name: 'VHR Image',
   cover_slice_index: 0,
   display_order: 0,
-  stac_config: null,
+  search: null,
   slices: [
     {
       id: 301,
@@ -509,11 +504,10 @@ export const COLLECTION_VHR = {
       start_date: '2023-01-01',
       end_date: '2023-12-31',
       display_order: 0,
-      tile_urls: [
+      tiles: [
         {
-          visualization_name: 'True Color',
-          tile_url:
-            'https://tiles.example.com/mosaic/vhr-2023/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
+          visualization_id: 3,
+          url: 'https://tiles.example.com/mosaic/vhr-2023/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
         },
       ],
     },
@@ -615,7 +609,7 @@ export const COLLECTION_VHR_MULTI = {
   name: 'VHR Sept',
   cover_slice_index: 0,
   display_order: 0,
-  stac_config: null,
+  search: null,
   slices: [
     {
       id: 401,
@@ -623,11 +617,10 @@ export const COLLECTION_VHR_MULTI = {
       start_date: '2024-09-01',
       end_date: '2024-09-07',
       display_order: 0,
-      tile_urls: [
+      tiles: [
         {
-          visualization_name: 'True Color',
-          tile_url:
-            'https://tiles.example.com/mosaic/vhr-sep-wk1/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
+          visualization_id: 3,
+          url: 'https://tiles.example.com/mosaic/vhr-sep-wk1/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
         },
       ],
     },
@@ -637,11 +630,10 @@ export const COLLECTION_VHR_MULTI = {
       start_date: '2024-09-08',
       end_date: '2024-09-14',
       display_order: 1,
-      tile_urls: [
+      tiles: [
         {
-          visualization_name: 'True Color',
-          tile_url:
-            'https://tiles.example.com/mosaic/vhr-sep-wk2/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
+          visualization_id: 3,
+          url: 'https://tiles.example.com/mosaic/vhr-sep-wk2/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
         },
       ],
     },
@@ -690,10 +682,10 @@ const monthSlices = (collId: number, marker: string, ym: string, lastDay: string
     start_date: `${ym}-01`,
     end_date: `${ym}-${lastDay}`,
     display_order: 0,
-    tile_urls: [
+    tiles: [
       {
-        visualization_name: 'True Color',
-        tile_url: `https://tiles.example.com/mosaic/${marker}-cover/tiles/WebMercatorQuad/{z}/{x}/{y}`,
+        visualization_id: 1,
+        url: `https://tiles.example.com/mosaic/${marker}-cover/tiles/WebMercatorQuad/{z}/{x}/{y}`,
       },
     ],
   },
@@ -708,10 +700,10 @@ const monthSlices = (collId: number, marker: string, ym: string, lastDay: string
     start_date: `${ym}-${s}`,
     end_date: `${ym}-${e}`,
     display_order: idx + 1,
-    tile_urls: [
+    tiles: [
       {
-        visualization_name: 'True Color',
-        tile_url: `https://tiles.example.com/mosaic/${marker}-${wk.toLowerCase()}/tiles/WebMercatorQuad/{z}/{x}/{y}`,
+        visualization_id: 1,
+        url: `https://tiles.example.com/mosaic/${marker}-${wk.toLowerCase()}/tiles/WebMercatorQuad/{z}/{x}/{y}`,
       },
     ],
   })),
@@ -724,7 +716,7 @@ export const COLLECTION_MAR_2022 = {
   has_dedicated_cover: true,
   display_order: 0,
   slices: monthSlices(7001, 'mar2022', '2022-03', '31'),
-  stac_config: null,
+  search: null,
 };
 
 export const COLLECTION_SEP_2022 = {
@@ -734,7 +726,7 @@ export const COLLECTION_SEP_2022 = {
   has_dedicated_cover: true,
   display_order: 1,
   slices: monthSlices(7002, 'sep2022', '2022-09', '30'),
-  stac_config: null,
+  search: null,
 };
 
 const SOURCE_MONTHS = {

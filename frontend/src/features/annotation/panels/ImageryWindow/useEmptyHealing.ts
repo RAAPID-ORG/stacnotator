@@ -86,7 +86,7 @@ export function candidateOrder(
   empties: Empties,
   currentIndex: number
 ): number[] {
-  const drawable = (i: number) => (collection.slices[i]?.tile_urls.length ?? 0) > 0;
+  const drawable = (i: number) => (collection.slices[i]?.tiles.length ?? 0) > 0;
   const nav = sliceNavIndices(cat, collection, empties).filter(drawable);
   const navSet = new Set(nav);
   const forward = nav.filter((i) => i > currentIndex);

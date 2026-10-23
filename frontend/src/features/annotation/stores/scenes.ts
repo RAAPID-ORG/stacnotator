@@ -217,9 +217,9 @@ function setLoading(sourceId: number, loading: boolean): void {
 }
 
 function draw(source: ImagerySourceOut, campaignId: number, found: Found): void {
-  const vizName = source.visualizations[0]?.name;
+  const vizId = source.visualizations[0]?.id;
   const { catalog, applySceneSearch } = useCampaignStore.getState();
-  if (!vizName || catalog?.campaignId !== campaignId) return;
+  if (vizId === undefined || catalog?.campaignId !== campaignId) return;
   // Already on screen. Drawing it again would rebuild the catalog into an equal but
   // new object, and everything that watches the catalog - this store's own auto-load
   // among them - would come straight back here.
@@ -230,7 +230,7 @@ function draw(source: ImagerySourceOut, campaignId: number, found: Found): void 
     ...fillQueue.filter((job) => job.found === found),
     ...fillQueue.filter((job) => job.found !== found),
   ];
-  applySceneSearch(source.id, vizName, found.slices);
+  applySceneSearch(source.id, vizId, found.slices);
   useScenesStore.setState((state) => ({ loaded: { ...state.loaded, [source.id]: found.box } }));
 }
 
@@ -363,12 +363,14 @@ function runMint(job: MintJob, urgent: boolean): void {
           ? { ...slice, layer_id: layers.get(slice.slice_id) ?? null }
           : slice
       );
-      const vizName = job.source.visualizations[0]?.name;
+      const vizId = job.source.visualizations[0]?.id;
       const { catalog, applySceneLayers } = useCampaignStore.getState();
       // Only into the place these layers are of: a view searched ahead of time keeps
       // them until it is the one being looked at.
-      if (!vizName || catalog?.campaignId !== job.campaignId || !isDrawn(job.found)) return;
-      applySceneLayers(job.source.id, vizName, data.slices);
+      if (vizId === undefined || catalog?.campaignId !== job.campaignId || !isDrawn(job.found)) {
+        return;
+      }
+      applySceneLayers(job.source.id, vizId, data.slices);
       for (const message of data.errors ?? []) handleError(new Error(message), message);
     })
     .catch((error: unknown) => {

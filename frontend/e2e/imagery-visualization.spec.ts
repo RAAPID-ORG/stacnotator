@@ -27,14 +27,10 @@ test('single-band imagery shows its min-to-max legend on the main map and each w
           ...source,
           collections: source.collections.map((collection) => ({
             ...collection,
-            stac_config: {
-              viz_configs: source.visualizations.map((viz, index) => ({
-                id: index,
-                name: viz.name,
-                render_params: params,
-                display_order: index,
-              })),
-            },
+            visualizations: source.visualizations.map((viz) => ({
+              visualization_id: viz.id,
+              params,
+            })),
           })),
         })),
       },

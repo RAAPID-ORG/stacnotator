@@ -8,6 +8,7 @@ import type {
   StacGenerationConfig,
   ImagerySourceOut,
   ImageryCollectionOut,
+  ImagerySliceOut,
 } from '~/api/client';
 import i18n from '~/shared/i18n';
 import { useLayoutStore } from '~/shared/stores/layout.store';
@@ -22,6 +23,7 @@ import type {
   ImageryStepState,
   ManualCollectionData,
   StacBrowserCollectionData,
+  VisualizationUrl,
   VizParams,
   GenerationRecipe,
 } from './types';
@@ -260,29 +262,33 @@ function generationRecipeToFrontend(config: StacGenerationConfig): GenerationRec
   };
 }
 
-function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[]): CollectionItem {
-  const sc = col.stac_config;
-  const isStacBrowser = !!sc?.catalog_url;
-
-  const vizUrls = col.slices.flatMap((sl) =>
-    sl.tile_urls.map((tu) => ({ vizName: tu.visualization_name, url: tu.tile_url }))
-  );
+function mapCollectionOutToFe(
+  col: ImageryCollectionOut,
+  vizNames: Map<number, string>
+): CollectionItem {
+  const sc = col.search;
+  const urlsOf = (slice: ImagerySliceOut): VisualizationUrl[] =>
+    slice.tiles.flatMap((tile) => {
+      const vizName = vizNames.get(tile.visualization_id);
+      return vizName ? [{ vizName, url: tile.url }] : [];
+    });
+  const vizUrls = col.slices.flatMap(urlsOf);
 
   let data: StacBrowserCollectionData | ManualCollectionData;
-  if (isStacBrowser && sc) {
-    // One viz_config row per named visualization; cover params are stored only
-    // when the collection has a dedicated cover.
-    const vizConfigs = sc.viz_configs ?? [];
-    const byName = new Map(vizConfigs.map((vc) => [vc.name, vc]));
-    const namesForViz = sourceVizNames.length > 0 ? sourceVizNames : ['Default'];
+  if (sc) {
+    // Cover params are stored only when the collection has a dedicated cover.
+    const byName = new Map(
+      (col.visualizations ?? []).map((v) => [vizNames.get(v.visualization_id), v])
+    );
+    const namesForViz = vizNames.size > 0 ? [...vizNames.values()] : ['Default'];
     const hasDedicatedCover = col.has_dedicated_cover ?? false;
-    const stacId = sc.stac_collection_id ?? '';
+    const stacId = sc.stac_collection_id;
     const regular = readStoredQuery(stacId, sc.search_query, sc.max_cloud_cover ?? undefined);
     const coverCloud = cloudCoverOf(sc.cover_search_query);
     const cover = readStoredQuery(stacId, sc.cover_search_query, coverCloud);
     data = {
       type: 'stac_browser',
-      catalogUrl: sc.catalog_url ?? '',
+      catalogUrl: sc.catalog_url,
       stacCollectionId: stacId,
       isMpc: isMpcCatalogUrl(sc.catalog_url),
       tiler: sc.tiler ?? null,
@@ -292,12 +298,12 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
       coverItemSort: cover.itemSort,
       visualizations: namesForViz.map((name) => ({
         name,
-        vizParams: vizParamsToFrontend(byName.get(name)?.render_params),
+        vizParams: vizParamsToFrontend(byName.get(name)?.params),
       })),
       coverVisualizations: hasDedicatedCover
         ? namesForViz.map((name) => ({
             name,
-            vizParams: vizParamsToFrontend(byName.get(name)?.cover_render_params),
+            vizParams: vizParamsToFrontend(byName.get(name)?.cover_params),
           }))
         : undefined,
       searchQuery: regular.custom,
@@ -323,21 +329,21 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
       name: sl.name,
       startDate: sl.start_date,
       endDate: sl.end_date,
-      vizUrls: sl.tile_urls.map((tu) => ({ vizName: tu.visualization_name, url: tu.tile_url })),
+      vizUrls: urlsOf(sl),
     })),
     data,
   };
 }
 
 export function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
-  const vizNames = src.visualizations.map((v) => v.name);
+  const vizNames = new Map(src.visualizations.map((v) => [v.id, v.name]));
   return {
     id: String(src.id),
     name: src.name,
     crosshairHex6: src.crosshair_hex6,
     defaultZoom: src.default_zoom,
     maxNativeZoom: src.max_native_zoom,
-    visualizations: src.visualizations.map((v) => ({ name: v.name })),
+    visualizations: src.visualizations.map((v) => ({ id: String(v.id), name: v.name })),
     generationSeries: (src.generation_series ?? []).map((series) => ({
       id: String(series.id),
       config:

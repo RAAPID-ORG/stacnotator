@@ -5,7 +5,7 @@ import {
   makeCustomMap,
   makeSlice,
   makeSource,
-  makeTileUrl,
+  makeTile,
   makeVectorLayer,
   makeViz,
 } from '../testing/fixtures';
@@ -26,16 +26,14 @@ const source = makeSource({
         makeSlice({
           id: 100,
           name: 'Slice A',
-          tile_urls: [
-            makeTileUrl({
-              id: 1,
-              visualization_name: 'True Color',
-              tile_url: 'https://tiler/1/{z}/{x}/{y}.png',
+          tiles: [
+            makeTile({
+              visualization_id: 1000,
+              url: 'https://tiler/1/{z}/{x}/{y}.png',
             }),
-            makeTileUrl({
-              id: 2,
-              visualization_name: 'Needs Key',
-              tile_url: 'https://p/{z}/{x}/{y}.png?api_key={api_key}',
+            makeTile({
+              visualization_id: 1001,
+              url: 'https://p/{z}/{x}/{y}.png?api_key={api_key}',
             }),
           ],
         }),
@@ -60,17 +58,7 @@ describe('single-band legends', () => {
               {
                 ...source.collections[0],
                 has_dedicated_cover: !!cover,
-                stac_config: {
-                  viz_configs: [
-                    {
-                      id: 1,
-                      name: 'True Color',
-                      display_order: 0,
-                      render_params: params,
-                      cover_render_params: cover,
-                    },
-                  ],
-                },
+                visualizations: [{ visualization_id: 1000, params, cover_params: cover }],
               },
             ],
           },
@@ -112,10 +100,11 @@ describe('single-band legends', () => {
       expect(sliceLegend(catalogFor(params), address)).toBeNull();
   });
 
-  it('reads legacy tile parameters and does not invent bounds for automatic ranges', () => {
+  it("reads a template's own parameters and does not invent bounds for automatic ranges", () => {
     const cat = buildImageryCatalog(makeCampaign({ imagery_sources: [structuredClone(source)] }));
-    cat.collections.get(10)!.slices[0].tile_urls[0] = makeTileUrl({
-      tile_url: 'https://tiles/{z}/{x}/{y}?assets=data&colormap_name=viridis&rescale=-2000,10000',
+    cat.collections.get(10)!.slices[0].tiles[0] = makeTile({
+      visualization_id: 1000,
+      url: 'https://tiles/{z}/{x}/{y}?assets=data&colormap_name=viridis&rescale=-2000,10000',
     });
     expect(sliceLegend(cat, address)?.range).toEqual([-2000, 10000]);
     expect(
@@ -192,7 +181,7 @@ describe('sliceRaster', () => {
           imagery_sources: [
             {
               ...source,
-              collections: [makeCollection({ id: 10, slices: [makeSlice({ tile_urls: [] })] })],
+              collections: [makeCollection({ id: 10, slices: [makeSlice({ tiles: [] })] })],
             },
           ],
         })
@@ -224,7 +213,7 @@ describe('sliceRaster', () => {
 
   it('sends the tiler cookie to our self-hosted tiler', () => {
     const hosted = structuredClone(source);
-    hosted.collections[0].slices[0].tile_urls[0].tiler = 'default';
+    hosted.collections[0].slices[0].tiles[0].tiler = 'default';
     const spec = sliceRaster(buildImageryCatalog(makeCampaign({ imagery_sources: [hosted] })), {
       sourceId: 1,
       collectionId: 10,
@@ -236,7 +225,7 @@ describe('sliceRaster', () => {
 
   it('rewrites an {api_key} template to a proxy path', () => {
     const spec = sliceRaster(cat, { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1001' });
-    expect(spec.url).toBe('/api/7/imagery/slices/100/tiles/Needs%20Key/{z}/{x}/{y}');
+    expect(spec.url).toBe('/api/7/imagery/slices/100/tiles/1001/{z}/{x}/{y}');
     expect(spec.auth).toBe('cookie');
   });
 

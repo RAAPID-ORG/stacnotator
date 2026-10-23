@@ -64,7 +64,7 @@ describe('generation-series persistence payload', () => {
       config: { kind: 'stac', collection_title: 'Sentinel' },
     });
     expect(payload.generation_series?.[0].config).not.toHaveProperty('catalog_url');
-    expect(payload.collections[0].stac_config?.catalog_url).toBe(config.catalogUrl);
+    expect(payload.collections[0].search?.catalog_url).toBe(config.catalogUrl);
     expect(payload.collections[0].generation_series_key).toBe('12');
     expect(payload.collections[0]).not.toHaveProperty('generation_config');
   });

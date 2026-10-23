@@ -1479,7 +1479,7 @@ export const proxyBasemapTile = <ThrowOnError extends boolean = false>(options: 
 /**
  * Proxy Slice Tile
  */
-export const proxySliceTile = <ThrowOnError extends boolean = false>(options: Options<ProxySliceTileData, ThrowOnError>) => (options.client ?? client).get<ProxySliceTileResponses, ProxySliceTileErrors, ThrowOnError>({ url: '/api/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}', ...options });
+export const proxySliceTile = <ThrowOnError extends boolean = false>(options: Options<ProxySliceTileData, ThrowOnError>) => (options.client ?? client).get<ProxySliceTileResponses, ProxySliceTileErrors, ThrowOnError>({ url: '/api/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}', ...options });
 
 /**
  * Proxy Planet Layer Tile
@@ -1494,7 +1494,7 @@ export const proxyVisualizerBasemapTile = <ThrowOnError extends boolean = false>
 /**
  * Proxy Visualizer Slice Tile
  */
-export const proxyVisualizerSliceTile = <ThrowOnError extends boolean = false>(options: Options<ProxyVisualizerSliceTileData, ThrowOnError>) => (options.client ?? client).get<ProxyVisualizerSliceTileResponses, ProxyVisualizerSliceTileErrors, ThrowOnError>({ url: '/api/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}', ...options });
+export const proxyVisualizerSliceTile = <ThrowOnError extends boolean = false>(options: Options<ProxyVisualizerSliceTileData, ThrowOnError>) => (options.client ?? client).get<ProxyVisualizerSliceTileResponses, ProxyVisualizerSliceTileErrors, ThrowOnError>({ url: '/api/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}', ...options });
 
 /**
  * List Catalogs

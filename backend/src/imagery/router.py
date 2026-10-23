@@ -38,8 +38,8 @@ def save_imagery(
     """Upsert the campaign's full imagery editor state. Used by the settings
     edit flow's Save button - reconciles adds/updates/deletes across sources,
     collections, slices, and basemaps in a single transaction."""
-    pending = service.save_imagery_editor_state(db, campaign, editor_state)
-    registration.commit_and_register(db, campaign, pending, campaign.bbox)
+    service.save_imagery_editor_state(db, campaign, editor_state)
+    registration.commit_and_register(db, campaign, campaign.bbox)
 
 
 @router.post("/{campaign_id}/new-layout", status_code=201)

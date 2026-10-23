@@ -34,9 +34,9 @@ const KEYED_COLLECTION = {
   ...COLLECTION_S2,
   slices: COLLECTION_S2.slices.map((sl) => ({
     ...sl,
-    tile_urls: sl.tile_urls.map((tu) => ({
-      ...tu,
-      tile_url: `https://tiles.example.com/keyed-imagery/{z}/{x}/{y}?viz=${tu.visualization_name}&api_key={api_key}`,
+    tiles: sl.tiles.map((tile) => ({
+      ...tile,
+      url: `https://tiles.example.com/keyed-imagery/{z}/{x}/{y}?viz=${tile.visualization_id}&api_key={api_key}`,
     })),
   })),
 };

@@ -14,8 +14,8 @@ from pydantic import ValidationError
 
 from src import crypto, storage_access
 from src.imagery import registration
-from src.imagery.models import CollectionStacConfig
-from src.imagery.schemas import CollectionStacConfigCreate, CollectionStacConfigOut
+from src.imagery.models import ImageryCollection
+from src.imagery.schemas import CollectionSearchCreate, CollectionSearchOut
 from src.redact import install_log_redaction, redact_urls
 from src.stac_browser import client as stac_client
 from src.storage_access import AZURE_SAS, StorageAccess
@@ -83,9 +83,9 @@ def test_the_token_goes_only_to_the_catalogs_own_host():
     assert storage_access.apply(item, CATALOG, None) == item
 
 
-def _row() -> CollectionStacConfig:
-    return CollectionStacConfig(
-        collection_id=1, catalog_url=CATALOG, stac_collection_id="c", internal_storage=False
+def _row() -> ImageryCollection:
+    return ImageryCollection(
+        id=1, catalog_url=CATALOG, stac_collection_id="c", internal_storage=False
     )
 
 
@@ -95,7 +95,7 @@ def test_stored_encrypted_described_without_the_secret_and_kept_when_left_out():
     assert "SECRET" not in (row.encrypted_storage_secret or "")
     assert storage_access.stored(row).secret == SAS
 
-    out = CollectionStacConfigOut.model_validate(row).model_dump_json()
+    out = CollectionSearchOut.model_validate(row).model_dump_json()
     assert "SECRET" not in out and '"kind":"azure_sas"' in out
 
     assert not storage_access.store(row, None)
@@ -119,7 +119,7 @@ def test_sealed_for_the_tiler_opens_only_with_the_tiler_key_and_host():
 
 
 def test_a_saved_collection_payload_never_needs_the_token_again():
-    config = CollectionStacConfigCreate(catalog_url=CATALOG, stac_collection_id="c")
+    config = CollectionSearchCreate(catalog_url=CATALOG, stac_collection_id="c")
     assert config.storage_access is None
 
 
@@ -139,20 +139,23 @@ def test_private_catalog_slice_ingests_with_access_and_searches_its_own_collecti
 
     monkeypatch.setattr(registration.providers, "ingest_on_tiler", ingest)
     monkeypatch.setattr(registration.providers, "register_on_tiler", register)
-    stac = SimpleNamespace(
-        catalog_url=CATALOG, stac_collection_id="c", max_cloud_cover=None, internal_storage=False
+    order = registration.MosaicOrder(
+        slice_id=1,
+        slice_name="January",
+        collection_name="2024",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        provider="hosted",
+        catalog_url=CATALOG,
+        stac_collection_id="c",
+        search_query={"collections": ["c"], "filter-lang": "cql2-json"},
+        max_cloud_cover=None,
+        internal_storage=False,
+        storage_access=StorageAccess(AZURE_SAS, SAS),
     )
-    slice_ = SimpleNamespace(start_date="2024-01-01", end_date="2024-01-31")
-    query = {"collections": ["c"], "filter-lang": "cql2-json"}
 
-    out = registration._register_hosted_slice(
-        stac,
-        slice_,
-        [0, 0, 1, 1],
-        query,
-        "42",
-        SimpleNamespace(allows_ingest=True),
-        StorageAccess(AZURE_SAS, SAS),
+    out = registration._register_hosted(
+        order, [0, 0, 1, 1], "42", SimpleNamespace(allows_ingest=True)
     )
 
     assert out == "search-1"
@@ -247,11 +250,12 @@ def test_a_visualizer_cannot_register_a_private_catalog_of_its_own():
                 {
                     "name": "2024",
                     "slices": [],
-                    "stac_config": {
+                    "search": {
                         "catalog_url": CATALOG,
                         "stac_collection_id": "c",
                         "storage_access": {"kind": AZURE_SAS, "secret": SAS},
                     },
+                    "visualizations": [{"visualization": "RGB", "params": {}}],
                 }
             ],
         }
@@ -262,18 +266,18 @@ def test_a_visualizer_cannot_register_a_private_catalog_of_its_own():
 
 
 def test_a_regenerated_collection_carries_on_with_its_catalogs_access():
-    from src.imagery.models import ImageryCollection, ImagerySource
+    from src.imagery.models import ImagerySource
     from src.imagery.service import _held_storage_access
 
     old = _row()
     storage_access.store(old, storage_access.AzureSasAccess(kind=AZURE_SAS, secret=SAS))
-    source = ImagerySource(collections=[ImageryCollection(stac_config=old)])
+    source = ImagerySource(collections=[old])
     held = _held_storage_access(source)
 
     new = _row()
     storage_access.inherit(new, held.get(CATALOG))
     assert storage_access.stored(new).secret == SAS
 
-    other = CollectionStacConfig(catalog_url="https://other.blob.core.windows.net/c/catalog.json")
+    other = ImageryCollection(catalog_url="https://other.blob.core.windows.net/c/catalog.json")
     storage_access.inherit(other, held.get(other.catalog_url))
     assert storage_access.stored(other) is None

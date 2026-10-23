@@ -2150,25 +2150,21 @@ export type ClaimTaskResponse = {
 };
 
 /**
- * CollectionStacConfigCreate
+ * CollectionSearchCreate
  */
-export type CollectionStacConfigCreate = {
+export type CollectionSearchCreate = {
     /**
      * Catalog Url
      */
-    catalog_url?: string | null;
+    catalog_url: string;
     /**
      * Stac Collection Id
      */
-    stac_collection_id?: string | null;
+    stac_collection_id: string;
     /**
      * Tiler
      */
     tiler?: string | null;
-    /**
-     * Visualizations
-     */
-    visualizations?: Array<NamedVizParamsCreate>;
     /**
      * Max Cloud Cover
      */
@@ -2198,25 +2194,21 @@ export type CollectionStacConfigCreate = {
 };
 
 /**
- * CollectionStacConfigOut
+ * CollectionSearchOut
  */
-export type CollectionStacConfigOut = {
+export type CollectionSearchOut = {
     /**
      * Catalog Url
      */
-    catalog_url?: string | null;
+    catalog_url: string;
     /**
      * Stac Collection Id
      */
-    stac_collection_id?: string | null;
+    stac_collection_id: string;
     /**
      * Tiler
      */
     tiler?: string | null;
-    /**
-     * Viz Configs
-     */
-    viz_configs?: Array<CollectionVizConfigOut>;
     /**
      * Max Cloud Cover
      */
@@ -2241,33 +2233,35 @@ export type CollectionStacConfigOut = {
 };
 
 /**
- * CollectionVizConfigOut
- *
- * Per-collection, per-visualization render params (new authoritative representation).
+ * CollectionVisualizationCreate
  */
-export type CollectionVizConfigOut = {
+export type CollectionVisualizationCreate = {
     /**
-     * Id
+     * Visualization
      */
-    id: number;
+    visualization: string;
+    params: RenderParams;
+    cover_params?: RenderParams | null;
+};
+
+/**
+ * CollectionVisualizationOut
+ */
+export type CollectionVisualizationOut = {
     /**
-     * Name
+     * Visualization Id
      */
-    name: string;
+    visualization_id: number;
     /**
-     * Display Order
+     * Params
      */
-    display_order: number;
-    /**
-     * Render Params
-     */
-    render_params: {
+    params: {
         [key: string]: unknown;
     };
     /**
-     * Cover Render Params
+     * Cover Params
      */
-    cover_render_params?: {
+    cover_params?: {
         [key: string]: unknown;
     } | null;
 };
@@ -2587,7 +2581,11 @@ export type ImageryCollectionCreate = {
      * Slices
      */
     slices: Array<ImagerySliceCreate>;
-    stac_config?: CollectionStacConfigCreate | null;
+    search?: CollectionSearchCreate | null;
+    /**
+     * Visualizations
+     */
+    visualizations?: Array<CollectionVisualizationCreate>;
 };
 
 /**
@@ -2622,7 +2620,11 @@ export type ImageryCollectionOut = {
      * Slices
      */
     slices: Array<ImagerySliceOut>;
-    stac_config?: CollectionStacConfigOut | null;
+    search?: CollectionSearchOut | null;
+    /**
+     * Visualizations
+     */
+    visualizations?: Array<CollectionVisualizationOut>;
 };
 
 /**
@@ -2707,9 +2709,9 @@ export type ImagerySliceCreate = {
      */
     end_date: string;
     /**
-     * Tile Urls
+     * Templates
      */
-    tile_urls?: Array<SliceTileUrlCreate>;
+    templates?: Array<SliceTemplateCreate>;
 };
 
 /**
@@ -2737,9 +2739,9 @@ export type ImagerySliceOut = {
      */
     display_order: number;
     /**
-     * Tile Urls
+     * Tiles
      */
-    tile_urls: Array<SliceTileUrlOut>;
+    tiles: Array<SliceTileOut>;
 };
 
 /**
@@ -2777,7 +2779,7 @@ export type ImagerySourceCreate = {
     /**
      * Visualizations
      */
-    visualizations: Array<VisualizationTemplateCreate>;
+    visualizations: Array<VisualizationCreate>;
     /**
      * Generation Series
      */
@@ -2819,7 +2821,7 @@ export type ImagerySourceOut = {
     /**
      * Visualizations
      */
-    visualizations: Array<VisualizationTemplateOut>;
+    visualizations: Array<VisualizationOut>;
     /**
      * Collections
      */
@@ -3103,18 +3105,6 @@ export type MoveTasksToSetResult = {
      * Num Moved
      */
     num_moved: number;
-};
-
-/**
- * NamedVizParamsCreate
- */
-export type NamedVizParamsCreate = {
-    /**
-     * Name
-     */
-    name: string;
-    viz_params: VizParamsCreate;
-    cover_viz_params?: VizParamsCreate | null;
 };
 
 /**
@@ -4016,6 +4006,80 @@ export type RenderConfig = {
 };
 
 /**
+ * RenderParams
+ *
+ * How a tiler draws a visualization of a STAC search.
+ */
+export type RenderParams = {
+    /**
+     * Assets
+     */
+    assets?: Array<string>;
+    /**
+     * Asset As Band
+     */
+    asset_as_band?: boolean;
+    /**
+     * Bidx
+     */
+    bidx?: Array<number> | null;
+    /**
+     * Rescale
+     */
+    rescale?: string | null;
+    /**
+     * Colormap Name
+     */
+    colormap_name?: string | null;
+    /**
+     * Color Formula
+     */
+    color_formula?: string | null;
+    /**
+     * Expression
+     */
+    expression?: string | null;
+    /**
+     * Resampling
+     */
+    resampling?: string | null;
+    /**
+     * Compositing
+     */
+    compositing?: string | null;
+    /**
+     * Nodata
+     */
+    nodata?: number | null;
+    /**
+     * Extra Params
+     */
+    extra_params?: {
+        [key: string]: string;
+    } | null;
+    /**
+     * Mask Layer
+     */
+    mask_layer?: string | null;
+    /**
+     * Mask Values
+     */
+    mask_values?: Array<number> | null;
+    /**
+     * Nir Band
+     */
+    nir_band?: string | null;
+    /**
+     * Red Band
+     */
+    red_band?: string | null;
+    /**
+     * Max Items
+     */
+    max_items?: number | null;
+};
+
+/**
  * ReviewNumberOfTasks
  */
 export type ReviewNumberOfTasks = {
@@ -4174,43 +4238,35 @@ export type SliceComment = {
 };
 
 /**
- * SliceTileUrlCreate
+ * SliceTemplateCreate
  */
-export type SliceTileUrlCreate = {
+export type SliceTemplateCreate = {
     /**
-     * Visualization Name
+     * Visualization
      */
-    visualization_name: string;
+    visualization: string;
     /**
-     * Tile Url
+     * Url
      */
-    tile_url: string;
+    url: string;
 };
 
 /**
- * SliceTileUrlOut
+ * SliceTileOut
  */
-export type SliceTileUrlOut = {
+export type SliceTileOut = {
     /**
-     * Id
+     * Visualization Id
      */
-    id: number;
+    visualization_id: number;
     /**
-     * Visualization Name
+     * Url
      */
-    visualization_name: string;
-    /**
-     * Tile Url
-     */
-    tile_url: string;
+    url: string;
     /**
      * Tiler
      */
     tiler?: string | null;
-    /**
-     * Mosaic Id
-     */
-    mosaic_id?: string | null;
 };
 
 /**
@@ -4380,7 +4436,7 @@ export type StacCollectionOut = {
  *
  * What the temporal generator was asked for: the period it covers and how it
  * cut that period into windows and slices. Only what nothing else stores - the
- * search and the renderings live on each generated collection, where they can
+ * search and the visualizations live on each generated collection, where they can
  * be edited one window at a time.
  */
 export type StacGenerationConfig = {
@@ -5087,9 +5143,16 @@ export type VectorOverlayOut = {
 };
 
 /**
- * VisualizationTemplateCreate
+ * VisualizationCreate
+ *
+ * A visualization of the source. ``id`` keeps a stored one, so renaming it keeps its
+ * parameters; the name is what the rest of the payload refers to it by.
  */
-export type VisualizationTemplateCreate = {
+export type VisualizationCreate = {
+    /**
+     * Id
+     */
+    id?: number | null;
     /**
      * Name
      */
@@ -5097,9 +5160,9 @@ export type VisualizationTemplateCreate = {
 };
 
 /**
- * VisualizationTemplateOut
+ * VisualizationOut
  */
-export type VisualizationTemplateOut = {
+export type VisualizationOut = {
     /**
      * Id
      */
@@ -5364,7 +5427,7 @@ export type VisualizerImageryOut = {
     /**
      * Visualizations
      */
-    visualizations: Array<string>;
+    visualizations: Array<VisualizationOut>;
     /**
      * Default Zoom
      */
@@ -5478,23 +5541,7 @@ export type VisualizerStepOut = {
     /**
      * Tiles
      */
-    tiles: {
-        [key: string]: VisualizerTileOut;
-    };
-};
-
-/**
- * VisualizerTileOut
- */
-export type VisualizerTileOut = {
-    /**
-     * Url
-     */
-    url: string;
-    /**
-     * Tiler
-     */
-    tiler: string | null;
+    tiles: Array<SliceTileOut>;
 };
 
 /**
@@ -5597,80 +5644,6 @@ export type VisualizerViewOut = {
      * Registration Status
      */
     registration_status: string;
-};
-
-/**
- * VizParamsCreate
- *
- * Structured visualization parameters for TiTiler tile rendering.
- */
-export type VizParamsCreate = {
-    /**
-     * Assets
-     */
-    assets?: Array<string>;
-    /**
-     * Asset As Band
-     */
-    asset_as_band?: boolean;
-    /**
-     * Bidx
-     */
-    bidx?: Array<number> | null;
-    /**
-     * Rescale
-     */
-    rescale?: string | null;
-    /**
-     * Colormap Name
-     */
-    colormap_name?: string | null;
-    /**
-     * Color Formula
-     */
-    color_formula?: string | null;
-    /**
-     * Expression
-     */
-    expression?: string | null;
-    /**
-     * Resampling
-     */
-    resampling?: string | null;
-    /**
-     * Compositing
-     */
-    compositing?: string | null;
-    /**
-     * Nodata
-     */
-    nodata?: number | null;
-    /**
-     * Extra Params
-     */
-    extra_params?: {
-        [key: string]: string;
-    } | null;
-    /**
-     * Mask Layer
-     */
-    mask_layer?: string | null;
-    /**
-     * Mask Values
-     */
-    mask_values?: Array<number> | null;
-    /**
-     * Nir Band
-     */
-    nir_band?: string | null;
-    /**
-     * Red Band
-     */
-    red_band?: string | null;
-    /**
-     * Max Items
-     */
-    max_items?: number | null;
 };
 
 /**
@@ -9450,9 +9423,9 @@ export type ProxySliceTileData = {
          */
         slice_id: number;
         /**
-         * Visualization Name
+         * Visualization Id
          */
-        visualization_name: string;
+        visualization_id: number;
         /**
          * Z
          */
@@ -9467,7 +9440,7 @@ export type ProxySliceTileData = {
         y: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}';
+    url: '/api/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}';
 };
 
 export type ProxySliceTileErrors = {
@@ -9590,9 +9563,9 @@ export type ProxyVisualizerSliceTileData = {
          */
         slice_id: number;
         /**
-         * Visualization Name
+         * Visualization Id
          */
-        visualization_name: string;
+        visualization_id: number;
         /**
          * Z
          */
@@ -9607,7 +9580,7 @@ export type ProxyVisualizerSliceTileData = {
         y: number;
     };
     query?: never;
-    url: '/api/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_name}/{z}/{x}/{y}';
+    url: '/api/visualizers/{visualizer_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}';
 };
 
 export type ProxyVisualizerSliceTileErrors = {
