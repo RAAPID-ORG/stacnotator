@@ -77,14 +77,11 @@
   },
   "switcher": {
     "label": "Organización",
-    "activeOrganization": "Organización activa",
     "noOrganization": "Sin organización",
     "pending": "Pendiente",
-    "manage": "Gestionar organización",
     "accessRequests": "solicitudes de acceso",
-    "switchOrganization": "Cambiar de organización",
-    "browse": "Explorar organizaciones",
-    "new": "Nueva organización"
+    "browse": "Explorar",
+    "new": "Nueva"
   },
   "loadFailed": "No se pudieron cargar las organizaciones",
   "browse": {

@@ -87,12 +87,6 @@
     "breadcrumb": "Proyecto",
     "loadCampaignsFailed": "No se pudieron cargar las campañas",
     "duplicated": "Campaña duplicada como \"{{name}}\"",
-    "tabs": {
-      "campaigns": "Campañas",
-      "visualizers": "Visualizadores",
-      "members": "Miembros",
-      "settings": "Configuración"
-    },
     "campaigns": "Campañas",
     "campaignsDescription": "Etiqueta imágenes de teledetección de forma interactiva con tu equipo, por tareas o de forma exploratoria.",
     "newCampaign": "Nueva campaña",

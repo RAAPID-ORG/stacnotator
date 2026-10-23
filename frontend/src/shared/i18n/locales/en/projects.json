@@ -85,12 +85,6 @@
     "breadcrumb": "Project",
     "loadCampaignsFailed": "Failed to load campaigns",
     "duplicated": "Campaign duplicated as \"{{name}}\"",
-    "tabs": {
-      "campaigns": "Campaigns",
-      "visualizers": "Visualizers",
-      "members": "Members",
-      "settings": "Settings"
-    },
     "campaigns": "Campaigns",
     "campaignsDescription": "Label remote sensing imagery interactively with your team either task based or explorative.",
     "newCampaign": "New campaign",

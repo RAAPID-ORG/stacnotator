@@ -1,12 +1,10 @@
 {
   "breadcrumb": "Configuración",
   "title": "Configuración",
-  "subtitle": "Gestiona tu perfil y la configuración de la plataforma.",
+  "subtitle": "Gestiona tu perfil y el inicio de sesión.",
   "refresh": "Actualizar",
   "processing": "Procesando...",
   "tabs": {
-    "profile": "Perfil",
-    "platform": "Plataforma",
     "organizations": "Organizaciones",
     "users": "Usuarios",
     "organizationsToReview": "organizaciones por revisar"
@@ -40,10 +38,9 @@
       "failed": "No se pudo cambiar la contraseña. Inténtalo de nuevo."
     }
   },
-  "signOut": {
-    "title": "Cerrar sesión",
-    "description": "Finaliza tu sesión en este dispositivo.",
-    "button": "Cerrar sesión"
+  "platformAdmin": {
+    "title": "Administración de la plataforma",
+    "subtitle": "Aprueba organizaciones y gestiona a los administradores de la plataforma."
   },
   "platform": {
     "usersHeading": "Usuarios de la plataforma <count>({{count}})</count>",
@@ -68,7 +65,6 @@
     "internalStorageUpdated": "Almacenamiento interno actualizado",
     "tileAccessUpdated": "Acceso a teselas actualizado",
     "passwordChanged": "Contraseña cambiada correctamente",
-    "signOutFailed": "No se pudo cerrar sesión",
     "noAccessChanges": "No hay cambios de acceso que aplicar"
   },
   "usersTable": {

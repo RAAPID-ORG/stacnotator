@@ -28,13 +28,36 @@
     "projects": "Projects",
     "project": "Project",
     "settings": "Settings",
-    "openSettings": "Open settings",
     "openMenu": "Open menu",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
-    "byHarvest": "by <link>NASA Harvest</link>",
     "pendingRequests": "requests waiting on you",
-    "pendingRequestsTitle": "{{count}} request(s) waiting on you - open settings"
+    "byline": "by NASA Harvest",
+    "main": "Main"
+  },
+  "sidebar": {
+    "currentProject": "Current project",
+    "helpGuides": "Help & guides",
+    "platformAdmin": "Platform admin",
+    "awaitingApproval": "organizations awaiting approval",
+    "accountMenu": "Account and organization",
+    "accountSettings": "Account settings",
+    "signOut": "Sign out",
+    "signOutFailed": "Sign out failed",
+    "projectSections": {
+      "campaigns": "Campaigns",
+      "visualizers": "Visualizers",
+      "members": "Members",
+      "settings": "Project settings"
+    },
+    "campaignSections": {
+      "overview": "Overview",
+      "annotate": "Annotate",
+      "tasks": "Tasks",
+      "annotations": "Annotations",
+      "agents": "Agents",
+      "settings": "Campaign settings"
+    }
   },
   "toasts": {
     "clearAll": "Clear all ({{count}})"
@@ -105,6 +128,11 @@
     "conflicting": "Conflicting",
     "done": "Complete",
     "skipped": "Skipped"
+  },
+  "taskOutcome": {
+    "skipped": "Skipped",
+    "drawn": "Drew shapes",
+    "none_found": "Nothing here"
   },
   "home": {
     "intro": "STACNotator is a free and opensource collaborative annotation platform for satellite and aerial imagery. It is compatible with the STAC standard for geospatial data and allows visualizing and labelling features in a team. STACNotator is designed around temporal imagery, providing functionality to easily navigate through time.",

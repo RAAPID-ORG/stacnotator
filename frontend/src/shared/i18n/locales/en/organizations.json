@@ -77,14 +77,11 @@
   },
   "switcher": {
     "label": "Organization",
-    "activeOrganization": "Active organization",
     "noOrganization": "No organization",
     "pending": "Pending",
-    "manage": "Manage organization",
     "accessRequests": "access requests",
-    "switchOrganization": "Switch organization",
-    "browse": "Browse organizations",
-    "new": "New organization"
+    "browse": "Browse",
+    "new": "New"
   },
   "loadFailed": "Failed to load organizations",
   "browse": {

@@ -28,13 +28,36 @@
     "projects": "Proyectos",
     "project": "Proyecto",
     "settings": "Configuración",
-    "openSettings": "Abrir configuración",
     "openMenu": "Abrir menú",
     "expandSidebar": "Expandir barra lateral",
     "collapseSidebar": "Contraer barra lateral",
-    "byHarvest": "por <link>NASA Harvest</link>",
     "pendingRequests": "solicitudes pendientes de tu respuesta",
-    "pendingRequestsTitle": "{{count}} solicitud(es) pendiente(s) de tu respuesta - abrir configuración"
+    "byline": "por NASA Harvest",
+    "main": "Principal"
+  },
+  "sidebar": {
+    "currentProject": "Proyecto actual",
+    "helpGuides": "Ayuda y guías",
+    "platformAdmin": "Administración de la plataforma",
+    "awaitingApproval": "organizaciones pendientes de aprobación",
+    "accountMenu": "Cuenta y organización",
+    "accountSettings": "Configuración de la cuenta",
+    "signOut": "Cerrar sesión",
+    "signOutFailed": "No se pudo cerrar sesión",
+    "projectSections": {
+      "campaigns": "Campañas",
+      "visualizers": "Visualizadores",
+      "members": "Miembros",
+      "settings": "Configuración del proyecto"
+    },
+    "campaignSections": {
+      "overview": "Resumen",
+      "annotate": "Anotar",
+      "tasks": "Tareas",
+      "annotations": "Anotaciones",
+      "agents": "Agentes",
+      "settings": "Configuración de la campaña"
+    }
   },
   "toasts": {
     "clearAll": "Borrar todo ({{count}})"
@@ -105,6 +128,11 @@
     "conflicting": "En conflicto",
     "done": "Completada",
     "skipped": "Omitida"
+  },
+  "taskOutcome": {
+    "skipped": "Omitida",
+    "drawn": "Formas dibujadas",
+    "none_found": "Aquí no hay nada"
   },
   "home": {
     "intro": "STACNotator es una plataforma colaborativa, gratuita y de código abierto, para anotar imágenes satelitales y aéreas. Es compatible con el estándar STAC para datos geoespaciales y permite visualizar y etiquetar elementos en equipo. STACNotator está diseñado en torno a imágenes temporales y ofrece funciones para navegar fácilmente a través del tiempo.",

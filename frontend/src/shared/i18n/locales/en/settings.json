@@ -1,12 +1,10 @@
 {
   "breadcrumb": "Settings",
   "title": "Settings",
-  "subtitle": "Manage your profile and platform settings.",
+  "subtitle": "Manage your profile and sign-in.",
   "refresh": "Refresh",
   "processing": "Processing...",
   "tabs": {
-    "profile": "Profile",
-    "platform": "Platform",
     "organizations": "Organizations",
     "users": "Users",
     "organizationsToReview": "organizations to review"
@@ -40,10 +38,9 @@
       "failed": "Failed to change password. Please try again."
     }
   },
-  "signOut": {
-    "title": "Sign out",
-    "description": "Ends your session on this device.",
-    "button": "Sign out"
+  "platformAdmin": {
+    "title": "Platform admin",
+    "subtitle": "Approve organizations and manage platform administrators."
   },
   "platform": {
     "usersHeading": "Platform users <count>({{count}})</count>",
@@ -68,7 +65,6 @@
     "internalStorageUpdated": "Internal storage updated",
     "tileAccessUpdated": "Tile access updated",
     "passwordChanged": "Password changed successfully",
-    "signOutFailed": "Sign out failed",
     "noAccessChanges": "No access changes to apply"
   },
   "usersTable": {

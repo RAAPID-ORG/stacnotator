@@ -74,14 +74,8 @@ export function countTasksByStatus(
 
 export type TaskOutcome = NonNullable<AnnotationFromTaskOut['outcome']>;
 
-const OUTCOME_LABELS: Record<Exclude<TaskOutcome, 'labelled'>, string> = {
-  skipped: 'Skipped',
-  drawn: 'Drew shapes',
-  none_found: 'Nothing here',
-};
-
 /** How a task row without a label reads: a skip, or a draw task's answer.
  *  Null for a labelled row, which reads as its label. */
 export function outcomeLabel(outcome: TaskOutcome | null | undefined): string | null {
-  return outcome && outcome !== 'labelled' ? OUTCOME_LABELS[outcome] : null;
+  return outcome && outcome !== 'labelled' ? t(`taskOutcome.${outcome}`) : null;
 }
