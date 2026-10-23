@@ -199,20 +199,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
   const handleSavePolicy = async () => {
     if (!policyChanged) return;
-    const noOne = { kinds: [], user_ids: [] };
-    savePolicy.mutate({
-      path,
-      // PATCH replaces the whole policy, so every axis must be present.
-      body: {
-        explore: policyDraft.explore ?? noOne,
-        unassigned_tasks: policyDraft.unassigned_tasks ?? noOne,
-        assigned_tasks: policyDraft.assigned_tasks ?? noOne,
-        complete_assigned: policyDraft.complete_assigned ?? noOne,
-        // Its own default is "campaign admins", not "no one", so an unset
-        // draft must not be sent as an empty audience.
-        ...(policyDraft.modify_others ? { modify_others: policyDraft.modify_others } : {}),
-      },
-    });
+    savePolicy.mutate({ path, body: policyDraft });
   };
 
   // Sample extent local state

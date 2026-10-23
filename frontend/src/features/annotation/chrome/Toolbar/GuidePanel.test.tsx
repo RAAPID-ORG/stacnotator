@@ -16,6 +16,7 @@ const CAMPAIGN = makeCampaign({
       explore: { kinds: ['anyone'] },
       assigned_tasks: { kinds: ['anyone'] },
       complete_assigned: { kinds: ['anyone'] },
+      modify_others: { kinds: ['admins'] },
       unassigned_tasks: { kinds: ['anyone'] },
     },
     research_sharing: false,

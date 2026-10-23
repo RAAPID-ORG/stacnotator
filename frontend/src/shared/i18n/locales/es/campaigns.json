@@ -99,7 +99,6 @@
       "end": "Serie temporal {{index}}: la fecha de fin es obligatoria.",
       "dates": "Serie temporal {{index}}: la fecha de inicio debe ser anterior a la fecha de fin.",
       "source": "Serie temporal {{index}}: la fuente de datos es obligatoria.",
-      "provider": "Serie temporal {{index}}: el proveedor es obligatorio.",
       "type": "Serie temporal {{index}}: el tipo es obligatorio."
     },
     "formFields": {
@@ -567,8 +566,6 @@
     "index": "Índice",
     "selectIndex": "Selecciona el índice",
     "pickSourceFirst": "Elige primero una fuente de datos",
-    "provider": "Proveedor",
-    "selectProvider": "Selecciona el proveedor",
     "addAnother": "+ Añadir otra serie temporal",
     "add": "+ Añadir serie temporal",
     "newPanelName": "Nombre del nuevo panel",

@@ -43,7 +43,7 @@ from src.imagery.models import (
 )
 from src.organizations.models import Organization
 from src.projects.models import Project
-from src.timeseries.models import TimeSeries
+from src.timeseries.models import Timeseries
 
 
 @dataclass(frozen=True)
@@ -375,7 +375,7 @@ def duplicate_campaign(
 
     for basemap in campaign.basemaps:
         db.add(clone_row(basemap, campaign_id=dup.id, **_key_overrides(plan.shared_api_keys)))
-    for series in db.scalars(select(TimeSeries).where(TimeSeries.campaign_id == campaign.id)):
+    for series in db.scalars(select(Timeseries).where(Timeseries.campaign_id == campaign.id)):
         db.add(clone_row(series, campaign_id=dup.id))
     for custom_map in campaign.custom_maps:
         db.add(clone_row(custom_map, campaign_id=dup.id))

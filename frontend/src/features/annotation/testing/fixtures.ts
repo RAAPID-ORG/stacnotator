@@ -16,7 +16,7 @@ import type {
   PlanetScenesGenerationConfigV1,
   SliceTileUrlOut,
   TaskSetOut,
-  TimeSeriesOut,
+  TimeseriesOut,
   VectorLayerOut,
   VisualizationTemplateOut,
 } from '~/api/client';
@@ -49,6 +49,7 @@ export function makeCampaign(overrides: Partial<CampaignOutFull> = {}): Campaign
         explore: { kinds: ['anyone'] },
         assigned_tasks: { kinds: ['anyone'] },
         complete_assigned: { kinds: ['anyone'] },
+        modify_others: { kinds: ['admins'] },
         unassigned_tasks: { kinds: ['anyone'] },
       },
       labels: [],
@@ -225,7 +226,7 @@ export function makeTaskSet(overrides: Partial<TaskSetOut> = {}): TaskSetOut {
   };
 }
 
-export function makeTimeSeries(overrides: Partial<TimeSeriesOut> = {}): TimeSeriesOut {
+export function makeTimeSeries(overrides: Partial<TimeseriesOut> = {}): TimeseriesOut {
   return {
     id: 1,
     campaign_id: 7,
@@ -234,7 +235,6 @@ export function makeTimeSeries(overrides: Partial<TimeSeriesOut> = {}): TimeSeri
     start_ym: '2024-01',
     end_ym: '2024-12',
     data_source: 'SENTINEL2',
-    provider: 'EE',
     ts_type: 'NDVI',
     index: {
       key: 'NDVI',

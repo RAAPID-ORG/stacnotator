@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from src.custom_layers.models import CustomMap, VectorLayer
     from src.imagery.models import Basemap, ImagerySource, ImageryView
     from src.projects.models import Project
-    from src.timeseries.models import TimeSeries
+    from src.timeseries.models import Timeseries
 
 
 class Campaign(Base):
@@ -99,7 +99,7 @@ class Campaign(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
-    time_series: Mapped[list["TimeSeries"]] = relationship(
+    time_series: Mapped[list["Timeseries"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )

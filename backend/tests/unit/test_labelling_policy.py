@@ -30,10 +30,10 @@ from src.campaigns.policy import (
 from src.campaigns.schemas import (
     LabellingPolicy,
     PolicyAudience,
-    UpdateLabellingPolicyRequest,
     default_labelling_policy,
 )
 from src.projects.models import Project
+from tests.conftest import make_policy
 
 
 def _campaign(visibility: str = "private") -> Campaign:
@@ -62,31 +62,31 @@ def _ctx(**overrides) -> PolicyContext:
 
 def test_assignees_rejected_on_explore():
     with pytest.raises(ValidationError):
-        LabellingPolicy(explore=PolicyAudience(kinds=["assignees"]))
+        make_policy(explore=PolicyAudience(kinds=["assignees"]))
 
 
 def test_assignees_rejected_on_unassigned_tasks():
     with pytest.raises(ValidationError):
-        LabellingPolicy(unassigned_tasks=PolicyAudience(kinds=["assignees"]))
+        make_policy(unassigned_tasks=PolicyAudience(kinds=["assignees"]))
 
 
 def test_assignees_accepted_on_assigned_tasks():
-    policy = LabellingPolicy(assigned_tasks=PolicyAudience(kinds=["assignees"]))
+    policy = make_policy(assigned_tasks=PolicyAudience(kinds=["assignees"]))
     assert policy.assigned_tasks.kinds == ["assignees"]
 
 
 def test_assignees_accepted_on_complete_assigned():
-    policy = LabellingPolicy(complete_assigned=PolicyAudience(kinds=["assignees"]))
+    policy = make_policy(complete_assigned=PolicyAudience(kinds=["assignees"]))
     assert policy.complete_assigned.kinds == ["assignees"]
 
 
 def test_anyone_rejected_on_complete_assigned():
     with pytest.raises(ValidationError):
-        LabellingPolicy(complete_assigned=PolicyAudience(kinds=["anyone"]))
+        make_policy(complete_assigned=PolicyAudience(kinds=["anyone"]))
 
 
 def test_anyone_accepted_on_explore_unassigned_and_assigned():
-    policy = LabellingPolicy(
+    policy = make_policy(
         explore=PolicyAudience(kinds=["anyone"]),
         unassigned_tasks=PolicyAudience(kinds=["anyone"]),
         assigned_tasks=PolicyAudience(kinds=["anyone"]),
@@ -99,12 +99,12 @@ def test_anyone_accepted_on_explore_unassigned_and_assigned():
 def test_authoritative_accepted_on_explore():
     """Running a campaign should not mean being locked out of its free-form
     labelling, so the explore axis takes reviewers like every other axis."""
-    policy = LabellingPolicy(explore=PolicyAudience(kinds=["authoritative"]))
+    policy = make_policy(explore=PolicyAudience(kinds=["authoritative"]))
     assert policy.explore.kinds == ["authoritative"]
 
 
 def test_admins_accepted_on_every_axis():
-    policy = LabellingPolicy(
+    policy = make_policy(
         explore=PolicyAudience(kinds=["admins"]),
         unassigned_tasks=PolicyAudience(kinds=["admins"]),
         assigned_tasks=PolicyAudience(kinds=["admins"]),
@@ -128,25 +128,16 @@ def test_default_policy_shape():
     assert set(policy.complete_assigned.kinds) == {"assignees", "admins", "authoritative"}
 
 
-def test_update_request_rejects_missing_axis():
+def test_a_policy_missing_an_axis_is_rejected():
     """PATCH is a full-replace of the stored policy: omitting an axis must be
-    a 422, not a silent default to 'no one' for that axis."""
+    a 422, not a silent default for that axis."""
     with pytest.raises(ValidationError):
-        UpdateLabellingPolicyRequest(
+        LabellingPolicy(
             unassigned_tasks=PolicyAudience(kinds=["members"]),
             assigned_tasks=PolicyAudience(kinds=["members"]),
             complete_assigned=PolicyAudience(kinds=["admins"]),
+            modify_others=PolicyAudience(kinds=["admins"]),
         )
-
-
-def test_update_request_accepts_full_body():
-    req = UpdateLabellingPolicyRequest(
-        explore=PolicyAudience(kinds=["members"]),
-        unassigned_tasks=PolicyAudience(kinds=["members"]),
-        assigned_tasks=PolicyAudience(kinds=["members"]),
-        complete_assigned=PolicyAudience(kinds=["admins"]),
-    )
-    assert req.explore.kinds == ["members"]
 
 
 def test_default_policy_is_itself_valid():
@@ -177,7 +168,7 @@ def test_public_default_policy_leaves_complete_assigned_unchanged():
 
 
 def test_public_default_policy_is_itself_valid():
-    LabellingPolicy(**default_labelling_policy(is_public=True).model_dump())
+    make_policy(**default_labelling_policy(is_public=True).model_dump())
 
 
 # ============================================================================
@@ -267,7 +258,7 @@ def test_update_labelling_policy_rejects_anyone_for_private_campaign():
     db = MagicMock()
     db.get.return_value = campaign
 
-    req = LabellingPolicy(
+    req = make_policy(
         explore=PolicyAudience(kinds=["anyone"]),
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
@@ -284,7 +275,7 @@ def test_update_labelling_policy_allows_anyone_for_public_campaign():
     db = MagicMock()
     db.get.return_value = campaign
 
-    req = LabellingPolicy(
+    req = make_policy(
         explore=PolicyAudience(kinds=["anyone"]),
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
@@ -300,7 +291,7 @@ def test_update_labelling_policy_persists_without_anyone_on_private_campaign():
     db = MagicMock()
     db.get.return_value = campaign
 
-    req = LabellingPolicy(
+    req = make_policy(
         explore=PolicyAudience(kinds=["members"]),
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
@@ -324,6 +315,7 @@ def test_get_labelling_policy_reads_stored_policy():
         "unassigned_tasks": {"kinds": ["members"], "user_ids": []},
         "assigned_tasks": {"kinds": ["members"], "user_ids": []},
         "complete_assigned": {"kinds": ["admins"], "user_ids": []},
+        "modify_others": {"kinds": ["admins"], "user_ids": []},
     }
     policy = get_labelling_policy(campaign)
     assert policy.explore.kinds == ["anyone"]
@@ -614,7 +606,7 @@ def _db_capturing_campaign_settings() -> MagicMock:
 def test_create_campaign_rejects_anyone_for_private_campaign():
     db = MagicMock()
     db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
-    policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
+    policy = make_policy(explore=PolicyAudience(kinds=["anyone"]))
 
     with pytest.raises(HTTPException) as exc_info:
         service.create_campaign(
@@ -634,7 +626,7 @@ def test_create_campaign_rejects_anyone_for_private_campaign():
 def test_create_campaign_allows_anyone_for_public_campaign():
     db = _db_capturing_campaign_settings()
     db.get.return_value = MagicMock(visibility="public")  # db.get(Project, project_id)
-    policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
+    policy = make_policy(explore=PolicyAudience(kinds=["anyone"]))
 
     service.create_campaign(
         db,
@@ -693,23 +685,8 @@ def test_create_campaign_no_explicit_policy_private_gets_private_default():
     assert "anyone" not in stored_policy["explore"]["kinds"]
 
 
-def test_modify_others_defaults_to_admins_for_a_policy_stored_before_it_existed():
-    """Every campaign predating the axis behaved as "its author, or an admin",
-    and reading one back must not quietly widen or close that."""
-    stored = {
-        "explore": {"kinds": ["members"], "user_ids": []},
-        "unassigned_tasks": {"kinds": ["members"], "user_ids": []},
-        "assigned_tasks": {"kinds": ["members"], "user_ids": []},
-        "complete_assigned": {"kinds": ["admins"], "user_ids": []},
-    }
-
-    policy = LabellingPolicy.model_validate(stored)
-
-    assert policy.modify_others.kinds == ["admins"]
-
-
 def test_modify_others_cannot_be_opened_to_anyone():
     """Undoing other people's work is not something a campaign opens to the
     public, however public its labelling is."""
     with pytest.raises(ValidationError):
-        LabellingPolicy(modify_others=PolicyAudience(kinds=["anyone"]))
+        make_policy(modify_others=PolicyAudience(kinds=["anyone"]))

@@ -22,7 +22,7 @@ from src.imagery.schemas import (
     ImageryViewOut,
 )
 from src.projects.access import VISIBILITY_PUBLIC, ProjectFlags
-from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
+from src.timeseries.schemas import TimeseriesCreate, TimeseriesOut
 
 # ============================================================================
 # Campaign Related Schemas
@@ -114,18 +114,15 @@ def _validate_axis_kinds(
 class LabellingPolicy(BaseModel):
     """Who may label what, and whose labels count toward task completion.
 
-    See docs/labelling-policy.md for the
-    full rationale behind the four axes.
+    See docs/labelling-policy.md for what each axis governs. A PATCH replaces
+    the whole policy, so every axis is required.
     """
 
-    explore: PolicyAudience = Field(default_factory=PolicyAudience)
-    unassigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
-    assigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
-    complete_assigned: PolicyAudience = Field(default_factory=PolicyAudience)
-    # Defaults to campaign admins rather than to the empty audience: a policy
-    # stored before this axis existed has to keep meaning what it meant, which
-    # is "its author, or an admin".
-    modify_others: PolicyAudience = Field(default_factory=lambda: PolicyAudience(kinds=["admins"]))
+    explore: PolicyAudience
+    unassigned_tasks: PolicyAudience
+    assigned_tasks: PolicyAudience
+    complete_assigned: PolicyAudience
+    modify_others: PolicyAudience
 
     @field_validator("explore")
     @classmethod
@@ -177,27 +174,6 @@ def default_labelling_policy(is_public: bool = False) -> LabellingPolicy:
         complete_assigned=PolicyAudience(kinds=["assignees", "admins", "authoritative"]),
         modify_others=PolicyAudience(kinds=["admins"]),
     )
-
-
-class UpdateLabellingPolicyRequest(LabellingPolicy):
-    """Request body for PATCH /campaigns/{id}/labelling-policy - same shape
-    as LabellingPolicy, plus the campaign-public check applied by the service.
-
-    The four labelling axes are required (no defaults), unlike the base
-    LabellingPolicy: a PATCH is a full replacement of the stored policy, so
-    silently omitting one would default it to "no one" rather than leaving it
-    as the caller likely intended. Callers must always send the complete
-    policy, which is what the settings UI does.
-
-    ``modify_others`` keeps its inherited default instead, because that
-    default is "campaign admins" rather than "no one": omitting it leaves the
-    axis where a campaign that never set it already was.
-    """
-
-    explore: PolicyAudience
-    unassigned_tasks: PolicyAudience
-    assigned_tasks: PolicyAudience
-    complete_assigned: PolicyAudience
 
 
 # What finishing a task means: a label for the task's own geometry, or shapes
@@ -307,7 +283,7 @@ class CampaignOut(CampaignSummaryOut):
     basemaps: list[BasemapOut]
     custom_maps: list[CustomMapOut] = []
     vector_layers: list[VectorLayerOut] = []
-    time_series: list[TimeSeriesOut]
+    time_series: list[TimeseriesOut]
 
 
 class CampaignCreate(BaseModel):
@@ -316,7 +292,7 @@ class CampaignCreate(BaseModel):
     project_id: int
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
-    timeseries_configs: list[TimeSeriesCreate] | None = None
+    timeseries_configs: list[TimeseriesCreate] | None = None
     labelling_policy: LabellingPolicy | None = None
 
 

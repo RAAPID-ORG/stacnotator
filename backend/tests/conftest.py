@@ -51,3 +51,18 @@ def _clear_tile_target_cache():
     reset_target_cache()
     yield
     reset_target_cache()
+
+
+def make_policy(**axes):
+    """A LabellingPolicy naming only the axes a test cares about: the rest are
+    no one, and modify_others is campaign admins."""
+    from src.campaigns.schemas import LabellingPolicy, PolicyAudience
+
+    defaults = {
+        "explore": PolicyAudience(),
+        "unassigned_tasks": PolicyAudience(),
+        "assigned_tasks": PolicyAudience(),
+        "complete_assigned": PolicyAudience(),
+        "modify_others": PolicyAudience(kinds=["admins"]),
+    }
+    return LabellingPolicy(**{**defaults, **axes})

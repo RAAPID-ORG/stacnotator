@@ -170,6 +170,7 @@ export const MOCK_CAMPAIGN = {
       unassigned_tasks: { kinds: ['members'], user_ids: [] },
       assigned_tasks: { kinds: ['members'], user_ids: [] },
       complete_assigned: { kinds: ['assignees', 'admins', 'authoritative'], user_ids: [] },
+      modify_others: { kinds: ['admins'], user_ids: [] },
     },
   },
   imagery_sources: [SOURCE],

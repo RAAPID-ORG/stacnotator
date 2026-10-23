@@ -57,7 +57,7 @@ from src.projects.models import Project, ProjectUser
 from src.sampling_design.schemas import RandomSamplingConfig
 from src.sampling_design.service import create_tasks_from_sampling_strategy
 from src.tilers import registry
-from src.timeseries.schemas import TimeSeriesCreate
+from src.timeseries.schemas import TimeseriesCreate
 
 logger = logging.getLogger(__name__)
 
@@ -346,12 +346,11 @@ def seed_dev_data(firebase_uid: str | None = None):
         # S2 NDVI timeseries (from Google Earth Engine)
         timeseries_configs = (
             [
-                TimeSeriesCreate(
+                TimeseriesCreate(
                     name="S2 NDVI",
                     start_ym="202401",
                     end_ym="202412",
                     data_source="SENTINEL2",
-                    provider="EE",
                     ts_type="NDVI",
                 ),
             ]

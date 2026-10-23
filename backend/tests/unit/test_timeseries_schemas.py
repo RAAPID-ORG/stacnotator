@@ -2,8 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from src.timeseries.schemas import (
-    TimeSeriesCreate,
-    TimeSeriesOut,
+    TimeseriesCreate,
+    TimeseriesOut,
     parse_ym,
     timeseries_options,
     ym_range_to_dates,
@@ -12,13 +12,12 @@ from src.timeseries.windows import DEFAULT_TIMESERIES_WINDOW_NAME
 
 
 def _make(window_name):
-    return TimeSeriesCreate(
+    return TimeseriesCreate(
         name="ts",
         window_name=window_name,
         start_ym="202401",
         end_ym="202412",
         data_source="MODIS",
-        provider="EE",
         ts_type="NDVI",
     )
 
@@ -35,25 +34,23 @@ def test_window_name_is_trimmed():
 
 
 def test_window_name_defaults_when_omitted():
-    ts = TimeSeriesCreate(
+    ts = TimeseriesCreate(
         name="ts",
         start_ym="202401",
         end_ym="202412",
         data_source="MODIS",
-        provider="EE",
         ts_type="NDVI",
     )
     assert ts.window_name == DEFAULT_TIMESERIES_WINDOW_NAME
 
 
 def _create(**overrides):
-    return TimeSeriesCreate(
+    return TimeseriesCreate(
         **{
             "name": "ts",
             "start_ym": "202401",
             "end_ym": "202412",
             "data_source": "SENTINEL2",
-            "provider": "EE",
             "ts_type": "NDVI",
             **overrides,
         }
@@ -76,22 +73,14 @@ class TestSourceAndIndexValidation:
         with pytest.raises(ValidationError, match="Unsupported data source"):
             _create(data_source="SENTINEL3")
 
-    def test_rejects_an_unknown_provider(self):
-        with pytest.raises(ValidationError, match="Unsupported provider"):
-            _create(provider="STAC")
-
     def test_accepts_the_indices_a_source_does_carry(self):
         assert _create(data_source="LANDSAT", ts_type="NBR").ts_type == "NBR"
         assert _create(data_source="SENTINEL2", ts_type="NDRE").ts_type == "NDRE"
 
-    def test_stores_canonical_keys(self):
-        item = _create(data_source=" landsat ", ts_type=" ndmi ")
-        assert (item.data_source, item.ts_type) == ("LANDSAT", "NDMI")
-
 
 class TestOutputCarriesTheIndexDescription:
     def test_chart_metadata_travels_with_the_series(self):
-        out = TimeSeriesOut(
+        out = TimeseriesOut(
             id=1,
             campaign_id=2,
             name="ts",
@@ -99,26 +88,11 @@ class TestOutputCarriesTheIndexDescription:
             start_ym="202401",
             end_ym="202412",
             data_source="SENTINEL2",
-            provider="EE",
             ts_type="GCVI",
         )
         assert out.index is not None
         assert (out.index.domain_min, out.index.domain_max) == (0.0, 10.0)
         assert out.index.formula == "NIR / Green - 1"
-
-    def test_an_unrecognised_stored_index_lists_instead_of_failing(self):
-        out = TimeSeriesOut(
-            id=1,
-            campaign_id=2,
-            name="ts",
-            window_name="Time series",
-            start_ym="202401",
-            end_ym="202412",
-            data_source="SENTINEL2",
-            provider="EE",
-            ts_type="RETIRED",
-        )
-        assert out.index is None
 
 
 class TestCreationOptions:

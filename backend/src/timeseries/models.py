@@ -9,10 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
 
-class TimeSeries(Base):
-    """
-    Represents a time series entry of a campaign.
-    """
+class Timeseries(Base):
+    """One spectral index of one source, charted over a range of months."""
 
     __tablename__ = "time_series"
     __table_args__ = (
@@ -29,18 +27,15 @@ class TimeSeries(Base):
 
     # Time series metadata
     name: Mapped[str] = mapped_column(String, nullable=False)
-    # Canvas window this series renders in; every series has one (the default is
-    # "Time series"). See src/timeseries/windows.py.
-    window_name: Mapped[str] = mapped_column(
-        String, nullable=False, server_default="Time series"
-    )  # Should be changed to group name: window is UI concern not data model
+    # The canvas window this series is charted in, shared by every series with
+    # the same name. See src/timeseries/windows.py.
+    window_name: Mapped[str] = mapped_column(String, nullable=False, server_default="Time series")
     start_ym: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
     end_ym: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
-    data_source: Mapped[str] = mapped_column(String, nullable=False)  # 'MODIS', 'Landsat'
-    provider: Mapped[str] = mapped_column(
-        String, nullable=False
-    )  # 'EE', TODO expand to STAC-read in the future
-    ts_type: Mapped[str] = mapped_column(String, nullable=False)  # 'NDVI'
+    # A key of timeseries/sources.py (fetched through Earth Engine).
+    data_source: Mapped[str] = mapped_column(String, nullable=False)
+    # A key of timeseries/indices.py.
+    ts_type: Mapped[str] = mapped_column(String, nullable=False)
 
     # Relationship to Campaign
     campaign = relationship("Campaign", back_populates="time_series")

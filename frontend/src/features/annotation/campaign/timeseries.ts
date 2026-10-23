@@ -1,4 +1,4 @@
-import type { TimeSeriesOut } from '~/api/client';
+import type { TimeseriesOut } from '~/api/client';
 import { DEFAULT_TIMESERIES_WINDOW_NAME } from '~/shared/utils/constants';
 
 /** Panel ids for timeseries windows, so the canvas can tell them from the
@@ -9,10 +9,10 @@ export { DEFAULT_TIMESERIES_WINDOW_NAME };
 export interface TimeseriesWindow {
   key: string;
   title: string;
-  series: TimeSeriesOut[];
+  series: TimeseriesOut[];
 }
 
-export function groupTimeseriesIntoWindows(timeseries: TimeSeriesOut[]): TimeseriesWindow[] {
+export function groupTimeseriesIntoWindows(timeseries: TimeseriesOut[]): TimeseriesWindow[] {
   const byKey = new Map<string, TimeseriesWindow>();
   for (const ts of timeseries) {
     const title = ts.window_name?.trim() || DEFAULT_TIMESERIES_WINDOW_NAME;

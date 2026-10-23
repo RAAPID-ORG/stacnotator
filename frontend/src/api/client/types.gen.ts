@@ -1376,7 +1376,7 @@ export type CampaignCreate = {
     /**
      * Timeseries Configs
      */
-    timeseries_configs?: Array<TimeSeriesCreate> | null;
+    timeseries_configs?: Array<TimeseriesCreate> | null;
     labelling_policy?: LabellingPolicy | null;
 };
 
@@ -1568,7 +1568,7 @@ export type CampaignOut = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOut>;
+    time_series: Array<TimeseriesOut>;
 };
 
 /**
@@ -1656,7 +1656,7 @@ export type CampaignOutFull = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOut>;
+    time_series: Array<TimeseriesOut>;
     default_main_canvas_layout?: CanvasLayoutOut | null;
     personal_main_canvas_layout?: CanvasLayoutOut | null;
 };
@@ -3080,15 +3080,15 @@ export type LabelFacet = {
  *
  * Who may label what, and whose labels count toward task completion.
  *
- * See docs/labelling-policy.md for the
- * full rationale behind the four axes.
+ * See docs/labelling-policy.md for what each axis governs. A PATCH replaces
+ * the whole policy, so every axis is required.
  */
 export type LabellingPolicy = {
-    explore?: PolicyAudience;
-    unassigned_tasks?: PolicyAudience;
-    assigned_tasks?: PolicyAudience;
-    complete_assigned?: PolicyAudience;
-    modify_others?: PolicyAudience;
+    explore: PolicyAudience;
+    unassigned_tasks: PolicyAudience;
+    assigned_tasks: PolicyAudience;
+    complete_assigned: PolicyAudience;
+    modify_others: PolicyAudience;
 };
 
 /**
@@ -4669,9 +4669,29 @@ export type TilerSessionOut = {
 };
 
 /**
- * TimeSeriesCreate
+ * TimeseriesBulkCreateRequest
  */
-export type TimeSeriesCreate = {
+export type TimeseriesBulkCreateRequest = {
+    /**
+     * Timeseries
+     */
+    timeseries: Array<TimeseriesCreate>;
+};
+
+/**
+ * TimeseriesBulkCreateResponse
+ */
+export type TimeseriesBulkCreateResponse = {
+    /**
+     * New Items
+     */
+    new_items: Array<TimeseriesOut>;
+};
+
+/**
+ * TimeseriesCreate
+ */
+export type TimeseriesCreate = {
     /**
      * Name
      */
@@ -4693,19 +4713,31 @@ export type TimeSeriesCreate = {
      */
     data_source: string;
     /**
-     * Provider
-     */
-    provider: string;
-    /**
      * Ts Type
      */
     ts_type: string;
 };
 
 /**
- * TimeSeriesOptionsOut
+ * TimeseriesDataResponse
  */
-export type TimeSeriesOptionsOut = {
+export type TimeseriesDataResponse = {
+    /**
+     * Timeseries Id
+     */
+    timeseries_id: number;
+    /**
+     * Data
+     */
+    data: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+/**
+ * TimeseriesOptionsOut
+ */
+export type TimeseriesOptionsOut = {
     /**
      * Sources
      */
@@ -4714,20 +4746,14 @@ export type TimeSeriesOptionsOut = {
      * Indices
      */
     indices: Array<SpectralIndexOut>;
-    /**
-     * Providers
-     */
-    providers: Array<string>;
 };
 
 /**
- * TimeSeriesOut
+ * TimeseriesOut
  *
- * Deliberately not a subclass of the create schema: what comes back carries
- * the resolved index description, and a row written before an index was renamed
- * should still list rather than fail validation.
+ * What comes back carries the resolved index description besides the keys.
  */
-export type TimeSeriesOut = {
+export type TimeseriesOut = {
     /**
      * Id
      */
@@ -4757,10 +4783,6 @@ export type TimeSeriesOut = {
      */
     data_source: string;
     /**
-     * Provider
-     */
-    provider: string;
-    /**
      * Ts Type
      */
     ts_type: string;
@@ -4768,67 +4790,7 @@ export type TimeSeriesOut = {
      * The index this series plots, so the chart can scale its axis and
      * explain itself without a second request.
      */
-    readonly index: SpectralIndexOut | null;
-};
-
-/**
- * TimeseriesBulkCreateRequest
- */
-export type TimeseriesBulkCreateRequest = {
-    /**
-     * Timeseries
-     */
-    timeseries: Array<TimeSeriesCreate>;
-};
-
-/**
- * TimeseriesBulkCreateResponse
- */
-export type TimeseriesBulkCreateResponse = {
-    /**
-     * New Items
-     */
-    new_items: Array<TimeSeriesOut>;
-};
-
-/**
- * TimeseriesDataResponse
- */
-export type TimeseriesDataResponse = {
-    /**
-     * Timeseries Id
-     */
-    timeseries_id: number;
-    /**
-     * Data
-     */
-    data: Array<{
-        [key: string]: unknown;
-    }>;
-};
-
-/**
- * TimeseriesListResponse
- */
-export type TimeseriesListResponse = {
-    /**
-     * Items
-     */
-    items: Array<TimeSeriesOut>;
-};
-
-/**
- * TimeseriesPanelRenameRequest
- */
-export type TimeseriesPanelRenameRequest = {
-    /**
-     * Old Name
-     */
-    old_name: string;
-    /**
-     * New Name
-     */
-    new_name: string;
+    readonly index: SpectralIndexOut;
 };
 
 /**
@@ -4859,6 +4821,20 @@ export type TimeseriesSourceOut = {
      * Index Keys
      */
     index_keys: Array<string>;
+};
+
+/**
+ * TimeseriesWindowRenameRequest
+ */
+export type TimeseriesWindowRenameRequest = {
+    /**
+     * Old Name
+     */
+    old_name: string;
+    /**
+     * New Name
+     */
+    new_name: string;
 };
 
 /**
@@ -4946,30 +4922,6 @@ export type UpdateEmbeddingYearRequest = {
      * Embedding Year
      */
     embedding_year?: number | null;
-};
-
-/**
- * UpdateLabellingPolicyRequest
- *
- * Request body for PATCH /campaigns/{id}/labelling-policy - same shape
- * as LabellingPolicy, plus the campaign-public check applied by the service.
- *
- * The four labelling axes are required (no defaults), unlike the base
- * LabellingPolicy: a PATCH is a full replacement of the stored policy, so
- * silently omitting one would default it to "no one" rather than leaving it
- * as the caller likely intended. Callers must always send the complete
- * policy, which is what the settings UI does.
- *
- * ``modify_others`` keeps its inherited default instead, because that
- * default is "campaign admins" rather than "no one": omitting it leaves the
- * axis where a campaign that never set it already was.
- */
-export type UpdateLabellingPolicyRequest = {
-    explore: PolicyAudience;
-    unassigned_tasks: PolicyAudience;
-    assigned_tasks: PolicyAudience;
-    complete_assigned: PolicyAudience;
-    modify_others?: PolicyAudience;
 };
 
 /**
@@ -5873,7 +5825,7 @@ export type CampaignOutWritable = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOutWritable>;
+    time_series: Array<TimeseriesOutWritable>;
 };
 
 /**
@@ -5961,7 +5913,7 @@ export type CampaignOutFullWritable = {
     /**
      * Time Series
      */
-    time_series: Array<TimeSeriesOutWritable>;
+    time_series: Array<TimeseriesOutWritable>;
     default_main_canvas_layout?: CanvasLayoutOut | null;
     personal_main_canvas_layout?: CanvasLayoutOut | null;
 };
@@ -6004,13 +5956,21 @@ export type MeOutWritable = {
 };
 
 /**
- * TimeSeriesOut
- *
- * Deliberately not a subclass of the create schema: what comes back carries
- * the resolved index description, and a row written before an index was renamed
- * should still list rather than fail validation.
+ * TimeseriesBulkCreateResponse
  */
-export type TimeSeriesOutWritable = {
+export type TimeseriesBulkCreateResponseWritable = {
+    /**
+     * New Items
+     */
+    new_items: Array<TimeseriesOutWritable>;
+};
+
+/**
+ * TimeseriesOut
+ *
+ * What comes back carries the resolved index description besides the keys.
+ */
+export type TimeseriesOutWritable = {
     /**
      * Id
      */
@@ -6040,33 +6000,9 @@ export type TimeSeriesOutWritable = {
      */
     data_source: string;
     /**
-     * Provider
-     */
-    provider: string;
-    /**
      * Ts Type
      */
     ts_type: string;
-};
-
-/**
- * TimeseriesBulkCreateResponse
- */
-export type TimeseriesBulkCreateResponseWritable = {
-    /**
-     * New Items
-     */
-    new_items: Array<TimeSeriesOutWritable>;
-};
-
-/**
- * TimeseriesListResponse
- */
-export type TimeseriesListResponseWritable = {
-    /**
-     * Items
-     */
-    items: Array<TimeSeriesOutWritable>;
 };
 
 export type MeData = {
@@ -7849,7 +7785,7 @@ export type UpdateEmbeddingYearResponses = {
 export type UpdateEmbeddingYearResponse = UpdateEmbeddingYearResponses[keyof UpdateEmbeddingYearResponses];
 
 export type UpdateLabellingPolicyData = {
-    body: UpdateLabellingPolicyRequest;
+    body: LabellingPolicy;
     path: {
         /**
          * Campaign Id
@@ -9200,36 +9136,6 @@ export type GetAnnotationDensityResponses = {
 
 export type GetAnnotationDensityResponse = GetAnnotationDensityResponses[keyof GetAnnotationDensityResponses];
 
-export type GetTimeseriesForCampaignData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/timeseries';
-};
-
-export type GetTimeseriesForCampaignErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetTimeseriesForCampaignError = GetTimeseriesForCampaignErrors[keyof GetTimeseriesForCampaignErrors];
-
-export type GetTimeseriesForCampaignResponses = {
-    /**
-     * Successful Response
-     */
-    200: TimeseriesListResponse;
-};
-
-export type GetTimeseriesForCampaignResponse = GetTimeseriesForCampaignResponses[keyof GetTimeseriesForCampaignResponses];
-
 export type CreateTimeseriesForCampaignData = {
     body: TimeseriesBulkCreateRequest;
     path: {
@@ -9271,13 +9177,13 @@ export type GetTimeseriesCreationOptionsResponses = {
     /**
      * Successful Response
      */
-    200: TimeSeriesOptionsOut;
+    200: TimeseriesOptionsOut;
 };
 
 export type GetTimeseriesCreationOptionsResponse = GetTimeseriesCreationOptionsResponses[keyof GetTimeseriesCreationOptionsResponses];
 
-export type RenameTimeseriesPanelData = {
-    body: TimeseriesPanelRenameRequest;
+export type RenameTimeseriesWindowData = {
+    body: TimeseriesWindowRenameRequest;
     path: {
         /**
          * Campaign Id
@@ -9285,26 +9191,26 @@ export type RenameTimeseriesPanelData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/timeseries/panel';
+    url: '/api/campaigns/{campaign_id}/timeseries/window';
 };
 
-export type RenameTimeseriesPanelErrors = {
+export type RenameTimeseriesWindowErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type RenameTimeseriesPanelError = RenameTimeseriesPanelErrors[keyof RenameTimeseriesPanelErrors];
+export type RenameTimeseriesWindowError = RenameTimeseriesWindowErrors[keyof RenameTimeseriesWindowErrors];
 
-export type RenameTimeseriesPanelResponses = {
+export type RenameTimeseriesWindowResponses = {
     /**
      * Successful Response
      */
     204: void;
 };
 
-export type RenameTimeseriesPanelResponse = RenameTimeseriesPanelResponses[keyof RenameTimeseriesPanelResponses];
+export type RenameTimeseriesWindowResponse = RenameTimeseriesWindowResponses[keyof RenameTimeseriesWindowResponses];
 
 export type GetTimeseriesDataData = {
     body?: never;

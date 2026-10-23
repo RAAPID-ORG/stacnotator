@@ -24,8 +24,8 @@ import { FadeIn } from '~/shared/ui/motion';
 import {
   type ImagerySourceOut,
   type ProjectUserOut,
-  type TimeSeriesCreate,
-  type TimeSeriesOut,
+  type TimeseriesCreate,
+  type TimeseriesOut,
 } from '~/api/client';
 import {
   createTimeseriesForCampaignMutation,
@@ -33,7 +33,7 @@ import {
   deleteTimeseriesMutation,
   getProjectUsersOptions,
   listProjectCampaignsQueryKey,
-  renameTimeseriesPanelMutation,
+  renameTimeseriesWindowMutation,
   updateCampaignMutation,
 } from '~/api/queries';
 import { useCampaign, useRefreshCampaign } from '../hooks/campaignQueries';
@@ -45,7 +45,7 @@ const isSettingsTab = (tab: string | null): tab is SettingsTab =>
   (SETTINGS_TABS as readonly string[]).includes(tab ?? '');
 
 const NO_IMAGERY: ImagerySourceOut[] = [];
-const NO_TIMESERIES: TimeSeriesOut[] = [];
+const NO_TIMESERIES: TimeseriesOut[] = [];
 const NO_USERS: ProjectUserOut[] = [];
 
 export const CampaignSettingsPage = () => {
@@ -72,7 +72,7 @@ export const CampaignSettingsPage = () => {
   const timeseries = campaign?.time_series ?? NO_TIMESERIES;
 
   const [campaignName, setCampaignName] = useState('');
-  const [newTimeseries, setNewTimeseries] = useState<TimeSeriesCreate[]>([]);
+  const [newTimeseries, setNewTimeseries] = useState<TimeseriesCreate[]>([]);
 
   // Confirm dialog states
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -196,7 +196,7 @@ export const CampaignSettingsPage = () => {
   });
 
   const renamePanel = useMutation({
-    ...renameTimeseriesPanelMutation(),
+    ...renameTimeseriesWindowMutation(),
     meta: { errorMessage: t('settingsPage.errors.renamePanel') },
     onSuccess: async () => {
       await refreshCampaign();

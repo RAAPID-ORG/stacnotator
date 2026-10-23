@@ -17,7 +17,7 @@ import {
   type ChartOptions,
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
-import type { TimeSeriesOut } from '~/api/client';
+import type { TimeseriesOut } from '~/api/client';
 import { nearestSlice } from '../../campaign/imageryNav';
 import { probeColor } from '../../map/compose';
 import { useImageryStore } from '../../stores/imagery';
@@ -74,7 +74,7 @@ export interface ChartPoint {
 }
 
 export interface ChartProps {
-  series: TimeSeriesOut[];
+  series: TimeseriesOut[];
   /** Every location with data, in draw order. */
   points: { point: ChartPoint; data: TimeSeriesData }[];
 }
@@ -151,7 +151,7 @@ export function Chart({ series, points }: ChartProps) {
     const dotRadius = showDots ? 1.5 : 0;
 
     const buildDataset = (
-      ts: TimeSeriesOut,
+      ts: TimeseriesOut,
       index: number,
       source: TimeSeriesData,
       point: ChartPoint,

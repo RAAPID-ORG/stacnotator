@@ -95,7 +95,6 @@
       "end": "Timeseries {{index}}: End date is required.",
       "dates": "Timeseries {{index}}: Start date must be before end date.",
       "source": "Timeseries {{index}}: Data source is required.",
-      "provider": "Timeseries {{index}}: Provider is required.",
       "type": "Timeseries {{index}}: Type is required."
     },
     "formFields": {
@@ -541,8 +540,6 @@
     "index": "Index",
     "selectIndex": "Select index",
     "pickSourceFirst": "Pick a data source first",
-    "provider": "Provider",
-    "selectProvider": "Select provider",
     "addAnother": "+ Add another timeseries",
     "add": "+ Add timeseries",
     "newPanelName": "New panel name",

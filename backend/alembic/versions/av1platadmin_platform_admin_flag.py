@@ -23,9 +23,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column(
         "users",
-        sa.Column(
-            "is_platform_admin", sa.Boolean(), server_default=sa.false(), nullable=False
-        ),
+        sa.Column("is_platform_admin", sa.Boolean(), server_default=sa.false(), nullable=False),
         schema="auth",
     )
     op.execute(

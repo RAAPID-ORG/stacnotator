@@ -20,7 +20,8 @@ from src.annotation.status import (
     compute_task_status_value,
     resolve_task_outcome,
 )
-from src.campaigns.schemas import LabellingPolicy, PolicyAudience
+from src.campaigns.schemas import PolicyAudience
+from tests.conftest import make_policy
 
 
 def _answer(user_id, answer):
@@ -39,7 +40,7 @@ def _campaign(task_output):
     campaign.settings.task_output = task_output
     campaign.settings.labels = {"1": {"name": "Field"}}
     campaign.settings.form_fields = []
-    campaign.settings.labelling_policy = LabellingPolicy(
+    campaign.settings.labelling_policy = make_policy(
         explore=PolicyAudience(kinds=["members"]),
         unassigned_tasks=PolicyAudience(kinds=["members"]),
         assigned_tasks=PolicyAudience(kinds=["members"]),

@@ -2,17 +2,17 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type {
   ImagerySourceOut,
-  TimeSeriesCreate,
-  TimeSeriesOut,
+  TimeseriesCreate,
+  TimeseriesOut,
   CampaignSettingsOut,
 } from '~/api/client';
 import { StepAddTimeseries } from '~/features/campaigns/components/creation/steps/StepAddTimeseries';
 import { Button } from '~/shared/ui/forms';
 
 interface Props {
-  newTimeseries: TimeSeriesCreate[];
-  setNewTimeseries: (items: TimeSeriesCreate[]) => void;
-  timeseries: TimeSeriesOut[];
+  newTimeseries: TimeseriesCreate[];
+  setNewTimeseries: (items: TimeseriesCreate[]) => void;
+  timeseries: TimeseriesOut[];
   handleAddTimeseries: () => void;
   handleRenamePanel: (oldName: string, newName: string) => Promise<void>;
   setDeleteConfirm: (v: { timeseriesId?: number } | null) => void;
@@ -56,7 +56,7 @@ export const TimeseriesTab: React.FC<Props> = ({
             } as any
           }
           setForm={(form: Record<string, unknown>) =>
-            setNewTimeseries((form.timeseries_configs as TimeSeriesCreate[]) || [])
+            setNewTimeseries((form.timeseries_configs as TimeseriesCreate[]) || [])
           }
           knownWindowNames={knownWindowNames}
           existingTimeseries={timeseries}

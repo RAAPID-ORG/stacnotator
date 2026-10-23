@@ -14,9 +14,8 @@ from src.timeseries.schemas import (
     TimeseriesBulkCreateRequest,
     TimeseriesBulkCreateResponse,
     TimeseriesDataResponse,
-    TimeseriesListResponse,
-    TimeSeriesOptionsOut,
-    TimeseriesPanelRenameRequest,
+    TimeseriesOptionsOut,
+    TimeseriesWindowRenameRequest,
     timeseries_options,
     ym_range_to_dates,
 )
@@ -25,17 +24,6 @@ router = APIRouter(
     tags=["Time Series"],
     dependencies=[Depends(HTTPBearer()), Depends(require_authenticated_user)],
 )
-
-
-@router.get("/campaigns/{campaign_id}/timeseries", response_model=TimeseriesListResponse)
-def get_timeseries_for_campaign(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    """Get all timeseries configurations for a campaign. NOT the actual data, just the metadata about the timeseries."""
-    timeseries = service.get_timeseries_for_campaign(campaign_id, db)
-    return TimeseriesListResponse(items=timeseries)
 
 
 @router.post("/campaigns/{campaign_id}/timeseries", response_model=TimeseriesBulkCreateResponse)
@@ -50,21 +38,21 @@ def create_timeseries_for_campaign(
     return TimeseriesBulkCreateResponse(new_items=new_items)
 
 
-@router.get("/timeseries/create-options", response_model=TimeSeriesOptionsOut)
+@router.get("/timeseries/create-options", response_model=TimeseriesOptionsOut)
 def get_timeseries_creation_options():
     """Get options for registering new timeseries for a campaign: the satellite
     sources, the spectral indices each one can compute, and what they are for."""
     return timeseries_options()
 
 
-@router.patch("/campaigns/{campaign_id}/timeseries/panel", status_code=204)
-def rename_timeseries_panel(
+@router.patch("/campaigns/{campaign_id}/timeseries/window", status_code=204)
+def rename_timeseries_window(
     campaign_id: int,
-    request: TimeseriesPanelRenameRequest,
+    request: TimeseriesWindowRenameRequest,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    service.rename_timeseries_panel(campaign_id, request.old_name, request.new_name, db)
+    service.rename_timeseries_window(campaign_id, request.old_name, request.new_name, db)
 
 
 @router.get(

@@ -6,8 +6,8 @@ from pydantic import ValidationError
 
 from src.canvas.layout import rename_window_in_layout
 from src.timeseries import service
-from src.timeseries.models import TimeSeries
-from src.timeseries.schemas import TimeseriesPanelRenameRequest
+from src.timeseries.models import Timeseries
+from src.timeseries.schemas import TimeseriesWindowRenameRequest
 
 
 def test_rename_preserves_window_position_size_and_hidden_windows():
@@ -24,16 +24,16 @@ def test_rename_preserves_window_position_size_and_hidden_windows():
 
 def test_rename_updates_all_matching_series_and_syncs_layouts(monkeypatch):
     series = [
-        TimeSeries(window_name="Vegetation"),
-        TimeSeries(window_name="Vegetation"),
-        TimeSeries(window_name="Water"),
+        Timeseries(window_name="Vegetation"),
+        Timeseries(window_name="Vegetation"),
+        Timeseries(window_name="Water"),
     ]
     db = MagicMock()
     db.execute.return_value.scalars.return_value.all.return_value = series
     sync = MagicMock()
     monkeypatch.setattr(service, "sync_main_layouts", sync)
 
-    service.rename_timeseries_panel(7, "Vegetation", "Greenness", db)
+    service.rename_timeseries_window(7, "Vegetation", "Greenness", db)
 
     assert [item.window_name for item in series] == ["Greenness", "Greenness", "Water"]
     sync.assert_called_once()
@@ -49,14 +49,14 @@ def test_rename_updates_all_matching_series_and_syncs_layouts(monkeypatch):
     [("Missing", "Greenness", 404), ("Vegetation", "Water", 409)],
 )
 def test_invalid_rename_does_not_write(old_name, new_name, status, monkeypatch):
-    series = [TimeSeries(window_name="Vegetation"), TimeSeries(window_name="Water")]
+    series = [Timeseries(window_name="Vegetation"), Timeseries(window_name="Water")]
     db = MagicMock()
     db.execute.return_value.scalars.return_value.all.return_value = series
     sync = MagicMock()
     monkeypatch.setattr(service, "sync_main_layouts", sync)
 
     with pytest.raises(HTTPException) as error:
-        service.rename_timeseries_panel(7, old_name, new_name, db)
+        service.rename_timeseries_window(7, old_name, new_name, db)
 
     assert error.value.status_code == status
     assert [item.window_name for item in series] == ["Vegetation", "Water"]
@@ -65,7 +65,7 @@ def test_invalid_rename_does_not_write(old_name, new_name, status, monkeypatch):
 
 
 def test_rename_request_trims_names():
-    request = TimeseriesPanelRenameRequest(old_name=" Vegetation ", new_name=" Greenness ")
+    request = TimeseriesWindowRenameRequest(old_name=" Vegetation ", new_name=" Greenness ")
     assert request.old_name == "Vegetation"
     assert request.new_name == "Greenness"
 
@@ -74,4 +74,4 @@ def test_rename_request_trims_names():
 def test_rename_request_rejects_blank_names(field):
     names = {"old_name": "Vegetation", "new_name": "Greenness", field: "  "}
     with pytest.raises(ValidationError):
-        TimeseriesPanelRenameRequest(**names)
+        TimeseriesWindowRenameRequest(**names)

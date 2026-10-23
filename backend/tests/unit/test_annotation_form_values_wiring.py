@@ -21,7 +21,8 @@ from src.annotation.service import (
     update_annotation,
     validate_annotation_form_values,
 )
-from src.campaigns.schemas import LabellingPolicy, PolicyAudience
+from src.campaigns.schemas import PolicyAudience
+from tests.conftest import make_policy
 
 REQUIRED_CATEGORY_FIELD = [
     {
@@ -39,7 +40,7 @@ def _campaign(form_fields=None, *, campaign_id=1, is_public=False):
     campaign.id = campaign_id
     campaign.is_public = is_public
     campaign.settings.labels = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
-    campaign.settings.labelling_policy = LabellingPolicy(
+    campaign.settings.labelling_policy = make_policy(
         explore=PolicyAudience(kinds=["members"]),
         unassigned_tasks=PolicyAudience(kinds=["members"]),
         assigned_tasks=PolicyAudience(kinds=["members"]),

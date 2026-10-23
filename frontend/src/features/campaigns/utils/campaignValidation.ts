@@ -179,11 +179,6 @@ export function validateTimeseriesStep(form: CampaignCreate): StepValidationResu
         index: i + 1,
       });
     }
-    if (!ts.provider) {
-      errors[`${prefix}_provider`] = t('validation.timeseries.provider', {
-        index: i + 1,
-      });
-    }
     if (!ts.ts_type) {
       errors[`${prefix}_type`] = t('validation.timeseries.type', { index: i + 1 });
     }

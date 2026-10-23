@@ -39,7 +39,6 @@ from src.campaigns.schemas import (
     UpdateCampaignFormFieldsRequest,
     UpdateCampaignLabelsRequest,
     UpdateEmbeddingYearRequest,
-    UpdateLabellingPolicyRequest,
 )
 from src.database import get_db, release
 from src.imagery.registration import REGISTRATION_RUN
@@ -296,7 +295,7 @@ def update_embedding_year(
 @router.patch("/{campaign_id}/labelling-policy", response_model=LabellingPolicy)
 def update_labelling_policy(
     campaign_id: int,
-    req: UpdateLabellingPolicyRequest,
+    req: LabellingPolicy,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):

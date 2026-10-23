@@ -52,8 +52,7 @@ from src.organizations.service import active_organization_ids
 from src.projects.access import VISIBILITY_ORGANIZATION, VISIBILITY_PUBLIC
 from src.projects.models import Project, ProjectUser
 from src.projects.viewer import ViewerStanding
-from src.timeseries.models import TimeSeries
-from src.timeseries.service import sync_campaign_timeseries_windows
+from src.timeseries.service import add_timeseries
 
 logger = logging.getLogger(__name__)
 
@@ -218,24 +217,8 @@ def create_campaign(
     db.flush()
     db.refresh(campaign)
 
-    # Create timeseries if provided
     if timeseries_configs:
-        for ts_create in timeseries_configs:
-            ts_item = TimeSeries(
-                campaign_id=campaign.id,
-                name=ts_create.name,
-                window_name=ts_create.window_name,
-                start_ym=ts_create.start_ym,
-                end_ym=ts_create.end_ym,
-                data_source=ts_create.data_source,
-                provider=ts_create.provider,
-                ts_type=ts_create.ts_type,
-            )
-            db.add(ts_item)
-
-        # Add one window per distinct window_name to the default layout.
-        db.flush()
-        sync_campaign_timeseries_windows(campaign.id, db)
+        add_timeseries(db, campaign.id, timeseries_configs)
         db.refresh(campaign)
 
     # Create imagery structure (sources, collections, slices, views - no STAC calls yet)

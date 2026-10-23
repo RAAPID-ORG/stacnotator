@@ -16,6 +16,7 @@ from src.campaigns.schemas import (
     CampaignDuplicateRequest,
     CampaignOut,
     UpdateCampaignLabelsRequest,
+    default_labelling_policy,
 )
 from src.projects.models import ProjectUser
 
@@ -136,7 +137,7 @@ def _campaign_row():
             embedding_year=None,
             guide_markdown=None,
             sample_extent_meters=None,
-            labelling_policy={},
+            labelling_policy=default_labelling_policy().model_dump(),
             form_fields=[],
             research_sharing=False,
         ),
