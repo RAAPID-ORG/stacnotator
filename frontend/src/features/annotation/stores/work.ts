@@ -15,6 +15,7 @@ import {
   extendedLabels,
   geometryToWkt,
   geometryTopRight,
+  newAnnotationBody,
   validateForm,
   wktToGeometry,
   type FormValues,
@@ -275,17 +276,19 @@ export const useWorkStore = create<WorkState>((set, get) => {
     try {
       const result = await createAnnotation({
         path: { campaign_id: campaignState().campaign.id },
-        body: {
-          label_id: labelId,
-          comment: comment || null,
-          geometry_wkt: geometryToWkt(geometry),
-          confidence,
-          form_values: Object.keys(formValues).length ? formValues : null,
-          flagged_for_review: flagged,
-          flag_comment: flagged ? flagComment || null : null,
-          slice_comments: listNotes(sliceNotes),
-          ...draftLink,
-        },
+        body: newAnnotationBody(
+          geometry,
+          labelId,
+          {
+            formValues,
+            comment,
+            confidence,
+            flagged,
+            flagComment,
+            sliceComments: listNotes(sliceNotes),
+          },
+          draftLink
+        ),
       });
       const id = result.data?.id ?? null;
       if (id !== null) {
@@ -648,12 +651,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
       try {
         const result = await updateAnnotation({
           path: { campaign_id: campaignState().campaign.id, annotation_id: annotation.id },
-          body: {
-            label_id: annotation.label_id,
-            comment: annotation.comment ?? null,
-            geometry_wkt: null,
-            slice_comments: next,
-          },
+          body: { slice_comments: next },
         });
         if (result.data) get().setEditAnnotation(result.data);
       } catch (error) {
@@ -676,13 +674,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
       try {
         const result = await updateAnnotation({
           path: { campaign_id: campaignState().campaign.id, annotation_id: annotation.id },
-          body: {
-            label_id: annotation.label_id,
-            comment: annotation.comment ?? null,
-            geometry_wkt: null,
-            flagged_for_review: flagged,
-            flag_comment: flagged ? comment : null,
-          },
+          body: { flagged_for_review: flagged, flag_comment: flagged ? comment : null },
         });
         if (result.data) get().setEditAnnotation(result.data);
       } catch (error) {

@@ -1,12 +1,14 @@
 import i18n from '~/shared/i18n';
 import { isDateRangeValue } from '~/shared/utils/formValues';
 import type {
+  AnnotationCreate,
   AnnotationOut,
   AnnotationTaskOut,
   CampaignOutFull,
   CampaignSettingsOut,
   LabelBase,
   PolicyAudience,
+  SliceComment,
 } from '~/api/client';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 
@@ -405,4 +407,36 @@ export function wktToGeometry(wkt: string): GeoJSON.Geometry {
   }
 
   throw new Error(`wktToGeometry: unsupported WKT "${wkt}"`);
+}
+
+/** What a new annotation carries besides its shape and label: the draft's details. */
+export interface AnnotationDetails {
+  formValues: FormValues;
+  comment?: string;
+  confidence?: number | null;
+  flagged?: boolean;
+  flagComment?: string;
+  sliceComments?: SliceComment[];
+}
+
+/** The body that stores one drawn or picked shape. */
+export function newAnnotationBody(
+  geometry: GeoJSON.Geometry,
+  labelId: number,
+  details: AnnotationDetails,
+  link: Pick<AnnotationCreate, 'origin_task_id' | 'output_of_task_id'>
+): AnnotationCreate {
+  const { formValues, comment, confidence, flagged = false, flagComment, sliceComments } = details;
+  return {
+    label_id: labelId,
+    geometry_wkt: geometryToWkt(geometry),
+    comment: comment || null,
+    confidence: confidence ?? null,
+    // An empty answer set is "no answers given", not "all answers cleared".
+    form_values: Object.keys(formValues).length ? formValues : null,
+    flagged_for_review: flagged,
+    flag_comment: flagged ? flagComment || null : null,
+    slice_comments: sliceComments,
+    ...link,
+  };
 }

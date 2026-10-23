@@ -14,6 +14,7 @@ import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 import {
   featureDedupeKey,
   geometryToWkt,
+  newAnnotationBody,
   validateForm,
   type ExtendedLabel,
   type FormValues,
@@ -64,22 +65,6 @@ function shapeTaskLink(): TaskLink {
   return { origin_task_id: originTaskId() };
 }
 
-export function annotationBody(
-  geometry: GeoJSON.Geometry,
-  labelId: number,
-  formValues: FormValues
-): AnnotationCreate {
-  return {
-    label_id: labelId,
-    comment: null,
-    geometry_wkt: geometryToWkt(geometry),
-    confidence: null,
-    // An empty answer set is "no answers given", not "all answers cleared".
-    form_values: Object.keys(formValues).length ? formValues : null,
-    ...shapeTaskLink(),
-  };
-}
-
 /** One geometry per feature: MVT ids repeat across the tiles a shape crosses,
  *  and are only unique within their own layer. */
 export function dedupeHits(hits: BoxHit[]): GeoJSON.Geometry[] {
@@ -104,7 +89,10 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
   if (!ok) return { kind: 'blocked', missing };
 
   const campaignId = campaignState().campaign.id;
-  const bodies = geometries.map((geometry) => annotationBody(geometry, labelId, work.formValues));
+  const link = shapeTaskLink();
+  const bodies = geometries.map((geometry) =>
+    newAnnotationBody(geometry, labelId, { formValues: work.formValues }, link)
+  );
   try {
     let count = 1;
     if (bodies.length === 1) {
@@ -118,7 +106,7 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
       });
       count = result.data?.created_count ?? bodies.length;
     }
-    work.noteDrawn(shapeTaskLink());
+    work.noteDrawn(link);
     return { kind: 'saved', count };
   } catch (error) {
     return { kind: 'error', message: extractErrorMessage(error) };
@@ -142,10 +130,8 @@ function reportLabelOutcome(outcome: LabelOutcome): void {
 // Editing saved annotations
 // ---------------------------------------------------------------------------
 
-/** Save the dragged geometry. Label, comment and answers come from the open
- *  session so a detail edit saved a moment ago is not written back stale. The
- *  answers are only sent when there are some: `null` is a write value (clear
- *  them), and this is a geometry edit. */
+/** Save the dragged geometry, and nothing else: an update leaves out what it
+ *  does not change, so a detail edit saved a moment ago cannot be overwritten. */
 export async function commitEdit(): Promise<boolean> {
   const work = useWorkStore.getState();
   const edit = work.edit;
@@ -153,15 +139,9 @@ export async function commitEdit(): Promise<boolean> {
 
   work.setEditBusy(true);
   try {
-    const answers = edit.annotation.form_values ?? {};
     const result = await updateAnnotation({
       path: { campaign_id: campaignState().campaign.id, annotation_id: edit.annotation.id },
-      body: {
-        label_id: edit.annotation.label_id,
-        comment: edit.annotation.comment ?? null,
-        geometry_wkt: geometryToWkt(edit.pending),
-        ...(Object.keys(answers).length ? { form_values: answers } : {}),
-      },
+      body: { geometry_wkt: geometryToWkt(edit.pending) },
     });
     if (result.data) work.setEditAnnotation(result.data);
     work.recordWrites([

@@ -42,14 +42,9 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
     try {
       const result = await updateAnnotation({
         path: { campaign_id: campaign.id, annotation_id: annotation.id },
-        body: {
-          label_id: labelId,
-          comment: annotation.comment ?? null,
-          geometry_wkt: null,
-          // Always the full answer set: {} would clear the stored answers,
-          // and the backend re-checks required fields against the new label.
-          form_values: values,
-        },
+        // The full answer set, because the backend re-checks required fields
+        // against the new label; {} clears them.
+        body: { label_id: labelId, form_values: values },
       });
       // The shared session is what the geometry save will send back, so it
       // learns about this write immediately - server copy when there is one,
