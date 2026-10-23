@@ -19,6 +19,7 @@ import { pendingAdminActions } from '~/features/organizations/utils/organization
 import { projectSections, type ProjectSection } from '~/features/projects/projectSections';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { CountBadge } from '~/shared/ui/Badge';
+import { capitalizeFirst } from '~/shared/utils/utility';
 import { HarvestMark, HARVEST_SITE } from '~/shared/ui/HarvestMark';
 import {
   IconBook,
@@ -102,8 +103,8 @@ const NavItem = ({
   onNavigate,
 }: NavItemProps) => {
   const className = `flex w-full gap-2.5 rounded-md ${
-    emphasis ? 'min-h-8 items-start py-[7px]' : 'h-8 items-center'
-  } text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 ${
+    emphasis ? 'min-h-8 py-1.5' : 'h-8'
+  } items-center text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 ${
     collapsed ? 'justify-center' : `pr-2 ${DEPTH_PADDING[depth]}`
   } ${
     active
@@ -268,7 +269,7 @@ export const AppSidebar = ({
                 <NavItem
                   to={projectPath(projectId)}
                   icon={<Monogram name={project.name} />}
-                  label={project.name}
+                  label={capitalizeFirst(project.name)}
                   emphasis
                   {...item}
                 />
@@ -286,14 +287,16 @@ export const AppSidebar = ({
                   ))}
                 {campaignId !== null && campaign && (
                   <>
-                    <NavItem
-                      to={campaignPath(projectId, campaignId)}
-                      icon={<Monogram name={campaign.name} />}
-                      label={campaign.name}
-                      depth={1}
-                      emphasis
-                      {...item}
-                    />
+                    {collapsed ? (
+                      <div className="mx-2 my-1.5 border-t border-neutral-200" />
+                    ) : (
+                      <div
+                        className="pl-5 pr-2 pt-0.5 pb-0.5 text-[13px] font-medium leading-[1.3] break-words text-neutral-900"
+                        title={campaign.name}
+                      >
+                        {capitalizeFirst(campaign.name)}
+                      </div>
+                    )}
                     {campaignSections(campaign).map((section) => {
                       const key: CampaignSectionKey = section ?? 'overview';
                       return (
