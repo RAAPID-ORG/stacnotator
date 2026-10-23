@@ -18,7 +18,6 @@ import { Badge, CountBadge } from '~/shared/ui/Badge';
 import {
   IconBuilding,
   IconCheck,
-  IconDocument,
   IconGear,
   IconPlus,
   IconSelector,
@@ -142,26 +141,6 @@ export const AccountMenu = ({
         };
         return (
           <>
-            <MenuItem icon={<IconGear />} onSelect={run(() => go(settingsPath()))}>
-              {t('sidebar.accountSettings')}
-            </MenuItem>
-            {canManage && (
-              <MenuItem
-                icon={<IconGear />}
-                testId="organization-settings"
-                onSelect={run(() => go(organizationPath(activeOrg.id)))}
-                trailing={
-                  <CountBadge
-                    count={activeOrg.pending_access_requests ?? 0}
-                    label={t('organizations:switcher.accessRequests')}
-                  />
-                }
-              >
-                {t('sidebar.organizationSettings')}
-              </MenuItem>
-            )}
-
-            <MenuSeparator />
             <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-1">
               <span className="text-[11px] font-medium text-neutral-400">
                 {t('organizations:switcher.label')}
@@ -206,11 +185,41 @@ export const AccountMenu = ({
             </MenuItem>
 
             <MenuSeparator />
-            {LEGAL_DOCS.map((doc) => (
-              <MenuItem key={doc} icon={<IconDocument />} href={legalPath(doc)} onSelect={close}>
-                {t(`legal.${doc}`)}
+            {canManage && (
+              <MenuItem
+                icon={<IconGear />}
+                testId="organization-settings"
+                onSelect={run(() => go(organizationPath(activeOrg.id)))}
+                trailing={
+                  <CountBadge
+                    count={activeOrg.pending_access_requests ?? 0}
+                    label={t('organizations:switcher.accessRequests')}
+                  />
+                }
+              >
+                {t('sidebar.organizationSettings')}
               </MenuItem>
-            ))}
+            )}
+            <MenuItem icon={<IconGear />} onSelect={run(() => go(settingsPath()))}>
+              {t('sidebar.accountSettings')}
+            </MenuItem>
+
+            <MenuSeparator />
+            <div className="flex items-center gap-3 px-2 py-1.5 text-[12px] text-neutral-500">
+              {LEGAL_DOCS.map((doc) => (
+                <a
+                  key={doc}
+                  role="menuitem"
+                  href={legalPath(doc)}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={close}
+                  className="hover:text-neutral-900 hover:underline"
+                >
+                  {t(`legal.${doc}`)}
+                </a>
+              ))}
+            </div>
 
             <MenuSeparator />
             <MenuItem icon={<IconSignOut />} tone="danger" onSelect={run(() => void signOut())}>

@@ -65,62 +65,38 @@ export const SidebarMenu = ({
 type MenuItemProps = {
   icon?: ReactNode;
   children: ReactNode;
+  onSelect: () => void;
+  checked?: boolean;
   trailing?: ReactNode;
   tone?: 'default' | 'danger';
   testId?: string;
-} & (
-  | { onSelect: () => void; checked?: boolean; href?: never }
-  | { href: string; onSelect?: () => void; checked?: never }
-);
+};
 
-/** One entry: an action, a choice (`checked`) or an external link (`href`). */
+/** One entry: an action, or a choice when `checked` is given. */
 export const MenuItem = ({
   icon,
   children,
+  onSelect,
+  checked,
   trailing,
   tone = 'default',
   testId,
-  ...action
-}: MenuItemProps) => {
-  const content = (
-    <>
-      <span className="flex w-4 h-4 shrink-0 items-center justify-center text-neutral-400 [&>svg]:w-4 [&>svg]:h-4">
-        {icon}
-      </span>
-      <span className="flex-1 min-w-0 truncate">{children}</span>
-      {trailing}
-    </>
-  );
-  const className = `${itemClass} ${tone === 'danger' ? 'text-red-700' : 'text-neutral-700'}`;
-
-  if (action.href !== undefined) {
-    return (
-      <a
-        role="menuitem"
-        href={action.href}
-        target="_blank"
-        rel="noreferrer"
-        onClick={action.onSelect}
-        data-testid={testId}
-        className={className}
-      >
-        {content}
-      </a>
-    );
-  }
-  return (
-    <button
-      type="button"
-      role={action.checked === undefined ? 'menuitem' : 'menuitemradio'}
-      aria-checked={action.checked}
-      onClick={action.onSelect}
-      data-testid={testId}
-      className={className}
-    >
-      {content}
-    </button>
-  );
-};
+}: MenuItemProps) => (
+  <button
+    type="button"
+    role={checked === undefined ? 'menuitem' : 'menuitemradio'}
+    aria-checked={checked}
+    onClick={onSelect}
+    data-testid={testId}
+    className={`${itemClass} ${tone === 'danger' ? 'text-red-700' : 'text-neutral-700'}`}
+  >
+    <span className="flex w-4 h-4 shrink-0 items-center justify-center text-neutral-400 [&>svg]:w-4 [&>svg]:h-4">
+      {icon}
+    </span>
+    <span className="flex-1 min-w-0 truncate">{children}</span>
+    {trailing}
+  </button>
+);
 
 export const MenuSeparator = () => (
   <div role="separator" className="my-1 border-t border-neutral-100" />
