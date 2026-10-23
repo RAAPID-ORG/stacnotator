@@ -16,6 +16,7 @@ import {
   clickMapAt,
   clickMapCenter,
   ctrlClickMapCenter,
+  drawLine,
   drawPolygon,
   fitAllAnnotations,
   getMinimapCenter,
@@ -96,8 +97,8 @@ test.describe('Open mode renders', () => {
     assertCoordsMatch(c, OPEN_MODE_CENTER, 'initial centre');
   });
 
-  test('default active tool is Pan', async ({ annotationPage }) => {
-    await expect(tool(annotationPage, 'Pan (P)')).toHaveClass(ACTIVE);
+  test('default active tool is Annotate', async ({ annotationPage }) => {
+    await expect(tool(annotationPage, 'Annotate (R)')).toHaveClass(ACTIVE);
   });
 });
 
@@ -234,7 +235,7 @@ test.describe('Creating annotations', () => {
     await annotationPage.keyboard.press('3'); // line label
     await Promise.all([
       waitForCreate(annotationPage),
-      drawPolygon(annotationPage, [
+      drawLine(annotationPage, [
         [-50, 0],
         [50, 0],
       ]),

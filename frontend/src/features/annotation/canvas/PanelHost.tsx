@@ -21,13 +21,16 @@ export type PanelHostProps = PanelHostOwnProps &
   Omit<HTMLAttributes<HTMLDivElement>, keyof PanelHostOwnProps>;
 
 /** In edit mode, both the header and body can move a panel. Expensive bodies
- *  become drag placeholders; hidable panels keep an explicit header action. */
+ *  become a placeholder naming the panel; hidable panels keep an explicit
+ *  header action. */
 export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function PanelHost(
   { panel, editing, onHidePanel, className, style, children, ...rest },
   ref
 ) {
-  const showPlaceholder = editing && panel.hideTarget === true;
-  const fullHeader = showPlaceholder && panel.headerless === true;
+  const placeholder = editing ? panel.placeholder : undefined;
+  // A headerless panel gets a header to drag by while editing, unless its
+  // placeholder already fills the card and can be dragged itself.
+  const showHeader = !panel.headerless || (editing && placeholder === undefined);
   const canHide = panel.hidable === true && onHidePanel != null;
   const { t } = useTranslation('annotation');
   const hideLabel = t('panelHost.hideLabel', { name: panel.title ?? panel.id });
@@ -47,15 +50,13 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
       style={style}
       {...rest}
     >
-      {(!panel.headerless || editing) && (
+      {showHeader && (
         <div
-          className={`${PANEL_DRAG_HANDLE_CLASS} card-header flex items-center gap-2 ${editing ? 'editable' : ''} ${fullHeader ? 'min-h-0 flex-1' : ''}`}
+          className={`${PANEL_DRAG_HANDLE_CLASS} card-header flex items-center gap-2 ${editing ? 'editable' : ''}`}
           onClick={panel.onHeaderClick}
         >
           {panel.title && (
-            <span
-              className={`min-w-0 flex-1 truncate text-[11px] font-medium tracking-wider uppercase ${fullHeader ? 'text-center text-amber-800' : 'text-neutral-500'}`}
-            >
+            <span className="min-w-0 flex-1 truncate text-[11px] font-medium tracking-wider text-neutral-500 uppercase">
               {panel.title}
             </span>
           )}
@@ -82,22 +83,22 @@ export const PanelHost = forwardRef<HTMLDivElement, PanelHostProps>(function Pan
         </div>
       )}
 
-      {!fullHeader &&
-        (showPlaceholder ? (
-          <div
-            className={`${PANEL_DRAG_HANDLE_CLASS} flex min-h-0 w-full flex-1 cursor-move touch-none items-center justify-center text-xs text-neutral-500 select-none`}
-            data-testid={`edit-placeholder-${panel.id}`}
-          >
-            {t('panelHost.dragToMove')}
-          </div>
-        ) : (
-          <div
-            className={`panel-body min-h-0 flex-1 ${editing ? `${PANEL_DRAG_HANDLE_CLASS} cursor-move touch-none` : ''}`}
-            onClick={panel.onBodyClick}
-          >
-            {panel.body}
-          </div>
-        ))}
+      {placeholder ? (
+        <div
+          className={`${PANEL_DRAG_HANDLE_CLASS} flex min-h-0 w-full flex-1 cursor-move touch-none flex-col items-center justify-center gap-0.5 overflow-hidden p-2 text-center select-none`}
+          data-testid={`edit-placeholder-${panel.id}`}
+        >
+          <span className="text-xs font-medium text-neutral-700">{placeholder.name}</span>
+          <span className="text-[11px] text-neutral-500">{placeholder.description}</span>
+        </div>
+      ) : (
+        <div
+          className={`panel-body min-h-0 flex-1 ${editing ? `${PANEL_DRAG_HANDLE_CLASS} cursor-move touch-none` : ''}`}
+          onClick={panel.onBodyClick}
+        >
+          {panel.body}
+        </div>
+      )}
 
       {children}
     </div>

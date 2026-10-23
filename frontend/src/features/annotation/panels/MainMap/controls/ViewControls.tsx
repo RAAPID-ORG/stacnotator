@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useImageryStore } from '../../../stores/imagery';
 
 export interface ViewControlsProps {
@@ -22,6 +23,9 @@ export function ViewControls({
   const viewSync = useImageryStore((s) => s.viewSync);
   const toggleCrosshair = useImageryStore((s) => s.toggleCrosshair);
   const toggleViewSync = useImageryStore((s) => s.toggleViewSync);
+  const showAnnotations = useImageryStore((s) => s.showAnnotations);
+  const toggleAnnotations = useImageryStore((s) => s.toggleAnnotations);
+  const { t } = useTranslation('panels');
 
   const button = 'flex h-6 w-6 items-center justify-center rounded-md cursor-pointer';
 
@@ -56,6 +60,34 @@ export function ViewControls({
             <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none" />
           </svg>
         )}
+      </button>
+
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={toggleAnnotations}
+        aria-pressed={!showAnnotations}
+        title={showAnnotations ? t('mainMap.hideDrawnTitle') : t('mainMap.showDrawnTitle')}
+        data-testid="annotations-toggle"
+        className={`${button} ${showAnnotations ? 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path
+            d={
+              showAnnotations
+                ? 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z'
+                : 'M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20'
+            }
+          />
+        </svg>
       </button>
 
       <button

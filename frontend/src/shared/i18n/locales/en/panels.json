@@ -3,7 +3,14 @@
     "task": "Task",
     "controls": "Controls",
     "timeline": "Timeline",
-    "imagery": "Imagery"
+    "imagery": "Imagery",
+    "minimap": "Minimap"
+  },
+  "placeholders": {
+    "mainMap": "Satellite imagery of the location you are working on",
+    "minimap": "Overview of the surrounding area",
+    "timeline": "Steps through the imagery dates",
+    "imageryWindow": "Satellite imagery for this period, beside the main map"
   },
   "minimap": {
     "copyCoordinates": "Copy coordinates to clipboard",
@@ -19,12 +26,6 @@
   "explore": {
     "tools": "Tools",
     "shortcuts": "Shortcuts",
-    "hide": "Hide",
-    "show": "Show",
-    "hideDrawnTitle": "Hide drawn objects (Shift+X)",
-    "showDrawnTitle": "Show drawn objects (Shift+X)",
-    "fit": "Fit annotations",
-    "fitTitle": "Zoom to every annotation (Space)",
     "labels": "Labels",
     "customizeStyles": "Customize label styles",
     "customizeLabelStyle": "Customize this label's style",
@@ -64,7 +65,7 @@
     "draw": {
       "point": "- click the map to draw a point.",
       "line": "- click the map to draw a line.",
-      "polygon": "- click the map to draw a polygon. Double-click to finish."
+      "polygon": "- click the map to draw a polygon. Click the first point or press Enter to finish."
     }
   },
   "labelStyle": {
@@ -118,7 +119,9 @@
     "answerToSave": "Answer to save: {{fields}}",
     "answerHelp": "Tab moves between questions, Enter saves.",
     "pickLabel": "Pick a label in the controls panel (or press its number) to start drawing",
-    "loadingImagery": "Loading imagery"
+    "loadingImagery": "Loading imagery",
+    "hideDrawnTitle": "Hide drawn objects (Shift+X)",
+    "showDrawnTitle": "Show drawn objects (Shift+X)"
   },
   "selection": {
     "confirm": "Confirm edits (Enter)",
