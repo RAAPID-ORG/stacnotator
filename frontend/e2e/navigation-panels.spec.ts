@@ -123,7 +123,7 @@ test('desktop slice navigation follows campaign defaults and preserves a persona
   await page.reload();
   await expect(page.getByTestId('slice-navigation')).toBeVisible();
   await page.getByTestId('edit-layout-trigger').click();
-  const checkbox = page.getByLabel('Desktop slice navigation', { exact: true });
+  const checkbox = page.getByLabel('Slice navigation buttons', { exact: true });
   await expect(checkbox).toBeChecked();
   await checkbox.uncheck();
   await page.getByTestId('save-menu-trigger').click();
@@ -397,7 +397,7 @@ test('detach, resize, save and reload navigation panels with one-click imagery c
   await page.getByLabel('Imagery controls in a separate panel').check();
   await page.getByLabel('Imagery controls orientation', { exact: true }).selectOption('vertical');
   await expect(page.getByLabel('Show all imagery options')).toHaveCount(0);
-  await page.getByLabel('Desktop slice navigation', { exact: true }).check();
+  await page.getByLabel('Slice navigation buttons', { exact: true }).check();
   await page.getByRole('button', { name: 'Minimize edit layout', exact: true }).click();
 
   const imageryPanel = page.locator('[data-panel-id="imagery"]');
@@ -672,7 +672,7 @@ test('cancel and reset restore integrated controls and desktop overlay defaults'
   await page.getByTestId('edit-layout-trigger').click();
   await page.getByLabel('Timeline in a separate panel').check();
   await page.getByLabel('Imagery controls in a separate panel').check();
-  await page.getByLabel('Desktop slice navigation', { exact: true }).check();
+  await page.getByLabel('Slice navigation buttons', { exact: true }).check();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.locator('[data-panel-id="timeline"], [data-panel-id="imagery"]')).toHaveCount(
     0
@@ -686,13 +686,13 @@ test('cancel and reset restore integrated controls and desktop overlay defaults'
   await page.getByTestId('edit-layout-trigger').click();
   await page.getByLabel('Timeline in a separate panel').check();
   await page.getByLabel('Imagery controls in a separate panel').check();
-  await page.getByLabel('Desktop slice navigation', { exact: true }).check();
+  await page.getByLabel('Slice navigation buttons', { exact: true }).check();
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Reset Layout?' })).toBeVisible();
   await page.getByRole('button', { name: 'Reset', exact: true }).last().click();
   await expect(page.getByLabel('Timeline in a separate panel')).not.toBeChecked();
   await expect(page.getByLabel('Imagery controls in a separate panel')).not.toBeChecked();
-  await expect(page.getByLabel('Desktop slice navigation', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Slice navigation buttons', { exact: true })).not.toBeChecked();
 });
 
 test.describe('touch devices', () => {

@@ -163,29 +163,27 @@ export function TrayContent({
       title="Edit Layout"
       footerActions={footerActions}
       sections={
-        <>
-          {settingUpFirstView && (
-            <div
-              className="mb-2 rounded-md border border-brand-200 bg-brand-50 p-2 text-xs leading-snug text-brand-900"
-              data-testid="first-view-setup-guidance"
-            >
-              <p className="mb-1 font-medium">Setting up the workspace</p>
-              <p>
-                Drag and resize panels into your team's starting arrangement, then select{' '}
-                <span className="font-medium">Save layout</span> at the bottom of this panel to show
-                imagery. Everyone can rearrange their own copy later through Edit Layout.
-              </p>
-              <p className="mt-2">Drag this panel by its header to move it out of the way.</p>
-            </div>
-          )}
-          {isCampaignAdmin && (
-            <div className="mb-2 border-b border-neutral-100 pb-2">
-              <ViewAdmin />
-            </div>
-          )}
-          <NavigationPanels />
-        </>
+        (settingUpFirstView || isCampaignAdmin) && (
+          <>
+            {settingUpFirstView && (
+              <div
+                className="mb-2 rounded-md border border-brand-200 bg-brand-50 p-2 text-xs leading-snug text-brand-900"
+                data-testid="first-view-setup-guidance"
+              >
+                <p className="mb-1 font-medium">Setting up the workspace</p>
+                <p>
+                  Drag and resize panels into your team's starting arrangement, then select{' '}
+                  <span className="font-medium">Save layout</span> at the bottom of this panel to
+                  show imagery. Everyone can rearrange their own copy later through Edit Layout.
+                </p>
+                <p className="mt-2">Drag this panel by its header to move it out of the way.</p>
+              </div>
+            )}
+            {isCampaignAdmin && <ViewAdmin />}
+          </>
+        )
       }
+      pinnedSection={<NavigationPanels />}
       listHeader={<HiddenPanelsHeader count={items.length} />}
       storageKey="annotation:layoutPanel"
       onAdd={(id) => showWindow(Number(id))}
@@ -240,7 +238,7 @@ function NavigationPanels() {
           onChange={(e) => setOptions('main', { slice_navigation: e.target.checked })}
           className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-600"
         />
-        Desktop slice navigation
+        Slice navigation buttons
       </label>
     </div>
   );
