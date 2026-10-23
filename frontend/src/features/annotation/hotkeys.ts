@@ -3,7 +3,7 @@
  * plus the help text and tooltips those bindings drive. Which keys the page
  * actually binds, and to what, lives in `keymap.ts`.
  */
-import { useEffect } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
 export interface Binding {
   /** 'a', 'shift+a', 'alt+arrowup', '1', 'escape', ' '. */
@@ -39,6 +39,13 @@ let tables: Binding[][] = [];
  *  Observing here rather than on raw keydowns reuses this matching, and its
  *  `when` and typing guards. */
 const observers = new Set<(key: string) => void>();
+/** Tooltips read the installed tables, so they re-render when those change. */
+const tableListeners = new Set<() => void>();
+let tablesVersion = 0;
+function tablesChanged(): void {
+  tablesVersion++;
+  for (const listener of tableListeners) listener();
+}
 
 const MODIFIERS = ['shift', 'alt', 'ctrl', 'meta'] as const;
 
@@ -102,9 +109,11 @@ export function useHotkeys(table: Binding[], deps: unknown[]): void {
   useEffect(() => {
     if (tables.length === 0) window.addEventListener('keydown', onKeyDown);
     tables.push(table);
+    tablesChanged();
     return () => {
       tables = tables.filter((t) => t !== table);
       if (tables.length === 0) window.removeEventListener('keydown', onKeyDown);
+      tablesChanged();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
@@ -148,9 +157,26 @@ export function helpRows(
     );
 }
 
-/** Tooltip taken from the binding itself, so a control can never advertise a
- *  key it is not bound to. */
-export function hotkeyTip(table: Binding[], key: string, fallback = ''): string {
-  const binding = table.find((b) => b.key === key);
-  return binding?.help ? `${binding.help} (${keyLabel(binding.key)})` : fallback;
+/** Tooltip taken from the binding that key runs right now, so a control can
+ *  never advertise a key it is not bound to. */
+export function useHotkeyTip(): (key: string, fallback?: string) => string {
+  const version = useSyncExternalStore(
+    (listener) => {
+      tableListeners.add(listener);
+      return () => tableListeners.delete(listener);
+    },
+    () => tablesVersion
+  );
+  return useCallback(
+    (key: string, fallback = '') => {
+      for (let i = tables.length - 1; i >= 0; i--) {
+        const binding = tables[i].find((b) => b.key === key);
+        if (binding) return binding.help ? `${binding.help} (${keyLabel(binding.key)})` : fallback;
+      }
+      return fallback;
+    },
+    // Re-created whenever the tables change, which is what re-renders a caller.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [version]
+  );
 }

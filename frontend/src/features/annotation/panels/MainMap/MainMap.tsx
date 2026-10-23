@@ -2,11 +2,10 @@ import { IconProbe } from '~/shared/ui/Icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { pageKeymap } from '../../keymap';
 import { SliceCommentButton } from '../../chrome/SliceComments';
 import { SliceNavigation } from '../../chrome/SliceNavigation';
 import { useContainerSize } from '~/shared/hooks/useContainerSize';
-import { hotkeyTip } from '../../hotkeys';
+import { useHotkeyTip } from '../../hotkeys';
 import { collectionsInView } from '../../campaign/imagery';
 import { awaitingImageryRegistration } from '../../campaign/tileUrls';
 import { computeTaskProgress } from '../../campaign/tasks';
@@ -200,8 +199,7 @@ export function ImageryControls({
   orientation?: 'horizontal' | 'vertical';
   detached?: boolean;
 }) {
-  const { t, i18n } = useTranslation('panels');
-  const campaign = useCampaign();
+  const { t } = useTranslation('panels');
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
   const view = useCampaignStore((s) => s.view);
@@ -212,8 +210,7 @@ export function ImageryControls({
     if (expanded) sections.push(section);
     setPanelOptions('imagery', { expanded_sections: sections });
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const bindings = useMemo(() => pageKeymap(), [campaign, catalog, mode, view, i18n.language]);
+  const hotkeyTip = useHotkeyTip();
   const layoutClass = !detached
     ? 'flex-wrap items-center justify-center gap-1'
     : orientation === 'vertical'
@@ -230,8 +227,8 @@ export function ImageryControls({
         catalog={catalog}
         sourceIds={view?.source_ids ?? []}
         title={t('mainMap.selectLayer', {
-          next: hotkeyTip(bindings, 'i'),
-          previous: hotkeyTip(bindings, 'shift+i'),
+          next: hotkeyTip('i'),
+          previous: hotkeyTip('shift+i'),
         })}
         expanded={detached}
       />
@@ -242,7 +239,7 @@ export function ImageryControls({
         expanded={detached && !!expandedSections?.includes('collections')}
         onExpandedChange={detached ? (expanded) => setExpanded('collections', expanded) : undefined}
         title={t('mainMap.selectCollection', {
-          shortcut: hotkeyTip(bindings, 'shift+d', t('mainMap.nextCollection')),
+          shortcut: hotkeyTip('shift+d', t('mainMap.nextCollection')),
         })}
       />
       <SlicePicker
@@ -250,7 +247,7 @@ export function ImageryControls({
         expanded={detached && !!expandedSections?.includes('slices')}
         onExpandedChange={detached ? (expanded) => setExpanded('slices', expanded) : undefined}
         title={t('mainMap.selectSlice', {
-          shortcut: hotkeyTip(bindings, 'd', t('mainMap.nextSlice')),
+          shortcut: hotkeyTip('d', t('mainMap.nextSlice')),
         })}
       />
     </div>
@@ -258,7 +255,7 @@ export function ImageryControls({
 }
 
 function MainMapActions() {
-  const { t, i18n } = useTranslation('panels');
+  const { t } = useTranslation('panels');
   const campaign = useCampaign();
   const catalog = useCatalog();
   const mode = useCampaignStore((s) => s.workMode);
@@ -267,10 +264,7 @@ function MainMapActions() {
   const isTaskMode = mode === 'tasks';
   const sourceIds = view?.source_ids ?? [];
   const windows = useLayoutStore((s) => s.currentLayout.windows);
-  // pageKeymap() reads the stores directly; these are the inputs that should
-  // rebuild the table, not what the closure literally names.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const bindings = useMemo(() => pageKeymap(), [campaign, catalog, mode, view, i18n.language]);
+  const hotkeyTip = useHotkeyTip();
 
   // View sync only means something with more than one window to keep in step.
   const windowCount = collectionsInView(catalog, { source_ids: sourceIds }).filter(
@@ -279,9 +273,9 @@ function MainMapActions() {
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-1" data-tour="map-actions">
-      <SliceCommentButton address={address} hint={hotkeyTip(bindings, 'shift+c')} />
-      <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'o')} />
-      <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip(bindings, 'v')} />
+      <SliceCommentButton address={address} hint={hotkeyTip('shift+c')} />
+      <CustomMapControls catalog={catalog} toggleTitle={hotkeyTip('o')} />
+      <VectorLayerControls catalog={catalog} toggleTitle={hotkeyTip('v')} />
       <ViewControls
         isTaskMode={isTaskMode}
         onFocus={() => {
@@ -291,18 +285,18 @@ function MainMapActions() {
           } else
             void fitAnnotations(catalog.campaignId, useImageryStore.getState().showTaskAnnotations);
         }}
-        focusTitle={hotkeyTip(bindings, ' ')}
-        crosshairTitle={hotkeyTip(bindings, 'x')}
+        focusTitle={hotkeyTip(' ')}
+        crosshairTitle={hotkeyTip('x')}
         showViewSync={windowCount > 1}
-        viewSyncTitle={hotkeyTip(bindings, 'l')}
+        viewSyncTitle={hotkeyTip('l')}
       />
       {/* Tasks only: there the probe is a detour from the task, so it is
             reached from the map. Explore keeps every probe control in its
             tools panel, beside the tool that drops them. */}
       {isTaskMode && campaign.time_series.length > 0 && (
         <ProbeToggle
-          title={hotkeyTip(bindings, 't')}
-          addTitle={hotkeyTip(bindings, 'shift+t', t('probes.addAnother'))}
+          title={hotkeyTip('t')}
+          addTitle={hotkeyTip('shift+t', t('probes.addAnother'))}
         />
       )}
       {isTaskMode && <ClearProbes />}
