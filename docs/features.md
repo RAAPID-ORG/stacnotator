@@ -244,7 +244,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 Post-creation editing via the settings page (three tabs):
 
 - General: name, guide markdown, bounding box, sample extent, labels, custom form fields, labelling access, embedding year, danger zone
-- Imagery: source display settings, visualization params, collection refresh, add/remove visualizations, and independently reopening any saved temporal generator to regenerate its series (unrelated/manual collections are preserved by default after an explicit choice)
+- Imagery: source display settings, visualization params, source refresh (re-ingest a source's searches), add/remove visualizations, and independently reopening any saved temporal generator to regenerate its series (unrelated/manual collections are preserved by default after an explicit choice)
 - Time Series: add/remove configurations
 
 Tasks (upload, generate, assign, move between sets, delete) live on the campaign's separate Tasks page; members and roles are managed in the project settings. Project visibility is a project attribute, not a campaign one.
