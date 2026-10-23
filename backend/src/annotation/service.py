@@ -976,6 +976,9 @@ def update_annotation(
         if annotation_update.label_id is not None:
             validate_label_id(campaign, annotation_update.label_id)
             annotation.label_id = annotation_update.label_id
+            # Labelling a skipped task row answers the task.
+            if annotation.outcome == "skipped":
+                annotation.outcome = "labelled"
 
         # Patch semantics like every other field: omitting form_values keeps
         # the stored answers, sending {} clears them (normalizes to None).

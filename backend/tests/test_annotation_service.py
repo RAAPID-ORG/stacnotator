@@ -504,6 +504,19 @@ class TestUpdateAnnotation:
         assert existing.label_id == 3
         db.commit.assert_called_once()
 
+    def test_labelling_a_skipped_task_row_answers_it(self):
+        db = _mock_db()
+        existing = _make_annotation(ann_id=5, label_id=None)
+        existing.outcome = "skipped"
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+
+        payload = AnnotationUpdate(
+            label_id=3, comment=None, geometry_wkt=None, is_authoritative=None
+        )
+        update_annotation(db, 5, payload, uuid4(), campaign=_make_campaign())
+
+        assert existing.outcome == "labelled"
+
     def test_update_comment(self):
         db = _mock_db()
         user_id = uuid4()
