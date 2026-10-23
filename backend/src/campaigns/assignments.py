@@ -499,14 +499,6 @@ def _label_id_to_name(campaign: Campaign) -> dict[int, str]:
     return label_id_to_name(campaign.settings.labels if campaign.settings else None)
 
 
-def _answer_cell(label_names: dict[int, str], label_id: int | None, outcome: str) -> str:
-    """A task row as the assignments sheet shows it: the label's name, or the
-    outcome (SKIPPED, DRAWN, NONE_FOUND) when there is no label."""
-    if label_id is None:
-        return outcome.upper()
-    return label_names.get(label_id, f"Label {label_id}")
-
-
 def build_task_assignments_export(
     db: Session, campaign: Campaign, task_set_id: int | None = None
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -571,7 +563,7 @@ def build_task_assignments_export(
     for task in tasks:
         annotations = sorted(annotations_by_task.get(task.id, []), key=lambda row: row[0])
         existing = [
-            f"{email}={_answer_cell(label_names, label_id, outcome)}"
+            f"{email}={label_names.get(label_id, f'Label {label_id}') if label_id is not None else outcome.upper()}"
             for email, label_id, outcome in annotations
         ]
         assignment_records.append(

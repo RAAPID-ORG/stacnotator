@@ -395,10 +395,6 @@ export async function skipCurrent(): Promise<void> {
  *  map (the server checks there is at least one), `none_found` when there was
  *  nothing to draw. */
 export async function finishDrawTask(outcome: 'drawn' | 'none_found'): Promise<void> {
-  if (!taskLabellingPolicy(currentTask()).mayLabel) {
-    alert('You are not allowed to work on this task in this campaign.', 'error');
-    return;
-  }
   const { draft } = useWorkStore.getState();
   if ((draft.phase === 'draft' || draft.phase === 'committing') && draft.savedId === null) {
     alert('Save or discard the shape you are drawing first.', 'error');
