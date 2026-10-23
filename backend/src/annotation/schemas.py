@@ -5,7 +5,7 @@ from uuid import UUID
 from geoalchemy2.shape import to_shape
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from src.annotation.constants import TASK_STATUS_PENDING, TaskOutcome, TaskStatus
+from src.annotation.constants import AssignmentStatus, TaskOutcome, TaskStatus
 from src.annotation.status import (
     compute_task_status_value,
     derive_assignment_status,
@@ -208,7 +208,7 @@ class AnnotationTaskAssignmentOut(BaseModel):
     # Derived, not stored: attached to the ORM row by AnnotationTaskOut's
     # validator, which is the only place holding both the assignments and the
     # annotations they are read from.
-    status: Literal["pending", "done", "skipped"]
+    status: AssignmentStatus
     is_review: bool = False
     user_email: str | None = None
     user_display_name: str | None = None
@@ -236,9 +236,9 @@ class AnnotationTaskOut(BaseModel):
     id: int
     annotation_number: int
     task_set_id: int
-    task_status: TaskStatus = TASK_STATUS_PENDING
+    task_status: TaskStatus
     geometry: GeometryOut
-    assignments: list[AnnotationTaskAssignmentOut] | None
+    assignments: list[AnnotationTaskAssignmentOut]
     annotations: list[AnnotationFromTaskOut]
     # The soft claim on this task. Concurrency only: it says who is working on
     # it right now, never who may label it.
@@ -277,18 +277,10 @@ class AnnotationTaskOut(BaseModel):
         place holding both the assignments and the annotations they are read
         from.
 
-        Only reachable via `model_validate` on an ORM `AnnotationTask` (the
-        only way this model is ever built in production - see
-        service.py's `AnnotationTaskOut.model_validate` calls). Anything
-        without an `assignments` attribute is passed through untouched and
-        keeps the field's `pending` default.
+        Built from an ORM `AnnotationTask` only.
         """
-        if not hasattr(data, "assignments"):
-            return data
-        assignment_list, annotation_list = task_status_inputs(
-            data.assignments or [], data.annotations or []
-        )
-        for assignment in data.assignments or []:
+        assignment_list, annotation_list = task_status_inputs(data.assignments, data.annotations)
+        for assignment in data.assignments:
             assignment.status = derive_assignment_status(annotation_list, assignment.user_id)
         data.__dict__["task_status"] = compute_task_status_value(assignment_list, annotation_list)
         data.__dict__["claimed_by_display_name"] = (
@@ -337,8 +329,8 @@ class AnnotationFromTaskCreate(_AnnotationFields):
 class TaskStatusOut(BaseModel):
     """Where a task and the acting user stand after a write to it."""
 
-    task_status: str
-    assignment_status: str
+    task_status: TaskStatus
+    assignment_status: AssignmentStatus
 
     model_config = ConfigDict(from_attributes=True)
 

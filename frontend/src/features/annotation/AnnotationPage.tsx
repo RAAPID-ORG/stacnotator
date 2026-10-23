@@ -44,7 +44,8 @@ import {
   withoutKeys,
   type LayoutItem,
 } from './canvas/grid';
-import { ALL_TASK_STATUSES, reviewFilterPatch, type TaskFilter } from './campaign/tasks';
+import { reviewFilterPatch, type TaskFilter } from './campaign/tasks';
+import { TASK_STATUSES } from '~/shared/utils/taskStatus';
 import { applyCameraTarget, focusFirstViewSetup, loadCameraTarget } from './map/camera';
 import { buildPanels, MAIN_MAP_PANEL, type PanelDef } from './panels/panels';
 import { loadCampaign } from './loadCampaign';
@@ -317,7 +318,7 @@ export function AnnotationPage() {
     if (catalog) useTasksStore.getState().setFilter(next, Date.now(), catalog);
   };
   const showAllTasks = () =>
-    applyFilter({ ...taskFilter, assignedTo: [], statuses: [...ALL_TASK_STATUSES] });
+    applyFilter({ ...taskFilter, assignedTo: [], statuses: [...TASK_STATUSES] });
   // Whatever the filter is scoped to stays scoped: finishing one task set
   // means reviewing that set, not the whole campaign.
   const reviewDoneTasks = () => {

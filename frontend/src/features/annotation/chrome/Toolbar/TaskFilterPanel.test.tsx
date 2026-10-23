@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
-import type { TaskStatus } from '../../campaign/annotation';
+import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { makeCampaign, makeTask } from '~/features/annotation/testing/fixtures';
 import { useCampaignStore } from '../../stores/campaign';
 import { UNLABELLED } from '../../campaign/tasks';

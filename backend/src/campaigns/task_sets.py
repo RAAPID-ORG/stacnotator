@@ -4,8 +4,8 @@ from fastapi import HTTPException
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from src.annotation.geometries import delete_rows_and_orphan_geometries
 from src.annotation.models import Annotation, AnnotationTask
+from src.annotation.service import delete_tasks
 from src.campaigns import assignments
 from src.campaigns.models import TaskSet
 
@@ -42,7 +42,9 @@ def list_task_sets_with_stats(db: Session, campaign_id: int) -> list[dict]:
             TaskSet.name,
             TaskSet.created_at,
             func.count(func.distinct(AnnotationTask.id)).label("num_tasks"),
-            func.count(func.distinct(Annotation.annotation_task_id)).label("num_labeled"),
+            func.count(func.distinct(Annotation.annotation_task_id))
+            .filter(Annotation.outcome != "skipped")
+            .label("num_labeled"),
         )
         .select_from(TaskSet)
         .outerjoin(AnnotationTask, AnnotationTask.task_set_id == TaskSet.id)
@@ -95,7 +97,7 @@ def delete_task_set(db: Session, campaign_id: int, task_set_id: int) -> None:
     tasks = db.scalars(
         select(AnnotationTask).where(AnnotationTask.task_set_id == task_set_id)
     ).all()
-    delete_rows_and_orphan_geometries(db, tasks)
+    delete_tasks(db, campaign_id, tasks, delete_annotations=False)
     db.delete(task_set)
     db.commit()
 

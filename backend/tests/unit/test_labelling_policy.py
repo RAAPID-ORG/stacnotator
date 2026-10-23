@@ -17,15 +17,13 @@ from pydantic import ValidationError
 from src.campaigns import service
 from src.campaigns.models import Campaign, CampaignSettings
 from src.campaigns.policy import (
+    CampaignStanding,
     PolicyContext,
     build_policy_context,
-    context_from_role_map,
     counts_toward_completion,
-    get_campaign_role_map,
     get_labelling_policy,
-    get_org_public_member_ids,
-    get_platform_admin_ids,
     is_allowed,
+    load_standing,
 )
 from src.campaigns.schemas import (
     LabellingPolicy,
@@ -323,251 +321,78 @@ def test_get_labelling_policy_reads_stored_policy():
 
 
 # ============================================================================
-# context_from_role_map: pure PolicyContext construction from pre-fetched maps
+# CampaignStanding: who is what in a campaign, through the one access rule
 # ============================================================================
 
 
-def test_context_from_role_map_non_member_defaults_false():
+def _standing(visibility="private", **kwargs) -> CampaignStanding:
+    return CampaignStanding(visibility=visibility, **{"roles": {}, **kwargs})
+
+
+def test_stranger_has_no_standing():
     user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set())
-    assert ctx == PolicyContext(
-        user_id=user_id, is_admin=False, is_authoritative=False, is_member=False, is_assigned=False
+    assert _standing().context(user_id) == PolicyContext(
+        user_id=user_id, is_admin=False, is_authoritative=False, is_member=False
     )
 
 
-def test_context_from_role_map_reads_campaign_admin_and_authoritative_flags():
+def test_membership_row_carries_its_roles():
     user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={user_id: (True, True)}, platform_admin_ids=set())
-    assert ctx.is_member is True
-    assert ctx.is_admin is True
-    assert ctx.is_authoritative is True
+    ctx = _standing(roles={user_id: (True, True)}).context(user_id)
+    assert (ctx.is_member, ctx.is_admin, ctx.is_authoritative) == (True, True, True)
 
 
-def test_context_from_role_map_platform_admin_without_campaign_admin_flag():
-    """A platform admin who isn't flagged is_admin on the CampaignUser row
-    still resolves as an admin."""
-    user_id = uuid4()
-    ctx = context_from_role_map(
-        user_id, role_map={user_id: (False, False)}, platform_admin_ids={user_id}
-    )
-    assert ctx.is_admin is True
-
-
-def test_context_from_role_map_platform_admin_is_a_member_without_a_row():
+def test_platform_admin_is_an_admin_member_without_a_row():
     """Platform admins are members everywhere, matching the viewer_is_member flag
     the campaign endpoints report - a members-only axis must let them through."""
     user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids={user_id})
-
-    assert ctx.is_member is True
+    ctx = _standing(platform_admins={user_id}).context(user_id)
+    assert (ctx.is_member, ctx.is_admin, ctx.is_authoritative) == (True, True, False)
     assert is_allowed(PolicyAudience(kinds=["members"]), ctx) is True
 
 
-def test_context_from_role_map_passes_through_is_assigned():
+def test_org_members_are_members_of_org_public_campaigns_only():
     user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set(), is_assigned=True)
-    assert ctx.is_assigned is True
+    org_public = _standing("organization", org_members={user_id}).context(user_id)
+    assert (org_public.is_member, org_public.is_admin) == (True, False)
+    assert _standing("private", org_members={user_id}).context(user_id).is_member is False
 
 
-def test_context_from_role_map_org_member_ids_grant_member_standing_only():
+def test_is_assigned_passes_through():
     user_id = uuid4()
-    ctx = context_from_role_map(
-        user_id, role_map={}, platform_admin_ids=set(), org_member_ids={user_id}
-    )
-    assert ctx.is_member is True
-    assert ctx.is_admin is False
-    assert ctx.is_authoritative is False
+    assert _standing().context(user_id, is_assigned=True).is_assigned is True
 
 
-def test_context_from_role_map_defaults_to_no_org_standing():
-    user_id = uuid4()
-    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set())
-    assert ctx.is_member is False
-
-
-# ============================================================================
-# get_org_public_member_ids: the amortized org-public standing lookup
-# ============================================================================
-
-
-def test_get_org_public_member_ids_empty_without_org_public_visibility():
+def test_load_standing_without_users_skips_queries():
     db = MagicMock()
-    for visibility in ("private", "public"):
-        assert get_org_public_member_ids(db, _campaign(visibility)) == set()
+    assert load_standing(db, _campaign(), []).roles == {}
+    db.execute.assert_not_called()
     db.scalars.assert_not_called()
 
 
-def test_get_org_public_member_ids_reads_active_members_of_the_approved_org():
-    member_id = uuid4()
-    db = MagicMock()
-    db.scalars.return_value.all.return_value = [member_id]
-
-    assert get_org_public_member_ids(db, _campaign("organization")) == {member_id}
-
-    stmt = db.scalars.call_args.args[0]
-    text = str(stmt)
-    params = list(stmt.compile().params.values())
-    assert "JOIN data.organizations" in text
-    assert "active" in params and "approved" in params
-
-
-# ============================================================================
-# get_campaign_role_map / get_platform_admin_ids: single-query batch lookups
-# ============================================================================
-
-
-def test_get_campaign_role_map_builds_dict_from_rows():
-    user_a, user_b = uuid4(), uuid4()
-    db = MagicMock()
-    db.execute.return_value.all.return_value = [(user_a, True, False), (user_b, False, True)]
-
-    role_map = get_campaign_role_map(db, campaign_id=1)
-
-    assert role_map == {user_a: (True, False), user_b: (False, True)}
-
-
-def test_get_platform_admin_ids_empty_input_skips_query():
-    db = MagicMock()
-    assert get_platform_admin_ids(db, []) == set()
-    db.scalars.assert_not_called()
-
-
-def test_get_platform_admin_ids_returns_matching_set():
-    admin_id, other_id = uuid4(), uuid4()
-    db = MagicMock()
-    db.scalars.return_value.all.return_value = [admin_id]
-
-    result = get_platform_admin_ids(db, [admin_id, other_id])
-
-    assert result == {admin_id}
-
-
-# ============================================================================
-# build_policy_context: real-time, single-user PolicyContext for enforcement
-# ============================================================================
-
-
-def _db_with_campaign_user(cu=None, is_platform_admin=False):
-    """A MagicMock db wired so the project membership lookup (`db.scalars(...).first()`)
-    and the platform-admin check (`db.scalar(...)`) can be configured independently.
-    Both default to "no" so tests only need to name what they're asserting."""
-    db = MagicMock()
-    db.scalars.return_value.first.return_value = cu
-    db.scalar.return_value = is_platform_admin
-    return db
-
-
-def test_build_policy_context_non_member_non_admin():
-    campaign = _campaign()
+def test_load_standing_reads_org_members_only_for_org_public_projects():
     user_id = uuid4()
-    db = _db_with_campaign_user(cu=None)
+    db = MagicMock()
+    db.execute.return_value.all.return_value = [(user_id, False, True)]
+    db.scalars.return_value.all.return_value = []
 
-    ctx = build_policy_context(db, campaign, user_id)
+    standing = load_standing(db, _campaign("private"), [user_id])
 
-    assert ctx == PolicyContext(
-        user_id=user_id, is_admin=False, is_authoritative=False, is_member=False, is_assigned=False
-    )
-
-
-def test_build_policy_context_campaign_admin():
-    campaign = _campaign()
-    user_id = uuid4()
-    cu = SimpleNamespace(is_admin=True, is_authoritative_reviewer=False)
-    db = _db_with_campaign_user(cu=cu)
-
-    ctx = build_policy_context(db, campaign, user_id)
-
-    assert ctx.is_member is True
-    assert ctx.is_admin is True
-    assert ctx.is_authoritative is False
-
-
-def test_build_policy_context_authoritative_reviewer():
-    campaign = _campaign()
-    user_id = uuid4()
-    cu = SimpleNamespace(is_admin=False, is_authoritative_reviewer=True)
-    db = _db_with_campaign_user(cu=cu)
-
-    ctx = build_policy_context(db, campaign, user_id)
-
-    assert ctx.is_authoritative is True
-    assert ctx.is_admin is False
-
-
-def test_build_policy_context_platform_admin_without_campaign_membership():
-    """Platform admins are members everywhere, matching the viewer_is_member flag
-    the campaign endpoints report - a members-only axis must let them through."""
-    campaign = _campaign()
-    user_id = uuid4()
-    db = _db_with_campaign_user(cu=None, is_platform_admin=True)
-
-    ctx = build_policy_context(db, campaign, user_id)
-
-    assert ctx.is_admin is True
-    assert ctx.is_member is True
-    assert is_allowed(PolicyAudience(kinds=["members"]), ctx) is True
-
-
-def test_build_policy_context_no_task_is_never_assigned():
-    campaign = _campaign()
-    user_id = uuid4()
-    db = _db_with_campaign_user(cu=None)
-
-    ctx = build_policy_context(db, campaign, user_id, task=None)
-
-    assert ctx.is_assigned is False
+    assert standing.roles == {user_id: (False, True)}
+    assert db.scalars.call_count == 1  # platform admins only
 
 
 def test_build_policy_context_assigned_when_user_holds_any_assignment():
-    campaign = _campaign()
-    user_id = uuid4()
-    db = _db_with_campaign_user(cu=None)
-    task = SimpleNamespace(assignments=[SimpleNamespace(user_id=user_id)])
-
-    ctx = build_policy_context(db, campaign, user_id, task=task)
-
-    assert ctx.is_assigned is True
-
-
-def test_build_policy_context_not_assigned_when_task_assigned_to_others():
-    campaign = _campaign()
-    user_id = uuid4()
-    db = _db_with_campaign_user(cu=None)
-    task = SimpleNamespace(assignments=[SimpleNamespace(user_id=uuid4())])
-
-    ctx = build_policy_context(db, campaign, user_id, task=task)
-
-    assert ctx.is_assigned is False
-
-
-def test_build_policy_context_org_member_on_org_public_campaign_is_member():
-    """Org-public projects grant active org members the same member standing
-    enforcement advertises via viewer_is_member - no roles attached."""
-    campaign = _campaign(visibility="organization")
     user_id = uuid4()
     db = MagicMock()
-    lookups = iter([None, SimpleNamespace()])  # no ProjectUser row, active org membership
+    db.execute.return_value.all.return_value = []
+    db.scalars.return_value.all.return_value = []
+    mine = SimpleNamespace(assignments=[SimpleNamespace(user_id=user_id)])
+    theirs = SimpleNamespace(assignments=[SimpleNamespace(user_id=uuid4())])
 
-    db.scalars.side_effect = lambda *_a, **_k: MagicMock(
-        first=MagicMock(return_value=next(lookups))
-    )
-    db.scalar.return_value = False  # not a platform admin
-
-    ctx = build_policy_context(db, campaign, user_id)
-
-    assert ctx.is_member is True
-    assert ctx.is_admin is False
-    assert ctx.is_authoritative is False
-    assert is_allowed(PolicyAudience(kinds=["members"]), ctx) is True
-
-
-def test_build_policy_context_non_org_member_on_org_public_campaign_is_not_member():
-    campaign = _campaign(visibility="organization")
-    db = _db_with_campaign_user(cu=None)  # both lookups come back empty
-
-    ctx = build_policy_context(db, campaign, uuid4())
-
-    assert ctx.is_member is False
+    assert build_policy_context(db, _campaign(), user_id, task=mine).is_assigned is True
+    assert build_policy_context(db, _campaign(), user_id, task=theirs).is_assigned is False
+    assert build_policy_context(db, _campaign(), user_id).is_assigned is False
 
 
 # ============================================================================

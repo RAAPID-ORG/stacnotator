@@ -5,7 +5,7 @@ import type {
   AnnotationTaskOut,
   TaskSetOut,
 } from '~/api/client';
-import type { TaskStatus } from './annotation';
+import { TASK_STATUSES, type TaskStatus } from '~/shared/utils/taskStatus';
 
 const t = i18n.getFixedT(null, 'annotation');
 
@@ -45,7 +45,7 @@ export function getActiveClaim(task: AnnotationTaskOut, now: number): Claim | nu
 /** Free work: nobody assigned to it, nobody has worked it, nobody holds it. */
 export function isClaimable(task: AnnotationTaskOut, now: number): boolean {
   if ((task.annotations || []).length > 0) return false;
-  if ((task.assignments || []).length > 0) return false;
+  if (task.assignments.length > 0) return false;
   return getActiveClaim(task, now) === null;
 }
 
@@ -75,20 +75,11 @@ export interface TaskFilter {
   taskSetId: number | null;
 }
 
-export const ALL_TASK_STATUSES: readonly TaskStatus[] = [
-  'pending',
-  'partial',
-  'done',
-  'skipped',
-  'conflicting',
-];
-
 const RESOLVED: TaskStatus[] = ['done', 'skipped', 'conflicting'];
 
 type ProgressInput = Pick<AnnotationTaskOut, 'task_status' | 'assignments'>;
 
-const isResolved = (task: ProgressInput): boolean =>
-  RESOLVED.includes((task.task_status ?? 'pending') as TaskStatus);
+const isResolved = (task: ProgressInput): boolean => RESOLVED.includes(task.task_status);
 
 /**
  * Progress within `assignedTo`'s scope (everything when empty). Scoped to
@@ -108,7 +99,7 @@ export function computeTaskProgress(
   let total = 0;
   let completed = 0;
   for (const task of allTasks) {
-    const assignments = task.assignments || [];
+    const assignments = task.assignments;
     const scoped = assignments.filter((a) => assignedTo.includes(a.user_id));
     if (scoped.length > 0) {
       total += 1;
@@ -165,7 +156,7 @@ export function applyTaskFilter(
   const visibleTasks = allTasks.filter((task) => {
     if (filter.taskSetId !== null && task.task_set_id !== filter.taskSetId) return false;
 
-    const assignments = task.assignments || [];
+    const assignments = task.assignments;
     const annotations = task.annotations || [];
 
     if (filterByUser) {
@@ -177,9 +168,9 @@ export function applyTaskFilter(
       const matchesUnassigned =
         wantUnassigned &&
         (isClaimable(task, now) || isHeldBy(task, currentUserId, now)) &&
-        filter.statuses.includes(task.task_status ?? 'pending');
+        filter.statuses.includes(task.task_status);
       if (!matchesUser && !matchesUnassigned) return false;
-    } else if (!filter.statuses.includes(task.task_status ?? 'pending')) {
+    } else if (!filter.statuses.includes(task.task_status)) {
       return false;
     }
 
@@ -225,7 +216,7 @@ export function widenFilterForTask(
     );
   if (shows(filter)) return filter;
 
-  const statuses = [...ALL_TASK_STATUSES];
+  const statuses = [...TASK_STATUSES];
   const candidates: TaskFilter[] = [
     { ...filter, statuses },
     { ...filter, statuses, assignedTo: [], taskSetId: null },
@@ -292,7 +283,7 @@ export function seedFilter(
     if (!workLeft) return pending([], setId);
     filter = {
       assignedTo: [],
-      statuses: [...ALL_TASK_STATUSES],
+      statuses: [...TASK_STATUSES],
       selectedLabelIds: [],
       selectedConfidences: [],
       flaggedOnly: false,

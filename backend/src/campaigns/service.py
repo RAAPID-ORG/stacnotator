@@ -12,7 +12,6 @@ from src.annotation import service as annotation_service
 from src.annotation.forms import campaign_form_fields
 from src.annotation.geometries import (
     delete_orphan_geometries,
-    delete_rows_and_orphan_geometries,
 )
 from src.annotation.models import Annotation, AnnotationTask, Embedding
 from src.auth.models import User
@@ -456,49 +455,18 @@ def update_embedding_year(
 def delete_annotation_tasks(
     db: Session, campaign_id: int, task_ids: list[int], delete_annotations: bool = False
 ) -> int:
-    """
-    Delete multiple annotation tasks from a campaign.
-
-    Their annotations are detached (annotation_task_id SET NULL) and kept, or
-    deleted with them when ``delete_annotations`` is set.
-
-    Args:
-        db: Database session
-        campaign_id: ID of the campaign
-        task_ids: List of task IDs to delete
-        delete_annotations: Also delete the annotations made on these tasks
-
-    Returns:
-        Number of tasks deleted
-
-    Raises:
-        HTTPException: If tasks don't exist or don't belong to campaign
-    """
+    """Delete tasks of a campaign; see ``annotation.service.delete_tasks`` for what
+    happens to the work done on them."""
     if not task_ids:
         return 0
-
     assignments._verify_tasks_in_campaign(db, campaign_id, task_ids)
     tasks = db.scalars(
         select(AnnotationTask).where(
             AnnotationTask.id.in_(task_ids), AnnotationTask.campaign_id == campaign_id
         )
     ).all()
-
-    if delete_annotations:
-        annotations = db.scalars(
-            select(Annotation).where(Annotation.annotation_task_id.in_(task_ids))
-        ).all()
-        if annotations:
-            delete_rows_and_orphan_geometries(db, annotations)
-            annotation_service.record_annotation_deletions(
-                db, campaign_id, [a.id for a in annotations]
-            )
-            annotation_service.bump_campaign_annotations_version(db, campaign_id)
-
-    delete_rows_and_orphan_geometries(db, tasks)
-
+    annotation_service.delete_tasks(db, campaign_id, tasks, delete_annotations=delete_annotations)
     db.commit()
-
     return len(tasks)
 
 

@@ -7,7 +7,7 @@ without closing an import cycle back through campaigns.service. Must never
 import from src.annotation or campaigns.service.
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import Protocol
@@ -26,8 +26,7 @@ from src.organizations.models import (
     Organization,
     OrganizationUser,
 )
-from src.organizations.service import is_active_org_member
-from src.projects.access import VISIBILITY_ORGANIZATION, is_policy_member
+from src.projects.access import VISIBILITY_ORGANIZATION, resolve_project_flags
 from src.projects.models import ProjectUser
 
 
@@ -69,56 +68,73 @@ def counts_toward_completion(
     return is_allowed(axis, ctx)
 
 
-def context_from_role_map(
-    user_id: UUID,
-    role_map: dict[UUID, tuple[bool, bool]],
-    platform_admin_ids: set[UUID],
-    is_assigned: bool = False,
-    org_member_ids: AbstractSet[UUID] = frozenset(),
-) -> PolicyContext:
-    """Build a PolicyContext from pre-fetched, campaign-wide lookups.
+@dataclass(frozen=True)
+class CampaignStanding:
+    """What the policy needs to know about people in one campaign: their project
+    roles, who of them is a platform admin, and who is an active member of the
+    owning organization. Resolved through the one access rule in
+    projects/access.py, so a policy context and the viewer flags the campaign
+    endpoints report cannot disagree."""
 
-    `role_map` is `{user_id: (is_admin, is_authoritative)}` for every project
-    membership backing one campaign; `platform_admin_ids` is the subset of a
-    candidate user set holding the global admin role. Both are fetched once
-    per request (see get_campaign_role_map / get_platform_admin_ids below) so
-    evaluating many annotations' authors - e.g. a whole task list or export -
-    costs two queries total instead of one per annotation.
+    visibility: str
+    # Project membership rows: user id -> (is_admin, is_authoritative_reviewer).
+    roles: Mapping[UUID, tuple[bool, bool]]
+    platform_admins: AbstractSet[UUID] = frozenset()
+    org_members: AbstractSet[UUID] = frozenset()
 
-    A platform admin counts as a member of every campaign, membership row or
-    not, so a members-only axis grants them the same access the campaign's
-    `viewer_is_member` flag advertises. `org_member_ids` extends the same
-    member standing (no roles) to active org members when the owning project
-    is org-public - pass `get_org_public_member_ids` for it, or leave the
-    empty default for private/platform-public projects.
-    """
-    is_admin, is_authoritative = role_map.get(user_id, (False, False))
-    is_platform = user_id in platform_admin_ids
-    return PolicyContext(
-        user_id=user_id,
-        is_admin=is_admin or is_platform,
-        is_authoritative=is_authoritative,
-        is_member=user_id in role_map or is_platform or user_id in org_member_ids,
-        is_assigned=is_assigned,
+    def context(self, user_id: UUID, *, is_assigned: bool = False) -> PolicyContext:
+        is_admin, is_authoritative = self.roles.get(user_id, (False, False))
+        flags = resolve_project_flags(
+            visibility=self.visibility,
+            is_active_org_member=user_id in self.org_members,
+            is_member=user_id in self.roles,
+            member_is_admin=is_admin,
+            member_is_authoritative_reviewer=is_authoritative,
+            is_platform_admin=user_id in self.platform_admins,
+        )
+        return PolicyContext(
+            user_id=user_id,
+            is_admin=flags.is_admin,
+            is_authoritative=flags.is_authoritative_reviewer,
+            is_member=flags.is_policy_member,
+            is_assigned=is_assigned,
+        )
+
+
+def load_standing(db: Session, campaign: Campaign, user_ids: Iterable[UUID]) -> CampaignStanding:
+    """The standing of ``user_ids`` in the campaign, in at most three queries however
+    many users are asked about."""
+    ids = {uid for uid in user_ids if uid is not None}
+    project = campaign.project
+    if not ids:
+        return CampaignStanding(visibility=project.visibility, roles={})
+    rows = db.execute(
+        select(
+            ProjectUser.user_id, ProjectUser.is_admin, ProjectUser.is_authoritative_reviewer
+        ).where(ProjectUser.project_id == project.id, ProjectUser.user_id.in_(ids))
+    ).all()
+    platform_admins = set(
+        db.scalars(select(User.id).where(User.is_platform_admin, User.id.in_(ids))).all()
     )
-
-
-def get_org_public_member_ids(db: Session, campaign: Campaign) -> set[UUID]:
-    """Active members of the owning APPROVED organization, when (and only
-    when) the campaign's project is org-public - the amortized counterpart of
-    `is_active_org_member` for `context_from_role_map`. Empty set otherwise."""
-    if campaign.project.visibility != VISIBILITY_ORGANIZATION:
-        return set()
-    return set(
-        db.scalars(
-            select(OrganizationUser.user_id)
-            .join(Organization, Organization.id == OrganizationUser.organization_id)
-            .where(
-                OrganizationUser.organization_id == campaign.project.organization_id,
-                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-                Organization.status == ORG_STATUS_APPROVED,
-            )
-        ).all()
+    org_members: set[UUID] = set()
+    if project.visibility == VISIBILITY_ORGANIZATION:
+        org_members = set(
+            db.scalars(
+                select(OrganizationUser.user_id)
+                .join(Organization, Organization.id == OrganizationUser.organization_id)
+                .where(
+                    OrganizationUser.organization_id == project.organization_id,
+                    OrganizationUser.user_id.in_(ids),
+                    OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+                    Organization.status == ORG_STATUS_APPROVED,
+                )
+            ).all()
+        )
+    return CampaignStanding(
+        visibility=project.visibility,
+        roles={uid: (is_admin, is_auth) for uid, is_admin, is_auth in rows},
+        platform_admins=platform_admins,
+        org_members=org_members,
     )
 
 
@@ -135,22 +151,6 @@ class _TaskLike(Protocol):
 
     @property
     def assignments(self) -> Sequence[_AssignmentLike]: ...
-
-
-def is_platform_admin(db: Session, user_id: UUID) -> bool:
-    """For call sites holding a user id rather than the User."""
-    return bool(db.scalar(select(User.is_platform_admin).where(User.id == user_id)))
-
-
-def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> bool:
-    """True if the user holds the authoritative-reviewer flag on the
-    campaign's project."""
-    pu = db.execute(
-        select(ProjectUser)
-        .join(Campaign, Campaign.project_id == ProjectUser.project_id)
-        .where(Campaign.id == campaign_id, ProjectUser.user_id == user_id)
-    ).scalar_one_or_none()
-    return pu is not None and pu.is_authoritative_reviewer
 
 
 def get_labelling_policy(campaign: Campaign) -> LabellingPolicy:
@@ -200,69 +200,8 @@ def build_policy_context(
     user_id: UUID,
     task: _TaskLike | None = None,
 ) -> PolicyContext:
-    """Build a PolicyContext for one user's request against one campaign.
-
-    Used for real-time enforcement (a single annotate/create/update call), so
-    it does its own lookups rather than taking pre-fetched maps - contrast
-    with `get_campaign_role_map` / `context_from_role_map`, which amortize the
-    same lookups across many annotations (task lists, exports).
-
-    `task.assignments` must already be loaded (joinedload/selectinload) when
-    `task` is given; `is_assigned` is true if the user holds ANY assignment on
-    it (primary or review), per the labelling-policy spec.
-
-    A platform admin counts as a member of every campaign, membership row or
-    not, so a members-only axis grants them the same access the campaign's
-    `viewer_is_member` flag advertises. Active members of the owning org get
-    the same member standing (no roles) when the project is org-public.
-    """
-    pu = db.scalars(
-        select(ProjectUser).where(
-            ProjectUser.project_id == campaign.project_id,
-            ProjectUser.user_id == user_id,
-        )
-    ).first()
-    is_platform = is_platform_admin(db, user_id)
-    is_assigned = task is not None and any(
-        assignment.user_id == user_id for assignment in (task.assignments or [])
-    )
-    is_member = is_policy_member(
-        visibility=campaign.project.visibility,
-        is_active_org_member=is_active_org_member(db, user_id, campaign.project.organization_id),
-        is_member=pu is not None,
-        is_platform_admin=is_platform,
-    )
-    return PolicyContext(
-        user_id=user_id,
-        is_admin=(pu is not None and pu.is_admin) or is_platform,
-        is_authoritative=pu is not None and pu.is_authoritative_reviewer,
-        is_member=is_member,
-        is_assigned=is_assigned,
-    )
-
-
-def get_campaign_role_map(db: Session, campaign_id: int) -> dict[UUID, tuple[bool, bool]]:
-    """One query giving every campaign member's (is_admin, is_authoritative)
-    flags, keyed by user id - roles come from the owning project. Membership
-    itself is `user_id in role_map`.
-
-    Meant to be fetched once per request and reused across many
-    `context_from_role_map` calls instead of a per-annotation ProjectUser
-    lookup.
-    """
-    rows = db.execute(
-        select(ProjectUser.user_id, ProjectUser.is_admin, ProjectUser.is_authoritative_reviewer)
-        .join(Campaign, Campaign.project_id == ProjectUser.project_id)
-        .where(Campaign.id == campaign_id)
-    ).all()
-    return {user_id: (is_admin, is_authoritative) for user_id, is_admin, is_authoritative in rows}
-
-
-def get_platform_admin_ids(db: Session, user_ids: Iterable[UUID]) -> set[UUID]:
-    """Subset of `user_ids` holding the global admin role, in one query."""
-    candidates = {uid for uid in user_ids if uid is not None}
-    if not candidates:
-        return set()
-    return set(
-        db.scalars(select(User.id).where(User.is_platform_admin, User.id.in_(candidates))).all()
-    )
+    """One user's PolicyContext for a request against one campaign. ``task``'s
+    assignments must be loaded; holding any of them (primary or review) makes the
+    user an assignee, per the labelling-policy spec."""
+    is_assigned = task is not None and any(a.user_id == user_id for a in task.assignments)
+    return load_standing(db, campaign, [user_id]).context(user_id, is_assigned=is_assigned)

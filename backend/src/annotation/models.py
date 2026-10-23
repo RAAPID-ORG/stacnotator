@@ -259,7 +259,7 @@ class Annotation(Base):
             name="annotations_outcome_values",
         ),
         CheckConstraint(
-            "annotation_task_id IS NULL OR outcome IS NOT NULL",
+            "(annotation_task_id IS NULL) = (outcome IS NULL)",
             name="annotations_task_row_has_outcome",
         ),
         CheckConstraint(
@@ -316,9 +316,9 @@ class Annotation(Base):
         nullable=False,
     )
 
-    # Optional: set if annotation was created from a task
+    # Set on a task row: this annotator's answer to the task, which dies with it.
     annotation_task_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.annotation_tasks.id", ondelete="SET NULL"),
+        ForeignKey("data.annotation_tasks.id", ondelete="CASCADE"),
         nullable=True,
     )
 

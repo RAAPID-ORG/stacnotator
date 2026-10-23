@@ -829,12 +829,12 @@ export type AnnotationTaskOut = {
     /**
      * Task Status
      */
-    task_status?: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
     geometry: GeometryOut;
     /**
      * Assignments
      */
-    assignments: Array<AnnotationTaskAssignmentOut> | null;
+    assignments: Array<AnnotationTaskAssignmentOut>;
     /**
      * Annotations
      */
@@ -877,11 +877,11 @@ export type AnnotationTaskSubmitResponse = {
     /**
      * Task Status
      */
-    task_status: string;
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
     /**
      * Assignment Status
      */
-    assignment_status: string;
+    assignment_status: 'pending' | 'done' | 'skipped';
     annotation: AnnotationFromTaskOut;
 };
 
@@ -4577,11 +4577,11 @@ export type TaskStatusOut = {
     /**
      * Task Status
      */
-    task_status: string;
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
     /**
      * Assignment Status
      */
-    assignment_status: string;
+    assignment_status: 'pending' | 'done' | 'skipped';
 };
 
 /**

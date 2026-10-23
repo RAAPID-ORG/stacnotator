@@ -35,6 +35,9 @@ REQUIRED_CATEGORY_FIELD = [
 ]
 
 
+pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
+
+
 def _campaign(form_fields=None, *, campaign_id=1, is_public=False):
     campaign = MagicMock()
     campaign.id = campaign_id

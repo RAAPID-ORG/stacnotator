@@ -26,7 +26,7 @@ def delete_orphan_geometries(db: Session, geometry_ids: Iterable[int] | None = N
 
 
 def delete_rows_and_orphan_geometries(
-    db: Session, rows: Iterable[AnnotationTask] | Iterable[Annotation]
+    db: Session, rows: Iterable[AnnotationTask | Annotation]
 ) -> None:
     """Delete tasks or annotations together with their newly orphaned geometries."""
     geometry_ids = [row.geometry_id for row in rows]

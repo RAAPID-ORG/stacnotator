@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy import CursorResult, Result, delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
+from src.annotation.claims import is_free_work
 from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
@@ -89,20 +90,8 @@ def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]
 
 
 def _eligible_task_ids(db: Session, campaign_id: int, task_set_id: int | None = None) -> list[int]:
-    """Campaign tasks with no assignment and no annotation, locked for update."""
-    has_assignment = (
-        select(AnnotationTaskAssignment.id)
-        .where(AnnotationTaskAssignment.task_id == AnnotationTask.id)
-        .exists()
-    )
-    has_annotation = (
-        select(Annotation.id).where(Annotation.annotation_task_id == AnnotationTask.id).exists()
-    )
-    conditions = [
-        AnnotationTask.campaign_id == campaign_id,
-        ~has_assignment,
-        ~has_annotation,
-    ]
+    """Campaign tasks free to hand out, locked for update."""
+    conditions = [AnnotationTask.campaign_id == campaign_id, is_free_work()]
     if task_set_id is not None:
         conditions.append(AnnotationTask.task_set_id == task_set_id)
     stmt = (

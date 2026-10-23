@@ -17,7 +17,6 @@ import {
   validateForm,
   type FormValues,
   type SubmitReadiness,
-  type TaskStatus,
 } from './campaign/annotation';
 import { listNotes, type SliceComment } from './campaign/sliceComments';
 import { usesClaimPool } from './campaign/tasks';
@@ -49,13 +48,13 @@ export interface TaskPolicy {
  */
 export function taskLabellingPolicy(task: AnnotationTaskOut | null): TaskPolicy {
   const { campaign, currentUserId } = useCampaignStore.getState();
-  const isAssignedToTask = task?.assignments?.some((a) => a.user_id === currentUserId) ?? false;
+  const isAssignedToTask = task?.assignments.some((a) => a.user_id === currentUserId) ?? false;
   const policy = campaign?.settings.labelling_policy;
   if (!campaign || !task || !policy) {
     return { mayLabel: true, countsTowardCompletion: true, isAssignedToTask };
   }
 
-  const assigned = (task.assignments?.length ?? 0) > 0;
+  const assigned = task.assignments.length > 0;
   const ctx: PolicyContext = {
     userId: currentUserId,
     isAdmin: campaign.viewer_is_admin ?? false,
@@ -84,26 +83,12 @@ type SubmitOutcome =
   | { kind: 'removed'; task: AnnotationTaskOut }
   | { kind: 'error'; message: string };
 
-const TASK_STATUSES = ['pending', 'partial', 'done', 'skipped', 'conflicting'] as const;
-const ASSIGNMENT_STATUSES = ['pending', 'done', 'skipped'] as const;
-
-/** The submit and delete responses type these as plain strings. */
-const toTaskStatus = (value: string | undefined): TaskStatus | undefined =>
-  TASK_STATUSES.find((status) => status === value);
-
-const toAssignmentStatus = (
-  value: string | undefined
-): AnnotationTaskAssignmentOut['status'] | undefined =>
-  ASSIGNMENT_STATUSES.find((status) => status === value);
-
 function withAssignmentStatus(
   task: AnnotationTaskOut,
   currentUserId: string,
-  status: string | undefined
+  status: AnnotationTaskAssignmentOut['status']
 ): AnnotationTaskAssignmentOut[] {
-  return (task.assignments || []).map((a) =>
-    a.user_id === currentUserId ? { ...a, status: toAssignmentStatus(status) ?? 'pending' } : a
-  );
+  return task.assignments.map((a) => (a.user_id === currentUserId ? { ...a, status } : a));
 }
 
 export interface SubmitParams {
@@ -151,13 +136,14 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
       const { data } = await deleteAnnotation({
         path: { campaign_id: campaignId, annotation_id: mine.id },
       });
+      if (!data) return { kind: 'error', message: t('taskActions.submitFailed') };
       return {
         kind: 'removed',
         task: {
           ...task,
           annotations: task.annotations.filter((a) => a.id !== mine.id),
-          assignments: withAssignmentStatus(task, currentUserId, data?.assignment_status),
-          task_status: toTaskStatus(data?.task_status) ?? 'pending',
+          assignments: withAssignmentStatus(task, currentUserId, data.assignment_status),
+          task_status: data.task_status,
         },
       };
     } catch (error) {
@@ -207,7 +193,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
           result.annotation,
         ],
         assignments: withAssignmentStatus(task, currentUserId, result.assignment_status),
-        task_status: toTaskStatus(result.task_status) ?? task.task_status,
+        task_status: result.task_status,
       },
     };
   } catch (error) {

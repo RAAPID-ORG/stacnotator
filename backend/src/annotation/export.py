@@ -20,13 +20,14 @@ from shapely.geometry import mapping
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from src.annotation.completion import attach_counts_toward_completion_flat
+from src.annotation.completion import attach_counts_toward_completion
 from src.annotation.forms import campaign_form_fields
 from src.annotation.models import (
     Annotation,
     AnnotationTask,
 )
 from src.annotation.status import (
+    agreed_answers,
     compute_task_status_value,
     task_answer,
     task_status_inputs,
@@ -213,21 +214,10 @@ def _group_annotations_by_task(
 def _conflicting_task_numbers(
     grouped: dict[int, list[Annotation]],
 ) -> list[int]:
-    """Return human-readable annotation_numbers of any task whose annotators
-    disagree (>= 2 distinct answers, see ``task_answer``).
-
-    Only annotations whose `counts_toward_completion` is True are considered,
-    mirroring `compute_task_status_value` - an extra label the labelling
-    policy allows but doesn't count must not manufacture a conflict on its
-    own. The flag is attached before export record building runs.
-    """
+    """Human-readable annotation_numbers of the tasks whose answers disagree."""
     conflicts: list[int] = []
     for task_id, task_anns in grouped.items():
-        counting = [a for a in task_anns if a.counts_toward_completion]
-        answered = [a for a in counting if task_answer(a) is not None]
-        if any(a.is_authoritative for a in answered):
-            continue
-        if len({task_answer(a) for a in answered}) > 1:
+        if agreed_answers(task_anns) is None:
             task = task_anns[0].annotation_task
             conflicts.append(task.annotation_number if task else task_id)
     return sorted(conflicts)
@@ -336,9 +326,9 @@ def _answered(annotations: list[Annotation]) -> list[Annotation]:
     return [a for a in annotations if task_answer(a) is not None]
 
 
-def _canonical(answered: list[Annotation]) -> Annotation:
-    """The row a merged task speaks for: an authoritative answer if there is one."""
-    return next((a for a in answered if a.is_authoritative), answered[0])
+def _canonical(task_anns: list[Annotation]) -> Annotation:
+    """The row a merged task speaks for: one its agreed answer rests on."""
+    return (agreed_answers(task_anns) or _answered(task_anns))[0]
 
 
 def _build_export_record_merged(
@@ -360,7 +350,7 @@ def _build_export_record_merged(
     join key in merged mode.
     """
     labeled = _answered(anns)
-    canonical = _canonical(labeled)
+    canonical = _canonical(anns)
     agreed_label_id = canonical.label_id
 
     emails = sorted(
@@ -463,7 +453,7 @@ def _build_annotation_records(
                     form_schema,
                 )
             )
-            canonical_annotations.append(_canonical(labeled))
+            canonical_annotations.append(_canonical(task_anns))
         else:
             labeled_count = len(labeled)
             for ann in task_anns:
@@ -575,7 +565,7 @@ def fetch_annotations_with_context(
     if user_ids:
         users = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
         user_email_map = {user.id: user.email for user in users}
-    attach_counts_toward_completion_flat(db, campaign, list(annotations))
+    attach_counts_toward_completion(db, campaign, list(annotations))
     return list(annotations), user_email_map
 
 

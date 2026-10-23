@@ -23,6 +23,8 @@ from src.annotation.status import (
 from src.campaigns.schemas import PolicyAudience
 from tests.conftest import make_policy
 
+pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
+
 
 def _answer(user_id, answer):
     return {

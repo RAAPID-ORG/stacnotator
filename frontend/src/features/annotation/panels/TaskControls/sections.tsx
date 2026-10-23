@@ -158,7 +158,7 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
   const hasExistingLabel =
     task.annotations.find((a) => a.created_by_user_id === currentUserId)?.label_id != null;
   const { mayLabel, countsTowardCompletion, isAssignedToTask } = taskLabellingPolicy(task);
-  const taskHasAssignments = (task.assignments?.length ?? 0) > 0;
+  const taskHasAssignments = task.assignments.length > 0;
   const readiness = { selectedLabelId, hasExistingLabel, mayLabel, isSubmitting: isBusy };
   const isSubmitDisabled = !maySubmitTask(readiness);
   // Skipping is labelling with no label, so it is gated the same way. Keying

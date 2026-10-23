@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 
 from src.annotation import claims, spatial
 from src.annotation.completion import (
-    attach_counts_toward_completion_flat,
-    attach_counts_toward_completion_tree,
+    attach_counts_toward_completion,
+    attach_to_tasks,
 )
 from src.annotation.constants import CHANGES_OVERLAP, DELETION_RETENTION
 from src.annotation.forms import (
@@ -49,6 +49,7 @@ from src.annotation.schemas import (
     normalize_slice_comments,
 )
 from src.annotation.status import (
+    agreed_answers,
     compute_task_status_value,
     derive_assignment_status,
     resolve_task_outcome,
@@ -62,7 +63,6 @@ from src.campaigns.policy import (
     counts_toward_completion,
     get_labelling_policy,
     is_allowed,
-    is_authoritative_reviewer,
 )
 
 logger = logging.getLogger(__name__)
@@ -274,7 +274,7 @@ def get_annotation_task_by_id(
     if task is not None:
         _attach_has_embedding(db, [task])
         _attach_linked_annotations(db, [task])
-        attach_counts_toward_completion_tree(db, campaign, [task])
+        attach_to_tasks(db, campaign, [task])
     return task
 
 
@@ -315,7 +315,7 @@ def get_annotation_tasks_for_campaign(
     tasks = list(db.scalars(stmt).unique().all())
     _attach_has_embedding(db, tasks)
     _attach_linked_annotations(db, tasks)
-    attach_counts_toward_completion_tree(db, campaign, tasks)
+    attach_to_tasks(db, campaign, tasks)
     return tasks
 
 
@@ -338,7 +338,7 @@ def _tasks_for_status(db: Session, campaign: Campaign) -> list[AnnotationTask]:
         .unique()
         .all()
     )
-    attach_counts_toward_completion_tree(db, campaign, tasks)
+    attach_to_tasks(db, campaign, tasks)
     return tasks
 
 
@@ -377,8 +377,8 @@ def get_task_density(
         annotations = task.annotations or []
         assignment_list, annotation_list = task_status_inputs(task.assignments or [], annotations)
         status = compute_task_status_value(assignment_list, annotation_list)
-        labelled = next((a for a in annotations if a.label_id is not None), None)
-        points.append((point[0], point[1], (status, labelled.label_id if labelled else None)))
+        agreed = agreed_answers(annotations)
+        points.append((point[0], point[1], (status, agreed[0].label_id if agreed else None)))
 
     return [
         {
@@ -611,9 +611,7 @@ def add_annotation_for_task(
     has_assignments = bool(annotation_task.assignments)
     ctx = _require_task_access(db, campaign, annotation_task, user_id)
 
-    if annotation_create.is_authoritative and not is_authoritative_reviewer(
-        db, annotation_task.campaign_id, user_id
-    ):
+    if annotation_create.is_authoritative and not ctx.is_authoritative:
         raise HTTPException(
             status_code=403,
             detail="Only campaign admins or authoritative reviewers can submit authoritative annotations",
@@ -1110,7 +1108,7 @@ def get_annotation_by_id(
     )
     annotation = db.scalars(stmt).unique().first()
     if annotation is not None:
-        attach_counts_toward_completion_flat(db, campaign, [annotation])
+        attach_counts_toward_completion(db, campaign, [annotation])
     return annotation
 
 
@@ -1138,6 +1136,39 @@ def delete_annotation_with_status(
         task_status=AnnotationTaskOut.model_validate(task).task_status,
         assignment_status=get_user_assignment_status(task, user_id),
     )
+
+
+def delete_tasks(
+    db: Session, campaign_id: int, tasks: Sequence[AnnotationTask], *, delete_annotations: bool
+) -> None:
+    """Delete tasks and what only made sense on them.
+
+    A task row records one annotator's answer to that task and dies with it. A
+    labelled answer is still a labelled place, so unless the admin asks for the
+    annotations to go too it stays as a shape of its own; the shapes drawn on a
+    draw task stay the same way. Nothing commits here.
+    """
+    task_ids = [task.id for task in tasks]
+    if not task_ids:
+        return
+    task_rows = db.scalars(
+        select(Annotation).where(Annotation.annotation_task_id.in_(task_ids))
+    ).all()
+    drop = list(task_rows)
+    if delete_annotations:
+        drop += db.scalars(
+            select(Annotation).where(Annotation.output_of_task_id.in_(task_ids))
+        ).all()
+    else:
+        kept = [row for row in task_rows if row.outcome == "labelled"]
+        for row in kept:
+            row.annotation_task_id = None
+            row.outcome = None
+        drop = [row for row in task_rows if row.outcome is not None]
+    if task_rows or drop:
+        record_annotation_deletions(db, campaign_id, [row.id for row in drop])
+        bump_campaign_annotations_version(db, campaign_id)
+    delete_rows_and_orphan_geometries(db, [*drop, *tasks])
 
 
 def delete_annotations(

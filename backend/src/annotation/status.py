@@ -17,12 +17,13 @@ from src.annotation.constants import (
     TASK_STATUS_PARTIAL,
     TASK_STATUS_PENDING,
     TASK_STATUS_SKIPPED,
+    AssignmentStatus,
     TaskOutcome,
     TaskStatus,
 )
 
 
-def derive_assignment_status(annotation_list: list[dict], user_id: UUID) -> str:
+def derive_assignment_status(annotation_list: list[dict], user_id: UUID) -> AssignmentStatus:
     """A user's state on a task, read off their annotation.
 
     An answer means done, an annotation without one means they looked and
@@ -132,6 +133,20 @@ def task_answer(annotation: _AnnotationRow) -> int | str | None:
     if annotation.outcome == "skipped":
         return None
     return annotation.outcome
+
+
+def agreed_answers[R: _AnnotationRow](rows: Sequence[R]) -> list[R] | None:
+    """The task rows a task's answer rests on, or None when they disagree.
+
+    An authoritative answer settles the task on its own; otherwise every
+    counting answer has a say. Rows the policy does not count never decide
+    anything. Empty when nothing has been answered yet.
+    """
+    counting = [
+        row for row in rows if row.counts_toward_completion and task_answer(row) is not None
+    ]
+    basis = [row for row in counting if row.is_authoritative] or counting
+    return basis if len({task_answer(row) for row in basis}) <= 1 else None
 
 
 def resolve_task_outcome(

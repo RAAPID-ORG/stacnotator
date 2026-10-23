@@ -157,7 +157,7 @@ export const TaskModeReview = ({
       if (statusFilter !== 'all' && task.task_status !== statusFilter) return false;
       if (setFilter !== 'all' && task.task_set_id !== setFilter) return false;
       if (selectedUserIds.length > 0) {
-        const assignments = task.assignments || [];
+        const assignments = task.assignments;
         if (!assignments.some((a) => selectedUserIds.includes(a.user_id))) return false;
       }
       if (selectedLabelIds.length > 0) {
@@ -248,7 +248,7 @@ export const TaskModeReview = ({
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
     tasks.forEach((t) => {
-      t.assignments?.forEach((a) => {
+      t.assignments.forEach((a) => {
         if (!m.has(a.user_id))
           m.set(a.user_id, {
             id: a.user_id,
@@ -797,8 +797,8 @@ export const TaskModeReview = ({
                 <tbody>
                   {pageTasks.map((task, index) => {
                     const latLon = extractCentroidFromWKT(task.geometry.geometry);
-                    const taskStatus = task.task_status ?? 'pending';
-                    const assignments = task.assignments || [];
+                    const taskStatus = task.task_status;
+                    const assignments = task.assignments;
                     const annotations = task.annotations || [];
                     const isAssignedToMe =
                       currentUser && assignments.some((a) => a.user_id === currentUser.id);

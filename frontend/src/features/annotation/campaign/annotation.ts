@@ -17,7 +17,6 @@ const t = i18n.getFixedT(null, 'annotation');
 export type FormField = NonNullable<CampaignSettingsOut['form_fields']>[number];
 export type FormValues = NonNullable<AnnotationOut['form_values']>;
 export type FormValue = FormValues[string];
-export type TaskStatus = NonNullable<AnnotationTaskOut['task_status']>;
 
 // ---------------------------------------------------------------------------
 // Labels

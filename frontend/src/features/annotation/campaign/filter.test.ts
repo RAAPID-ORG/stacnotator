@@ -206,10 +206,8 @@ describe('applyTaskFilter - labels', () => {
 });
 
 describe('computeTaskProgress', () => {
-  const progressTask = (
-    task_status: TaskStatus,
-    assignments: AnnotationTaskAssignmentOut[] | null
-  ) => makeTask({ id: 0, task_status, assignments });
+  const progressTask = (task_status: TaskStatus, assignments: AnnotationTaskAssignmentOut[]) =>
+    makeTask({ id: 0, task_status, assignments });
 
   describe('unscoped (no assignedTo filter)', () => {
     it('counts all tasks and task-level resolution', () => {
@@ -229,7 +227,7 @@ describe('computeTaskProgress', () => {
       const tasks = [
         progressTask('pending', [{ user_id: USER, status: 'pending' }]),
         progressTask('pending', [{ user_id: OTHER, status: 'pending' }]),
-        progressTask('pending', null),
+        progressTask('pending', []),
       ];
       expect(computeTaskProgress(tasks, [USER])).toEqual({ total: 1, completed: 0 });
     });

@@ -46,6 +46,8 @@ from src.annotation.service import (
 from src.campaigns.schemas import default_labelling_policy
 from src.projects.models import ProjectUser
 
+pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
+
 
 def _mock_db():
     db = MagicMock()
@@ -185,15 +187,10 @@ class TestAddAnnotationForTask:
         task = _make_task()
         existing = _make_annotation(task_id=task.id, user_id=user_id, label_id=1)
 
-        # is_authoritative=True triggers a CampaignUser lookup before the
-        # existing-annotation / assignment lookups.
-        reviewer_cu = MagicMock()
-        reviewer_cu.is_authoritative_reviewer = True
-        db.execute.return_value.scalar_one_or_none.side_effect = [
-            reviewer_cu,
-            existing,
-            None,
-        ]
+        db.scalars.return_value.first.return_value = SimpleNamespace(
+            is_admin=False, is_authoritative_reviewer=True
+        )
+        db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
 
         payload = AnnotationFromTaskCreate(
             label_id=5, comment="revised", confidence=4, is_authoritative=True
@@ -231,9 +228,9 @@ class TestAddAnnotationForTask:
         user_id = uuid4()
         task = _make_task()
 
-        non_reviewer_cu = MagicMock()
-        non_reviewer_cu.is_authoritative_reviewer = False
-        db.execute.return_value.scalar_one_or_none.return_value = non_reviewer_cu
+        db.scalars.return_value.first.return_value = SimpleNamespace(
+            is_admin=False, is_authoritative_reviewer=False
+        )
 
         payload = AnnotationFromTaskCreate(
             label_id=1, comment=None, confidence=None, is_authoritative=True
@@ -253,8 +250,7 @@ class TestAddAnnotationForTask:
         user_id = uuid4()
         task = _make_task()
 
-        # No CampaignUser row -> scalar_one_or_none returns None
-        db.execute.return_value.scalar_one_or_none.return_value = None
+        db.scalars.return_value.first.return_value = None
 
         payload = AnnotationFromTaskCreate(
             label_id=1, comment=None, confidence=None, is_authoritative=True
@@ -275,12 +271,9 @@ class TestAddAnnotationForTask:
         user_id = uuid4()
         task = _make_task()
 
-        reviewer_cu = MagicMock()
-        reviewer_cu.is_authoritative_reviewer = True
-        # 1: CampaignUser lookup (reviewer check)
-        # 2: existing-annotation lookup -> none
-        # 3: assignment lookup -> none (reviewer is unassigned)
-        db.execute.return_value.scalar_one_or_none.side_effect = [reviewer_cu, None, None]
+        db.scalars.return_value.first.return_value = SimpleNamespace(
+            is_admin=False, is_authoritative_reviewer=True
+        )
 
         payload = AnnotationFromTaskCreate(
             label_id=7, comment=None, confidence=None, is_authoritative=True
@@ -1271,7 +1264,7 @@ class TestExportMergeCorrectness:
     # ---- stacnotator_counts_toward_completion ---------------------------
     #
     # These tests patch out `fetch_annotations_with_context` entirely (see
-    # `_csv`/`_geojson`), so `attach_counts_toward_completion_flat` never
+    # `_csv`/`_geojson`), so `attach_counts_toward_completion` never
     # runs - the counts flag is read straight off the annotation stand-ins,
     # exactly as if it had already been attached by that helper.
 

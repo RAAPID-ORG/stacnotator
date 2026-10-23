@@ -192,10 +192,10 @@ function SliceNote({ note }: { note: SliceComment }) {
 
 export function ReviewList({ task, currentUserId, labels }: ReviewListProps) {
   const { t } = useTranslation('panels');
-  const hasContent = task.annotations.length > 0 || (task.assignments?.length ?? 0) > 0;
+  const hasContent = task.annotations.length > 0 || task.assignments.length > 0;
   if (!hasContent) return null;
 
-  const rows = reviewRows(task.annotations, task.assignments ?? [], task.task_status);
+  const rows = reviewRows(task.annotations, task.assignments, task.task_status);
   const isConflicting = task.task_status === 'conflicting';
 
   return (

@@ -14,8 +14,8 @@ import pytest
 from fastapi import HTTPException
 
 from src.annotation.completion import (
-    attach_counts_toward_completion_flat,
-    attach_counts_toward_completion_tree,
+    attach_counts_toward_completion,
+    attach_to_tasks,
 )
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
@@ -26,6 +26,8 @@ from src.annotation.service import (
 )
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience
 from tests.conftest import make_policy
+
+pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
 
 
 def _campaign(policy: LabellingPolicy, *, campaign_id=1, is_public=False):
@@ -311,8 +313,11 @@ class TestAttachCountsTowardCompletion:
             (member_id, False, False),
         ]
         db.scalars.return_value.all.return_value = []  # no extra platform admins
+        for task in (assigned_task, unassigned_task):
+            for ann in task.annotations:
+                ann.annotation_task_id, ann.annotation_task = task.id, task
 
-        attach_counts_toward_completion_tree(db, campaign, [assigned_task, unassigned_task])
+        attach_to_tasks(db, campaign, [assigned_task, unassigned_task])
 
         assert (
             assigned_task.annotations[0].counts_toward_completion is True
@@ -326,24 +331,24 @@ class TestAttachCountsTowardCompletion:
 
     def test_no_tasks_is_a_noop(self):
         db = MagicMock()
-        attach_counts_toward_completion_tree(db, _campaign(make_policy()), [])
+        attach_to_tasks(db, _campaign(make_policy()), [])
         db.execute.assert_not_called()
         db.scalars.assert_not_called()
 
-    def test_flat_shape_leaves_standalone_annotations_untouched(self):
+    def test_leaves_standalone_annotations_untouched(self):
         campaign = _campaign(make_policy())
         standalone = SimpleNamespace(
             annotation_task_id=None, annotation_task=None, created_by_user_id=uuid4()
         )
         db = MagicMock()
 
-        attach_counts_toward_completion_flat(db, campaign, [standalone])
+        attach_counts_toward_completion(db, campaign, [standalone])
 
         assert not hasattr(standalone, "counts_toward_completion")
         db.execute.assert_not_called()
         db.scalars.assert_not_called()
 
-    def test_flat_shape_computes_for_task_linked_annotation(self):
+    def test_computes_for_task_linked_annotation(self):
         member_id = uuid4()
         campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=["members"])))
         task = SimpleNamespace(assignments=[])
@@ -354,6 +359,6 @@ class TestAttachCountsTowardCompletion:
         db.execute.return_value.all.return_value = [(member_id, False, False)]
         db.scalars.return_value.all.return_value = []
 
-        attach_counts_toward_completion_flat(db, campaign, [ann])
+        attach_counts_toward_completion(db, campaign, [ann])
 
         assert ann.counts_toward_completion is True

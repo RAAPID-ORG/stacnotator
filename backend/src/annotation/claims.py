@@ -115,6 +115,14 @@ def is_free_work() -> ColumnElement[bool]:
     )
 
 
+def is_open_assignment() -> ColumnElement[bool]:
+    """A primary assignment its assignee has not labelled or skipped yet."""
+    return ~AnnotationTaskAssignment.is_review & ~exists().where(
+        Annotation.annotation_task_id == AnnotationTaskAssignment.task_id,
+        Annotation.created_by_user_id == AnnotationTaskAssignment.user_id,
+    )
+
+
 def _is_leasable(db: Session, task_id: int) -> bool:
     return (
         db.execute(

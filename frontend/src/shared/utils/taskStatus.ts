@@ -3,13 +3,16 @@ import i18n from '~/shared/i18n';
 
 const t = i18n.getFixedT(null, 'common');
 
-/**
- * Task-level status values, matching backend-computed task_status. The tuple is what
- * lets a caller walk every status without restating the list.
- */
-export const TASK_STATUSES = ['pending', 'partial', 'conflicting', 'done', 'skipped'] as const;
+export type TaskStatus = AnnotationTaskOut['task_status'];
 
-export type TaskStatus = (typeof TASK_STATUSES)[number];
+/** Every task status, in the order they are listed and filtered by. */
+export const TASK_STATUSES: readonly TaskStatus[] = [
+  'pending',
+  'partial',
+  'done',
+  'skipped',
+  'conflicting',
+];
 
 /**
  * Task status colors

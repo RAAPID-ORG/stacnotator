@@ -242,6 +242,29 @@ class TestMergeOnAgreementConflictGuard:
         # Authoritative label resolves the task -> no conflict, merge allowed.
         assert _records(anns, merge_on_agreement=True)
 
+    def test_merged_row_speaks_for_the_counting_answer(self):
+        """A non-counting answer listed first must not become the task's label."""
+        task = _task(annotation_number=5)
+        anns = [
+            _annotation(label_id=2, counts_toward_completion=False, task=task),
+            _annotation(label_id=1, counts_toward_completion=True, task=task),
+        ]
+
+        [record] = _records(anns, merge_on_agreement=True)
+        assert record["stacnotator_label_id"] == 1
+
+    def test_merged_row_takes_the_authoritative_answer(self):
+        task = _task(annotation_number=6)
+        anns = [
+            _annotation(label_id=2, counts_toward_completion=True, task=task),
+            _annotation(
+                label_id=1, counts_toward_completion=True, is_authoritative=True, task=task
+            ),
+        ]
+
+        [record] = _records(anns, merge_on_agreement=True)
+        assert record["stacnotator_label_id"] == 1
+
 
 class TestDrawTaskAnswers:
     """A draw task is answered by its outcome, not a label."""

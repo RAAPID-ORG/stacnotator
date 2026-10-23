@@ -66,3 +66,24 @@ def make_policy(**axes):
         "modify_others": PolicyAudience(kinds=["admins"]),
     }
     return LabellingPolicy(**{**defaults, **axes})
+
+
+@pytest.fixture()
+def membership_from_db_mock(monkeypatch):
+    """Resolve policy standing from what a MagicMock session is configured with:
+    ``db.scalars(...).first()`` is the caller's project membership row (None for
+    none) and ``db.scalar(...) is True`` makes them a platform admin."""
+    from src.campaigns import policy
+
+    def load(db, campaign, user_ids):
+        ids = set(user_ids)
+        row = db.scalars.return_value.first.return_value
+        roles = (
+            {uid: (bool(row.is_admin), bool(row.is_authoritative_reviewer)) for uid in ids}
+            if row is not None
+            else {}
+        )
+        admins = ids if db.scalar.return_value is True else set()
+        return policy.CampaignStanding(visibility="private", roles=roles, platform_admins=admins)
+
+    monkeypatch.setattr(policy, "load_standing", load)

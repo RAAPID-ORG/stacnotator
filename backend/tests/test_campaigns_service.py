@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
+from src.annotation import service as annotation_service
 from src.annotation.models import Annotation, AnnotationTaskAssignment
 from src.campaigns.assignments import (
     _distribute_evenly,
@@ -27,7 +28,6 @@ from src.campaigns.schemas import (
     ReviewShareOfTasks,
 )
 from src.campaigns.service import (
-    delete_annotation_tasks,
     list_campaigns_with_user_roles,
     update_campaign,
     update_campaign_bbox,
@@ -1096,33 +1096,38 @@ class TestUpdateCampaignFormFields:
         db.scalars.assert_not_called()
 
 
-class TestDeleteAnnotationTasks:
-    """Deleting tasks keeps their annotations unless the admin asks otherwise."""
+class TestDeleteTasks:
+    """A task's rows go with it; a labelled answer stays as a shape of its own
+    unless the admin asks for the annotations to go too."""
 
-    def _db(self, tasks, annotations):
+    def _db(self, *selects):
         db = MagicMock()
-        db.scalars.return_value.all.side_effect = [tasks, annotations]
+        db.scalars.return_value.all.side_effect = list(selects)
         return db
 
-    @patch("src.campaigns.service.assignments._verify_tasks_in_campaign")
-    def test_keeps_annotations_by_default(self, _verify):
+    @patch("src.annotation.service.bump_campaign_annotations_version")
+    @patch("src.annotation.service.record_annotation_deletions")
+    def test_labelled_answers_become_shapes(self, record_deletions, _bump):
         task = MagicMock(id=1, geometry_id=11)
-        db = self._db([task], [])
+        labelled = MagicMock(id=7, geometry_id=11, outcome="labelled", annotation_task_id=1)
+        skipped = MagicMock(id=8, geometry_id=11, outcome="skipped", annotation_task_id=1)
+        db = self._db([labelled, skipped])
 
-        assert delete_annotation_tasks(db, 1, [1]) == 1
+        annotation_service.delete_tasks(db, 1, [task], delete_annotations=False)
 
-        db.delete.assert_called_once_with(task)
-        assert db.scalars.call_count == 1
+        assert (labelled.annotation_task_id, labelled.outcome) == (None, None)
+        assert [c.args[0] for c in db.delete.call_args_list] == [skipped, task]
+        record_deletions.assert_called_once_with(db, 1, [8])
 
-    @patch("src.campaigns.service.annotation_service.record_annotation_deletions")
-    @patch("src.campaigns.service.assignments._verify_tasks_in_campaign")
-    def test_deletes_annotations_when_asked(self, _verify, record_deletions):
+    @patch("src.annotation.service.bump_campaign_annotations_version")
+    @patch("src.annotation.service.record_annotation_deletions")
+    def test_deletes_answers_and_drawn_shapes_when_asked(self, record_deletions, _bump):
         task = MagicMock(id=1, geometry_id=11)
-        annotation = MagicMock(id=7, geometry_id=11)
-        db = self._db([task], [annotation])
+        answer = MagicMock(id=7, geometry_id=11, outcome="drawn")
+        shape = MagicMock(id=9, geometry_id=12, outcome=None)
+        db = self._db([answer], [shape])
 
-        delete_annotation_tasks(db, 1, [1], delete_annotations=True)
+        annotation_service.delete_tasks(db, 1, [task], delete_annotations=True)
 
-        assert [c.args[0] for c in db.delete.call_args_list] == [annotation, task]
-        record_deletions.assert_called_once_with(db, 1, [7])
-        db.commit.assert_called_once()
+        assert [c.args[0] for c in db.delete.call_args_list] == [answer, shape, task]
+        record_deletions.assert_called_once_with(db, 1, [7, 9])

@@ -16,7 +16,7 @@ from src.agents.schemas import (
     NextTasksOut,
 )
 from src.annotation import service as annotation_service
-from src.annotation.claims import is_free_work
+from src.annotation.claims import is_free_work, is_open_assignment
 from src.annotation.models import (
     Annotation,
     AnnotationGeometry,
@@ -31,6 +31,7 @@ from src.campaigns.dependencies import require_campaign_access
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import AssignTasksToUsersRequest
 from src.projects.models import ProjectUser
+from src.projects.viewer import project_flags
 
 MAX_AGENTS_PER_OWNER = 20
 
@@ -40,21 +41,15 @@ UPCOMING_TASKS = 3
 
 
 def owner_role(db: Session, campaign: Campaign, user: User) -> Role:
-    """Agents act as project members, so only members run them. Campaign admins hand
-    them work from the open pool, which is what assigning tasks takes; other members only
-    their own assigned tasks."""
-    if user.is_platform_admin:
-        return "admin"
-    membership = db.scalar(
-        select(ProjectUser).where(
-            ProjectUser.project_id == campaign.project_id, ProjectUser.user_id == user.id
-        )
-    )
-    if membership is None:
+    """Agents act for their owner, so whoever may label in the project may run them.
+    Campaign admins hand them work from the open pool, which is what assigning tasks
+    takes; other members only their own assigned tasks."""
+    flags = project_flags(db, user, campaign.project)
+    if not flags.is_policy_member:
         raise HTTPException(
             status_code=403, detail="Only members of this project can run labelling agents"
         )
-    return "admin" if membership.is_admin else "member"
+    return "admin" if flags.is_admin else "member"
 
 
 def get_agent(db: Session, agent_id: UUID, owner: User) -> tuple[LabellingAgent, Campaign, Role]:
@@ -127,11 +122,7 @@ def _owner_open_assignments(db: Session, owner: User, campaign_id: int):
         .where(
             AnnotationTask.campaign_id == campaign_id,
             AnnotationTaskAssignment.user_id == owner.id,
-            ~AnnotationTaskAssignment.is_review,
-            ~exists().where(
-                Annotation.annotation_task_id == AnnotationTask.id,
-                Annotation.created_by_user_id == owner.id,
-            ),
+            is_open_assignment(),
         )
     )
 
@@ -258,11 +249,7 @@ def _open_tasks_query(agent: LabellingAgent):
         .where(
             AnnotationTask.campaign_id == agent.campaign_id,
             AnnotationTaskAssignment.user_id == agent.user_id,
-            ~AnnotationTaskAssignment.is_review,
-            ~exists().where(
-                Annotation.annotation_task_id == AnnotationTask.id,
-                Annotation.created_by_user_id == agent.user_id,
-            ),
+            is_open_assignment(),
         )
     )
 
@@ -351,14 +338,7 @@ def release_tasks(db: Session, owner: User, role: Role, agents: list[LabellingAg
     agent_ids = [agent.user_id for agent in agents]
     if not agent_ids:
         return 0
-    unfinished = (
-        AnnotationTaskAssignment.user_id.in_(agent_ids),
-        ~AnnotationTaskAssignment.is_review,
-        ~exists().where(
-            Annotation.annotation_task_id == AnnotationTaskAssignment.task_id,
-            Annotation.created_by_user_id == AnnotationTaskAssignment.user_id,
-        ),
-    )
+    unfinished = (AnnotationTaskAssignment.user_id.in_(agent_ids), is_open_assignment())
     released = 0
     if role == "member":
         owners = aliased(AnnotationTaskAssignment)
