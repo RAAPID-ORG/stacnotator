@@ -84,7 +84,7 @@ policy along with the rest of the campaign.
   `CampaignStanding`, resolved through `projects/access.py` and loaded in at
   most three queries whether a request asks about one user (enforcement,
   `build_policy_context`) or about every author in a task list or export
-  (`annotation/completion.py`).
+  (`tasks/completion.py`).
 - Enforcement: 403s in `annotation/service.py` on annotation-creating paths;
   annotation updates gate on the `explore` axis. Deletion is not
   policy-gated (only the public-campaign ownership rule applies), and
