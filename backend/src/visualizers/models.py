@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.layers import LayerOwner
 
 FeedbackVerdict = Literal["good", "wrong"]
 
@@ -34,9 +35,9 @@ if TYPE_CHECKING:
 class Visualizer(Base):
     """A published map over imagery and overlays a project has already registered.
 
-    It owns no imagery of its own: each layer points at a source or overlay
-    belonging to one of the project's campaigns, which is what lets a visualizer
-    be set up in seconds and stay in step with the campaign it draws from.
+    It draws imagery and overlays of its own, set up over its own area, and can link
+    layers the project's campaigns already registered, which then stay in step with
+    the campaign they come from.
     """
 
     __tablename__ = "visualizers"
@@ -126,6 +127,10 @@ class Visualizer(Base):
         cascade="all, delete-orphan",
         order_by="VisualizerOverlay.display_order",
     )
+
+    @property
+    def layer_owner(self) -> LayerOwner:
+        return LayerOwner(visualizer_id=self.id)
 
 
 class VisualizerImagery(Base):

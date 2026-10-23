@@ -80,10 +80,10 @@ const formFromMap = (m: CustomMapOut): FormState => {
 
 interface StatusBadgeProps {
   status: CustomMapOut['status'];
-  statusError?: CustomMapOut['status_error'];
+  statusErrors?: CustomMapOut['status_errors'];
 }
 
-const StatusBadge = ({ status, statusError }: StatusBadgeProps) => {
+const StatusBadge = ({ status, statusErrors }: StatusBadgeProps) => {
   const { t } = useTranslation('campaigns');
   if (status === 'registering') {
     return (
@@ -101,10 +101,8 @@ const StatusBadge = ({ status, statusError }: StatusBadgeProps) => {
     );
   }
   if (status === 'failed') {
-    const errMsg =
-      statusError && typeof statusError === 'object' && 'error' in statusError
-        ? String((statusError as { error: unknown }).error)
-        : t('customMaps.status.processingFailed');
+    const latest = statusErrors?.at(-1)?.error;
+    const errMsg = latest ? String(latest) : t('customMaps.status.processingFailed');
     return (
       <span
         className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 cursor-help"
@@ -338,7 +336,7 @@ export const CustomMapsEditor = ({ ownerKind, ownerId, projectId }: CustomMapsEd
                 </div>
                 <p className="text-xs text-neutral-500 truncate font-mono">{m.cog_url}</p>
               </div>
-              <StatusBadge status={m.status} statusError={m.status_error} />
+              <StatusBadge status={m.status} statusErrors={m.status_errors} />
               <IconButton
                 onClick={() => startEdit(m)}
                 aria-label={t('customMaps.editMap')}

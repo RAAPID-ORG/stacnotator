@@ -417,16 +417,11 @@ def commit_and_register(
     if not pending:
         db.commit()
         return
-    layer_owner = (
-        LayerOwner(campaign_id=owner.id)
-        if isinstance(owner, Campaign)
-        else LayerOwner(visualizer_id=owner.id)
-    )
-    _, field = status_run_for(layer_owner)
+    _, field = status_run_for(owner.layer_owner)
     background.begin_status_run(owner, field)
     owner.registration_errors = None
     db.commit()
-    spawn_background_registration(layer_owner, pending, list(bbox))
+    spawn_background_registration(owner.layer_owner, pending, list(bbox))
 
 
 def refreshable_collection_ids(db: Session, source_id: int, campaign_id: int) -> list[int]:

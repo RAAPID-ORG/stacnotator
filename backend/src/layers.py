@@ -7,6 +7,9 @@ from it, so the rule lives in one place rather than four.
 
 from dataclasses import dataclass
 
+from sqlalchemy import CheckConstraint, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column
+
 
 @dataclass(frozen=True)
 class LayerOwner:
@@ -31,3 +34,25 @@ class LayerOwner:
 
     def as_columns(self) -> dict[str, int | None]:
         return {"campaign_id": self.campaign_id, "visualizer_id": self.visualizer_id}
+
+
+class OwnedLayer:
+    """The owner columns of a layer table. Exactly one is set; each table states that
+    with ``one_owner_check``."""
+
+    campaign_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"), nullable=True
+    )
+    visualizer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.visualizers.id", ondelete="CASCADE"), nullable=True
+    )
+
+    @property
+    def owner(self) -> LayerOwner:
+        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
+
+
+def one_owner_check(table: str) -> CheckConstraint:
+    return CheckConstraint(
+        "(campaign_id IS NULL) <> (visualizer_id IS NULL)", name=f"{table}_one_owner_check"
+    )

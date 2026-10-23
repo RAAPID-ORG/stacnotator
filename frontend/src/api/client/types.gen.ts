@@ -2298,11 +2298,11 @@ export type CustomMapOut = {
      */
     status: string;
     /**
-     * Status Error
+     * Status Errors
      */
-    status_error: {
+    status_errors: Array<{
         [key: string]: unknown;
-    } | null;
+    }> | null;
     /**
      * Tile Url
      */
@@ -10126,13 +10126,13 @@ export type DeleteCustomMapData = {
     body?: never;
     path: {
         /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
          * Map Id
          */
         map_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
     };
     query?: never;
     url: '/api/campaigns/{campaign_id}/custom-maps/{map_id}';
@@ -10160,13 +10160,13 @@ export type UpdateCustomMapData = {
     body: CustomMapUpdate;
     path: {
         /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
          * Map Id
          */
         map_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
     };
     query?: never;
     url: '/api/campaigns/{campaign_id}/custom-maps/{map_id}';
@@ -10256,13 +10256,13 @@ export type DeleteVectorLayerData = {
     body?: never;
     path: {
         /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
          * Layer Id
          */
         layer_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
     };
     query?: never;
     url: '/api/campaigns/{campaign_id}/vector-layers/{layer_id}';
@@ -10290,13 +10290,13 @@ export type UpdateVectorLayerData = {
     body: VectorLayerUpdate;
     path: {
         /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
          * Layer Id
          */
         layer_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
     };
     query?: never;
     url: '/api/campaigns/{campaign_id}/vector-layers/{layer_id}';
@@ -10386,13 +10386,13 @@ export type DeleteVisualizerCustomMapData = {
     body?: never;
     path: {
         /**
-         * Visualizer Id
-         */
-        visualizer_id: number;
-        /**
          * Map Id
          */
         map_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
     };
     query?: never;
     url: '/api/visualizers/{visualizer_id}/custom-maps/{map_id}';
@@ -10420,13 +10420,13 @@ export type UpdateVisualizerCustomMapData = {
     body: CustomMapUpdate;
     path: {
         /**
-         * Visualizer Id
-         */
-        visualizer_id: number;
-        /**
          * Map Id
          */
         map_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
     };
     query?: never;
     url: '/api/visualizers/{visualizer_id}/custom-maps/{map_id}';
@@ -10516,13 +10516,13 @@ export type DeleteVisualizerVectorLayerData = {
     body?: never;
     path: {
         /**
-         * Visualizer Id
-         */
-        visualizer_id: number;
-        /**
          * Layer Id
          */
         layer_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
     };
     query?: never;
     url: '/api/visualizers/{visualizer_id}/vector-layers/{layer_id}';
@@ -10550,13 +10550,13 @@ export type UpdateVisualizerVectorLayerData = {
     body: VectorLayerUpdate;
     path: {
         /**
-         * Visualizer Id
-         */
-        visualizer_id: number;
-        /**
          * Layer Id
          */
         layer_id: number;
+        /**
+         * Visualizer Id
+         */
+        visualizer_id: number;
     };
     query?: never;
     url: '/api/visualizers/{visualizer_id}/vector-layers/{layer_id}';

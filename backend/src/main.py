@@ -28,6 +28,7 @@ from src.config import (
     get_settings,
 )
 from src.custom_layers.router import router as custom_layers_router
+from src.custom_layers.service import CUSTOM_MAP_RUN
 from src.database import SessionLocal
 from src.earth_engine import initialize_earth_engine
 from src.imagery.proxy_router import router as imagery_proxy_router
@@ -95,7 +96,7 @@ async def lifespan(app: FastAPI):
 
 
 def _sweep_stale_background_runs() -> None:
-    """Recover campaigns whose background run died with a previous worker.
+    """Recover background runs that died with a previous worker.
 
     Guarded: a DB hiccup at boot must not keep the worker from serving - the
     sweep re-runs on every worker start and from the polled campaign read.
@@ -104,7 +105,8 @@ def _sweep_stale_background_runs() -> None:
         db = SessionLocal()
         try:
             fail_stale_status_runs(
-                db, (REGISTRATION_RUN, EMBEDDING_RUN, VISUALIZER_REGISTRATION_RUN)
+                db,
+                (REGISTRATION_RUN, EMBEDDING_RUN, VISUALIZER_REGISTRATION_RUN, CUSTOM_MAP_RUN),
             )
             db.commit()
         finally:

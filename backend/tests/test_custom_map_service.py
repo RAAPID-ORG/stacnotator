@@ -38,7 +38,7 @@ def test_run_registration_bakes_tile_url(monkeypatch):
     assert cm.status == "ready"
     assert cm.mosaic_id == "search-9"
     assert "search-9" in cm.tile_url
-    assert cm.status_error is None
+    assert cm.status_errors is None
 
 
 def test_run_registration_marks_failed_on_error(monkeypatch):
@@ -52,7 +52,7 @@ def test_run_registration_marks_failed_on_error(monkeypatch):
     service.run_registration(MagicMock(), cm)
 
     assert cm.status == "failed"
-    assert "tiler down" in str(cm.status_error)
+    assert "tiler down" in str(cm.status_errors)
 
 
 def test_update_reregisters_when_cog_url_changes(monkeypatch):
@@ -138,7 +138,7 @@ def test_update_does_not_restamp_a_map_whose_search_is_stale(monkeypatch):
 
 
 def test_update_of_failed_map_retries_registration(monkeypatch):
-    cm = _cm(status="failed", status_error={"error": "tiler down"})
+    cm = _cm(status="failed", status_errors=[{"error": "tiler down"}])
     monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     monkeypatch.setattr(service, "_name_taken", lambda *a, **k: False)
     spawned = []
@@ -147,7 +147,7 @@ def test_update_of_failed_map_retries_registration(monkeypatch):
     service.update_custom_map(MagicMock(), 5, 1, CustomMapUpdate(name="renamed"))
 
     assert cm.status == "registering"
-    assert cm.status_error is None
+    assert cm.status_errors is None
     assert spawned == [cm.id]
 
 

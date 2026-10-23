@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.campaigns.schemas import default_labelling_policy
 from src.database import Base
+from src.layers import LayerOwner
 from src.projects.access import VISIBILITY_PUBLIC
 
 if TYPE_CHECKING:
@@ -155,6 +156,10 @@ class Campaign(Base):
         Org-public visibility deliberately does not count: the 'anyone'
         audience stays tied to platform-public projects only."""
         return self.project.visibility == VISIBILITY_PUBLIC
+
+    @property
+    def layer_owner(self) -> LayerOwner:
+        return LayerOwner(campaign_id=self.id)
 
 
 class TaskSet(Base):

@@ -149,7 +149,7 @@ export function makeCustomMap(overrides: Partial<CustomMapOut> = {}): CustomMapO
     render_config: { mode: 'continuous', colormap_name: 'viridis', rescale: [0, 1] },
     max_native_zoom: null,
     status: 'ready',
-    status_error: null,
+    status_errors: null,
     tile_url: 'https://tiles/cm/{z}/{x}/{y}',
     mosaic_id: null,
     display_order: 0,

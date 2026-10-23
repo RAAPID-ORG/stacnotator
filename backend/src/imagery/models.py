@@ -15,10 +15,10 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
 
 from src.database import Base
-from src.layers import LayerOwner
+from src.layers import OwnedLayer, one_owner_check
 from src.storage_access import StorageAccessOut, described
 
 if TYPE_CHECKING:
@@ -46,73 +46,20 @@ class ProviderKey:
     allowed_host: str | None
 
 
-class ImagerySource(Base):
-    """
-    Top-level imagery provider for a campaign.
-    Groups collections under a shared set of display settings and visualizations.
-    """
+class ProviderKeyed:
+    """A layer whose tile URL template takes a provider API key: its own, typed into
+    the layer, or one of the organization's shared keys. At most one is set."""
 
-    __tablename__ = "imagery_sources"
-    __table_args__ = (
-        CheckConstraint("default_zoom BETWEEN 0 AND 22", name="source_zoom_check"),
-        CheckConstraint(
-            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
-            name="imagery_sources_one_owner_check",
-        ),
-        Index("idx_imagery_sources_campaign_id", "campaign_id"),
-        Index("idx_imagery_sources_visualizer_id", "visualizer_id"),
-        {"schema": "data"},
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # Exactly one owner. See LayerOwner for what that means for tile access.
-    campaign_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    visualizer_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.visualizers.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
-    default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="15", nullable=False)
-    # Deepest zoom the provider serves real pixels for. Past it the client upscales
-    # instead of requesting tiles that cannot get any sharper. Null = no cap.
-    # Same contract as Basemap.max_native_zoom.
-    max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
-    # AES-256-GCM ciphertext of the provider API key substituted into this source's
-    # {api_key} tile-URL templates. Decrypted only by the backend tile proxy.
+    # AES-256-GCM ciphertext of the key substituted into the layer's {api_key} URL
+    # template. Decrypted only by the backend tile proxy.
     encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Set instead of `encrypted_api_key` when this source uses one of the
-    # organization's shared keys. Exactly one of the two is ever set.
     organization_api_key_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
     )
 
-    campaign: Mapped["Campaign | None"] = relationship(back_populates="imagery_sources")
-    visualizer: Mapped["Visualizer | None"] = relationship(back_populates="imagery_sources")
-    organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
-    visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
-        back_populates="source",
-        cascade="all, delete-orphan",
-        order_by="VisualizationTemplate.display_order",
-    )
-    collections: Mapped[list["ImageryCollection"]] = relationship(
-        back_populates="source",
-        cascade="all, delete-orphan",
-        order_by="ImageryCollection.display_order",
-    )
-    generation_series: Mapped[list["ImageryGenerationSeries"]] = relationship(
-        back_populates="source",
-        cascade="all, delete-orphan",
-        order_by="ImageryGenerationSeries.id",
-    )
-
-    @property
-    def owner(self) -> LayerOwner:
-        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
+    @declared_attr
+    def organization_api_key(cls) -> Mapped["OrganizationApiKey | None"]:
+        return relationship()
 
     @property
     def has_api_key(self) -> bool:
@@ -133,6 +80,50 @@ class ImagerySource(Base):
         if shared is None or not shared.allowed_tile_host:
             return None
         return ProviderKey(shared.encrypted_key, shared.allowed_tile_host)
+
+
+class ImagerySource(Base, OwnedLayer, ProviderKeyed):
+    """
+    Top-level imagery provider for a campaign.
+    Groups collections under a shared set of display settings and visualizations.
+    """
+
+    __tablename__ = "imagery_sources"
+    __table_args__ = (
+        CheckConstraint("default_zoom BETWEEN 0 AND 22", name="source_zoom_check"),
+        one_owner_check("imagery_sources"),
+        Index("idx_imagery_sources_campaign_id", "campaign_id"),
+        Index("idx_imagery_sources_visualizer_id", "visualizer_id"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
+    default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="15", nullable=False)
+    # Deepest zoom the provider serves real pixels for. Past it the client upscales
+    # instead of requesting tiles that cannot get any sharper. Null = no cap.
+    # Same contract as Basemap.max_native_zoom.
+    max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+
+    campaign: Mapped["Campaign | None"] = relationship(back_populates="imagery_sources")
+    visualizer: Mapped["Visualizer | None"] = relationship(back_populates="imagery_sources")
+    visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="VisualizationTemplate.display_order",
+    )
+    collections: Mapped[list["ImageryCollection"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="ImageryCollection.display_order",
+    )
+    generation_series: Mapped[list["ImageryGenerationSeries"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="ImageryGenerationSeries.id",
+    )
 
     # Registration state, per source rather than per campaign: one source can be
     # fully registered while another is still missing tiles, and the campaign's
@@ -378,71 +369,27 @@ class SliceTileUrl(Base):
     slice: Mapped["ImagerySlice"] = relationship(back_populates="tile_urls")
 
 
-class Basemap(Base):
+class Basemap(Base, OwnedLayer, ProviderKeyed):
     """Static XYZ basemap layer for a campaign (e.g. OSM, satellite)."""
 
     __tablename__ = "basemaps"
     __table_args__ = (
-        CheckConstraint(
-            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
-            name="basemaps_one_owner_check",
-        ),
+        one_owner_check("basemaps"),
         Index("idx_basemaps_campaign_id", "campaign_id"),
         Index("idx_basemaps_visualizer_id", "visualizer_id"),
         {"schema": "data"},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # Exactly one owner, as on ImagerySource.
-    campaign_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    visualizer_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.visualizers.id", ondelete="CASCADE"),
-        nullable=True,
-    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
     # Max zoom at which the provider serves real tiles. Past this, the client
     # upscales the deepest tile instead of requesting "no data" placeholders.
     # Null = unlimited (no cap on tile requests).
     max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    # AES-256-GCM ciphertext of the provider API key substituted into this basemap's
-    # {api_key} URL template. Decrypted only by the backend tile proxy.
-    encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # As on ImagerySource: the org's shared key instead of this row's own.
-    organization_api_key_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.organization_api_keys.id", ondelete="SET NULL"), nullable=True
-    )
 
     campaign: Mapped["Campaign | None"] = relationship(back_populates="basemaps")
     visualizer: Mapped["Visualizer | None"] = relationship(back_populates="basemaps")
-    organization_api_key: Mapped["OrganizationApiKey | None"] = relationship()
-
-    @property
-    def owner(self) -> LayerOwner:
-        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
-
-    @property
-    def has_api_key(self) -> bool:
-        return self.encrypted_api_key is not None or self.organization_api_key_id is not None
-
-    @property
-    def provider_key(self) -> ProviderKey | None:
-        """The key to decrypt for this layer's tiles: its own, or the shared one
-        it points at, with the host that one is bound to.
-
-        A shared key with no host bound is no key at all - it predates the
-        binding and an organization admin has to say where it may be sent before
-        anything will spend it.
-        """
-        if self.encrypted_api_key:
-            return ProviderKey(self.encrypted_api_key, None)
-        shared = self.organization_api_key
-        if shared is None or not shared.allowed_tile_host:
-            return None
-        return ProviderKey(shared.encrypted_key, shared.allowed_tile_host)
 
 
 class ImageryView(Base):

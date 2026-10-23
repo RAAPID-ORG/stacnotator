@@ -270,7 +270,7 @@ def test_registration_errors_do_not_persist_signed_urls(monkeypatch):
     monkeypatch.setattr(service, "register_cog_on_tiler", fail)
     service.run_registration(MagicMock(), cm)
     assert cm.status == "failed"
-    assert "SECRET" not in str(cm.status_error)
+    assert "SECRET" not in str(cm.status_errors)
 
 
 def test_private_map_access_blocks_copying_to_another_organization():

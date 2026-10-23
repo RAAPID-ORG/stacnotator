@@ -1,3 +1,13 @@
+"""Overlay endpoints, once per owner.
+
+A campaign and a visualizer set overlays up the same way, through the same service
+and the same organization guards. What differs is the path, who may read the list
+(anyone with campaign access, but only a visualizer's admins), and that an overlay
+set up on a visualizer joins its overlay list as it is created.
+"""
+
+from collections.abc import Callable
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -7,6 +17,7 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.config import get_settings
 from src.custom_layers import service
+from src.custom_layers.models import CustomMap, VectorLayer
 from src.custom_layers.schemas import (
     CustomMapCreate,
     CustomMapOut,
@@ -16,24 +27,18 @@ from src.custom_layers.schemas import (
     VectorLayerUpdate,
 )
 from src.database import get_db
-from src.layers import LayerOwner
 from src.visualizers import service as visualizers_service
 from src.visualizers.dependencies import require_visualizer_admin
 from src.visualizers.models import Visualizer
 
 bearer = HTTPBearer()
 
-custom_maps_router = APIRouter(
-    prefix="/campaigns/{campaign_id}/custom-maps",
-    tags=["Custom Maps"],
-    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
-)
+Owner = Campaign | Visualizer
 
 
-def _require_internal_storage_allowed(internal_storage: bool | None, owner) -> None:
+def _require_internal_storage_allowed(internal_storage: bool | None, owner: Owner) -> None:
     """Only organizations cleared for it may point a map at internal
-    (managed-identity) storage. Takes whatever owns the map - both a campaign
-    and a visualizer reach their organization the same way."""
+    (managed-identity) storage."""
     if internal_storage and not owner.project.organization.allows_internal_storage:
         raise HTTPException(
             status_code=403,
@@ -41,7 +46,7 @@ def _require_internal_storage_allowed(internal_storage: bool | None, owner) -> N
         )
 
 
-def _require_tiler_allowed(owner) -> None:
+def _require_tiler_allowed(owner: Owner) -> None:
     """Registration always puts a custom map on the default hosted tiler, so the
     owning organization must be allowed to use it. A deployment without a default
     tiler has nothing to authorize - registration then fails on its own."""
@@ -54,246 +59,143 @@ def _require_tiler_allowed(owner) -> None:
     )
 
 
-@custom_maps_router.get("", response_model=list[CustomMapOut])
-def list_custom_maps(
-    campaign_id: int,
-    campaign: Campaign = Depends(require_campaign_access),
-    db: Session = Depends(get_db),
-):
-    return service.list_custom_maps(db, LayerOwner(campaign_id=campaign_id))
+def _duplicate_name(exc: service.DuplicateCustomMapName) -> HTTPException:
+    return HTTPException(status_code=409, detail="A custom map with this name already exists")
 
 
-@custom_maps_router.post("", response_model=CustomMapOut, status_code=201)
-def create_custom_map(
-    campaign_id: int,
-    payload: CustomMapCreate,
-    campaign: Campaign = Depends(require_campaign_admin),
-    db: Session = Depends(get_db),
-):
-    _require_internal_storage_allowed(payload.internal_storage, campaign)
-    _require_tiler_allowed(campaign)
-    try:
-        return service.create_custom_map(db, LayerOwner(campaign_id=campaign_id), payload)
-    except service.DuplicateCustomMapName as exc:
-        raise HTTPException(
-            status_code=409, detail="A custom map with this name already exists"
-        ) from exc
+def _named(name: str):
+    """Name the endpoint, which is what its OpenAPI operation id is derived from."""
+
+    def rename(fn):
+        fn.__name__ = name
+        return fn
+
+    return rename
 
 
-@custom_maps_router.patch("/{map_id}", response_model=CustomMapOut)
-def update_custom_map(
-    campaign_id: int,
-    map_id: int,
-    payload: CustomMapUpdate,
-    campaign: Campaign = Depends(require_campaign_admin),
-    db: Session = Depends(get_db),
-):
-    _require_internal_storage_allowed(payload.internal_storage, campaign)
-    _require_tiler_allowed(campaign)
-    try:
-        cm = service.update_custom_map(db, LayerOwner(campaign_id=campaign_id), map_id, payload)
-    except service.DuplicateCustomMapName as exc:
-        raise HTTPException(
-            status_code=409, detail="A custom map with this name already exists"
-        ) from exc
-    if cm is None:
-        raise HTTPException(status_code=404, detail="Custom map not found")
-    return cm
+def _owner_routes(
+    owner_path: str,
+    *,
+    reader: Callable[..., Owner],
+    admin: Callable[..., Owner],
+    names: str,
+    on_created: Callable[[Session, Owner, CustomMap | VectorLayer], None] | None = None,
+) -> APIRouter:
+    """The custom-map and vector-layer routes under one owner's path.
+
+    ``names`` is spliced into each endpoint's name, so the operation ids stay
+    ``listCustomMaps`` for a campaign and ``listVisualizerCustomMaps`` for a visualizer.
+    """
+    router = APIRouter(dependencies=[Depends(bearer), Depends(require_authenticated_user)])
+    maps = f"{owner_path}/custom-maps"
+    vectors = f"{owner_path}/vector-layers"
+
+    @router.get(maps, response_model=list[CustomMapOut], tags=["Custom Maps"])
+    @_named(f"list_{names}custom_maps")
+    def list_maps(owner: Owner = Depends(reader), db: Session = Depends(get_db)):
+        return service.list_custom_maps(db, owner.layer_owner)
+
+    @router.post(maps, response_model=CustomMapOut, status_code=201, tags=["Custom Maps"])
+    @_named(f"create_{names}custom_map")
+    def create_map(
+        payload: CustomMapCreate, owner: Owner = Depends(admin), db: Session = Depends(get_db)
+    ):
+        _require_internal_storage_allowed(payload.internal_storage, owner)
+        _require_tiler_allowed(owner)
+        try:
+            created = service.create_custom_map(db, owner.layer_owner, payload)
+        except service.DuplicateCustomMapName as exc:
+            raise _duplicate_name(exc) from exc
+        if on_created:
+            on_created(db, owner, created)
+        return created
+
+    @router.patch(f"{maps}/{{map_id}}", response_model=CustomMapOut, tags=["Custom Maps"])
+    @_named(f"update_{names}custom_map")
+    def update_map(
+        map_id: int,
+        payload: CustomMapUpdate,
+        owner: Owner = Depends(admin),
+        db: Session = Depends(get_db),
+    ):
+        _require_internal_storage_allowed(payload.internal_storage, owner)
+        _require_tiler_allowed(owner)
+        try:
+            cm = service.update_custom_map(db, owner.layer_owner, map_id, payload)
+        except service.DuplicateCustomMapName as exc:
+            raise _duplicate_name(exc) from exc
+        if cm is None:
+            raise HTTPException(status_code=404, detail="Custom map not found")
+        return cm
+
+    @router.delete(f"{maps}/{{map_id}}", status_code=204, tags=["Custom Maps"])
+    @_named(f"delete_{names}custom_map")
+    def delete_map(map_id: int, owner: Owner = Depends(admin), db: Session = Depends(get_db)):
+        if not service.delete_custom_map(db, owner.layer_owner, map_id):
+            raise HTTPException(status_code=404, detail="Custom map not found")
+        return Response(status_code=204)
+
+    @router.get(vectors, response_model=list[VectorLayerOut], tags=["Vector Layers"])
+    @_named(f"list_{names}vector_layers")
+    def list_vectors(owner: Owner = Depends(reader), db: Session = Depends(get_db)):
+        return service.list_vector_layers(db, owner.layer_owner)
+
+    @router.post(vectors, response_model=VectorLayerOut, status_code=201, tags=["Vector Layers"])
+    @_named(f"create_{names}vector_layer")
+    def create_vector(
+        payload: VectorLayerCreate, owner: Owner = Depends(admin), db: Session = Depends(get_db)
+    ):
+        created = service.create_vector_layer(db, owner.layer_owner, payload)
+        if on_created:
+            on_created(db, owner, created)
+        return created
+
+    @router.patch(f"{vectors}/{{layer_id}}", response_model=VectorLayerOut, tags=["Vector Layers"])
+    @_named(f"update_{names}vector_layer")
+    def update_vector(
+        layer_id: int,
+        payload: VectorLayerUpdate,
+        owner: Owner = Depends(admin),
+        db: Session = Depends(get_db),
+    ):
+        layer = service.update_vector_layer(db, owner.layer_owner, layer_id, payload)
+        if layer is None:
+            raise HTTPException(status_code=404, detail="Vector layer not found")
+        return layer
+
+    @router.delete(f"{vectors}/{{layer_id}}", status_code=204, tags=["Vector Layers"])
+    @_named(f"delete_{names}vector_layer")
+    def delete_vector(layer_id: int, owner: Owner = Depends(admin), db: Session = Depends(get_db)):
+        if not service.delete_vector_layer(db, owner.layer_owner, layer_id):
+            raise HTTPException(status_code=404, detail="Vector layer not found")
+        return Response(status_code=204)
+
+    return router
 
 
-@custom_maps_router.delete("/{map_id}", status_code=204)
-def delete_custom_map(
-    campaign_id: int,
-    map_id: int,
-    campaign: Campaign = Depends(require_campaign_admin),
-    db: Session = Depends(get_db),
-):
-    if not service.delete_custom_map(db, LayerOwner(campaign_id=campaign_id), map_id):
-        raise HTTPException(status_code=404, detail="Custom map not found")
-    return Response(status_code=204)
-
-
-vector_layers_router = APIRouter(
-    prefix="/campaigns/{campaign_id}/vector-layers",
-    tags=["Vector Layers"],
-    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
-)
-
-
-@vector_layers_router.get("", response_model=list[VectorLayerOut])
-def list_vector_layers(
-    campaign_id: int,
-    campaign: Campaign = Depends(require_campaign_access),
-    db: Session = Depends(get_db),
-):
-    return service.list_vector_layers(db, LayerOwner(campaign_id=campaign_id))
-
-
-@vector_layers_router.post("", response_model=VectorLayerOut, status_code=201)
-def create_vector_layer(
-    campaign_id: int,
-    payload: VectorLayerCreate,
-    campaign: Campaign = Depends(require_campaign_admin),
-    db: Session = Depends(get_db),
-):
-    return service.create_vector_layer(db, LayerOwner(campaign_id=campaign_id), payload)
-
-
-@vector_layers_router.patch("/{layer_id}", response_model=VectorLayerOut)
-def update_vector_layer(
-    campaign_id: int,
-    layer_id: int,
-    payload: VectorLayerUpdate,
-    campaign: Campaign = Depends(require_campaign_admin),
-    db: Session = Depends(get_db),
-):
-    layer = service.update_vector_layer(db, LayerOwner(campaign_id=campaign_id), layer_id, payload)
-    if layer is None:
-        raise HTTPException(status_code=404, detail="Vector layer not found")
-    return layer
-
-
-@vector_layers_router.delete("/{layer_id}", status_code=204)
-def delete_vector_layer(
-    campaign_id: int,
-    layer_id: int,
-    campaign: Campaign = Depends(require_campaign_admin),
-    db: Session = Depends(get_db),
-):
-    if not service.delete_vector_layer(db, LayerOwner(campaign_id=campaign_id), layer_id):
-        raise HTTPException(status_code=404, detail="Vector layer not found")
-    return Response(status_code=204)
+def _join_visualizer_overlays(db: Session, owner: Owner, layer: CustomMap | VectorLayer) -> None:
+    assert isinstance(owner, Visualizer)  # noqa: S101
+    if isinstance(layer, CustomMap):
+        visualizers_service.link_owned_overlay(db, owner, custom_map_id=layer.id)
+    else:
+        visualizers_service.link_owned_overlay(db, owner, vector_layer_id=layer.id)
 
 
 router = APIRouter()
-router.include_router(custom_maps_router)
-router.include_router(vector_layers_router)
-
-
-# Overlays set up on a visualizer rather than on a campaign. Same layers, same
-# service, same organization guards; only the owner and the gate differ.
-visualizer_maps_router = APIRouter(
-    prefix="/visualizers/{visualizer_id}/custom-maps",
-    tags=["Custom Maps"],
-    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
-)
-
-visualizer_vectors_router = APIRouter(
-    prefix="/visualizers/{visualizer_id}/vector-layers",
-    tags=["Vector Layers"],
-    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
-)
-
-
-@visualizer_maps_router.get("", response_model=list[CustomMapOut])
-def list_visualizer_custom_maps(
-    visualizer_id: int,
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    return service.list_custom_maps(db, LayerOwner(visualizer_id=visualizer_id))
-
-
-@visualizer_maps_router.post("", response_model=CustomMapOut, status_code=201)
-def create_visualizer_custom_map(
-    visualizer_id: int,
-    payload: CustomMapCreate,
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    _require_internal_storage_allowed(payload.internal_storage, visualizer)
-    _require_tiler_allowed(visualizer)
-    try:
-        created = service.create_custom_map(db, LayerOwner(visualizer_id=visualizer_id), payload)
-    except service.DuplicateCustomMapName as exc:
-        raise HTTPException(
-            status_code=409, detail="A custom map with this name already exists"
-        ) from exc
-    visualizers_service.link_owned_overlay(db, visualizer, custom_map_id=created.id)
-    return created
-
-
-@visualizer_maps_router.patch("/{map_id}", response_model=CustomMapOut)
-def update_visualizer_custom_map(
-    visualizer_id: int,
-    map_id: int,
-    payload: CustomMapUpdate,
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    _require_internal_storage_allowed(payload.internal_storage, visualizer)
-    _require_tiler_allowed(visualizer)
-    try:
-        cm = service.update_custom_map(db, LayerOwner(visualizer_id=visualizer_id), map_id, payload)
-    except service.DuplicateCustomMapName as exc:
-        raise HTTPException(
-            status_code=409, detail="A custom map with this name already exists"
-        ) from exc
-    if cm is None:
-        raise HTTPException(status_code=404, detail="Custom map not found")
-    return cm
-
-
-@visualizer_maps_router.delete("/{map_id}", status_code=204)
-def delete_visualizer_custom_map(
-    visualizer_id: int,
-    map_id: int,
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    if not service.delete_custom_map(db, LayerOwner(visualizer_id=visualizer_id), map_id):
-        raise HTTPException(status_code=404, detail="Custom map not found")
-    return Response(status_code=204)
-
-
-@visualizer_vectors_router.get("", response_model=list[VectorLayerOut])
-def list_visualizer_vector_layers(
-    visualizer_id: int,
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    return service.list_vector_layers(db, LayerOwner(visualizer_id=visualizer_id))
-
-
-@visualizer_vectors_router.post("", response_model=VectorLayerOut, status_code=201)
-def create_visualizer_vector_layer(
-    visualizer_id: int,
-    payload: VectorLayerCreate,
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    created = service.create_vector_layer(db, LayerOwner(visualizer_id=visualizer_id), payload)
-    visualizers_service.link_owned_overlay(db, visualizer, vector_layer_id=created.id)
-    return created
-
-
-@visualizer_vectors_router.patch("/{layer_id}", response_model=VectorLayerOut)
-def update_visualizer_vector_layer(
-    visualizer_id: int,
-    layer_id: int,
-    payload: VectorLayerUpdate,
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    layer = service.update_vector_layer(
-        db, LayerOwner(visualizer_id=visualizer_id), layer_id, payload
+router.include_router(
+    _owner_routes(
+        "/campaigns/{campaign_id}",
+        reader=require_campaign_access,
+        admin=require_campaign_admin,
+        names="",
     )
-    if layer is None:
-        raise HTTPException(status_code=404, detail="Vector layer not found")
-    return layer
-
-
-@visualizer_vectors_router.delete("/{layer_id}", status_code=204)
-def delete_visualizer_vector_layer(
-    visualizer_id: int,
-    layer_id: int,
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    if not service.delete_vector_layer(db, LayerOwner(visualizer_id=visualizer_id), layer_id):
-        raise HTTPException(status_code=404, detail="Vector layer not found")
-    return Response(status_code=204)
-
-
-router.include_router(visualizer_maps_router)
-router.include_router(visualizer_vectors_router)
+)
+router.include_router(
+    _owner_routes(
+        "/visualizers/{visualizer_id}",
+        reader=require_visualizer_admin,
+        admin=require_visualizer_admin,
+        names="visualizer_",
+        on_created=_join_visualizer_overlays,
+    )
+)

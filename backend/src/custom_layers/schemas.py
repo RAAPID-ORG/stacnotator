@@ -100,7 +100,7 @@ class CustomMapOut(BaseModel):
     render_config: RenderConfig
     max_native_zoom: int | None
     status: str
-    status_error: dict | None
+    status_errors: list[dict] | None
     tile_url: str | None
     mosaic_id: str | None
     display_order: int

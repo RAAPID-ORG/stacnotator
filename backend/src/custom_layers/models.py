@@ -3,8 +3,6 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
-    CheckConstraint,
-    ForeignKey,
     Index,
     Integer,
     SmallInteger,
@@ -18,7 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
 
 from src.database import Base
-from src.layers import LayerOwner
+from src.layers import OwnedLayer, one_owner_check
 from src.storage_access import StorageAccessOut, described
 
 if TYPE_CHECKING:
@@ -26,31 +24,13 @@ if TYPE_CHECKING:
     from src.visualizers.models import Visualizer
 
 
-class _OwnedLayer:
-    """The owner columns and relationships shared by both overlay kinds."""
-
-    campaign_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"), nullable=True
-    )
-    visualizer_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.visualizers.id", ondelete="CASCADE"), nullable=True
-    )
-
-    @property
-    def owner(self) -> LayerOwner:
-        return LayerOwner(campaign_id=self.campaign_id, visualizer_id=self.visualizer_id)
-
-
-class CustomMap(Base, _OwnedLayer):
+class CustomMap(Base, OwnedLayer):
     """A campaign-scoped single-band prediction map (COG) rendered as an overlay."""
 
     __tablename__ = "custom_maps"
     __table_args__ = (
         UniqueConstraint("campaign_id", "name", name="uq_custom_maps_campaign_name"),
-        CheckConstraint(
-            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
-            name="custom_maps_one_owner_check",
-        ),
+        one_owner_check("custom_maps"),
         Index("idx_custom_maps_visualizer_id", "visualizer_id"),
         {"schema": "data"},
     )
@@ -63,7 +43,8 @@ class CustomMap(Base, _OwnedLayer):
     mosaic_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tile_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(16), server_default="registering", nullable=False)
-    status_error: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status_errors: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
     mlops_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     # COG lives in internal storage the tiler reads with its managed identity. Only internal
@@ -86,7 +67,7 @@ class CustomMap(Base, _OwnedLayer):
         return described(self)
 
 
-class VectorLayer(Base, _OwnedLayer):
+class VectorLayer(Base, OwnedLayer):
     """A campaign-scoped PMTiles vector layer rendered client-side.
 
     Just a ``.pmtiles`` URL the frontend reads directly via HTTP range requests.
@@ -94,10 +75,7 @@ class VectorLayer(Base, _OwnedLayer):
 
     __tablename__ = "vector_layers"
     __table_args__ = (
-        CheckConstraint(
-            "(campaign_id IS NULL) <> (visualizer_id IS NULL)",
-            name="vector_layers_one_owner_check",
-        ),
+        one_owner_check("vector_layers"),
         Index("idx_vector_layers_campaign_id", "campaign_id"),
         Index("idx_vector_layers_visualizer_id", "visualizer_id"),
         {"schema": "data"},

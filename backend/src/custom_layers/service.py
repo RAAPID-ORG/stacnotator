@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
-from src import storage_access
+from src import background, storage_access
 from src.config import TilerCfg
 from src.custom_layers.models import CustomMap, VectorLayer
 from src.custom_layers.render import build_viz_params
@@ -32,6 +32,17 @@ logger = logging.getLogger(__name__)
 
 class DuplicateCustomMapName(Exception):
     pass
+
+
+CUSTOM_MAP_RUN = background.StatusField(
+    model=CustomMap,
+    status_column="status",
+    heartbeat_column="heartbeat_at",
+    errors_column="status_errors",
+    interrupted_error=(
+        "Registering this map was interrupted by a server restart. Save it again to retry."
+    ),
+)
 
 
 PRIVATE_MAP_NOT_PUBLISHABLE = (
@@ -111,8 +122,8 @@ def _insert(db: Session, owner: LayerOwner, payload: CustomMapCreate) -> CustomM
         max_native_zoom=payload.max_native_zoom,
         mlops_url=payload.mlops_url,
         internal_storage=payload.internal_storage,
-        status="registering",
     )
+    background.begin_status_run(cm, CUSTOM_MAP_RUN)
     storage_access.store(cm, payload.storage_access)
     db.add(cm)
     db.commit()
@@ -160,7 +171,7 @@ def run_registration(db: Session, cm: CustomMap) -> None:
         _stamp_tile_url(cm, search_id, tiler)
         cm.mosaic_id = search_id
         cm.status = "ready"
-        cm.status_error = None
+        cm.status_errors = None
     except Exception as exc:
         if sealed_search is not None:
             _discard_orphan(tiler, sealed_search, cm.id)
@@ -168,16 +179,20 @@ def run_registration(db: Session, cm: CustomMap) -> None:
             return
         logger.exception("Custom map registration failed for map %s", cm.id)
         cm.status = "failed"
-        cm.status_error = {"error": redact_urls(str(exc))}
+        cm.status_errors = [{"error": redact_urls(str(exc))}]
     db.commit()
 
 
 def _register_async(map_id: int) -> None:
+    """Not ``background.spawn_status_run``: a run overtaken by an edit must leave the
+    status to the run that edit started, so this one writes its own outcome. It still
+    beats, so the stale-run sweep can tell a dead worker's run from a live one."""
     bg_db = SessionLocal()
     try:
-        cm = bg_db.get(CustomMap, map_id)
-        if cm is not None:
-            run_registration(bg_db, cm)
+        with background.heartbeat(map_id, CUSTOM_MAP_RUN):
+            cm = bg_db.get(CustomMap, map_id)
+            if cm is not None:
+                run_registration(bg_db, cm)
     finally:
         bg_db.close()
 
@@ -197,13 +212,20 @@ def create_custom_map(db: Session, owner: LayerOwner, payload: CustomMapCreate) 
 
 
 def list_custom_maps(db: Session, owner: LayerOwner) -> list[CustomMap]:
-    return list(
-        db.execute(
-            select(CustomMap)
-            .where(_owned(CustomMap, owner))
-            .order_by(CustomMap.display_order, CustomMap.id)
-        ).scalars()
+    """The editor polls this while a map registers, so a run whose worker died is
+    failed here rather than left "registering" until the next restart."""
+    query = (
+        select(CustomMap)
+        .where(_owned(CustomMap, owner))
+        .order_by(CustomMap.display_order, CustomMap.id)
     )
+    maps = list(db.execute(query).scalars())
+    if any(cm.status == "registering" for cm in maps) and background.fail_stale_status_runs(
+        db, (CUSTOM_MAP_RUN,)
+    ):
+        db.commit()
+        maps = list(db.execute(query.execution_options(populate_existing=True)).scalars())
+    return maps
 
 
 def _get_custom_map(db: Session, owner: LayerOwner, map_id: int) -> CustomMap | None:
@@ -275,8 +297,8 @@ def update_custom_map(
     needs_reregister = needs_reregister or cm.status == "failed"
     if needs_reregister:
         _revoke_private_search(db, cm, private_search)
-        cm.status = "registering"
-        cm.status_error = None
+        background.begin_status_run(cm, CUSTOM_MAP_RUN)
+        cm.status_errors = None
     elif render_changed and cm.mosaic_id and cm.status == "ready":
         # No tiler call: the pgstac search keys on cog_url/campaign/internal_storage only, so
         # colormap, rescale and band live in the tile URL alone. Anything not ready is skipped

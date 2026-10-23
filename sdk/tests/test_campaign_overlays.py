@@ -25,7 +25,7 @@ def existing_layer(layer_id, name):
         "render_config": {"mode": "continuous", "band": 1},
         "max_native_zoom": None,
         "status": "ready",
-        "status_error": None,
+        "status_errors": None,
         "tile_url": "https://tiler/x/{z}/{x}/{y}",
         "mosaic_id": "abc",
         "display_order": 0,

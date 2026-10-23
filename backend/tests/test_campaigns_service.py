@@ -263,7 +263,11 @@ class TestUpdateCampaignBbox:
     def test_commits_registration_status_before_spawning_for_new_roi(self):
         db = _mock_db()
         campaign = MagicMock(
-            spec=Campaign, id=1, registration_status="ready", registration_errors=[{"error": "old"}]
+            spec=Campaign,
+            id=1,
+            layer_owner=LayerOwner(campaign_id=1),
+            registration_status="ready",
+            registration_errors=[{"error": "old"}],
         )
         campaign.settings = CampaignSettings()
         pending = [MagicMock()]
