@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { CategoryFormField } from '~/api/client';
 import type { FormField } from '../campaign/annotation';
 import {
+  commentFieldIndex,
   cycleFieldIndex,
   handleFormFieldKey,
   isLabelGroupActive,
@@ -80,6 +81,24 @@ describe('cycleFieldIndex', () => {
     expect(cycleFieldIndex(null, 1, -1)).toBe(0);
     expect(cycleFieldIndex(0, 1, -1)).toBe(LABEL_FIELD_INDEX);
     expect(cycleFieldIndex(LABEL_FIELD_INDEX, 1, -1)).toBe(0);
+  });
+});
+
+describe('cycleFieldIndex with a comment box', () => {
+  it('stops at the comment after the last field, then wraps to the labels', () => {
+    let idx: number | null = LABEL_FIELD_INDEX;
+    idx = cycleFieldIndex(idx, 2, 1, true); // -> 0
+    idx = cycleFieldIndex(idx, 2, 1, true); // -> 1
+    idx = cycleFieldIndex(idx, 2, 1, true);
+    expect(idx).toBe(commentFieldIndex(2));
+    expect(cycleFieldIndex(idx, 2, 1, true)).toBe(LABEL_FIELD_INDEX);
+    expect(cycleFieldIndex(LABEL_FIELD_INDEX, 2, -1, true)).toBe(commentFieldIndex(2));
+  });
+
+  it('alternates between the labels and the comment when there are no custom fields', () => {
+    expect(cycleFieldIndex(null, 0, 1, true)).toBe(commentFieldIndex(0));
+    expect(cycleFieldIndex(commentFieldIndex(0), 0, 1, true)).toBe(LABEL_FIELD_INDEX);
+    expect(cycleFieldIndex(LABEL_FIELD_INDEX, 0, 1, true)).toBe(commentFieldIndex(0));
   });
 });
 

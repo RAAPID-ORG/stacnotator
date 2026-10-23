@@ -187,13 +187,26 @@ test.describe('Annotation Submission', () => {
     await annotationPage.keyboard.press('c');
     await expect(annotationPage.locator('[data-task-comment-input]')).toBeFocused();
 
-    // One more Tab wraps from the final field back to the label section.
+    // After the final field Tab stops at the comment, then wraps back to the
+    // label section.
     await annotationPage.keyboard.press('Escape');
     for (let index = 0; index <= formFields.length; index++) {
       await annotationPage.keyboard.press('Tab');
     }
+    await expect(annotationPage.locator('[data-task-comment-input]')).toBeFocused();
+    await annotationPage.keyboard.press('Tab');
     const labelSection = annotationPage.locator('[data-task-labels]');
     await expect(labelSection).toHaveClass(/ring-1/);
     await expect.poll(() => isFullyVisible(labelSection), { timeout: 5000 }).toBe(true);
+
+    // Picking a label by number brings it back into view from further down.
+    await annotationPage.keyboard.press('c');
+    await annotationPage.keyboard.press('Escape');
+    await annotationPage.keyboard.press('Shift+3');
+    await expect.poll(() => isFullyVisible(labelSection), { timeout: 5000 }).toBe(false);
+    await annotationPage.keyboard.press('2');
+    const picked = labelSection.locator('[data-label-id="2"]');
+    await expect(picked).toHaveText(/✓/);
+    await expect.poll(() => isFullyVisible(picked), { timeout: 5000 }).toBe(true);
   });
 });

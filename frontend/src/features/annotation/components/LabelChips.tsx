@@ -68,6 +68,7 @@ export function LabelChips<L extends LabelChipItem>({
             >
               <button
                 type="button"
+                data-label-id={label.id}
                 disabled={disabled}
                 onClick={() => onSelect(label)}
                 className={`${
