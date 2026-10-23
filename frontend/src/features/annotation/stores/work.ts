@@ -10,6 +10,7 @@ import {
 } from '~/api/client';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
+import i18n from '~/shared/i18n';
 import {
   extendedLabels,
   geometryToWkt,
@@ -43,6 +44,8 @@ import type { LonLat } from '~/shared/map/types';
 import { campaignState, drawsShapes, formFields, useCampaignStore } from './campaign';
 import { useImageryStore } from './imagery';
 import { usePrefsStore } from './prefs';
+
+const t = i18n.getFixedT(null, 'annotation');
 
 export type Tool = 'pan' | 'annotate' | 'edit' | 'labelVector' | 'timeseries';
 
@@ -526,10 +529,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         // Parking the draft is only half the recovery: without a word the user
         // sees the tool change and assumes the annotation went with it.
         if ((await get().closeDraft()) === 'save-failed') {
-          alert(
-            'Could not save the open annotation - it is still in the panel, retry there.',
-            'error'
-          );
+          alert(t('work.draftSaveFailed'), 'error');
         }
       }
     },
@@ -624,7 +624,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           selectionAnchor: geometryTopRight(geometry),
         });
       } catch (error) {
-        handleError(error, 'Could not open the annotation for editing');
+        handleError(error, t('work.openFailed'));
       }
     },
 
@@ -660,7 +660,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         if (result.data) get().setEditAnnotation(result.data);
       } catch (error) {
         get().setEditAnnotation(annotation);
-        handleError(error, 'Could not save the slice comment');
+        handleError(error, t('work.sliceCommentFailed'));
       }
     },
 
@@ -690,7 +690,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         if (result.data) get().setEditAnnotation(result.data);
       } catch (error) {
         get().setEditAnnotation(annotation);
-        handleError(error, 'Could not update the flag');
+        handleError(error, t('work.flagFailed'));
       }
     },
   };

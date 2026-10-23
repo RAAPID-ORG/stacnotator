@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { SkeletonRows } from '~/shared/ui/Skeleton';
 import { type AnnotationTaskOut, type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
 import { answeredFields } from '~/shared/utils/formValues';
@@ -106,6 +107,7 @@ export const TaskModeReview = ({
   onOpenBulkAssign,
   onOpenReviewerAssign,
 }: TaskModeReviewProps) => {
+  const { t } = useTranslation(['review', 'common']);
   const navigate = useNavigate();
   const routeProjectId = useProjectIdParam();
   // Campaign wins over the URL param, which only stands in until it loads and
@@ -400,10 +402,10 @@ export const TaskModeReview = ({
         {!embedded && campaign && (
           <header className="page-header">
             <div>
-              <h1 className="page-title">{capitalizeFirst(campaign.name)} - Annotations</h1>
-              <p className="page-subtitle">
-                View and filter all annotation tasks for this campaign.
-              </p>
+              <h1 className="page-title">
+                {t('pageTitle', { name: capitalizeFirst(campaign.name) })}
+              </h1>
+              <p className="page-subtitle">{t('tasks.subtitle')}</p>
             </div>
             <div className="flex items-center gap-3">
               <ExportDropdown
@@ -412,7 +414,7 @@ export const TaskModeReview = ({
                 disabled={tasks.length === 0}
                 hasConflicts={tasks.some((t) => t.task_status === 'conflicting')}
               />
-              <Button onClick={() => navigate(annotatePath)}>Start annotating</Button>
+              <Button onClick={() => navigate(annotatePath)}>{t('startAnnotating')}</Button>
             </div>
           </header>
         )}
@@ -445,11 +447,11 @@ export const TaskModeReview = ({
             <div className={embedded ? undefined : 'surface surface-unclipped'}>
               <div className={embedded ? 'space-y-3' : 'px-5 py-4 space-y-3'}>
                 <div className="flex items-center gap-2">
-                  {headerSlot ?? <h3 className="section-heading">Filters & search</h3>}
+                  {headerSlot ?? <h3 className="section-heading">{t('filtersAndSearch')}</h3>}
                   <button
                     onClick={() => setShowFilters((v) => !v)}
                     className="relative h-8 w-8 inline-flex items-center justify-center rounded text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
-                    title="Filter and sort"
+                    title={t('tasks.filterAndSort')}
                     type="button"
                   >
                     <IconFunnel className="w-4 h-4" />
@@ -467,23 +469,28 @@ export const TaskModeReview = ({
                 {/* Stats stay visible regardless of the filter panel's collapsed state. */}
                 <div className="flex items-center justify-between text-xs text-neutral-500">
                   <span>
-                    Showing {filteredTasks.length} of {tasks.length} tasks
+                    {t('tasks.showingOf', { shown: filteredTasks.length, total: tasks.length })}
                   </span>
                   <div className="flex items-center gap-4">
                     <span>
-                      Complete: <strong className="text-neutral-800">{stats.done}</strong>
+                      {t('tasks.counts.complete')}{' '}
+                      <strong className="text-neutral-800">{stats.done}</strong>
                     </span>
                     <span>
-                      Partial: <strong className="text-neutral-800">{stats.partial}</strong>
+                      {t('tasks.counts.partial')}{' '}
+                      <strong className="text-neutral-800">{stats.partial}</strong>
                     </span>
                     <span>
-                      Conflicting: <strong className="text-neutral-800">{stats.conflicting}</strong>
+                      {t('tasks.counts.conflicting')}{' '}
+                      <strong className="text-neutral-800">{stats.conflicting}</strong>
                     </span>
                     <span>
-                      Pending: <strong className="text-neutral-800">{stats.pending}</strong>
+                      {t('tasks.counts.pending')}{' '}
+                      <strong className="text-neutral-800">{stats.pending}</strong>
                     </span>
                     <span>
-                      Skipped: <strong className="text-neutral-800">{stats.skipped}</strong>
+                      {t('tasks.counts.skipped')}{' '}
+                      <strong className="text-neutral-800">{stats.skipped}</strong>
                     </span>
                   </div>
                 </div>
@@ -493,12 +500,12 @@ export const TaskModeReview = ({
                     {/* Search */}
                     <div>
                       <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        Search
+                        {t('tasks.search')}
                       </div>
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
-                          placeholder="Search by ID or annotation #..."
+                          placeholder={t('tasks.searchPlaceholder')}
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 w-64"
@@ -529,7 +536,7 @@ export const TaskModeReview = ({
                     {/* Status Filter */}
                     <div className="border-t border-neutral-200 pt-3">
                       <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        Status
+                        {t('tasks.status')}
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {(
@@ -551,7 +558,7 @@ export const TaskModeReview = ({
                                 : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                             }`}
                           >
-                            {status === 'all' ? 'All' : capitalizeFirst(status)}
+                            {t(`tasks.statusFilter.${status}`)}
                           </button>
                         ))}
                       </div>
@@ -561,7 +568,7 @@ export const TaskModeReview = ({
                     {!hideSetFilter && taskSets.length > 1 && (
                       <div className="border-t border-neutral-200 pt-3">
                         <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                          Set
+                          {t('tasks.set')}
                         </div>
                         <select
                           data-testid="review-set-filter"
@@ -571,7 +578,7 @@ export const TaskModeReview = ({
                           }
                           className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
                         >
-                          <option value="all">All sets</option>
+                          <option value="all">{t('tasks.allSets')}</option>
                           {taskSets.map((set) => (
                             <option key={set.id} value={set.id}>
                               {set.name}
@@ -595,7 +602,7 @@ export const TaskModeReview = ({
                     {labels.length > 0 && (
                       <div className="border-t border-neutral-200 pt-3" data-testid="label-filter">
                         <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                          Label
+                          {t('tasks.label')}
                         </div>
                         <div className="flex flex-wrap gap-1">
                           <button
@@ -606,7 +613,7 @@ export const TaskModeReview = ({
                                 : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                             }`}
                           >
-                            All
+                            {t('all')}
                           </button>
                           {labels.map((label) => (
                             <button
@@ -630,9 +637,9 @@ export const TaskModeReview = ({
                                 ? 'bg-brand-600 text-white'
                                 : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                             }`}
-                            title="Tasks with a skipped annotation, which carries no label"
+                            title={t('tasks.skippedTitle')}
                           >
-                            Skipped
+                            {t('tasks.skipped')}
                           </button>
                         </div>
                       </div>
@@ -641,7 +648,7 @@ export const TaskModeReview = ({
                     {/* Confidence Filter */}
                     <div className="border-t border-neutral-200 pt-3">
                       <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        Confidence
+                        {t('tasks.confidence')}
                       </div>
                       <div className="flex flex-wrap gap-1">
                         <button
@@ -652,7 +659,7 @@ export const TaskModeReview = ({
                               : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                           }`}
                         >
-                          All
+                          {t('all')}
                         </button>
                         {[1, 2, 3, 4, 5].map((c) => (
                           <button
@@ -686,9 +693,9 @@ export const TaskModeReview = ({
                               ? 'bg-brand-600 text-white'
                               : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                           }`}
-                          title="Tasks with annotations missing a confidence rating, or no annotations"
+                          title={t('tasks.noRatingTitle')}
                         >
-                          No rating
+                          {t('noRating')}
                         </button>
                       </div>
                     </div>
@@ -702,17 +709,17 @@ export const TaskModeReview = ({
                             ? 'bg-rose-100 text-rose-800 border-rose-300'
                             : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
                         }`}
-                        title="Show only tasks with at least one flagged annotation"
+                        title={t('tasks.flaggedOnlyTitle')}
                       >
                         <IconFlag className="w-3.5 h-3.5" />
-                        <span>Flagged only</span>
+                        <span>{t('flaggedOnly')}</span>
                       </button>
                     </div>
 
                     {/* Sort */}
                     <div className="border-t border-neutral-200 pt-3">
                       <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        Sort by
+                        {t('tasks.sortBy')}
                       </div>
                       <select
                         value={sortOption}
@@ -721,13 +728,13 @@ export const TaskModeReview = ({
                         }}
                         className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
                       >
-                        <option value="default">Default</option>
-                        <option value="confidence-asc">Confidence (Low to High)</option>
-                        <option value="confidence-desc">Confidence (High to Low)</option>
-                        <option value="id-asc">Annotation # (Ascending)</option>
-                        <option value="id-desc">Annotation # (Descending)</option>
-                        <option value="time-desc">Time spent (Slowest first)</option>
-                        <option value="time-asc">Time spent (Fastest first)</option>
+                        <option value="default">{t('sort.default')}</option>
+                        <option value="confidence-asc">{t('sort.confidenceAsc')}</option>
+                        <option value="confidence-desc">{t('sort.confidenceDesc')}</option>
+                        <option value="id-asc">{t('sort.annotationNumberAsc')}</option>
+                        <option value="id-desc">{t('sort.annotationNumberDesc')}</option>
+                        <option value="time-desc">{t('sort.timeDesc')}</option>
+                        <option value="time-asc">{t('sort.timeAsc')}</option>
                       </select>
                     </div>
                   </div>
@@ -743,7 +750,7 @@ export const TaskModeReview = ({
                   <div className="flex items-center gap-3">
                     {selectedTasks.size > 0 && (
                       <span className="text-xs text-neutral-500">
-                        {selectedTasks.size} selected
+                        {t('selectedCount', { count: selectedTasks.size })}
                       </span>
                     )}
                     <div className="flex items-center gap-2">
@@ -753,7 +760,7 @@ export const TaskModeReview = ({
                           onClick={() => onAssignSelected(Array.from(selectedTasks))}
                           disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
                         >
-                          Assign selected
+                          {t('tasks.assignSelected')}
                         </Button>
                       )}
                       {onMoveTasks && movableSets.length > 1 && (
@@ -762,7 +769,7 @@ export const TaskModeReview = ({
                           onClick={() => setShowMoveDialog(true)}
                           disabled={selectedTasks.size === 0}
                         >
-                          Move to set
+                          {t('tasks.moveToSet')}
                         </Button>
                       )}
                       {onBatchUnassignTasks && (
@@ -777,13 +784,15 @@ export const TaskModeReview = ({
                           }
                           title={
                             selectedTasks.size === 0
-                              ? 'Select tasks to unassign'
+                              ? t('tasks.selectToUnassign')
                               : !selectedTasksHaveAssignments
-                                ? 'Selected tasks have no assignments'
+                                ? t('tasks.noAssignments')
                                 : undefined
                           }
                         >
-                          {isBatchUnassigning ? 'Unassigning…' : 'Unassign selected'}
+                          {isBatchUnassigning
+                            ? t('tasks.unassigning')
+                            : t('tasks.unassignSelected')}
                         </Button>
                       )}
                       {onDeleteTasks && (
@@ -792,7 +801,7 @@ export const TaskModeReview = ({
                           onClick={() => setConfirmDelete(true)}
                           disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
                         >
-                          Delete selected
+                          {t('deleteSelected')}
                         </Button>
                       )}
                     </div>
@@ -806,7 +815,7 @@ export const TaskModeReview = ({
                         onClick={onOpenBulkAssign}
                         disabled={isDeleting || isBatchUnassigning}
                       >
-                        Assign all
+                        {t('tasks.assignAll')}
                       </Button>
                     )}
                     {onOpenReviewerAssign && (
@@ -815,7 +824,7 @@ export const TaskModeReview = ({
                         onClick={onOpenReviewerAssign}
                         disabled={isDeleting || isBatchUnassigning}
                       >
-                        Set up reviews
+                        {t('tasks.setUpReviews')}
                       </Button>
                     )}
                   </div>
@@ -843,8 +852,8 @@ export const TaskModeReview = ({
                       d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
                     />
                   </svg>
-                  <p className="text-neutral-700 mb-2">No tasks match your filters</p>
-                  <p className="text-neutral-500 text-sm">Try adjusting your filter criteria</p>
+                  <p className="text-neutral-700 mb-2">{t('tasks.noMatchesTitle')}</p>
+                  <p className="text-neutral-500 text-sm">{t('noMatches')}</p>
                 </div>
               ) : (
                 <div
@@ -871,19 +880,19 @@ export const TaskModeReview = ({
                           </th>
                         )}
                         <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          Annotation #
+                          {t('tasks.columns.annotationNumber')}
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          Status
+                          {t('tasks.columns.status')}
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          Coordinates
+                          {t('tasks.columns.coordinates')}
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          Annotations
+                          {t('tasks.columns.annotations')}
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                          Actions
+                          {t('tasks.columns.actions')}
                         </th>
                         {formFields.length > 0 && <th className="w-10 px-2 py-3" />}
                       </tr>
@@ -925,9 +934,11 @@ export const TaskModeReview = ({
                                 {(task.nearby_annotation_count ?? 0) > 0 && (
                                   <span
                                     className="ml-1.5 px-1.5 py-0.5 text-xs font-normal rounded bg-red-50 text-red-700 tabular-nums"
-                                    title="Extra annotations drawn near this task from Explore"
+                                    title={t('tasks.nearbyTitle')}
                                   >
-                                    +{task.nearby_annotation_count} nearby
+                                    {t('tasks.nearby', {
+                                      count: task.nearby_annotation_count ?? 0,
+                                    })}
                                   </span>
                                 )}
                               </td>
@@ -953,13 +964,15 @@ export const TaskModeReview = ({
                                       const isCurrentUser =
                                         ann.created_by_user_id === currentUser?.id;
                                       const displayName = isCurrentUser
-                                        ? currentUser.display_name || currentUser.email || 'You'
+                                        ? currentUser.display_name ||
+                                          currentUser.email ||
+                                          t('youName')
                                         : ann.created_by_user_display_name ||
                                           ann.created_by_user_email ||
                                           annotator?.user_display_name ||
                                           annotator?.user_email ||
                                           ann.created_by_user_id?.substring(0, 8) ||
-                                          'Unknown';
+                                          t('unknownUser');
 
                                       const isSkippedAnn = ann.outcome === 'skipped';
                                       const label = ann.label_id
@@ -978,12 +991,15 @@ export const TaskModeReview = ({
                                           {ann.flagged_for_review && (
                                             <span
                                               className="text-rose-600"
-                                              title={ann.flag_comment || 'Flagged for review'}
+                                              title={ann.flag_comment || t('flaggedForReview')}
                                             >
                                               <IconFlag className="w-3.5 h-3.5" />
                                             </span>
                                           )}
-                                          <span className="font-medium" title="Annotator">
+                                          <span
+                                            className="font-medium"
+                                            title={t('tasks.annotatorTitle')}
+                                          >
                                             {displayName}
                                           </span>
                                           {isExtra && (
@@ -991,25 +1007,25 @@ export const TaskModeReview = ({
                                               <span className="text-neutral-400">|</span>
                                               <span
                                                 className="px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide"
-                                                title="Does not count toward completion"
+                                                title={t('tasks.extraTitle')}
                                               >
-                                                extra
+                                                {t('tasks.extra')}
                                               </span>
                                             </>
                                           )}
                                           <span className="text-neutral-400">|</span>
-                                          <span title="Label ID">{label}</span>
+                                          <span title={t('tasks.labelIdTitle')}>{label}</span>
                                           <span className="text-neutral-400">|</span>
                                           <span
                                             className={ann.confidence != null ? 'font-bold' : ''}
-                                            title="Confidence rating"
+                                            title={t('tasks.confidenceTitle')}
                                           >
                                             {confidence}
                                           </span>
                                           {ann.active_seconds != null && (
                                             <>
                                               <span className="text-neutral-400">|</span>
-                                              <span title="Active time spent on this task">
+                                              <span title={t('tasks.activeTimeTitle')}>
                                                 {formatDuration(ann.active_seconds)}
                                               </span>
                                             </>
@@ -1052,7 +1068,9 @@ export const TaskModeReview = ({
                                     .map((a) => {
                                       const isCurrentUser = a.user_id === currentUser?.id;
                                       const displayName = isCurrentUser
-                                        ? currentUser.display_name || currentUser.email || 'You'
+                                        ? currentUser.display_name ||
+                                          currentUser.email ||
+                                          t('youName')
                                         : a.user_display_name ||
                                           a.user_email ||
                                           a.user_id.substring(0, 8);
@@ -1060,11 +1078,11 @@ export const TaskModeReview = ({
                                         <div
                                           key={`pending-${a.user_id}`}
                                           className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 border border-dashed border-neutral-300 text-neutral-400 bg-neutral-50"
-                                          title="Assigned but not yet annotated"
+                                          title={t('tasks.awaitingTitle')}
                                         >
                                           <span className="font-medium">{displayName}</span>
                                           <span className="text-neutral-300">|</span>
-                                          <span className="italic">Awaiting</span>
+                                          <span className="italic">{t('tasks.awaiting')}</span>
                                         </div>
                                       );
                                     })}
@@ -1076,8 +1094,8 @@ export const TaskModeReview = ({
                                   className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
                                 >
                                   {taskStatus === 'pending' || taskStatus === 'skipped'
-                                    ? 'Annotate'
-                                    : 'View'}
+                                    ? t('tasks.annotate')
+                                    : t('view')}
                                 </button>
                               </td>
                               {formFields.length > 0 && (
@@ -1089,12 +1107,20 @@ export const TaskModeReview = ({
                                     disabled={answered.length === 0}
                                     title={
                                       answered.length === 0
-                                        ? 'No answers recorded'
+                                        ? t('answers.none')
                                         : expanded
-                                          ? 'Hide answers'
-                                          : 'Show answers'
+                                          ? t('answers.hide')
+                                          : t('answers.show')
                                     }
-                                    aria-label={`${expanded ? 'Hide' : 'Show'} answers for task ${task.annotation_number}`}
+                                    aria-label={
+                                      expanded
+                                        ? t('answers.hideForTask', {
+                                            number: task.annotation_number,
+                                          })
+                                        : t('answers.showForTask', {
+                                            number: task.annotation_number,
+                                          })
+                                    }
                                     data-testid={`toggle-answers-${task.id}`}
                                     className="grid h-6 w-6 place-items-center rounded text-neutral-400 transition-colors hover:bg-neutral-200/60 hover:text-neutral-700 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent"
                                   >
@@ -1118,7 +1144,7 @@ export const TaskModeReview = ({
                                         <span className="text-[11px] font-semibold text-neutral-600">
                                           {ann.created_by_user_display_name ||
                                             ann.created_by_user_email ||
-                                            'Unknown'}
+                                            t('unknownUser')}
                                         </span>
                                         <FormAnswers fields={formFields} values={ann.form_values} />
                                       </div>
@@ -1135,9 +1161,11 @@ export const TaskModeReview = ({
                   {pageCount > 1 && (
                     <div className="flex items-center justify-between gap-3 py-4 text-sm text-neutral-500">
                       <span>
-                        Showing {(pageStart + 1).toLocaleString()} to{' '}
-                        {(pageStart + pageTasks.length).toLocaleString()} of{' '}
-                        {filteredTasks.length.toLocaleString()}
+                        {t('tasks.pageRange', {
+                          from: (pageStart + 1).toLocaleString(),
+                          to: (pageStart + pageTasks.length).toLocaleString(),
+                          total: filteredTasks.length.toLocaleString(),
+                        })}
                       </span>
                       <div className="flex items-center gap-3">
                         <Button
@@ -1145,17 +1173,20 @@ export const TaskModeReview = ({
                           disabled={currentPage === 0}
                           onClick={() => setPage(currentPage - 1)}
                         >
-                          Previous
+                          {t('previous')}
                         </Button>
                         <span className="tabular-nums">
-                          Page {currentPage + 1} of {pageCount.toLocaleString()}
+                          {t('pageOf', {
+                            page: currentPage + 1,
+                            pages: pageCount.toLocaleString(),
+                          })}
                         </span>
                         <Button
                           variant="secondary"
                           disabled={currentPage >= pageCount - 1}
                           onClick={() => setPage(currentPage + 1)}
                         >
-                          Next
+                          {t('common:actions.next')}
                         </Button>
                       </div>
                     </div>
@@ -1170,24 +1201,28 @@ export const TaskModeReview = ({
                   return (
                     <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
                       <span>
-                        Filtered:{' '}
+                        {t('tasks.counts.filtered')}{' '}
                         <strong className="text-neutral-900">{filteredTasks.length}</strong>
                       </span>
                       <span>
-                        Complete: <strong className="text-neutral-900">{counts.done}</strong>
+                        {t('tasks.counts.complete')}{' '}
+                        <strong className="text-neutral-900">{counts.done}</strong>
                       </span>
                       <span>
-                        Partial: <strong className="text-neutral-900">{counts.partial}</strong>
+                        {t('tasks.counts.partial')}{' '}
+                        <strong className="text-neutral-900">{counts.partial}</strong>
                       </span>
                       <span>
-                        Conflicting:{' '}
+                        {t('tasks.counts.conflicting')}{' '}
                         <strong className="text-neutral-900">{counts.conflicting}</strong>
                       </span>
                       <span>
-                        Pending: <strong className="text-neutral-900">{counts.pending}</strong>
+                        {t('tasks.counts.pending')}{' '}
+                        <strong className="text-neutral-900">{counts.pending}</strong>
                       </span>
                       <span>
-                        Skipped: <strong className="text-neutral-900">{counts.skipped}</strong>
+                        {t('tasks.counts.skipped')}{' '}
+                        <strong className="text-neutral-900">{counts.skipped}</strong>
                       </span>
                     </div>
                   );
@@ -1200,14 +1235,14 @@ export const TaskModeReview = ({
           <>
             <ConfirmDialog
               isOpen={confirmDelete}
-              title="Delete selected tasks?"
-              description={`This will permanently delete ${selectedTasks.size} selected task(s). ${
+              title={t('tasks.confirmDeleteTitle')}
+              description={
                 deleteAnnotations
-                  ? 'Their annotations are deleted with them.'
-                  : 'Their annotations are kept, no longer linked to a task.'
-              } This action cannot be undone.`}
-              confirmText="Delete"
-              cancelText="Cancel"
+                  ? t('tasks.confirmDeleteWithAnnotations', { count: selectedTasks.size })
+                  : t('tasks.confirmDeleteKeepAnnotations', { count: selectedTasks.size })
+              }
+              confirmText={t('common:actions.delete')}
+              cancelText={t('common:actions.cancel')}
               isDangerous
               isLoading={isDeleting}
               onConfirm={handleDeleteSelected}
@@ -1223,7 +1258,7 @@ export const TaskModeReview = ({
                     data-testid="delete-task-annotations"
                   />
                   <span className="text-xs text-neutral-600">
-                    Also delete their {selectedAnnotationCount} annotation(s)
+                    {t('tasks.alsoDeleteAnnotations', { count: selectedAnnotationCount })}
                   </span>
                 </label>
               )}
@@ -1231,10 +1266,10 @@ export const TaskModeReview = ({
 
             <ConfirmDialog
               isOpen={confirmBatchUnassign}
-              title="Unassign selected tasks?"
-              description={`This will remove all user assignments from ${selectedTasks.size} selected task(s). Annotations already submitted are preserved. This action cannot be undone.`}
-              confirmText="Unassign"
-              cancelText="Cancel"
+              title={t('tasks.confirmUnassignTitle')}
+              description={t('tasks.confirmUnassignDescription', { count: selectedTasks.size })}
+              confirmText={t('tasks.unassign')}
+              cancelText={t('common:actions.cancel')}
               isDangerous
               isLoading={isBatchUnassigning}
               onConfirm={handleBatchUnassignSelected}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CampaignListItemOut, type CampaignOut } from '~/api/client';
 import {
@@ -23,26 +24,29 @@ const YesNoChoice = ({
   value: Choice;
   onChange: (v: boolean) => void;
   testId: string;
-}) => (
-  <div className="flex shrink-0 gap-1" role="radiogroup" data-testid={testId}>
-    {([true, false] as const).map((option) => (
-      <button
-        key={String(option)}
-        type="button"
-        role="radio"
-        aria-checked={value === option}
-        onClick={() => onChange(option)}
-        className={`w-14 rounded-md border px-2 py-1 text-xs font-medium transition-colors cursor-pointer ${
-          value === option
-            ? 'border-brand-600 bg-brand-50 text-brand-800'
-            : 'border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:text-neutral-700'
-        }`}
-      >
-        {option ? 'Yes' : 'No'}
-      </button>
-    ))}
-  </div>
-);
+}) => {
+  const { t } = useTranslation('campaigns');
+  return (
+    <div className="flex shrink-0 gap-1" role="radiogroup" data-testid={testId}>
+      {([true, false] as const).map((option) => (
+        <button
+          key={String(option)}
+          type="button"
+          role="radio"
+          aria-checked={value === option}
+          onClick={() => onChange(option)}
+          className={`w-14 rounded-md border px-2 py-1 text-xs font-medium transition-colors cursor-pointer ${
+            value === option
+              ? 'border-brand-600 bg-brand-50 text-brand-800'
+              : 'border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:text-neutral-700'
+          }`}
+        >
+          {option ? t('duplicate.yes') : t('duplicate.no')}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 const Question = ({
   title,
@@ -83,6 +87,7 @@ export const DuplicateCampaignModal = ({
   onClose,
   onDuplicated,
 }: DuplicateCampaignModalProps) => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const [targetProjectId, setTargetProjectId] = useState(campaign.project_id);
   const [includeTasks, setIncludeTasks] = useState<Choice>(null);
   const [includeAnnotations, setIncludeAnnotations] = useState<Choice>(null);
@@ -94,7 +99,7 @@ export const DuplicateCampaignModal = ({
   // is offered without waiting for the list - being here already proves it.
   const { data: projectsData } = useQuery({
     ...listProjectsOptions(),
-    meta: { errorMessage: 'Failed to load projects' },
+    meta: { errorMessage: t('errors.loadProjects') },
   });
   const otherProjects = useMemo(
     () =>
@@ -108,7 +113,7 @@ export const DuplicateCampaignModal = ({
 
   const duplicate = useMutation({
     ...duplicateCampaignMutation(),
-    meta: { errorMessage: 'Failed to duplicate campaign' },
+    meta: { errorMessage: t('errors.duplicateCampaign') },
     onSuccess: (created) => {
       void queryClient.invalidateQueries({
         queryKey: listProjectCampaignsQueryKey({ path: { project_id: created.project_id } }),
@@ -137,37 +142,33 @@ export const DuplicateCampaignModal = ({
 
   return (
     <Modal
-      title={`Duplicate "${campaign.name}"`}
+      title={t('duplicate.title', { name: campaign.name })}
       onClose={onClose}
       maxWidth="max-w-md"
       footer={
         <div className="flex items-center justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={onClose} disabled={submitting}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button
             size="sm"
             onClick={handleDuplicate}
             disabled={!ready || submitting}
-            title={ready ? undefined : 'Answer the questions first'}
+            title={ready ? undefined : t('duplicate.answerFirst')}
             data-testid="confirm-duplicate-campaign"
           >
-            {submitting ? 'Duplicating…' : 'Duplicate campaign'}
+            {submitting ? t('duplicate.duplicating') : t('duplicate.submit')}
           </Button>
         </div>
       }
     >
       <div className="px-5 py-4 space-y-4">
-        <p className="text-xs leading-relaxed text-neutral-600">
-          Creates a new campaign with the same setup: imagery sources and visualizations, views and
-          layouts, labels and forms, labelling policy, time series, basemaps and overlays. Adjust
-          the copy afterwards in its settings.
-        </p>
+        <p className="text-xs leading-relaxed text-neutral-600">{t('duplicate.intro')}</p>
 
         <Field
-          label="Copy into"
+          label={t('duplicate.copyInto')}
           htmlFor="duplicate-target-project"
-          hint={crossProject ? 'Only projects you administer can receive a campaign.' : undefined}
+          hint={crossProject ? t('duplicate.adminOnlyHint') : undefined}
         >
           <Select
             id="duplicate-target-project"
@@ -176,7 +177,7 @@ export const DuplicateCampaignModal = ({
             onChange={(e) => setTargetProjectId(Number(e.target.value))}
             data-testid="duplicate-target-project"
           >
-            <option value={campaign.project_id}>This project</option>
+            <option value={campaign.project_id}>{t('duplicate.thisProject')}</option>
             {otherProjects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -187,35 +188,33 @@ export const DuplicateCampaignModal = ({
 
         {crossProject && (
           <Notice>
-            Annotations, task assignments and personal layouts are <strong>not</strong> copied into
-            another project - the people they name need not be members there. Only the setup, and
-            the task locations if you keep them, come along.
+            <Trans
+              t={t}
+              i18nKey="duplicate.crossProjectNotice"
+              components={{ strong: <strong /> }}
+            />
           </Notice>
         )}
 
         <div className="space-y-3">
           <Question
-            title="Also duplicate tasks?"
+            title={t('duplicate.tasks.title')}
             value={includeTasks}
             onChange={setIncludeTasks}
             testId="duplicate-tasks"
           >
-            {crossProject
-              ? 'Copies all task locations and task sets. They arrive unassigned, with no progress.'
-              : 'Copies all task locations and task sets. Task progress starts fresh unless annotations are copied too.'}
+            {crossProject ? t('duplicate.tasks.crossProject') : t('duplicate.tasks.sameProject')}
           </Question>
 
           {!crossProject && includeTasks === true && (
             <div className="ml-4 border-l-2 border-neutral-100 pl-3">
               <Question
-                title="Keep task assignments?"
+                title={t('duplicate.assignments.title')}
                 value={includeAssignments}
                 onChange={setIncludeAssignments}
                 testId="duplicate-assignments"
               >
-                Copies the explicit assignments to annotators. Without them every task in the copy
-                is open for anyone to pick up. Tasks a labelling agent holds always arrive free: an
-                agent is registered for one campaign and cannot work the copy.
+                {t('duplicate.assignments.body')}
               </Question>
             </div>
           )}
@@ -223,31 +222,28 @@ export const DuplicateCampaignModal = ({
           {!crossProject && (
             <>
               <Question
-                title="Also duplicate annotations?"
+                title={t('duplicate.annotations.title')}
                 value={includeAnnotations}
                 onChange={setIncludeAnnotations}
                 testId="duplicate-annotations"
               >
-                Copies every existing label with its author and timestamps into the new campaign.
+                {t('duplicate.annotations.body')}
               </Question>
 
               <Question
-                title="Keep personal layouts?"
+                title={t('duplicate.layouts.title')}
                 value={includeUserLayouts}
                 onChange={setIncludeUserLayouts}
                 testId="duplicate-user-layouts"
               >
-                Copies the canvas window arrangements individual users saved for themselves.
+                {t('duplicate.layouts.body')}
               </Question>
             </>
           )}
         </div>
 
         {!crossProject && includeAnnotations === true && includeTasks === false && (
-          <Notice>
-            Without tasks, only annotations that are not linked to a task (open-mode labels) are
-            copied.
-          </Notice>
+          <Notice>{t('duplicate.withoutTasksNotice')}</Notice>
         )}
       </div>
     </Modal>

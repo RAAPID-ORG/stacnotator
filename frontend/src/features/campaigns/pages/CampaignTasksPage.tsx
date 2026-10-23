@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
@@ -52,6 +53,7 @@ import {
 const NO_USERS: ProjectUserOut[] = [];
 
 export const CampaignTasksPage = () => {
+  const { t } = useTranslation('campaigns');
   const campaignId = useCampaignIdParam();
   const { taskSetIds: areaEstimationSets } = useAreaEstimationTaskSets(campaignId);
   const routeProjectId = useProjectIdParam();
@@ -73,7 +75,7 @@ export const CampaignTasksPage = () => {
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const projectId = campaign?.project_id ?? routeProjectId;
 
-  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Tasks');
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, t('tasksPage.breadcrumb'));
 
   const { tasks: annotationTasks, loading: tasksLoading } = useCampaignTasks(campaignId);
   const { taskSets, loading: taskSetsLoading } = useCampaignTaskSets(campaignId);
@@ -83,7 +85,7 @@ export const CampaignTasksPage = () => {
   const { data: projectUsersData } = useQuery({
     ...getProjectUsersOptions({ path: { project_id: campaign?.project_id ?? 0 } }),
     enabled: campaign !== undefined,
-    meta: { errorMessage: 'Failed to load project members' },
+    meta: { errorMessage: t('errors.loadProjectMembers') },
   });
   const projectUsers = projectUsersData?.users ?? NO_USERS;
 
@@ -93,50 +95,50 @@ export const CampaignTasksPage = () => {
 
   const uploadGeojson = useMutation({
     ...ingestAnnotationTasksFromGeojsonMutation(),
-    meta: { errorMessage: 'Failed to upload annotation tasks' },
+    meta: { errorMessage: t('tasksPage.errors.upload') },
   });
   const uploadCsv = useMutation({
     ...ingestAnnotationTasksFromCsvMutation(),
-    meta: { errorMessage: 'Failed to upload annotation tasks' },
+    meta: { errorMessage: t('tasksPage.errors.upload') },
   });
   const createSet = useMutation({
     ...createTaskSetMutation(),
-    meta: { errorMessage: 'Failed to create task set' },
+    meta: { errorMessage: t('tasksPage.errors.createSet') },
     onSuccess: reloadTaskSets,
   });
   const renameSet = useMutation({
     ...renameTaskSetMutation(),
-    meta: { errorMessage: 'Failed to rename task set' },
+    meta: { errorMessage: t('tasksPage.errors.renameSet') },
     onSuccess: reloadTaskSets,
   });
   const deleteSet = useMutation({
     ...deleteTaskSetMutation(),
-    meta: { errorMessage: 'Failed to delete task set' },
+    meta: { errorMessage: t('tasksPage.errors.deleteSet') },
     onSuccess: reloadTasksAndSets,
   });
   const moveTasks = useMutation({
     ...moveTasksToSetMutation(),
-    meta: { errorMessage: 'Failed to move tasks' },
+    meta: { errorMessage: t('tasksPage.errors.move') },
     onSuccess: reloadTasksAndSets,
   });
   const assignTasks = useMutation({
     ...assignTasksToUsersMutation(),
-    meta: reportedByCaller('Failed to assign tasks'),
+    meta: reportedByCaller(t('tasksPage.errors.assign')),
     onSuccess: reloadTasksAndSets,
   });
   const assignReviewersTo = useMutation({
     ...assignReviewersMutation(),
-    meta: reportedByCaller('Failed to assign reviewers'),
+    meta: reportedByCaller(t('reviewerAssign.failed')),
     onSuccess: reloadAnnotationTasks,
   });
   const unassignTasks = useMutation({
     ...batchUnassignTasksMutation(),
-    meta: reportedByCaller('Failed to unassign tasks'),
+    meta: reportedByCaller(t('tasksPage.errors.unassign')),
     onSuccess: reloadAnnotationTasks,
   });
   const deleteTasks = useMutation({
     ...deleteAnnotationTasksMutation(),
-    meta: reportedByCaller('Failed to delete tasks'),
+    meta: reportedByCaller(t('tasksPage.errors.delete')),
     onSuccess: reloadTasksAndSets,
   });
 
@@ -175,7 +177,7 @@ export const CampaignTasksPage = () => {
     () =>
       taskScope === 'all'
         ? annotationTasks
-        : annotationTasks.filter((t) => t.task_set_id === taskScope),
+        : annotationTasks.filter((task) => task.task_set_id === taskScope),
     [annotationTasks, taskScope]
   );
 
@@ -207,7 +209,7 @@ export const CampaignTasksPage = () => {
       return false;
     }
     setTaskFile(null);
-    showAlert('Annotation task(s) uploaded successfully', 'success');
+    showAlert(t('tasksPage.toasts.uploaded'), 'success');
     reloadTasksAndSets();
     return true;
   };
@@ -237,12 +239,15 @@ export const CampaignTasksPage = () => {
   const handleMoveTasks = async (taskIds: number[], taskSetId: number) => {
     await moveTasks.mutateAsync(
       { path: { ...path, task_set_id: taskSetId }, body: { task_ids: taskIds } },
-      { onSuccess: () => showAlert(`Moved ${taskIds.length} task(s)`, 'success') }
+      {
+        onSuccess: () =>
+          showAlert(t('tasksPage.toasts.moved', { count: taskIds.length }), 'success'),
+      }
     );
   };
 
   const handleTasksGenerated = (response: GenerateTasksResponse) => {
-    showAlert(`${response.num_tasks_created} tasks generated successfully`, 'success');
+    showAlert(t('tasksPage.toasts.generated', { count: response.num_tasks_created }), 'success');
     reloadTasksAndSets();
   };
 
@@ -256,7 +261,7 @@ export const CampaignTasksPage = () => {
         ...taskScopeBody,
       },
     });
-    showAlert(`${result.total_assigned} task(s) assigned successfully`, 'success');
+    showAlert(t('tasksPage.toasts.assignedBulk', { count: result.total_assigned }), 'success');
     setShowAssignmentModal(false);
   };
 
@@ -265,7 +270,7 @@ export const CampaignTasksPage = () => {
       path,
       body: { strategy: 'explicit', task_assignments: Object.fromEntries(Object.entries(mapping)) },
     });
-    showAlert(`${result.total_assigned} task(s) assigned`, 'success');
+    showAlert(t('tasksPage.toasts.assigned', { count: result.total_assigned }), 'success');
     setAssignSelectedTaskIds([]);
   };
 
@@ -290,8 +295,14 @@ export const CampaignTasksPage = () => {
     await assignReviewersTo.mutateAsync({ path, body });
     showAlert(
       pattern.type === 'percentage'
-        ? `Assigned ${pattern.reviewersPerTask} reviewers to ${pattern.percentage}% of tasks`
-        : `Assigned ${pattern.reviewersPerTask} reviewers to ${pattern.numTasks} tasks`,
+        ? t('tasksPage.toasts.reviewersPercentage', {
+            count: pattern.reviewersPerTask,
+            percentage: pattern.percentage,
+          })
+        : t('tasksPage.toasts.reviewersFixed', {
+            count: pattern.reviewersPerTask,
+            tasks: pattern.numTasks,
+          }),
       'success'
     );
     setShowReviewerModal(false);
@@ -299,23 +310,23 @@ export const CampaignTasksPage = () => {
 
   const handleBatchUnassignTasks = async (taskIds: number[]) => {
     if (taskIds.length === 0) {
-      showAlert('No tasks selected', 'error');
+      showAlert(t('tasksPage.toasts.noneSelected'), 'error');
       return;
     }
     await unassignTasks.mutateAsync({ path, body: { task_ids: taskIds } });
-    showAlert(`Unassigned all users from ${taskIds.length} task(s)`, 'success');
+    showAlert(t('tasksPage.toasts.unassigned', { count: taskIds.length }), 'success');
   };
 
   const handleDeleteTasks = async (taskIds: number[], deleteAnnotations: boolean) => {
     if (taskIds.length === 0) {
-      showAlert('No tasks selected', 'error');
+      showAlert(t('tasksPage.toasts.noneSelected'), 'error');
       return;
     }
     await deleteTasks.mutateAsync({
       path,
       body: { task_ids: taskIds, delete_annotations: deleteAnnotations },
     });
-    showAlert(`${taskIds.length} task(s) deleted successfully`, 'success');
+    showAlert(t('tasksPage.toasts.deleted', { count: taskIds.length }), 'success');
   };
 
   if (!loading && !campaign) return null;
@@ -327,14 +338,14 @@ export const CampaignTasksPage = () => {
           <header className="page-header">
             <div>
               {campaign ? (
-                <h1 className="page-title">{capitalizeFirst(campaign.name)} tasks</h1>
+                <h1 className="page-title">
+                  {t('tasksPage.title', { name: capitalizeFirst(campaign.name) })}
+                </h1>
               ) : (
                 <Skeleton className="h-7 w-52" />
               )}
               <p className="page-subtitle">
-                {isAdmin
-                  ? 'Upload or generate annotation tasks and manage assignments.'
-                  : 'The tasks in this campaign and how far they have got.'}
+                {isAdmin ? t('tasksPage.subtitleAdmin') : t('tasksPage.subtitle')}
               </p>
             </div>
             {campaign && (
@@ -343,10 +354,10 @@ export const CampaignTasksPage = () => {
                   campaignId={campaignId}
                   campaign={campaign}
                   disabled={annotationTasks.length === 0}
-                  hasConflicts={annotationTasks.some((t) => t.task_status === 'conflicting')}
+                  hasConflicts={annotationTasks.some((task) => task.task_status === 'conflicting')}
                 />
                 <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}>
-                  Start annotating
+                  {t('startAnnotating')}
                 </Button>
               </div>
             )}
@@ -394,7 +405,7 @@ export const CampaignTasksPage = () => {
       </div>
 
       {/* Global Modals */}
-      <LoadingOverlay visible={saving} text="Saving..." />
+      <LoadingOverlay visible={saving} text={t('savingOverlay')} />
 
       <TaskAssignmentModal
         isOpen={showAssignmentModal}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { addGlBasemap } from './leafletBasemap';
@@ -25,12 +26,6 @@ interface BoundingBoxEditorProps {
   }) => void;
 }
 
-const DEFAULT_HEADING = {
-  title: 'Region of Interest',
-  description:
-    'The region of interest defines your study region and limits the geographic area in which imagery will be prepared.',
-};
-
 /**
  * A dragged rectangle as the campaign's area.
  *
@@ -54,9 +49,14 @@ function boundsToBbox(bounds: L.LatLngBounds) {
 export const BoundingBoxEditor = ({
   value,
   onChange,
-  heading = DEFAULT_HEADING,
+  heading,
   showCountrySearch = true,
 }: BoundingBoxEditorProps) => {
+  const { t } = useTranslation('campaigns');
+  const shownHeading =
+    heading === undefined
+      ? { title: t('bbox.title'), description: t('bbox.description') }
+      : heading;
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const rectangleRef = useRef<L.Rectangle | null>(null);
@@ -300,10 +300,10 @@ export const BoundingBoxEditor = ({
 
   return (
     <div className="space-y-4">
-      {heading && (
+      {shownHeading && (
         <div>
-          <h3 className="section-heading">{heading.title}</h3>
-          <p className="section-description">{heading.description}</p>
+          <h3 className="section-heading">{shownHeading.title}</h3>
+          <p className="section-description">{shownHeading.description}</p>
         </div>
       )}
 
@@ -334,7 +334,7 @@ export const BoundingBoxEditor = ({
                     setShowSuggestions(true);
                   }}
                   onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
-                  placeholder="Search country or region..."
+                  placeholder={t('bbox.searchPlaceholder')}
                   className="w-full pl-8 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
                 />
               </div>
@@ -352,9 +352,7 @@ export const BoundingBoxEditor = ({
                   />
                 </svg>
                 <div className="absolute bottom-full right-0 mb-1.5 w-64 px-2.5 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                  Boxes are derived from Natural Earth and OpenStreetMap boundaries and cover core
-                  national territory only. They are a starting point to drag, not an authoritative
-                  boundary.
+                  {t('bbox.sourceNote')}
                   <div className="absolute top-full right-2 border-4 border-transparent border-t-neutral-800"></div>
                 </div>
               </div>
@@ -376,7 +374,7 @@ export const BoundingBoxEditor = ({
             )}
             {showSuggestions && searchQuery.length > 0 && filteredCountries.length === 0 && (
               <div className="absolute z-50 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg px-3 py-2 text-sm text-neutral-500">
-                No results found
+                {t('bbox.noResults')}
               </div>
             )}
           </div>
@@ -384,7 +382,7 @@ export const BoundingBoxEditor = ({
           {/* Coordinate Inputs */}
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1">
-              <span className="text-xs font-medium text-neutral-700">West (Long)</span>
+              <span className="text-xs font-medium text-neutral-700">{t('bbox.west')}</span>
               <Input
                 type="number"
                 step="any"
@@ -394,7 +392,7 @@ export const BoundingBoxEditor = ({
             </label>
 
             <label className="space-y-1">
-              <span className="text-xs font-medium text-neutral-700">South (Lat)</span>
+              <span className="text-xs font-medium text-neutral-700">{t('bbox.south')}</span>
               <Input
                 type="number"
                 step="any"
@@ -404,7 +402,7 @@ export const BoundingBoxEditor = ({
             </label>
 
             <label className="space-y-1">
-              <span className="text-xs font-medium text-neutral-700">East (Long)</span>
+              <span className="text-xs font-medium text-neutral-700">{t('bbox.east')}</span>
               <Input
                 type="number"
                 step="any"
@@ -414,7 +412,7 @@ export const BoundingBoxEditor = ({
             </label>
 
             <label className="space-y-1">
-              <span className="text-xs font-medium text-neutral-700">North (Lat)</span>
+              <span className="text-xs font-medium text-neutral-700">{t('bbox.north')}</span>
               <Input
                 type="number"
                 step="any"
@@ -423,9 +421,7 @@ export const BoundingBoxEditor = ({
               />
             </label>
 
-            <div className="col-span-2 text-xs text-neutral-500 mt-1">
-              Drag the corner handles to resize, or drag the box to move it
-            </div>
+            <div className="col-span-2 text-xs text-neutral-500 mt-1">{t('bbox.dragHint')}</div>
           </div>
         </div>
 

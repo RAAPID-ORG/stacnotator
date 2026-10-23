@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
@@ -23,6 +24,7 @@ interface ProjectSettingsSectionProps {
 }
 
 export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps) => {
+  const { t } = useTranslation('projects');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const showAlert = useLayoutStore((state) => state.showAlert);
@@ -43,17 +45,17 @@ export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps)
 
   const update = useMutation({
     ...updateProjectMutation(),
-    meta: { errorMessage: 'Failed to update project' },
+    meta: { errorMessage: t('settings.updateFailed') },
     onSuccess: invalidateProject,
   });
 
   const remove = useMutation({
     ...deleteProjectMutation(),
-    meta: { errorMessage: 'Failed to delete project' },
+    meta: { errorMessage: t('settings.deleteFailed') },
     onSuccess: () => {
       setConfirmDelete(false);
       void queryClient.invalidateQueries({ queryKey: listProjectsQueryKey() });
-      showAlert('Project deleted', 'success');
+      showAlert(t('settings.deleted'), 'success');
       navigate(projectsPath());
     },
   });
@@ -76,18 +78,18 @@ export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps)
   const handleSaveDetails = () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      showAlert('Project name cannot be empty', 'error');
+      showAlert(t('settings.nameEmpty'), 'error');
       return;
     }
-    applyUpdate({ name: trimmed, description: description.trim() }, 'Project details updated');
+    applyUpdate({ name: trimmed, description: description.trim() }, t('settings.detailsUpdated'));
   };
 
   const visibilityMessage = (visibility: ProjectVisibility) =>
     visibility === 'public'
-      ? 'Project is now public'
+      ? t('settings.nowPublic')
       : visibility === 'organization'
-        ? 'Project is now visible to its organization'
-        : 'Project is now private';
+        ? t('settings.nowOrganization')
+        : t('settings.nowPrivate');
 
   const handleVisibilityChange = (visibility: ProjectVisibility) => {
     if (visibility === project.visibility) return;
@@ -117,10 +119,10 @@ export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps)
     <div>
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Project details</h2>
-          <p className="section-description">The name and description shown across the platform.</p>
+          <h2 className="section-heading">{t('settings.detailsTitle')}</h2>
+          <p className="section-description">{t('settings.detailsDescription')}</p>
         </div>
-        <Field label="Name" htmlFor="project-name" required>
+        <Field label={t('settings.name')} htmlFor="project-name" required>
           <Input
             id="project-name"
             value={name}
@@ -128,28 +130,26 @@ export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps)
             disabled={saving}
           />
         </Field>
-        <Field label="Description" htmlFor="project-description">
+        <Field label={t('settings.description')} htmlFor="project-description">
           <Textarea
             id="project-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What is this project about?"
+            placeholder={t('settings.descriptionPlaceholder')}
             disabled={saving}
           />
         </Field>
         <div>
           <Button onClick={handleSaveDetails} disabled={saving || !detailsDirty}>
-            {saving ? 'Saving…' : 'Save changes'}
+            {saving ? t('settings.saving') : t('settings.saveChanges')}
           </Button>
         </div>
       </section>
 
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Visibility</h2>
-          <p className="section-description">
-            Who can open this project and work on its campaigns.
-          </p>
+          <h2 className="section-heading">{t('settings.visibilityTitle')}</h2>
+          <p className="section-description">{t('settings.visibilityDescription')}</p>
         </div>
         <ProjectVisibilityPicker
           value={project.visibility}
@@ -162,13 +162,11 @@ export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps)
       <section className={sectionCls}>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-sm font-medium text-neutral-900">Delete project</h3>
-            <p className="section-description">
-              Deleting a project permanently deletes its campaigns and every annotation in them.
-            </p>
+            <h3 className="text-sm font-medium text-neutral-900">{t('settings.deleteTitle')}</h3>
+            <p className="section-description">{t('settings.deleteDescription')}</p>
           </div>
           <Button variant="danger" onClick={() => setConfirmDelete(true)} disabled={saving}>
-            Delete project
+            {t('settings.deleteProject')}
           </Button>
         </div>
       </section>
@@ -210,6 +208,7 @@ const DeleteProjectDialog = ({
   onConfirm,
   onCancel,
 }: DeleteProjectDialogProps) => {
+  const { t } = useTranslation(['projects', 'common']);
   const [inputValue, setInputValue] = useState('');
 
   useEffect(() => {
@@ -228,16 +227,25 @@ const DeleteProjectDialog = ({
             <IconWarning className="w-6 h-6 text-red-600" />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-neutral-900 mb-2">Delete project</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 mb-2">
+              {t('settings.deleteTitle')}
+            </h3>
             <div className="text-sm text-neutral-600 space-y-3">
               <p>
-                This action <strong>cannot be undone</strong>. It permanently deletes the project{' '}
-                <strong className="text-neutral-900">{projectName}</strong>, every campaign inside
-                it, and all of their tasks, annotations and settings.
+                <Trans
+                  t={t}
+                  i18nKey="settings.deleteWarning"
+                  values={{ name: projectName }}
+                  components={{ strong: <strong />, name: <strong className="text-neutral-900" /> }}
+                />
               </p>
               <p className="pt-2">
-                Please type <strong className="font-mono text-neutral-900">{projectName}</strong> to
-                confirm:
+                <Trans
+                  t={t}
+                  i18nKey="settings.deleteTypeToConfirm"
+                  values={{ name: projectName }}
+                  components={{ name: <strong className="font-mono text-neutral-900" /> }}
+                />
               </p>
             </div>
             <div className="mt-3">
@@ -246,7 +254,7 @@ const DeleteProjectDialog = ({
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 disabled={isLoading}
-                placeholder="Type project name here"
+                placeholder={t('settings.deletePlaceholder')}
                 autoFocus
               />
             </div>
@@ -255,7 +263,7 @@ const DeleteProjectDialog = ({
       </div>
       <div className="border-t border-neutral-100 flex gap-2 p-4 justify-end bg-neutral-50/50">
         <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           variant="danger"
@@ -263,7 +271,7 @@ const DeleteProjectDialog = ({
           disabled={inputValue !== projectName || isLoading}
           leading={isLoading ? <Spinner size="xs" variant="white" /> : undefined}
         >
-          Delete project
+          {t('settings.deleteProject')}
         </Button>
       </div>
     </AnimatedDialog>

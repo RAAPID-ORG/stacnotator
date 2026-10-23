@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useId } from 'react';
+import { useState, useEffect, useMemo, useId, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   COLLECTION_PRESETS,
   KNOWN_RESCALE,
@@ -13,92 +14,114 @@ import {
 import type { BandPreset, AssetInfo, Channel } from './collectionPresets';
 import type { VizParams } from './types';
 import { normalizeColorFormula, validateColorFormula } from './vizValidation';
-import { COMPOSITING_METHODS, NO_TILER_NOTE } from './tilerCapabilities';
+import { COMPOSITING_METHODS, noTilerNote } from './tilerCapabilities';
 import { IconChevronDown, IconChevronUp } from '~/shared/ui/Icons';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
 import { Input, Select } from '~/shared/ui/forms';
 
 const TITILER_DOCS_URL = 'https://developmentseed.org/titiler/user_guide/rendering/';
 
-const RescaleInfo = () => (
-  <div className="space-y-2">
-    <p className="font-semibold text-neutral-800">Rescale</p>
-    <p>
-      Rescaling adjusts the minimum and maximum values when rendering. In a single-band image the
-      rescaled minimum maps to black and the maximum to white. Useful when you want to highlight
-      features in a narrow value range (e.g. a DEM where you only care about 0–100m).
-    </p>
-    <p>
-      Format: <code className="font-mono text-[10px]">rescale=&#123;min&#125;,&#123;max&#125;</code>
-      . Multiple rescale values can be supplied per band.
-    </p>
-    <p>
-      By default TiTiler rescales using the input datatype's min/max (e.g. 0–255 for 8-bit PNGs,
-      0–65535 for 16-bit). For DEMs and similar this can wash the image out - set explicit rescale
-      values that make sense for your data.
-    </p>
-    <p className="text-neutral-500 italic">
-      Adapted from{' '}
-      <a
-        href={TITILER_DOCS_URL + '#rescaling'}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-brand-600 hover:underline"
-      >
-        TiTiler documentation
-      </a>
-      .
-    </p>
-  </div>
+const RescaleInfo = () => {
+  const { t } = useTranslation('imagery');
+  const code = <code className="font-mono text-[10px]" />;
+  return (
+    <div className="space-y-2">
+      <p className="font-semibold text-neutral-800">{t('vizConfig.rescale.title')}</p>
+      <p>{t('vizConfig.rescale.info.intro')}</p>
+      <p>
+        <Trans
+          t={t}
+          i18nKey="vizConfig.rescale.info.format"
+          values={{ format: 'rescale={min},{max}' }}
+          components={{ code }}
+        />
+      </p>
+      <p>{t('vizConfig.rescale.info.defaults')}</p>
+      <p className="text-neutral-500 italic">
+        <Trans
+          t={t}
+          i18nKey="vizConfig.rescale.info.source"
+          components={{ link: <DocsLink anchor="#rescaling" /> }}
+        />
+      </p>
+    </div>
+  );
+};
+
+const DocsLink = ({ anchor, children }: { anchor: string; children?: ReactNode }) => (
+  <a
+    href={TITILER_DOCS_URL + anchor}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="text-brand-600 hover:underline"
+  >
+    {children}
+  </a>
 );
 
-const ColorFormulaInfo = () => (
-  <div className="space-y-2">
-    <p className="font-semibold text-neutral-800">Color Formula</p>
-    <p>
-      Comma-separated tone-mapping operations applied in order. Each op is{' '}
-      <code className="font-mono text-[10px]">&lt;name&gt; &lt;bands&gt; &lt;args&gt;</code>. Bands
-      are any combination of R/G/B (e.g. <code className="font-mono text-[10px]">RGB</code>,{' '}
-      <code className="font-mono text-[10px]">RG</code>,{' '}
-      <code className="font-mono text-[10px]">B</code>).
-    </p>
-    <p>Supported ops:</p>
-    <ul className="list-disc pl-4 space-y-1">
-      <li>
-        <strong>gamma &lt;bands&gt; &lt;value&gt;</strong> - power-law correction. Values &gt; 1
-        brighten midtones (darker → lighter); &lt; 1 darken. Typical: 1.5–3.5.
-      </li>
-      <li>
-        <strong>saturation &lt;value&gt;</strong> - colour intensity. 1.0 = unchanged, &gt; 1 more
-        vivid, &lt; 1 muted toward grayscale. Typical: 0.8–1.5. No bands arg.
-      </li>
-      <li>
-        <strong>sigmoidal &lt;bands&gt; &lt;contrast&gt; &lt;bias&gt;</strong> - perceptual contrast
-        curve. <em>contrast</em> 5–25 (higher = punchier); <em>bias</em> 0–1 (pivot point, 0.5 =
-        center, &gt; 0.5 lifts shadows).
-      </li>
-    </ul>
-    <p>
-      Example:{' '}
-      <code className="font-mono text-[10px]">
-        gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55
-      </code>{' '}
-      (MPC's Landsat C2 L2 default).
-    </p>
-    <p className="text-neutral-500 italic">
-      Commas between ops are required; the panel auto-inserts them on blur.{' '}
-      <a
-        href={TITILER_DOCS_URL + '#color-formula'}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-brand-600 hover:underline"
-      >
-        TiTiler docs
-      </a>
-      .
-    </p>
-  </div>
-);
+const ColorFormulaInfo = () => {
+  const { t } = useTranslation('imagery');
+  const components = {
+    code: <code className="font-mono text-[10px]" />,
+    strong: <strong />,
+    em: <em />,
+  };
+  return (
+    <div className="space-y-2">
+      <p className="font-semibold text-neutral-800">{t('vizConfig.colorFormula.title')}</p>
+      <p>
+        <Trans
+          t={t}
+          i18nKey="vizConfig.colorFormula.info.intro"
+          components={components}
+          shouldUnescape
+        />
+      </p>
+      <p>{t('vizConfig.colorFormula.info.supported')}</p>
+      <ul className="list-disc pl-4 space-y-1">
+        <li>
+          <Trans
+            t={t}
+            i18nKey="vizConfig.colorFormula.info.gamma"
+            components={components}
+            shouldUnescape
+          />
+        </li>
+        <li>
+          <Trans
+            t={t}
+            i18nKey="vizConfig.colorFormula.info.saturation"
+            components={components}
+            shouldUnescape
+          />
+        </li>
+        <li>
+          <Trans
+            t={t}
+            i18nKey="vizConfig.colorFormula.info.sigmoidal"
+            components={components}
+            shouldUnescape
+          />
+        </li>
+      </ul>
+      <p>
+        <Trans
+          t={t}
+          i18nKey="vizConfig.colorFormula.info.example"
+          values={{ example: 'gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55' }}
+          components={components}
+        />
+      </p>
+      <p className="text-neutral-500 italic">
+        <Trans
+          t={t}
+          i18nKey="vizConfig.colorFormula.info.commas"
+          components={{ link: <DocsLink anchor="#color-formula" /> }}
+        />
+      </p>
+    </div>
+  );
+};
 
 interface VizConfigPanelProps {
   collectionId: string;
@@ -118,6 +141,7 @@ export const VizConfigPanel = ({
   showCompositing = false,
   compositingMethods,
 }: VizConfigPanelProps) => {
+  const { t } = useTranslation('imagery');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const id = useId();
   const [setupMode, setSetupMode] = useState<'preset' | 'custom' | undefined>(() => {
@@ -323,12 +347,8 @@ export const VizConfigPanel = ({
   return (
     <div className="space-y-4">
       <fieldset className="space-y-1.5">
-        <legend className="text-xs text-neutral-700 font-medium">
-          1. Start with a preset or customize
-        </legend>
-        <p className="text-[11px] text-neutral-500">
-          Presets fill in rendering and bands for you. Custom lets you map them yourself.
-        </p>
+        <legend className="text-xs text-neutral-700 font-medium">{t('vizConfig.step1')}</legend>
+        <p className="text-[11px] text-neutral-500">{t('vizConfig.step1Help')}</p>
         <div className="flex gap-2">
           {(['preset', 'custom'] as const).map((mode) => (
             <button
@@ -343,20 +363,18 @@ export const VizConfigPanel = ({
                   : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
               }`}
             >
-              {mode === 'preset' ? 'Use a preset' : 'Custom'}
+              {mode === 'preset' ? t('vizConfig.usePreset') : t('vizConfig.custom')}
             </button>
           ))}
         </div>
         {!validPresets.length && (
-          <p className="text-[11px] text-neutral-500">
-            No presets are available for these assets. Choose Custom to configure the display.
-          </p>
+          <p className="text-[11px] text-neutral-500">{t('vizConfig.noPresets')}</p>
         )}
       </fieldset>
 
       {setupMode === 'preset' && (
         <div className="space-y-1.5">
-          <p className="text-xs text-neutral-700 font-medium">Choose a preset</p>
+          <p className="text-xs text-neutral-700 font-medium">{t('vizConfig.choosePreset')}</p>
           <div className="flex flex-wrap gap-1.5">
             {validPresets.map((p, i) => {
               const isActive =
@@ -388,9 +406,7 @@ export const VizConfigPanel = ({
       {setupMode && (setupMode === 'custom' || vizParams.assets.length > 0) && (
         <>
           <fieldset className="space-y-1.5">
-            <legend className="text-xs text-neutral-700 font-medium">
-              2. How should this visualization be displayed?
-            </legend>
+            <legend className="text-xs text-neutral-700 font-medium">{t('vizConfig.step2')}</legend>
             <div className="grid grid-cols-2 gap-2">
               {(['single', 'rgb'] as const).map((mode) => (
                 <label
@@ -408,12 +424,10 @@ export const VizConfigPanel = ({
                       checked={activeRenderMode === mode}
                       onChange={() => changeRenderMode(mode)}
                     />
-                    {mode === 'single' ? 'Single band' : 'RGB'}
+                    {mode === 'single' ? t('vizConfig.singleBand') : 'RGB'}
                   </span>
                   <span className="block mt-1 text-[11px]">
-                    {mode === 'single'
-                      ? 'One value, shown in grayscale or with a color scale.'
-                      : 'Three bands mapped to red, green, and blue.'}
+                    {mode === 'single' ? t('vizConfig.singleHelp') : t('vizConfig.rgbHelp')}
                   </span>
                 </label>
               ))}
@@ -424,8 +438,8 @@ export const VizConfigPanel = ({
             <fieldset className="space-y-3">
               <legend className="text-xs text-neutral-700 font-medium mb-1.5">
                 {activeRenderMode === 'single'
-                  ? '3. Choose the single-band source'
-                  : '3. Map assets and bands to rendering channels'}
+                  ? t('vizConfig.step3Single')
+                  : t('vizConfig.step3Rgb')}
               </legend>
               {activeRenderMode === 'single' && (
                 <div className="grid grid-cols-2 gap-2">
@@ -445,12 +459,12 @@ export const VizConfigPanel = ({
                           checked={isCalculation === (mode === 'calculated')}
                           onChange={() => changeSingleBandMode(mode)}
                         />
-                        {mode === 'direct' ? 'Use an existing band' : 'Calculate a band'}
+                        {mode === 'direct' ? t('vizConfig.direct') : t('vizConfig.calculated')}
                       </span>
                       <span className="block mt-1 text-[11px]">
                         {mode === 'direct'
-                          ? 'Display one band from an imagery asset.'
-                          : 'Combine input bands with a formula, such as NDVI.'}
+                          ? t('vizConfig.directHelp')
+                          : t('vizConfig.calculatedHelp')}
                       </span>
                     </label>
                   ))}
@@ -459,16 +473,15 @@ export const VizConfigPanel = ({
               {isCalculation ? (
                 <div className="rounded-md border border-brand-200 bg-brand-50 p-3 space-y-1">
                   <p className="text-xs text-neutral-700">
-                    Choose the input assets, then combine their bands in a formula. The result is
-                    displayed{' '}
                     {activeRenderMode === 'single'
-                      ? 'as one band with the color scale below'
-                      : 'in RGB'}
-                    .
+                      ? t('vizConfig.calcIntroSingle')
+                      : t('vizConfig.calcIntroRgb')}
                   </p>
                   {rasterAssets.length ? (
                     <fieldset className="space-y-2 pt-2">
-                      <legend className="text-xs font-medium text-neutral-700">Input assets</legend>
+                      <legend className="text-xs font-medium text-neutral-700">
+                        {t('vizConfig.inputAssets')}
+                      </legend>
                       {rasterAssets.map(([asset, info]) => (
                         <label
                           key={asset}
@@ -495,7 +508,7 @@ export const VizConfigPanel = ({
                         htmlFor={`${id}-calculation-assets`}
                         className="text-xs text-neutral-700"
                       >
-                        Input assets
+                        {t('vizConfig.inputAssets')}
                       </label>
                       <Input
                         id={`${id}-calculation-assets`}
@@ -511,24 +524,24 @@ export const VizConfigPanel = ({
                               .filter(Boolean),
                           });
                         }}
-                        placeholder="e.g. B08, B04"
+                        placeholder={t('vizConfig.inputAssetsPlaceholder')}
                       />
                       <p className="text-[11px] text-neutral-500">
-                        Asset metadata is unavailable. Existing calculation settings are preserved.
+                        {t('vizConfig.noMetadataCalc')}
                       </p>
                     </div>
                   )}
                   <div className="space-y-1 pt-2">
-                    <p className="text-xs font-medium text-neutral-700">Input bands</p>
-                    <p className="text-[11px] text-neutral-500">
-                      Click a band reference to append it to the formula, or type it directly.
+                    <p className="text-xs font-medium text-neutral-700">
+                      {t('vizConfig.inputBands')}
                     </p>
+                    <p className="text-[11px] text-neutral-500">{t('vizConfig.inputBandsHelp')}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {vizParams.assets.flatMap((asset) => {
                         const metadataBands = channelAssets[asset]?.bands;
                         const bands = metadataBands?.length
                           ? metadataBands
-                          : [{ name: 'Single band' }];
+                          : [{ name: t('vizConfig.singleBand') }];
                         return bands.flatMap((band, i) => {
                           if (band.name.toLowerCase() === 'alpha') return [];
                           const reference = vizParams.assetAsBand ? asset : `${asset}_b${i + 1}`;
@@ -539,8 +552,12 @@ export const VizConfigPanel = ({
                               onClick={() =>
                                 update('expression', `${vizParams.expression ?? ''}${reference}`)
                               }
-                              title={`${asset}, band ${i + 1}: ${band.name}`}
-                              aria-label={`Insert ${reference} into formula`}
+                              title={t('vizConfig.bandRefTitle', {
+                                asset,
+                                index: i + 1,
+                                name: band.name,
+                              })}
+                              aria-label={t('vizConfig.insertRef', { reference })}
                               className="text-xs font-mono px-2 py-1 rounded border border-brand-200 bg-white text-brand-700 cursor-pointer"
                             >
                               {reference}
@@ -555,7 +572,7 @@ export const VizConfigPanel = ({
                     htmlFor={`${id}-expression`}
                     className="block pt-2 text-xs font-medium text-neutral-700"
                   >
-                    Band formula
+                    {t('vizConfig.bandFormula')}
                   </label>
                   <Input
                     id={`${id}-expression`}
@@ -566,18 +583,16 @@ export const VizConfigPanel = ({
                       if (activeRenderMode === 'single') setSingleBandMode('calculated');
                       update('expression', e.target.value || undefined);
                     }}
-                    placeholder="e.g. (B08-B04)/(B08+B04)"
+                    placeholder={t('vizConfig.bandFormulaPlaceholder')}
                     className="font-mono"
                   />
                   <p className="text-[11px] text-neutral-500">
-                    Use +, -, *, / and parentheses to combine the input bands.
-                    {activeRenderMode === 'single' &&
-                      ' Enter one formula for the single output band.'}
+                    {activeRenderMode === 'single'
+                      ? t('vizConfig.formulaHelpSingle')
+                      : t('vizConfig.formulaHelp')}
                   </p>
                   {(!vizParams.assets.length || !vizParams.expression?.trim()) && (
-                    <p className="text-[11px] text-amber-700">
-                      Choose input assets and enter a formula to calculate the band.
-                    </p>
+                    <p className="text-[11px] text-amber-700">{t('vizConfig.formulaMissing')}</p>
                   )}
                   {activeRenderMode === 'single' && (
                     <div className="space-y-1 pt-2">
@@ -585,7 +600,7 @@ export const VizConfigPanel = ({
                         htmlFor={`${id}-calculation-range`}
                         className="text-xs font-medium text-neutral-700"
                       >
-                        Display range (min, max)
+                        {t('vizConfig.displayRange')}
                       </label>
                       <Input
                         id={`${id}-calculation-range`}
@@ -595,10 +610,10 @@ export const VizConfigPanel = ({
                           setRescaleMode(e.target.value ? 'manual' : 'none');
                           update('rescale', e.target.value);
                         }}
-                        placeholder="min,max"
+                        placeholder={t('vizConfig.minMaxPlaceholder')}
                       />
                       <p className="text-[11px] text-neutral-500">
-                        Set the calculated values mapped to the ends of the color scale.
+                        {t('vizConfig.displayRangeHelp')}
                       </p>
                     </div>
                   )}
@@ -608,19 +623,16 @@ export const VizConfigPanel = ({
                       onClick={() => changeRenderMode('rgb')}
                       className="text-xs text-brand-700 underline cursor-pointer"
                     >
-                      Use direct band mapping instead
+                      {t('vizConfig.useDirect')}
                     </button>
                   )}
                 </div>
               ) : rasterAssets.length > 0 ? (
                 <>
-                  <p className="text-[11px] text-neutral-500">
-                    Choose an asset (imagery file) for each channel, then a band if that asset
-                    contains multiple bands. The same asset can supply several channels.
-                  </p>
+                  <p className="text-[11px] text-neutral-500">{t('vizConfig.channelsHelp')}</p>
                   {(activeRenderMode === 'rgb'
-                    ? ['Red (R)', 'Green (G)', 'Blue (B)']
-                    : ['Single band']
+                    ? [t('vizConfig.red'), t('vizConfig.green'), t('vizConfig.blue')]
+                    : [t('vizConfig.singleBand')]
                   ).map((label, index) => {
                     const channel = channels[index];
                     const info = channel ? channelAssets[channel.asset] : undefined;
@@ -637,11 +649,11 @@ export const VizConfigPanel = ({
                               htmlFor={`${id}-asset-${index}`}
                               className="text-xs text-neutral-600"
                             >
-                              Asset
+                              {t('vizConfig.asset')}
                             </label>
                             <Select
                               id={`${id}-asset-${index}`}
-                              aria-label={`${label} asset`}
+                              aria-label={t('vizConfig.assetAria', { label })}
                               size="sm"
                               value={channel?.asset ?? ''}
                               onChange={(e) => {
@@ -663,7 +675,7 @@ export const VizConfigPanel = ({
                                 );
                               }}
                             >
-                              <option value="">Choose an asset</option>
+                              <option value="">{t('vizConfig.chooseAsset')}</option>
                               {rasterAssets.map(([key, asset]) => (
                                 <option key={key} value={key}>
                                   {asset.title ? `${asset.title} (${key})` : key}
@@ -676,11 +688,11 @@ export const VizConfigPanel = ({
                               htmlFor={`${id}-band-${index}`}
                               className="text-xs text-neutral-600"
                             >
-                              Band
+                              {t('vizConfig.band')}
                             </label>
                             <Select
                               id={`${id}-band-${index}`}
-                              aria-label={`${label} band`}
+                              aria-label={t('vizConfig.bandAria', { label })}
                               size="sm"
                               disabled={!channel || bands.length < 2}
                               value={channel?.band ?? ''}
@@ -693,7 +705,7 @@ export const VizConfigPanel = ({
                               }}
                             >
                               {!channel ? (
-                                <option value="">Choose an asset first</option>
+                                <option value="">{t('vizConfig.chooseAssetFirst')}</option>
                               ) : bands.length ? (
                                 bands.map(
                                   (band, i) =>
@@ -705,7 +717,7 @@ export const VizConfigPanel = ({
                                     )
                                 )
                               ) : (
-                                <option value={1}>1: Single band</option>
+                                <option value={1}>1: {t('vizConfig.singleBand')}</option>
                               )}
                             </Select>
                           </div>
@@ -719,20 +731,20 @@ export const VizConfigPanel = ({
                   ).some((channel) => !channel) && (
                     <p className="text-[11px] text-amber-700">
                       {activeRenderMode === 'rgb'
-                        ? 'Choose an asset and band for all three RGB channels.'
-                        : 'Choose the asset and band to display.'}
+                        ? t('vizConfig.channelsMissingRgb')
+                        : t('vizConfig.channelsMissingSingle')}
                     </p>
                   )}
                 </>
               ) : (
                 <div className="space-y-1">
                   <p className="text-[11px] text-neutral-500">
-                    Asset metadata is unavailable. Enter asset keys in rendering order:
-                    {activeRenderMode === 'rgb' ? ' red, green, blue.' : ' one single-band asset.'}
-                    Existing band indexes are preserved in Advanced Options.
+                    {activeRenderMode === 'rgb'
+                      ? t('vizConfig.noMetadataRgb')
+                      : t('vizConfig.noMetadataSingle')}
                   </p>
                   <label htmlFor={`${id}-assets`} className="text-xs text-neutral-700 font-medium">
-                    Assets
+                    {t('vizConfig.assets')}
                   </label>
                   <Input
                     id={`${id}-assets`}
@@ -752,7 +764,9 @@ export const VizConfigPanel = ({
                       });
                     }}
                     placeholder={
-                      activeRenderMode === 'rgb' ? 'e.g. B04, B03, B02' : 'e.g. elevation'
+                      activeRenderMode === 'rgb'
+                        ? t('vizConfig.assetsPlaceholderRgb')
+                        : t('vizConfig.assetsPlaceholderSingle')
                     }
                     className="font-mono"
                   />
@@ -764,7 +778,7 @@ export const VizConfigPanel = ({
           {showColormap && (
             <div className="space-y-1">
               <label htmlFor={`${id}-colormap`} className="text-xs text-neutral-700 font-medium">
-                Color scale
+                {t('vizConfig.colorScale')}
               </label>
               <Select
                 id={`${id}-colormap`}
@@ -772,10 +786,10 @@ export const VizConfigPanel = ({
                 value={vizParams.colormapName || ''}
                 onChange={(e) => update('colormapName', e.target.value || undefined)}
               >
-                <option value="">Grayscale (no color scale)</option>
+                <option value="">{t('vizConfig.noColorScale')}</option>
                 {COLORMAPS.map((cm) => (
                   <option key={cm.value} value={cm.value}>
-                    {cm.label}
+                    {t(cm.label)}
                   </option>
                 ))}
               </Select>
@@ -787,7 +801,9 @@ export const VizConfigPanel = ({
       {/* Compositing (mosaic mode only) */}
       {setupMode && activeRenderMode && showCompositing && (
         <div className="space-y-1">
-          <label className="text-xs text-neutral-700 font-medium">Compositing Method</label>
+          <label className="text-xs text-neutral-700 font-medium">
+            {t('vizConfig.compositing')}
+          </label>
           <Select
             size="sm"
             value={vizParams.compositing || 'first'}
@@ -796,21 +812,17 @@ export const VizConfigPanel = ({
           >
             {offeredMethods.map((m) => (
               <option key={m.value} value={m.value}>
-                {m.label}
+                {t(m.label)}
               </option>
             ))}
           </Select>
           {offeredMethods.length < 2 && (
             <p className="text-[10px] text-neutral-500 mt-1">
-              Only first-valid compositing is available for this catalog. {NO_TILER_NOTE}
+              {t('vizConfig.firstValidOnly', { note: noTilerNote() })}
             </p>
           )}
           {vizParams.compositing && vizParams.compositing !== 'first' && (
-            <p className="text-[10px] text-amber-600 mt-1">
-              Non-first-valid compositing reads multiple scenes per tile - expect ~10x slower data
-              loading. For MPC this also routes through our self-hosted tiler instead of MPC's fast
-              tile endpoint. Capped at 5 scenes per tile (lowest cloud cover first).
-            </p>
+            <p className="text-[10px] text-amber-600 mt-1">{t('vizConfig.slowCompositing')}</p>
           )}
         </div>
       )}
@@ -825,7 +837,9 @@ export const VizConfigPanel = ({
           onClick={() => setShowAdvanced(!showAdvanced)}
           className="w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-neutral-50 transition-colors"
         >
-          <span className="text-xs text-neutral-700 font-medium">Advanced Options</span>
+          <span className="text-xs text-neutral-700 font-medium">
+            {t('vizConfig.advancedOptions')}
+          </span>
           {showAdvanced ? (
             <IconChevronUp className="w-3.5 h-3.5 text-neutral-400" />
           ) : (
@@ -837,14 +851,13 @@ export const VizConfigPanel = ({
           <div className="px-3 pb-3 space-y-3 border-t border-neutral-100">
             {!rasterAssets.length && vizParams.bidx?.length && (
               <p className="text-[11px] text-neutral-500 pt-2">
-                Saved band indexes: {vizParams.bidx.join(', ')}. Asset metadata is needed to change
-                the band mapping.
+                {t('vizConfig.savedBidx', { bidx: vizParams.bidx.join(', ') })}
               </p>
             )}
             {activeRenderMode === 'rgb' && !isCalculation && (
               <div className="space-y-1 pt-2">
                 <label htmlFor={`${id}-rgb-expression`} className="text-xs text-neutral-700">
-                  Band Expression
+                  {t('vizConfig.bandExpression')}
                 </label>
                 <Input
                   id={`${id}-rgb-expression`}
@@ -852,19 +865,17 @@ export const VizConfigPanel = ({
                   type="text"
                   value={vizParams.expression || ''}
                   onChange={(e) => update('expression', e.target.value || undefined)}
-                  placeholder="Comma-separated formulas for red, green, blue"
+                  placeholder={t('vizConfig.bandExpressionPlaceholder')}
                   className="font-mono"
                 />
-                <p className="text-[11px] text-neutral-400">
-                  Math on asset bands. Overrides band selection for rendering.
-                </p>
+                <p className="text-[11px] text-neutral-400">{t('vizConfig.bandExpressionHelp')}</p>
               </div>
             )}
 
             {/* Rescale */}
             <div className="space-y-1.5 pt-3">
               <label className="text-xs text-neutral-700 flex items-center gap-1">
-                Rescale
+                {t('vizConfig.rescale.title')}
                 <InfoPopover>
                   <RescaleInfo />
                 </InfoPopover>
@@ -888,7 +899,9 @@ export const VizConfigPanel = ({
                         : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
                     }`}
                   >
-                    {mode === 'manual' ? 'Manual' : 'None'}
+                    {mode === 'manual'
+                      ? t('vizConfig.rescale.manual')
+                      : t('vizConfig.rescale.none')}
                   </button>
                 ))}
               </div>
@@ -899,23 +912,23 @@ export const VizConfigPanel = ({
                     type="text"
                     value={vizParams.rescale || ''}
                     onChange={(e) => update('rescale', e.target.value)}
-                    placeholder={defaultRescale || 'e.g. 0,3000'}
+                    placeholder={defaultRescale || t('vizConfig.rescale.placeholder')}
                   />
                   <p className="text-[11px] text-neutral-400">
-                    Fixed min,max applied to each band.
-                    {defaultRescale ? ` Pre-filled from known defaults for this collection.` : ''}
+                    {defaultRescale
+                      ? t('vizConfig.rescale.helpPrefilled')
+                      : t('vizConfig.rescale.help')}
                   </p>
                 </>
               )}
               {rescaleMode === 'none' && (
                 <p className="text-[11px] text-neutral-500 bg-neutral-50 rounded-md px-3 py-1.5 border border-neutral-200">
-                  No rescaling - raw pixel values are served as-is. Use a color formula or ensure
-                  your data range maps to 0-255 for display.
+                  {t('vizConfig.rescale.noneHelp')}
                 </p>
               )}
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700">Nodata value</label>
+              <label className="text-xs text-neutral-700">{t('vizConfig.nodata')}</label>
               <Input
                 size="sm"
                 type="number"
@@ -923,17 +936,14 @@ export const VizConfigPanel = ({
                 onChange={(e) =>
                   update('nodata', e.target.value === '' ? undefined : Number(e.target.value))
                 }
-                placeholder="e.g. 0"
+                placeholder={t('vizConfig.nodataPlaceholder')}
                 className="font-mono"
               />
-              <p className="text-[11px] text-neutral-400">
-                Pixel value to render transparent. Common: 0 for Landsat C2 L2 and Sentinel-2 L2A
-                (fill / no-data).
-              </p>
+              <p className="text-[11px] text-neutral-400">{t('vizConfig.nodataHelp')}</p>
             </div>
             <div className="space-y-1">
               <label className="text-xs text-neutral-700 flex items-center gap-1">
-                Color Formula
+                {t('vizConfig.colorFormula.title')}
                 <InfoPopover>
                   <ColorFormulaInfo />
                 </InfoPopover>
@@ -948,41 +958,39 @@ export const VizConfigPanel = ({
                   const fixed = normalizeColorFormula(e.target.value);
                   if (fixed !== e.target.value) update('colorFormula', fixed || undefined);
                 }}
-                placeholder="e.g. gamma RGB 3.5, saturation 1.7"
+                placeholder={t('vizConfig.colorFormula.placeholder')}
                 className="font-mono"
               />
               {colorFormulaError && <p className="text-[11px] text-red-600">{colorFormulaError}</p>}
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700">Resampling</label>
+              <label className="text-xs text-neutral-700">{t('vizConfig.resampling.label')}</label>
               <Select
                 size="sm"
                 value={vizParams.resampling || ''}
                 onChange={(e) => update('resampling', e.target.value || undefined)}
               >
-                <option value="">Default (nearest)</option>
-                <option value="bilinear">Bilinear</option>
-                <option value="cubic">Cubic</option>
+                <option value="">{t('vizConfig.resampling.default')}</option>
+                <option value="bilinear">{t('vizConfig.resampling.bilinear')}</option>
+                <option value="cubic">{t('vizConfig.resampling.cubic')}</option>
                 <option value="lanczos">Lanczos</option>
-                <option value="average">Average</option>
+                <option value="average">{t('vizConfig.resampling.average')}</option>
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700">Mask Layer</label>
+              <label className="text-xs text-neutral-700">{t('vizConfig.maskLayer')}</label>
               <Input
                 size="sm"
                 type="text"
                 value={vizParams.maskLayer ?? ''}
                 onChange={(e) => update('maskLayer', e.target.value || undefined)}
-                placeholder="e.g. SCL"
+                placeholder={t('vizConfig.maskLayerPlaceholder')}
                 className="font-mono"
               />
-              <p className="text-[10px] text-neutral-400">
-                Asset name used as pixel mask (e.g. SCL for Sentinel-2 Scene Classification)
-              </p>
+              <p className="text-[10px] text-neutral-400">{t('vizConfig.maskLayerHelp')}</p>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700">Mask Values (exclude)</label>
+              <label className="text-xs text-neutral-700">{t('vizConfig.maskValues')}</label>
               <Input
                 size="sm"
                 type="text"
@@ -998,15 +1006,13 @@ export const VizConfigPanel = ({
                       : undefined
                   )
                 }
-                placeholder="e.g. 0, 1, 8, 9, 10"
+                placeholder={t('vizConfig.maskValuesPlaceholder')}
                 className="font-mono"
               />
-              <p className="text-[10px] text-neutral-400">
-                Pixel values in the mask layer to exclude (clouds, nodata, shadows, etc.)
-              </p>
+              <p className="text-[10px] text-neutral-400">{t('vizConfig.maskValuesHelp')}</p>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700">Extra Tile Parameters</label>
+              <label className="text-xs text-neutral-700">{t('vizConfig.extraParams')}</label>
               <Input
                 size="sm"
                 type="text"
@@ -1030,13 +1036,10 @@ export const VizConfigPanel = ({
                   }
                   update('extraParams', Object.keys(params).length > 0 ? params : undefined);
                 }}
-                placeholder="e.g. asset_bidx=image|1,2,3&post_process=..."
+                placeholder={t('vizConfig.extraParamsPlaceholder')}
                 className="font-mono"
               />
-              <p className="text-[10px] text-neutral-400">
-                Additional query parameters passed directly to the tiler. Format:
-                key=value&key2=value2
-              </p>
+              <p className="text-[10px] text-neutral-400">{t('vizConfig.extraParamsHelp')}</p>
             </div>
           </div>
         )}

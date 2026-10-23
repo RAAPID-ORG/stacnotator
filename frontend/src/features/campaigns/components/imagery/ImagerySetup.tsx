@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ImageryController } from './controller';
 import { SourcesTab } from './SourcesTab';
 import { BasemapList } from './BasemapList';
@@ -11,6 +12,7 @@ interface ImagerySetupProps {
 }
 
 export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
+  const { t } = useTranslation('imagery');
   // Single source-editor instance shared by every entry point (Sources list and
   // the add-source wizard) so a source can be opened for editing from anywhere.
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
@@ -22,12 +24,8 @@ export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
     <div className="space-y-8">
       <section>
         <div className="mb-3">
-          <h3 className="section-heading">Satellite Imagery</h3>
-          <p className="section-description">
-            Imagery is at the core of your campaign. Setup and configure imagery sources here. Each
-            source source represents a remote sensing dataset (e.g. Sentinel-2, Landsat, NAIP) with
-            collections covering specific time periods.
-          </p>
+          <h3 className="section-heading">{t('setup.title')}</h3>
+          <p className="section-description">{t('setup.description')}</p>
         </div>
         <SourcesTab controller={controller} onEditSource={setEditingSourceId} />
       </section>
@@ -36,11 +34,8 @@ export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
 
       <section>
         <div className="mb-4">
-          <h3 className="section-heading">Overlays</h3>
-          <p className="section-description">
-            Layers drawn on top of the imagery in the annotation view - raster maps (COG, e.g. model
-            predictions) and vector layers (PMTiles).
-          </p>
+          <h3 className="section-heading">{t('setup.overlays.title')}</h3>
+          <p className="section-description">{t('setup.overlays.description')}</p>
         </div>
         {controller.campaignId != null ? (
           <div className="space-y-6">
@@ -53,13 +48,10 @@ export const ImagerySetup = ({ controller }: ImagerySetupProps) => {
           </div>
         ) : (
           <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 space-y-4">
-            <p className="text-xs text-neutral-600">
-              Overlays are available after campaign creation. Add them from the campaign's imagery
-              settings.
-            </p>
+            <p className="text-xs text-neutral-600">{t('setup.overlays.afterCreation')}</p>
             {[
-              ['Raster layers (COG)', '+ Add raster layer'],
-              ['Vector layers (PMTiles)', '+ Add vector layer'],
+              [t('setup.overlays.rasterLayers'), t('setup.overlays.addRaster')],
+              [t('setup.overlays.vectorLayers'), t('setup.overlays.addVector')],
             ].map(([label, action]) => (
               <div key={label} className="flex items-center justify-between gap-3">
                 <h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">

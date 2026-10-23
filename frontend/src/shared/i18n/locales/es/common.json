@@ -1,0 +1,167 @@
+{
+  "language": "Idioma",
+  "actions": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "delete": "Eliminar",
+    "close": "Cerrar",
+    "edit": "Editar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "retry": "Reintentar",
+    "remove": "Quitar",
+    "add": "Añadir",
+    "create": "Crear",
+    "tryAgain": "Intentar de nuevo",
+    "reload": "Recargar",
+    "goHome": "Ir al inicio"
+  },
+  "status": {
+    "loading": "Cargando…",
+    "loadingDots": "Cargando...",
+    "loadingLabel": "Cargando",
+    "saving": "Guardando…"
+  },
+  "nav": {
+    "home": "Inicio",
+    "projects": "Proyectos",
+    "project": "Proyecto",
+    "openMenu": "Abrir menú",
+    "expandSidebar": "Expandir barra lateral",
+    "collapseSidebar": "Contraer barra lateral",
+    "pendingRequests": "solicitudes pendientes de tu respuesta",
+    "byline": "por NASA Harvest",
+    "main": "Principal"
+  },
+  "sidebar": {
+    "currentProject": "Proyecto actual",
+    "helpGuides": "Ayuda y guías",
+    "platformAdmin": "Administración",
+    "awaitingApproval": "organizaciones pendientes de aprobación",
+    "accountMenu": "Cuenta y organización",
+    "accountSettings": "Configuración de la cuenta",
+    "organizationSettings": "Configuración de la organización",
+    "signOut": "Cerrar sesión",
+    "signOutFailed": "No se pudo cerrar sesión",
+    "projectSections": {
+      "campaigns": "Campañas",
+      "visualizers": "Visualizadores",
+      "members": "Miembros",
+      "settings": "Configuración del proyecto"
+    },
+    "campaignSections": {
+      "overview": "Resumen",
+      "annotate": "Anotar",
+      "tasks": "Tareas",
+      "annotations": "Anotaciones",
+      "agents": "Agentes",
+      "settings": "Configuración de la campaña"
+    }
+  },
+  "toasts": {
+    "clearAll": "Borrar todo ({{count}})"
+  },
+  "errors": {
+    "generic": "Algo salió mal",
+    "requestFailed": "La solicitud falló",
+    "unreachable": "No se puede conectar con el servidor. Inténtalo de nuevo en un momento.",
+    "withRef": "{{message}} (ref.: {{ref}})",
+    "loadProject": "No se pudo cargar el proyecto",
+    "loadProjectTilers": "No se pudieron cargar los tilers del proyecto",
+    "loadAccount": "No se pudo cargar la cuenta",
+    "code": "Error",
+    "notFoundTitle": "Página no encontrada",
+    "notFoundMessage": "La página que buscas no existe o puede haberse movido.",
+    "routeFailed": "Algo salió mal al cargar esta página.",
+    "unexpected": "Se produjo un error inesperado. Intenta recargar la página.",
+    "boundaryMessage": "Se produjo un error inesperado. Tus datos están a salvo.",
+    "technicalDetails": "Detalles técnicos",
+    "boundaryPersists": "Si el problema persiste, contacta con soporte o intenta actualizar la página.",
+    "appTitle": "Error de la aplicación",
+    "appMessage": "Algo salió mal al cargar la aplicación.",
+    "details": "Detalles del error",
+    "appPersists": "Si el problema persiste, contacta con soporte o revisa la consola del navegador para más detalles."
+  },
+  "confirmDialog": {
+    "dontAskAgain": "No volver a preguntar en esta sesión"
+  },
+  "unsavedChanges": {
+    "title": "Cambios sin guardar",
+    "description": "Tienes cambios sin guardar que se perderán. ¿Salir sin guardar?",
+    "stay": "Quedarse",
+    "leave": "Salir"
+  },
+  "fileInput": {
+    "choose": "Elegir archivo",
+    "none": "Ningún archivo seleccionado"
+  },
+  "popout": {
+    "close": "Cerrar ventana",
+    "closeTitle": "Cierra esta ventana y devuelve sus paneles a la ventana principal"
+  },
+  "infoPopover": {
+    "showDetails": "Mostrar detalles"
+  },
+  "readOnlyKey": {
+    "confirm": "Confirmo que esta clave es de <strong>solo lectura</strong>",
+    "info": "La clave solo se usa para cargar imágenes, así que nunca necesita más que acceso de lectura. Proporciona una con el mínimo acceso necesario: solo tú puedes comprobar qué puede hacer."
+  },
+  "renderLegend": {
+    "colormap": "Mapa de colores",
+    "changeColormap": "Cambiar mapa de colores",
+    "min": "mín.",
+    "max": "máx.",
+    "recolour": "Cambiar color de {{name}}",
+    "colourFor": "Color de {{name}}",
+    "show": "Mostrar {{name}}",
+    "hide": "Ocultar {{name}}"
+  },
+  "locationSearch": {
+    "open": "Buscar ubicación",
+    "placeholder": "Buscar ubicación…",
+    "close": "Cerrar búsqueda"
+  },
+  "taskStatus": {
+    "pending": "Pendiente",
+    "partial": "Parcial",
+    "conflicting": "En conflicto",
+    "done": "Completada",
+    "skipped": "Omitida"
+  },
+  "taskOutcome": {
+    "skipped": "Omitida",
+    "drawn": "Formas dibujadas",
+    "none_found": "Nada aquí"
+  },
+  "home": {
+    "intro": "STACNotator es una plataforma colaborativa, gratuita y de código abierto, para anotar imágenes satelitales y aéreas. Es compatible con el estándar STAC para datos geoespaciales y permite visualizar y etiquetar elementos en equipo. STACNotator está diseñado en torno a imágenes temporales y ofrece funciones para navegar fácilmente a través del tiempo.",
+    "browseProjects": "Explorar proyectos",
+    "sourceOnGithub": "Código fuente en GitHub",
+    "tutorial": "Tutorial",
+    "gettingStarted": "Primeros pasos",
+    "videoComingSoon": "Videotutorial próximamente",
+    "features": "Funciones",
+    "stacTitle": "Conecta cualquier catálogo STAC",
+    "stacBody": "Microsoft Planetary Computer es el mejor soportado hoy, con soporte experimental para cualquier endpoint STAC público. Las imágenes se transmiten directamente al navegador sobre la marcha, sin necesidad de descargas ni preprocesamiento.",
+    "teamsTitle": "Organiza campañas en equipo",
+    "teamsBody": "Roles de anotador y revisor, asignación de tareas, validación de etiquetas frente a vecinos más cercanos y resolución de conflictos integrada cuando los anotadores no coinciden.",
+    "changeTitle": "Analiza los cambios a lo largo del tiempo",
+    "changeBody": "Historial de NDVI por píxel de Sentinel-2 y MODIS, con máscara de nubes de Cloud Score+ y SCL. Índices espectrales personalizables en la hoja de ruta.",
+    "modesTitle": "Tareas y exploración",
+    "modesBody": "Trabaja tarea por tarea sobre puntos y polígonos predefinidos, o cambia a Explorar para dibujar libremente sobre imágenes por las que navegas tú mismo.",
+    "activeLearningTitle": "Aprendizaje activo",
+    "activeLearningBody": "Registra tus mapas como capas superpuestas sobre las imágenes y usa el SDK para obtener anotaciones o generar nuevas tareas.",
+    "earlyAccess": "STACNotator está en acceso anticipado y en desarrollo activo. Las funciones pueden cambiar y los resultados deben verificarse de forma independiente. Informa de problemas en <link>GitHub</link>."
+  },
+  "legal": {
+    "terms": "Términos",
+    "privacy": "Privacidad",
+    "gateTitle": "Antes de continuar",
+    "gateIntro": "Lee y acepta los Términos del servicio para usar STACNotator. Cómo tratamos tus datos se describe en la <link>Política de privacidad</link>.",
+    "gateConsent": "Al hacer clic en Acepto, confirmas que tienes al menos 13 años y que aceptas estos términos (versión {{version}}).",
+    "signOut": "Cerrar sesión",
+    "agree": "Acepto",
+    "acceptFailed": "No se pudo registrar tu aceptación. Inténtalo de nuevo."
+  }
+}

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { answeredFields, type FormField, type FormValues } from '~/shared/utils/formValues';
 
 /**
@@ -14,10 +15,11 @@ export function FormAnswers({
   fields: FormField[];
   values: FormValues | null | undefined;
 }) {
+  const { t } = useTranslation('review');
   const answered = answeredFields(fields, values);
 
   if (answered.length === 0) {
-    return <p className="text-xs text-neutral-400">No answers recorded.</p>;
+    return <p className="text-xs text-neutral-400">{t('answers.noneRecorded')}</p>;
   }
 
   return (

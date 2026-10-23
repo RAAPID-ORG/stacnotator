@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { UserInfo } from './types';
 
 interface UserFilterDropdownProps {
@@ -14,11 +15,12 @@ export const UserFilterDropdown = ({
   setSelectedUserIds,
   currentUserId,
 }: UserFilterDropdownProps) => {
+  const { t } = useTranslation('review');
   const [showDropdown, setShowDropdown] = useState(false);
 
   return (
     <div className="flex items-center gap-2">
-      <label className="text-sm font-medium text-neutral-700">Filter by User:</label>
+      <label className="text-sm font-medium text-neutral-700">{t('userFilter.label')}</label>
       <div className="relative">
         <button
           onClick={() => setShowDropdown(!showDropdown)}
@@ -26,8 +28,8 @@ export const UserFilterDropdown = ({
         >
           <span className="text-neutral-700">
             {selectedUserIds.length > 0
-              ? `${selectedUserIds.length} user${selectedUserIds.length > 1 ? 's' : ''} selected`
-              : 'All users'}
+              ? t('userFilter.selected', { count: selectedUserIds.length })
+              : t('userFilter.allUsers')}
           </span>
           <svg
             className="w-4 h-4 text-neutral-500"
@@ -48,7 +50,7 @@ export const UserFilterDropdown = ({
                     onClick={() => setSelectedUserIds([])}
                     className="text-xs text-brand-600 hover:text-brand-700 font-medium"
                   >
-                    Clear all
+                    {t('userFilter.clearAll')}
                   </button>
                 </div>
               )}
@@ -76,7 +78,7 @@ export const UserFilterDropdown = ({
                       />
                       <span className="ml-2 text-sm text-neutral-700">
                         {isCurrentUser && (
-                          <span className="font-medium text-brand-600">(You) </span>
+                          <span className="font-medium text-brand-600">{t('you')} </span>
                         )}
                         {displayName}
                       </span>
@@ -84,7 +86,9 @@ export const UserFilterDropdown = ({
                   );
                 })}
                 {users.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-neutral-500">No users found</div>
+                  <div className="px-3 py-2 text-sm text-neutral-500">
+                    {t('userFilter.noUsers')}
+                  </div>
                 )}
               </div>
             </div>

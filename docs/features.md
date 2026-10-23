@@ -225,6 +225,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 - Firebase mode: signup with email+pw (requires email validation) or via GoogleAuth
 - Terms of Service acceptance: the version accepted is stored per user, and a full-page gate blocks the app until the version in force (`TERMS_VERSION` in `backend/src/auth/constants.py`) is accepted - bumping it makes everyone accept again
 - Research data sharing: a campaign admin can allow the annotations created in their campaign to be published as open research data, always without annotator names. Off by default, set under Campaign Settings > General, and covered by the Terms of Service
+- Interface language: English or Spanish, picked from the browser and switchable in Settings or on the sign-in card (remembered per browser)
 
 ## Task Management
 

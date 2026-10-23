@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -84,6 +85,11 @@ const requireCampaignId = ({ params }: LoaderFunctionArgs) => requireId(params.c
 const requireProjectId = ({ params }: LoaderFunctionArgs) => requireId(params.projectId);
 const requireOrgId = ({ params }: LoaderFunctionArgs) => requireId(params.orgId);
 
+const HydrateFallback = () => {
+  const { t } = useTranslation();
+  return <LoadingSpinner fullScreen text={t('status.loading')} />;
+};
+
 // A data router (createBrowserRouter) rather than <BrowserRouter> so navigation
 // can be intercepted via useBlocker - see useUnsavedChangesGuard.
 const router = createBrowserRouter(
@@ -93,7 +99,7 @@ const router = createBrowserRouter(
       element={<AppLayout />}
       errorElement={<RouteErrorBoundary />}
       // Shown only on a direct load of a lazy route, while its chunk downloads.
-      hydrateFallbackElement={<LoadingSpinner fullScreen text="Loading…" />}
+      hydrateFallbackElement={<HydrateFallback />}
     >
       <Route index element={<HomePage />} />
       <Route path="projects">

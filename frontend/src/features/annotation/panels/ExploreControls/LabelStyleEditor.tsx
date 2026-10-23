@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { type ExtendedLabel } from '../../campaign/annotation';
 import { resolveLabelStyle, type LabelStyle } from '../../campaign/labelStyle';
@@ -42,6 +43,7 @@ function Slider({
 }
 
 export function LabelStyleEditor({ label }: LabelStyleEditorProps) {
+  const { t } = useTranslation('panels');
   const override = usePrefsStore((s) => s.labelStyles[label.id]);
   const setLabelStyle = usePrefsStore((s) => s.setLabelStyle);
   const resetLabelStyle = usePrefsStore((s) => s.resetLabelStyle);
@@ -60,21 +62,21 @@ export function LabelStyleEditor({ label }: LabelStyleEditorProps) {
           onClick={() => resetLabelStyle(label.id)}
           className="flex-shrink-0 text-[10px] text-neutral-500 hover:text-neutral-700 underline cursor-pointer"
         >
-          Reset
+          {t('labelStyle.reset')}
         </button>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium text-neutral-700">Fill</span>
+        <span className="font-medium text-neutral-700">{t('labelStyle.fill')}</span>
         <input
           type="color"
-          aria-label="Fill color"
+          aria-label={t('labelStyle.fillColor')}
           value={resolved.fillColor}
           onChange={(e) => patch({ fillColor: e.target.value })}
           className="w-7 h-6 rounded cursor-pointer border border-neutral-300 bg-white"
         />
       </div>
       <Slider
-        title="Opacity"
+        title={t('labelStyle.opacity')}
         min={0}
         max={100}
         value={Math.round(resolved.fillOpacity * 100)}
@@ -82,17 +84,17 @@ export function LabelStyleEditor({ label }: LabelStyleEditorProps) {
         onChange={(value: number) => patch({ fillOpacity: value / 100 })}
       />
       <div className="flex items-center justify-between gap-2 pt-1 border-t border-neutral-200">
-        <span className="font-medium text-neutral-700">Border</span>
+        <span className="font-medium text-neutral-700">{t('labelStyle.border')}</span>
         <input
           type="color"
-          aria-label="Border color"
+          aria-label={t('labelStyle.borderColor')}
           value={resolved.strokeColor}
           onChange={(e) => patch({ strokeColor: e.target.value })}
           className="w-7 h-6 rounded cursor-pointer border border-neutral-300 bg-white"
         />
       </div>
       <Slider
-        title="Opacity"
+        title={t('labelStyle.opacity')}
         min={0}
         max={100}
         value={Math.round(resolved.strokeOpacity * 100)}
@@ -100,7 +102,7 @@ export function LabelStyleEditor({ label }: LabelStyleEditorProps) {
         onChange={(value: number) => patch({ strokeOpacity: value / 100 })}
       />
       <Slider
-        title="Width"
+        title={t('labelStyle.width')}
         min={1}
         max={6}
         step={0.5}

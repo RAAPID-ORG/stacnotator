@@ -1,10 +1,12 @@
 import type { FallbackProps } from 'react-error-boundary';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Root-level error fallback for errors that occur outside the Router context
  * This is a simple component that doesn't use routing hooks
  */
 export const RootErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
+  const { t } = useTranslation();
   const handleReload = () => {
     window.location.href = '/';
     resetErrorBoundary();
@@ -40,14 +42,12 @@ export const RootErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) 
         </div>
 
         <div className="text-center space-y-1.5">
-          <h1 className="text-lg font-semibold text-neutral-900">Application error</h1>
-          <p className="text-sm text-neutral-600">
-            Something went wrong while loading the application.
-          </p>
+          <h1 className="text-lg font-semibold text-neutral-900">{t('errors.appTitle')}</h1>
+          <p className="text-sm text-neutral-600">{t('errors.appMessage')}</p>
         </div>
 
         <div className="bg-red-50 border border-red-200 rounded-md p-3">
-          <h2 className="text-xs font-semibold text-red-800 mb-1">Error details</h2>
+          <h2 className="text-xs font-semibold text-red-800 mb-1">{t('errors.details')}</h2>
           <p className="text-xs text-red-700 font-mono break-words">{message}</p>
         </div>
 
@@ -57,19 +57,19 @@ export const RootErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) 
             type="button"
             className="flex-1 inline-flex items-center justify-center h-9 px-4 text-sm font-medium bg-brand-600 text-white rounded-md shadow-sm hover:bg-brand-700 transition-colors"
           >
-            Go to home
+            {t('actions.goHome')}
           </button>
           <button
             onClick={resetErrorBoundary}
             type="button"
             className="flex-1 inline-flex items-center justify-center h-9 px-4 text-sm font-medium bg-white text-neutral-700 border border-neutral-300 rounded-md shadow-sm hover:bg-neutral-50 transition-colors"
           >
-            Try again
+            {t('actions.tryAgain')}
           </button>
         </div>
 
         <p className="text-center text-xs text-neutral-500 pt-2 border-t border-neutral-100">
-          If the problem persists, contact support or check the browser console for more details.
+          {t('errors.appPersists')}
         </p>
       </div>
     </div>

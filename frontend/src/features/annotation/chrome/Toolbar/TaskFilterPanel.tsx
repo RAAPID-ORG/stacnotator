@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
 import { extendedLabels, type TaskStatus } from '../../campaign/annotation';
 import { computeTaskProgress, UNASSIGNED, UNLABELLED, type TaskFilter } from '../../campaign/tasks';
@@ -18,13 +19,7 @@ interface UserEntry {
   displayName: string;
 }
 
-const TASK_STATUSES: Array<{ value: TaskStatus; label: string }> = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'partial', label: 'Partial' },
-  { value: 'done', label: 'Done' },
-  { value: 'skipped', label: 'Skipped' },
-  { value: 'conflicting', label: 'Conflicting' },
-];
+const TASK_STATUSES: TaskStatus[] = ['pending', 'partial', 'done', 'skipped', 'conflicting'];
 const TASK_MODE_STATUSES = new Set<TaskStatus>(['pending', 'done', 'skipped']);
 
 const checkboxRow =
@@ -38,6 +33,7 @@ export function TaskFilterPanel({
   currentUserId,
   isReviewMode,
 }: TaskFilterPanelProps) {
+  const { t } = useTranslation('annotation');
   const labels = extendedLabels(useCampaignStore((s) => s.campaign));
 
   const toggleLabel = (labelId: number) => {
@@ -59,7 +55,7 @@ export function TaskFilterPanel({
     }
   }
   const allUsers = [...userMap.values()];
-  const hasUnassignedTasks = tasks.some((t) => (t.assignments || []).length === 0);
+  const hasUnassignedTasks = tasks.some((task) => (task.assignments || []).length === 0);
   const selectableIds = [...(hasUnassignedTasks ? [UNASSIGNED] : []), ...allUsers.map((u) => u.id)];
 
   const toggleAssignee = (id: string) => {
@@ -94,7 +90,7 @@ export function TaskFilterPanel({
 
   const statusOptions = isReviewMode
     ? TASK_STATUSES
-    : TASK_STATUSES.filter((s) => TASK_MODE_STATUSES.has(s.value));
+    : TASK_STATUSES.filter((s) => TASK_MODE_STATUSES.has(s));
 
   return (
     <div
@@ -104,7 +100,7 @@ export function TaskFilterPanel({
       <div className="space-y-3">
         <div>
           <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-            Assigned To
+            {t('taskFilter.assignedTo')}
           </div>
           <div className="flex gap-2 mb-2">
             <button
@@ -112,7 +108,7 @@ export function TaskFilterPanel({
               onClick={() => onTaskFilterChange({ assignedTo: [] })}
               className={`px-2 py-1 text-xs rounded ${isShowingAll ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
             >
-              All
+              {t('taskFilter.all')}
             </button>
             {currentUserId && (
               <button
@@ -120,7 +116,7 @@ export function TaskFilterPanel({
                 onClick={() => onTaskFilterChange({ assignedTo: [currentUserId] })}
                 className={`px-2 py-1 text-xs rounded ${isShowingMineOnly ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
               >
-                Mine
+                {t('taskFilter.mine')}
               </button>
             )}
           </div>
@@ -133,10 +129,10 @@ export function TaskFilterPanel({
                     taskFilter.assignedTo.length === 0 || taskFilter.assignedTo.includes(UNASSIGNED)
                   }
                   onChange={() => toggleAssignee(UNASSIGNED)}
-                  aria-label="Unassigned"
+                  aria-label={t('taskFilter.unassigned')}
                   className="rounded accent-brand-500"
                 />
-                <span className="text-neutral-500 italic">Unassigned</span>
+                <span className="text-neutral-500 italic">{t('taskFilter.unassigned')}</span>
               </label>
             )}
             {allUsers.map((user) => (
@@ -154,26 +150,26 @@ export function TaskFilterPanel({
               </label>
             ))}
             {allUsers.length === 0 && !hasUnassignedTasks && (
-              <div className="text-xs text-neutral-500 px-2 py-1">No assigned users</div>
+              <div className="text-xs text-neutral-500 px-2 py-1">{t('taskFilter.noUsers')}</div>
             )}
           </div>
         </div>
 
         <div className="border-t border-neutral-200 pt-3">
           <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-            Status
+            {t('taskFilter.status')}
           </div>
           <div className="space-y-1">
-            {statusOptions.map(({ value, label }) => (
+            {statusOptions.map((value) => (
               <label key={value} className={checkboxRow}>
                 <input
                   type="checkbox"
                   checked={taskFilter.statuses.includes(value)}
                   onChange={() => toggleStatus(value)}
-                  aria-label={label}
+                  aria-label={t(`taskStatus.${value}`)}
                   className="rounded accent-brand-500"
                 />
-                <span className="text-neutral-900">{label}</span>
+                <span className="text-neutral-900">{t(`taskStatus.${value}`)}</span>
               </label>
             ))}
           </div>
@@ -182,7 +178,7 @@ export function TaskFilterPanel({
         {taskSets.length > 1 && (
           <div className="border-t border-neutral-200 pt-3" data-testid="task-set-picker">
             <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-              Task set
+              {t('taskFilter.taskSet')}
             </div>
             <div className="space-y-1">
               <label className={checkboxRow}>
@@ -192,11 +188,11 @@ export function TaskFilterPanel({
                   onChange={() => onTaskFilterChange({ taskSetId: null })}
                   className="accent-brand-500"
                 />
-                <span className="text-neutral-900">All sets</span>
+                <span className="text-neutral-900">{t('taskFilter.allSets')}</span>
               </label>
               {taskSets.map((set) => {
                 const { total, completed } = computeTaskProgress(
-                  tasks.filter((t) => t.task_set_id === set.id),
+                  tasks.filter((task) => task.task_set_id === set.id),
                   []
                 );
                 return (
@@ -222,7 +218,7 @@ export function TaskFilterPanel({
           <div className="border-t border-neutral-200 pt-3">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
-                Review filters
+                {t('taskFilter.reviewFilters')}
               </div>
               {(taskFilter.selectedLabelIds.length > 0 ||
                 taskFilter.selectedConfidences.length > 0 ||
@@ -238,21 +234,23 @@ export function TaskFilterPanel({
                   }
                   className="text-[10px] text-neutral-500 hover:text-neutral-700"
                 >
-                  Clear
+                  {t('taskFilter.clear')}
                 </button>
               )}
             </div>
 
             {labels.length > 0 && (
               <div className="mb-2" data-testid="task-label-filter">
-                <div className="text-[10px] font-medium text-neutral-500 mb-1">Label</div>
+                <div className="text-[10px] font-medium text-neutral-500 mb-1">
+                  {t('taskFilter.label')}
+                </div>
                 <div className="flex flex-wrap gap-1">
                   <button
                     type="button"
                     onClick={() => onTaskFilterChange({ selectedLabelIds: [] })}
                     className={`px-2 py-0.5 text-[11px] rounded transition-colors ${taskFilter.selectedLabelIds.length === 0 ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
                   >
-                    Any
+                    {t('taskFilter.any')}
                   </button>
                   {labels.map((label) => {
                     const selected = taskFilter.selectedLabelIds.includes(label.id);
@@ -276,24 +274,26 @@ export function TaskFilterPanel({
                     type="button"
                     onClick={() => toggleLabel(UNLABELLED)}
                     aria-pressed={taskFilter.selectedLabelIds.includes(UNLABELLED)}
-                    title="Tasks with a skipped annotation, which carries no label"
+                    title={t('taskFilter.skippedTip')}
                     className={`px-2 py-0.5 text-[11px] rounded transition-colors ${taskFilter.selectedLabelIds.includes(UNLABELLED) ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
                   >
-                    Skipped
+                    {t('taskStatus.skipped')}
                   </button>
                 </div>
               </div>
             )}
 
             <div className="mb-2">
-              <div className="text-[10px] font-medium text-neutral-500 mb-1">Confidence</div>
+              <div className="text-[10px] font-medium text-neutral-500 mb-1">
+                {t('taskFilter.confidence')}
+              </div>
               <div className="flex flex-wrap gap-1">
                 <button
                   type="button"
                   onClick={() => onTaskFilterChange({ selectedConfidences: [] })}
                   className={`px-2 py-0.5 text-[11px] rounded transition-colors ${taskFilter.selectedConfidences.length === 0 ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
                 >
-                  Any
+                  {t('taskFilter.any')}
                 </button>
                 {[1, 2, 3, 4, 5].map((c) => (
                   <button
@@ -318,10 +318,10 @@ export function TaskFilterPanel({
                       : [...taskFilter.selectedConfidences, 0];
                     onTaskFilterChange({ selectedConfidences: next });
                   }}
-                  title="Tasks whose annotations have no confidence rating, or no annotations"
+                  title={t('taskFilter.noConfidenceTip')}
                   className={`px-2 py-0.5 text-[11px] rounded transition-colors ${taskFilter.selectedConfidences.includes(0) ? 'bg-brand-600 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
                 >
-                  None
+                  {t('taskFilter.none')}
                 </button>
               </div>
             </div>
@@ -330,11 +330,11 @@ export function TaskFilterPanel({
               type="button"
               onClick={() => onTaskFilterChange({ flaggedOnly: !taskFilter.flaggedOnly })}
               aria-pressed={taskFilter.flaggedOnly}
-              title="Show only tasks with at least one flagged annotation"
+              title={t('taskFilter.flaggedTip')}
               className={`flex items-center gap-1.5 px-2 py-1 text-[11px] rounded border w-full transition-colors ${taskFilter.flaggedOnly ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'}`}
             >
               <IconFlag className="w-3.5 h-3.5" />
-              <span>Flagged only</span>
+              <span>{t('taskFilter.flaggedOnly')}</span>
             </button>
           </div>
         )}

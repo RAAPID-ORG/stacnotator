@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.store';
 import { isRemovingLabel, maySubmitTask } from '../../campaign/annotation';
@@ -45,6 +46,7 @@ export function FieldsSection() {
 }
 
 export function CommentSection() {
+  const { t } = useTranslation('panels');
   const isBusy = useTasksStore((s) => s.isSubmitting);
   const comment = useWorkStore((s) => s.comment);
   const setComment = useWorkStore((s) => s.setComment);
@@ -55,7 +57,7 @@ export function CommentSection() {
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         disabled={isBusy}
-        placeholder="Add a comment…"
+        placeholder={t('task.commentPlaceholder')}
         rows={3}
         maxLength={5000}
         className={textareaClass}
@@ -65,6 +67,7 @@ export function CommentSection() {
 }
 
 export function ConfidenceSection() {
+  const { t } = useTranslation('panels');
   const isBusy = useTasksStore((s) => s.isSubmitting);
   const confidence = useWorkStore((s) => s.confidence);
   const flagged = useWorkStore((s) => s.flagged);
@@ -77,17 +80,13 @@ export function ConfidenceSection() {
     <div data-task-confidence className={`${sectionCellClass} gap-2`}>
       <div className="flex flex-col gap-1">
         <div className="flex justify-between items-center">
-          <span className={sectionHeaderClass()}>Confidence</span>
+          <span className={sectionHeaderClass()}>{t('task.confidence')}</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               aria-pressed={flagged}
               disabled={isBusy}
-              title={
-                flagged
-                  ? 'Flagged for reviewer attention. Click or press F to unflag.'
-                  : "Flag this annotation for reviewer attention. Useful when you're unsure about the label and want a reviewer to take a second look. Press F to toggle."
-              }
+              title={flagged ? t('task.flaggedTitle') : t('task.flagTitle')}
               onClick={() => setFlagged(!flagged)}
               className={`inline-flex items-center justify-center w-5 h-5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                 flagged
@@ -127,7 +126,7 @@ export function ConfidenceSection() {
           value={flagComment}
           onChange={(e) => setFlagComment(e.target.value)}
           disabled={isBusy}
-          placeholder="Why are you flagging this? (optional)"
+          placeholder={t('editDetails.flagPlaceholder')}
           rows={2}
           maxLength={5000}
           className={textareaClass}
@@ -141,6 +140,7 @@ export function ConfidenceSection() {
  *  reach however many fields a campaign asks for. The point navigation wraps
  *  onto a line of its own when the panel is too narrow for one row. */
 export function ActionBar({ task }: { task: AnnotationTaskOut }) {
+  const { t } = useTranslation(['panels', 'common']);
   const campaign = useCampaign();
   const catalog = useCatalog();
   const currentUserId = useCampaignStore((s) => s.currentUserId);
@@ -168,16 +168,16 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
     useWorkStore((s) => s.drawnTaskIds.includes(task.id)) ||
     (task.drawn_by_user_ids ?? []).some((id) => id === currentUserId);
   const submitLabel = isBusy
-    ? 'Submitting…'
+    ? t('task.submitting')
     : drawTask
-      ? 'Done'
+      ? t('task.done')
       : asAuthoritative
-        ? 'Submit authoritative'
+        ? t('task.submitAuthoritative')
         : isRemovingLabel(readiness)
-          ? 'Remove Label'
+          ? t('task.removeLabel')
           : hasExistingLabel
-            ? 'Update'
-            : 'Submit';
+            ? t('task.update')
+            : t('task.submit');
 
   return (
     <div className="shrink-0 flex flex-col gap-1.5 px-3 py-2 border-t border-neutral-200 bg-neutral-50/60">
@@ -186,12 +186,12 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
           data-testid="policy-not-allowed-notice"
           className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
         >
-          You are not allowed to label this task in this campaign.
+          {t('task.notAllowed')}
         </p>
       )}
       {mayLabel && taskHasAssignments && !countsTowardCompletion && (
         <p data-testid="policy-extra-label-notice" className="text-[11px] text-neutral-500 italic">
-          Your label will be saved as extra and does not count toward completion.
+          {t('task.extraLabel')}
         </p>
       )}
 
@@ -200,32 +200,32 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
           <button
             type="button"
             disabled={isSkipDisabled}
-            title={!mayLabel ? 'You are not allowed to label this task' : undefined}
+            title={!mayLabel ? t('task.notAllowedShort') : undefined}
             onClick={() => void skipCurrent()}
             className={`${drawTask ? 'flex-1' : ''} inline-flex items-center justify-center h-7 px-1.5 text-[11px] font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed`}
           >
-            Skip
+            {t('task.skip')}
           </button>
           {drawTask && (
             <button
               type="button"
               disabled={isSkipDisabled || drewHere}
-              title={drewHere ? 'You drew shapes for this task - press Done' : undefined}
+              title={drewHere ? t('task.drewHereTitle') : undefined}
               onClick={() => void finishDrawTask('none_found')}
               className="flex-1 inline-flex items-center justify-center h-7 px-1.5 text-[11px] font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Nothing here
+              {t('task.nothingHere')}
             </button>
           )}
           {campaign.viewer_is_authoritative_reviewer && !drawTask && (
             <label
               className="flex shrink-0 cursor-pointer select-none flex-col items-center gap-0.5"
-              title="Submit as authoritative: your label overrides other annotators and completes the task."
+              title={t('task.authoritativeToggleTitle')}
             >
               <span className="relative">
                 <input
                   type="checkbox"
-                  aria-label="Submit as authoritative"
+                  aria-label={t('task.authoritativeToggle')}
                   checked={authoritative}
                   onChange={(e) => setAuthoritative(e.target.checked)}
                   className="sr-only peer"
@@ -233,7 +233,9 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
                 <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-amber-500 transition-colors" />
                 <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
               </span>
-              <span className="text-[9px] leading-none text-neutral-500">Auth.</span>
+              <span className="text-[9px] leading-none text-neutral-500">
+                {t('task.authoritativeShort')}
+              </span>
             </label>
           )}
           <button
@@ -249,8 +251,8 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
             title={
               asAuthoritative
                 ? isAssignedToTask
-                  ? 'Submit as authoritative: overrides any other annotators on this task and marks it completed, even if their labels disagree.'
-                  : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
+                  ? t('task.authoritativeAssignedTitle')
+                  : t('task.authoritativeUnassignedTitle')
                 : undefined
             }
             className={`flex-1 min-w-[5rem] inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-white rounded-md shadow-sm transition-colors whitespace-nowrap disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed ${
@@ -267,29 +269,29 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
             type="button"
             disabled={isBusy}
             onClick={() => previous(catalog)}
-            aria-label="Previous point"
-            title="Previous point"
+            aria-label={t('task.previousPoint')}
+            title={t('task.previousPoint')}
             className={navButtonClass}
           >
             <IconChevronLeft className="w-3 h-3" />
-            <span className="@max-[15rem]:hidden">Prev</span>
+            <span className="@max-[15rem]:hidden">{t('task.prev')}</span>
           </button>
           <PointJumper
             key={task.annotation_number}
             current={task.annotation_number}
             disabled={isBusy}
             onJump={(num) => goToAnnotationNumber(num, catalog)}
-            onNotFound={(num) => showAlert(`Point #${num} is not in the current filter`, 'error')}
+            onNotFound={(num) => showAlert(t('task.pointNotInFilter', { num }), 'error')}
           />
           <button
             type="button"
             disabled={isBusy}
             onClick={() => void advance()}
-            aria-label="Next point"
-            title="Next point"
+            aria-label={t('task.nextPoint')}
+            title={t('task.nextPoint')}
             className={navButtonClass}
           >
-            <span className="@max-[15rem]:hidden">Next</span>
+            <span className="@max-[15rem]:hidden">{t('common:actions.next')}</span>
             <IconChevronRight className="w-3 h-3" />
           </button>
         </div>

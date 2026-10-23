@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { OrganizationOut } from '~/api/client';
 import { Badge, type BadgeTone } from '~/shared/ui/Badge';
 import { Button, Switch } from '~/shared/ui/forms';
@@ -23,6 +24,10 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   rejected: 'red',
 };
 
+const STATUSES = ['pending', 'approved', 'rejected'] as const;
+const isKnownStatus = (status: string): status is (typeof STATUSES)[number] =>
+  (STATUSES as readonly string[]).includes(status);
+
 const rowActionCls =
   'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
 
@@ -38,6 +43,7 @@ export const PlatformOrganizationsTable = ({
   onSaveTilers,
   loading,
 }: PlatformOrganizationsTableProps) => {
+  const { t } = useTranslation(['settings', 'common']);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -57,18 +63,20 @@ export const PlatformOrganizationsTable = ({
 
   const handleDecision = async (organization: OrganizationOut, approve: boolean) => {
     const confirmed = await showConfirmDialog({
-      title: approve ? `Approve ${organization.name}?` : `Reject ${organization.name}?`,
+      title: approve
+        ? t('orgsTable.confirm.approveTitle', { name: organization.name })
+        : t('orgsTable.confirm.rejectTitle', { name: organization.name }),
       description: approve
-        ? 'Members will be able to create projects and campaigns under this organization.'
-        : 'Members lose access to this organization until it is approved again.',
-      confirmText: approve ? 'Approve' : 'Reject',
+        ? t('orgsTable.confirm.approveDescription')
+        : t('orgsTable.confirm.rejectDescription'),
+      confirmText: approve ? t('orgsTable.approve') : t('orgsTable.reject'),
       isDangerous: !approve,
     });
     if (!confirmed) return;
 
     await run(
       organization.id,
-      approve ? 'Failed to approve organization' : 'Failed to reject organization',
+      approve ? t('toasts.approveOrgFailed') : t('toasts.rejectOrgFailed'),
       () => (approve ? onApprove(organization.id) : onReject(organization.id))
     );
   };
@@ -79,7 +87,7 @@ export const PlatformOrganizationsTable = ({
       return;
     }
     setEditor(null);
-    await run(organization.id, 'Failed to load organization access', async () => {
+    await run(organization.id, t('toasts.loadAccessFailed'), async () => {
       const tilerNames = allTilers.length > 0 ? await onLoadTilers(organization.id) : [];
       setEditor({
         organizationId: organization.id,
@@ -113,10 +121,10 @@ export const PlatformOrganizationsTable = ({
     try {
       if (tilersChanged) await onSaveTilers(organization.id, editor.selectedTilers);
       if (storageChanged) await onSetInternalStorage(organization.id, editor.internalStorage);
-      if (!tilersChanged && !storageChanged) showAlert('No access changes to apply', 'info');
+      if (!tilersChanged && !storageChanged) showAlert(t('toasts.noAccessChanges'), 'info');
       setEditor(null);
     } catch (err) {
-      handleError(err, 'Failed to save organization access');
+      handleError(err, t('toasts.saveAccessFailed'));
     } finally {
       setSavingAccess(false);
     }
@@ -128,16 +136,16 @@ export const PlatformOrganizationsTable = ({
         <thead className="bg-neutral-50/50 border-b border-neutral-200">
           <tr>
             <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-              Organization
+              {t('orgsTable.organization')}
             </th>
             <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-              Status
+              {t('orgsTable.status')}
             </th>
             <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-              Internal storage
+              {t('orgsTable.internalStorage')}
             </th>
             <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-              Actions
+              {t('orgsTable.actions')}
             </th>
           </tr>
         </thead>
@@ -147,14 +155,14 @@ export const PlatformOrganizationsTable = ({
               <td colSpan={COL_SPAN} className="px-4 py-10">
                 <div className="flex flex-col items-center gap-2">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-200 border-t-brand-600" />
-                  <span className="text-xs text-neutral-500">Loading organizations…</span>
+                  <span className="text-xs text-neutral-500">{t('orgsTable.loading')}</span>
                 </div>
               </td>
             </tr>
           ) : organizations.length === 0 ? (
             <tr>
               <td colSpan={COL_SPAN} className="px-4 py-10 text-center text-sm text-neutral-500">
-                No organizations found
+                {t('orgsTable.empty')}
               </td>
             </tr>
           ) : (
@@ -179,7 +187,11 @@ export const PlatformOrganizationsTable = ({
                     </td>
                     <td className="px-4 py-3">
                       <Badge tone={STATUS_TONES[organization.status] ?? 'neutral'}>
-                        <span className="capitalize">{organization.status}</span>
+                        <span className="capitalize">
+                          {isKnownStatus(organization.status)
+                            ? t(`orgsTable.statuses.${organization.status}`)
+                            : organization.status}
+                        </span>
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
@@ -189,7 +201,9 @@ export const PlatformOrganizationsTable = ({
                         }
                       >
                         <Badge tone={organization.allows_internal_storage ? 'brand' : 'neutral'}>
-                          {organization.allows_internal_storage ? 'Allowed' : 'Off'}
+                          {organization.allows_internal_storage
+                            ? t('orgsTable.allowed')
+                            : t('orgsTable.off')}
                         </Badge>
                       </span>
                     </td>
@@ -201,7 +215,7 @@ export const PlatformOrganizationsTable = ({
                           disabled={busy}
                           className={`${rowActionCls} text-brand-700 hover:bg-brand-50`}
                         >
-                          {editing ? 'Close' : 'Edit access'}
+                          {editing ? t('orgsTable.close') : t('orgsTable.editAccess')}
                         </button>
                         {organization.status !== 'approved' && (
                           <button
@@ -210,7 +224,7 @@ export const PlatformOrganizationsTable = ({
                             disabled={busy}
                             className={`${rowActionCls} bg-white text-neutral-700 border border-neutral-300 hover:bg-neutral-50`}
                           >
-                            Approve
+                            {t('orgsTable.approve')}
                           </button>
                         )}
                         {organization.status !== 'rejected' && (
@@ -220,7 +234,7 @@ export const PlatformOrganizationsTable = ({
                             disabled={busy}
                             className={`${rowActionCls} text-red-600 hover:bg-red-50`}
                           >
-                            Reject
+                            {t('orgsTable.reject')}
                           </button>
                         )}
                       </div>
@@ -238,13 +252,13 @@ export const PlatformOrganizationsTable = ({
                               )
                             }
                             disabled={savingAccess}
-                            label="Internal storage"
-                            aria-label="Internal storage"
+                            label={t('orgsTable.internalStorage')}
+                            aria-label={t('orgsTable.internalStorage')}
                           />
                           {allTilers.length > 0 && (
                             <div className="flex flex-wrap items-center gap-4 pl-6 border-l border-neutral-200">
                               <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-                                Tile access
+                                {t('orgsTable.tileAccess')}
                               </span>
                               {allTilers.map((name) => (
                                 <label
@@ -269,7 +283,7 @@ export const PlatformOrganizationsTable = ({
                               onClick={() => saveAccess(organization)}
                               disabled={savingAccess}
                             >
-                              {savingAccess ? 'Saving…' : 'Save access'}
+                              {savingAccess ? t('orgsTable.saving') : t('orgsTable.saveAccess')}
                             </Button>
                             <Button
                               size="sm"
@@ -277,7 +291,7 @@ export const PlatformOrganizationsTable = ({
                               onClick={() => setEditor(null)}
                               disabled={savingAccess}
                             >
-                              Cancel
+                              {t('common:actions.cancel')}
                             </Button>
                           </div>
                         </div>

@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import 'leaflet/dist/leaflet.css';
 import { getTaskDensity, type TaskDensityCell } from '~/api/client';
 import {
@@ -39,6 +40,7 @@ const UNKNOWN_STATUS_COLOR = '#6B7280';
 
 export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(
   ({ statusCounts, totalTasks, taskSetId, campaignId, bbox }) => {
+    const { t } = useTranslation('campaigns');
     const containerRef = useRef<HTMLDivElement>(null);
     const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
     const view = useDensityViewport(mapRef, mapReady);
@@ -56,12 +58,12 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(
           if (!cancelled) setCells(res.data ?? []);
         })
         .catch((err) => {
-          if (!cancelled) handleError(err, 'Failed to load task locations');
+          if (!cancelled) handleError(err, t('errors.loadTaskLocations'));
         });
       return () => {
         cancelled = true;
       };
-    }, [campaignId, taskSetId, view]);
+    }, [campaignId, taskSetId, view, t]);
 
     useEffect(() => {
       if (!markersLayerRef.current || !mapReady) return;
@@ -85,7 +87,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(
 
     const legend = TASK_STATUSES.map((status) => ({
       key: status,
-      name: TASK_STATUS_CONFIG[status].label,
+      name: formatTaskStatus(status),
       color: TASK_STATUS_CONFIG[status].color,
       count: statusCounts[status] ?? 0,
     })).filter((entry) => entry.count > 0 || entry.key === 'pending');
@@ -93,7 +95,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(
     return (
       <div>
         <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-          Task Locations ({totalTasks} total)
+          {t('taskLocations.title', { count: totalTasks })}
         </h2>
 
         <DensityLegend entries={legend} hidden={hidden} onToggle={toggle} />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 
 import { type ProjectOut } from '~/api/client';
@@ -15,7 +16,6 @@ import { ProjectRow } from '../components/ProjectRow';
 import {
   defaultProjectFilter,
   filterProjects,
-  PROJECT_FILTER_LABELS,
   PROJECT_FILTERS,
   type ProjectFilter,
 } from '../components/projectFilters';
@@ -24,6 +24,7 @@ import { useOrganizations } from '~/features/organizations/hooks/useOrganization
 const NO_PROJECTS: ProjectOut[] = [];
 
 export const ProjectsPage = () => {
+  const { t } = useTranslation('projects');
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
@@ -32,7 +33,7 @@ export const ProjectsPage = () => {
 
   const { data, isPending: loading } = useQuery({
     ...listProjectsOptions(),
-    meta: { errorMessage: 'Failed to load projects' },
+    meta: { errorMessage: t('list.loadFailed') },
   });
   const projects = data?.items ?? NO_PROJECTS;
 
@@ -42,8 +43,8 @@ export const ProjectsPage = () => {
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    setBreadcrumbs([{ label: 'Projects' }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([{ label: t('breadcrumb') }]);
+  }, [setBreadcrumbs, t]);
 
   const belongsToAnyOrg = memberships.length > 0;
 
@@ -73,7 +74,7 @@ export const ProjectsPage = () => {
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">Projects</h1>
+            <h1 className="page-title">{t('list.title')}</h1>
             {activeOrgName && (
               <p className="text-xs text-neutral-500 mt-0.5" data-testid="projects-org-scope">
                 {activeOrgName}
@@ -83,8 +84,7 @@ export const ProjectsPage = () => {
               <Skeleton className="h-4 w-48 mt-1.5" />
             ) : (
               <p className="page-subtitle">
-                {projects.length} project{projects.length === 1 ? '' : 's'} visible ·{' '}
-                {filtered.length} shown
+                {t('list.summary', { count: projects.length, shown: filtered.length })}
               </p>
             )}
           </div>
@@ -94,7 +94,7 @@ export const ProjectsPage = () => {
                 onClick={() => navigate(newProjectPath())}
                 leading={<IconPlus className="w-4 h-4" />}
               >
-                New project
+                {t('list.newProject')}
               </Button>
             )}
           </div>
@@ -106,15 +106,11 @@ export const ProjectsPage = () => {
             className="mb-4 flex flex-wrap items-center gap-4 px-4 py-3 rounded-lg border border-brand-200 bg-brand-50/50"
           >
             <div className="flex-1 min-w-[16rem]">
-              <p className="text-sm font-medium text-neutral-900">
-                You need to be part of an organization to create projects.
-              </p>
-              <p className="text-xs text-neutral-600 mt-0.5">
-                Ask an organization admin to add you, or request a new organization for your team.
-              </p>
+              <p className="text-sm font-medium text-neutral-900">{t('list.gatingTitle')}</p>
+              <p className="text-xs text-neutral-600 mt-0.5">{t('list.gatingBody')}</p>
             </div>
             <Button variant="secondary" size="sm" onClick={() => navigate(newOrganizationPath())}>
-              Request an organization
+              {t('list.requestOrganization')}
             </Button>
           </div>
         )}
@@ -134,7 +130,7 @@ export const ProjectsPage = () => {
                     : 'text-neutral-600 hover:text-neutral-900'
                 }`}
               >
-                {PROJECT_FILTER_LABELS[key]}
+                {t(`filters.${key}`)}
               </button>
             ))}
           </div>
@@ -143,14 +139,14 @@ export const ProjectsPage = () => {
             <Input
               type="text"
               className="pl-8 pr-8"
-              placeholder="Search projects…"
+              placeholder={t('list.searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
             {query && (
               <IconButton
                 className="absolute right-2 top-1/2 -translate-y-1/2"
-                aria-label="Clear search"
+                aria-label={t('list.clearSearch')}
                 onClick={() => setQuery('')}
               >
                 <IconClose className="w-3.5 h-3.5" />
@@ -165,25 +161,25 @@ export const ProjectsPage = () => {
           <div className="surface">
             {needsOrgSelection ? (
               <div className="p-10 text-center text-sm text-neutral-500">
-                Select an organization to see its projects.
+                {t('list.selectOrganization')}
               </div>
             ) : filtered.length === 0 ? (
               <div className="surface-section text-center py-16">
                 <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center mx-auto mb-4">
                   <IconFolder className="w-6 h-6 text-brand-600" />
                 </div>
-                <p className="text-base text-neutral-800 font-medium mb-1">No projects here</p>
+                <p className="text-base text-neutral-800 font-medium mb-1">
+                  {t('list.emptyTitle')}
+                </p>
                 <p className="text-sm text-neutral-500 mb-5">
-                  {canCreateProject
-                    ? 'Create a project to hold your campaigns, or widen the filter.'
-                    : "You'll see projects here once you're added to one."}
+                  {canCreateProject ? t('list.emptyCanCreate') : t('list.emptyCannotCreate')}
                 </p>
                 {canCreateProject && (
                   <Button
                     onClick={() => navigate(newProjectPath())}
                     leading={<IconPlus className="w-4 h-4" />}
                   >
-                    Create project
+                    {t('list.createProject')}
                   </Button>
                 )}
               </div>

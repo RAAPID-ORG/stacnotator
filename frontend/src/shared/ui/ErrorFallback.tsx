@@ -1,8 +1,10 @@
 import type { FallbackProps } from 'react-error-boundary';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './forms';
 
 export const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
@@ -36,16 +38,14 @@ export const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
 
         {/* Error message */}
         <div className="text-center space-y-1.5">
-          <h1 className="text-lg font-semibold text-neutral-900">Something went wrong</h1>
-          <p className="text-sm text-neutral-600">
-            We encountered an unexpected error. Your data is safe.
-          </p>
+          <h1 className="text-lg font-semibold text-neutral-900">{t('errors.generic')}</h1>
+          <p className="text-sm text-neutral-600">{t('errors.boundaryMessage')}</p>
         </div>
 
         {/* Collapsible technical details */}
         <details className="bg-neutral-50 border border-neutral-100 rounded-md p-3">
           <summary className="cursor-pointer text-xs font-medium text-neutral-700 hover:text-neutral-900">
-            Technical details
+            {t('errors.technicalDetails')}
           </summary>
           <div className="mt-3 space-y-2">
             <p className="text-xs font-mono text-neutral-600 break-all">{message}</p>
@@ -59,16 +59,14 @@ export const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
 
         <div className="flex gap-2">
           <Button onClick={resetErrorBoundary} className="flex-1">
-            Try again
+            {t('actions.tryAgain')}
           </Button>
           <Button variant="secondary" onClick={handleGoHome} className="flex-1">
-            Go to home
+            {t('actions.goHome')}
           </Button>
         </div>
 
-        <p className="text-center text-xs text-neutral-500">
-          If this problem persists, please contact support or try refreshing the page.
-        </p>
+        <p className="text-center text-xs text-neutral-500">{t('errors.boundaryPersists')}</p>
       </div>
     </div>
   );

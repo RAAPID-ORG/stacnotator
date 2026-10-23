@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { CampaignOutFull } from '~/api/client';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 
@@ -10,20 +11,22 @@ const button =
 const secondaryButton =
   'rounded border border-neutral-200 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50';
 
-export function LoadingGate({ text = 'Loading annotator...' }: { text?: string }) {
+export function LoadingGate({ text }: { text?: string }) {
+  const { t } = useTranslation('annotation');
   return (
     <div className="flex flex-1 items-center justify-center" data-testid="loading-gate">
-      <LoadingSpinner size="lg" text={text} />
+      <LoadingSpinner size="lg" text={text ?? t('gates.loading')} />
     </div>
   );
 }
 
 export function NotFoundGate() {
+  const { t } = useTranslation('annotation');
   return (
     <div className={shell} data-testid="not-found-gate">
       <div className="text-center">
-        <h2 className={`${heading} mb-1`}>Campaign not found</h2>
-        <p className={body}>The requested campaign could not be loaded.</p>
+        <h2 className={`${heading} mb-1`}>{t('gates.notFound.title')}</h2>
+        <p className={body}>{t('gates.notFound.body')}</p>
       </div>
     </div>
   );
@@ -45,28 +48,26 @@ export function RegisteringGate({
   onBypass,
   onNavigateSettings,
 }: RegisteringGateProps) {
+  const { t } = useTranslation('annotation');
   return (
     <div className={shell} data-testid="registering-gate">
       <div className="max-w-md space-y-4 text-center">
         <LoadingSpinner size="lg" />
-        <h2 className={heading}>Campaign setup in progress</h2>
+        <h2 className={heading}>{t('gates.registering.title')}</h2>
         <p className={body}>
-          {campaign?.registration_status === 'registering' &&
-            'Mosaic imagery is being prepared from the STAC catalog. This can take several minutes. '}
-          {campaign?.embedding_status === 'registering' &&
-            'Satellite embeddings are being computed. '}
-          This page checks progress automatically and will open the workspace as soon as setup
-          completes.
+          {campaign?.registration_status === 'registering' && t('gates.registering.mosaics')}
+          {campaign?.embedding_status === 'registering' && t('gates.registering.embeddings')}
+          {t('gates.registering.autoOpen')}
         </p>
         <div className="flex items-center justify-center gap-2">
           {onNavigateSettings && (
             <button type="button" className={button} onClick={onNavigateSettings}>
-              Go to settings
+              {t('gates.goToSettings')}
             </button>
           )}
           {isCampaignAdmin && (
             <button type="button" className={secondaryButton} onClick={onBypass}>
-              Set up layout anyway
+              {t('gates.registering.bypass')}
             </button>
           )}
         </div>
@@ -90,6 +91,7 @@ export function NoViewsGate({
   onCreateFirstView,
   onNavigateSettings,
 }: NoViewsGateProps) {
+  const { t } = useTranslation('annotation');
   const hasSources = campaign.imagery_sources.length > 0;
 
   return (
@@ -97,11 +99,9 @@ export function NoViewsGate({
       <div className="max-w-md space-y-4 text-center">
         {isCampaignAdmin ? (
           <>
-            <h2 className={heading}>Set up the workspace</h2>
+            <h2 className={heading}>{t('gates.noViews.title')}</h2>
             <p className={body}>
-              {hasSources
-                ? 'One-time setup: nobody can start annotating until this campaign has a workspace layout. Create the first view - it starts with all imagery sources - then arrange the panels and save. What you save becomes the starting layout for every member of this campaign, and anyone can rearrange their own copy afterwards.'
-                : 'This campaign has no imagery sources yet. Add sources in the campaign settings, then come back to set up the workspace.'}
+              {hasSources ? t('gates.noViews.body') : t('gates.noViews.noSources')}
             </p>
             {hasSources ? (
               <button
@@ -110,23 +110,20 @@ export function NoViewsGate({
                 onClick={onCreateFirstView}
                 data-testid="create-first-view"
               >
-                Create first view
+                {t('gates.noViews.create')}
               </button>
             ) : (
               onNavigateSettings && (
                 <button type="button" className={button} onClick={onNavigateSettings}>
-                  Go to settings
+                  {t('gates.goToSettings')}
                 </button>
               )
             )}
           </>
         ) : (
           <>
-            <h2 className={heading}>Workspace not set up yet</h2>
-            <p className={body}>
-              A campaign admin still needs to lay out the workspace for this campaign. Please check
-              back later.
-            </p>
+            <h2 className={heading}>{t('gates.noViews.waitTitle')}</h2>
+            <p className={body}>{t('gates.noViews.waitBody')}</p>
           </>
         )}
       </div>
@@ -145,28 +142,24 @@ export function NoTasksGate({
   onNavigateTasks,
   onSwitchToExplore,
 }: NoTasksGateProps) {
+  const { t } = useTranslation('annotation');
   return (
     <div className={shell} data-testid="no-tasks-gate">
       <div className="max-w-md px-4 text-center">
-        <h2 className={`${heading} mb-1.5`}>No annotation tasks yet</h2>
-        <p className={`${body} mb-5`}>
-          This campaign has no tasks set up. Tasks define the points or polygons that annotators
-          will label.
-        </p>
+        <h2 className={`${heading} mb-1.5`}>{t('gates.noTasks.title')}</h2>
+        <p className={`${body} mb-5`}>{t('gates.noTasks.body')}</p>
         <div className="flex items-center justify-center gap-2">
           {isCampaignAdmin && onNavigateTasks && (
             <button type="button" className={button} onClick={onNavigateTasks}>
-              Set up tasks
+              {t('gates.noTasks.setUp')}
             </button>
           )}
           <button type="button" className={secondaryButton} onClick={onSwitchToExplore}>
-            Switch to Explore
+            {t('gates.noTasks.switchToExplore')}
           </button>
         </div>
         {!isCampaignAdmin && (
-          <p className="mt-3 text-xs italic text-neutral-500">
-            Ask a campaign admin to create tasks, or switch to Explore to start annotating now.
-          </p>
+          <p className="mt-3 text-xs italic text-neutral-500">{t('gates.noTasks.askAdmin')}</p>
         )}
       </div>
     </div>
@@ -181,14 +174,13 @@ export interface AllTasksDoneGateProps {
 }
 
 export function AllTasksDoneGate({ onShowAllTasks, onReview, scopeName }: AllTasksDoneGateProps) {
+  const { t } = useTranslation('annotation');
   return (
     <div className={shell} data-testid="all-tasks-done-gate">
       <div className="max-w-md px-4 text-center">
-        <h2 className={`${heading} mb-1.5`}>All tasks completed</h2>
+        <h2 className={`${heading} mb-1.5`}>{t('gates.allDone.title')}</h2>
         <p className={`${body} mb-4`}>
-          {scopeName
-            ? `Every task in ${scopeName} has been answered - by you or by another annotator.`
-            : "You've completed all pending tasks matching your current filter."}
+          {scopeName ? t('gates.allDone.scoped', { name: scopeName }) : t('gates.allDone.body')}
         </p>
         <div className="flex items-center justify-center gap-2">
           <button
@@ -197,7 +189,7 @@ export function AllTasksDoneGate({ onShowAllTasks, onReview, scopeName }: AllTas
             onClick={onReview}
             data-testid="review-done-tasks"
           >
-            Review them now
+            {t('gates.allDone.review')}
           </button>
           <button
             type="button"
@@ -205,7 +197,7 @@ export function AllTasksDoneGate({ onShowAllTasks, onReview, scopeName }: AllTas
             onClick={onShowAllTasks}
             data-testid="show-all-tasks"
           >
-            View all tasks
+            {t('gates.allDone.viewAll')}
           </button>
         </div>
       </div>

@@ -2,6 +2,9 @@ import { getAnnotationsExtent } from '~/api/client';
 import { Camera, DEFAULT_MAP_ZOOM } from '~/shared/map/Camera';
 import type { Bbox, CameraState, LonLat } from '~/shared/map/types';
 import { handleError } from '~/shared/utils/errorHandler';
+import i18n from '~/shared/i18n';
+
+const t = i18n.getFixedT(null, 'annotation');
 
 // ---------------------------------------------------------------------------
 // The page's cameras. Module-scope because they outlive any one campaign and
@@ -75,7 +78,7 @@ export async function fitAnnotations(campaignId: number, includeTasks: boolean):
   } catch (error) {
     // Pressing Space and having nothing happen is confusing enough without the
     // reason being invisible too.
-    handleError(error, 'Could not load the annotation extent');
+    handleError(error, t('camera.extentFailed'));
     return false;
   }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ImageryCollectionOut } from '~/api/client';
 import { type ImageryCatalog } from '../../campaign/imagery';
 import { awaitingImageryRegistration } from '../../campaign/tileUrls';
@@ -81,6 +82,7 @@ export interface ImageryWindowProps {
 const MODIFIER_HINT_MS = 1200;
 
 function NoImageryOverlay() {
+  const { t } = useTranslation('panels');
   return (
     <div
       className="absolute inset-0 flex select-none items-center justify-center overflow-hidden bg-neutral-50"
@@ -90,13 +92,14 @@ function NoImageryOverlay() {
       }}
     >
       <span className="rounded bg-neutral-50/80 px-2 py-0.5 text-[10px] font-medium text-neutral-400">
-        No imagery
+        {t('imageryWindow.noImagery')}
       </span>
     </div>
   );
 }
 
 export function ImageryWindowBody({ collection }: ImageryWindowProps) {
+  const { t } = useTranslation('panels');
   const catalog = useCatalog();
   const registrationStatus = useCampaignStore((s) => s.campaign?.registration_status);
   const mode = useCampaignStore((s) => s.workMode);
@@ -232,11 +235,13 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
       <CenterCrosshair />
       <ImageryLegend catalog={catalog} address={address} />
       {waitingForRegistration && <ImageryRegistrationNotice />}
-      {!waitingForRegistration && showHint && <StatusPill>Hold Ctrl/Cmd to zoom</StatusPill>}
+      {!waitingForRegistration && showHint && (
+        <StatusPill>{t('imageryWindow.zoomHint')}</StatusPill>
+      )}
       {!waitingForRegistration && healing.searchingLabel && (
         <StatusPill>
           <PillSpinner />
-          Searching imagery... {healing.searchingLabel}
+          {t('imageryWindow.searching', { label: healing.searchingLabel })}
         </StatusPill>
       )}
       {!waitingForRegistration && (!address || healing.noImagery) && <NoImageryOverlay />}

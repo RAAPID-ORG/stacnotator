@@ -1,19 +1,14 @@
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { Dropdown } from '~/shared/ui/motion';
 import { IconKeyboard } from '~/shared/ui/Icons';
-import { helpRows, type Binding } from '../../hotkeys';
-
-const GROUP_LABELS: Record<NonNullable<Binding['group']>, string> = {
-  edit: 'Editing',
-  form: 'Form',
-  mode: 'Mode',
-  map: 'Map',
-};
+import { helpRows } from '../../hotkeys';
 
 const GROUP_ORDER = ['edit', 'form', 'mode', 'map'] as const;
 
 export function HelpMenu() {
+  const { t } = useTranslation('annotation');
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -31,7 +26,7 @@ export function HelpMenu() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
-        title="Keyboard shortcuts"
+        title={t('helpMenu.title')}
         data-testid="help-menu-trigger"
       >
         <IconKeyboard className="w-5 h-5" />
@@ -42,16 +37,16 @@ export function HelpMenu() {
           data-testid="help-menu"
         >
           <div className="text-[11px] font-medium text-neutral-500 mb-2 uppercase tracking-wider">
-            Keyboard shortcuts
+            {t('helpMenu.title')}
           </div>
           {sections.length === 0 && (
-            <div className="text-xs text-neutral-400">No shortcuts active</div>
+            <div className="text-xs text-neutral-400">{t('helpMenu.empty')}</div>
           )}
           <div className="space-y-2">
             {sections.map(({ group, rows }) => (
               <div key={group}>
                 <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-1">
-                  {GROUP_LABELS[group!]}
+                  {t(`helpMenu.groups.${group}`)}
                 </div>
                 <ul className="space-y-0.5">
                   {rows.map((row) => (

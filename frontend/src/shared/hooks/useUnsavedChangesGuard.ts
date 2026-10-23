@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useBlocker } from 'react-router-dom';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 
@@ -9,12 +10,12 @@ interface GuardOptions {
 
 // Warn before leaving while `when` is true (e.g. a form has unsaved edits).
 export function useUnsavedChangesGuard(when: boolean, options?: GuardOptions) {
+  const { t } = useTranslation();
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const blocker = useBlocker(when);
 
-  const title = options?.title ?? 'Unsaved changes';
-  const description =
-    options?.description ?? 'You have unsaved changes that will be lost. Leave without saving?';
+  const title = options?.title ?? t('unsavedChanges.title');
+  const description = options?.description ?? t('unsavedChanges.description');
 
   useEffect(() => {
     if (blocker.state !== 'blocked') return;
@@ -22,8 +23,8 @@ export function useUnsavedChangesGuard(when: boolean, options?: GuardOptions) {
     showConfirmDialog({
       title,
       description,
-      confirmText: 'Stay',
-      cancelText: 'Leave',
+      confirmText: t('unsavedChanges.stay'),
+      cancelText: t('unsavedChanges.leave'),
     }).then((stay) => {
       if (!active) return;
       if (stay) blocker.reset();
@@ -32,7 +33,7 @@ export function useUnsavedChangesGuard(when: boolean, options?: GuardOptions) {
     return () => {
       active = false;
     };
-  }, [blocker, showConfirmDialog, title, description]);
+  }, [blocker, showConfirmDialog, title, description, t]);
 
   useEffect(() => {
     if (!when) return;

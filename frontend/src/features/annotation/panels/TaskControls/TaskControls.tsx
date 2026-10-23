@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { AnnotationTaskOut } from '~/api/client';
 import { isLabelGroupActive } from '../../campaign/annotation';
@@ -31,6 +32,7 @@ function loadTaskIntoForm(task: AnnotationTaskOut | null, currentUserId: string 
 }
 
 export function TaskControls() {
+  const { t } = useTranslation('panels');
   const campaign = useCampaign();
   const catalog = useCatalog();
   const currentUserId = useCampaignStore((s) => s.currentUserId);
@@ -76,10 +78,10 @@ export function TaskControls() {
   });
 
   if (!loaded) {
-    return <div className="p-3 text-xs text-neutral-500">Loading tasks…</div>;
+    return <div className="p-3 text-xs text-neutral-500">{t('task.loading')}</div>;
   }
   if (!task) {
-    return <div className="p-3 text-xs text-neutral-500">No tasks match the current filter.</div>;
+    return <div className="p-3 text-xs text-neutral-500">{t('task.noMatch')}</div>;
   }
 
   return (
@@ -104,10 +106,10 @@ export function TaskControls() {
               } focus:outline-none`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className={sectionHeaderClass(labelGroupActive)}>Label</span>
+                <span className={sectionHeaderClass(labelGroupActive)}>{t('task.label')}</span>
                 <label
                   className="flex items-center gap-1.5 cursor-pointer select-none"
-                  title="Validate against prior labels using embedding similarity (kNN)"
+                  title={t('task.validateTitle')}
                 >
                   <span className="relative">
                     <input
@@ -119,7 +121,7 @@ export function TaskControls() {
                     <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
                     <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
                   </span>
-                  <span className="text-[10px] text-neutral-600">Validate</span>
+                  <span className="text-[10px] text-neutral-600">{t('task.validate')}</span>
                 </label>
               </div>
               <LabelGrid

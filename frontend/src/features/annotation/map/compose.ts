@@ -1,6 +1,7 @@
 import { type ImageryCatalog } from '../campaign/imagery';
 import { type ImageryNavState } from '../campaign/imageryNav';
 import { apiUrl } from '~/api/base';
+import i18n from '~/shared/i18n';
 import { basemapAttribution, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
 import { sliceRaster } from '../campaign/tileUrls';
 import { applyRenderOverride, type LegendOverride } from '~/shared/imagery/tileColors';
@@ -13,6 +14,8 @@ import {
 import type { ExtendedLabel } from '../campaign/annotation';
 import type { OriginTask, WorkMode } from '../stores/campaign';
 import type { GeoFeature, LayerId, LayerSpec, LonLat, StyleSpec } from '~/shared/map/types';
+
+const t = i18n.getFixedT(null, 'annotation');
 
 export const TILE_SKELETON_LAYER_ID = 'tile-skeleton';
 export const ANNOTATION_LAYER_ID = 'annotations';
@@ -456,7 +459,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
           stroke: { color: DEFAULT_CROSSHAIR_COLOR, width: 2.5 },
         },
         text: {
-          label: `Task #${state.originTask.annotationNumber}`,
+          label: t('map.originTask', { number: state.originTask.annotationNumber }),
           color: DEFAULT_CROSSHAIR_COLOR,
           haloColor: '#ffffff',
           offsetY: -CROSSHAIR_SIZE_PX,

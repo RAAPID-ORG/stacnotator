@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createProjectMutation, listProjectsQueryKey } from '~/api/queries';
@@ -19,6 +20,7 @@ import { ProjectVisibilityPicker } from '../components/ProjectVisibilityPicker';
 import { type ProjectVisibility } from '../components/projectVisibility';
 
 export const NewProjectPage = () => {
+  const { t } = useTranslation(['projects', 'common']);
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const showAlert = useLayoutStore((s) => s.showAlert);
@@ -34,18 +36,21 @@ export const NewProjectPage = () => {
 
   const create = useMutation({
     ...createProjectMutation(),
-    meta: { errorMessage: 'Failed to create project' },
+    meta: { errorMessage: t('new.createFailed') },
     onSuccess: (project) => {
       void queryClient.invalidateQueries({ queryKey: listProjectsQueryKey() });
-      showAlert('Project created', 'success');
+      showAlert(t('new.created'), 'success');
       navigate(project ? projectPath(project.id) : projectsPath());
     },
   });
   const submitting = create.isPending;
 
   useEffect(() => {
-    setBreadcrumbs([{ label: 'Projects', path: projectsPath() }, { label: 'New project' }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([
+      { label: t('breadcrumb'), path: projectsPath() },
+      { label: t('new.breadcrumb') },
+    ]);
+  }, [setBreadcrumbs, t]);
 
   useEffect(() => {
     if (organizations.length === 0) return;
@@ -73,10 +78,8 @@ export const NewProjectPage = () => {
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">Create a new project</h1>
-            <p className="page-subtitle">
-              A project groups campaigns and the people working on them.
-            </p>
+            <h1 className="page-title">{t('new.title')}</h1>
+            <p className="page-subtitle">{t('new.subtitle')}</p>
           </div>
         </header>
 
@@ -86,31 +89,26 @@ export const NewProjectPage = () => {
           <div className="surface">
             <div className="surface-section text-center py-16">
               <p className="text-base text-neutral-800 font-medium mb-1">
-                Could not load organizations
+                {t('new.orgsLoadFailedTitle')}
               </p>
               <p className="text-sm text-neutral-500 mb-5">
-                {extractErrorMessage(error, 'Failed to load organizations')}
+                {extractErrorMessage(error, t('new.orgsLoadFailed'))}
               </p>
               <Button variant="secondary" onClick={() => refreshOrganizations()}>
-                Try again
+                {t('new.tryAgain')}
               </Button>
             </div>
           </div>
         ) : organizations.length === 0 ? (
           <div className="surface">
             <div className="surface-section text-center py-16">
-              <p className="text-base text-neutral-800 font-medium mb-1">
-                No organization to create in
-              </p>
-              <p className="text-sm text-neutral-500 mb-5">
-                Projects live inside an organization. Ask an organization admin to add you, or
-                request a new organization for your team.
-              </p>
+              <p className="text-base text-neutral-800 font-medium mb-1">{t('new.noOrgTitle')}</p>
+              <p className="text-sm text-neutral-500 mb-5">{t('new.noOrgBody')}</p>
               <Button
                 onClick={() => navigate(newOrganizationPath())}
                 leading={<IconPlus className="w-4 h-4" />}
               >
-                New organization
+                {t('new.newOrganization')}
               </Button>
             </div>
           </div>
@@ -123,7 +121,7 @@ export const NewProjectPage = () => {
             }}
           >
             <div className="surface-section space-y-5">
-              <Field label="Organization" htmlFor="project-organization" required>
+              <Field label={t('new.organization')} htmlFor="project-organization" required>
                 <Select
                   id="project-organization"
                   value={organizationId ?? ''}
@@ -137,35 +135,35 @@ export const NewProjectPage = () => {
                 </Select>
               </Field>
 
-              <Field label="Name" htmlFor="project-name" required>
+              <Field label={t('new.name')} htmlFor="project-name" required>
                 <Input
                   id="project-name"
-                  placeholder="Your project name…"
+                  placeholder={t('new.namePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </Field>
 
-              <Field label="Description" htmlFor="project-description">
+              <Field label={t('new.description')} htmlFor="project-description">
                 <Textarea
                   id="project-description"
-                  placeholder="What is this project about?"
+                  placeholder={t('new.descriptionPlaceholder')}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </Field>
 
-              <Field label="Visibility">
+              <Field label={t('new.visibility')}>
                 <ProjectVisibilityPicker value={visibility} onChange={setVisibility} />
               </Field>
             </div>
 
             <div className="surface-section flex items-center justify-end gap-3">
               <Button variant="secondary" onClick={() => navigate(projectsPath())}>
-                Cancel
+                {t('common:actions.cancel')}
               </Button>
               <Button type="submit" disabled={submitting || !name.trim()}>
-                {submitting ? 'Creating…' : 'Create project'}
+                {submitting ? t('new.creating') : t('new.create')}
               </Button>
             </div>
           </form>

@@ -1,3 +1,4 @@
+import i18n from '~/shared/i18n';
 import type {
   AnnotationFromTaskOut,
   AnnotationTaskAssignmentOut,
@@ -5,6 +6,8 @@ import type {
   TaskSetOut,
 } from '~/api/client';
 import type { TaskStatus } from './annotation';
+
+const t = i18n.getFixedT(null, 'annotation');
 
 // ---------------------------------------------------------------------------
 // Soft claims
@@ -53,8 +56,10 @@ export function claimedByLabel(
 ): string | null {
   const claim = getActiveClaim(task, now);
   if (!claim) return null;
-  if (claim.userId === currentUserId) return 'Claimed by you';
-  return `${claim.displayName || 'Someone else'} is working on this`;
+  if (claim.userId === currentUserId) return t('claims.you');
+  return t('claims.other', {
+    name: claim.displayName || t('claims.someoneElse'),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +202,7 @@ export function applyTaskFilter(
   });
 
   const preferred =
-    preferTaskId != null ? visibleTasks.findIndex((t) => t.id === preferTaskId) : -1;
+    preferTaskId != null ? visibleTasks.findIndex((task) => task.id === preferTaskId) : -1;
   return { visibleTasks, suggestedIndex: preferred >= 0 ? preferred : 0 };
 }
 
@@ -216,7 +221,7 @@ export function widenFilterForTask(
 ): TaskFilter {
   const shows = (candidate: TaskFilter) =>
     applyTaskFilter(allTasks, candidate, currentUserId, now).visibleTasks.some(
-      (t) => t.id === taskId
+      (task) => task.id === taskId
     );
   if (shows(filter)) return filter;
 
@@ -260,7 +265,8 @@ export function seedFilter(
     deepLink.taskSetId !== undefined && taskSets.some((s) => s.id === deepLink.taskSetId)
       ? deepLink.taskSetId
       : null;
-  const setId = linked !== null && allTasks.some((t) => t.task_set_id === linked) ? linked : null;
+  const setId =
+    linked !== null && allTasks.some((task) => task.task_set_id === linked) ? linked : null;
   const showAll = deepLink.isPublic === true;
 
   const pending = (assignedTo: string[], taskSetId: number | null = null): TaskFilter => ({
@@ -282,7 +288,7 @@ export function seedFilter(
     if (nonEmpty(filter)) return filter;
   }
   if (setId !== null) {
-    const workLeft = allTasks.some((t) => t.task_set_id === setId && !isResolved(t));
+    const workLeft = allTasks.some((task) => task.task_set_id === setId && !isResolved(task));
     if (!workLeft) return pending([], setId);
     filter = {
       assignedTo: [],

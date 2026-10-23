@@ -1,0 +1,112 @@
+{
+  "breadcrumb": "Settings",
+  "title": "Settings",
+  "subtitle": "Manage your profile and sign-in.",
+  "refresh": "Refresh",
+  "processing": "Processing...",
+  "tabs": {
+    "organizations": "Organizations",
+    "users": "Users",
+    "organizationsToReview": "organizations to review"
+  },
+  "profile": {
+    "title": "Profile information",
+    "email": "Email",
+    "username": "Username",
+    "usernamePlaceholder": "e.g. ada.lovelace",
+    "noUsername": "No username set",
+    "role": "Role",
+    "administrator": "Administrator"
+  },
+  "language": {
+    "title": "Language",
+    "description": "The language of the interface on this device."
+  },
+  "password": {
+    "title": "Change password",
+    "description": "Update the password you use to sign in.",
+    "change": "Change password",
+    "current": "Current password",
+    "new": "New password",
+    "confirmNew": "Confirm new password",
+    "saving": "Saving…",
+    "update": "Update password",
+    "errors": {
+      "missingFields": "Please fill in all fields.",
+      "mismatch": "New passwords do not match.",
+      "requirements": "Password must be at least 8 characters with uppercase, lowercase, number, and special character.",
+      "failed": "Failed to change password. Please try again."
+    }
+  },
+  "platformAdmin": {
+    "title": "Platform admin",
+    "subtitle": "Approve organizations and manage platform administrators."
+  },
+  "platform": {
+    "usersHeading": "Platform users <count>({{count}})</count>",
+    "organizationsHeading": "Organizations <count>({{count}})</count>"
+  },
+  "toasts": {
+    "loadUsersFailed": "Failed to load users",
+    "loadTilersFailed": "Failed to load tilers",
+    "grantAdminFailed": "Failed to grant admin",
+    "adminGranted": "{{count}} user(s) granted admin successfully",
+    "revokeAdminFailed": "Failed to revoke admin",
+    "adminRevoked": "{{count}} admin role(s) revoked successfully",
+    "approveOrgFailed": "Failed to approve organization",
+    "rejectOrgFailed": "Failed to reject organization",
+    "internalStorageFailed": "Failed to update internal storage",
+    "saveAccessFailed": "Failed to save organization access",
+    "loadAccessFailed": "Failed to load organization access",
+    "usernameFailed": "Failed to update username",
+    "usernameUpdated": "Username updated",
+    "orgApproved": "Organization '{{name}}' approved",
+    "orgRejected": "Organization '{{name}}' rejected",
+    "internalStorageUpdated": "Internal storage updated",
+    "tileAccessUpdated": "Tile access updated",
+    "passwordChanged": "Password changed successfully",
+    "noAccessChanges": "No access changes to apply"
+  },
+  "usersTable": {
+    "selected_one": "{{count}} user selected",
+    "selected_other": "{{count}} users selected",
+    "makeAdmin": "Make admin",
+    "revokeAdmin": "Revoke admin",
+    "email": "Email",
+    "username": "Username",
+    "role": "Role",
+    "actions": "Actions",
+    "loading": "Loading users…",
+    "empty": "No users found",
+    "admin": "Admin",
+    "user": "User"
+  },
+  "orgsTable": {
+    "organization": "Organization",
+    "status": "Status",
+    "internalStorage": "Internal storage",
+    "actions": "Actions",
+    "loading": "Loading organizations…",
+    "empty": "No organizations found",
+    "allowed": "Allowed",
+    "off": "Off",
+    "close": "Close",
+    "editAccess": "Edit access",
+    "approve": "Approve",
+    "reject": "Reject",
+    "tileAccess": "Tile access",
+    "saving": "Saving…",
+    "saveAccess": "Save access",
+    "statuses": {
+      "pending": "pending",
+      "approved": "approved",
+      "rejected": "rejected"
+    },
+    "confirm": {
+      "approveTitle": "Approve {{name}}?",
+      "rejectTitle": "Reject {{name}}?",
+      "approveDescription": "Members will be able to create projects and campaigns under this organization.",
+      "rejectDescription": "Members lose access to this organization until it is approved again."
+    }
+  }
+}

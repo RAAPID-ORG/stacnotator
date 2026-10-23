@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { campaignPath, projectPath, projectsPath } from '~/app/routes';
 import { useProject } from '~/app/projectRoute';
 import { useLayoutStore } from '~/shared/stores/layout.store';
@@ -12,19 +13,20 @@ export function useCampaignBreadcrumbs(
   campaignName: string | undefined,
   subpage?: string
 ) {
+  const { t } = useTranslation();
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const projectName = useProject(projectId).project?.name ?? null;
 
   useEffect(() => {
     if (!campaignName) return;
     setBreadcrumbs([
-      { label: 'Projects', path: projectsPath() },
+      { label: t('nav.projects'), path: projectsPath() },
       {
-        label: projectName ? capitalizeFirst(projectName) : 'Project',
+        label: projectName ? capitalizeFirst(projectName) : t('nav.project'),
         path: projectPath(projectId),
       },
       { label: capitalizeFirst(campaignName), path: campaignPath(projectId, campaignId) },
       ...(subpage ? [{ label: subpage }] : []),
     ]);
-  }, [projectId, campaignId, campaignName, projectName, subpage, setBreadcrumbs]);
+  }, [projectId, campaignId, campaignName, projectName, subpage, setBreadcrumbs, t]);
 }

@@ -1,0 +1,845 @@
+{
+  "breadcrumbs": {
+    "projects": "Proyectos",
+    "project": "Proyecto",
+    "newCampaign": "Nueva campaña"
+  },
+  "errors": {
+    "loadProject": "No se pudo cargar el proyecto",
+    "loadProjectMembers": "No se pudieron cargar los miembros del proyecto",
+    "createCampaign": "No se pudo crear la campaña",
+    "loadTaskLocations": "No se pudieron cargar las ubicaciones de las tareas",
+    "loadCampaign": "No se pudo cargar la campaña",
+    "loadTasks": "No se pudieron cargar las tareas",
+    "loadTaskSets": "No se pudieron cargar los conjuntos de tareas",
+    "loadStatistics": "No se pudieron cargar las estadísticas",
+    "loadAnnotations": "No se pudieron cargar las anotaciones",
+    "loadAnnotationCounts": "No se pudieron cargar los recuentos de anotaciones",
+    "loadProjects": "No se pudieron cargar los proyectos",
+    "duplicateCampaign": "No se pudo duplicar la campaña",
+    "loadAgents": "No se pudieron cargar los agentes de etiquetado"
+  },
+  "wizard": {
+    "title": "Nueva campaña",
+    "steps": {
+      "campaign": "Campaña",
+      "settings": "Configuración",
+      "imagery": "Imágenes",
+      "timeseries": "Series temporales",
+      "create": "Crear"
+    },
+    "continue": "Continuar",
+    "create": "Crear campaña",
+    "creating": "Creando...",
+    "creatingOverlay": "Creando campaña...",
+    "created": "Campaña creada correctamente",
+    "createdRegistering": "Campaña creada. El registro de mosaicos se está ejecutando en segundo plano...",
+    "fixIssues_one": "Corrige {{count}} problema para continuar",
+    "fixIssues_many": "Corrige {{count}} problemas para continuar",
+    "fixIssues_other": "Corrige {{count}} problemas para continuar",
+    "advancedOptions": {
+      "title": "Opciones avanzadas",
+      "description": "La mayoría de las campañas deberían mantener la configuración de acceso predeterminada. Despliega para elegir quién puede etiquetar, completar tareas o editar las anotaciones de otras personas."
+    },
+    "campaign": {
+      "nameLabel": "Nombre de la campaña",
+      "nameHint": "Elige un nombre que un colega reconozca dentro de unos meses, p. ej., “Maíz Malawi 2024” en lugar de “prueba 3”.",
+      "namePlaceholder": "Nombre de tu campaña…"
+    },
+    "access": {
+      "title": "Acceso al etiquetado",
+      "description": "Todas las campañas admiten tanto el etiquetado tarea por tarea como la exploración libre: los anotadores pueden cambiar entre ambos en cualquier momento desde la vista de anotación. Las reglas siguientes deciden quién puede etiquetar qué y qué etiquetas cuentan para completar una tarea. Puedes cambiar todo esto más adelante en la configuración de la campaña.",
+      "rulesHint": "Cada regla es una lista de grupos. Pasa el cursor sobre un grupo para ver a quién incluye. Dejar una regla vacía desactiva esa actividad para todos.",
+      "membersHint": "Los miembros vienen del proyecto; adminístralos en la pestaña Miembros del proyecto."
+    },
+    "review": {
+      "intro": "Revisa todo antes de crear la campaña.",
+      "stepError": "{{step}}: {{message}}"
+    },
+    "settings": {
+      "labelsTitle": "Nombres de las clases de anotación",
+      "labelsDescription": "Define las distintas clases que los anotadores pueden asignar a las formas o entre las que pueden elegir al etiquetar.",
+      "labelsExample": "<label>Ejemplo:</label> En un estudio de cultivos quizá quieras identificar todos los campos con maíz, yuca o barbecho, así como las granjas. Esos serían los nombres de tus clases. Solo necesitas elegir un tipo de geometría para cada clase si piensas permitir que los usuarios dibujen sus formas. En nuestro caso, elegirías polígono como tipo de geometría para los 3 tipos de campo y quizá punto para una granja.",
+      "formTitle": "Preguntas adicionales del formulario",
+      "formDescription": "Añade preguntas extra a las anotaciones. Te permiten recoger detalles adicionales más allá de la etiqueta de clase principal.",
+      "formExample": "<label>Ejemplo:</label> Si acabas de dibujar un campo de maíz, quizá quieras distinguir la etapa del cultivo. Podrías definir un campo personalizado “¿Etapa del cultivo?” con <em>“¿Etapa del cultivo?”</em> como título y <em>“Plántula / Madura / Cosechada”</em> como opciones.",
+      "embeddingTitle": "Año de los embeddings satelitales",
+      "embeddingDescription": "Experimental. Si lo defines, se obtienen embeddings satelitales del año elegido para habilitar la validación de etiquetas basada en KNN durante la anotación: cada etiqueta nueva se compara con los embeddings de todas las existentes. Déjalo en Ninguno salvo que pienses usarlo.",
+      "embeddingNone": "Ninguno (validación desactivada)"
+    }
+  },
+  "validation": {
+    "summaryTitle": "Resuelve los siguientes problemas antes de crear la campaña:",
+    "successTitle": "Todo está configurado",
+    "successBody": "Todos los pasos superaron la validación. Crea la campaña a continuación.",
+    "nameRequired": "El nombre de la campaña es obligatorio.",
+    "settingsRequired": "La configuración es obligatoria.",
+    "bboxRequired": "Las cuatro coordenadas del recuadro delimitador son obligatorias.",
+    "bboxRange": "La longitud debe estar entre -180 y 180, y la latitud entre -90 y 90.",
+    "bboxWestEast": "La longitud oeste debe ser menor que la longitud este. Un área no puede cruzar el antimeridiano (180°): dibújala a un solo lado.",
+    "bboxSouthNorth": "La latitud sur debe ser menor que la latitud norte.",
+    "labelsRequired": "Se requiere al menos una etiqueta.",
+    "emptyLabels_one": "{{count}} etiqueta tiene el nombre vacío.",
+    "emptyLabels_many": "{{count}} etiquetas tienen el nombre vacío.",
+    "emptyLabels_other": "{{count}} etiquetas tienen el nombre vacío.",
+    "sourcesRequired": "Añade al menos una fuente de imágenes.",
+    "sourceNameRequired": "Fuente {{index}}: el nombre es obligatorio.",
+    "vizRequired": "Fuente \"{{source}}\": se requiere al menos una visualización.",
+    "vizUnnamed_one": "Fuente \"{{source}}\": {{count}} visualización no tiene nombre.",
+    "vizUnnamed_many": "Fuente \"{{source}}\": {{count}} visualizaciones no tienen nombre.",
+    "vizUnnamed_other": "Fuente \"{{source}}\": {{count}} visualizaciones no tienen nombre.",
+    "collectionsRequired": "Fuente \"{{source}}\": se requiere al menos una colección.",
+    "noSlices": "Fuente \"{{source}}\", colección \"{{collection}}\": no tiene cortes temporales.",
+    "missingVizUrls_one": "Fuente \"{{source}}\", colección \"{{collection}}\": a {{count}} corte le faltan URL de visualización.",
+    "missingVizUrls_many": "Fuente \"{{source}}\", colección \"{{collection}}\": a {{count}} cortes les faltan URL de visualización.",
+    "missingVizUrls_other": "Fuente \"{{source}}\", colección \"{{collection}}\": a {{count}} cortes les faltan URL de visualización.",
+    "timeseries": {
+      "name": "Serie temporal {{index}}: el nombre es obligatorio.",
+      "start": "Serie temporal {{index}}: la fecha de inicio es obligatoria.",
+      "end": "Serie temporal {{index}}: la fecha de fin es obligatoria.",
+      "dates": "Serie temporal {{index}}: la fecha de inicio debe ser anterior a la fecha de fin.",
+      "source": "Serie temporal {{index}}: la fuente de datos es obligatoria.",
+      "provider": "Serie temporal {{index}}: el proveedor es obligatorio.",
+      "type": "Serie temporal {{index}}: el tipo es obligatorio."
+    },
+    "formFields": {
+      "fallbackName": "campo {{id}}",
+      "uniqueTitles": "Los títulos de los campos deben ser únicos.",
+      "needsTitle": "El campo {{id}} necesita un título.",
+      "needsOption": "\"{{field}}\" necesita al menos una opción.",
+      "unnamedOption": "\"{{field}}\" tiene una opción sin nombre.",
+      "minAboveMax": "\"{{field}}\" tiene un mínimo mayor que su máximo."
+    }
+  },
+  "settingsPage": {
+    "discard": "Descartar",
+    "saving": "Guardando…",
+    "saveChanges": "Guardar cambios",
+    "imagery": {
+      "unsavedTitle": "Cambios de imágenes sin guardar",
+      "unsavedHint": "- tus ediciones son locales hasta que guardes.",
+      "leaveDescription": "Tus ediciones de imágenes no se han guardado y se perderán. ¿Salir sin guardar?"
+    },
+    "timeseries": {
+      "addCount_one": "Añadir {{count}} serie temporal",
+      "addCount_many": "Añadir {{count}} series temporales",
+      "addCount_other": "Añadir {{count}} series temporales"
+    },
+    "setupFailed": "La configuración en segundo plano terminó con algunos errores. Revisa la configuración.",
+    "setupDone": "La configuración de la campaña terminó correctamente",
+    "errors": {
+      "saveName": "No se pudo guardar el nombre de la campaña",
+      "deleteCampaign": "No se pudo eliminar la campaña",
+      "deleteTimeseries": "No se pudo eliminar la serie temporal",
+      "addTimeseries": "No se pudieron añadir las series temporales",
+      "renamePanel": "No se pudo renombrar el panel de series temporales"
+    },
+    "toasts": {
+      "nameSaved": "Nombre de la campaña actualizado correctamente",
+      "campaignDeleted": "Campaña eliminada correctamente",
+      "timeseriesDeleted": "Serie temporal eliminada correctamente",
+      "timeseriesAdded_one": "Se añadió {{count}} serie temporal correctamente",
+      "timeseriesAdded_many": "Se añadieron {{count}} series temporales correctamente",
+      "timeseriesAdded_other": "Se añadieron {{count}} series temporales correctamente",
+      "panelRenamed": "Panel renombrado correctamente"
+    },
+    "subtitle": "Gestiona la configuración y las imágenes de tu campaña.",
+    "waitingForSetup": "Esperando a que termine la configuración en segundo plano...",
+    "banners": {
+      "registering": "<strong>Registro de mosaicos en curso...</strong> Se están registrando las imágenes de teselas desde el catálogo STAC.",
+      "embedding": "<strong>Generación de embeddings en curso...</strong> Se están calculando los embeddings satelitales para el área de la campaña. Puedes configurar otros ajustes mientras esperas.",
+      "registrationFailed": "<strong>Fallaron algunos registros de mosaicos.</strong> La campaña se puede usar, pero pueden faltar algunas teselas. Revisa la pestaña Imágenes para volver a registrar colecciones concretas.",
+      "showErrors_one": "Mostrar {{count}} error",
+      "showErrors_many": "Mostrar {{count}} errores",
+      "showErrors_other": "Mostrar {{count}} errores",
+      "moreErrors_one": "...y {{count}} más",
+      "moreErrors_many": "...y {{count}} más",
+      "moreErrors_other": "...y {{count}} más",
+      "embeddingFailed": "<strong>Falló la generación de embeddings.</strong> La campaña se puede usar, pero las funciones basadas en embeddings (búsqueda por similitud) no estarán disponibles."
+    },
+    "tabs": {
+      "general": "Configuración general",
+      "imagery": "Imágenes",
+      "timeseries": "Series temporales"
+    },
+    "deleteTimeseries": {
+      "title": "¿Eliminar la serie temporal?",
+      "description": "Esta acción no se puede deshacer. La serie temporal se eliminará de forma permanente de la campaña."
+    }
+  },
+  "notFound": "Campaña no encontrada",
+  "reviewPage": {
+    "breadcrumb": "Anotaciones",
+    "importAnnotations": "Importar anotaciones"
+  },
+  "deleteDialog": {
+    "title": "Eliminar campaña",
+    "warning": "Esta acción <strong>no se puede deshacer</strong>. Se eliminarán de forma permanente la campaña <name>\"{{name}}\"</name> y todos sus datos asociados:",
+    "items": {
+      "tasks": "Todas las tareas de anotación",
+      "annotations": "Todas las anotaciones de los usuarios",
+      "imagery": "Todas las configuraciones de imágenes",
+      "timeseries": "Todas las configuraciones de series temporales",
+      "settings": "Toda la configuración de la campaña"
+    },
+    "typeToConfirm": "Escribe <name>{{name}}</name> para confirmar:",
+    "placeholder": "Escribe aquí el nombre de la campaña",
+    "confirm": "Eliminar campaña"
+  },
+  "moveTasks": {
+    "title_one": "Mover {{count}} tarea a otro conjunto",
+    "title_many": "Mover {{count}} tareas a otro conjunto",
+    "title_other": "Mover {{count}} tareas a otro conjunto",
+    "selectTarget": "Selecciona el conjunto de destino",
+    "setOption_one": "{{name}} ({{count}} tarea)",
+    "setOption_many": "{{name}} ({{count}} tareas)",
+    "setOption_other": "{{name}} ({{count}} tareas)",
+    "orCreate": "o crea un conjunto nuevo",
+    "newSetPlaceholder": "Nombre del nuevo conjunto",
+    "moving": "Moviendo…",
+    "move": "Mover"
+  },
+  "taskLocations": {
+    "title_one": "Ubicaciones de las tareas ({{count}} en total)",
+    "title_many": "Ubicaciones de las tareas ({{count}} en total)",
+    "title_other": "Ubicaciones de las tareas ({{count}} en total)"
+  },
+  "assignmentsIO": {
+    "exportFailed": "No se pudieron exportar las asignaciones de tareas",
+    "importFailed": "No se pudieron importar las asignaciones de tareas",
+    "exported": "Asignaciones de tareas exportadas",
+    "imported": "Asignaciones de tareas importadas",
+    "importSummary": "Tareas actualizadas: {{tasks}}; anotadores asignados: {{assignees}}; revisores: {{reviewers}}",
+    "exporting": "Exportando…",
+    "export": "Exportar",
+    "chooseCsv": "Elegir CSV",
+    "importing": "Importando…",
+    "import": "Importar",
+    "taskSetScope": "Solo exporta este conjunto de tareas. Las importaciones se aplican a toda la campaña, emparejadas por número de anotación."
+  },
+  "labelsEditor": {
+    "classPlaceholder": "Nombre de la clase",
+    "geometry": {
+      "point": "Punto",
+      "polygon": "Polígono",
+      "line": "Línea"
+    },
+    "removeLabel": "Eliminar etiqueta",
+    "addClass": "+ Añadir clase"
+  },
+  "importFeatures": {
+    "wrongFileType": "Sube un archivo .geojson o .json",
+    "failed": "No se pudieron importar las entidades",
+    "success_one": "{{count}} entidad importada correctamente",
+    "success_many": "{{count}} entidades importadas correctamente",
+    "success_other": "{{count}} entidades importadas correctamente",
+    "title": "Importar entidades existentes",
+    "description": "Sube un archivo GeoJSON con entidades existentes. Cada entidad debe tener una propiedad <code>stacnotator_label_id</code> cuyo valor sea uno de los id de etiqueta de esta campaña (listados abajo). La importación se rechaza si alguna entidad no tiene etiqueta o usa un id de etiqueta que no pertenece a esta campaña.",
+    "labelIds": "Id de etiquetas de la campaña",
+    "noLabels": "Esta campaña no tiene etiquetas definidas.",
+    "fileLabel": "Archivo GeoJSON",
+    "confirm": "Confirmo que los id de etiqueta de mi archivo coinciden con los de esta campaña.",
+    "importing": "Importando...",
+    "submit": "Importar entidades"
+  },
+  "assignSelected": {
+    "title_one": "Asignar {{count}} tarea seleccionada",
+    "title_many": "Asignar {{count}} tareas seleccionadas",
+    "title_other": "Asignar {{count}} tareas seleccionadas",
+    "mode": "Modo de asignación",
+    "everyUser": "Cada usuario seleccionado en cada tarea",
+    "distribute": "Repartir las tareas equitativamente entre los usuarios seleccionados",
+    "selectUsers": "Seleccionar usuarios",
+    "searchPlaceholder": "Busca por nombre o correo…",
+    "noMatches": "Ningún usuario coincide con tu búsqueda",
+    "assigning": "Asignando…",
+    "assign": "Asignar"
+  },
+  "taskScope": {
+    "allTasks": "Todas las tareas",
+    "managedSet": "Conjunto gestionado",
+    "renameSet": "Renombrar conjunto",
+    "deleteSet": "Eliminar conjunto",
+    "needsOneSet": "Una campaña necesita al menos un conjunto de tareas",
+    "setNamePlaceholder": "Nombre del conjunto",
+    "createSet": "Crear conjunto",
+    "cancelCreate": "Cancelar la creación del conjunto",
+    "newSet": "+ Nuevo conjunto",
+    "deleteTitle": "¿Eliminar el conjunto de tareas \"{{name}}\"?",
+    "deleteDescription_one": "Esto elimina de forma permanente el conjunto y su {{count}} tarea con todas las anotaciones asociadas. Esta acción no se puede deshacer.",
+    "deleteDescription_many": "Esto elimina de forma permanente el conjunto y sus {{count}} tareas con todas las anotaciones asociadas. Esta acción no se puede deshacer.",
+    "deleteDescription_other": "Esto elimina de forma permanente el conjunto y sus {{count}} tareas con todas las anotaciones asociadas. Esta acción no se puede deshacer."
+  },
+  "optional": "(opcional)",
+  "vectorLayers": {
+    "loadFailed": "No se pudieron cargar las capas vectoriales",
+    "addFailed": "No se pudo añadir la capa vectorial",
+    "deleteFailed": "No se pudo eliminar la capa vectorial",
+    "title": "Capas vectoriales (PMTiles)",
+    "description": "Actívalas o desactívalas en el modo abierto, pasa el cursor para resaltar y etiqueta entidades haciendo clic con la herramienta Etiquetar vector.",
+    "add": "+ Añadir capa vectorial",
+    "loadError": "No se pudieron cargar las capas vectoriales.",
+    "tryAgain": "Reintentar",
+    "empty": "No hay capas vectoriales configuradas.",
+    "deleteLayer": "Eliminar capa vectorial",
+    "name": "Nombre",
+    "namePlaceholder": "Predicciones de campos",
+    "sourceLayer": "Capa de origen",
+    "allLayers": "Todas las capas",
+    "url": "URL de PMTiles",
+    "hints": {
+      "archive": "Debe ser un <strong>archivo vectorial PMTiles</strong> (`.pmtiles`): el navegador lo lee directamente, sin necesidad de tiler.",
+      "https": "Accesible por HTTPS: una URL pública o una que incluya un token SAS.",
+      "sourceLayer": "Indica una capa de origen para mostrar solo esa capa del archivo; déjalo en blanco para todas."
+    },
+    "colour": "Color",
+    "layerColour": "Color de la capa",
+    "adding": "Añadiendo…",
+    "addLayer": "Añadir capa"
+  },
+  "duplicate": {
+    "yes": "Sí",
+    "no": "No",
+    "title": "Duplicar \"{{name}}\"",
+    "answerFirst": "Responde primero a las preguntas",
+    "duplicating": "Duplicando…",
+    "submit": "Duplicar campaña",
+    "intro": "Crea una campaña nueva con la misma configuración: fuentes de imágenes y visualizaciones, vistas y diseños, etiquetas y formularios, política de etiquetado, series temporales, mapas base y capas superpuestas. Ajusta la copia después en su configuración.",
+    "copyInto": "Copiar en",
+    "adminOnlyHint": "Solo los proyectos que administras pueden recibir una campaña.",
+    "thisProject": "Este proyecto",
+    "crossProjectNotice": "Las anotaciones, las asignaciones de tareas y los diseños personales <strong>no</strong> se copian a otro proyecto: las personas que mencionan no tienen por qué ser miembros allí. Solo se copian la configuración y, si las conservas, las ubicaciones de las tareas.",
+    "tasks": {
+      "title": "¿Duplicar también las tareas?",
+      "crossProject": "Copia todas las ubicaciones de tareas y los conjuntos de tareas. Llegan sin asignar y sin progreso.",
+      "sameProject": "Copia todas las ubicaciones de tareas y los conjuntos de tareas. El progreso de las tareas empieza de cero salvo que también se copien las anotaciones."
+    },
+    "assignments": {
+      "title": "¿Conservar las asignaciones de tareas?",
+      "body": "Copia las asignaciones explícitas a anotadores. Sin ellas, cualquier tarea de la copia queda abierta para que cualquiera la tome. Las tareas que tiene un agente de etiquetado siempre llegan libres: un agente está registrado para una sola campaña y no puede trabajar en la copia."
+    },
+    "annotations": {
+      "title": "¿Duplicar también las anotaciones?",
+      "body": "Copia todas las etiquetas existentes, con su autor y sus marcas de tiempo, a la nueva campaña."
+    },
+    "layouts": {
+      "title": "¿Conservar los diseños personales?",
+      "body": "Copia la disposición de las ventanas del lienzo que cada usuario guardó para sí mismo."
+    },
+    "withoutTasksNotice": "Sin tareas, solo se copian las anotaciones que no están vinculadas a una tarea (etiquetas del modo abierto)."
+  },
+  "assignAll": {
+    "failed": "La asignación falló",
+    "title": "Asignar todas las tareas",
+    "available_one": "{{count}} tarea sin asignar disponible",
+    "available_many": "{{count}} tareas sin asignar disponibles",
+    "available_other": "{{count}} tareas sin asignar disponibles",
+    "mode": "Modo de asignación",
+    "distributeEvenly": "Repartir equitativamente",
+    "fixedCount": "N tareas por usuario",
+    "evenlyHelp": "Todas las tareas sin asignar o aún no completadas se reparten lo más equitativamente posible entre los usuarios seleccionados. Cada usuario recibe ⌊N/usuarios⌋ o ⌈N/usuarios⌉ tareas, asignadas en orden aleatorio.",
+    "fixedHelp": "Cada usuario recibe exactamente el número de tareas que indiques. Las tareas se toman al azar del conjunto; una vez tomada, una tarea no se asigna a nadie más.",
+    "selectUsers": "Seleccionar usuarios",
+    "selectUsersAndCounts": "Seleccionar usuarios y número de tareas",
+    "deselectAll": "Deseleccionar todos",
+    "selectAll": "Seleccionar todos",
+    "admin": "Administrador",
+    "authoritativeReviewer": "Revisor autoritativo",
+    "tasksLabel": "Tareas:",
+    "previewEven_one": "<strong>Vista previa:</strong> se asignará {{count}} tarea repartida equitativamente entre {{users}} usuario(s)",
+    "previewEven_many": "<strong>Vista previa:</strong> se asignarán {{count}} tareas repartidas equitativamente entre {{users}} usuario(s)",
+    "previewEven_other": "<strong>Vista previa:</strong> se asignarán {{count}} tareas repartidas equitativamente entre {{users}} usuario(s)",
+    "previewFixed_one": "<strong>Vista previa:</strong> se asignará {{count}} tarea a {{users}} usuario(s)",
+    "previewFixed_many": "<strong>Vista previa:</strong> se asignarán {{count}} tareas a {{users}} usuario(s)",
+    "previewFixed_other": "<strong>Vista previa:</strong> se asignarán {{count}} tareas a {{users}} usuario(s)",
+    "assigning": "Asignando...",
+    "submit_one": "Asignar {{count}} tarea",
+    "submit_many": "Asignar {{count}} tareas",
+    "submit_other": "Asignar {{count}} tareas"
+  },
+  "policy": {
+    "example": "<label>Ejemplo:</label> {{example}}",
+    "selectedMembers": "Miembros seleccionados",
+    "noMembers": "Todavía no hay miembros en este proyecto.",
+    "noOne": "Nadie: esta regla está desactivada.",
+    "kinds": {
+      "admins": {
+        "label": "Administradores",
+        "help": "Administradores del proyecto al que pertenece esta campaña. Siempre conservan acceso total."
+      },
+      "authoritative": {
+        "label": "Revisores autoritativos",
+        "help": "Miembros del proyecto marcados como revisores autoritativos en la pestaña Miembros del proyecto. Sus etiquetas son las que se toman como referencia cuando los anotadores no coinciden."
+      },
+      "assignees": {
+        "label": "Asignados",
+        "help": "Quien tenga asignada una tarea: cada persona, solo en sus propias tareas."
+      },
+      "members": {
+        "label": "Miembros",
+        "help": "Todas las personas del proyecto, sea cual sea su rol."
+      },
+      "anyone": {
+        "label": "Cualquiera (visitantes públicos)",
+        "help": "Visitantes sin cuenta que llegan a la campaña mediante su enlace público. Solo disponible mientras el proyecto sea público."
+      }
+    },
+    "axes": {
+      "explore": {
+        "title": "Etiquetado exploratorio",
+        "description": "Quién puede crear anotaciones libres e independientes que no están ligadas a una tarea.",
+        "example": "Con Miembros, cualquier miembro del proyecto puede dibujar su propio polígono en cualquier lugar del mapa y etiquetarlo. Los demás pueden seguir explorando las imágenes, pero sus herramientas de dibujo quedan desactivadas."
+      },
+      "unassigned_tasks": {
+        "title": "Tareas sin asignar",
+        "description": "Quién puede etiquetar una tarea que no está asignada a nadie y qué etiquetas cuentan para completarla.",
+        "example": "Una campaña de 500 puntos que los anotadores trabajan por orden de llegada. Con Miembros, cualquier miembro del proyecto puede tomar uno y su etiqueta lo completa por sí sola."
+      },
+      "assigned_tasks": {
+        "title": "Tareas asignadas: etiquetas adicionales",
+        "description": "Quién puede añadir etiquetas extra a una tarea que ya está asignada a otra persona. Las etiquetas extra se muestran junto a la del asignado, pero no necesariamente cuentan para completarla.",
+        "example": "El punto #42 está asignado a Alice. Con Revisores autoritativos, un revisor puede añadir una segunda etiqueta junto a la suya para compararlas. Tomar una tarea del conjunto sin asignar también la asigna, así que a partir de entonces se le aplica esta regla."
+      },
+      "complete_assigned": {
+        "title": "Tareas asignadas: finalización",
+        "description": "Qué etiquetas en una tarea asignada cuentan para completarla, incluido el cumplimiento de los requisitos de revisión.",
+        "example": "El punto #42 está asignado a Alice y necesita una revisión. Su etiqueta más la de un revisor la dan por terminada. Una etiqueta de alguien fuera de esta lista se guarda y se muestra igualmente, pero la tarea sigue abierta."
+      },
+      "modify_others": {
+        "title": "Editar y eliminar anotaciones de otras personas",
+        "description": "Quién puede cambiar o eliminar una anotación hecha por otra persona. Cada uno siempre puede cambiar las suyas.",
+        "example": "Con Administradores, un anotador que detecta un error en el polígono de un colega puede abrirlo y verlo, pero no moverlo ni eliminarlo. Con Miembros, la campaña se convierte en un lienzo compartido que cualquier miembro puede corregir."
+      }
+    }
+  },
+  "reviewerAssign": {
+    "failed": "No se pudieron asignar los revisores",
+    "title": "Configurar revisiones de tareas",
+    "pattern": "Patrón de asignación",
+    "percentageBased": "Por porcentaje",
+    "fixedNumber": "Número fijo",
+    "percentageHelp_one": "Se seleccionará al azar un subconjunto de tareas para revisión. A cada tarea seleccionada se le asignará <strong>{{count}}</strong> usuario de tu grupo para revisarla.",
+    "percentageHelp_many": "Se seleccionará al azar un subconjunto de tareas para revisión. A cada tarea seleccionada se le asignarán <strong>{{count}}</strong> usuarios de tu grupo para revisarla.",
+    "percentageHelp_other": "Se seleccionará al azar un subconjunto de tareas para revisión. A cada tarea seleccionada se le asignarán <strong>{{count}}</strong> usuarios de tu grupo para revisarla.",
+    "percentageOfTasks": "Porcentaje de tareas: {{percentage}} %",
+    "approxReviewed_one": "≈ {{count}} tarea se revisará",
+    "approxReviewed_many": "≈ {{count}} tareas se revisarán",
+    "approxReviewed_other": "≈ {{count}} tareas se revisarán",
+    "reviewersPerTask": "Revisores por tarea:",
+    "fixedHelp_one": "Un número exacto de tareas elegidas al azar será revisado, cada una, por <strong>{{count}}</strong> usuario de tu grupo.",
+    "fixedHelp_many": "Un número exacto de tareas elegidas al azar será revisado, cada una, por <strong>{{count}}</strong> usuarios de tu grupo.",
+    "fixedHelp_other": "Un número exacto de tareas elegidas al azar será revisado, cada una, por <strong>{{count}}</strong> usuarios de tu grupo.",
+    "numTasks": "Número de tareas para revisar:",
+    "totalAvailable_one": "Total de tareas disponibles: {{count}}",
+    "totalAvailable_many": "Total de tareas disponibles: {{count}}",
+    "totalAvailable_other": "Total de tareas disponibles: {{count}}",
+    "pool": "Grupo de revisores",
+    "poolHelp_one": "El sistema elige al azar <strong>{{count}}</strong> de estos usuarios por tarea. Nunca se asigna a nadie la revisión de una tarea que anotó. Selecciona al menos {{count}}.",
+    "poolHelp_many": "El sistema elige al azar <strong>{{count}}</strong> de estos usuarios por tarea. Nunca se asigna a nadie la revisión de una tarea que anotó. Selecciona al menos {{count}}.",
+    "poolHelp_other": "El sistema elige al azar <strong>{{count}}</strong> de estos usuarios por tarea. Nunca se asigna a nadie la revisión de una tarea que anotó. Selecciona al menos {{count}}.",
+    "selected_one": "Seleccionado: {{count}} revisor",
+    "selected_many": "Seleccionados: {{count}} revisores",
+    "selected_other": "Seleccionados: {{count}} revisores",
+    "preview_one": "<strong>Vista previa:</strong> asignar al azar {{reviewers}} revisor(es) de tu grupo de {{pool}} personas a la tarea seleccionada. Nadie revisará tareas que haya anotado.",
+    "preview_many": "<strong>Vista previa:</strong> asignar al azar {{reviewers}} revisor(es) de tu grupo de {{pool}} personas a cada una de las {{count}} tareas seleccionadas. Nadie revisará tareas que haya anotado.",
+    "preview_other": "<strong>Vista previa:</strong> asignar al azar {{reviewers}} revisor(es) de tu grupo de {{pool}} personas a cada una de las {{count}} tareas seleccionadas. Nadie revisará tareas que haya anotado.",
+    "submit_one": "Asignar a {{count}} tarea",
+    "submit_many": "Asignar a {{count}} tareas",
+    "submit_other": "Asignar a {{count}} tareas"
+  },
+  "formFields": {
+    "addField": "+ Añadir campo",
+    "maxFields": "Se alcanzó el máximo de {{max}} campos.",
+    "questionTitle": "Título de la pregunta",
+    "types": {
+      "category": "Categoría",
+      "multicategory": "Categoría múltiple",
+      "number": "Número",
+      "text": "Texto",
+      "date": "Fecha",
+      "daterange": "Rango de fechas"
+    },
+    "descriptionPlaceholder": "Descripción (opcional)",
+    "required": "Obligatorio",
+    "removeField": "Eliminar campo",
+    "optionName": "Nombre de la opción",
+    "removeOption": "Eliminar opción",
+    "addOption": "+ Añadir opción",
+    "maxOptions": "Se alcanzó el máximo de {{max}} opciones.",
+    "float": "Decimal",
+    "integer": "Entero",
+    "min": "Mín.",
+    "max": "Máx.",
+    "step": "Paso",
+    "slider": "Mostrar como control deslizante",
+    "multiline": "Varias líneas"
+  },
+  "sampling": {
+    "title": "Generar tareas mediante muestreo",
+    "description": "Genera tareas de anotación muestreando puntos dentro de una región. Puedes subir un archivo de límites o usar el recuadro delimitador de la campaña.",
+    "strategy": "Estrategia de muestreo",
+    "strategies": {
+      "random": {
+        "label": "Muestreo aleatorio",
+        "description": "Muestrea puntos al azar dentro de la región"
+      },
+      "grid": {
+        "label": "Muestreo en cuadrícula",
+        "description": "Muestrea una cuadrícula regular de puntos, separados por una distancia fija"
+      }
+    },
+    "grid": {
+      "title": "Cómo se traza la cuadrícula",
+      "spacing": "La separación es distancia sobre el terreno, así que los puntos mantienen la misma distancia en toda la región, por mucho que se extienda hacia el norte o el sur.",
+      "offset": "La cuadrícula se coloca con un desplazamiento aleatorio en lugar de anclarse a una esquina, así que no puede alinearse con carreteras, bordes de campos ni nada dispuesto de forma regular.",
+      "order": "Las tareas se crean en orden aleatorio, así que detenerse a mitad de camino sigue dejando cubierta toda la región."
+    },
+    "errors": {
+      "fileType": "Sube un archivo .zip (shapefile) o .geojson",
+      "noRegion": "Selecciona un archivo de región o usa el recuadro delimitador de la campaña",
+      "minSamples": "El número de muestras debe ser al menos 1",
+      "spacing": "La separación de la cuadrícula debe ser mayor que 0 km",
+      "seed": "La semilla debe ser un número entero igual o mayor que 0",
+      "noTaskSet": "Selecciona primero un conjunto de tareas",
+      "failed": "No se pudieron generar las tareas"
+    },
+    "region": "Selección de la región",
+    "upload": "Subir archivo de límites",
+    "uploadHint": "Shapefile (.zip) o GeoJSON (.geojson)",
+    "useBbox": "Usar el recuadro delimitador de la campaña",
+    "useBboxHint": "Muestrear dentro del área definida de la campaña",
+    "spacingLabel": "Separación de la cuadrícula (km)",
+    "spacingHint": "Distancia entre puntos vecinos. El número de tareas depende del tamaño de la región.",
+    "spacingError": "Debe ser un número positivo",
+    "numSamples": "Número de muestras",
+    "seedLabel": "Semilla aleatoria (opcional)",
+    "seedHintGrid": "Fija el desplazamiento con que se coloca la cuadrícula, así que la misma semilla vuelve a trazar la misma cuadrícula",
+    "seedHintRandom": "Define una semilla para obtener resultados de muestreo reproducibles",
+    "seedPlaceholder": "Déjalo vacío para que sea aleatoria",
+    "generating": "Generando...",
+    "generate": "Generar tareas"
+  },
+  "tasksTab": {
+    "addIntro": "Las tareas definen los puntos o polígonos que etiquetarán los anotadores. Sube ubicaciones existentes o genéralas con muestreo aleatorio o en cuadrícula en <strong>{{name}}</strong>.",
+    "uploadFile": "Subir archivo",
+    "uploadFileHint": "Sube tareas desde un CSV o GeoJSON",
+    "generate": "Generar mediante muestreo",
+    "generateHint": "Crea tareas con muestreo aleatorio o en cuadrícula",
+    "uploadHelp": "Sube un <strong>CSV</strong> (<code>id,lon,lat</code>) para ubicaciones de puntos, o un archivo <strong>GeoJSON</strong> con entidades Point / Polygon. Las geometrías de polígono se conservan y se muestran como extensión de la muestra durante la anotación. Para los puntos, quizá quieras indicar la extensión de la muestra (tamaño del recuadro alrededor del punto) en la pestaña Configuración general. El id <strong>debe ser único en toda la campaña y numérico.</strong>",
+    "upload": "Subir",
+    "heading": "Tareas de anotación",
+    "addTasks": "Añadir tareas",
+    "assignmentsButtonTitle": "Exporta o importa a quién están asignadas estas tareas",
+    "assignmentsTitle": "Exportar o importar asignaciones",
+    "selectSetFirst": "Selecciona el conjunto de tareas en el que subir o generar tareas.",
+    "empty": {
+      "locked": "Todavía no se han extraído unidades de muestreo. Aparecerán aquí cuando termines el diseño de arriba.",
+      "readOnly": "Todavía no hay tareas de anotación en este conjunto.",
+      "all": "Todavía no hay tareas de anotación. Selecciona un conjunto para subir o generar tareas.",
+      "set": "Todavía no hay tareas en este conjunto. Usa Añadir tareas para subir un archivo o generarlas."
+    },
+    "backToSets": "Volver a los conjuntos de tareas",
+    "taskSet": "Conjunto de tareas",
+    "addTitle": "Añadir tareas de anotación a {{name}}",
+    "thisSet": "este conjunto",
+    "assignmentsDescription": "A quién está asignada cada tarea y quién la revisa, como CSV para editar y volver a subir. Esto nunca crea ni elimina tareas."
+  },
+  "timeseriesStep": {
+    "loadOptionsFailed": "No se pudieron cargar las opciones de series temporales",
+    "renameUnavailable": "No es posible renombrar paneles guardados.",
+    "renameFailed": "No se pudo renombrar este panel. Inténtalo de nuevo.",
+    "title": "Opcional: series temporales",
+    "description": "Gráficos que muestran el valor de un único píxel a lo largo del tiempo: en el punto anotado se calcula el índice espectral elegido en el rango de fechas y se dibuja como gráfico junto a las imágenes.",
+    "panelsDescription": "Los paneles organizan las series temporales en la página de anotación. Todas las series de un panel aparecen juntas. Por ejemplo, pon las series de 2022 en un panel y las de 2023 en otro, para que cada panel muestre un rango de fechas manejable en lugar de una serie temporal larguísima.",
+    "optionalHint": "Las series temporales son opcionales. Deja sin tocar la serie vacía inicial para omitirlas.",
+    "panelAria": "Panel {{name}}",
+    "panel": "Panel",
+    "panelName": "Nombre del panel",
+    "duplicatePanel": "Ya existe un panel con este nombre.",
+    "renamePanelAria": "Renombrar el panel {{name}}",
+    "rename": "Renombrar",
+    "series": "Serie {{number}}",
+    "name": "Nombre de la serie temporal",
+    "startDate": "Fecha de inicio",
+    "endDate": "Fecha de fin",
+    "dataSource": "Fuente de datos",
+    "selectDataSource": "Selecciona la fuente de datos",
+    "index": "Índice",
+    "selectIndex": "Selecciona el índice",
+    "pickSourceFirst": "Elige primero una fuente de datos",
+    "provider": "Proveedor",
+    "selectProvider": "Selecciona el proveedor",
+    "addAnother": "+ Añadir otra serie temporal",
+    "add": "+ Añadir serie temporal",
+    "newPanelName": "Nombre del nuevo panel",
+    "createPanel": "Crear panel",
+    "addPanel": "+ Añadir panel"
+  },
+  "startAnnotating": "Empezar a anotar",
+  "savingOverlay": "Guardando...",
+  "tasksPage": {
+    "breadcrumb": "Tareas",
+    "title": "Tareas de {{name}}",
+    "subtitleAdmin": "Sube o genera tareas de anotación y gestiona las asignaciones.",
+    "subtitle": "Las tareas de esta campaña y cuánto han avanzado.",
+    "errors": {
+      "upload": "No se pudieron subir las tareas de anotación",
+      "createSet": "No se pudo crear el conjunto de tareas",
+      "renameSet": "No se pudo renombrar el conjunto de tareas",
+      "deleteSet": "No se pudo eliminar el conjunto de tareas",
+      "move": "No se pudieron mover las tareas",
+      "assign": "No se pudieron asignar las tareas",
+      "unassign": "No se pudieron desasignar las tareas",
+      "delete": "No se pudieron eliminar las tareas"
+    },
+    "toasts": {
+      "uploaded": "Tareas de anotación subidas correctamente",
+      "moved_one": "Se movió {{count}} tarea",
+      "moved_many": "Se movieron {{count}} tareas",
+      "moved_other": "Se movieron {{count}} tareas",
+      "generated_one": "Se generó {{count}} tarea correctamente",
+      "generated_many": "Se generaron {{count}} tareas correctamente",
+      "generated_other": "Se generaron {{count}} tareas correctamente",
+      "assignedBulk_one": "Se asignó {{count}} tarea correctamente",
+      "assignedBulk_many": "Se asignaron {{count}} tareas correctamente",
+      "assignedBulk_other": "Se asignaron {{count}} tareas correctamente",
+      "assigned_one": "Se asignó {{count}} tarea",
+      "assigned_many": "Se asignaron {{count}} tareas",
+      "assigned_other": "Se asignaron {{count}} tareas",
+      "reviewersPercentage_one": "Se asignó {{count}} revisor al {{percentage}} % de las tareas",
+      "reviewersPercentage_many": "Se asignaron {{count}} revisores al {{percentage}} % de las tareas",
+      "reviewersPercentage_other": "Se asignaron {{count}} revisores al {{percentage}} % de las tareas",
+      "reviewersFixed_one": "Se asignó {{count}} revisor a {{tasks}} tareas",
+      "reviewersFixed_many": "Se asignaron {{count}} revisores a {{tasks}} tareas",
+      "reviewersFixed_other": "Se asignaron {{count}} revisores a {{tasks}} tareas",
+      "noneSelected": "No hay tareas seleccionadas",
+      "unassigned_one": "Se desasignaron todos los usuarios de {{count}} tarea",
+      "unassigned_many": "Se desasignaron todos los usuarios de {{count}} tareas",
+      "unassigned_other": "Se desasignaron todos los usuarios de {{count}} tareas",
+      "deleted_one": "Se eliminó {{count}} tarea correctamente",
+      "deleted_many": "Se eliminaron {{count}} tareas correctamente",
+      "deleted_other": "Se eliminaron {{count}} tareas correctamente"
+    }
+  },
+  "overview": {
+    "created": "Creada el {{date}}",
+    "annotations": "Anotaciones",
+    "settings": "Configuración",
+    "setup": {
+      "title": "Configurando esta campaña",
+      "registering": "Registrando los mosaicos de imágenes.",
+      "embeddings": "Calculando los embeddings.",
+      "body": "La anotación se habilita cuando esto termine; la configuración ya se puede editar. Esta página se actualiza sola."
+    },
+    "explore": {
+      "title": "Explorar",
+      "description": "Etiquetado libre en toda el área de la campaña.",
+      "start": "Empezar a explorar"
+    },
+    "taskSets": "Conjuntos de tareas",
+    "agents": {
+      "label": "Agentes de etiquetado",
+      "none": "Todavía no hay agentes de etiquetado",
+      "count_one": "{{count}} agente de etiquetado",
+      "count_many": "{{count}} agentes de etiquetado",
+      "count_other": "{{count}} agentes de etiquetado"
+    },
+    "noTasks": {
+      "title": "Todavía no hay tareas",
+      "admin": "Configura conjuntos de tareas para guiar a los anotadores por ubicaciones concretas.",
+      "member": "Un administrador puede añadir conjuntos de tareas a esta campaña."
+    },
+    "noTasksShort": "Sin tareas",
+    "estimate": {
+      "startFailed": "No se pudo iniciar la estimación de áreas",
+      "heading": "Estimaciones de áreas",
+      "new": "Nueva estimación de áreas",
+      "none": "Todavía no hay estimaciones de áreas",
+      "noneBody": "Convierte un mapa y una muestra de puntos verificados en un área publicada con un intervalo de confianza.",
+      "modalBody": "Una estimación de áreas convierte un mapa clasificado y una muestra de puntos verificados en un área publicada con un intervalo de confianza. Sus puntos viven en su propio conjunto de tareas, gestionado por el diseño.",
+      "name": "Nombre",
+      "nameHint": "Qué cubre esta estimación y para qué fecha.",
+      "namePlaceholder": "Cultivos de invierno 2025"
+    },
+    "acrossSets": "En todos los conjuntos",
+    "labeled": "{{labeled}} de {{total}} etiquetadas",
+    "annotate": "Anotar",
+    "view": "Ver"
+  },
+  "generalTab": {
+    "errors": {
+      "embeddingYear": "No se pudo actualizar el año de los embeddings",
+      "guide": "No se pudo actualizar la guía",
+      "labels": "No se pudieron actualizar las etiquetas",
+      "formFields": "No se pudieron actualizar los campos del formulario",
+      "policy": "No se pudo actualizar el acceso al etiquetado",
+      "extent": "No se pudo actualizar la extensión de la muestra",
+      "researchSharing": "No se pudo actualizar el uso compartido para investigación",
+      "bbox": "No se pudo guardar la configuración",
+      "taskOutput": "No se pudo actualizar el resultado de las tareas"
+    },
+    "toasts": {
+      "embeddingsRecomputed": "Embeddings recalculados para {{year}}",
+      "embeddingYearUpdated": "Año de los embeddings actualizado",
+      "guideUpdated": "Guía de la campaña actualizada",
+      "labelsUpdated": "Etiquetas actualizadas",
+      "formFieldsUpdated": "Campos del formulario actualizados",
+      "policyUpdated": "Acceso al etiquetado actualizado",
+      "extentUpdated": "Extensión de la muestra actualizada",
+      "researchOn": "Las anotaciones de esta campaña ahora pueden publicarse como datos de investigación",
+      "researchOff": "Uso compartido para investigación desactivado",
+      "bboxUpdated": "Configuración de la campaña actualizada correctamente",
+      "taskOutputUpdated": "Resultado de las tareas actualizado"
+    },
+    "renameLabels": {
+      "title": "¿Renombrar etiquetas existentes?",
+      "description_one": "Renombrar etiquetas cambia cómo se muestran las anotaciones existentes: los id de las etiquetas no cambian, así que no se pierden datos, pero todas las anotaciones con esta etiqueta mostrarán el nuevo nombre en todas partes (revisión, exportaciones, estadísticas).",
+      "description_many": "Renombrar etiquetas cambia cómo se muestran las anotaciones existentes: los id de las etiquetas no cambian, así que no se pierden datos, pero todas las anotaciones con estas etiquetas mostrarán el nuevo nombre en todas partes (revisión, exportaciones, estadísticas).",
+      "description_other": "Renombrar etiquetas cambia cómo se muestran las anotaciones existentes: los id de las etiquetas no cambian, así que no se pierden datos, pero todas las anotaciones con estas etiquetas mostrarán el nuevo nombre en todas partes (revisión, exportaciones, estadísticas).",
+      "confirm": "Sí, renombrar"
+    },
+    "deleteFields": {
+      "title_one": "¿Eliminar el campo del formulario?",
+      "title_many": "¿Eliminar {{count}} campos del formulario?",
+      "title_other": "¿Eliminar {{count}} campos del formulario?",
+      "description_one": "Al guardar se elimina {{names}} y, de forma permanente, todas las respuestas que los anotadores registraron para él en todas las anotaciones de esta campaña. Esto no se puede deshacer.",
+      "description_many": "Al guardar se eliminan {{names}} y, de forma permanente, todas las respuestas que los anotadores registraron para ellos en todas las anotaciones de esta campaña. Esto no se puede deshacer.",
+      "description_other": "Al guardar se eliminan {{names}} y, de forma permanente, todas las respuestas que los anotadores registraron para ellos en todas las anotaciones de esta campaña. Esto no se puede deshacer.",
+      "confirm": "Eliminar y guardar"
+    },
+    "editFields": {
+      "title": "¿Editar campos del formulario existentes?",
+      "description_one": "Editar campos cambia cómo se muestran las anotaciones existentes: los id de los campos no cambian, así que las respuestas guardadas se conservan, pero los anotadores verán la pregunta actualizada en todas partes (vista de anotación, revisión, exportaciones).",
+      "description_many": "Editar campos cambia cómo se muestran las anotaciones existentes: los id de los campos no cambian, así que las respuestas guardadas se conservan, pero los anotadores verán las preguntas actualizadas en todas partes (vista de anotación, revisión, exportaciones).",
+      "description_other": "Editar campos cambia cómo se muestran las anotaciones existentes: los id de los campos no cambian, así que las respuestas guardadas se conservan, pero los anotadores verán las preguntas actualizadas en todas partes (vista de anotación, revisión, exportaciones).",
+      "confirm": "Sí, guardar cambios"
+    },
+    "recompute": {
+      "title": "¿Recalcular los embeddings?",
+      "description": "Cambiar el año de los embeddings de {{from}} a {{to}} eliminará todos los embeddings existentes y los volverá a obtener de las imágenes satelitales de {{to}}. Esto puede tardar en campañas grandes.",
+      "confirm": "Recalcular"
+    },
+    "name": {
+      "title": "Nombre de la campaña",
+      "description": "El nombre que se muestra en toda la aplicación."
+    },
+    "guide": {
+      "title": "Guía de la campaña",
+      "description": "Documento Markdown que los anotadores ven desde el icono del libro en la barra de herramientas de anotación.",
+      "placeholder": "# Guía de la campaña\n\nEscribe aquí las instrucciones para los anotadores usando Markdown...",
+      "save": "Guardar guía"
+    },
+    "research": {
+      "title": "Uso compartido de datos para investigación",
+      "description": "Permite que las anotaciones creadas en esta campaña se publiquen como datos abiertos de investigación, sin el nombre de ningún anotador. Desactivado de forma predeterminada. Desactivarlo detiene las publicaciones futuras; lo que ya se haya publicado no se puede retirar. Consulta los Términos del servicio.",
+      "label": "Publicable como datos de investigación"
+    },
+    "taskOutput": {
+      "title": "Resultado de las tareas",
+      "description": "Qué completa una tarea: elegir una etiqueta para el propio punto o polígono de la tarea, o dibujar formas a su alrededor. Queda fijo una vez anotada la primera tarea.",
+      "label": "Las tareas se completan",
+      "classify": "Etiquetando la ubicación de la tarea",
+      "draw": "Dibujando formas a su alrededor"
+    },
+    "saveSettings": "Guardar configuración",
+    "extent": {
+      "title": "Extensión de la muestra",
+      "description": "Define el tamaño exacto de un punto de muestra. Si lat/lon es la coordenada exacta, la extensión de la muestra define las dimensiones alrededor de ese centroide que constituyen la muestra real. Esto ayuda a tener un criterio común sobre qué área o píxeles pertenecen a un punto de muestra. Déjalo vacío si las tareas se subieron como polígonos o si no se debe mostrar ninguna extensión.",
+      "label": "Extensión (metros)",
+      "placeholder": "p. ej., 100"
+    },
+    "labels": {
+      "title": "Etiquetas de anotación",
+      "description": "Los nombres de clase entre los que eligen los anotadores al etiquetar. Puedes añadir etiquetas nuevas y renombrar las existentes; renombrar requiere confirmación porque cambia cómo se muestran las anotaciones anteriores. No se pueden eliminar etiquetas (dejaría huérfanas las anotaciones existentes).",
+      "save": "Guardar etiquetas",
+      "invalid": "Los nombres de las etiquetas no pueden estar vacíos y deben ser únicos."
+    },
+    "formFields": {
+      "title": "Campos de formulario personalizados",
+      "description": "Preguntas adicionales que los anotadores responden en cada anotación. Puedes añadir campos nuevos y editar los existentes; editar requiere confirmación porque cambia cómo se muestran las respuestas anteriores. Eliminar un campo también elimina todas las respuestas registradas para él, así que pide confirmación. El tipo o las opciones de un campo solo pueden cambiar mientras aún no tenga respuestas.",
+      "save": "Guardar campos"
+    },
+    "policy": {
+      "description": "Controla quién puede etiquetar qué y qué etiquetas cuentan para completar una tarea. Los miembros y la visibilidad se gestionan a nivel de proyecto: <link>abrir los miembros del proyecto</link>.",
+      "save": "Guardar acceso al etiquetado"
+    },
+    "embedding": {
+      "description": "El año del que se obtienen los embeddings satelitales para la validación de etiquetas basada en KNN. Cambiarlo recalculará todos los embeddings de la campaña.",
+      "notSet": "No hay año de embeddings definido: la validación basada en embeddings KNN (AEF) no está disponible para los anotadores.",
+      "year": "Año",
+      "recomputing": "Recalculando…"
+    },
+    "danger": {
+      "title": "Zona de peligro",
+      "description": "Una vez que eliminas una campaña, no hay vuelta atrás."
+    }
+  },
+  "bbox": {
+    "title": "Región de interés",
+    "description": "La región de interés define tu zona de estudio y limita el área geográfica en la que se prepararán las imágenes.",
+    "searchPlaceholder": "Busca un país o región...",
+    "sourceNote": "Los recuadros se derivan de los límites de Natural Earth y OpenStreetMap y solo cubren el territorio nacional principal. Son un punto de partida para arrastrar, no un límite oficial.",
+    "noResults": "No se encontraron resultados",
+    "west": "Oeste (long.)",
+    "south": "Sur (lat.)",
+    "east": "Este (long.)",
+    "north": "Norte (lat.)",
+    "dragHint": "Arrastra las esquinas para cambiar el tamaño, o arrastra el recuadro para moverlo"
+  },
+  "customMaps": {
+    "status": {
+      "processing": "Procesando…",
+      "ready": "Listo",
+      "processingFailed": "Falló el procesamiento",
+      "failed": "Falló"
+    },
+    "errors": {
+      "load": "No se pudieron cargar los mapas personalizados",
+      "add": "No se pudo añadir el mapa personalizado",
+      "save": "No se pudo guardar el mapa",
+      "delete": "No se pudo eliminar el mapa personalizado"
+    },
+    "addMap": "Añadir mapa",
+    "saveMap": "Guardar mapa",
+    "title": "Capas ráster (COG)",
+    "description": "Predicciones o clasificaciones dibujadas sobre las imágenes, que se activan desde el panel del visor.",
+    "add": "+ Añadir capa ráster",
+    "loadError": "No se pudieron cargar las capas ráster.",
+    "empty": "No hay capas ráster configuradas.",
+    "openExperiment": "Abrir el experimento vinculado",
+    "editMap": "Editar mapa personalizado",
+    "deleteMap": "Eliminar mapa personalizado",
+    "namePlaceholder": "Mi capa COG",
+    "maxZoom": "Zoom nativo máximo",
+    "auto": "Automático",
+    "url": "URL del COG",
+    "hints": {
+      "cog": "Debe ser un <strong>GeoTIFF optimizado para la nube (COG)</strong>: con teselado interno y vistas generales para que el tiler lea solo los píxeles que necesita.",
+      "singleBand": "Ráster de una sola banda (p. ej., un mapa de clases o una capa de probabilidad).",
+      "reachable": "Accesible para el tiler. Para almacenamiento privado de Azure, proporciona un token SAS por separado abajo para que se guarde cifrado, no en la URL.",
+      "projection": "Cualquier proyección con datum WGS84 (se admiten zonas UTM y EPSG:4326/3857).",
+      "notValidated": "No se valida automáticamente: un archivo no válido o que no sea COG no se mostrará."
+    },
+    "privateStorage": "Almacenamiento privado de Azure (token SAS propio)",
+    "replaceToken": "Pega un token nuevo para reemplazarlo",
+    "provideToken": "Proporciona un token SAS de solo lectura.",
+    "experimentLink": "Enlace al experimento",
+    "experimentHint": "Se enlaza desde un icono junto al mapa, p. ej., la ejecución de MLflow que lo generó.",
+    "internalStorage": "Alojado en almacenamiento interno",
+    "internalStorageHint": "Márcalo si el archivo está en nuestro propio almacenamiento de Azure, para que el tiler lo lea con su identidad administrada. Déjalo sin marcar para archivos públicos o alojados en AWS.",
+    "renderMode": "Modo de representación",
+    "modes": {
+      "continuous": "Continuo",
+      "categorical": "Categórico"
+    },
+    "colormap": "Mapa de colores",
+    "rescaleMin": "Mínimo de reescalado",
+    "rescaleMax": "Máximo de reescalado",
+    "classEntries": "Entradas de clase",
+    "value": "Valor",
+    "color": "Color",
+    "labelPlaceholder": "Etiqueta (opcional)",
+    "removeEntry": "Eliminar entrada",
+    "addClass": "Añadir clase"
+  }
+}

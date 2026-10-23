@@ -4,13 +4,6 @@ export const PROJECT_FILTERS = ['mine', 'organization', 'public', 'all'] as cons
 
 export type ProjectFilter = (typeof PROJECT_FILTERS)[number];
 
-export const PROJECT_FILTER_LABELS: Record<ProjectFilter, string> = {
-  mine: 'My projects',
-  organization: 'Organization',
-  public: 'Public',
-  all: 'All',
-};
-
 interface FilterOptions {
   filter: ProjectFilter;
   activeOrgId: number | null;

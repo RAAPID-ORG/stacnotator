@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { EmailVerificationScreen } from './EmailVerificationScreen';
 import { LoginScreen } from './LoginScreen';
@@ -19,6 +20,7 @@ const TermsGate = lazy(() => import('~/features/legal/TermsGate'));
  * has accepted, and is known by a name others can see.
  */
 export const AuthGate = ({ children }: { children: ReactNode }) => {
+  const { t } = useTranslation('auth');
   const { auth, loggedIn } = useAuth();
   const [initializing, setInitializing] = useState(true);
 
@@ -57,7 +59,7 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- auth, fetchAccount, clear are stable store singletons
   }, [loggedIn]);
 
-  if (initializing) return <LoadingSpinner fullScreen text="Initializing…" />;
+  if (initializing) return <LoadingSpinner fullScreen text={t('gate.initializing')} />;
 
   if (!loggedIn) return <LoginScreen />;
 
@@ -66,25 +68,25 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
   if (!account && accountError) {
     return (
       <AuthCard className="text-center space-y-4" outerClassName="bg-canvas">
-        <h1 className="text-base font-semibold text-neutral-900">Couldn't load your account</h1>
+        <h1 className="text-base font-semibold text-neutral-900">{t('gate.accountLoadFailed')}</h1>
         <p className="text-sm text-neutral-600">{accountError}</p>
         <div className="flex justify-center gap-2 pt-1">
           <Button variant="primary" onClick={() => fetchAccount()}>
-            Try again
+            {t('gate.tryAgain')}
           </Button>
           <Button variant="quiet" onClick={() => auth.logout()}>
-            Sign out
+            {t('gate.signOut')}
           </Button>
         </div>
       </AuthCard>
     );
   }
 
-  if (!account) return <LoadingSpinner fullScreen text="Loading account…" />;
+  if (!account) return <LoadingSpinner fullScreen text={t('gate.loadingAccount')} />;
 
   if (account.terms_accepted_version !== account.terms_version) {
     return (
-      <Suspense fallback={<LoadingSpinner fullScreen text="Loading terms…" />}>
+      <Suspense fallback={<LoadingSpinner fullScreen text={t('gate.loadingTerms')} />}>
         <TermsGate version={account.terms_version} />
       </Suspense>
     );

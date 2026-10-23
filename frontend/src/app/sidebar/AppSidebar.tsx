@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
 import { PROJECT_ROUTE, useProject } from '~/app/projectRoute';
 import {
@@ -45,21 +46,23 @@ export type AppSidebarProps = {
 
 const HELP_URL = 'https://github.com/RAAPID-ORG/stacnotator/blob/main/docs/features.md';
 
-const PROJECT_SECTION: Record<ProjectSection, { label: string; icon: ReactNode }> = {
-  campaigns: { label: 'Campaigns', icon: <IconFolder /> },
-  visualizers: { label: 'Visualizers', icon: <IconMap /> },
-  members: { label: 'Members', icon: <IconUsers /> },
-  settings: { label: 'Project settings', icon: <IconGear /> },
+const PROJECT_SECTION_ICON: Record<ProjectSection, ReactNode> = {
+  campaigns: <IconFolder />,
+  visualizers: <IconMap />,
+  members: <IconUsers />,
+  settings: <IconGear />,
 };
 
-const CAMPAIGN_SECTION: Record<string, { label: string; icon: ReactNode }> = {
-  overview: { label: 'Overview', icon: <IconOverview /> },
-  annotate: { label: 'Annotate', icon: <IconPencil /> },
-  tasks: { label: 'Tasks', icon: <IconTaskListFilled /> },
-  annotations: { label: 'Annotations', icon: <IconChart /> },
-  agents: { label: 'Agents', icon: <IconRobot /> },
-  settings: { label: 'Campaign settings', icon: <IconGear /> },
+const CAMPAIGN_SECTION_ICON = {
+  overview: <IconOverview />,
+  annotate: <IconPencil />,
+  tasks: <IconTaskListFilled />,
+  annotations: <IconChart />,
+  agents: <IconRobot />,
+  settings: <IconGear />,
 };
+
+type CampaignSectionKey = keyof typeof CAMPAIGN_SECTION_ICON;
 
 const projectSectionPath = (projectId: number, section: ProjectSection) =>
   section === 'campaigns' ? projectPath(projectId) : `${projectPath(projectId)}?tab=${section}`;
@@ -157,6 +160,7 @@ export const AppSidebar = ({
   mobileOpen = false,
   setMobileOpen,
 }: AppSidebarProps) => {
+  const { t } = useTranslation();
   const { pathname, search } = useLocation();
   const isPlatformAdmin = useAccountStore((s) => s.account?.is_admin ?? false);
   const { orgs } = useOrganizations();
@@ -216,7 +220,9 @@ export const AppSidebar = ({
                 >
                   STACNotator
                 </Link>
-                <span className="block truncate text-[10px] text-neutral-500">by NASA Harvest</span>
+                <span className="block truncate text-[10px] text-neutral-500">
+                  {t('nav.byline')}
+                </span>
               </span>
             </div>
           )}
@@ -228,7 +234,7 @@ export const AppSidebar = ({
                 collapsed ? 'mx-auto' : ''
               }`}
               type="button"
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={collapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
             >
               <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M16.5 4C17.3284 4 18 4.67157 18 5.5V14.5C18 15.3284 17.3284 16 16.5 16H3.5C2.67157 16 2 15.3284 2 14.5V5.5C2 4.67157 2.67157 4 3.5 4H16.5ZM7 15H16.5C16.7761 15 17 14.7761 17 14.5V5.5C17 5.22386 16.7761 5 16.5 5H7V15ZM3.5 5C3.22386 5 3 5.22386 3 5.5V14.5C3 14.7761 3.22386 15 3.5 15H6V5H3.5Z" />
@@ -237,13 +243,19 @@ export const AppSidebar = ({
           )}
         </div>
 
-        <nav aria-label="Main" className="flex-1 overflow-y-auto px-2 py-2">
+        <nav aria-label={t('nav.main')} className="flex-1 overflow-y-auto px-2 py-2">
           <div className="flex flex-col gap-px">
-            <NavItem to="/" icon={<IconHome />} label="Home" active={pathname === '/'} {...item} />
+            <NavItem
+              to="/"
+              icon={<IconHome />}
+              label={t('nav.home')}
+              active={pathname === '/'}
+              {...item}
+            />
             <NavItem
               to={projectsPath()}
               icon={<IconFolder />}
-              label="Projects"
+              label={t('nav.projects')}
               active={pathname === projectsPath()}
               {...item}
             />
@@ -251,7 +263,7 @@ export const AppSidebar = ({
 
           {project && projectId !== null && (
             <>
-              <SectionLabel collapsed={collapsed}>Current project</SectionLabel>
+              <SectionLabel collapsed={collapsed}>{t('sidebar.currentProject')}</SectionLabel>
               <div className="flex flex-col gap-px" data-testid="sidebar-project">
                 <NavItem
                   to={projectPath(projectId)}
@@ -267,7 +279,8 @@ export const AppSidebar = ({
                       to={projectSectionPath(projectId, section)}
                       depth={1}
                       active={onProjectPage && openProjectSection === section}
-                      {...PROJECT_SECTION[section]}
+                      icon={PROJECT_SECTION_ICON[section]}
+                      label={t(`sidebar.projectSections.${section}`)}
                       {...item}
                     />
                   ))}
@@ -281,16 +294,20 @@ export const AppSidebar = ({
                       emphasis
                       {...item}
                     />
-                    {campaignSections(campaign).map((section) => (
-                      <NavItem
-                        key={section ?? 'overview'}
-                        to={campaignPath(projectId, campaignId, section ?? undefined)}
-                        depth={2}
-                        active={openCampaignSection === section}
-                        {...CAMPAIGN_SECTION[section ?? 'overview']}
-                        {...item}
-                      />
-                    ))}
+                    {campaignSections(campaign).map((section) => {
+                      const key: CampaignSectionKey = section ?? 'overview';
+                      return (
+                        <NavItem
+                          key={key}
+                          to={campaignPath(projectId, campaignId, section ?? undefined)}
+                          depth={2}
+                          active={openCampaignSection === section}
+                          icon={CAMPAIGN_SECTION_ICON[key]}
+                          label={t(`sidebar.campaignSections.${key}`)}
+                          {...item}
+                        />
+                      );
+                    })}
                   </>
                 )}
               </div>
@@ -303,7 +320,7 @@ export const AppSidebar = ({
             to={HELP_URL}
             external
             icon={<IconBook />}
-            label="Help & guides"
+            label={t('sidebar.helpGuides')}
             trailing={<IconExternalLink className="w-3.5 h-3.5 text-neutral-300" />}
             {...item}
           />
@@ -316,15 +333,15 @@ export const AppSidebar = ({
                   {collapsed && (
                     <CountBadge
                       count={approvals}
-                      label="organizations awaiting approval"
+                      label={t('sidebar.awaitingApproval')}
                       className="absolute -right-2 -top-1.5 ring-2 ring-white"
                     />
                   )}
                 </>
               }
-              label="Platform admin"
+              label={t('sidebar.platformAdmin')}
               active={pathname === platformAdminPath()}
-              trailing={<CountBadge count={approvals} label="organizations awaiting approval" />}
+              trailing={<CountBadge count={approvals} label={t('sidebar.awaitingApproval')} />}
               {...item}
             />
           )}

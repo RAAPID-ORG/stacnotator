@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 interface SharedKeyAudienceProps {
   /** Whether the owning project is platform-public. Undefined while unknown. */
   projectIsPublic?: boolean;
@@ -15,13 +17,12 @@ interface SharedKeyAudienceProps {
  * which is deliberately outside the query cache.
  */
 export const SharedKeyAudience = ({ projectIsPublic }: SharedKeyAudienceProps) => {
+  const { t } = useTranslation('imagery');
   if (!projectIsPublic) return null;
 
   return (
     <p className="text-[11px] text-amber-700 leading-snug" data-testid="shared-key-public-warning">
-      This project is public: anyone with an account can open its campaigns, and their imagery loads
-      through this key. The key stays on the server and is never shown to them, but the usage counts
-      against your organization.
+      {t('keys.publicProjectWarning')}
     </p>
   );
 };

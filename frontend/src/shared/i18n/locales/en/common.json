@@ -1,0 +1,167 @@
+{
+  "language": "Language",
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "close": "Close",
+    "edit": "Edit",
+    "back": "Back",
+    "next": "Next",
+    "retry": "Retry",
+    "remove": "Remove",
+    "add": "Add",
+    "create": "Create",
+    "tryAgain": "Try again",
+    "reload": "Reload",
+    "goHome": "Go to home"
+  },
+  "status": {
+    "loading": "Loading…",
+    "loadingDots": "Loading...",
+    "loadingLabel": "Loading",
+    "saving": "Saving…"
+  },
+  "nav": {
+    "home": "Home",
+    "projects": "Projects",
+    "project": "Project",
+    "openMenu": "Open menu",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "pendingRequests": "requests waiting on you",
+    "byline": "by NASA Harvest",
+    "main": "Main"
+  },
+  "sidebar": {
+    "currentProject": "Current project",
+    "helpGuides": "Help & guides",
+    "platformAdmin": "Platform admin",
+    "awaitingApproval": "organizations awaiting approval",
+    "accountMenu": "Account and organization",
+    "accountSettings": "Account settings",
+    "organizationSettings": "Organization settings",
+    "signOut": "Sign out",
+    "signOutFailed": "Sign out failed",
+    "projectSections": {
+      "campaigns": "Campaigns",
+      "visualizers": "Visualizers",
+      "members": "Members",
+      "settings": "Project settings"
+    },
+    "campaignSections": {
+      "overview": "Overview",
+      "annotate": "Annotate",
+      "tasks": "Tasks",
+      "annotations": "Annotations",
+      "agents": "Agents",
+      "settings": "Campaign settings"
+    }
+  },
+  "toasts": {
+    "clearAll": "Clear all ({{count}})"
+  },
+  "errors": {
+    "generic": "Something went wrong",
+    "requestFailed": "Request failed",
+    "unreachable": "Can't reach the server. Try again in a moment.",
+    "withRef": "{{message}} (ref: {{ref}})",
+    "loadProject": "Failed to load project",
+    "loadProjectTilers": "Failed to load project tilers",
+    "loadAccount": "Failed to load account",
+    "code": "Error",
+    "notFoundTitle": "Page not found",
+    "notFoundMessage": "The page you're looking for doesn't exist or may have moved.",
+    "routeFailed": "Something went wrong while loading this page.",
+    "unexpected": "An unexpected error occurred. Try reloading the page.",
+    "boundaryMessage": "We encountered an unexpected error. Your data is safe.",
+    "technicalDetails": "Technical details",
+    "boundaryPersists": "If this problem persists, please contact support or try refreshing the page.",
+    "appTitle": "Application error",
+    "appMessage": "Something went wrong while loading the application.",
+    "details": "Error details",
+    "appPersists": "If the problem persists, contact support or check the browser console for more details."
+  },
+  "confirmDialog": {
+    "dontAskAgain": "Don't ask again this session"
+  },
+  "unsavedChanges": {
+    "title": "Unsaved changes",
+    "description": "You have unsaved changes that will be lost. Leave without saving?",
+    "stay": "Stay",
+    "leave": "Leave"
+  },
+  "fileInput": {
+    "choose": "Choose file",
+    "none": "No file selected"
+  },
+  "popout": {
+    "close": "Close window",
+    "closeTitle": "Close this window and return its panels to the main window"
+  },
+  "infoPopover": {
+    "showDetails": "Show details"
+  },
+  "readOnlyKey": {
+    "confirm": "I confirm this key is <strong>read-only</strong>",
+    "info": "The key is only used to load imagery, so it never needs more than read access. Provide one scoped to the least access it needs - you are the only one who can check what it can do."
+  },
+  "renderLegend": {
+    "colormap": "Colormap",
+    "changeColormap": "Change colormap",
+    "min": "min",
+    "max": "max",
+    "recolour": "Recolour {{name}}",
+    "colourFor": "Colour for {{name}}",
+    "show": "Show {{name}}",
+    "hide": "Hide {{name}}"
+  },
+  "locationSearch": {
+    "open": "Search location",
+    "placeholder": "Search location…",
+    "close": "Close search"
+  },
+  "taskStatus": {
+    "pending": "Pending",
+    "partial": "Partial",
+    "conflicting": "Conflicting",
+    "done": "Complete",
+    "skipped": "Skipped"
+  },
+  "taskOutcome": {
+    "skipped": "Skipped",
+    "drawn": "Drew shapes",
+    "none_found": "Nothing here"
+  },
+  "home": {
+    "intro": "STACNotator is a free and opensource collaborative annotation platform for satellite and aerial imagery. It is compatible with the STAC standard for geospatial data and allows visualizing and labelling features in a team. STACNotator is designed around temporal imagery, providing functionality to easily navigate through time.",
+    "browseProjects": "Browse projects",
+    "sourceOnGithub": "Source on GitHub",
+    "tutorial": "Tutorial",
+    "gettingStarted": "Getting started",
+    "videoComingSoon": "Video tutorial coming soon",
+    "features": "Features",
+    "stacTitle": "Connect any STAC catalog",
+    "stacBody": "Microsoft Planetary Computer is best supported today, with experimental support for any public STAC endpoint. Imagery streams directly to the browser on the fly, without requiring any downloading oe pre-processing.",
+    "teamsTitle": "Run team campaigns",
+    "teamsBody": "Annotator and reviewer roles, task assignment, label validation against nearest neighbours, and built-in conflict resolution when annotators disagree.",
+    "changeTitle": "Inspect change over time",
+    "changeBody": "Per-pixel NDVI history from Sentinel-2 and MODIS, cloud-masked by Cloud Score+ and SCL. Customisable spectral indices on the roadmap.",
+    "modesTitle": "Tasks and Exploration",
+    "modesBody": "Work task-by-task through predefined points and polygons, or switch to Explore for free-form drawing on imagery you navigate yourself.",
+    "activeLearningTitle": "Active Learning",
+    "activeLearningBody": "Register your maps as overlay layers over imagery and use the SDK to fetch annotations / generate new tasks.",
+    "earlyAccess": "STACNotator is in early access and under active development. Features may change and results should be independently verified. Please report issues on <link>GitHub</link>."
+  },
+  "legal": {
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "gateTitle": "Before you continue",
+    "gateIntro": "Please read and accept the Terms of Service to use STACNotator. How we handle your data is described in the <link>Privacy Policy</link>.",
+    "gateConsent": "By clicking I agree you confirm that you are at least 13 years old and that you accept these terms (version {{version}}).",
+    "signOut": "Sign out",
+    "agree": "I agree",
+    "acceptFailed": "Could not record your acceptance. Please try again."
+  }
+}

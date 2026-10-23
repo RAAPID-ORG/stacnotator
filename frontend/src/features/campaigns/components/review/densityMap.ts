@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import i18n from '~/shared/i18n';
+
+const t = i18n.getFixedT(null, 'review');
 
 /**
  * The parts every density map shares: following the viewport so the grid can resolve,
@@ -126,7 +129,7 @@ export const drawDensityCells = <K extends DensityKey>(
       marker.bindTooltip(
         single
           ? `<span class="capitalize">${nameOf(cell.key)}</span>`
-          : `<span class="capitalize">${nameOf(cell.key)}</span> &middot; ${cell.count.toLocaleString()} here`,
+          : `<span class="capitalize">${nameOf(cell.key)}</span> &middot; ${t('densityMap.countHere', { n: cell.count.toLocaleString() })}`,
         { direction: 'top' }
       );
       layer.addLayer(marker);

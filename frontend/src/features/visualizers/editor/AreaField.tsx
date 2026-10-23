@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { VisualizerArea, VisualizerOptionsOut } from '~/api/client';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { LocationSearch } from '~/shared/map/LocationSearch';
@@ -23,6 +24,7 @@ export function AreaField({
   onChange: (area: VisualizerArea | null) => void;
   options: VisualizerOptionsOut;
 }) {
+  const { t } = useTranslation('visualizers');
   const campaignAreas = options.campaigns.filter((campaign) => campaign.area !== null);
   const [searching, setSearching] = useState(campaignAreas.length === 0);
 
@@ -32,7 +34,7 @@ export function AreaField({
         {campaignAreas.length > 0 && (
           <Select
             size="sm"
-            aria-label="Take the area from a campaign"
+            aria-label={t('area.fromCampaignAria')}
             className="!w-56"
             value=""
             onChange={(e) => {
@@ -40,7 +42,7 @@ export function AreaField({
               if (picked) onChange(picked.area);
             }}
           >
-            <option value="">Take a campaign&apos;s area…</option>
+            <option value="">{t('area.fromCampaign')}</option>
             {campaignAreas.map((campaign) => (
               <option key={campaign.campaign_id} value={campaign.campaign_id}>
                 {campaign.campaign_name}
@@ -51,13 +53,13 @@ export function AreaField({
 
         {!searching && (
           <Button variant="quiet" size="sm" onClick={() => setSearching(true)}>
-            or search for a place
+            {t('area.search')}
           </Button>
         )}
 
         {value && (
           <Button variant="secondary" size="sm" className="ml-auto" onClick={() => onChange(null)}>
-            Clear
+            {t('area.clear')}
           </Button>
         )}
       </div>
@@ -99,7 +101,7 @@ export function AreaField({
         />
       ) : (
         <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
-          Without an area the map opens on the whole world, and imagery cannot be set up here.
+          {t('area.none')}
         </p>
       )}
     </div>

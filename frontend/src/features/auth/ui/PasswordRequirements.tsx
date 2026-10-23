@@ -1,14 +1,16 @@
+import { useTranslation } from 'react-i18next';
+
 export interface PasswordRequirement {
-  label: string;
+  id: 'minLength' | 'uppercase' | 'lowercase' | 'number' | 'special';
   test: (password: string) => boolean;
 }
 
 export const PASSWORD_REQUIREMENTS: PasswordRequirement[] = [
-  { label: 'At least 8 characters', test: (p) => p.length >= 8 },
-  { label: 'One uppercase letter', test: (p) => /[A-Z]/.test(p) },
-  { label: 'One lowercase letter', test: (p) => /[a-z]/.test(p) },
-  { label: 'One number', test: (p) => /[0-9]/.test(p) },
-  { label: 'One special character', test: (p) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(p) },
+  { id: 'minLength', test: (p) => p.length >= 8 },
+  { id: 'uppercase', test: (p) => /[A-Z]/.test(p) },
+  { id: 'lowercase', test: (p) => /[a-z]/.test(p) },
+  { id: 'number', test: (p) => /[0-9]/.test(p) },
+  { id: 'special', test: (p) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(p) },
 ];
 
 export function passwordMeetsAllRequirements(password: string): boolean {
@@ -22,6 +24,7 @@ export function PasswordRequirementIndicator({
   requirement: PasswordRequirement;
   password: string;
 }) {
+  const { t } = useTranslation('auth');
   const met = password.length > 0 && requirement.test(password);
   const partial = password.length > 0 && !met;
 
@@ -38,17 +41,20 @@ export function PasswordRequirementIndicator({
           </svg>
         )}
       </div>
-      <span className={met ? 'text-brand-700' : 'text-neutral-600'}>{requirement.label}</span>
+      <span className={met ? 'text-brand-700' : 'text-neutral-600'}>
+        {t(`passwordRequirements.${requirement.id}`)}
+      </span>
     </div>
   );
 }
 
 export function PasswordRequirementsList({ password }: { password: string }) {
+  const { t } = useTranslation('auth');
   if (password.length === 0) return null;
 
   return (
     <div className="mt-3 p-3 bg-neutral-50 rounded border border-neutral-200">
-      <p className="text-xs font-medium text-brand-700 mb-2">Password must contain:</p>
+      <p className="text-xs font-medium text-brand-700 mb-2">{t('passwordRequirements.title')}</p>
       <div className="space-y-1.5">
         {PASSWORD_REQUIREMENTS.map((req, idx) => (
           <PasswordRequirementIndicator key={idx} requirement={req} password={password} />

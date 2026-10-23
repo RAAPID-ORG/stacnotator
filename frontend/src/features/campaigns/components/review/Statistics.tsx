@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { type AnnotatorInfo, type PairwiseAgreement } from '~/api/client';
 import { useCampaignStatistics } from '~/features/campaigns/hooks/campaignQueries';
 import { formatDuration } from '~/shared/utils/utility';
@@ -20,9 +21,9 @@ const alphaColor = (alpha: number) => {
 };
 
 const alphaQualifier = (alpha: number) => {
-  if (alpha >= 0.8) return 'excellent agreement';
-  if (alpha >= 0.67) return 'good agreement';
-  return 'poor agreement';
+  if (alpha >= 0.8) return 'excellent';
+  if (alpha >= 0.67) return 'good';
+  return 'poor';
 };
 
 const agreementBadgeCls = (agreement: number) => {
@@ -45,17 +46,18 @@ const heatBackground = (intensity: number) =>
   intensity <= 0 ? undefined : `rgba(50, 98, 71, ${(0.08 + 0.77 * intensity).toFixed(3)})`;
 
 const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
+  const { t } = useTranslation('review');
   const [isExpanded, setIsExpanded] = useState(false);
 
   const { statistics, loading, error } = useCampaignStatistics(campaignId, taskSetId);
 
-  const heading = <h2 className="section-heading">Statistics</h2>;
+  const heading = <h2 className="section-heading">{t('statistics.heading')}</h2>;
 
   if (loading) {
     return (
       <div>
         {heading}
-        <p className="section-description">Loading statistics...</p>
+        <p className="section-description">{t('statistics.loading')}</p>
       </div>
     );
   }
@@ -65,7 +67,7 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
       <div>
         {heading}
         <p className="section-description text-red-600">
-          {error ? 'Failed to load statistics' : 'No statistics available'}
+          {error ? t('statistics.loadFailed') : t('statistics.none')}
         </p>
       </div>
     );
@@ -92,22 +94,22 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
   // cannot be computed - a blank slot reads better than a grid that changes shape.
   const hasAlpha = alpha !== null && alpha !== undefined;
   const headline: { label: string; value: string; tone?: string; hint?: string }[] = [
-    { label: 'Annotations', value: statistics.total_annotations.toLocaleString() },
+    { label: t('statistics.annotations'), value: statistics.total_annotations.toLocaleString() },
     {
-      label: annotators.length === 1 ? 'Annotator' : 'Annotators',
+      label: t('statistics.annotators', { count: annotators.length }),
       value: String(annotators.length),
     },
     {
-      label: 'Multi-annotated tasks',
+      label: t('statistics.multiAnnotatedTasks'),
       value: statistics.tasks_with_multiple_annotations.toLocaleString(),
     },
     hasAlpha
-      ? { label: 'Agreement (α)', value: alpha.toFixed(3), tone: alphaColor(alpha) }
+      ? { label: t('statistics.agreement'), value: alpha.toFixed(3), tone: alphaColor(alpha) }
       : {
-          label: 'Agreement (α)',
+          label: t('statistics.agreement'),
           value: '-',
           tone: 'text-neutral-400',
-          hint: 'Needs at least two annotators on the same task.',
+          hint: t('statistics.agreementHint'),
         },
   ];
 
@@ -116,7 +118,7 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
       {heading}
       {hasAlpha && (
         <p className="section-description">
-          {`Krippendorff's α indicates ${alphaQualifier(alpha)} between annotators.`}
+          {t(`statistics.alphaSummary.${alphaQualifier(alpha)}`)}
         </p>
       )}
 
@@ -144,22 +146,20 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
             <IconChevronRight className="w-4 h-4" />
           )}
         </span>
-        {isExpanded ? 'Hide statistics' : 'More statistics'}
+        {isExpanded ? t('statistics.hide') : t('statistics.more')}
       </button>
 
       {isExpanded && (
         <div className="space-y-6 mt-4">
           {annotators.length > 1 ? (
             <div>
-              <h3 className="section-heading">Pairwise agreement</h3>
-              <p className="section-description">
-                Agreement percentage between each pair of annotators, based on their shared tasks.
-              </p>
+              <h3 className="section-heading">{t('statistics.pairwiseHeading')}</h3>
+              <p className="section-description">{t('statistics.pairwiseDescription')}</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className={tableHeadRowCls}>
-                      <th className={thCls}>Annotator</th>
+                      <th className={thCls}>{t('statistics.annotator')}</th>
                       {annotators.map((annotator) => (
                         <th
                           key={annotator.user_id}
@@ -205,11 +205,13 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
                                     {pct.toFixed(0)}%
                                   </span>
                                   <div className="text-xs text-neutral-400 mt-0.5">
-                                    {agreement.shared_tasks} tasks
+                                    {t('statistics.sharedTasks', { count: agreement.shared_tasks })}
                                   </div>
                                 </>
                               ) : (
-                                <span className="text-neutral-400">N/A</span>
+                                <span className="text-neutral-400">
+                                  {t('statistics.notAvailable')}
+                                </span>
                               )}
                             </td>
                           );
@@ -221,17 +223,13 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-neutral-500">
-              Need at least 2 annotators to show pairwise agreement.
-            </p>
+            <p className="text-sm text-neutral-500">{t('statistics.pairwiseNeedsTwo')}</p>
           )}
 
           {Object.keys(statistics.overall_label_distribution || {}).length > 0 && (
             <div>
-              <h3 className="section-heading">Label distribution</h3>
-              <p className="section-description">
-                How often each label was used across all annotations.
-              </p>
+              <h3 className="section-heading">{t('statistics.labelDistributionHeading')}</h3>
+              <p className="section-description">{t('statistics.labelDistributionDescription')}</p>
               <div className="space-y-2">
                 {Object.entries(statistics.overall_label_distribution || {})
                   .sort(([, a], [, b]) => b - a)
@@ -259,27 +257,24 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
 
           {annotators.length > 0 && allLabels.length > 0 && (
             <div>
-              <h3 className="section-heading">Labels by annotator</h3>
-              <p className="section-description">
-                Each annotator's share of annotations per label, shaded so a column of similar
-                colours means the label is being used the same way by everyone.
-              </p>
+              <h3 className="section-heading">{t('statistics.byAnnotatorHeading')}</h3>
+              <p className="section-description">{t('statistics.byAnnotatorDescription')}</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className={tableHeadRowCls}>
-                      <th className={thCls}>Annotator</th>
+                      <th className={thCls}>{t('statistics.annotator')}</th>
                       {allLabels.map((label) => (
                         <th key={label} className={`${thCls} text-center`} title={label}>
                           <div className="truncate max-w-[110px]">{label}</div>
                         </th>
                       ))}
-                      <th className={`${thCls} text-right`}>Total</th>
-                      <th className={`${thCls} text-right`} title="Median active time per task">
-                        Median / task
+                      <th className={`${thCls} text-right`}>{t('statistics.total')}</th>
+                      <th className={`${thCls} text-right`} title={t('statistics.medianTitle')}>
+                        {t('statistics.median')}
                       </th>
-                      <th className={`${thCls} text-right`} title="Total active time on tasks">
-                        Active time
+                      <th className={`${thCls} text-right`} title={t('statistics.activeTimeTitle')}>
+                        {t('statistics.activeTime')}
                       </th>
                     </tr>
                   </thead>
@@ -301,7 +296,10 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
                               key={label}
                               className="px-4 py-3 text-center"
                               style={{ backgroundColor: heatBackground(intensity) }}
-                              title={`${count} of ${annotator.total_annotations} annotations`}
+                              title={t('statistics.shareTitle', {
+                                n: count,
+                                total: annotator.total_annotations,
+                              })}
                             >
                               {count > 0 ? (
                                 <span
@@ -320,7 +318,7 @@ const Statistics = ({ campaignId, taskSetId }: StatisticsProps) => {
                         </td>
                         <td
                           className="px-4 py-3 text-right text-neutral-700"
-                          title={`${annotator.timed_tasks ?? 0} timed tasks`}
+                          title={t('statistics.timedTasks', { count: annotator.timed_tasks ?? 0 })}
                         >
                           {formatDuration(annotator.median_seconds_per_task)}
                         </td>

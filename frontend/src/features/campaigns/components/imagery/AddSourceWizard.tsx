@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Modal } from '~/shared/ui/Modal';
 import { Input, Button } from '~/shared/ui/forms';
 import { IconStac, IconChevronRight } from '~/shared/ui/Icons';
@@ -28,21 +29,20 @@ type WizardStep =
   | { kind: 'custom-stac-browse' }
   | { kind: 'custom-xyz' };
 
-const PRESET_BLURBS: Record<string, string> = {
-  'sentinel-2-l2a':
-    'High-resolution optical imagery (10 m), worldwide, ~5-day refresh. Best general-purpose pick.',
-  'landsat-c2-l2': 'Mid-resolution optical imagery (30 m), worldwide, ~16-day refresh.',
-  'hls2-s30':
-    'Harmonized Landsat Sentinel-2 product (S30 subset). Use both HLS tiles for denser revisit.',
-  'hls2-l30':
-    'Harmonized Landsat Sentinel-2 product (L30 subset). Use both HLS tiles for denser revisit.',
-  naip: 'High-resolution aerial imagery for the United States. Limited to NAIP coverage.',
-  'sentinel-1-grd':
-    'Synthetic-aperture radar (SAR), worldwide, cloud-penetrating. Useful for change detection.',
-  'cop-dem-glo-30': 'Global digital elevation model at 30 m resolution. Static (non-temporal).',
-};
+const PRESET_BLURBS = {
+  'sentinel-2-l2a': 'wizard.blurbs.sentinel2',
+  'landsat-c2-l2': 'wizard.blurbs.landsat',
+  'hls2-s30': 'wizard.blurbs.hlsS30',
+  'hls2-l30': 'wizard.blurbs.hlsL30',
+  naip: 'wizard.blurbs.naip',
+  'sentinel-1-grd': 'wizard.blurbs.sentinel1',
+  'cop-dem-glo-30': 'wizard.blurbs.copDem',
+} as const;
+
+const isBlurbId = (id: string): id is keyof typeof PRESET_BLURBS => id in PRESET_BLURBS;
 
 export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWizardProps) => {
+  const { t } = useTranslation('imagery');
   const [step, setStep] = useState<WizardStep>({ kind: 'pick-preset' });
 
   /** Every flow finishes the same way: the source is created, then handed to the
@@ -109,7 +109,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
           const fallback =
             cols[0]?.data.type === 'stac_browser'
               ? cols[0].data.stacCollectionId
-              : 'Custom imagery';
+              : t('wizard.customImageryName');
           finalizeFromCatalog(result, fallback);
         }}
         onClose={back}
@@ -129,7 +129,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
     return <CustomXyzStep projectId={controller.projectId} onBack={back} onConfirm={added} />;
   }
 
-  const title = step.kind === 'pick-preset' ? 'Add Imagery Source' : 'Custom imagery source';
+  const title = step.kind === 'pick-preset' ? t('wizard.title') : t('wizard.customTitle');
 
   return (
     <Modal title={title} onClose={onClose} maxWidth="max-w-xl">
@@ -140,15 +140,13 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
             onClick={back}
             className="text-xs text-neutral-500 hover:text-neutral-700 cursor-pointer"
           >
-            ← Back
+            {t('wizard.back')}
           </button>
         )}
 
         {step.kind === 'pick-preset' && (
           <>
-            <p className="text-xs text-neutral-500">
-              Pick an imagery dataset to add. We&apos;ll guide you through the rest.
-            </p>
+            <p className="text-xs text-neutral-500">{t('wizard.pickIntro')}</p>
             <div className="grid gap-1.5">
               <button
                 type="button"
@@ -157,10 +155,12 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
               >
                 <div className="flex items-center gap-2">
                   <IconChevronRight className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-                  <span className="text-sm font-medium text-neutral-900">Custom (other)</span>
+                  <span className="text-sm font-medium text-neutral-900">
+                    {t('wizard.custom.title')}
+                  </span>
                 </div>
                 <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                  Bring your own STAC catalog or raw XYZ tile URLs.
+                  {t('wizard.custom.description')}
                 </p>
               </button>
               {MPC_PRESETS.map((preset) => (
@@ -178,7 +178,9 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
                     </span>
                   </div>
                   <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                    {PRESET_BLURBS[preset.stacCollectionId] ?? ''}
+                    {isBlurbId(preset.stacCollectionId)
+                      ? t(PRESET_BLURBS[preset.stacCollectionId])
+                      : ''}
                   </p>
                   <p className="text-[10px] text-neutral-400 mt-0.5 font-mono">
                     {preset.stacCollectionId}
@@ -192,14 +194,15 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
               >
                 <div className="flex items-center gap-2">
                   <IconStac className="w-3.5 h-3.5 text-brand-600 shrink-0" />
-                  <span className="text-sm font-medium text-neutral-900">Planet Basemaps</span>
+                  <span className="text-sm font-medium text-neutral-900">
+                    {t('wizard.planetBasemaps.title')}
+                  </span>
                   <span className="ml-auto text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold">
                     PLANET
                   </span>
                 </div>
                 <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                  Mosaics Planet has already built, at the cadence its series offer - monthly and
-                  quarterly worldwide, finer only where you are subscribed.
+                  {t('wizard.planetBasemaps.description')}
                 </p>
               </button>
               <button
@@ -209,14 +212,15 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
               >
                 <div className="flex items-center gap-2">
                   <IconStac className="w-3.5 h-3.5 text-brand-600 shrink-0" />
-                  <span className="text-sm font-medium text-neutral-900">Planet Daily Imagery</span>
+                  <span className="text-sm font-medium text-neutral-900">
+                    {t('wizard.planetDaily.title')}
+                  </span>
                   <span className="ml-auto text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold">
                     PLANET
                   </span>
                 </div>
                 <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                  The PlanetScope archive over your campaign area, grouped into periods you choose -
-                  down to a single day. Raw acquisitions stacked best-first, not a seamless basemap.
+                  {t('wizard.planetDaily.description')}
                 </p>
               </button>
             </div>
@@ -226,7 +230,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
         {step.kind === 'custom-stac-question' && (
           <>
             <p className="text-xs text-neutral-600 leading-relaxed">
-              Where does your imagery come from? Pick the option that matches your data provider.
+              {t('wizard.custom.question')}
             </p>
             <button
               type="button"
@@ -235,13 +239,17 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
             >
               <span className="text-sm font-medium text-neutral-900 flex items-center gap-1.5">
                 <IconStac className="w-3.5 h-3.5 text-brand-600" />
-                Yes - my imagery is in a STAC catalog
+                {t('wizard.custom.stacOption')}
               </span>
               <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                <strong>STAC</strong> (SpatioTemporal Asset Catalog) is a standard for organizing
-                geospatial data. Public examples: USGS Landsat catalog, NASA EarthData, Element 84
-                Earth Search. If your data provider gives you a STAC API URL ending in{' '}
-                <code className="font-mono text-[11px]">/v1</code> or similar, choose this.
+                <Trans
+                  t={t}
+                  i18nKey="wizard.custom.stacDescription"
+                  components={{
+                    strong: <strong />,
+                    code: <code className="font-mono text-[11px]" />,
+                  }}
+                />
               </p>
             </button>
             <button
@@ -250,12 +258,15 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
               className="w-full text-left px-4 py-3.5 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
             >
               <span className="text-sm font-medium text-neutral-900">
-                No - I have raw XYZ tile URLs
+                {t('wizard.custom.xyzOption')}
               </span>
               <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                Use this if you have a tile server URL with{' '}
-                <code className="font-mono text-[11px]">{'{z}/{x}/{y}'}</code> placeholders, e.g. a
-                Mapbox/MapTiler endpoint or a pre-generated mosaic URL.
+                <Trans
+                  t={t}
+                  i18nKey="wizard.custom.xyzDescription"
+                  values={{ placeholders: '{z}/{x}/{y}' }}
+                  components={{ code: <code className="font-mono text-[11px]" /> }}
+                />
               </p>
             </button>
           </>
@@ -272,10 +283,11 @@ interface CustomXyzStepProps {
 }
 
 const CustomXyzStep = ({ projectId, onBack, onConfirm }: CustomXyzStepProps) => {
+  const { t } = useTranslation('imagery');
   const [submitting, setSubmitting] = useState(false);
   const [source, setSource] = useState<ImagerySource>(() => {
     const s = emptySource();
-    s.name = 'Custom XYZ';
+    s.name = t('wizard.xyz.defaultName');
     s.visualizations = [{ name: 'Default' }];
     s.collections = [emptyManualCollection(['Default'])];
     return s;
@@ -315,7 +327,7 @@ const CustomXyzStep = ({ projectId, onBack, onConfirm }: CustomXyzStepProps) => 
 
   return (
     <Modal
-      title="Add custom XYZ source"
+      title={t('wizard.xyz.title')}
       onClose={onBack}
       maxWidth="max-w-xl"
       footer={
@@ -325,7 +337,7 @@ const CustomXyzStep = ({ projectId, onBack, onConfirm }: CustomXyzStepProps) => 
             onClick={onBack}
             className="text-sm text-neutral-600 hover:text-neutral-800 cursor-pointer"
           >
-            ← Back
+            {t('wizard.back')}
           </button>
           <Button
             variant="primary"
@@ -340,35 +352,40 @@ const CustomXyzStep = ({ projectId, onBack, onConfirm }: CustomXyzStepProps) => 
             }}
             disabled={!ready || submitting}
           >
-            {submitting ? 'Adding…' : 'Add source'}
+            {submitting ? t('wizard.adding') : t('wizard.addSource')}
           </Button>
         </div>
       }
     >
       <div className="p-4 space-y-3">
         <div className="space-y-1">
-          <label className="text-xs text-neutral-700 font-medium">Source name</label>
+          <label className="text-xs text-neutral-700 font-medium">
+            {t('wizard.xyz.sourceName')}
+          </label>
           <Input
             size="sm"
             type="text"
             value={source.name}
             onChange={(e) => setSource({ ...source, name: e.target.value })}
-            placeholder="e.g. Internal MapTiler basemap"
+            placeholder={t('wizard.xyz.sourceNamePlaceholder')}
           />
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-[11px] text-neutral-500 leading-snug">
-              A source can hold one or more <strong>collections</strong>, each covering its own time
-              window. Most XYZ setups need just one - but you can add more (e.g. one per year).
+              <Trans
+                t={t}
+                i18nKey="wizard.xyz.collectionsHint"
+                components={{ strong: <strong /> }}
+              />
             </p>
             <button
               type="button"
               onClick={addCollection}
               className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer whitespace-nowrap"
             >
-              + Add collection
+              {t('wizard.xyz.addCollection')}
             </button>
           </div>
           <div className="space-y-3">

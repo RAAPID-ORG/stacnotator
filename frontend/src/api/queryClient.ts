@@ -1,4 +1,5 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
+import i18n from '~/shared/i18n';
 import { handleError } from '~/shared/utils/errorHandler';
 
 /** What every query and mutation says about its own failure. The caches report
@@ -34,7 +35,8 @@ export const SHARED_WORK = {
 /** react-query types `meta` as an open record, so the contract above is checked
  *  where it is written rather than where it is read. */
 const report = (error: unknown, meta: Record<string, unknown> | undefined) => {
-  const context = typeof meta?.errorMessage === 'string' ? meta.errorMessage : 'Request failed';
+  const context =
+    typeof meta?.errorMessage === 'string' ? meta.errorMessage : i18n.t('errors.requestFailed');
   handleError(error, context, { showUser: meta?.showUser !== false });
 };
 

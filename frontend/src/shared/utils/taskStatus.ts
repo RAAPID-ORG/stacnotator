@@ -1,4 +1,7 @@
 import type { AnnotationFromTaskOut, AnnotationTaskOut } from '~/api/client';
+import i18n from '~/shared/i18n';
+
+const t = i18n.getFixedT(null, 'common');
 
 /**
  * Task-level status values, matching backend-computed task_status. The tuple is what
@@ -9,34 +12,26 @@ export const TASK_STATUSES = ['pending', 'partial', 'conflicting', 'done', 'skip
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 /**
- * Task status configuration with colors and labels
+ * Task status colors
  */
-export const TASK_STATUS_CONFIG: Record<
-  TaskStatus,
-  { label: string; color: string; badgeClass: string }
-> = {
+export const TASK_STATUS_CONFIG: Record<TaskStatus, { color: string; badgeClass: string }> = {
   pending: {
-    label: 'Pending',
     color: '#6B7280', // gray
     badgeClass: 'bg-gray-100 text-gray-700',
   },
   partial: {
-    label: 'Partial',
     color: '#F59E0B', // amber
     badgeClass: 'bg-yellow-100 text-yellow-700',
   },
   conflicting: {
-    label: 'Conflicting',
     color: '#EF4444', // red
     badgeClass: 'bg-red-100 text-red-700',
   },
   done: {
-    label: 'Complete',
     color: '#10B981', // green
     badgeClass: 'bg-green-100 text-green-700',
   },
   skipped: {
-    label: 'Skipped',
     color: '#8B5CF6', // violet
     badgeClass: 'bg-violet-100 text-violet-700',
   },
@@ -53,7 +48,7 @@ export function getTaskStatusColor(status: TaskStatus): string {
  * Format task status for display
  */
 export function formatTaskStatus(status: TaskStatus): string {
-  return TASK_STATUS_CONFIG[status]?.label ?? status;
+  return t(`taskStatus.${status}`, { defaultValue: status });
 }
 
 /**
@@ -70,8 +65,8 @@ export function countTasksByStatus(
     done: 0,
     skipped: 0,
   };
-  for (const t of tasks) {
-    const s = t.task_status;
+  for (const task of tasks) {
+    const s = task.task_status;
     if (s !== undefined && s in counts) counts[s]++;
   }
   return counts;
@@ -79,14 +74,8 @@ export function countTasksByStatus(
 
 export type TaskOutcome = NonNullable<AnnotationFromTaskOut['outcome']>;
 
-const OUTCOME_LABELS: Record<Exclude<TaskOutcome, 'labelled'>, string> = {
-  skipped: 'Skipped',
-  drawn: 'Drew shapes',
-  none_found: 'Nothing here',
-};
-
 /** How a task row without a label reads: a skip, or a draw task's answer.
  *  Null for a labelled row, which reads as its label. */
 export function outcomeLabel(outcome: TaskOutcome | null | undefined): string | null {
-  return outcome && outcome !== 'labelled' ? OUTCOME_LABELS[outcome] : null;
+  return outcome && outcome !== 'labelled' ? t(`taskOutcome.${outcome}`) : null;
 }

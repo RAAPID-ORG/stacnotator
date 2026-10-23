@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { ProjectUserOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 
@@ -31,6 +32,7 @@ export function ReviewerAssignmentModal({
   onAssign,
   totalTasks,
 }: ReviewerAssignmentModalProps) {
+  const { t } = useTranslation(['campaigns', 'common']);
   const [activeTab, setActiveTab] = useState<'percentage' | 'fixed'>('percentage');
   const [percentage, setPercentage] = useState(10);
   const [numTasks, setNumTasks] = useState(10);
@@ -74,7 +76,7 @@ export function ReviewerAssignmentModal({
       }
       onClose();
     } catch (error) {
-      handleError(error, 'Failed to assign reviewers');
+      handleError(error, t('reviewerAssign.failed'));
     } finally {
       setLoading(false);
     }
@@ -87,13 +89,13 @@ export function ReviewerAssignmentModal({
     <div className="fixed inset-0 bg-neutral-900/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-neutral-300">
-          <h2 className="text-xl font-semibold text-neutral-900">Set Up Task Reviews</h2>
+          <h2 className="text-xl font-semibold text-neutral-900">{t('reviewerAssign.title')}</h2>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <div className="mb-4">
             <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Assignment Pattern
+              {t('reviewerAssign.pattern')}
             </label>
             <div className="flex gap-3 mb-4">
               <button
@@ -104,7 +106,7 @@ export function ReviewerAssignmentModal({
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
               >
-                Percentage-Based
+                {t('reviewerAssign.percentageBased')}
               </button>
               <button
                 onClick={() => setActiveTab('fixed')}
@@ -114,7 +116,7 @@ export function ReviewerAssignmentModal({
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
               >
-                Fixed Number
+                {t('reviewerAssign.fixedNumber')}
               </button>
             </div>
           </div>
@@ -122,14 +124,17 @@ export function ReviewerAssignmentModal({
           {activeTab === 'percentage' && (
             <div className="mb-4 p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-600 mb-3">
-                A random subset of tasks will be selected for review. For each selected task,{' '}
-                <strong>{reviewersPerTask}</strong> user(s) from your pool will be assigned to
-                review it.
+                <Trans
+                  t={t}
+                  i18nKey="reviewerAssign.percentageHelp"
+                  values={{ count: reviewersPerTask }}
+                  components={{ strong: <strong /> }}
+                />
               </p>
 
               <div className="mb-3">
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Percentage of tasks: {percentage}%
+                  {t('reviewerAssign.percentageOfTasks', { percentage })}
                 </label>
                 <input
                   type="range"
@@ -140,13 +145,13 @@ export function ReviewerAssignmentModal({
                   className="w-full"
                 />
                 <div className="text-sm text-neutral-500 mt-1">
-                  ≈ {tasksAffectedPercentage} tasks will be reviewed
+                  {t('reviewerAssign.approxReviewed', { count: tasksAffectedPercentage })}
                 </div>
               </div>
 
               <div className="mb-3">
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Reviewers per task:
+                  {t('reviewerAssign.reviewersPerTask')}
                 </label>
                 <input
                   type="number"
@@ -163,13 +168,17 @@ export function ReviewerAssignmentModal({
           {activeTab === 'fixed' && (
             <div className="mb-4 p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-600 mb-3">
-                An exact number of randomly selected tasks will each be reviewed by{' '}
-                <strong>{reviewersPerTask}</strong> user(s) from your pool.
+                <Trans
+                  t={t}
+                  i18nKey="reviewerAssign.fixedHelp"
+                  values={{ count: reviewersPerTask }}
+                  components={{ strong: <strong /> }}
+                />
               </p>
 
               <div className="mb-3">
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Number of tasks to review:
+                  {t('reviewerAssign.numTasks')}
                 </label>
                 <input
                   type="number"
@@ -180,13 +189,13 @@ export function ReviewerAssignmentModal({
                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg"
                 />
                 <div className="text-sm text-neutral-500 mt-1">
-                  Total tasks available: {totalTasks}
+                  {t('reviewerAssign.totalAvailable', { count: totalTasks })}
                 </div>
               </div>
 
               <div className="mb-3">
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Reviewers per task:
+                  {t('reviewerAssign.reviewersPerTask')}
                 </label>
                 <input
                   type="number"
@@ -201,17 +210,24 @@ export function ReviewerAssignmentModal({
           )}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-neutral-700 mb-1">Reviewer Pool</label>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              {t('reviewerAssign.pool')}
+            </label>
             <p className="text-xs text-neutral-500 mb-2">
-              The system randomly picks <strong>{reviewersPerTask}</strong> of these users per task.
-              Users are never assigned to review a task they originally annotated. Select at least{' '}
-              {reviewersPerTask}.
+              <Trans
+                t={t}
+                i18nKey="reviewerAssign.poolHelp"
+                values={{ count: reviewersPerTask }}
+                components={{ strong: <strong /> }}
+              />
             </p>
             <button
               onClick={handleSelectAllReviewers}
               className="text-sm text-brand-700 hover:text-brand-600 mb-3"
             >
-              {selectedReviewers.length === projectUsers.length ? 'Deselect All' : 'Select All'}
+              {selectedReviewers.length === projectUsers.length
+                ? t('assignAll.deselectAll')
+                : t('assignAll.selectAll')}
             </button>
 
             <div className="space-y-2 max-h-64 overflow-y-auto border border-neutral-300 rounded-lg p-3">
@@ -232,11 +248,13 @@ export function ReviewerAssignmentModal({
                       <div className="text-sm text-neutral-500">{cu.user.email}</div>
                     )}
                     {cu.is_admin && (
-                      <span className="text-xs text-brand-700 font-semibold">Admin</span>
+                      <span className="text-xs text-brand-700 font-semibold">
+                        {t('assignAll.admin')}
+                      </span>
                     )}
                     {cu.is_authoritative_reviewer && (
                       <span className="text-xs text-purple-500 font-semibold ml-2">
-                        Authoritative Reviewer
+                        {t('assignAll.authoritativeReviewer')}
                       </span>
                     )}
                   </div>
@@ -244,17 +262,23 @@ export function ReviewerAssignmentModal({
               ))}
             </div>
             <div className="text-sm text-neutral-600 mt-2">
-              Selected: {selectedReviewers.length} reviewers
+              {t('reviewerAssign.selected', { count: selectedReviewers.length })}
             </div>
           </div>
 
           {selectedReviewers.length > 0 && canSubmit && (
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Preview:</strong> Randomly assign {reviewersPerTask} reviewer(s) from your{' '}
-                {selectedReviewers.length}-person pool to each of the{' '}
-                {activeTab === 'percentage' ? tasksAffectedPercentage : numTasks} selected tasks.
-                Users won't review tasks they annotated.
+                <Trans
+                  t={t}
+                  i18nKey="reviewerAssign.preview"
+                  values={{
+                    reviewers: reviewersPerTask,
+                    pool: selectedReviewers.length,
+                    count: activeTab === 'percentage' ? tasksAffectedPercentage : numTasks,
+                  }}
+                  components={{ strong: <strong /> }}
+                />
               </p>
             </div>
           )}
@@ -266,7 +290,7 @@ export function ReviewerAssignmentModal({
             disabled={loading}
             className="px-4 py-2 border border-neutral-300 rounded-lg text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
           >
-            Cancel
+            {t('common:actions.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -274,8 +298,10 @@ export function ReviewerAssignmentModal({
             className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
           >
             {loading
-              ? 'Assigning...'
-              : `Assign to ${activeTab === 'percentage' ? tasksAffectedPercentage : numTasks} Tasks`}
+              ? t('assignAll.assigning')
+              : t('reviewerAssign.submit', {
+                  count: activeTab === 'percentage' ? tasksAffectedPercentage : numTasks,
+                })}
           </button>
         </div>
       </div>

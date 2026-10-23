@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { ImageryCatalog } from '../../../campaign/imagery';
 import { useImageryStore } from '../../../stores/imagery';
 import { HeaderSelect } from '../../../components/HeaderSelect';
@@ -25,6 +26,7 @@ export function VectorLayerControls({
   catalog: ImageryCatalog;
   toggleTitle: string;
 }) {
+  const { t } = useTranslation('panels');
   const vector = useImageryStore((s) => s.vector);
   const vectorAction = useImageryStore((s) => s.vectorAction);
 
@@ -48,7 +50,7 @@ export function VectorLayerControls({
         }
         value={vector.id ?? ''}
         options={[
-          { value: '', label: 'No vector layer' },
+          { value: '', label: t('vector.none') },
           ...layers.map((l) => ({ value: l.id, label: l.name })),
         ]}
         onChange={(v: string | number) => {
@@ -59,7 +61,7 @@ export function VectorLayerControls({
               'cycle'
             );
         }}
-        title="Select vector layer"
+        title={t('vector.select')}
       />
       {active && (
         <button

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '~/shared/ui/forms';
@@ -40,14 +41,15 @@ import { useCampaign, useRefreshCampaign } from '../hooks/campaignQueries';
 const SETTINGS_TABS = ['general', 'imagery', 'timeseries'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
-const isSettingsTab = (t: string | null): t is SettingsTab =>
-  (SETTINGS_TABS as readonly string[]).includes(t ?? '');
+const isSettingsTab = (tab: string | null): tab is SettingsTab =>
+  (SETTINGS_TABS as readonly string[]).includes(tab ?? '');
 
 const NO_IMAGERY: ImagerySourceOut[] = [];
 const NO_TIMESERIES: TimeSeriesOut[] = [];
 const NO_USERS: ProjectUserOut[] = [];
 
 export const CampaignSettingsPage = () => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
@@ -103,11 +105,11 @@ export const CampaignSettingsPage = () => {
 
   // Warn if the user navigates away with unsaved imagery edits.
   useUnsavedChangesGuard(imageryController.isDirty, {
-    title: 'Unsaved imagery changes',
-    description: 'Your imagery edits have not been saved and will be lost. Leave without saving?',
+    title: t('settingsPage.imagery.unsavedTitle'),
+    description: t('settingsPage.imagery.leaveDescription'),
   });
 
-  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Settings');
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, t('overview.settings'));
 
   // The name is edited in place, so it needs a draft of its own - seeded when
   // the campaign arrives and re-seeded if the stored name moves under us.
@@ -132,12 +134,10 @@ export const CampaignSettingsPage = () => {
     const failed =
       campaign.registration_status === 'failed' || campaign.embedding_status === 'failed';
     showAlert(
-      failed
-        ? 'Background setup completed with some errors. Check settings.'
-        : 'Campaign setup completed successfully',
+      failed ? t('settingsPage.setupFailed') : t('settingsPage.setupDone'),
       failed ? 'warning' : 'success'
     );
-  }, [isAnyRegistering, campaign, showAlert]);
+  }, [isAnyRegistering, campaign, showAlert, t]);
 
   // The general tab's labelling access needs the project's member list for the
   // "selected members" picker.
@@ -145,28 +145,28 @@ export const CampaignSettingsPage = () => {
   const { data: projectUsersData } = useQuery({
     ...getProjectUsersOptions({ path: { project_id: campaignProjectId ?? 0 } }),
     enabled: activeTab === 'general' && campaignProjectId !== undefined,
-    meta: { errorMessage: 'Failed to load project members' },
+    meta: { errorMessage: t('errors.loadProjectMembers') },
   });
   const projectUsers = projectUsersData?.users ?? NO_USERS;
 
   const renameCampaign = useMutation({
     ...updateCampaignNameMutation(),
-    meta: { errorMessage: 'Failed to save campaign name' },
+    meta: { errorMessage: t('settingsPage.errors.saveName') },
     onSuccess: () => {
       void refreshCampaign();
-      showAlert('Campaign name updated successfully', 'success');
+      showAlert(t('settingsPage.toasts.nameSaved'), 'success');
     },
     onError: () => setCampaignName(campaign?.name ?? ''),
   });
 
   const removeCampaign = useMutation({
     ...deleteCampaignMutation(),
-    meta: { errorMessage: 'Failed to delete campaign' },
+    meta: { errorMessage: t('settingsPage.errors.deleteCampaign') },
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: listProjectCampaignsQueryKey({ path: { project_id: projectId } }),
       });
-      showAlert('Campaign deleted successfully', 'success');
+      showAlert(t('settingsPage.toasts.campaignDeleted'), 'success');
       setShowDeleteCampaignDialog(false);
       navigate(projectPath(projectId));
     },
@@ -174,30 +174,33 @@ export const CampaignSettingsPage = () => {
 
   const removeTimeseries = useMutation({
     ...deleteTimeseriesMutation(),
-    meta: { errorMessage: 'Failed to delete timeseries' },
+    meta: { errorMessage: t('settingsPage.errors.deleteTimeseries') },
     onSuccess: () => {
       void refreshCampaign();
       setDeleteConfirm(null);
-      showAlert('Timeseries deleted successfully', 'success');
+      showAlert(t('settingsPage.toasts.timeseriesDeleted'), 'success');
     },
   });
 
   const addTimeseries = useMutation({
     ...createTimeseriesForCampaignMutation(),
-    meta: { errorMessage: 'Failed to add timeseries' },
+    meta: { errorMessage: t('settingsPage.errors.addTimeseries') },
     onSuccess: (result) => {
       void refreshCampaign();
       setNewTimeseries([]);
-      showAlert(`${result.new_items.length} timeseries added successfully`, 'success');
+      showAlert(
+        t('settingsPage.toasts.timeseriesAdded', { count: result.new_items.length }),
+        'success'
+      );
     },
   });
 
   const renamePanel = useMutation({
     ...renameTimeseriesPanelMutation(),
-    meta: { errorMessage: 'Failed to rename timeseries panel' },
+    meta: { errorMessage: t('settingsPage.errors.renamePanel') },
     onSuccess: async () => {
       await refreshCampaign();
-      showAlert('Panel renamed successfully', 'success');
+      showAlert(t('settingsPage.toasts.panelRenamed'), 'success');
     },
   });
 
@@ -256,7 +259,7 @@ export const CampaignSettingsPage = () => {
               ) : (
                 <Skeleton className="h-7 w-52" />
               )}
-              <p className="page-subtitle">Manage your campaign settings and imagery.</p>
+              <p className="page-subtitle">{t('settingsPage.subtitle')}</p>
             </div>
             {campaign && (
               <div className="flex gap-2">
@@ -269,17 +272,17 @@ export const CampaignSettingsPage = () => {
                     }}
                     disabled={imageryController.pending}
                   >
-                    {imageryController.pending ? 'Saving…' : 'Save'}
+                    {imageryController.pending
+                      ? t('settingsPage.saving')
+                      : t('common:actions.save')}
                   </Button>
                 ) : (
                   <Button
                     onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}
                     disabled={isAnyRegistering}
-                    title={
-                      isAnyRegistering ? 'Waiting for background setup to complete...' : undefined
-                    }
+                    title={isAnyRegistering ? t('settingsPage.waitingForSetup') : undefined}
                   >
-                    Start annotating
+                    {t('startAnnotating')}
                   </Button>
                 )}
               </div>
@@ -311,8 +314,11 @@ export const CampaignSettingsPage = () => {
                   />
                 </svg>
                 <span>
-                  <strong>Mosaic registration in progress...</strong> Tile imagery is being
-                  registered from the STAC catalog.
+                  <Trans
+                    t={t}
+                    i18nKey="settingsPage.banners.registering"
+                    components={{ strong: <strong /> }}
+                  />
                 </span>
               </div>
             )}
@@ -338,23 +344,29 @@ export const CampaignSettingsPage = () => {
                   />
                 </svg>
                 <span>
-                  <strong>Embedding generation in progress...</strong> Satellite embeddings are
-                  being computed for the campaign area. You can configure other settings while
-                  waiting.
+                  <Trans
+                    t={t}
+                    i18nKey="settingsPage.banners.embedding"
+                    components={{ strong: <strong /> }}
+                  />
                 </span>
               </div>
             )}
             {campaign?.registration_status === 'failed' && (
               <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 space-y-2">
                 <p>
-                  <strong>Some mosaic registrations failed.</strong> The campaign is usable but some
-                  tiles may be missing. Check the Imagery tab to re-register individual collections.
+                  <Trans
+                    t={t}
+                    i18nKey="settingsPage.banners.registrationFailed"
+                    components={{ strong: <strong /> }}
+                  />
                 </p>
                 {campaign.registration_errors && campaign.registration_errors.length > 0 && (
                   <details className="text-[11px]">
                     <summary className="cursor-pointer font-medium text-red-700 hover:text-red-900">
-                      Show {campaign.registration_errors.length} error
-                      {campaign.registration_errors.length !== 1 ? 's' : ''}
+                      {t('settingsPage.banners.showErrors', {
+                        count: campaign.registration_errors.length,
+                      })}
                     </summary>
                     <ul className="mt-1 space-y-0.5 pl-3 list-disc text-red-700">
                       {campaign.registration_errors.slice(0, 20).map((rawErr, i) => {
@@ -376,7 +388,9 @@ export const CampaignSettingsPage = () => {
                       })}
                       {campaign.registration_errors.length > 20 && (
                         <li className="text-red-500">
-                          ...and {campaign.registration_errors.length - 20} more
+                          {t('settingsPage.banners.moreErrors', {
+                            count: campaign.registration_errors.length - 20,
+                          })}
                         </li>
                       )}
                     </ul>
@@ -387,8 +401,11 @@ export const CampaignSettingsPage = () => {
             {campaign?.embedding_status === 'failed' && (
               <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
                 <p>
-                  <strong>Embedding generation failed.</strong> The campaign is usable but
-                  embedding-based features (similarity search) won&apos;t be available.
+                  <Trans
+                    t={t}
+                    i18nKey="settingsPage.banners.embeddingFailed"
+                    components={{ strong: <strong /> }}
+                  />
                 </p>
                 {campaign.registration_errors?.some((e) =>
                   (e as { error?: string }).error?.startsWith('Embeddings:')
@@ -414,9 +431,9 @@ export const CampaignSettingsPage = () => {
                 tabs read as the surface's header, not a separate strip. */}
             <TabNavigator<SettingsTab>
               items={[
-                { id: 'general', label: 'General Settings' },
-                { id: 'imagery', label: 'Imagery' },
-                { id: 'timeseries', label: 'Timeseries' },
+                { id: 'general', label: t('settingsPage.tabs.general') },
+                { id: 'imagery', label: t('settingsPage.tabs.imagery') },
+                { id: 'timeseries', label: t('settingsPage.tabs.timeseries') },
               ]}
               activeId={activeTab}
               onChange={setActiveTab}
@@ -465,14 +482,14 @@ export const CampaignSettingsPage = () => {
       </div>
 
       {/* Global Modals */}
-      <LoadingOverlay visible={saving && !deleteConfirm} text="Saving..." />
+      <LoadingOverlay visible={saving && !deleteConfirm} text={t('savingOverlay')} />
 
       <ConfirmDialog
         isOpen={!!deleteConfirm}
-        title="Delete Timeseries?"
-        description="This action cannot be undone. The timeseries will be permanently removed from the campaign."
-        confirmText="Delete"
-        cancelText="Cancel"
+        title={t('settingsPage.deleteTimeseries.title')}
+        description={t('settingsPage.deleteTimeseries.description')}
+        confirmText={t('common:actions.delete')}
+        cancelText={t('common:actions.cancel')}
         isDangerous={true}
         isLoading={saving}
         onConfirm={handleDeleteTimeseries}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '~/shared/ui/forms';
 import { Spinner } from '~/shared/ui/Spinner';
 import { StepIndicator } from '~/shared/ui/StepIndicator';
@@ -27,9 +28,10 @@ interface Props {
 }
 
 export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: Props) => {
+  const { t } = useTranslation(['areaEstimation', 'common']);
   const [stepIndex, setStepIndex] = useState(0);
   const top = useRef<HTMLDivElement>(null);
-  const step = PLAN_STEPS[stepIndex].id;
+  const step = PLAN_STEPS[stepIndex];
   const issues = validatePlan(plan);
   const stepIssues = issuesForStep(issues, step);
   const isLast = stepIndex === PLAN_STEPS.length - 1;
@@ -54,10 +56,10 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
   return (
     <div className="space-y-6" ref={top}>
       <StepIndicator
-        steps={PLAN_STEPS.map((s) => s.name)}
+        steps={PLAN_STEPS.map((s) => t(`steps.${s}`))}
         step={stepIndex + 1}
         onStepClick={(n) => setStepIndex(n - 1)}
-        warnings={PLAN_STEPS.map((s) => issuesForStep(issues, s.id).length > 0)}
+        warnings={PLAN_STEPS.map((s) => issuesForStep(issues, s).length > 0)}
       />
 
       <div className="space-y-6">
@@ -83,14 +85,14 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
           onClick={() => (stepIndex === 0 ? onCancel?.() : setStepIndex(stepIndex - 1))}
           disabled={stepIndex === 0 && !onCancel}
         >
-          {stepIndex === 0 ? 'Cancel' : 'Back'}
+          {stepIndex === 0 ? t('common:actions.cancel') : t('common:actions.back')}
         </Button>
 
         {isLast ? (
           <div className="flex items-center gap-3">
             {issues.length > 0 && (
               <span className="text-xs text-neutral-500">
-                {issues.length} thing{issues.length === 1 ? '' : 's'} still to fix
+                {t('wizard.issuesLeft', { count: issues.length })}
               </span>
             )}
             <Button
@@ -99,12 +101,12 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
               leading={activating ? <Spinner size="xs" variant="white" /> : undefined}
               data-testid="uae-activate"
             >
-              Draw {formatCount(totalPoints(designsOf(plan)))} sampling units
+              {t('wizard.draw', { n: formatCount(totalPoints(designsOf(plan))) })}
             </Button>
           </div>
         ) : (
           <Button onClick={() => setStepIndex(stepIndex + 1)} data-testid="uae-continue">
-            Continue
+            {t('wizard.continue')}
           </Button>
         )}
       </div>

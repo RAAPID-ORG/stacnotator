@@ -1,3 +1,5 @@
+import i18n from '~/shared/i18n';
+
 if (typeof window === 'undefined') {
   (globalThis as Record<string, unknown>).window = globalThis;
 }
@@ -16,3 +18,6 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
       dispatchEvent: () => false,
     }) as MediaQueryList;
 }
+
+// Component tests assert on the English copy, whatever language the runner reports.
+i18n.changeLanguage('en');

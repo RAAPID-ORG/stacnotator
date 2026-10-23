@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { exportAnnotations, exportAnnotationsGeojson, type CampaignSummaryOut } from '~/api/client';
 import { Dropdown } from '~/shared/ui/motion';
@@ -23,6 +24,7 @@ export const ExportDropdown = ({
   showMergeToggle = true,
   hasConflicts = false,
 }: ExportDropdownProps) => {
+  const { t } = useTranslation('review');
   const [exporting, setExporting] = useState<'csv' | 'geojson' | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [mergeOnAgreement, setMergeOnAgreement] = useState(false);
@@ -58,7 +60,7 @@ export const ExportDropdown = ({
       if (!response.response.ok || !response.data) {
         // Try to surface the backend's specific error (e.g. the list of
         // conflicting task numbers when merge_on_agreement is rejected).
-        let detail = `Failed to export annotations as ${format.toUpperCase()}`;
+        let detail = t('export.failedAs', { format: format.toUpperCase() });
         try {
           const errBlob = response.data as Blob | undefined;
           if (errBlob) {
@@ -87,9 +89,9 @@ export const ExportDropdown = ({
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      showAlert(`Annotations exported as ${format.toUpperCase()}`, 'success');
+      showAlert(t('export.succeeded', { format: format.toUpperCase() }), 'success');
     } catch (err) {
-      handleError(err, 'Failed to export annotations');
+      handleError(err, t('export.failed'));
     } finally {
       setExporting(null);
     }
@@ -119,7 +121,7 @@ export const ExportDropdown = ({
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               />
             </svg>
-            Exporting…
+            {t('export.exporting')}
           </>
         ) : (
           <>
@@ -131,7 +133,7 @@ export const ExportDropdown = ({
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
               />
             </svg>
-            Export
+            {t('export.button')}
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
@@ -155,11 +157,7 @@ export const ExportDropdown = ({
                   ? 'cursor-not-allowed opacity-60'
                   : 'cursor-pointer hover:bg-neutral-50'
               }`}
-              title={
-                hasConflicts
-                  ? 'Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.'
-                  : undefined
-              }
+              title={hasConflicts ? t('export.mergeDisabledTitle') : undefined}
             >
               <input
                 type="checkbox"
@@ -169,11 +167,9 @@ export const ExportDropdown = ({
                 className="mt-0.5"
               />
               <span className="text-xs leading-snug text-neutral-700">
-                <span className="font-medium block">Merge on agreement</span>
+                <span className="font-medium block">{t('export.mergeOnAgreement')}</span>
                 <span className="text-neutral-500">
-                  {hasConflicts
-                    ? 'Disabled - resolve conflicting tasks first.'
-                    : 'Collapse multi-annotator tasks into one row when all annotators agree.'}
+                  {hasConflicts ? t('export.mergeDisabled') : t('export.mergeHint')}
                 </span>
               </span>
             </label>
@@ -192,7 +188,7 @@ export const ExportDropdown = ({
             type="button"
           >
             <div className="font-medium">CSV</div>
-            <div className="text-xs text-neutral-500">Tabular export (.csv)</div>
+            <div className="text-xs text-neutral-500">{t('export.csvHint')}</div>
           </button>
         </div>
       </Dropdown>

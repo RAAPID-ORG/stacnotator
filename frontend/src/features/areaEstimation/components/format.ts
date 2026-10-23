@@ -1,5 +1,7 @@
 /** How the numbers in this feature are written down for a non-specialist. */
 
+import i18n from '~/shared/i18n';
+
 const HECTARES_PER_SQUARE_METRE = 1 / 10_000;
 
 export const hectares = (squareMetres: number): number => squareMetres * HECTARES_PER_SQUARE_METRE;
@@ -15,7 +17,7 @@ export const formatArea = (squareMetres: number): string => {
 export const formatPercent = (fraction: number, digits = 1): string =>
   Number.isFinite(fraction) ? `${(fraction * 100).toFixed(digits)}%` : '-';
 
-export const formatCount = (n: number): string => n.toLocaleString('en-US');
+export const formatCount = (n: number): string => n.toLocaleString(i18n.language);
 
 export const formatPixels = (n: number): string => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;

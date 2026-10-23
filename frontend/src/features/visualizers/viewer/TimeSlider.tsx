@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { VisualizerStepOut } from '~/api/client';
 import { IconChevronLeft, IconChevronRight } from '~/shared/ui/Icons';
 
@@ -16,6 +17,7 @@ export function TimeSlider({
   index: number;
   onSelect: (index: number) => void;
 }) {
+  const { t } = useTranslation('visualizers');
   const track = useRef<HTMLDivElement>(null);
   if (steps.length === 0) return null;
 
@@ -38,7 +40,7 @@ export function TimeSlider({
       data-testid="visualizer-time-slider"
     >
       <div className="flex items-center gap-2">
-        <SliderButton label="Previous date" disabled={index === 0} onClick={() => step(-1)}>
+        <SliderButton label={t('slider.previous')} disabled={index === 0} onClick={() => step(-1)}>
           <IconChevronLeft className="h-4 w-4" />
         </SliderButton>
 
@@ -59,7 +61,7 @@ export function TimeSlider({
             ref={track}
             role="slider"
             tabIndex={0}
-            aria-label="Date"
+            aria-label={t('slider.date')}
             aria-valuemin={1}
             aria-valuemax={steps.length}
             aria-valuenow={index + 1}
@@ -117,7 +119,7 @@ export function TimeSlider({
         </div>
 
         <SliderButton
-          label="Next date"
+          label={t('slider.next')}
           disabled={index === steps.length - 1}
           onClick={() => step(1)}
         >

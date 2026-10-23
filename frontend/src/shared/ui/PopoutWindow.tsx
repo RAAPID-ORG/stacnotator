@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { IconClose } from './Icons';
 
 export interface PopoutBounds {
@@ -62,9 +63,10 @@ export const PopoutWindow = ({
   onUserClose,
   onBounds,
   onBlocked,
-  closeLabel = 'Close window',
+  closeLabel,
   children,
 }: PopoutWindowProps) => {
+  const { t } = useTranslation();
   const [container, setContainer] = useState<HTMLElement | null>(null);
   const childRef = useRef<Window | null>(null);
 
@@ -175,10 +177,10 @@ export const PopoutWindow = ({
           type="button"
           onClick={() => childRef.current?.close()}
           className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800"
-          title="Close this window and return its panels to the main window"
+          title={t('popout.closeTitle')}
         >
           <IconClose className="h-3 w-3" />
-          {closeLabel}
+          {closeLabel ?? t('popout.close')}
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">{children}</div>

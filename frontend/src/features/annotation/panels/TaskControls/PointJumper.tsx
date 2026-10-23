@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface PointJumperProps {
   current: number;
@@ -14,6 +15,7 @@ export interface PointJumperProps {
  *  it ends up showing the point actually on screen, never a number typed and
  *  abandoned. Key it on `current` so a move made elsewhere resets it. */
 export function PointJumper({ current, disabled, onJump, onNotFound }: PointJumperProps) {
+  const { t } = useTranslation('panels');
   const [draft, setDraft] = useState(String(current));
   const cancelled = useRef(false);
 
@@ -49,8 +51,8 @@ export function PointJumper({ current, disabled, onJump, onNotFound }: PointJump
         cancelled.current = e.key === 'Escape';
         e.currentTarget.blur();
       }}
-      aria-label="Current point"
-      title="Current point. Type a number and press Enter to jump to it; Esc cancels."
+      aria-label={t('task.currentPoint')}
+      title={t('task.currentPointTitle')}
       className="w-14 h-7 shrink-0 px-2 text-center text-xs text-neutral-900 bg-white border border-neutral-300 rounded hover:border-neutral-400 focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 disabled:opacity-50 tabular-nums cursor-text"
     />
   );

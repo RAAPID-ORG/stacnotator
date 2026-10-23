@@ -6,6 +6,7 @@
 import type { LabelBase } from '~/api/client';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
+import i18n from '~/shared/i18n';
 import { DIGIT_INPUT_TIMEOUT_MS } from '~/shared/utils/constants';
 import { focusFormFieldInput, reveal, revealAndFocus } from './components/FormFields';
 import { commitEdit, deleteSelection } from './drawing';
@@ -40,6 +41,8 @@ import {
   submitAuthoritative,
   DEFAULT_CONFIDENCE,
 } from './taskActions';
+
+const t = i18n.getFixedT(null, 'annotation');
 
 const alert = (message: string, kind: 'error' | 'success') =>
   useGlobalLayoutStore.getState().showAlert(message, kind);
@@ -223,7 +226,7 @@ function formFieldBindings(): Binding[] {
     ...DIGITS.map(
       (digit, index): Binding => ({
         key: digit,
-        help: index === 0 ? 'Answer the focused field' : undefined,
+        help: index === 0 ? t('keymap.answerField') : undefined,
         helpKey: index === 0 ? '0-9' : undefined,
         when: () => activeFormField() !== undefined,
         run: runFormKey,
@@ -236,21 +239,21 @@ function formFieldBindings(): Binding[] {
     // toolbar and panel buttons, which then answer Enter and Space.
     {
       key: 'tab',
-      help: 'Cycle form fields',
+      help: t('keymap.cycleFields'),
       allowInInput: true,
       when: formKeysApply,
       run: runFormKey,
     },
     {
       key: 'shift+tab',
-      help: 'Cycle form fields backward',
+      help: t('keymap.cycleFieldsBack'),
       allowInInput: true,
       when: formKeysApply,
       run: runFormKey,
     },
     {
       key: 'escape',
-      help: 'Unfocus the active field',
+      help: t('keymap.unfocusField'),
       allowInInput: true,
       // The comment box is focused by its own 'c' binding and has no other way
       // out, so Escape blurs it too - otherwise every key stays swallowed by
@@ -263,7 +266,7 @@ function formFieldBindings(): Binding[] {
     },
     {
       key: 'enter',
-      help: 'Focus the active field',
+      help: t('keymap.focusField'),
       when: () => {
         const field = activeFormField();
         return field !== undefined && field.type !== 'category' && field.type !== 'multicategory';
@@ -281,20 +284,20 @@ function editBindings(): Binding[] {
   const hasSelection = () => useWorkStore.getState().selection.length > 0;
   const del: Binding = {
     key: 'delete',
-    help: 'Delete the selected annotation(s)',
+    help: t('keymap.deleteSelection'),
     when: hasSelection,
     run: () => void deleteSelection(),
   };
   return [
     {
       key: 'enter',
-      help: 'Save the edited shape',
+      help: t('keymap.saveEdit'),
       when: () => useWorkStore.getState().edit?.pending != null,
       run: () => void commitEdit(),
     },
     {
       key: 'escape',
-      help: 'Cancel the edit',
+      help: t('keymap.cancelEdit'),
       when: hasSelection,
       run: () => useWorkStore.getState().clearEdit(),
     },
@@ -307,12 +310,12 @@ function editBindings(): Binding[] {
 // Explore mode
 // ---------------------------------------------------------------------------
 
-const TOOL_KEYS: Array<{ key: string; tool: Tool; help: string }> = [
-  { key: 'p', tool: 'pan', help: 'Pan tool' },
-  { key: 'r', tool: 'annotate', help: 'Annotate tool' },
-  { key: 'e', tool: 'edit', help: 'Edit tool' },
-  { key: 'b', tool: 'labelVector', help: 'Label vector features' },
-  { key: 't', tool: 'timeseries', help: 'Timeseries probe' },
+const TOOL_KEYS: Array<{ key: string; tool: Tool }> = [
+  { key: 'p', tool: 'pan' },
+  { key: 'r', tool: 'annotate' },
+  { key: 'e', tool: 'edit' },
+  { key: 'b', tool: 'labelVector' },
+  { key: 't', tool: 'timeseries' },
 ];
 
 function exploreBindings(): Binding[] {
@@ -322,9 +325,9 @@ function exploreBindings(): Binding[] {
   const hasVectorLayers = (campaign.vector_layers?.length ?? 0) > 0;
   const draftIsOpen = () => useWorkStore.getState().draft.phase === 'draft';
 
-  const toolBinding = ({ key, tool, help }: (typeof TOOL_KEYS)[number]): Binding => ({
+  const toolBinding = ({ key, tool }: (typeof TOOL_KEYS)[number]): Binding => ({
     key,
-    help,
+    help: t(`keymap.tools.${tool}`),
     when: () => {
       if (tool === 'timeseries') return hasTimeseries;
       if (tool === 'labelVector') return hasVectorLayers;
@@ -339,7 +342,7 @@ function exploreBindings(): Binding[] {
   const labelCount = Math.min(labels.length, 9);
   const digitBinding = (index: number): Binding => ({
     key: String(index + 1),
-    help: index === 0 ? 'Select label by number' : undefined,
+    help: index === 0 ? t('keymap.selectLabel') : undefined,
     helpKey: index === 0 ? `1-${labelCount}` : undefined,
     when: () => !draftIsOpen(),
     run: () => {
@@ -353,7 +356,7 @@ function exploreBindings(): Binding[] {
     ...Array.from({ length: labelCount }, (_, i) => digitBinding(i)),
     {
       key: 'f',
-      help: 'Flag the selected annotation for review',
+      help: t('keymap.flagSelected'),
       when: () => useWorkStore.getState().edit !== null,
       run: () => {
         const edit = useWorkStore.getState().edit;
@@ -365,7 +368,7 @@ function exploreBindings(): Binding[] {
     },
     {
       key: 'enter',
-      help: 'Save the drawn annotation',
+      help: t('keymap.saveDraft'),
       // Reachable from inside a field too: answering the last question and
       // pressing Enter is how a draft gets finished, without reaching for
       // Escape first.
@@ -378,10 +381,7 @@ function exploreBindings(): Binding[] {
           .commitDraft()
           .then((saved) => {
             if (!saved) {
-              alert(
-                'Could not save the annotation - check the required questions and retry.',
-                'error'
-              );
+              alert(t('keymap.saveDraftFailed'), 'error');
             }
           });
       },
@@ -389,8 +389,8 @@ function exploreBindings(): Binding[] {
     {
       key: 'escape',
       help: (campaign.settings.form_fields ?? []).some((f) => f.required)
-        ? 'Close the draft (incomplete answers discard it)'
-        : 'Close the questions (the annotation is already saved)',
+        ? t('keymap.closeDraft')
+        : t('keymap.closeQuestions'),
       when: draftIsOpen,
       run: () => void useWorkStore.getState().closeDraft(),
     },
@@ -413,8 +413,12 @@ function adjustConfidence(delta: number): void {
 function taskStepBindings(): Binding[] {
   const { catalog } = campaignState();
   return [
-    { key: 'w', help: 'Previous task', run: () => useTasksStore.getState().previous(catalog) },
-    { key: 's', help: 'Next task', run: () => void advance() },
+    {
+      key: 'w',
+      help: t('keymap.previousTask'),
+      run: () => useTasksStore.getState().previous(catalog),
+    },
+    { key: 's', help: t('keymap.nextTask'), run: () => void advance() },
   ];
 }
 
@@ -434,7 +438,7 @@ function taskBindings(): Binding[] {
   const digits =
     labels.length >= 10 ? DIGITS : Array.from({ length: labels.length }, (_, i) => String(i + 1));
   const labelHelp =
-    labels.length >= 10 ? 'Select label by number (two digits for 10+)' : 'Select label by number';
+    labels.length >= 10 ? t('keymap.selectLabelTwoDigits') : t('keymap.selectLabel');
 
   return [
     ...digits.map(
@@ -450,7 +454,7 @@ function taskBindings(): Binding[] {
     ...([1, 2, 3, 4, 5] as const).map(
       (level): Binding => ({
         key: `shift+${level}`,
-        help: level === 1 ? 'Set confidence level' : undefined,
+        help: level === 1 ? t('keymap.setConfidence') : undefined,
         helpKey: level === 1 ? 'Shift+1-5' : undefined,
         run: () => {
           useWorkStore.getState().setConfidence(level);
@@ -460,16 +464,16 @@ function taskBindings(): Binding[] {
     ),
 
     ...taskStepBindings(),
-    { key: 'q', help: 'Decrease confidence', run: () => adjustConfidence(-1) },
-    { key: 'e', help: 'Increase confidence', run: () => adjustConfidence(1) },
+    { key: 'q', help: t('keymap.decreaseConfidence'), run: () => adjustConfidence(-1) },
+    { key: 'e', help: t('keymap.increaseConfidence'), run: () => adjustConfidence(1) },
     {
       key: 'c',
-      help: 'Focus comment',
+      help: t('keymap.focusComment'),
       run: () => revealAndFocus(document.querySelector('[data-task-comment]'), commentBox()),
     },
     {
       key: 'f',
-      help: 'Toggle flag for review',
+      help: t('keymap.toggleFlag'),
       run: () => {
         const work = useWorkStore.getState();
         work.setFlagged(!work.flagged);
@@ -477,11 +481,9 @@ function taskBindings(): Binding[] {
     },
     {
       key: 'enter',
-      help: 'Submit',
+      help: t('keymap.submit'),
       run: () => {
-        void submitAnnotation().catch((error) =>
-          handleError(error, 'Could not submit the annotation')
-        );
+        void submitAnnotation().catch((error) => handleError(error, t('keymap.submitFailed')));
       },
     },
   ];
@@ -531,7 +533,7 @@ function mapBindings(): Binding[] {
       ? [
           {
             key: 't',
-            help: 'Timeseries probe tool - then click the map to move the probe',
+            help: t('keymap.probeTool'),
             run: () => useWorkStore.getState().toggleProbeTool(),
           },
         ]
@@ -544,7 +546,7 @@ function mapBindings(): Binding[] {
       ? [
           {
             key: 'shift+t',
-            help: 'Add another timeseries probe',
+            help: t('keymap.addProbe'),
             run: () => useWorkStore.getState().armAddProbe(true),
           },
         ]
@@ -552,81 +554,121 @@ function mapBindings(): Binding[] {
 
   return [
     ...addProbe,
-    scrub('a', 'Previous slice', () => imagery().stepSliceAction(catalog, -1)),
-    scrub('d', 'Next slice', () => imagery().stepSliceAction(catalog, 1)),
-    scrub('shift+a', 'Previous collection', () => imagery().stepCollectionAction(catalog, -1)),
-    scrub('shift+d', 'Next collection', () => imagery().stepCollectionAction(catalog, 1)),
+    scrub('a', t('keymap.previousSlice'), () => imagery().stepSliceAction(catalog, -1)),
+    scrub('d', t('keymap.nextSlice'), () => imagery().stepSliceAction(catalog, 1)),
+    scrub('shift+a', t('keymap.previousCollection'), () =>
+      imagery().stepCollectionAction(catalog, -1)
+    ),
+    scrub('shift+d', t('keymap.nextCollection'), () => imagery().stepCollectionAction(catalog, 1)),
 
-    { key: 'i', help: 'Cycle imagery source', run: () => cycleSource(1) },
+    { key: 'i', help: t('keymap.cycleSource'), run: () => cycleSource(1) },
     {
       key: 'shift+i',
-      help: 'Cycle visualization',
+      help: t('keymap.cycleVisualization'),
       run: () => imagery().cycleVizAction(catalog, 1),
     },
 
     {
       key: 'o',
-      help: 'Toggle overlay layer',
+      help: t('keymap.toggleOverlay'),
       run: () => imagery().overlayAction(overlays(), 'toggle'),
     },
     {
       key: 'shift+o',
-      help: 'Cycle overlay layers',
+      help: t('keymap.cycleOverlays'),
       run: () => imagery().overlayAction(overlays(), 'cycle'),
     },
 
     {
       key: 'v',
-      help: 'Toggle vector layer',
+      help: t('keymap.toggleVector'),
       when: hasVectorLayers,
       run: () => imagery().vectorAction(vectorLayers(), 'toggle'),
     },
     {
       key: 'shift+v',
-      help: 'Cycle vector layers',
+      help: t('keymap.cycleVectors'),
       when: hasVectorLayers,
       run: () => imagery().vectorAction(vectorLayers(), 'cycle'),
     },
 
     ...probeTool,
 
-    { key: 'u', help: 'Cycle view', run: cycleView },
+    { key: 'u', help: t('keymap.cycleView'), run: cycleView },
     {
       // Both modes, one key: switching is the same idea from either side.
       key: 'm',
-      help: workMode === 'tasks' ? 'Switch to Explore' : 'Switch to Tasks',
+      help: workMode === 'tasks' ? t('keymap.switchToExplore') : t('keymap.switchToTasks'),
       when: () => canEnterMode(workMode === 'tasks' ? 'explore' : 'tasks'),
       run: () => void switchWorkMode(workMode === 'tasks' ? 'explore' : 'tasks'),
     },
     {
       key: 'l',
-      help: 'Toggle view link (sync imagery panels)',
+      help: t('keymap.toggleViewLink'),
       run: () => imagery().toggleViewSync(),
     },
     {
       key: 'shift+c',
-      help: 'Comment on the imagery the main map is showing',
+      help: t('keymap.commentImagery'),
       run: () => {
         const { address } = imagery();
         if (address) useWorkStore.getState().openSliceComment(address);
       },
     },
 
-    { key: 'x', help: 'Toggle crosshair', run: () => imagery().toggleCrosshair() },
-    { key: 'shift+x', help: 'Toggle drawn objects', run: () => imagery().toggleAnnotations() },
+    {
+      key: 'x',
+      help: t('keymap.toggleCrosshair'),
+      run: () => imagery().toggleCrosshair(),
+    },
+    {
+      key: 'shift+x',
+      help: t('keymap.toggleAnnotations'),
+      run: () => imagery().toggleAnnotations(),
+    },
 
-    { key: 'arrowup', help: 'Pan map up', allowRepeat: true, run: () => pan('up') },
-    { key: 'arrowdown', help: 'Pan map down', allowRepeat: true, run: () => pan('down') },
-    { key: 'arrowleft', help: 'Pan map left', allowRepeat: true, run: () => pan('left') },
-    { key: 'arrowright', help: 'Pan map right', allowRepeat: true, run: () => pan('right') },
-    { key: 'alt+arrowup', help: 'Zoom in', allowRepeat: true, run: () => zoom(1) },
-    { key: 'alt+arrowdown', help: 'Zoom out', allowRepeat: true, run: () => zoom(-1) },
+    {
+      key: 'arrowup',
+      help: t('keymap.panUp'),
+      allowRepeat: true,
+      run: () => pan('up'),
+    },
+    {
+      key: 'arrowdown',
+      help: t('keymap.panDown'),
+      allowRepeat: true,
+      run: () => pan('down'),
+    },
+    {
+      key: 'arrowleft',
+      help: t('keymap.panLeft'),
+      allowRepeat: true,
+      run: () => pan('left'),
+    },
+    {
+      key: 'arrowright',
+      help: t('keymap.panRight'),
+      allowRepeat: true,
+      run: () => pan('right'),
+    },
+    {
+      key: 'alt+arrowup',
+      help: t('keymap.zoomIn'),
+      allowRepeat: true,
+      run: () => zoom(1),
+    },
+    {
+      key: 'alt+arrowdown',
+      help: t('keymap.zoomOut'),
+      allowRepeat: true,
+      run: () => zoom(-1),
+    },
 
     {
       key: ' ',
       // One key, two meanings, so the help carries both rather than a panel
       // keeping a second copy of the rule.
-      help: 'Recenter map on the task (tasks) / fit to all annotations (explore)',
+      help: t('keymap.recenter'),
       run: () => {
         if (workMode === 'tasks') {
           const focus = useTasksStore.getState().focus;
@@ -673,12 +715,7 @@ export async function switchWorkMode(mode: WorkMode): Promise<void> {
 
   const outcome = await useWorkStore.getState().closeDraft();
   if (outcome === 'save-failed') {
-    useGlobalLayoutStore
-      .getState()
-      .showAlert(
-        'Could not save the open annotation - it is still here, retry before switching.',
-        'error'
-      );
+    useGlobalLayoutStore.getState().showAlert(t('keymap.switchSaveFailed'), 'error');
     return;
   }
   const campaignStore = useCampaignStore.getState();

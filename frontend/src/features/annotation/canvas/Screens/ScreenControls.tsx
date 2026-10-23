@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { IconClose, IconExternalLink } from '~/shared/ui/Icons';
 
 /** Where a card can be sent: a screen already open, the main window it came
@@ -28,6 +29,7 @@ export function SendToScreenButton({
   onSend,
   darkBg,
 }: SendToScreenButtonProps) {
+  const { t } = useTranslation('annotation');
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -86,8 +88,8 @@ export function SendToScreenButton({
   const otherScreens = screenIds.filter((id) => id !== currentScreen);
   const onScreen = currentScreen != null;
   const moveHint = onScreen
-    ? `Move ${label} back to the main window or to another screen`
-    : `Move ${label} to another screen`;
+    ? t('screens.moveBack', { name: label })
+    : t('screens.move', { name: label });
 
   return (
     <div ref={wrapRef} className="relative shrink-0">
@@ -131,7 +133,7 @@ export function SendToScreenButton({
                 data-testid={`send-to-screen-${panelId}-main`}
                 className="block w-full border-b border-neutral-100 px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
               >
-                Main window
+                {t('screens.mainWindow')}
               </button>
             )}
             {otherScreens.map((id) => (
@@ -145,7 +147,7 @@ export function SendToScreenButton({
                 data-testid={`send-to-screen-${panelId}-${id}`}
                 className="block w-full px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
               >
-                Screen {id}
+                {t('screens.screen', { id })}
               </button>
             ))}
             <button
@@ -157,7 +159,7 @@ export function SendToScreenButton({
               data-testid={`send-to-screen-${panelId}-new`}
               className="block w-full border-t border-neutral-100 px-3 py-1.5 text-left text-xs font-medium text-brand-700 hover:bg-brand-50"
             >
-              New screen
+              {t('screens.new')}
             </button>
           </div>,
           wrapRef.current?.ownerDocument.body ?? document.body
@@ -175,6 +177,7 @@ export interface RestoreScreensToastProps {
 }
 
 export function RestoreScreensToast({ count, onRestore, onHide }: RestoreScreensToastProps) {
+  const { t } = useTranslation('annotation');
   if (count === 0) return null;
   return (
     <div className="fixed bottom-3 right-3 z-[1002] flex items-center gap-1 rounded-full border border-neutral-200 bg-white/95 py-1 pl-1 pr-1.5 shadow-lg">
@@ -182,18 +185,18 @@ export function RestoreScreensToast({ count, onRestore, onHide }: RestoreScreens
         type="button"
         onClick={onRestore}
         data-testid="restore-screens"
-        title="Reopen your saved screens with their panels"
+        title={t('screens.restoreTip')}
         className="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-100"
       >
         <IconExternalLink className="h-3.5 w-3.5 text-brand-600" />
-        Restore {count === 1 ? 'screen' : `${count} screens`}
+        {t('screens.restore', { count })}
       </button>
       <button
         type="button"
         onClick={onHide}
         data-testid="hide-restore-screens"
-        aria-label="Hide for now"
-        title="Hide for now - your screen split stays saved"
+        aria-label={t('screens.hideForNow')}
+        title={t('screens.hideForNowTip')}
         className="grid h-6 w-6 place-items-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
       >
         <IconClose className="h-3 w-3" />

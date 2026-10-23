@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import type { CampaignOut, LabelBase, LabellingPolicy, ProjectUserOut } from '~/api/client';
@@ -27,8 +28,6 @@ import { LabellingPolicyEditor } from '~/features/campaigns/components/Labelling
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button, Field, Input, Select, Switch, Textarea } from '~/shared/ui/forms';
 
-const LIST_FORMATTER = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
-
 interface Props {
   campaign: CampaignOut;
   campaignName: string;
@@ -48,6 +47,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   onOpenDelete,
   projectUsers,
 }) => {
+  const { t, i18n } = useTranslation(['campaigns', 'common']);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const refreshCampaign = useRefreshCampaign(campaign.id);
@@ -70,13 +70,13 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   );
   const saveEmbeddingYear = useMutation({
     ...updateEmbeddingYearMutation(),
-    meta: { errorMessage: 'Failed to update embedding year' },
+    meta: { errorMessage: t('generalTab.errors.embeddingYear') },
     onSuccess: (result) => {
       void refreshCampaign();
       showAlert(
         result.embeddings_recomputed
-          ? `Embeddings recomputed for ${embeddingYear}`
-          : 'Embedding year updated',
+          ? t('generalTab.toasts.embeddingsRecomputed', { year: embeddingYear })
+          : t('generalTab.toasts.embeddingYearUpdated'),
         'success'
       );
     },
@@ -88,7 +88,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   const [guideMarkdown, setGuideMarkdown] = useState(campaign.settings.guide_markdown ?? '');
   const saveGuide = useMutation({
     ...updateCampaignGuideMutation(),
-    ...saved('Failed to update guide', 'Campaign guide updated'),
+    ...saved(t('generalTab.errors.guide'), t('generalTab.toasts.guideUpdated')),
   });
   const savingGuide = saveGuide.isPending;
   const guideChanged = guideMarkdown !== (campaign.settings.guide_markdown ?? '');
@@ -98,7 +98,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   const [labelsDraft, setLabelsDraft] = useState<LabelBase[]>(campaign.settings.labels);
   const saveLabels = useMutation({
     ...updateCampaignLabelsMutation(),
-    ...saved('Failed to update labels', 'Labels updated'),
+    ...saved(t('generalTab.errors.labels'), t('generalTab.toasts.labelsUpdated')),
   });
   const savingLabels = saveLabels.isPending;
   const labelsChanged = JSON.stringify(labelsDraft) !== JSON.stringify(campaign.settings.labels);
@@ -114,14 +114,10 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     if (!labelsChanged || !labelsAreValid) return;
     if (renamedLabels.length > 0) {
       const ok = await showConfirmDialog({
-        title: 'Rename existing labels?',
-        description:
-          `Renaming labels affects how existing annotations display - the underlying ` +
-          `label IDs stay the same, so no data is lost, but every annotation tagged ` +
-          `with ${renamedLabels.length === 1 ? 'this label' : 'these labels'} will ` +
-          `now show the new name everywhere (review, exports, statistics).`,
-        confirmText: 'Yes, rename',
-        cancelText: 'Cancel',
+        title: t('generalTab.renameLabels.title'),
+        description: t('generalTab.renameLabels.description', { count: renamedLabels.length }),
+        confirmText: t('generalTab.renameLabels.confirm'),
+        cancelText: t('common:actions.cancel'),
       });
       if (!ok) return;
     }
@@ -137,7 +133,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   );
   const saveFormFields = useMutation({
     ...updateCampaignFormFieldsMutation(),
-    ...saved('Failed to update form fields', 'Form fields updated'),
+    ...saved(t('generalTab.errors.formFields'), t('generalTab.toasts.formFieldsUpdated')),
   });
   const savingFormFields = saveFormFields.isPending;
   const savedFormFields = useMemo(
@@ -156,28 +152,30 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     const { edited: editedFormFields, deleted: deletedFormFields } = formFieldsDiff;
     // Deletion is the destructive case, so it owns the dialog when both apply.
     if (deletedFormFields.length > 0) {
-      const names = deletedFormFields.map((f) => `"${f.title.trim() || `field ${f.id}`}"`);
+      const names = deletedFormFields.map(
+        (f) => `"${f.title.trim() || t('validation.formFields.fallbackName', { id: f.id })}"`
+      );
+      const listFormatter = new Intl.ListFormat(i18n.language, {
+        style: 'long',
+        type: 'conjunction',
+      });
       const ok = await showConfirmDialog({
-        title: `Delete ${names.length === 1 ? 'form field' : `${names.length} form fields`}?`,
-        description:
-          `Saving deletes ${LIST_FORMATTER.format(names)} and permanently deletes every answer ` +
-          `annotators have recorded for ${names.length === 1 ? 'it' : 'them'} across all ` +
-          `annotations in this campaign. This cannot be undone.`,
-        confirmText: 'Delete and save',
-        cancelText: 'Cancel',
+        title: t('generalTab.deleteFields.title', { count: names.length }),
+        description: t('generalTab.deleteFields.description', {
+          count: names.length,
+          names: listFormatter.format(names),
+        }),
+        confirmText: t('generalTab.deleteFields.confirm'),
+        cancelText: t('common:actions.cancel'),
         isDangerous: true,
       });
       if (!ok) return;
     } else if (editedFormFields.length > 0) {
       const ok = await showConfirmDialog({
-        title: 'Edit existing form fields?',
-        description:
-          `Editing fields affects how existing annotations display - the underlying ` +
-          `field IDs stay the same, so stored answers are kept, but annotators will ` +
-          `see the updated ${editedFormFields.length === 1 ? 'question' : 'questions'} ` +
-          `everywhere (annotation view, review, exports).`,
-        confirmText: 'Yes, save changes',
-        cancelText: 'Cancel',
+        title: t('generalTab.editFields.title'),
+        description: t('generalTab.editFields.description', { count: editedFormFields.length }),
+        confirmText: t('generalTab.editFields.confirm'),
+        cancelText: t('common:actions.cancel'),
       });
       if (!ok) return;
     }
@@ -190,12 +188,12 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   );
   const savePolicy = useMutation({
     ...updateLabellingPolicyMutation(),
-    meta: { errorMessage: 'Failed to update labelling access' },
+    meta: { errorMessage: t('generalTab.errors.policy') },
     onSuccess: (policy) => {
       // The server normalises the audiences, so the draft follows what it stored.
       setPolicyDraft(policy);
       void refreshCampaign();
-      showAlert('Labelling access updated', 'success');
+      showAlert(t('generalTab.toasts.policyUpdated'), 'success');
     },
   });
   const savingPolicy = savePolicy.isPending;
@@ -228,18 +226,18 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   );
   const saveExtent = useMutation({
     ...updateSampleExtentMutation(),
-    ...saved('Failed to update sample extent', 'Sample extent updated'),
+    ...saved(t('generalTab.errors.extent'), t('generalTab.toasts.extentUpdated')),
   });
   const savingExtent = saveExtent.isPending;
   const saveResearchSharing = useMutation({
     ...updateResearchSharingMutation(),
-    meta: { errorMessage: 'Failed to update research sharing' },
+    meta: { errorMessage: t('generalTab.errors.researchSharing') },
     onSuccess: refreshCampaign,
   });
   const savingResearchSharing = saveResearchSharing.isPending;
   const saveTaskOutput = useMutation({
     ...updateTaskOutputMutation(),
-    ...saved('Failed to update the task output', 'Task output updated'),
+    ...saved(t('generalTab.errors.taskOutput'), t('generalTab.toasts.taskOutputUpdated')),
   });
   const parsedExtent = sampleExtent.trim() === '' ? null : Number(sampleExtent);
   const extentValid = parsedExtent === null || (Number.isFinite(parsedExtent) && parsedExtent > 0);
@@ -256,8 +254,8 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         onSuccess: () =>
           showAlert(
             research_sharing
-              ? 'Annotations from this campaign may now be published as research data'
-              : 'Research sharing turned off',
+              ? t('generalTab.toasts.researchOn')
+              : t('generalTab.toasts.researchOff'),
             'success'
           ),
       }
@@ -274,10 +272,13 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     // Warn the user if changing - this triggers a full recompute
     if (campaign.settings.embedding_year !== null && embeddingYear !== null) {
       const confirmed = await showConfirmDialog({
-        title: 'Recompute Embeddings?',
-        description: `Changing the embedding year from ${campaign.settings.embedding_year} to ${embeddingYear} will delete all existing embeddings and re-fetch them from the satellite imagery for ${embeddingYear}. This may take a while for large campaigns.`,
-        confirmText: 'Recompute',
-        cancelText: 'Cancel',
+        title: t('generalTab.recompute.title'),
+        description: t('generalTab.recompute.description', {
+          from: campaign.settings.embedding_year,
+          to: embeddingYear,
+        }),
+        confirmText: t('generalTab.recompute.confirm'),
+        cancelText: t('common:actions.cancel'),
         isDangerous: true,
       });
       if (!confirmed) return;
@@ -294,7 +295,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   });
   const saveBbox = useMutation({
     ...updateCampaignBboxMutation(),
-    ...saved('Failed to save settings', 'Campaign settings updated successfully'),
+    ...saved(t('generalTab.errors.bbox'), t('generalTab.toasts.bboxUpdated')),
   });
   const savingBbox = saveBbox.isPending;
   const bboxChanged =
@@ -315,8 +316,8 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     <div id="tab-general" role="tabpanel">
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Campaign name</h2>
-          <p className="section-description">The display name shown across the app.</p>
+          <h2 className="section-heading">{t('generalTab.name.title')}</h2>
+          <p className="section-description">{t('generalTab.name.description')}</p>
         </div>
         <div className="flex gap-3 items-end">
           <div className="flex-1 max-w-md">
@@ -327,17 +328,15 @@ export const GeneralSettingsTab: React.FC<Props> = ({
             />
           </div>
           <Button onClick={onSaveName} disabled={saving || campaignName === campaign.name}>
-            Save
+            {t('common:actions.save')}
           </Button>
         </div>
       </section>
 
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Campaign guide</h2>
-          <p className="section-description">
-            Markdown document shown to annotators via the book icon in the annotation toolbar.
-          </p>
+          <h2 className="section-heading">{t('generalTab.guide.title')}</h2>
+          <p className="section-description">{t('generalTab.guide.description')}</p>
         </div>
         <Textarea
           value={guideMarkdown}
@@ -345,39 +344,32 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           disabled={savingGuide}
           rows={10}
           className="font-mono"
-          placeholder="# Campaign Guide&#10;&#10;Write instructions for annotators here using Markdown..."
+          placeholder={t('generalTab.guide.placeholder')}
         />
         <Button onClick={handleSaveGuide} disabled={savingGuide || !guideChanged}>
-          {savingGuide ? 'Saving…' : 'Save guide'}
+          {savingGuide ? t('settingsPage.saving') : t('generalTab.guide.save')}
         </Button>
       </section>
 
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Research data sharing</h2>
-          <p className="section-description">
-            Allow the annotations created in this campaign to be published as open research data,
-            without any annotator's name. Off by default. Turning it off stops future releases -
-            anything already published cannot be recalled. See the Terms of Service.
-          </p>
+          <h2 className="section-heading">{t('generalTab.research.title')}</h2>
+          <p className="section-description">{t('generalTab.research.description')}</p>
         </div>
         <Switch
           checked={campaign.settings.research_sharing}
           onChange={handleResearchSharing}
           disabled={savingResearchSharing}
-          label="Publishable as research data"
+          label={t('generalTab.research.label')}
         />
       </section>
 
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Task output</h2>
-          <p className="section-description">
-            What finishes a task: picking a label for the task&apos;s own point or polygon, or
-            drawing shapes around it. Fixed once the first task has been annotated.
-          </p>
+          <h2 className="section-heading">{t('generalTab.taskOutput.title')}</h2>
+          <p className="section-description">{t('generalTab.taskOutput.description')}</p>
         </div>
-        <Field label="Tasks are finished by" className="w-72">
+        <Field label={t('generalTab.taskOutput.label')} className="w-72">
           <Select
             value={campaign.settings.task_output ?? 'classify'}
             onChange={(e) =>
@@ -388,8 +380,8 @@ export const GeneralSettingsTab: React.FC<Props> = ({
             }
             disabled={saveTaskOutput.isPending}
           >
-            <option value="classify">Labelling the task location</option>
-            <option value="draw">Drawing shapes around it</option>
+            <option value="classify">{t('generalTab.taskOutput.classify')}</option>
+            <option value="draw">{t('generalTab.taskOutput.draw')}</option>
           </Select>
         </Field>
       </section>
@@ -400,25 +392,19 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           onChange={(updates) => setBboxDraft((current) => ({ ...current, ...updates }))}
         />
         <Button onClick={handleSaveBbox} disabled={savingBbox || !bboxChanged}>
-          Save settings
+          {t('generalTab.saveSettings')}
         </Button>
       </section>
 
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Sample extent</h2>
-          <p className="section-description">
-            Defines the exact size of a sample point. If lat/lon is the exact coordinate, the sample
-            extent defines the dimensions around this centroid that constitute the actual sample.
-            This helps to have a shared understanding of which area / pixels belong to a sample
-            point. Leave empty if tasks were uploaded as polygons or if no extent should be
-            visualized.
-          </p>
+          <h2 className="section-heading">{t('generalTab.extent.title')}</h2>
+          <p className="section-description">{t('generalTab.extent.description')}</p>
         </div>
         <div className="flex gap-3 items-end">
           <Field
-            label="Extent (meters)"
-            error={!extentValid ? 'Must be a positive number' : undefined}
+            label={t('generalTab.extent.label')}
+            error={!extentValid ? t('sampling.spacingError') : undefined}
             className="w-56"
           >
             <Input
@@ -428,7 +414,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               value={sampleExtent}
               onChange={(e) => setSampleExtent(e.target.value)}
               disabled={savingExtent}
-              placeholder="e.g. 100"
+              placeholder={t('generalTab.extent.placeholder')}
               invalid={!extentValid}
             />
           </Field>
@@ -436,19 +422,15 @@ export const GeneralSettingsTab: React.FC<Props> = ({
             onClick={handleSaveExtent}
             disabled={savingExtent || !extentChanged || !extentValid}
           >
-            {savingExtent ? 'Saving…' : 'Save'}
+            {savingExtent ? t('settingsPage.saving') : t('common:actions.save')}
           </Button>
         </div>
       </section>
 
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Annotation labels</h2>
-          <p className="section-description">
-            The class names annotators choose from when labeling. You can add new labels and rename
-            existing ones; renaming requires confirmation since it affects how prior annotations
-            display. Deleting labels is not supported (it would orphan existing annotations).
-          </p>
+          <h2 className="section-heading">{t('generalTab.labels.title')}</h2>
+          <p className="section-description">{t('generalTab.labels.description')}</p>
         </div>
         <LabelsEditor
           value={labelsDraft}
@@ -462,7 +444,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
             onClick={() => void handleSaveLabels()}
             disabled={!labelsChanged || !labelsAreValid || savingLabels}
           >
-            {savingLabels ? 'Saving…' : 'Save labels'}
+            {savingLabels ? t('settingsPage.saving') : t('generalTab.labels.save')}
           </Button>
           {labelsChanged && (
             <button
@@ -471,24 +453,19 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               disabled={savingLabels}
               className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
             >
-              Discard
+              {t('settingsPage.discard')}
             </button>
           )}
           {!labelsAreValid && (
-            <span className="text-xs text-red-600">Label names must be non-empty and unique.</span>
+            <span className="text-xs text-red-600">{t('generalTab.labels.invalid')}</span>
           )}
         </div>
       </section>
 
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Custom form fields</h2>
-          <p className="section-description">
-            Additional questions annotators answer per annotation. You can add new fields and edit
-            existing ones; editing requires confirmation since it affects how prior answers display.
-            Deleting a field also deletes every answer recorded for it, so it asks first. A
-            field&apos;s type or options can only change while it has no answers yet.
-          </p>
+          <h2 className="section-heading">{t('generalTab.formFields.title')}</h2>
+          <p className="section-description">{t('generalTab.formFields.description')}</p>
         </div>
         <FormFieldsEditor value={formFieldsDraft} onChange={setFormFieldsDraft} />
         <div className="flex items-center gap-3 mt-3">
@@ -497,7 +474,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
             onClick={() => void handleSaveFormFields()}
             disabled={!formFieldsChanged || formFieldErrors.length > 0 || savingFormFields}
           >
-            {savingFormFields ? 'Saving…' : 'Save fields'}
+            {savingFormFields ? t('settingsPage.saving') : t('generalTab.formFields.save')}
           </Button>
           {formFieldsChanged && (
             <button
@@ -506,7 +483,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               disabled={savingFormFields}
               className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
             >
-              Discard
+              {t('settingsPage.discard')}
             </button>
           )}
           {formFieldErrors.length > 0 && (
@@ -517,17 +494,20 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Labelling access</h2>
+          <h2 className="section-heading">{t('wizard.access.title')}</h2>
           <p className="section-description">
-            Control who may label what, and whose labels count toward completing a task. Members and
-            visibility are managed at the project level -{' '}
-            <Link
-              to={`${projectPath(campaign.project_id)}?tab=members`}
-              className="text-brand-700 underline underline-offset-4 hover:text-brand-600"
-            >
-              open project members
-            </Link>
-            .
+            <Trans
+              t={t}
+              i18nKey="generalTab.policy.description"
+              components={{
+                link: (
+                  <Link
+                    to={`${projectPath(campaign.project_id)}?tab=members`}
+                    className="text-brand-700 underline underline-offset-4 hover:text-brand-600"
+                  />
+                ),
+              }}
+            />
           </p>
         </div>
         <LabellingPolicyEditor
@@ -542,7 +522,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
             onClick={() => void handleSavePolicy()}
             disabled={!policyChanged || savingPolicy}
           >
-            {savingPolicy ? 'Saving…' : 'Save labelling access'}
+            {savingPolicy ? t('settingsPage.saving') : t('generalTab.policy.save')}
           </Button>
           {policyChanged && (
             <button
@@ -551,7 +531,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               disabled={savingPolicy}
               className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
             >
-              Discard
+              {t('settingsPage.discard')}
             </button>
           )}
         </div>
@@ -560,20 +540,18 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       {/* Embedding Year */}
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Satellite embedding year</h2>
+          <h2 className="section-heading">{t('wizard.settings.embeddingTitle')}</h2>
           <p className="section-description">
-            The year from which satellite embeddings are sourced for KNN-based label validation.
-            Changing this will recompute all embeddings for the campaign.
+            {t('generalTab.embedding.description')}
             {!campaign.settings.embedding_year && (
               <span className="block mt-1 text-amber-700 font-medium">
-                No embedding year set - KNN-embeddings (AEF) based validation is currently
-                unavailable for annotators.
+                {t('generalTab.embedding.notSet')}
               </span>
             )}
           </p>
         </div>
         <div className="flex gap-3 items-end">
-          <Field label="Year" className="w-48">
+          <Field label={t('generalTab.embedding.year')} className="w-48">
             <Select
               value={embeddingYear ?? ''}
               onChange={(e) => {
@@ -582,7 +560,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               }}
               disabled={savingEmbeddingYear}
             >
-              <option value="">None (validation disabled)</option>
+              <option value="">{t('wizard.settings.embeddingNone')}</option>
               {Array.from({ length: currentYear - 2016 }, (_, i) => currentYear - i).map((year) => (
                 <option key={year} value={year}>
                   {year}
@@ -613,22 +591,20 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               ) : undefined
             }
           >
-            {savingEmbeddingYear ? 'Recomputing…' : 'Save'}
+            {savingEmbeddingYear ? t('generalTab.embedding.recomputing') : t('common:actions.save')}
           </Button>
         </div>
       </section>
 
       <section className="pt-6 mt-6 border-t border-red-200">
-        <h2 className="text-sm font-semibold text-red-700 mb-4">Danger zone</h2>
+        <h2 className="text-sm font-semibold text-red-700 mb-4">{t('generalTab.danger.title')}</h2>
         <div className="flex items-start justify-between gap-4 py-3">
           <div className="min-w-0">
-            <h3 className="text-sm font-medium text-neutral-900">Delete campaign</h3>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Once you delete a campaign, there is no going back.
-            </p>
+            <h3 className="text-sm font-medium text-neutral-900">{t('deleteDialog.confirm')}</h3>
+            <p className="text-xs text-neutral-500 mt-0.5">{t('generalTab.danger.description')}</p>
           </div>
           <Button variant="danger" onClick={onOpenDelete}>
-            Delete campaign
+            {t('deleteDialog.confirm')}
           </Button>
         </div>
       </section>

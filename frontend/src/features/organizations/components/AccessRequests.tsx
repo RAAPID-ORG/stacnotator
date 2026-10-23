@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Trans, useTranslation } from 'react-i18next';
 import { type AccessRequestOut } from '~/api/client';
 import {
   approveOrganizationAccessRequestMutation,
@@ -22,6 +23,7 @@ const actionClass =
 /** Registered users asking to join, for an org admin to decide on. Renders
  *  nothing while there are none, so a quiet org keeps a quiet page. */
 export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
+  const { t } = useTranslation('organizations');
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const queryClient = useQueryClient();
   const refreshOrganizations = useRefreshOrganizations();
@@ -29,7 +31,7 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
 
   const { data } = useQuery({
     ...listOrganizationAccessRequestsOptions({ path }),
-    meta: { errorMessage: 'Failed to load access requests' },
+    meta: { errorMessage: t('accessRequests.loadFailed') },
   });
   const requests = data?.items ?? NO_REQUESTS;
 
@@ -43,12 +45,12 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
 
   const approve = useMutation({
     ...approveOrganizationAccessRequestMutation(),
-    meta: { errorMessage: 'Failed to approve request' },
+    meta: { errorMessage: t('accessRequests.approveFailed') },
     onSuccess: afterDecision,
   });
   const deny = useMutation({
     ...rejectOrganizationAccessRequestMutation(),
-    meta: { errorMessage: 'Failed to reject request' },
+    meta: { errorMessage: t('accessRequests.rejectFailed') },
     onSuccess: afterDecision,
   });
 
@@ -65,9 +67,9 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
 
   const reject = async (request: AccessRequestOut) => {
     const confirmed = await showConfirmDialog({
-      title: `Reject ${request.user.display_name}?`,
-      description: 'The request is dropped. They can ask again later.',
-      confirmText: 'Reject',
+      title: t('accessRequests.confirmRejectTitle', { name: request.user.display_name }),
+      description: t('accessRequests.confirmRejectDescription'),
+      confirmText: t('accessRequests.reject'),
       isDangerous: true,
     });
     if (confirmed) decide(request, false);
@@ -78,11 +80,14 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
   return (
     <section className="surface surface-section" data-testid="org-access-requests">
       <h2 className="section-heading">
-        Access requests <span className="text-neutral-400 font-normal">({requests.length})</span>
+        <Trans
+          t={t}
+          i18nKey="accessRequests.heading"
+          values={{ count: requests.length }}
+          components={{ count: <span className="text-neutral-400 font-normal" /> }}
+        />
       </h2>
-      <p className="section-description">
-        People who found this organization and asked to join. Approving makes them a member.
-      </p>
+      <p className="section-description">{t('accessRequests.description')}</p>
       <ul className="mt-3 divide-y divide-neutral-100 border border-neutral-200 rounded-xl bg-white">
         {requests.map((request) => (
           <li key={request.user.id} data-testid="access-request-row" className="px-4 py-3">
@@ -108,7 +113,7 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
                   disabled={busyId === request.user.id}
                   className={`${actionClass} text-green-700 hover:bg-green-50`}
                 >
-                  Approve
+                  {t('accessRequests.approve')}
                 </button>
                 <button
                   type="button"
@@ -116,7 +121,7 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
                   disabled={busyId === request.user.id}
                   className={`${actionClass} text-red-600 hover:bg-red-50`}
                 >
-                  Reject
+                  {t('accessRequests.reject')}
                 </button>
               </div>
             </div>

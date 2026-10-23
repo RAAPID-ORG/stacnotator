@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type {
   BasemapCreate,
   BasemapOut,
@@ -70,6 +71,7 @@ export function OwnImagery({
   area: VisualizerArea | null;
   projectId: number;
 }) {
+  const { t } = useTranslation('visualizers');
   const bbox = area ? [area.west, area.south, area.east, area.north] : null;
   const controller = useDraftController({
     projectId,
@@ -87,7 +89,7 @@ export function OwnImagery({
         <SourcesTab controller={controller} onEditSource={setEditingId} />
       ) : (
         <p className="rounded-lg border border-dashed border-neutral-200 px-4 py-4 text-center text-xs text-neutral-500">
-          Choose the area above first. Imagery is searched and registered over it.
+          {t('ownImagery.chooseAreaFirst')}
         </p>
       )}
 

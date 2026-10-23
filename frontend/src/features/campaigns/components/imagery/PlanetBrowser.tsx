@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   listPlanetSeries,
   listPlanetSeriesMosaics,
@@ -8,6 +9,7 @@ import {
 } from '~/api/client';
 import { Modal } from '~/shared/ui/Modal';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
+import i18n from '~/shared/i18n';
 import { handleError } from '~/shared/utils/errorHandler';
 import { PlanetKeyConnect } from './PlanetKeyConnect';
 import {
@@ -32,12 +34,12 @@ const NO_COVER = 'none';
 const shallowerZoom = (a: number | null | undefined, b: number | null | undefined) =>
   a != null && b != null ? Math.min(a, b) : (a ?? b ?? null);
 
-const PERIOD_LABELS: Record<CollectionPeriod, string> = {
-  month: 'One window per month',
-  quarter: 'One window per quarter',
-  year: 'One window per year',
-  all: 'A single window for the whole series',
-};
+const PERIOD_LABELS = {
+  month: 'planet.periods.month',
+  quarter: 'planet.periods.quarter',
+  year: 'planet.periods.year',
+  all: 'planet.periods.all',
+} as const satisfies Record<CollectionPeriod, string>;
 
 /**
  * Build an imagery source from a Planet basemap series.
@@ -47,6 +49,7 @@ const PERIOD_LABELS: Record<CollectionPeriod, string> = {
  * manual collections. Nothing is searched, registered or rendered on a tiler.
  */
 export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps) => {
+  const { t } = useTranslation('imagery');
   /** The key the browse calls spend. */
   const [credentials, setCredentials] = useState<PlanetCredentials | null>(null);
   const [series, setSeries] = useState<PlanetSeriesOut[] | null>(null);
@@ -72,7 +75,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
       .then(({ data }) => setSeries(data ?? []))
       .catch((err) => {
         setSeries([]);
-        handleError(err, 'Could not list Planet basemap series');
+        handleError(err, i18n.t('imagery:planet.errors.listSeries'));
       })
       .finally(() => setLoading(false));
   }, [credentials]);
@@ -93,7 +96,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
         setStartDate(range.startDate);
         setEndDate(range.endDate);
       })
-      .catch((err) => handleError(err, 'Could not list the mosaics in this series'))
+      .catch((err) => handleError(err, i18n.t('imagery:planet.errors.listMosaics')))
       .finally(() => setLoading(false));
   }, [chosen, credentials]);
 
@@ -115,7 +118,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
       })
       .catch((err) => {
         setCoverSeries(null);
-        handleError(err, 'Could not list the mosaics in the cover series');
+        handleError(err, i18n.t('imagery:planet.errors.listCoverMosaics'));
       });
   }, [coverSeries, credentials]);
 
@@ -190,14 +193,17 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
 
   return (
     <Modal
-      title="Add Planet basemaps"
+      title={t('planet.title')}
       onClose={onClose}
       maxWidth="max-w-2xl"
       footer={
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-neutral-500">
             {collections.length > 0
-              ? `${collections.length} window${collections.length === 1 ? '' : 's'}, ${sliceTotal} slice${sliceTotal === 1 ? '' : 's'}${coverSeries ? ' (cover included)' : ''}`
+              ? t(coverSeries ? 'planet.summaryWithCover' : 'planet.summary', {
+                  windows: t('planet.windows', { count: collections.length }),
+                  slices: t('planet.slices', { count: sliceTotal }),
+                })
               : ''}
           </span>
           <Button
@@ -206,7 +212,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
             onClick={() => void add()}
             disabled={submitting || collections.length === 0 || renderings.length === 0}
           >
-            {submitting ? 'Adding…' : 'Add source'}
+            {submitting ? t('wizard.adding') : t('wizard.addSource')}
           </Button>
         </div>
       }
@@ -220,20 +226,18 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
           }}
         />
 
-        {loading && <p className="text-[11px] text-neutral-500">Asking Planet…</p>}
+        {loading && <p className="text-[11px] text-neutral-500">{t('planet.asking')}</p>}
 
         {series && !chosen && (
           <div className="space-y-1.5">
             <p className="text-[11px] text-neutral-500 leading-snug">
-              A <strong>series</strong> is a cadence of basemaps - each of its mosaics becomes one
-              slice, so the whole time range arrives at once.
+              <Trans t={t} i18nKey="planet.seriesHint" components={{ strong: <strong /> }} />
             </p>
             <p className="text-[11px] text-amber-700 leading-snug rounded-md bg-amber-50 border border-amber-200 p-2">
-              Only the global series cover the whole world. All other Planet imagery may be blank
-              over your campaign&apos;s region!
+              {t('planet.globalWarning')}
             </p>
             {series.length === 0 && !loading && (
-              <p className="text-[11px] text-amber-700">This key can see no basemap series.</p>
+              <p className="text-[11px] text-amber-700">{t('planet.noSeries')}</p>
             )}
             <div className="grid gap-1.5">
               {series.map((s) => (
@@ -264,17 +268,27 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
               }}
               className="text-xs text-neutral-500 hover:text-neutral-700 cursor-pointer"
             >
-              ← Back to series
+              {t('planet.backToSeries')}
             </button>
 
             <p className="text-xs text-neutral-700">
-              <strong>{chosen.name}</strong> - {usableMosaics(details.mosaics).length} mosaics
-              {details.max_native_zoom != null && `, sharp to zoom ${details.max_native_zoom}`}
+              <Trans
+                t={t}
+                i18nKey={
+                  details.max_native_zoom != null ? 'planet.seriesInfoZoom' : 'planet.seriesInfo'
+                }
+                values={{
+                  name: chosen.name,
+                  count: usableMosaics(details.mosaics).length,
+                  zoom: details.max_native_zoom,
+                }}
+                components={{ strong: <strong /> }}
+              />
             </p>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs text-neutral-700 font-medium">From</label>
+                <label className="text-xs text-neutral-700 font-medium">{t('planet.from')}</label>
                 <DateField
                   size="sm"
                   value={startDate}
@@ -282,18 +296,14 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-neutral-700 font-medium">To</label>
+                <label className="text-xs text-neutral-700 font-medium">{t('planet.to')}</label>
                 <DateField size="sm" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700 font-medium">Cover slice</label>
-              <p className="text-[11px] text-neutral-500 leading-snug">
-                Planet does not composite on request, so a coarser series stands in: each of its
-                mosaics becomes one window, shown first, with this series&apos; mosaics inside its
-                span as the detail underneath.
-              </p>
+              <label className="text-xs text-neutral-700 font-medium">{t('bulk.coverSlice')}</label>
+              <p className="text-[11px] text-neutral-500 leading-snug">{t('planet.coverHint')}</p>
               <Select
                 size="sm"
                 value={coverSeries?.id ?? NO_COVER}
@@ -305,9 +315,9 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
                   // back on offer, so they are checked again too.
                   if (!next) setRenderings(details.renderings);
                 }}
-                aria-label="Cover series"
+                aria-label={t('planet.coverSeries')}
               >
-                <option value={NO_COVER}>No cover series - windows by calendar period</option>
+                <option value={NO_COVER}>{t('planet.noCoverSeries')}</option>
                 {(series ?? [])
                   .filter((candidate) => candidate.id !== chosen.id)
                   .map((candidate) => (
@@ -321,16 +331,18 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
             {!coverSeries && (
               <>
                 <div className="space-y-1">
-                  <label className="text-xs text-neutral-700 font-medium">Group into windows</label>
+                  <label className="text-xs text-neutral-700 font-medium">
+                    {t('planet.groupIntoWindows')}
+                  </label>
                   <Select
                     size="sm"
                     value={period}
                     onChange={(e) => setPeriod(e.target.value as CollectionPeriod)}
-                    aria-label="Group into windows"
+                    aria-label={t('planet.groupIntoWindows')}
                   >
                     {COLLECTION_PERIODS.map((p) => (
                       <option key={p} value={p}>
-                        {PERIOD_LABELS[p]}
+                        {t(PERIOD_LABELS[p])}
                       </option>
                     ))}
                   </Select>
@@ -338,7 +350,9 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
 
                 <div className="space-y-1">
                   <label className="text-xs text-neutral-700 font-medium">
-                    Show the {coverNth === 1 ? 'first' : `${coverNth}.`} slice of each window first
+                    {coverNth === 1
+                      ? t('planet.coverNthFirst')
+                      : t('planet.coverNth', { n: coverNth })}
                   </label>
                   <Input
                     size="sm"
@@ -353,11 +367,13 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
             )}
 
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700 font-medium">Visualizations</label>
+              <label className="text-xs text-neutral-700 font-medium">
+                {t('planet.visualizations')}
+              </label>
               <p className="text-[11px] text-neutral-500 leading-snug">
                 {details.renderings.length > 1
-                  ? 'This is an analytic series, so Planet can render its bands more than one way.'
-                  : 'This series is served as finished colour imagery, so it has one rendering.'}
+                  ? t('planet.analyticSeries')
+                  : t('planet.visualSeries')}
               </p>
               <div className="flex flex-wrap gap-3 pt-0.5">
                 {availableRenderings.map((name) => (
@@ -374,7 +390,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
                   <label
                     key={name}
                     className="flex items-center gap-1.5 text-xs text-neutral-400"
-                    title={`${coverSeries?.name} does not offer this rendering, so it has no cover slice`}
+                    title={t('planet.unsharedRendering', { name: coverSeries?.name })}
                   >
                     <input type="checkbox" disabled checked={false} readOnly />
                     {name}
@@ -386,13 +402,12 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
             {orphans.length > 0 && (
               <div className="space-y-1 rounded-md bg-amber-50 border border-amber-200 p-2">
                 <p className="text-[11px] text-amber-800 font-medium">
-                  {orphans.length} mosaic{orphans.length === 1 ? '' : 's'} fall outside every{' '}
-                  {coverSeries?.name} window and are left out:
+                  {t('planet.orphans', { count: orphans.length, name: coverSeries?.name })}
                 </p>
                 <ul className="text-[11px] text-amber-700 space-y-0.5">
                   {orphans.slice(0, 5).map((m) => (
                     <li key={m.id}>
-                      {m.first_acquired} to {m.last_acquired}
+                      {t('planet.dateRange', { start: m.first_acquired, end: m.last_acquired })}
                     </li>
                   ))}
                 </ul>
@@ -402,8 +417,7 @@ export const PlanetBrowser = ({ projectId, onAdd, onClose }: PlanetBrowserProps)
             {unavailable.length > 0 && (
               <div className="space-y-1 rounded-md bg-amber-50 border border-amber-200 p-2">
                 <p className="text-[11px] text-amber-800 font-medium">
-                  {unavailable.length} mosaic{unavailable.length === 1 ? '' : 's'} in this series
-                  cannot be used:
+                  {t('planet.unavailable', { count: unavailable.length })}
                 </p>
                 <ul className="text-[11px] text-amber-700 space-y-0.5">
                   {unavailable.slice(0, 5).map((m) => (

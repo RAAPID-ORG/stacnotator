@@ -1,12 +1,9 @@
 import type { ProjectOut } from '~/api/client';
+import i18n from '~/shared/i18n';
+
+const t = i18n.getFixedT(null, 'projects');
 
 export type ProjectVisibility = ProjectOut['visibility'];
-
-export const MAKE_PUBLIC_WARNING =
-  'Anyone signed in to the platform will be able to open this project and work on its campaigns.';
-
-export const LEAVE_PUBLIC_WARNING =
-  'Leaving public strips the "anyone" audience from the permissions of every campaign in this project. People outside the project lose their working access.';
 
 export interface VisibilityConfirm {
   title: string;
@@ -27,17 +24,20 @@ export const visibilityConfirm = (
   if (next === current) return null;
   if (next === 'public') {
     return {
-      title: 'Make this project public?',
-      description: MAKE_PUBLIC_WARNING,
-      confirmText: 'Make public',
+      title: t('visibility.makePublicTitle'),
+      description: t('visibility.makePublicWarning'),
+      confirmText: t('visibility.makePublic'),
       isDangerous: false,
     };
   }
   if (current === 'public') {
     return {
-      title: 'Leave public visibility?',
-      description: LEAVE_PUBLIC_WARNING,
-      confirmText: next === 'organization' ? 'Restrict to organization' : 'Make private',
+      title: t('visibility.leavePublicTitle'),
+      description: t('visibility.leavePublicWarning'),
+      confirmText:
+        next === 'organization'
+          ? t('visibility.restrictToOrganization')
+          : t('visibility.makePrivate'),
       isDangerous: true,
     };
   }

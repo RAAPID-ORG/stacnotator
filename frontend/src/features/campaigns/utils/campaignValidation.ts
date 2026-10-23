@@ -1,9 +1,12 @@
 import type { CampaignCreate } from '~/api/client';
+import i18n from '~/shared/i18n';
 import {
   isPlanetSceneConfig,
   type ImageryStepState,
 } from '~/features/campaigns/components/imagery/types';
 import { validateFormFields } from './formFields';
+
+const t = i18n.getFixedT(null, 'campaigns');
 
 export type FieldErrors = Record<string, string>;
 
@@ -16,7 +19,7 @@ export function validateCampaignStep(form: CampaignCreate): StepValidationResult
   const errors: FieldErrors = {};
 
   if (!form.name.trim()) {
-    errors.name = 'Campaign name is required.';
+    errors.name = t('validation.nameRequired');
   }
 
   return { errors, isValid: Object.keys(errors).length === 0 };
@@ -27,14 +30,14 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
   const s = form.settings;
 
   if (s == null) {
-    errors.settings = 'Settings are required.';
+    errors.settings = t('validation.settingsRequired');
     return { errors, isValid: false };
   }
 
   const { bbox_west, bbox_south, bbox_east, bbox_north } = s;
 
   if (bbox_west == null || bbox_south == null || bbox_east == null || bbox_north == null) {
-    errors.bbox = 'All four bounding box coordinates are required.';
+    errors.bbox = t('validation.bboxRequired');
   } else if (
     bbox_west < -180 ||
     bbox_west > 180 ||
@@ -47,20 +50,19 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
   ) {
     // A map panned past the antimeridian reports longitudes outside the range
     // the campaign area is stored in, and west < east alone does not catch it.
-    errors.bbox = 'Longitude must be between -180 and 180, latitude between -90 and 90.';
+    errors.bbox = t('validation.bboxRange');
   } else if (bbox_west >= bbox_east) {
-    errors.bbox =
-      'West longitude must be less than East longitude. An area cannot cross the antimeridian (180°) - draw it on one side.';
+    errors.bbox = t('validation.bboxWestEast');
   } else if (bbox_south >= bbox_north) {
-    errors.bbox = 'South latitude must be less than North latitude.';
+    errors.bbox = t('validation.bboxSouthNorth');
   }
 
   if (!s.labels || s.labels.length === 0) {
-    errors.labels = 'At least one label is required.';
+    errors.labels = t('validation.labelsRequired');
   } else {
     const emptyLabels = s.labels.filter((l) => !l.name.trim());
     if (emptyLabels.length > 0) {
-      errors.labels = `${emptyLabels.length} label${emptyLabels.length > 1 ? 's have' : ' has'} an empty name.`;
+      errors.labels = t('validation.emptyLabels', { count: emptyLabels.length });
     }
   }
 
@@ -76,26 +78,30 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
 
   // Must have at least one source
   if (imageryState.sources.length === 0) {
-    errors.sources = 'Add at least one imagery source.';
+    errors.sources = t('validation.sourcesRequired');
     return { errors, isValid: false };
   }
 
   // Validate each source
   imageryState.sources.forEach((source, si) => {
     const prefix = `source_${si}`;
+    const sourceLabel = source.name || si + 1;
 
     if (!source.name.trim()) {
-      errors[`${prefix}_name`] = `Source ${si + 1}: Name is required.`;
+      errors[`${prefix}_name`] = t('validation.sourceNameRequired', {
+        index: si + 1,
+      });
     }
 
     if (source.visualizations.length === 0) {
-      errors[`${prefix}_viz`] =
-        `Source "${source.name || si + 1}": At least one visualization is required.`;
+      errors[`${prefix}_viz`] = t('validation.vizRequired', { source: sourceLabel });
     } else {
       const emptyViz = source.visualizations.filter((v) => !v.name.trim());
       if (emptyViz.length > 0) {
-        errors[`${prefix}_viz_names`] =
-          `Source "${source.name || si + 1}": ${emptyViz.length} visualization(s) have no name.`;
+        errors[`${prefix}_viz_names`] = t('validation.vizUnnamed', {
+          source: sourceLabel,
+          count: emptyViz.length,
+        });
       }
     }
 
@@ -108,15 +114,18 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
     );
 
     if (source.collections.length === 0) {
-      errors[`${prefix}_collections`] =
-        `Source "${source.name || si + 1}": At least one collection is required.`;
+      errors[`${prefix}_collections`] = t('validation.collectionsRequired', {
+        source: sourceLabel,
+      });
     } else {
       source.collections.forEach((col, ci) => {
         const cp = `${prefix}_col_${ci}`;
 
         if (col.slices.length === 0) {
-          errors[`${cp}_slices`] =
-            `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Has no time slices.`;
+          errors[`${cp}_slices`] = t('validation.noSlices', {
+            source: sourceLabel,
+            collection: col.name || ci + 1,
+          });
         }
 
         if (col.data.type === 'manual' && !sceneSeries.has(col.generationSeriesId ?? '')) {
@@ -127,8 +136,11 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
             );
           });
           if (slicesWithMissing.length > 0) {
-            errors[`${cp}_vizurls`] =
-              `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": ${slicesWithMissing.length} slice(s) have missing visualization URLs.`;
+            errors[`${cp}_vizurls`] = t('validation.missingVizUrls', {
+              source: sourceLabel,
+              collection: col.name || ci + 1,
+              count: slicesWithMissing.length,
+            });
           }
         }
         // stac_browser: no viz URL validation needed (URLs generated from params)
@@ -151,25 +163,29 @@ export function validateTimeseriesStep(form: CampaignCreate): StepValidationResu
   items.forEach((ts, i) => {
     const prefix = `ts_${i}`;
     if (!ts.name.trim()) {
-      errors[`${prefix}_name`] = `Timeseries ${i + 1}: Name is required.`;
+      errors[`${prefix}_name`] = t('validation.timeseries.name', { index: i + 1 });
     }
     if (!ts.start_ym) {
-      errors[`${prefix}_start`] = `Timeseries ${i + 1}: Start date is required.`;
+      errors[`${prefix}_start`] = t('validation.timeseries.start', { index: i + 1 });
     }
     if (!ts.end_ym) {
-      errors[`${prefix}_end`] = `Timeseries ${i + 1}: End date is required.`;
+      errors[`${prefix}_end`] = t('validation.timeseries.end', { index: i + 1 });
     }
     if (ts.start_ym && ts.end_ym && ts.start_ym > ts.end_ym) {
-      errors[`${prefix}_dates`] = `Timeseries ${i + 1}: Start date must be before end date.`;
+      errors[`${prefix}_dates`] = t('validation.timeseries.dates', { index: i + 1 });
     }
     if (!ts.data_source) {
-      errors[`${prefix}_source`] = `Timeseries ${i + 1}: Data source is required.`;
+      errors[`${prefix}_source`] = t('validation.timeseries.source', {
+        index: i + 1,
+      });
     }
     if (!ts.provider) {
-      errors[`${prefix}_provider`] = `Timeseries ${i + 1}: Provider is required.`;
+      errors[`${prefix}_provider`] = t('validation.timeseries.provider', {
+        index: i + 1,
+      });
     }
     if (!ts.ts_type) {
-      errors[`${prefix}_type`] = `Timeseries ${i + 1}: Type is required.`;
+      errors[`${prefix}_type`] = t('validation.timeseries.type', { index: i + 1 });
     }
   });
 

@@ -1,14 +1,10 @@
-export const LEGAL_DOCS = [
-  { key: 'terms', title: 'Terms' },
-  { key: 'privacy', title: 'Privacy' },
-] as const;
+export const LEGAL_DOCS = ['terms', 'privacy'] as const;
 
-export type LegalKey = (typeof LEGAL_DOCS)[number]['key'];
+export type LegalKey = (typeof LEGAL_DOCS)[number];
 
 export const legalPath = (key: LegalKey) => `/legal/${key}`;
 
-const isLegalKey = (value: string): value is LegalKey =>
-  LEGAL_DOCS.some((doc) => doc.key === value);
+const isLegalKey = (value: string): value is LegalKey => LEGAL_DOCS.some((doc) => doc === value);
 
 /** The document a path names, or null when it is not a legal page. Kept free of the
  * markdown imports so the entry bundle can match the path without pulling them in. */

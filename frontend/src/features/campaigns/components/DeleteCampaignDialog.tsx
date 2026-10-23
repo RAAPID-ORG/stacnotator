@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Button, Input } from '~/shared/ui/forms';
 import { AnimatedDialog } from '~/shared/ui/motion';
 import { Spinner } from '~/shared/ui/Spinner';
@@ -19,6 +20,7 @@ export const DeleteCampaignDialog = ({
   onCancel,
   isLoading = false,
 }: DeleteCampaignDialogProps) => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const [inputValue, setInputValue] = useState('');
   const isValid = inputValue === campaignName;
 
@@ -41,23 +43,35 @@ export const DeleteCampaignDialog = ({
             <IconWarning className="w-6 h-6 text-red-600" />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-neutral-900 mb-2">Delete Campaign</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 mb-2">
+              {t('deleteDialog.title')}
+            </h3>
             <div className="text-sm text-neutral-600 space-y-3">
               <p>
-                This action <strong>cannot be undone</strong>. This will permanently delete the
-                campaign <strong className="text-neutral-900">"{campaignName}"</strong> and all
-                associated data:
+                <Trans
+                  t={t}
+                  i18nKey="deleteDialog.warning"
+                  values={{ name: campaignName }}
+                  components={{
+                    strong: <strong />,
+                    name: <strong className="text-neutral-900" />,
+                  }}
+                />
               </p>
               <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>All annotation tasks</li>
-                <li>All user annotations</li>
-                <li>All imagery configurations</li>
-                <li>All timeseries configurations</li>
-                <li>All campaign settings</li>
+                <li>{t('deleteDialog.items.tasks')}</li>
+                <li>{t('deleteDialog.items.annotations')}</li>
+                <li>{t('deleteDialog.items.imagery')}</li>
+                <li>{t('deleteDialog.items.timeseries')}</li>
+                <li>{t('deleteDialog.items.settings')}</li>
               </ul>
               <p className="pt-2">
-                Please type <strong className="font-mono text-neutral-900">{campaignName}</strong>{' '}
-                to confirm:
+                <Trans
+                  t={t}
+                  i18nKey="deleteDialog.typeToConfirm"
+                  values={{ name: campaignName }}
+                  components={{ name: <strong className="font-mono text-neutral-900" /> }}
+                />
               </p>
             </div>
             <div className="mt-3">
@@ -66,7 +80,7 @@ export const DeleteCampaignDialog = ({
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 disabled={isLoading}
-                placeholder="Type campaign name here"
+                placeholder={t('deleteDialog.placeholder')}
                 autoFocus
               />
             </div>
@@ -75,7 +89,7 @@ export const DeleteCampaignDialog = ({
       </div>
       <div className="border-t border-neutral-100 flex gap-2 p-4 justify-end bg-neutral-50/50">
         <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
-          Cancel
+          {t('common:actions.cancel')}
         </Button>
         <Button
           variant="danger"
@@ -83,7 +97,7 @@ export const DeleteCampaignDialog = ({
           disabled={!isValid || isLoading}
           leading={isLoading ? <Spinner size="xs" variant="white" /> : undefined}
         >
-          Delete campaign
+          {t('deleteDialog.confirm')}
         </Button>
       </div>
     </AnimatedDialog>

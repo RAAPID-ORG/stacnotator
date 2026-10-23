@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   type CampaignCreate,
@@ -53,9 +54,10 @@ export const StepAddTimeseries = ({
   onRenameExistingPanel?: (oldName: string, newName: string) => Promise<void>;
   saving?: boolean;
 }) => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const { data: tsOptions = null } = useQuery({
     ...getTimeseriesCreationOptionsOptions(),
-    meta: { errorMessage: 'Failed to load timeseries options' },
+    meta: { errorMessage: t('timeseriesStep.loadOptionsFailed') },
   });
   const [addedGroups, setAddedGroups] = useState<string[]>([]);
   const [draftGroups, setDraftGroups] = useState<string[]>([DEFAULT_TIMESERIES_WINDOW_NAME]);
@@ -158,7 +160,7 @@ export const StepAddTimeseries = ({
     try {
       if (existingTimeseries.some((item) => groupName(item.window_name) === oldName)) {
         if (!onRenameExistingPanel) {
-          setRenameError('Renaming saved panels is unavailable.');
+          setRenameError(t('timeseriesStep.renameUnavailable'));
           return;
         }
         await onRenameExistingPanel(oldName, editedName);
@@ -179,7 +181,7 @@ export const StepAddTimeseries = ({
       }
       setEditingGroup(null);
     } catch {
-      setRenameError('Could not rename this panel. Please try again.');
+      setRenameError(t('timeseriesStep.renameFailed'));
     } finally {
       setRenaming(false);
     }
@@ -188,19 +190,10 @@ export const StepAddTimeseries = ({
   return (
     <fieldset className="space-y-6 min-w-0" disabled={renaming || saving}>
       <div>
-        <h3 className="section-heading">Optional: Timeseries</h3>
-        <p className="section-description">
-          Graphs that plot a single pixel&apos;s value over time: at the annotated point the chosen
-          spectral index is computed across the date range and drawn as a chart beside the imagery.
-        </p>
-        <p className="section-description mt-2">
-          Panels organize timeseries on the annotation page. All series in a panel appear together.
-          For example, put series for 2022 in one panel and series for 2023 in another, so each
-          panel shows a manageable date range instead of one extremely long timeseries.
-        </p>
-        <p className="text-xs text-neutral-500 mt-2">
-          Timeseries are optional. Leave the initial blank series untouched to skip them.
-        </p>
+        <h3 className="section-heading">{t('timeseriesStep.title')}</h3>
+        <p className="section-description">{t('timeseriesStep.description')}</p>
+        <p className="section-description mt-2">{t('timeseriesStep.panelsDescription')}</p>
+        <p className="text-xs text-neutral-500 mt-2">{t('timeseriesStep.optionalHint')}</p>
       </div>
 
       {windowOptions.map((windowName) => {
@@ -217,20 +210,22 @@ export const StepAddTimeseries = ({
         return (
           <section
             key={windowName}
-            aria-label={`${windowName} panel`}
+            aria-label={t('timeseriesStep.panelAria', { name: windowName })}
             className="rounded-lg border border-neutral-200 overflow-hidden"
           >
             <div className="flex items-center gap-3 px-4 py-3 bg-brand-50 border-b border-brand-100">
               <IconWindow className="w-5 h-5 text-brand-600 shrink-0" />
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-medium text-brand-600">Panel</div>
+                <div className="text-xs font-medium text-brand-600">
+                  {t('timeseriesStep.panel')}
+                </div>
                 {editingGroup?.original === windowName ? (
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <Input
                         size="sm"
                         autoFocus
-                        aria-label="Panel name"
+                        aria-label={t('timeseriesStep.panelName')}
                         value={editingGroup.name}
                         disabled={renaming || saving}
                         invalid={duplicateName || !!renameError}
@@ -252,7 +247,7 @@ export const StepAddTimeseries = ({
                         disabled={!editedName || duplicateName || renaming || saving}
                         onClick={() => void renameGroup()}
                       >
-                        Save
+                        {t('common:actions.save')}
                       </Button>
                       <Button
                         size="sm"
@@ -260,12 +255,12 @@ export const StepAddTimeseries = ({
                         disabled={renaming || saving}
                         onClick={() => setEditingGroup(null)}
                       >
-                        Cancel
+                        {t('common:actions.cancel')}
                       </Button>
                     </div>
                     {(duplicateName || renameError) && (
                       <p role="alert" className="text-xs text-red-600">
-                        {duplicateName ? 'A panel with this name already exists.' : renameError}
+                        {duplicateName ? t('timeseriesStep.duplicatePanel') : renameError}
                       </p>
                     )}
                   </div>
@@ -274,7 +269,7 @@ export const StepAddTimeseries = ({
                     <h4 className="text-base font-semibold text-neutral-900">{windowName}</h4>
                     <button
                       type="button"
-                      aria-label={`Rename ${windowName} panel`}
+                      aria-label={t('timeseriesStep.renamePanelAria', { name: windowName })}
                       disabled={renaming || saving || (saved.length > 0 && !onRenameExistingPanel)}
                       onClick={() => {
                         setEditingGroup({ original: windowName, name: windowName });
@@ -282,7 +277,7 @@ export const StepAddTimeseries = ({
                       }}
                       className="rounded text-xs text-neutral-500 hover:text-brand-700 hover:underline underline-offset-4 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 disabled:text-neutral-400 disabled:cursor-not-allowed"
                     >
-                      Rename
+                      {t('timeseriesStep.rename')}
                     </button>
                   </div>
                 )}
@@ -300,7 +295,7 @@ export const StepAddTimeseries = ({
                   </div>
                   {onRemoveExisting && (
                     <Button size="sm" variant="quiet" onClick={() => onRemoveExisting(ts.id)}>
-                      Remove
+                      {t('common:actions.remove')}
                     </Button>
                   )}
                 </div>
@@ -316,31 +311,33 @@ export const StepAddTimeseries = ({
                   <div key={index === -1 ? items.length : index} className="py-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <h5 className="text-xs font-medium text-neutral-500">
-                        Series {saved.length + seriesIndex + 1}
+                        {t('timeseriesStep.series', { number: saved.length + seriesIndex + 1 })}
                       </h5>
                       <button
                         type="button"
                         onClick={() => removeItem(index, windowName)}
                         className="text-xs text-neutral-400 hover:text-red-600 transition-colors cursor-pointer"
                       >
-                        Remove
+                        {t('common:actions.remove')}
                       </button>
                     </div>
 
                     <Input
                       size="sm"
-                      placeholder="Timeseries name"
-                      aria-label="Timeseries name"
+                      placeholder={t('timeseriesStep.name')}
+                      aria-label={t('timeseriesStep.name')}
                       value={i.name}
                       onChange={(e) => updateSeries({ name: e.target.value })}
                     />
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">Start Date</label>
+                        <label className="text-xs text-neutral-700">
+                          {t('timeseriesStep.startDate')}
+                        </label>
                         <DateField
                           size="sm"
-                          aria-label="Start Date"
+                          aria-label={t('timeseriesStep.startDate')}
                           granularity="month"
                           value={yyyymmToInputMonth(i.start_ym)}
                           onChange={(e) =>
@@ -349,10 +346,12 @@ export const StepAddTimeseries = ({
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">End Date</label>
+                        <label className="text-xs text-neutral-700">
+                          {t('timeseriesStep.endDate')}
+                        </label>
                         <DateField
                           size="sm"
-                          aria-label="End Date"
+                          aria-label={t('timeseriesStep.endDate')}
                           granularity="month"
                           value={yyyymmToInputMonth(i.end_ym)}
                           onChange={(e) =>
@@ -364,14 +363,16 @@ export const StepAddTimeseries = ({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">Data source</label>
+                        <label className="text-xs text-neutral-700">
+                          {t('timeseriesStep.dataSource')}
+                        </label>
                         <Select
                           size="sm"
-                          aria-label="Data source"
+                          aria-label={t('timeseriesStep.dataSource')}
                           value={i.data_source}
                           onChange={(e) => selectSource(index, e.target.value, windowName)}
                         >
-                          <option value="">Select data source</option>
+                          <option value="">{t('timeseriesStep.selectDataSource')}</option>
                           {tsOptions?.sources.map((option) => (
                             <option key={option.key} value={option.key}>
                               {option.label} ({option.coverage})
@@ -381,16 +382,20 @@ export const StepAddTimeseries = ({
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">Index</label>
+                        <label className="text-xs text-neutral-700">
+                          {t('timeseriesStep.index')}
+                        </label>
                         <Select
                           size="sm"
-                          aria-label="Index"
+                          aria-label={t('timeseriesStep.index')}
                           value={i.ts_type}
                           disabled={!i.data_source}
                           onChange={(e) => updateSeries({ ts_type: e.target.value })}
                         >
                           <option value="">
-                            {i.data_source ? 'Select index' : 'Pick a data source first'}
+                            {i.data_source
+                              ? t('timeseriesStep.selectIndex')
+                              : t('timeseriesStep.pickSourceFirst')}
                           </option>
                           {availableIndices(tsOptions, i.data_source).map((option) => (
                             <option key={option.key} value={option.key}>
@@ -414,14 +419,16 @@ export const StepAddTimeseries = ({
 
                     {tsOptions && tsOptions.providers.length > 1 && (
                       <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">Provider</label>
+                        <label className="text-xs text-neutral-700">
+                          {t('timeseriesStep.provider')}
+                        </label>
                         <Select
                           size="sm"
                           value={i.provider}
-                          aria-label="Provider"
+                          aria-label={t('timeseriesStep.provider')}
                           onChange={(e) => updateSeries({ provider: e.target.value })}
                         >
-                          <option value="">Select provider</option>
+                          <option value="">{t('timeseriesStep.selectProvider')}</option>
                           {tsOptions.providers.map((provider) => (
                             <option key={provider} value={provider}>
                               {provider}
@@ -441,8 +448,8 @@ export const StepAddTimeseries = ({
                   disabled={!tsOptions || renaming || saving}
                 >
                   {saved.length + series.length > 0
-                    ? '+ Add another timeseries'
-                    : '+ Add timeseries'}
+                    ? t('timeseriesStep.addAnother')
+                    : t('timeseriesStep.add')}
                 </button>
               </div>
             </div>
@@ -455,8 +462,8 @@ export const StepAddTimeseries = ({
           <div className="flex items-center gap-2">
             <Input
               autoFocus
-              aria-label="New panel name"
-              placeholder="New panel name"
+              aria-label={t('timeseriesStep.newPanelName')}
+              placeholder={t('timeseriesStep.newPanelName')}
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
               onKeyDown={(e) => {
@@ -471,15 +478,15 @@ export const StepAddTimeseries = ({
               onClick={addGroup}
               disabled={!newGroupName.trim() || windowOptions.includes(newGroupName.trim())}
             >
-              Create panel
+              {t('timeseriesStep.createPanel')}
             </Button>
             <Button variant="quiet" onClick={() => setNewGroupName(null)}>
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
           </div>
           {windowOptions.includes(newGroupName.trim()) && (
             <p role="alert" className="text-xs text-red-600">
-              A panel with this name already exists.
+              {t('timeseriesStep.duplicatePanel')}
             </p>
           )}
         </div>
@@ -489,7 +496,7 @@ export const StepAddTimeseries = ({
           className="inline-flex items-center rounded py-1.5 text-xs text-neutral-500 hover:text-neutral-700 hover:underline underline-offset-4 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
           onClick={() => setNewGroupName('')}
         >
-          + Add Panel
+          {t('timeseriesStep.addPanel')}
         </button>
       )}
     </fieldset>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   planPlanetScenes,
   type PlanetCredentials,
@@ -8,6 +9,7 @@ import {
 } from '~/api/client';
 import { Modal } from '~/shared/ui/Modal';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
+import i18n from '~/shared/i18n';
 import { handleError } from '~/shared/utils/errorHandler';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import { PlanetKeyConnect } from './PlanetKeyConnect';
@@ -36,12 +38,12 @@ interface Period {
   unit: PeriodUnit;
 }
 
-const PERIOD_UNITS: { unit: PeriodUnit; label: string }[] = [
-  { unit: 'days', label: 'days' },
-  { unit: 'weeks', label: 'weeks' },
-  { unit: 'months', label: 'months' },
-  { unit: 'years', label: 'years' },
-];
+const PERIOD_UNITS = [
+  { unit: 'days', label: 'scenes.units.days' },
+  { unit: 'weeks', label: 'scenes.units.weeks' },
+  { unit: 'months', label: 'scenes.units.months' },
+  { unit: 'years', label: 'scenes.units.years' },
+] as const satisfies readonly { unit: PeriodUnit; label: string }[];
 
 /** Only ever compared against another period, so a 30-day month costs nothing. */
 const APPROXIMATE_DAYS: Record<PeriodUnit, number> = {
@@ -62,37 +64,42 @@ const PeriodField = ({
   help: string;
   value: Period;
   onChange: (period: Period) => void;
-}) => (
-  <div className="space-y-1">
-    <label className="text-xs text-neutral-700 font-medium">{label}</label>
-    <p className="text-[11px] text-neutral-500 leading-snug">{help}</p>
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-neutral-500">every</span>
-      <Input
-        size="sm"
-        type="number"
-        min={1}
-        value={value.interval}
-        onChange={(e) => onChange({ ...value, interval: Math.max(1, Number(e.target.value) || 1) })}
-        className="!w-20"
-        aria-label={`${label} interval`}
-      />
-      <Select
-        size="sm"
-        value={value.unit}
-        onChange={(e) => onChange({ ...value, unit: e.target.value as PeriodUnit })}
-        aria-label={`${label} unit`}
-        className="!w-32"
-      >
-        {PERIOD_UNITS.map((option) => (
-          <option key={option.unit} value={option.unit}>
-            {option.label}
-          </option>
-        ))}
-      </Select>
+}) => {
+  const { t } = useTranslation('imagery');
+  return (
+    <div className="space-y-1">
+      <label className="text-xs text-neutral-700 font-medium">{label}</label>
+      <p className="text-[11px] text-neutral-500 leading-snug">{help}</p>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-neutral-500">{t('scenes.every')}</span>
+        <Input
+          size="sm"
+          type="number"
+          min={1}
+          value={value.interval}
+          onChange={(e) =>
+            onChange({ ...value, interval: Math.max(1, Number(e.target.value) || 1) })
+          }
+          className="!w-20"
+          aria-label={t('scenes.intervalAria', { label })}
+        />
+        <Select
+          size="sm"
+          value={value.unit}
+          onChange={(e) => onChange({ ...value, unit: e.target.value as PeriodUnit })}
+          aria-label={t('scenes.unitAria', { label })}
+          className="!w-32"
+        >
+          {PERIOD_UNITS.map((option) => (
+            <option key={option.unit} value={option.unit}>
+              {t(option.label)}
+            </option>
+          ))}
+        </Select>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -142,6 +149,7 @@ export function sceneCollections(
  * are minted later, from wherever an annotator asks for them.
  */
 export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBrowserProps) => {
+  const { t } = useTranslation('imagery');
   const [credentials, setCredentials] = useState<PlanetCredentials | null>(null);
   const [startDate, setStartDate] = useState(monthBack());
   const [endDate, setEndDate] = useState(today());
@@ -197,7 +205,7 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
           if (current) setWindows(data ?? []);
         })
         .catch((err) => {
-          if (current) handleError(err, 'Could not work out the dates');
+          if (current) handleError(err, i18n.t('imagery:scenes.planFailed'));
         });
     }, TYPING_SETTLES_MS);
     return () => {
@@ -212,7 +220,7 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
     try {
       const seriesKey = createId();
       const source = emptySource();
-      source.name = 'PlanetScope daily imagery';
+      source.name = t('scenes.defaultName');
       source.visualizations = [{ name: VISUALIZATION }];
       source.collections = sceneCollections(
         windows,
@@ -238,14 +246,17 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
 
   return (
     <Modal
-      title="Add Planet daily imagery"
+      title={t('scenes.title')}
       onClose={onClose}
       maxWidth="max-w-2xl"
       footer={
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-neutral-500">
             {windows?.length
-              ? `${windows.length} window${windows.length === 1 ? '' : 's'}, ${sliceTotal} slice${sliceTotal === 1 ? '' : 's'}`
+              ? t('planet.summary', {
+                  windows: t('planet.windows', { count: windows.length }),
+                  slices: t('planet.slices', { count: sliceTotal }),
+                })
               : ''}
           </span>
           <Button
@@ -254,31 +265,21 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
             onClick={() => void add()}
             disabled={submitting || !windows?.length || !credentials}
           >
-            {submitting ? 'Adding…' : 'Add source'}
+            {submitting ? t('wizard.adding') : t('wizard.addSource')}
           </Button>
         </div>
       }
     >
       <div className="p-4 space-y-4">
-        <p className="text-[11px] text-neutral-500 leading-snug">
-          Each period&apos;s acquisitions are stacked into one layer, clearest on top, so a slice
-          can be as fine as a single day. Overlaps stay visible as seams - this is the raw archive,
-          not a harmonised basemap. The tiles count against your scene-tile quota, which is separate
-          from the basemap allowance.
-        </p>
-        <p className="text-[11px] text-neutral-500 leading-snug">
-          Only the dates are settled here. A scene covers about 25 km, so which of them hold imagery
-          depends on where you are standing - annotators search the archive from the imagery panel,
-          over whatever is on their screen, and the dates with nothing over them drop out of the
-          list.
-        </p>
+        <p className="text-[11px] text-neutral-500 leading-snug">{t('scenes.intro')}</p>
+        <p className="text-[11px] text-neutral-500 leading-snug">{t('scenes.datesOnly')}</p>
 
         <PlanetKeyConnect projectId={projectId} onChange={setCredentials} />
 
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700 font-medium">From</label>
+              <label className="text-xs text-neutral-700 font-medium">{t('planet.from')}</label>
               <DateField
                 size="sm"
                 value={startDate}
@@ -286,60 +287,57 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-neutral-700 font-medium">To</label>
+              <label className="text-xs text-neutral-700 font-medium">{t('planet.to')}</label>
               <DateField size="sm" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
           </div>
 
           <PeriodField
-            label="New window"
-            help="One canvas window per period, named after the dates it covers."
+            label={t('scenes.newWindow')}
+            help={t('scenes.newWindowHelp')}
             value={windowPeriod}
             onChange={setWindowPeriod}
           />
 
           <PeriodField
-            label="New slice"
-            help="What one step through the imagery moves by, inside a window."
+            label={t('scenes.newSlice')}
+            help={t('scenes.newSliceHelp')}
             value={slicePeriod}
             onChange={setSlicePeriod}
           />
 
           {datesReversed && (
             <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-              The end date is before the start date.
+              {t('scenes.datesReversed')}
             </p>
           )}
 
           {sliceTooCoarse && (
             <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-              A slice cannot be longer than its window, or every window holds a single slice
-              covering all of it. Shorten the slice period or lengthen the window.
+              {t('scenes.sliceTooCoarse')}
             </p>
           )}
 
           <div className="space-y-1">
-            <label className="text-xs text-neutral-700 font-medium">What the window opens on</label>
-            <p className="text-[11px] text-neutral-500 leading-snug">
-              Annotators see this before stepping through the dates inside it. A composite stacks
-              every acquisition in the window, so it has fewer gaps than any single date.
-            </p>
+            <label className="text-xs text-neutral-700 font-medium">{t('scenes.opensOn')}</label>
+            <p className="text-[11px] text-neutral-500 leading-snug">{t('scenes.opensOnHelp')}</p>
             <Select
               size="sm"
               value={wholeWindowCover ? 'composite' : 'first'}
               onChange={(e) => setWholeWindowCover(e.target.value === 'composite')}
-              aria-label="What the window opens on"
+              aria-label={t('scenes.opensOn')}
             >
-              <option value="composite">A composite of the whole window</option>
-              <option value="first">Its first date</option>
+              <option value="composite">{t('scenes.opensOnComposite')}</option>
+              <option value="first">{t('scenes.opensOnFirst')}</option>
             </Select>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs text-neutral-700 font-medium">Maximum cloud cover</label>
+            <label className="text-xs text-neutral-700 font-medium">
+              {t('scenes.maxCloudCover')}
+            </label>
             <p className="text-[11px] text-neutral-500 leading-snug">
-              Cloudier acquisitions are left out, so a date with nothing clear enough gets no slice
-              at all.
+              {t('scenes.maxCloudCoverHelp')}
             </p>
             <div className="flex items-center gap-1.5">
               <Input
@@ -359,29 +357,34 @@ export const PlanetSceneBrowser = ({ projectId, onAdd, onClose }: PlanetSceneBro
 
           {sliceTotal > MANY_SLICES && (
             <p className="text-[11px] text-amber-700 rounded-md bg-amber-50 border border-amber-200 p-2">
-              {sliceTotal} slices is a lot to step through, and every search an annotator runs asks
-              Planet about each of them.
+              {t('scenes.manySlices', { count: sliceTotal })}
             </p>
           )}
 
           {!!windows?.length && (
             <div className="space-y-1.5">
-              <p className="text-xs text-neutral-700 font-medium">What will be created</p>
+              <p className="text-xs text-neutral-700 font-medium">{t('scenes.preview')}</p>
               <ul className="text-[11px] text-neutral-600 space-y-0.5 max-h-48 overflow-y-auto">
                 {windows.map((window) => (
                   <li key={window.start_date}>
-                    <strong>
-                      {formatWindowLabel(window.start_date, window.end_date, windowPeriod.unit)}
-                    </strong>{' '}
-                    - {window.slices.length} slice
-                    {window.slices.length === 1 ? '' : 's'}
-                    {window.cover && ', plus a cover over the whole window'}
+                    <Trans
+                      t={t}
+                      i18nKey={window.cover ? 'scenes.windowItemCover' : 'scenes.windowItem'}
+                      values={{
+                        label: formatWindowLabel(
+                          window.start_date,
+                          window.end_date,
+                          windowPeriod.unit
+                        ),
+                        count: window.slices.length,
+                      }}
+                      components={{ strong: <strong /> }}
+                    />
                   </li>
                 ))}
               </ul>
               <p className="text-[11px] text-neutral-500 leading-snug">
-                Nothing is searched or built now. Annotators fill these dates in from where they are
-                working.
+                {t('scenes.nothingBuilt')}
               </p>
             </div>
           )}

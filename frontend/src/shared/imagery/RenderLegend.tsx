@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { RenderConfig } from '~/api/client';
 import { ColormapSelect } from '~/shared/colormaps/ColormapSelect';
 import { gradientFor, isColormapName } from '~/shared/colormaps/colormaps';
@@ -25,13 +26,14 @@ function formatTick(value: number): string {
  */
 function Tick({
   value,
-  label,
+  bound,
   onCommit,
 }: {
   value: number;
-  label: string;
+  bound: 'min' | 'max';
   onCommit: (n: number) => void;
 }) {
+  const { t } = useTranslation();
   const [text, setText] = useState(formatTick(value));
   useEffect(() => setText(formatTick(value)), [value]);
 
@@ -40,8 +42,8 @@ function Tick({
       type="text"
       inputMode="decimal"
       value={text}
-      aria-label={label}
-      data-testid={`custom-map-legend-${label}`}
+      aria-label={bound === 'min' ? t('renderLegend.min') : t('renderLegend.max')}
+      data-testid={`custom-map-legend-${bound}`}
       onChange={(e) => {
         setText(e.target.value);
         const parsed = Number(e.target.value);
@@ -61,6 +63,7 @@ function ContinuousBody({
   onChange: (patch: RenderOverride) => void;
   width: string;
 }) {
+  const { t } = useTranslation();
   const { rescale, colormap_name } = config;
   if (!colormap_name || !rescale || !isFinite(rescale[0]) || !isFinite(rescale[1])) return null;
   const [min, max] = rescale;
@@ -77,17 +80,17 @@ function ContinuousBody({
           <ColormapSelect
             value={colormap_name}
             onChange={(name) => onChange({ colormap_name: name })}
-            aria-label="Colormap"
-            title="Change colormap"
+            aria-label={t('renderLegend.colormap')}
+            title={t('renderLegend.changeColormap')}
             data-testid="custom-map-legend-colormap"
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
           />
         )}
       </div>
       <div className={`mt-0.5 flex justify-between ${width}`}>
-        <Tick value={min} label="min" onCommit={(n) => onChange({ rescale: [n, max] })} />
+        <Tick value={min} bound="min" onCommit={(n) => onChange({ rescale: [n, max] })} />
         <span className="opacity-60">{formatTick((min + max) / 2)}</span>
-        <Tick value={max} label="max" onCommit={(n) => onChange({ rescale: [min, n] })} />
+        <Tick value={max} bound="max" onCommit={(n) => onChange({ rescale: [min, n] })} />
       </div>
     </>
   );
@@ -107,6 +110,7 @@ function CategoricalBody({
   config: RenderConfig;
   onChange: (patch: RenderOverride) => void;
 }) {
+  const { t } = useTranslation();
   const entries = config.entries ?? [];
   const patchEntry = (value: number, color: string) =>
     onChange({ entries: entries.map((x) => (x.value === value ? { ...x, color } : x)) });
@@ -128,8 +132,8 @@ function CategoricalBody({
               value={rgb}
               data-testid="custom-map-legend-color"
               onChange={(e) => patchEntry(entry.value, e.target.value + alpha)}
-              title={`Recolour ${name}`}
-              aria-label={`Colour for ${name}`}
+              title={t('renderLegend.recolour', { name })}
+              aria-label={t('renderLegend.colourFor', { name })}
               className={`h-3 w-3 cursor-pointer rounded-sm border-0 bg-transparent p-0 ${
                 hidden ? 'opacity-25' : ''
               }`}
@@ -139,7 +143,7 @@ function CategoricalBody({
               data-testid="custom-map-legend-class"
               data-hidden={hidden}
               onClick={() => patchEntry(entry.value, rgb + (hidden ? 'ff' : HIDDEN_ALPHA))}
-              title={hidden ? `Show ${name}` : `Hide ${name}`}
+              title={hidden ? t('renderLegend.show', { name }) : t('renderLegend.hide', { name })}
               className={`cursor-pointer text-left text-inherit ${
                 hidden ? 'line-through opacity-50' : ''
               }`}

@@ -1,0 +1,279 @@
+{
+  "titles": {
+    "task": "Tarea",
+    "controls": "Controles",
+    "timeline": "Línea de tiempo",
+    "imagery": "Imágenes"
+  },
+  "minimap": {
+    "copyCoordinates": "Copiar coordenadas al portapapeles",
+    "openInGoogleEarth": "Abrir en Google Earth"
+  },
+  "tools": {
+    "pan": "Desplazar",
+    "annotate": "Anotar",
+    "edit": "Editar",
+    "labelVector": "Etiquetar vector",
+    "timeseries": "Sondear serie temporal"
+  },
+  "explore": {
+    "tools": "Herramientas",
+    "shortcuts": "Atajos",
+    "hide": "Ocultar",
+    "show": "Mostrar",
+    "hideDrawnTitle": "Ocultar objetos dibujados (Shift+X)",
+    "showDrawnTitle": "Mostrar objetos dibujados (Shift+X)",
+    "fit": "Ajustar a anotaciones",
+    "fitTitle": "Hacer zoom a todas las anotaciones (Espacio)",
+    "labels": "Etiquetas",
+    "customizeStyles": "Personalizar estilos de etiquetas",
+    "customizeLabelStyle": "Personalizar el estilo de esta etiqueta",
+    "customizeNamedStyle": "Personalizar el estilo de {{name}}",
+    "noLabels": "No hay etiquetas definidas",
+    "editTool": "Herramienta de edición",
+    "editHelp": "Haz clic en una geometría para editar sus vértices, arrastra con Alt para moverla entera y arrastra con Shift para seleccionar varias. Consulta los <strong>Atajos</strong> más abajo.",
+    "navigation": "Navegación",
+    "panHelp": "Arrastra para desplazar el mapa y usa la rueda para hacer zoom. Haz clic en una anotación para ver sus detalles.",
+    "panTip": "Consejo: selecciona una etiqueta para empezar a anotar de inmediato.",
+    "display": "Visualización",
+    "showFromTasks": "Mostrar las de tareas",
+    "saveFailed": "No se pudo guardar. Revisa las preguntas obligatorias y vuelve a intentarlo.",
+    "closeSaveFailed": "No se pudo guardar. Vuelve a intentarlo o responde lo que falta."
+  },
+  "probes": {
+    "help": "Haz clic en el mapa para mover la sonda activa. Haz clic en otra para seleccionarla, o vuelve a hacer clic en ella para quitarla del gráfico.",
+    "atCap": "Como máximo {{max}} sondas a la vez",
+    "addTitle": "Añadir otra sonda (Shift+T)",
+    "addAnother": "Añadir otra sonda",
+    "armed": "Haz clic en el mapa...",
+    "add": "Añadir sonda",
+    "clearTitle": "Quitar todas las sondas",
+    "clear": "Borrar",
+    "clearCount": "Borrar ({{count}})",
+    "clearAll": "Borrar sondas",
+    "clearN_one": "Borrar {{count}} sonda",
+    "clearN_many": "Borrar {{count}} sondas",
+    "clearN_other": "Borrar {{count}} sondas"
+  },
+  "labelVector": {
+    "title": "Etiquetar datos vectoriales",
+    "help": "Elige una etiqueta y haz clic en una entidad vectorial para etiquetarla. Arrastra un recuadro con Shift para etiquetar todas las entidades que contiene.",
+    "selectLayer": "Primero selecciona una capa vectorial en la cabecera y luego elige una etiqueta abajo."
+  },
+  "labelHint": {
+    "vector": "- haz clic en una entidad vectorial para aplicarla, o arrastra un recuadro con Shift para varias.",
+    "draw": {
+      "point": "- haz clic en el mapa para dibujar un punto.",
+      "line": "- haz clic en el mapa para dibujar una línea.",
+      "polygon": "- haz clic en el mapa para dibujar un polígono. Haz doble clic para terminar."
+    }
+  },
+  "labelStyle": {
+    "reset": "Restablecer",
+    "fill": "Relleno",
+    "fillColor": "Color de relleno",
+    "border": "Borde",
+    "borderColor": "Color del borde",
+    "opacity": "Opacidad",
+    "width": "Grosor"
+  },
+  "editDetails": {
+    "missingRequired": "Faltan campos obligatorios: {{fields}}",
+    "updated": "Anotación actualizada correctamente",
+    "updateFailed": "No se pudo actualizar la anotación",
+    "selected": "Anotación seleccionada #{{id}}",
+    "readOnly": "No tienes permiso para editar las anotaciones de otros usuarios.",
+    "flagTitle": "Marca o desmarca esta anotación para revisión. Se guarda de inmediato. Pulsa F para alternar.",
+    "flag": "Marcar para revisión [F]",
+    "flagPlaceholder": "¿Por qué lo marcas? (opcional)",
+    "save": "Guardar cambios"
+  },
+  "draft": {
+    "title": "{{label}} - responde las preguntas",
+    "annotation": "Anotación",
+    "closeSaved": "Cerrar (la anotación está guardada, las respuestas se conservan)",
+    "closeUnsaved": "Cerrar (los campos obligatorios sin responder descartan la anotación)",
+    "retry": "Reintentar guardado (Enter)",
+    "saveAnswers": "Guardar respuestas (Enter)",
+    "save": "Guardar anotación (Enter)",
+    "savedHint": {
+      "point": "El punto está guardado. Las respuestas se añaden al guardar.",
+      "line": "La línea está guardada. Las respuestas se añaden al guardar.",
+      "polygon": "El polígono está guardado. Las respuestas se añaden al guardar."
+    },
+    "drawAnotherHint": {
+      "point": "Dibujar otro punto también guarda este.",
+      "line": "Dibujar otra línea también guarda esta.",
+      "polygon": "Dibujar otro polígono también guarda este."
+    }
+  },
+  "mainMap": {
+    "title": "Mapa principal",
+    "progress": "<completed>{{completed}}</completed> de <total>{{total}}</total> hechas",
+    "selectLayer": "Seleccionar capa - {{next}}, {{previous}}",
+    "selectCollection": "Seleccionar colección - {{shortcut}}",
+    "nextCollection": "Colección siguiente",
+    "selectSlice": "Seleccionar corte temporal - {{shortcut}}",
+    "nextSlice": "Corte siguiente",
+    "zoomIn": "Acércate para ver las anotaciones",
+    "answerToSave": "Responde para guardar: {{fields}}",
+    "answerHelp": "Tab cambia de pregunta, Enter guarda.",
+    "pickLabel": "Elige una etiqueta en el panel de controles (o pulsa su número) para empezar a dibujar",
+    "loadingImagery": "Cargando imágenes"
+  },
+  "selection": {
+    "confirm": "Confirmar cambios (Enter)",
+    "delete": "Eliminar anotación (Supr)",
+    "deleteMany_one": "Eliminar {{count}} anotación (Supr)",
+    "deleteMany_many": "Eliminar {{count}} anotaciones (Supr)",
+    "deleteMany_other": "Eliminar {{count}} anotaciones (Supr)",
+    "cancel": "Cancelar (Esc)"
+  },
+  "timeline": {
+    "label": "Línea de tiempo de imágenes",
+    "noImagery": "Sin imágenes",
+    "show": "Mostrar línea de tiempo",
+    "hide": "Ocultar línea de tiempo"
+  },
+  "scenes": {
+    "loadHint": "Carga imágenes de Planet para esta vista: las fechas con imágenes aquí pasan a ser navegables, cada una construida con las escenas más despejadas que encuentre, y el resto queda vacío. Vale la pena cuando las imágenes se ven mal o no hay ninguna; mover el mapa solo requiere otra carga cuando sales de lo ya cargado.",
+    "tooWide": "Acércate para cargar imágenes de Planet: una vista tan amplia abarca más archivo del que debería pedir una sola búsqueda.",
+    "load": "Cargar imágenes de Planet para esta vista",
+    "loadingViewport": "Cargando imágenes de Planet para esta vista",
+    "loadingDate": "Cargando imágenes de Planet para esta fecha",
+    "zoomIn": "Acércate para cargar imágenes de Planet"
+  },
+  "vector": {
+    "none": "Sin capa vectorial",
+    "select": "Seleccionar capa vectorial"
+  },
+  "overlay": {
+    "none": "Sin capa superpuesta",
+    "select": "Seleccionar mapa superpuesto",
+    "openExperiment": "Abrir experimento vinculado",
+    "resetColoursTitle": "Volver a los colores definidos para esta campaña",
+    "resetColours": "Restablecer colores",
+    "opacity": "Opacidad de la capa superpuesta"
+  },
+  "slices": {
+    "dates": "Fechas",
+    "empty": "{{label}} (vacío)"
+  },
+  "collections": {
+    "label": "Colecciones",
+    "pinnedStart": "Mostrar esta colección primero en cada tarea (seleccionada)",
+    "pinStart": "Mostrar esta colección primero en cada tarea"
+  },
+  "layers": {
+    "sources": "Fuentes de imágenes",
+    "visualizations": "Visualizaciones de {{source}}",
+    "basemaps": "Mapas base"
+  },
+  "preload": {
+    "tiers": {
+      "auto": "Auto",
+      "off": "Desactivada",
+      "conservative": "Conservadora",
+      "balanced": "Equilibrada",
+      "heavy": "Intensiva"
+    },
+    "hints": {
+      "auto": "ajustada a tu conexión (ahora {{current}})",
+      "off": "sin precarga",
+      "conservative": "{{n}} en paralelo - conexiones lentas",
+      "balanced": "{{n}} en paralelo - 4G/wifi típico",
+      "heavy": "{{n}} en paralelo - cable/wifi rápido"
+    },
+    "ahead": "Siguientes tareas precargadas: {{percents}}",
+    "nothingAhead": "Nada precargado por adelantado",
+    "ariaLabel": "Precarga de teselas: {{tier}}. {{ahead}}.",
+    "title": "Precarga de teselas: {{tier}}. {{ahead}}. Haz clic para cambiarla.",
+    "titleAuto": "Precarga de teselas: {{tier}} (ajustada automáticamente a tu conexión). {{ahead}}. Haz clic para cambiarla.",
+    "heading": "Precarga de teselas"
+  },
+  "imageryWindow": {
+    "selectSlice": "Seleccionar corte temporal",
+    "noData": "{{label}} (sin datos)",
+    "commentHint": "o haz doble clic en el mapa",
+    "noImagery": "Sin imágenes",
+    "zoomHint": "Mantén Ctrl/Cmd para hacer zoom",
+    "searching": "Buscando imágenes... {{label}}",
+    "slice": "Corte {{n}}"
+  },
+  "timeseries": {
+    "loadFailed": "No se pudieron cargar los datos de la serie temporal",
+    "noLocation": "No hay ninguna ubicación seleccionada",
+    "loading": "Cargando serie temporal...",
+    "updating": "Actualizando...",
+    "legendInfo": "Explicación de la leyenda de la serie temporal",
+    "chartOptions": "Opciones del gráfico",
+    "showSeries": "Mostrar {{name}}",
+    "hideSeries": "Ocultar {{name}}",
+    "resetZoom": "Restablecer zoom",
+    "options": {
+      "removeCloudy": "Quitar nubosos",
+      "removeCloudyTitle": "Quita de la serie los días marcados como nubosos (puntos grises)",
+      "smooth": "Suavizar",
+      "smoothTitle": "Suavizado Savitzky-Golay.",
+      "windowTitle": "Tamaño de ventana del suavizado Savitzky-Golay (número impar >= 5, más grande = más suave)",
+      "windowShort": "V",
+      "orderTitle": "Orden del polinomio (>= 1, debe ser menor que el tamaño de ventana)",
+      "orderShort": "P",
+      "dots": "Puntos",
+      "dotsTitle": "Muestra u oculta los puntos de cada observación (la línea siempre se muestra)"
+    },
+    "info": {
+      "dots": "Cada punto es una observación. Los <strong>puntos de color</strong> son observaciones de días despejados (un color por serie). Los <strong>puntos grises</strong> son observaciones marcadas como nubosas.",
+      "removeCloudy": "<strong>Quitar nubosos</strong> elimina las observaciones grises tanto de la serie original como de la línea suavizada.",
+      "smooth": "<strong>Suavizar</strong> aplica un filtro Savitzky-Golay. Si dejas los puntos nubosos, el filtro atrae la línea suavizada hacia ellos; normalmente lo que quieres es Quitar nubosos + Suavizar a la vez.",
+      "showDots": "<strong>Puntos</strong> activa o desactiva los marcadores de cada observación."
+    }
+  },
+  "task": {
+    "loading": "Cargando tareas…",
+    "noMatch": "Ninguna tarea coincide con el filtro actual.",
+    "submitting": "Enviando…",
+    "removeLabel": "Quitar etiqueta",
+    "update": "Actualizar",
+    "submit": "Enviar",
+    "pointNotInFilter": "El punto #{{num}} no está en el filtro actual",
+    "label": "Etiqueta",
+    "commentPlaceholder": "Añade un comentario…",
+    "confidence": "Confianza",
+    "flaggedTitle": "Marcada para atención del revisor. Haz clic o pulsa F para desmarcar.",
+    "flagTitle": "Marca esta anotación para que la revise un revisor. Útil cuando no estás seguro de la etiqueta y quieres que un revisor le eche un segundo vistazo. Pulsa F para alternar.",
+    "notAllowed": "No tienes permiso para etiquetar esta tarea en esta campaña.",
+    "notAllowedShort": "No tienes permiso para etiquetar esta tarea",
+    "extraLabel": "Tu etiqueta se guardará como extra y no cuenta para completar la tarea.",
+    "validateTitle": "Validar frente a etiquetas previas usando similitud de embeddings (kNN)",
+    "validate": "Validar",
+    "skip": "Omitir",
+    "authoritativeAssignedTitle": "Enviar como autoritativa: prevalece sobre los demás anotadores de esta tarea y la marca como completada, aunque sus etiquetas no coincidan.",
+    "authoritativeUnassignedTitle": "Enviar como autoritativa: esta tarea no está asignada a ti, pero tu etiqueta se registrará como la respuesta canónica y la tarea se marcará como completada sin necesidad de consenso entre los asignados.",
+    "submitAuthoritative": "Enviar autoritativa",
+    "done": "Listo",
+    "nothingHere": "Nada aquí",
+    "drewHereTitle": "Dibujaste formas para esta tarea - pulsa Listo",
+    "authoritativeToggle": "Enviar como autoritativa",
+    "authoritativeToggleTitle": "Enviar como autoritativa: tu etiqueta prevalece sobre los demás anotadores y completa la tarea.",
+    "authoritativeShort": "Aut.",
+    "previousPoint": "Punto anterior",
+    "nextPoint": "Punto siguiente",
+    "currentPoint": "Punto actual",
+    "currentPointTitle": "Punto actual. Escribe un número y pulsa Enter para ir a él; Esc cancela.",
+    "prev": "Anterior",
+    "claimFailed": "No se pudo reclamar esta tarea"
+  },
+  "review": {
+    "you": "Tú",
+    "notLabeled": "Aún sin etiquetar",
+    "authoritative": "Autoritativa",
+    "flagged": "Marcada para revisión",
+    "extraTitle": "No cuenta para completar la tarea",
+    "extra": "extra",
+    "flagComment": "Marca: “{{comment}}”",
+    "showImagery": "Mostrar estas imágenes",
+    "all": "Todas las anotaciones",
+    "conflict": "Conflicto"
+  }
+}

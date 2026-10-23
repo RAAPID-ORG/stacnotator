@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { VisualizerFeedbackOut } from '~/api/client';
 import { Badge } from '~/shared/ui/Badge';
 import { Button, IconButton } from '~/shared/ui/forms';
@@ -26,6 +27,7 @@ export function FeedbackReview({
   onDelete: (entry: VisualizerFeedbackOut) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(['visualizers', 'common']);
   const position = items.findIndex((entry) => entry.id === selectedId);
 
   return (
@@ -35,19 +37,33 @@ export function FeedbackReview({
     >
       <div className="flex items-center gap-2 border-b border-neutral-100 px-4 py-2">
         <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">
-          Feedback
+          {t('feedbackReview.title')}
         </span>
         <span className="text-xs tabular-nums text-neutral-400">
-          {items.length === 0 ? 'none yet' : `${Math.max(position, 0) + 1} / ${items.length}`}
+          {items.length === 0
+            ? t('feedbackReview.noneYet')
+            : `${Math.max(position, 0) + 1} / ${items.length}`}
         </span>
         <div className="ml-auto flex items-center gap-1">
-          <IconButton onClick={() => onStep(-1)} aria-label="Newer feedback" title="Newer">
+          <IconButton
+            onClick={() => onStep(-1)}
+            aria-label={t('feedbackReview.newerAria')}
+            title={t('feedbackReview.newer')}
+          >
             <IconChevronLeft className="h-4 w-4" />
           </IconButton>
-          <IconButton onClick={() => onStep(1)} aria-label="Older feedback" title="Older">
+          <IconButton
+            onClick={() => onStep(1)}
+            aria-label={t('feedbackReview.olderAria')}
+            title={t('feedbackReview.older')}
+          >
             <IconChevronRight className="h-4 w-4" />
           </IconButton>
-          <IconButton onClick={onClose} aria-label="Close feedback review" title="Close">
+          <IconButton
+            onClick={onClose}
+            aria-label={t('feedbackReview.closeAria')}
+            title={t('common:actions.close')}
+          >
             <IconClose className="h-4 w-4" />
           </IconButton>
         </div>
@@ -55,19 +71,19 @@ export function FeedbackReview({
 
       {items.length === 0 ? (
         <p className="px-4 py-6 text-center text-sm text-neutral-500">
-          Nobody has left feedback on this map yet.
+          {t('feedbackReview.empty')}
         </p>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <table className="w-full text-left text-xs">
             <thead className="sticky top-0 bg-white text-[11px] uppercase tracking-wider text-neutral-400">
               <tr className="border-b border-neutral-100">
-                <Th>When</Th>
-                <Th>Who</Th>
-                <Th>Verdict</Th>
-                <Th>Should be</Th>
-                <Th>Note</Th>
-                <Th>Viewing</Th>
+                <Th>{t('feedbackReview.columns.when')}</Th>
+                <Th>{t('feedbackReview.columns.who')}</Th>
+                <Th>{t('feedbackReview.columns.verdict')}</Th>
+                <Th>{t('feedbackReview.columns.shouldBe')}</Th>
+                <Th>{t('feedbackReview.columns.note')}</Th>
+                <Th>{t('feedbackReview.columns.viewing')}</Th>
                 <th className="w-8" />
               </tr>
             </thead>
@@ -89,7 +105,7 @@ export function FeedbackReview({
                   <Td>
                     {entry.verdict && VERDICT[entry.verdict] && (
                       <Badge tone={VERDICT[entry.verdict].tone}>
-                        {VERDICT[entry.verdict].label}
+                        {t(`verdict.${entry.verdict}`)}
                       </Badge>
                     )}
                   </Td>
@@ -98,7 +114,9 @@ export function FeedbackReview({
                       <>
                         {entry.suggested_label}
                         {entry.layer_name && (
-                          <span className="text-neutral-400"> in {entry.layer_name}</span>
+                          <span className="text-neutral-400">
+                            {t('feedbackReview.inLayer', { layer: entry.layer_name })}
+                          </span>
                         )}
                       </>
                     )}
@@ -112,7 +130,7 @@ export function FeedbackReview({
                       variant="dangerQuiet"
                       size="sm"
                       className="!h-6 !px-1.5"
-                      title="Delete this feedback"
+                      title={t('feedbackReview.delete')}
                       onClick={(e) => {
                         e.stopPropagation();
                         onDelete(entry);

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useLayoutStore } from '../../../stores/layout';
 import { collectionsInView, type ImageryCatalog } from '../../../campaign/imagery';
 import { useCampaignStore } from '../../../stores/campaign';
@@ -23,6 +24,7 @@ export function CollectionPicker({
   expanded,
   onExpandedChange,
 }: CollectionPickerProps) {
+  const { t } = useTranslation('panels');
   const forcedOpen = useLayoutStore((s) => s.forcedOpenControl);
   const editing = useLayoutStore((s) => s.editing);
   const address = useImageryStore((s) => s.address);
@@ -54,7 +56,7 @@ export function CollectionPicker({
         title={title}
         inline={expanded}
         onInlineChange={editing ? onExpandedChange : undefined}
-        label="Collections"
+        label={t('collections.label')}
         forcedOpen={forcedOpen === 'collection-picker'}
         menuTourName="collection-picker-menu"
         markedValue={pinnable ? effectiveStart : undefined}
@@ -67,8 +69,8 @@ export function CollectionPicker({
               }
             : undefined
         }
-        markActiveTitle="Show this collection first on every task (selected)"
-        markInactiveTitle="Show this collection first on every task"
+        markActiveTitle={t('collections.pinnedStart')}
+        markInactiveTitle={t('collections.pinStart')}
       />
     </span>
   );

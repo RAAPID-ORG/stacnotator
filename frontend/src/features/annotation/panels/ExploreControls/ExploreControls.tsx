@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { IconChevronRight } from '~/shared/ui/Icons';
 import {
@@ -22,7 +23,6 @@ import { LabelStyleEditor } from './LabelStyleEditor';
 
 interface ToolDef {
   id: Tool;
-  label: string;
   shortcut: string;
   /** Single `d`, several sub-paths concatenated - these are outline icons. */
   icon: string;
@@ -31,31 +31,26 @@ interface ToolDef {
 const TOOLS: ToolDef[] = [
   {
     id: 'pan',
-    label: 'Pan',
     shortcut: 'P',
     icon: 'M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15',
   },
   {
     id: 'annotate',
-    label: 'Annotate',
     shortcut: 'R',
     icon: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z',
   },
   {
     id: 'edit',
-    label: 'Edit',
     shortcut: 'E',
     icon: 'M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z',
   },
   {
     id: 'labelVector',
-    label: 'Label vector',
     shortcut: 'B',
     icon: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01',
   },
   {
     id: 'timeseries',
-    label: 'Probe time series',
     shortcut: 'T',
     icon: 'M3 17l4-7 4 3 4-7M16 12a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm3 7 3 3',
   },
@@ -94,6 +89,7 @@ const chipClass = (active: boolean) =>
   }`;
 
 function ShortcutLegend() {
+  const { t } = useTranslation('panels');
   // The mode's own keys; the map's navigation table is listed by the help menu
   // the toolbar's help menu already lists in full.
   const rows = helpRows(['mode', 'edit']);
@@ -106,7 +102,7 @@ function ShortcutLegend() {
     >
       <summary className="flex items-center gap-1 cursor-pointer select-none list-none font-semibold text-neutral-700 text-[11px] [&::-webkit-details-marker]:hidden">
         <IconChevronRight className="w-3 h-3 text-neutral-400 transition-transform group-open:rotate-90" />
-        Shortcuts
+        {t('explore.shortcuts')}
       </summary>
       <ul className="mt-1.5 space-y-0.5 max-w-xs">
         {rows.map((row) => (
@@ -128,6 +124,7 @@ function ShortcutLegend() {
  * Explore the probe *is* the work, so it belongs with the rest of the tools.
  */
 function ProbeControls() {
+  const { t } = useTranslation('panels');
   const probeCount = useWorkStore((s) => s.probePoints.length);
   const armed = useWorkStore((s) => s.probeAddArmed);
   const atCap = probeCount >= MAX_PROBES;
@@ -135,33 +132,30 @@ function ProbeControls() {
   return (
     <div className="flex flex-col gap-1.5 w-full">
       <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-        Probe time series
+        {t('tools.timeseries')}
       </span>
-      <p className="text-[11px] text-neutral-500 leading-relaxed">
-        Click the map to move the active probe. Click another to pick it up, or click it again to
-        take it off the chart.
-      </p>
+      <p className="text-[11px] text-neutral-500 leading-relaxed">{t('probes.help')}</p>
       <div className="flex flex-row flex-wrap gap-1.5">
         <button
           type="button"
           onClick={() => useWorkStore.getState().armAddProbe(!armed)}
           aria-pressed={armed}
           disabled={atCap}
-          title={atCap ? `At most ${MAX_PROBES} probes at once` : 'Add another probe (Shift+T)'}
+          title={atCap ? t('probes.atCap', { max: MAX_PROBES }) : t('probes.addTitle')}
           data-testid="probe-add"
           className={`${chipClass(armed)} disabled:opacity-40 disabled:cursor-not-allowed`}
         >
-          {armed ? 'Click the map...' : 'Add probe'}
+          {armed ? t('probes.armed') : t('probes.add')}
         </button>
         <button
           type="button"
           onClick={() => useWorkStore.getState().clearProbePoints()}
           disabled={probeCount === 0}
-          title="Remove every probe"
+          title={t('probes.clearTitle')}
           data-testid="clear-probes"
           className={`${chipClass(false)} disabled:opacity-40 disabled:cursor-not-allowed`}
         >
-          Clear{probeCount > 0 ? ` (${probeCount})` : ''}
+          {probeCount > 0 ? t('probes.clearCount', { count: probeCount }) : t('probes.clear')}
         </button>
       </div>
     </div>
@@ -169,6 +163,7 @@ function ProbeControls() {
 }
 
 export function ExploreControls() {
+  const { t } = useTranslation('panels');
   const campaign = useCampaign();
   const tool = useWorkStore((s) => s.tool);
   const [styling, setStyling] = useState(false);
@@ -198,9 +193,9 @@ export function ExploreControls() {
   const draftSaved = draftOpen && draft.savedId !== null;
 
   const availableTools = TOOLS.filter(
-    (t) =>
-      (t.id !== 'timeseries' || campaign.time_series.length > 0) &&
-      (t.id !== 'labelVector' || (campaign.vector_layers?.length ?? 0) > 0)
+    (def) =>
+      (def.id !== 'timeseries' || campaign.time_series.length > 0) &&
+      (def.id !== 'labelVector' || (campaign.vector_layers?.length ?? 0) > 0)
   );
 
   /** The chip swatch shows the label as the map draws it: the user's resolved
@@ -219,39 +214,39 @@ export function ExploreControls() {
 
   const saveDraft = async () => {
     const saved = await useWorkStore.getState().commitDraft();
-    setSaveError(saved ? null : 'Could not save. Check the required questions, then retry.');
+    setSaveError(saved ? null : t('explore.saveFailed'));
   };
 
   const closeDraft = async () => {
     const outcome = await useWorkStore.getState().closeDraft();
-    setSaveError(
-      outcome === 'save-failed' ? 'Could not save. Retry, or answer what is missing.' : null
-    );
+    setSaveError(outcome === 'save-failed' ? t('explore.closeSaveFailed') : null);
   };
 
   return (
     <div className="w-full h-full p-2 bg-white overflow-y-auto">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <span className="font-semibold text-neutral-700 text-xs tracking-wide">Tools</span>
+          <span className="font-semibold text-neutral-700 text-xs tracking-wide">
+            {t('explore.tools')}
+          </span>
           <div className="flex flex-row flex-wrap gap-1.5">
-            {availableTools.map((t) => (
+            {availableTools.map((def) => (
               <button
-                key={t.id}
+                key={def.id}
                 type="button"
-                onClick={() => void useWorkStore.getState().selectTool(t.id)}
-                title={`${t.label} (${t.shortcut})`}
-                aria-pressed={tool === t.id}
-                className={chipClass(tool === t.id)}
+                onClick={() => void useWorkStore.getState().selectTool(def.id)}
+                title={`${t(`tools.${def.id}`)} (${def.shortcut})`}
+                aria-pressed={tool === def.id}
+                className={chipClass(tool === def.id)}
               >
-                <Icon path={t.icon} />
-                <span className="truncate">{t.label}</span>
+                <Icon path={def.icon} />
+                <span className="truncate">{t(`tools.${def.id}`)}</span>
               </button>
             ))}
             <button
               type="button"
               onClick={toggleAnnotations}
-              title={`${showAnnotations ? 'Hide' : 'Show'} drawn objects (Shift+X)`}
+              title={showAnnotations ? t('explore.hideDrawnTitle') : t('explore.showDrawnTitle')}
               className={
                 showAnnotations
                   ? chipClass(false)
@@ -259,15 +254,17 @@ export function ExploreControls() {
               }
             >
               <Icon path={showAnnotations ? EYE_ICON : EYE_OFF_ICON} />
-              <span className="truncate">{showAnnotations ? 'Hide' : 'Show'}</span>
+              <span className="truncate">
+                {showAnnotations ? t('explore.hide') : t('explore.show')}
+              </span>
             </button>
             <button
               type="button"
               onClick={() => void fitAnnotations(campaign.id, showTaskAnnotations)}
-              title="Zoom to every annotation (Space)"
+              title={t('explore.fitTitle')}
               className={chipClass(false)}
             >
-              <span className="truncate">Fit annotations</span>
+              <span className="truncate">{t('explore.fit')}</span>
             </button>
           </div>
         </div>
@@ -276,15 +273,15 @@ export function ExploreControls() {
 
         {tool === 'labelVector' && (
           <div className="p-2.5 bg-emerald-50 rounded border border-emerald-200 w-full">
-            <p className="text-[11px] text-emerald-800 font-medium mb-1">Label vector data</p>
+            <p className="text-[11px] text-emerald-800 font-medium mb-1">
+              {t('labelVector.title')}
+            </p>
             <p
               className={
                 vectorShown ? 'text-[11px] text-emerald-700' : 'text-[11px] text-amber-700'
               }
             >
-              {vectorShown
-                ? 'Pick a label, then click a vector feature to label it. Shift+drag a box to label every feature inside it.'
-                : 'Select a vector layer in the header first, then pick a label below.'}
+              {vectorShown ? t('labelVector.help') : t('labelVector.selectLayer')}
             </p>
           </div>
         )}
@@ -316,7 +313,7 @@ export function ExploreControls() {
                       labelGroupActive ? 'text-brand-700' : 'text-neutral-700'
                     }`}
                   >
-                    Labels
+                    {t('explore.labels')}
                   </span>
                   {labels.length > 0 && (
                     <button
@@ -325,8 +322,8 @@ export function ExploreControls() {
                         setStyling(!styling);
                         setStyleEditorLabelId(null);
                       }}
-                      title="Customize label styles"
-                      aria-label="Customize label styles"
+                      title={t('explore.customizeStyles')}
+                      aria-label={t('explore.customizeStyles')}
                       aria-pressed={styling}
                       className={`flex-shrink-0 transition-colors cursor-pointer ${
                         styling ? 'text-brand-700' : 'text-neutral-400 hover:text-neutral-700'
@@ -337,7 +334,7 @@ export function ExploreControls() {
                   )}
                 </div>
                 {labels.length === 0 ? (
-                  <p className="text-xs text-neutral-500 italic">No labels defined</p>
+                  <p className="text-xs text-neutral-500 italic">{t('explore.noLabels')}</p>
                 ) : (
                   <LabelChips
                     fill
@@ -355,8 +352,8 @@ export function ExploreControls() {
                                   styleEditorLabelId === label.id ? null : label.id
                                 )
                               }
-                              title="Customize this label's style"
-                              aria-label={`Customize ${label.name} style`}
+                              title={t('explore.customizeLabelStyle')}
+                              aria-label={t('explore.customizeNamedStyle', { name: label.name })}
                               aria-expanded={styleEditorLabelId === label.id}
                               className={`flex-shrink-0 px-1.5 py-1 rounded border text-[11px] leading-none transition-colors cursor-pointer ${
                                 styleEditorLabelId === label.id
@@ -397,10 +394,8 @@ export function ExploreControls() {
                     {capitalizeFirst(selectedLabel.name)}
                   </span>{' '}
                   {tool === 'labelVector'
-                    ? '- click a vector feature to apply it, or Shift+drag a box for many.'
-                    : `- click the map to draw a ${selectedLabel.geometry_type}.${
-                        selectedLabel.geometry_type === 'polygon' ? ' Double-click to finish.' : ''
-                      }`}
+                    ? t('labelHint.vector')
+                    : t(`labelHint.draw.${selectedLabel.geometry_type}`)}
                 </p>
               )}
             </>
@@ -409,13 +404,14 @@ export function ExploreControls() {
 
         {tool === 'edit' && (
           <div className="flex flex-col gap-2 w-full">
-            <span className="font-semibold text-neutral-700 text-xs tracking-wide">Edit tool</span>
+            <span className="font-semibold text-neutral-700 text-xs tracking-wide">
+              {t('explore.editTool')}
+            </span>
             {/* Once a geometry is open the panel is about that geometry; the
                 how-to would push its fields out of view for no one's benefit. */}
             {!editing && (
               <p className="text-[11px] text-neutral-500 leading-relaxed">
-                Click a geometry to edit its vertices, alt-drag to move it whole, Shift+drag to
-                select many. See <strong>Shortcuts</strong> below.
+                <Trans t={t} i18nKey="explore.editHelp" components={{ strong: <strong /> }} />
               </p>
             )}
             <EditDetails />
@@ -424,19 +420,17 @@ export function ExploreControls() {
 
         {tool === 'pan' && (
           <div className="flex flex-col gap-1.5 w-full">
-            <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigation</span>
-            <p className="text-[11px] text-neutral-600 leading-relaxed">
-              Drag to pan the map, scroll to zoom. Click an annotation to see its details.
-            </p>
-            <p className="text-[11px] text-neutral-500 mt-0.5">
-              Tip: select a label to start annotating straight away.
-            </p>
+            <span className="font-semibold text-neutral-700 text-xs tracking-wide">
+              {t('explore.navigation')}
+            </span>
+            <p className="text-[11px] text-neutral-600 leading-relaxed">{t('explore.panHelp')}</p>
+            <p className="text-[11px] text-neutral-500 mt-0.5">{t('explore.panTip')}</p>
             <EditDetails />
           </div>
         )}
 
         <div className="pt-2 border-t border-neutral-200 w-full flex flex-col gap-1.5">
-          <span className="font-semibold text-neutral-700 text-[11px]">Display</span>
+          <span className="font-semibold text-neutral-700 text-[11px]">{t('explore.display')}</span>
           <label className="flex items-center gap-2 text-[11px] text-neutral-600 cursor-pointer">
             <input
               type="checkbox"
@@ -450,7 +444,7 @@ export function ExploreControls() {
               data-testid="show-task-annotations"
               className="cursor-pointer"
             />
-            Show from tasks
+            {t('explore.showFromTasks')}
           </label>
         </div>
 

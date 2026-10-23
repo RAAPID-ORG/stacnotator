@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from 'src/app/App';
 import 'src/styles/app.css';
+import 'src/shared/i18n';
 import { RootErrorFallback } from 'src/shared/ui/RootErrorFallback';
 import { ErrorBoundary } from 'react-error-boundary';
 import { client } from 'src/api/client/client.gen';

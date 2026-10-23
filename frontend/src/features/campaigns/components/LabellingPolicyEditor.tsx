@@ -1,95 +1,21 @@
 import { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { LabellingPolicy, PolicyAudience, ProjectUserOut } from '~/api/client';
 import { Tooltip } from '~/shared/ui/Tooltip';
 
 type AxisKey = keyof LabellingPolicy;
 type PolicyKind = 'admins' | 'authoritative' | 'assignees' | 'members' | 'anyone';
 
-const KIND_LABELS: Record<PolicyKind, string> = {
-  admins: 'Admins',
-  authoritative: 'Authoritative reviewers',
-  assignees: 'Assignees',
-  members: 'Members',
-  anyone: 'Anyone (public visitors)',
-};
-
-// These groups are the whole vocabulary of the policy, and none of them are
-// self-explanatory the first time you meet them.
-const KIND_HELP: Record<PolicyKind, string> = {
-  admins: 'Admins of the project this campaign belongs to. They always keep full access.',
-  authoritative:
-    'Project members marked as authoritative reviewers, under the project’s Members tab. ' +
-    'Their labels are the ones treated as the reference when annotators disagree.',
-  assignees: 'Whoever a task is assigned to - each person, on their own tasks only.',
-  members: 'Everybody in the project, whatever their role.',
-  anyone:
-    'Visitors with no account, reaching the campaign through its public link. ' +
-    'Only available while the project is public.',
-};
-
 // Per-axis allowed kinds, mirrors backend/src/campaigns/schemas.py validators.
-const AXES: {
-  key: AxisKey;
-  title: string;
-  description: string;
-  example: string;
-  allowedKinds: PolicyKind[];
-}[] = [
-  {
-    key: 'explore',
-    title: 'Explorative labelling',
-    description: 'Who may create free-form, standalone annotations that are not tied to a task.',
-    example:
-      'With Members, any project member can draw their own polygon anywhere on the map and ' +
-      'label it. Everyone else can still browse the imagery, but their drawing tools stay off.',
-    allowedKinds: ['admins', 'authoritative', 'members', 'anyone'],
-  },
-  {
-    key: 'unassigned_tasks',
-    title: 'Unassigned tasks',
-    description:
-      'Who may label a task nobody is assigned to, and whose label counts toward completing it.',
-    example:
-      'A campaign of 500 points that annotators work through first come, first served. With ' +
-      'Members, any project member can pick one up and their label completes it on its own.',
-    allowedKinds: ['admins', 'authoritative', 'members', 'anyone'],
-  },
+const AXES: { key: AxisKey; allowedKinds: PolicyKind[] }[] = [
+  { key: 'explore', allowedKinds: ['admins', 'authoritative', 'members', 'anyone'] },
+  { key: 'unassigned_tasks', allowedKinds: ['admins', 'authoritative', 'members', 'anyone'] },
   {
     key: 'assigned_tasks',
-    title: 'Assigned tasks - additional labels',
-    description:
-      'Who may add extra labels to a task that is already assigned to someone else. Extra ' +
-      'labels are shown alongside the assignee’s but do not necessarily count toward completion.',
-    example:
-      'Point #42 is assigned to Alice. With Authoritative reviewers, a reviewer can add a ' +
-      'second label beside hers for comparison. Picking up a task from the unassigned pool ' +
-      'assigns it as well, so this rule applies to it from then on.',
     allowedKinds: ['admins', 'authoritative', 'assignees', 'members', 'anyone'],
   },
-  {
-    key: 'complete_assigned',
-    title: 'Assigned tasks - completion',
-    description:
-      'Whose labels on an assigned task count toward completing it, including satisfying ' +
-      'review requirements.',
-    example:
-      'Point #42 is assigned to Alice and needs one review. Her label plus a reviewer’s marks ' +
-      'it done. A label from anyone outside this list is still stored and shown, but the task ' +
-      'stays open.',
-    allowedKinds: ['admins', 'authoritative', 'assignees', 'members'],
-  },
-  {
-    key: 'modify_others',
-    title: 'Editing and deleting other people’s annotations',
-    description:
-      'Who may change or remove an annotation somebody else made. Everyone can always ' +
-      'change their own.',
-    example:
-      'With Admins, an annotator who spots a mistake in a colleague’s polygon can open it and ' +
-      'read it, but not move or delete it. With Members, the campaign becomes a shared canvas ' +
-      'that any member can correct.',
-    allowedKinds: ['admins', 'authoritative', 'members'],
-  },
+  { key: 'complete_assigned', allowedKinds: ['admins', 'authoritative', 'assignees', 'members'] },
+  { key: 'modify_others', allowedKinds: ['admins', 'authoritative', 'members'] },
 ];
 
 const emptyAudience: PolicyAudience = { kinds: [], user_ids: [] };
@@ -121,6 +47,7 @@ export const LabellingPolicyEditor = ({
   defaultSelectedMemberIds,
   membersHint,
 }: LabellingPolicyEditorProps) => {
+  const { t } = useTranslation('campaigns');
   // UI-only: whether the member picker is expanded for a given axis. Seeded
   // from any pre-selected members so editing an existing policy shows them
   // immediately; unlike `value` this doesn't collapse back when the picker
@@ -198,10 +125,19 @@ export const LabellingPolicyEditor = ({
         return (
           <li key={axis.key} className="py-4 space-y-3">
             <div>
-              <h3 className="text-sm font-medium text-neutral-900">{axis.title}</h3>
-              <p className="text-xs text-neutral-500 mt-0.5">{axis.description}</p>
+              <h3 className="text-sm font-medium text-neutral-900">
+                {t(`policy.axes.${axis.key}.title`)}
+              </h3>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                {t(`policy.axes.${axis.key}.description`)}
+              </p>
               <p className="text-xs text-neutral-400 mt-1">
-                <span className="font-medium">Example:</span> {axis.example}
+                <Trans
+                  t={t}
+                  i18nKey="policy.example"
+                  values={{ example: t(`policy.axes.${axis.key}.example`) }}
+                  components={{ label: <span className="font-medium" /> }}
+                />
               </p>
             </div>
 
@@ -209,7 +145,7 @@ export const LabellingPolicyEditor = ({
               {axis.allowedKinds.map((kind) => {
                 const anyoneDisabled = kind === 'anyone' && !isPublic;
                 return (
-                  <Tooltip key={kind} text={KIND_HELP[kind]} align="start">
+                  <Tooltip key={kind} text={t(`policy.kinds.${kind}.help`)} align="start">
                     <label
                       className={`flex items-center gap-1.5 text-xs text-neutral-700 ${
                         anyoneDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
@@ -221,7 +157,7 @@ export const LabellingPolicyEditor = ({
                         disabled={anyoneDisabled}
                         onChange={(e) => toggleKind(axis.key, kind, e.target.checked)}
                       />
-                      {KIND_LABELS[kind]}
+                      {t(`policy.kinds.${kind}.label`)}
                     </label>
                   </Tooltip>
                 );
@@ -234,7 +170,7 @@ export const LabellingPolicyEditor = ({
                     checked={membersEnabled}
                     onChange={(e) => toggleMembersEnabled(axis.key, e.target.checked)}
                   />
-                  Selected members
+                  {t('policy.selectedMembers')}
                 </label>
               )}
             </div>
@@ -242,7 +178,7 @@ export const LabellingPolicyEditor = ({
             {members !== undefined && membersEnabled && (
               <div className="rounded-md border border-neutral-200 p-2.5 max-h-40 overflow-y-auto space-y-1">
                 {members.length === 0 ? (
-                  <p className="text-xs text-neutral-400">No members in this project yet.</p>
+                  <p className="text-xs text-neutral-400">{t('policy.noMembers')}</p>
                 ) : (
                   members.map((m) => (
                     <label
@@ -262,9 +198,7 @@ export const LabellingPolicyEditor = ({
               </div>
             )}
 
-            {isNoOne && (
-              <p className="text-xs text-neutral-400 italic">No one - this axis is disabled.</p>
-            )}
+            {isNoOne && <p className="text-xs text-neutral-400 italic">{t('policy.noOne')}</p>}
           </li>
         );
       })}

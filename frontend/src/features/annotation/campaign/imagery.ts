@@ -1,3 +1,4 @@
+import i18n from '~/shared/i18n';
 import { planetLayerProxyUrl } from '~/shared/imagery/tileUrls';
 import type {
   BasemapOut,
@@ -11,6 +12,8 @@ import type {
   VectorLayerOut,
   VisualizationTemplateOut,
 } from '~/api/client';
+
+const t = i18n.getFixedT(null, 'annotation');
 
 export type Bbox = [number, number, number, number];
 
@@ -211,20 +214,21 @@ export function byCollectionDate<
 // same everywhere.
 // ---------------------------------------------------------------------------
 
-const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-  // Slice dates are plain YYYY-MM-DD, which Date reads as UTC midnight; without
-  // this a browser west of Greenwich renders every one of them a day early.
-  timeZone: 'UTC',
-});
+const dateFormat = () =>
+  new Intl.DateTimeFormat(i18n.resolvedLanguage, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    // Slice dates are plain YYYY-MM-DD, which Date reads as UTC midnight; without
+    // this a browser west of Greenwich renders every one of them a day early.
+    timeZone: 'UTC',
+  });
 
 /** '' for a missing or unparseable date rather than 'Invalid Date'. */
 export function formatSliceDate(value: string | null | undefined): string {
   if (!value) return '';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : DATE_FORMAT.format(date);
+  return Number.isNaN(date.getTime()) ? '' : dateFormat().format(date);
 }
 
 export function sliceDateRange(slice: {
@@ -238,7 +242,7 @@ export function sliceDateRange(slice: {
 }
 
 export function sliceLabel(slice: ImagerySliceOut, index: number): string {
-  return slice.name || sliceDateRange(slice) || `Slice ${index + 1}`;
+  return slice.name || sliceDateRange(slice) || t('sliceFallback', { number: index + 1 });
 }
 
 /** Custom maps the map can actually draw. Registration is asynchronous, so a

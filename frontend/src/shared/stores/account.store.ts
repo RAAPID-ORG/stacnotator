@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { me, type MeOut } from 'src/api/client';
+import i18n from '~/shared/i18n';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
+
+const t = i18n.getFixedT(null, 'common');
 
 type AccountState = {
   account: MeOut | null;
@@ -23,7 +26,7 @@ export const useAccountStore = create<AccountState>((set) => ({
       const { data } = await me();
       set({ account: data, loading: false });
     } catch (e) {
-      set({ loading: false, error: extractErrorMessage(e, 'Failed to load account') });
+      set({ loading: false, error: extractErrorMessage(e, t('errors.loadAccount')) });
     }
   },
 

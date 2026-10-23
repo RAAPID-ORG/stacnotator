@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CampaignOutFull, ImageryViewOut, AnnotationTaskOut, TaskSetOut } from '~/api/client';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { useLayoutStore } from '~/shared/stores/layout.store';
@@ -41,6 +42,7 @@ export interface ToolbarProps {
 }
 
 function ViewPicker({ campaign }: { campaign: CampaignOutFull }) {
+  const { t } = useTranslation('annotation');
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedViewId = useCampaignStore((s) => s.view?.id ?? null);
@@ -58,11 +60,13 @@ function ViewPicker({ campaign }: { campaign: CampaignOutFull }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${open ? 'bg-neutral-100' : ''}`}
-        title={selected ? `View: ${selected.name}` : 'Switch View (u)'}
+        title={selected ? t('toolbar.viewTip', { name: selected.name }) : t('toolbar.switchView')}
         data-testid="view-picker-trigger"
       >
         <IconImageFilled className="w-5 h-5" />
-        <span className="hidden desktop:inline">{selected ? selected.name : 'Select View'}</span>
+        <span className="hidden desktop:inline">
+          {selected ? selected.name : t('toolbar.selectView')}
+        </span>
         <IconChevronDownFilled className="hidden desktop:block w-4 h-4" />
       </button>
       <Dropdown
@@ -104,6 +108,7 @@ export function Toolbar({
   onNavigateSettings,
   onOpenTour,
 }: ToolbarProps) {
+  const { t } = useTranslation(['annotation', 'common']);
   const workMode = useCampaignStore((s) => s.workMode);
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const [taskFilterOpen, setTaskFilterOpen] = useState(false);
@@ -115,7 +120,7 @@ export function Toolbar({
 
   useDismissOnOutside(taskFilterRef, () => setTaskFilterOpen(false), taskFilterOpen);
 
-  const hasConflicts = tasks.some((t) => t.task_status === 'conflicting');
+  const hasConflicts = tasks.some((task) => task.task_status === 'conflicting');
 
   return (
     <header
@@ -128,8 +133,8 @@ export function Toolbar({
             type="button"
             onClick={onNavigateCampaign}
             className="flex items-center rounded px-1.5 py-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
-            title={`Back to ${campaign.name}`}
-            aria-label={`Back to ${campaign.name}`}
+            title={t('toolbar.backTo', { name: campaign.name })}
+            aria-label={t('toolbar.backTo', { name: campaign.name })}
             data-testid="back-to-campaign"
           >
             <IconChevronLeft className="h-4 w-4 shrink-0" />
@@ -149,11 +154,11 @@ export function Toolbar({
               type="button"
               onClick={() => setTaskFilterOpen((o) => !o)}
               className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${taskFilterOpen ? 'bg-neutral-100' : ''}`}
-              title="Filter visible tasks"
+              title={t('toolbar.filterTip')}
               data-testid="task-filter-trigger"
             >
               <IconTaskListFilled className="w-5 h-5" />
-              <span className="hidden desktop:inline">Filter Tasks</span>
+              <span className="hidden desktop:inline">{t('toolbar.filter')}</span>
               <IconChevronDownFilled className="hidden desktop:block w-4 h-4" />
             </button>
             <Dropdown
@@ -183,10 +188,10 @@ export function Toolbar({
             type="button"
             onClick={onNavigateSettings}
             className="flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
-            title="Campaign Settings"
+            title={t('toolbar.settingsTip')}
           >
             <IconGearFilled className="w-5 h-5" />
-            <span className="hidden desktop:inline">Settings</span>
+            <span className="hidden desktop:inline">{t('toolbar.settings')}</span>
           </button>
         )}
 
@@ -195,15 +200,13 @@ export function Toolbar({
             type="button"
             onClick={onNavigateWorkPage}
             className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-neutral-700 transition-colors hover:bg-neutral-100"
-            title={
-              workMode === 'tasks'
-                ? 'Open the full task list, with status and assignments'
-                : 'Open the full annotation list, with everything recorded so far'
-            }
+            title={workMode === 'tasks' ? t('toolbar.allTasksTip') : t('toolbar.allAnnotationsTip')}
             data-testid="open-work-list"
           >
             <IconDocument className="h-4 w-4" />
-            <span>{workMode === 'tasks' ? 'All tasks' : 'All annotations'}</span>
+            <span>
+              {workMode === 'tasks' ? t('toolbar.allTasks') : t('toolbar.allAnnotations')}
+            </span>
           </button>
         )}
 
@@ -222,7 +225,7 @@ export function Toolbar({
           type="button"
           onClick={toggleFullscreen}
           className="flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
-          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          title={isFullscreen ? t('toolbar.exitFullscreen') : t('toolbar.enterFullscreen')}
         >
           {isFullscreen ? (
             <IconFullscreenExitFilled className="w-5 h-5" />
@@ -236,7 +239,7 @@ export function Toolbar({
             type="button"
             onClick={onOpenTour}
             className="flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-brand-600 hover:bg-brand-50 rounded transition-colors"
-            title="Take guided tour"
+            title={t('toolbar.tour')}
           >
             <IconQuestion className="w-5 h-5" />
           </button>

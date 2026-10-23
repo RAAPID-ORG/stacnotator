@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
@@ -23,7 +24,7 @@ import {
 import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import {
-  INVITE_SIGNUP_NOTE,
+  inviteSignupNote,
   PendingInvites,
 } from '~/features/organizations/components/PendingInvites';
 
@@ -41,6 +42,7 @@ const pickerLabel = (user: UserOut) =>
   user.email ? `${user.display_name} (${user.email})` : user.display_name;
 
 export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectionProps) => {
+  const { t } = useTranslation('projects');
   const showAlert = useLayoutStore((state) => state.showAlert);
   const showEmails = useAccountStore((state) => state.account?.is_admin ?? false);
 
@@ -59,20 +61,20 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
 
   const membersQuery = useQuery({
     ...getProjectUsersOptions({ path }),
-    meta: { errorMessage: 'Failed to load project members', showUser: false },
+    meta: { errorMessage: t('members.loadFailed'), showUser: false },
   });
   const users = membersQuery.data?.users ?? NO_MEMBERS;
   const loading = membersQuery.isPending;
 
   const invitesQuery = useQuery({
     ...listProjectInvitesOptions({ path }),
-    meta: { errorMessage: 'Failed to load pending signups' },
+    meta: { errorMessage: t('members.loadInvitesFailed') },
   });
 
   const platformUsers = useQuery({
     ...listUsersOptions({}),
     enabled: canManage,
-    meta: { errorMessage: 'Failed to load users available to add' },
+    meta: { errorMessage: t('members.loadUsersFailed') },
   });
 
   // Platform admins get the raw records, where the username is null until the
@@ -81,9 +83,9 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     () =>
       (platformUsers.data ?? NO_USERS).map((user) => ({
         ...user,
-        display_name: user.display_name || (user.email ?? 'Unnamed user'),
+        display_name: user.display_name || (user.email ?? t('members.unnamedUser')),
       })),
-    [platformUsers.data]
+    [platformUsers.data, t]
   );
 
   const refetchMembers = () =>
@@ -112,7 +114,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
 
   const addById = useMutation({
     ...addProjectUsersByIdsMutation(),
-    meta: { errorMessage: 'Failed to add user' },
+    meta: { errorMessage: t('members.addFailed') },
     onSuccess: () => {
       void refetchMembers();
       setSelectedUserId('');
@@ -122,7 +124,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
   // An added address either becomes a member or waits as an invite.
   const addByEmail = useMutation({
     ...addProjectUsersMutation(),
-    meta: { errorMessage: 'Failed to add users by email' },
+    meta: { errorMessage: t('members.addByEmailFailed') },
     onSuccess: (result) => {
       setEmailResult(result);
       setEmailsText('');
@@ -132,32 +134,32 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
   });
   const promote = useMutation({
     ...makeProjectAdminMutation(),
-    meta: { errorMessage: 'Failed to update project role' },
+    meta: { errorMessage: t('members.roleFailed') },
     onSuccess: refetchMembers,
   });
   const demote = useMutation({
     ...demoteProjectAdminMutation(),
-    meta: { errorMessage: 'Failed to update project role' },
+    meta: { errorMessage: t('members.roleFailed') },
     onSuccess: refetchMembers,
   });
   const addReviewer = useMutation({
     ...makeProjectAuthoritativeReviewerMutation(),
-    meta: { errorMessage: 'Failed to update reviewer status' },
+    meta: { errorMessage: t('members.reviewerFailed') },
     onSuccess: refetchMembers,
   });
   const dropReviewer = useMutation({
     ...demoteProjectAuthoritativeReviewerMutation(),
-    meta: { errorMessage: 'Failed to update reviewer status' },
+    meta: { errorMessage: t('members.reviewerFailed') },
     onSuccess: refetchMembers,
   });
   const removeUser = useMutation({
     ...removeProjectUserMutation(),
-    meta: { errorMessage: 'Failed to remove user' },
+    meta: { errorMessage: t('members.removeFailed') },
     onSuccess: refetchMembers,
   });
   const revokeInvite = useMutation({
     ...revokeProjectInviteMutation(),
-    meta: { errorMessage: 'Failed to revoke invite' },
+    meta: { errorMessage: t('members.revokeFailed') },
     onSuccess: refetchInvites,
   });
 
@@ -175,7 +177,10 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     if (!selectedUser) return;
     addById.mutate(
       { path, body: { user_ids: [selectedUser.id] } },
-      { onSuccess: () => showAlert(`${selectedUser.display_name} added to project`, 'success') }
+      {
+        onSuccess: () =>
+          showAlert(t('members.addedToProject', { name: selectedUser.display_name }), 'success'),
+      }
     );
   };
 
@@ -193,9 +198,13 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     const vars = { path: { ...path, user_id: member.user.id } };
     const name = member.user.display_name;
     if (member.is_admin) {
-      demote.mutate(vars, { onSuccess: () => showAlert(`${name} demoted to member`, 'success') });
+      demote.mutate(vars, {
+        onSuccess: () => showAlert(t('members.demoted', { name }), 'success'),
+      });
     } else {
-      promote.mutate(vars, { onSuccess: () => showAlert(`${name} promoted to admin`, 'success') });
+      promote.mutate(vars, {
+        onSuccess: () => showAlert(t('members.promoted', { name }), 'success'),
+      });
     }
   };
 
@@ -204,21 +213,22 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     const name = member.user.display_name;
     if (member.is_authoritative_reviewer) {
       dropReviewer.mutate(vars, {
-        onSuccess: () => showAlert(`${name} removed as authoritative reviewer`, 'success'),
+        onSuccess: () => showAlert(t('members.reviewerRemoved', { name }), 'success'),
       });
     } else {
       addReviewer.mutate(vars, {
-        onSuccess: () => showAlert(`${name} is now an authoritative reviewer`, 'success'),
+        onSuccess: () => showAlert(t('members.reviewerAdded', { name }), 'success'),
       });
     }
   };
 
   const handleRemoveUser = (member: ProjectUserOut) => {
-    if (!window.confirm(`Remove ${member.user.display_name} from this project?`)) return;
+    if (!window.confirm(t('members.confirmRemove', { name: member.user.display_name }))) return;
     removeUser.mutate(
       { path: { ...path, user_id: member.user.id } },
       {
-        onSuccess: () => showAlert(`${member.user.display_name} removed from project`, 'success'),
+        onSuccess: () =>
+          showAlert(t('members.removed', { name: member.user.display_name }), 'success'),
       }
     );
   };
@@ -240,7 +250,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     return (
       <Delayed>
         <div className="flex items-center justify-center py-12">
-          <p className="text-neutral-500">Loading members...</p>
+          <p className="text-neutral-500">{t('members.loading')}</p>
         </div>
       </Delayed>
     );
@@ -250,7 +260,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     return (
       <div className="flex items-center justify-center py-12">
         <p className="text-red-600">
-          {extractErrorMessage(membersQuery.error, 'Failed to load project members')}
+          {extractErrorMessage(membersQuery.error, t('members.loadFailed'))}
         </p>
       </div>
     );
@@ -267,14 +277,15 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
         <>
           <section className={sectionCls}>
             <div>
-              <h2 className="section-heading">Add member</h2>
-              <p className="section-description">
-                Add a platform user to this project. Project members can be assigned tasks and roles
-                in the project&apos;s campaigns.
-              </p>
+              <h2 className="section-heading">{t('members.addHeading')}</h2>
+              <p className="section-description">{t('members.addDescription')}</p>
             </div>
             <div className="flex gap-3 items-end">
-              <Field label="Select user" htmlFor="project-user-search" className="flex-1">
+              <Field
+                label={t('members.selectUser')}
+                htmlFor="project-user-search"
+                className="flex-1"
+              >
                 <div className="relative" ref={pickerRef}>
                   <Input
                     id="project-user-search"
@@ -319,10 +330,10 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                     }}
                     placeholder={
                       availableUsers.length === 0
-                        ? 'No users available'
+                        ? t('members.noUsersAvailable')
                         : showEmails
-                          ? 'Search by name or email…'
-                          : 'Search by name…'
+                          ? t('members.searchNameEmail')
+                          : t('members.searchName')
                     }
                     disabled={addingUser || availableUsers.length === 0}
                   />
@@ -334,7 +345,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                     >
                       {matchingUsers.length === 0 ? (
                         <p className="px-3 py-2 text-xs text-neutral-500">
-                          No users match your search
+                          {t('members.noMatches')}
                         </p>
                       ) : (
                         matchingUsers.map((user, index) => (
@@ -360,28 +371,25 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                 </div>
               </Field>
               <Button onClick={handleAddUser} disabled={addingUser || !selectedUserId}>
-                {addingUser ? 'Adding…' : 'Add member'}
+                {addingUser ? t('members.adding') : t('members.addMember')}
               </Button>
             </div>
           </section>
 
           <section className={sectionCls}>
             <div>
-              <h2 className="section-heading">Invite to STACNotator</h2>
+              <h2 className="section-heading">{t('members.inviteHeading')}</h2>
               <p className="section-description">
-                Invite users that are not yet registered on STACNotator. Paste one or more email
-                addresses, separated by commas, spaces or newlines. Addresses without an account
-                yet, will be automatically added to the project when signing up to STACNotator.{' '}
-                {INVITE_SIGNUP_NOTE}
+                {t('members.inviteDescription', { note: inviteSignupNote() })}
               </p>
             </div>
-            <Field label="Email addresses" htmlFor="member-emails-input">
+            <Field label={t('members.emailAddresses')} htmlFor="member-emails-input">
               <Textarea
                 id="member-emails-input"
                 data-testid="member-emails-input"
                 value={emailsText}
                 onChange={(e) => setEmailsText(e.target.value)}
-                placeholder="ada@example.org, grace@example.org"
+                placeholder={t('members.emailsPlaceholder')}
                 disabled={addingEmails}
               />
             </Field>
@@ -391,7 +399,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                 onClick={handleAddEmails}
                 disabled={addingEmails || emailsText.trim() === ''}
               >
-                {addingEmails ? 'Adding…' : 'Add by email'}
+                {addingEmails ? t('members.adding') : t('members.addByEmail')}
               </Button>
             </div>
             {(malformedEmails.length > 0 || emailResult) && (
@@ -401,7 +409,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                     data-testid="add-result-malformed"
                     className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700"
                   >
-                    Not an email address: {malformedEmails.join(', ')}
+                    {t('members.malformed', { emails: malformedEmails.join(', ') })}
                   </div>
                 )}
                 {emailResult && emailResult.added.length > 0 && (
@@ -409,9 +417,10 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                     data-testid="add-result-added"
                     className="px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-green-800"
                   >
-                    Added {emailResult.added.length} member
-                    {emailResult.added.length === 1 ? '' : 's'}:{' '}
-                    {emailResult.added.map((u) => u.email ?? u.display_name).join(', ')}
+                    {t('members.added', {
+                      count: emailResult.added.length,
+                      list: emailResult.added.map((u) => u.email ?? u.display_name).join(', '),
+                    })}
                   </div>
                 )}
                 {emailResult && emailResult.invited_emails.length > 0 && (
@@ -419,7 +428,10 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                     data-testid="add-result-invited"
                     className="px-3 py-2 rounded-lg bg-brand-50 border border-brand-200 text-brand-800"
                   >
-                    Invited {emailResult.invited_emails.join(', ')}. {INVITE_SIGNUP_NOTE}
+                    {t('members.invited', {
+                      emails: emailResult.invited_emails.join(', '),
+                      note: inviteSignupNote(),
+                    })}
                   </div>
                 )}
               </div>
@@ -440,33 +452,36 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
       <section className={sectionCls}>
         <div>
           <h2 className="section-heading">
-            Project members <span className="text-neutral-400 font-normal">({users.length})</span>
+            <Trans
+              t={t}
+              i18nKey="members.heading"
+              values={{ count: users.length }}
+              components={{ count: <span className="text-neutral-400 font-normal" /> }}
+            />
           </h2>
         </div>
 
         {users.length === 0 ? (
-          <div className="text-center py-10 text-sm text-neutral-500">
-            No members in this project yet.
-          </div>
+          <div className="text-center py-10 text-sm text-neutral-500">{t('members.empty')}</div>
         ) : (
           <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white">
             <table className="w-full text-sm">
               <thead className="bg-neutral-50/50 border-b border-neutral-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                    Name
+                    {t('members.name')}
                   </th>
                   {showEmails && (
                     <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                      Email
+                      {t('members.email')}
                     </th>
                   )}
                   <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                    Role
+                    {t('members.role')}
                   </th>
                   {canManage && (
                     <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                      Actions
+                      {t('members.actions')}
                     </th>
                   )}
                 </tr>
@@ -493,11 +508,11 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                               : 'bg-neutral-50 text-neutral-700 border-neutral-200'
                           }`}
                         >
-                          {member.is_admin ? 'Admin' : 'Member'}
+                          {member.is_admin ? t('members.admin') : t('members.member')}
                         </span>
                         {member.is_authoritative_reviewer && (
                           <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-accent-50 text-accent-800 border border-accent-200">
-                            Authoritative reviewer
+                            {t('members.authoritativeReviewer')}
                           </span>
                         )}
                       </div>
@@ -511,7 +526,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                             className={`${rowActionCls} text-neutral-700 hover:bg-neutral-100`}
                             type="button"
                           >
-                            {member.is_admin ? 'Revoke admin' : 'Make admin'}
+                            {member.is_admin ? t('members.revokeAdmin') : t('members.makeAdmin')}
                           </button>
                           <button
                             onClick={() => handleToggleReviewer(member)}
@@ -520,8 +535,8 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                             type="button"
                           >
                             {member.is_authoritative_reviewer
-                              ? 'Remove auth. reviewer'
-                              : 'Make auth. reviewer'}
+                              ? t('members.removeReviewer')
+                              : t('members.makeReviewer')}
                           </button>
                           <button
                             onClick={() => handleRemoveUser(member)}
@@ -529,7 +544,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                             className={`${rowActionCls} text-red-600 hover:bg-red-50`}
                             type="button"
                           >
-                            Remove
+                            {t('members.remove')}
                           </button>
                         </div>
                       </td>

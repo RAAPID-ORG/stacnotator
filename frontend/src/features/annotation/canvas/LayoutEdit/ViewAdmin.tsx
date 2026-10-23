@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   createImageryView,
   deleteImageryView,
@@ -25,6 +26,7 @@ const iconButton =
   'hover:bg-neutral-200/70 hover:text-neutral-700 disabled:opacity-30 disabled:hover:bg-transparent';
 
 export function ViewAdmin() {
+  const { t } = useTranslation(['annotation', 'common']);
   const campaign = useCampaign();
   const setCampaign = useCampaignStore.getState().setCampaign;
   const selectedViewId = useCampaignStore((s) => s.view?.id ?? null);
@@ -58,11 +60,11 @@ export function ViewAdmin() {
     withBusy(async () => {
       const res = await createImageryView({
         path: { campaign_id: campaign.id },
-        body: { name: 'New view', source_ids: [] },
+        body: { name: t('views.newName'), source_ids: [] },
       });
       if (!res.data) throw new Error('create failed');
       setCampaign({ ...campaign, imagery_views: [...views, res.data] });
-    }, 'Failed to create view');
+    }, t('views.createFailed'));
 
   const commitRename = (view: ImageryViewOut) =>
     withBusy(async () => {
@@ -79,7 +81,7 @@ export function ViewAdmin() {
         ...campaign,
         imagery_views: views.map((v) => (v.id === view.id ? updated : v)),
       });
-    }, 'Failed to rename view');
+    }, t('views.renameFailed'));
 
   const handleDelete = (view: ImageryViewOut) =>
     withBusy(async () => {
@@ -90,7 +92,7 @@ export function ViewAdmin() {
       // and the canvas windows still belong to the view that went - which the
       // campaign store carries out when it sees the selection disappear.
       setCampaign({ ...campaign, imagery_views: remaining });
-    }, 'Failed to delete view');
+    }, t('views.deleteFailed'));
 
   const moveView = (view: ImageryViewOut, direction: -1 | 1) =>
     withBusy(async () => {
@@ -104,7 +106,7 @@ export function ViewAdmin() {
         body: { view_ids: reordered.map((v) => v.id) },
       });
       setCampaign({ ...campaign, imagery_views: reordered });
-    }, 'Failed to reorder views');
+    }, t('views.reorderFailed'));
 
   const saveSources = (view: ImageryViewOut, source_ids: number[]) =>
     withBusy(async () => {
@@ -127,7 +129,7 @@ export function ViewAdmin() {
       if (membershipChanged && catalog && updated.id === selectedViewId) {
         syncWindowsToView(updated, new Set(collectionsInView(catalog, updated).map((c) => c.id)));
       }
-    }, 'Failed to update view sources');
+    }, t('views.sourcesFailed'));
 
   const toggleSource = (view: ImageryViewOut, sourceId: number, include: boolean) =>
     saveSources(
@@ -149,18 +151,18 @@ export function ViewAdmin() {
       <div className="space-y-1" data-testid="view-manager">
         <div className="flex items-center justify-between">
           <span className="block text-[11px] font-medium uppercase tracking-wider text-neutral-500">
-            Views
+            {t('views.title')}
           </span>
           <button
             type="button"
             disabled={busy}
             onClick={handleCreate}
-            aria-label="Add view"
+            aria-label={t('views.add')}
             className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[11px] font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-30"
             data-testid="add-view"
           >
             <IconPlus className="h-3 w-3" />
-            Add
+            {t('common:actions.add')}
           </button>
         </div>
         <ul className="space-y-0.5">
@@ -183,11 +185,11 @@ export function ViewAdmin() {
                       if (e.key === 'Escape') setEditingViewId(null);
                     }}
                     className="min-w-0 flex-1 rounded border border-brand-300 px-1.5 py-0.5 text-xs focus:outline-none"
-                    aria-label="View name"
+                    aria-label={t('views.name')}
                   />
                 ) : (
                   <span className="min-w-0 flex-1 truncate text-left text-xs font-medium text-neutral-700">
-                    {view.name || 'Untitled view'}
+                    {view.name || t('views.untitled')}
                   </span>
                 )}
                 <button
@@ -201,8 +203,8 @@ export function ViewAdmin() {
                     }
                   }}
                   className={iconButton}
-                  aria-label={`Rename ${view.name}`}
-                  title="Rename"
+                  aria-label={t('views.renameLabel', { name: view.name })}
+                  title={t('views.rename')}
                 >
                   {editingViewId === view.id ? (
                     <IconCheck className="h-3.5 w-3.5" />
@@ -215,8 +217,8 @@ export function ViewAdmin() {
                   disabled={busy || idx === 0}
                   onClick={() => moveView(view, -1)}
                   className={iconButton}
-                  aria-label={`Move ${view.name} up`}
-                  title="Move up"
+                  aria-label={t('views.moveUpLabel', { name: view.name })}
+                  title={t('views.moveUp')}
                 >
                   <IconChevronUp className="h-3.5 w-3.5" />
                 </button>
@@ -225,8 +227,8 @@ export function ViewAdmin() {
                   disabled={busy || idx === views.length - 1}
                   onClick={() => moveView(view, 1)}
                   className={iconButton}
-                  aria-label={`Move ${view.name} down`}
-                  title="Move down"
+                  aria-label={t('views.moveDownLabel', { name: view.name })}
+                  title={t('views.moveDown')}
                 >
                   <IconChevronDown className="h-3.5 w-3.5" />
                 </button>
@@ -235,8 +237,8 @@ export function ViewAdmin() {
                   disabled={busy}
                   onClick={() => setPendingDelete(view)}
                   className={`${iconButton} hover:text-red-600`}
-                  aria-label={`Delete ${view.name}`}
-                  title="Delete view"
+                  aria-label={t('views.deleteLabel', { name: view.name })}
+                  title={t('views.delete')}
                 >
                   <IconTrash className="h-3.5 w-3.5" />
                 </button>
@@ -248,15 +250,11 @@ export function ViewAdmin() {
               {view.id === selectedViewId && (
                 <div className="space-y-0.5 px-1 pb-1" data-testid="view-sources">
                   <span className="block pl-2 text-[10px] font-medium uppercase tracking-wider text-neutral-400">
-                    Sources in this view
+                    {t('views.sources')}
                   </span>
-                  <p className="pl-2 text-[10px] text-neutral-400">
-                    Shared by all annotators. Changes save immediately.
-                  </p>
+                  <p className="pl-2 text-[10px] text-neutral-400">{t('views.sourcesHint')}</p>
                   {campaign.imagery_sources.length === 0 ? (
-                    <p className="pl-2 text-[11px] text-neutral-400">
-                      No imagery sources yet - add one in campaign settings.
-                    </p>
+                    <p className="pl-2 text-[11px] text-neutral-400">{t('views.noSources')}</p>
                   ) : (
                     <ul className="space-y-0.5 border-l border-brand-200 pl-2">
                       {sources.map((source) => {
@@ -281,9 +279,9 @@ export function ViewAdmin() {
                               {index === 0 && (
                                 <span
                                   className="shrink-0 text-[9px] font-medium text-brand-600"
-                                  title="First source with imagery opens by default unless a starting collection is starred"
+                                  title={t('views.firstTip')}
                                 >
-                                  First
+                                  {t('views.first')}
                                 </span>
                               )}
                               <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">
@@ -297,8 +295,8 @@ export function ViewAdmin() {
                                   disabled={busy || index === 0}
                                   onClick={() => moveSource(view, source.id, -1)}
                                   className={iconButton}
-                                  aria-label={`Move source ${source.name} up`}
-                                  title="Move source earlier"
+                                  aria-label={t('views.sourceUpLabel', { name: source.name })}
+                                  title={t('views.sourceUp')}
                                 >
                                   <IconChevronUp className="h-3.5 w-3.5" />
                                 </button>
@@ -307,8 +305,8 @@ export function ViewAdmin() {
                                   disabled={busy || index === view.source_ids.length - 1}
                                   onClick={() => moveSource(view, source.id, 1)}
                                   className={iconButton}
-                                  aria-label={`Move source ${source.name} down`}
-                                  title="Move source later"
+                                  aria-label={t('views.sourceDownLabel', { name: source.name })}
+                                  title={t('views.sourceDown')}
                                 >
                                   <IconChevronDown className="h-3.5 w-3.5" />
                                 </button>
@@ -328,14 +326,14 @@ export function ViewAdmin() {
 
       <ConfirmDialog
         isOpen={pendingDelete !== null}
-        title="Delete view?"
+        title={t('views.deleteConfirm.title')}
         description={
           pendingDelete
-            ? `"${pendingDelete.name}" and its saved layouts will be removed for all users.`
+            ? t('views.deleteConfirm.description', { name: pendingDelete.name })
             : undefined
         }
-        confirmText="Delete"
-        cancelText="Cancel"
+        confirmText={t('common:actions.delete')}
+        cancelText={t('common:actions.cancel')}
         isDangerous
         onConfirm={() => {
           if (pendingDelete) void handleDelete(pendingDelete);

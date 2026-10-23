@@ -1,0 +1,763 @@
+{
+  "keymap": {
+    "answerField": "Answer the focused field",
+    "cycleFields": "Cycle form fields",
+    "cycleFieldsBack": "Cycle form fields backward",
+    "unfocusField": "Unfocus the active field",
+    "focusField": "Focus the active field",
+    "deleteSelection": "Delete the selected annotation(s)",
+    "saveEdit": "Save the edited shape",
+    "cancelEdit": "Cancel the edit",
+    "tools": {
+      "pan": "Pan tool",
+      "annotate": "Annotate tool",
+      "edit": "Edit tool",
+      "labelVector": "Label vector features",
+      "timeseries": "Timeseries probe"
+    },
+    "selectLabel": "Select label by number",
+    "selectLabelTwoDigits": "Select label by number (two digits for 10+)",
+    "flagSelected": "Flag the selected annotation for review",
+    "saveDraft": "Save the drawn annotation",
+    "saveDraftFailed": "Could not save the annotation - check the required questions and retry.",
+    "closeDraft": "Close the draft (incomplete answers discard it)",
+    "closeQuestions": "Close the questions (the annotation is already saved)",
+    "setConfidence": "Set confidence level",
+    "previousTask": "Previous task",
+    "nextTask": "Next task",
+    "decreaseConfidence": "Decrease confidence",
+    "increaseConfidence": "Increase confidence",
+    "focusComment": "Focus comment",
+    "toggleFlag": "Toggle flag for review",
+    "submit": "Submit",
+    "submitFailed": "Could not submit the annotation",
+    "probeTool": "Timeseries probe tool - then click the map to move the probe",
+    "addProbe": "Add another timeseries probe",
+    "previousSlice": "Previous slice",
+    "nextSlice": "Next slice",
+    "previousCollection": "Previous collection",
+    "nextCollection": "Next collection",
+    "cycleSource": "Cycle imagery source",
+    "cycleVisualization": "Cycle visualization",
+    "toggleOverlay": "Toggle overlay layer",
+    "cycleOverlays": "Cycle overlay layers",
+    "toggleVector": "Toggle vector layer",
+    "cycleVectors": "Cycle vector layers",
+    "cycleView": "Cycle view",
+    "switchToExplore": "Switch to Explore",
+    "switchToTasks": "Switch to Tasks",
+    "toggleViewLink": "Toggle view link (sync imagery panels)",
+    "commentImagery": "Comment on the imagery the main map is showing",
+    "toggleCrosshair": "Toggle crosshair",
+    "toggleAnnotations": "Toggle drawn objects",
+    "panUp": "Pan map up",
+    "panDown": "Pan map down",
+    "panLeft": "Pan map left",
+    "panRight": "Pan map right",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "recenter": "Recenter map on the task (tasks) / fit to all annotations (explore)",
+    "switchSaveFailed": "Could not save the open annotation - it is still here, retry before switching."
+  },
+  "page": {
+    "breadcrumb": "Annotate",
+    "loadFailed": "Failed to load campaign",
+    "defaultViewName": "Default view",
+    "createViewFailed": "Could not create the view",
+    "loadingTasks": "Loading tasks...",
+    "screenBlocked": "The browser blocked the new screen. Allow popups for this site and try again."
+  },
+  "agents": {
+    "breadcrumb": "Agents",
+    "title": "Labelling agents",
+    "subtitle": "Agents registered through the stacnotator MCP server, and their progress.",
+    "freeAll": "Free all unfinished tasks",
+    "loadFailed": "Failed to load agents",
+    "updateFailed": "Failed to update agent",
+    "releaseFailed": "Failed to free the agent tasks",
+    "loadError": "Could not load the agents.",
+    "empty": "No agents yet.",
+    "columns": {
+      "agent": "Agent",
+      "progress": "Progress",
+      "lastActive": "Last active",
+      "lastActiveHint": "When this agent last submitted or changed a label",
+      "takesOver": "Takes over work",
+      "takesOverHint": "When this agent runs out of tasks, it takes over tasks still waiting on your other agents",
+      "actions": "Actions"
+    },
+    "progress": "{{done}} of {{total}}",
+    "noLabelsYet": "No labels submitted yet",
+    "stopped": "(stopped?)",
+    "takesOverAria": "{{name}} takes over other agents' work",
+    "freeUnfinished_one": "Free {{count}} unfinished",
+    "freeUnfinished_other": "Free {{count}} unfinished",
+    "lastActive": {
+      "notYet": "not yet",
+      "justNow": "just now",
+      "minutes_one": "{{count}} min ago",
+      "minutes_other": "{{count}} min ago",
+      "hours_one": "{{count}} h ago",
+      "hours_other": "{{count}} h ago",
+      "days_one": "{{count}} d ago",
+      "days_other": "{{count}} d ago"
+    },
+    "release": {
+      "titleAll": "Free the unfinished tasks of all your agents?",
+      "title": "Free the unfinished tasks of {{name}}?",
+      "toYou": "They are assigned back to you. Tasks already labelled or skipped stay as they are.",
+      "toPool": "They go back to the campaign's open pool. Tasks already labelled or skipped stay as they are.",
+      "confirm": "Free tasks"
+    },
+    "howTo": {
+      "title": "Labelling with agents",
+      "intro": "A labelling agent is an annotator account that a model works through. It looks at one task at a time - a few dates spread over the season, the time series, a basemap - asks for closer or different views when a point stays unclear, and submits a label with a confidence and the reasoning behind it. Its labels are ordinary annotations, so they show up in the campaign statistics and in review like anyone else's. A run is temporary, so agents are not listed among the project members; they live here.",
+      "install": "Agents are registered from your own editor, through the stacnotator MCP server, which also draws the imagery in a browser on your machine. Install the plugin once; you need <link>uv</link>, and nothing to clone.",
+      "ask": "Restart the editor, then ask in plain words and name this deployment, since the agent never guesses which one you mean:",
+      "prompt": "label 20 points of the {{campaign}} campaign on {{origin}} with 3 agents",
+      "exampleCampaign": "winter crops",
+      "run": "It signs you in, registers one agent per worker, splits the points evenly between them and works through them. A window opens on your screen showing what each agent is looking at; closing it does not stop them, and this page keeps the progress either way.",
+      "roles": "Which tasks an agent can get depends on your role in the project: campaign admins hand out tasks from the campaign's open pool, other members only tasks that are assigned to them. Come back here to follow the progress, to turn take-over off, or to free the unfinished tasks when you stop a run early - whatever was already labelled or skipped stays."
+    }
+  },
+  "gates": {
+    "loading": "Loading annotator...",
+    "goToSettings": "Go to settings",
+    "notFound": {
+      "title": "Campaign not found",
+      "body": "The requested campaign could not be loaded."
+    },
+    "registering": {
+      "title": "Campaign setup in progress",
+      "mosaics": "Mosaic imagery is being prepared from the STAC catalog. This can take several minutes. ",
+      "embeddings": "Satellite embeddings are being computed. ",
+      "autoOpen": "This page checks progress automatically and will open the workspace as soon as setup completes.",
+      "bypass": "Set up layout anyway"
+    },
+    "noViews": {
+      "title": "Set up the workspace",
+      "body": "One-time setup: nobody can start annotating until this campaign has a workspace layout. Create the first view - it starts with all imagery sources - then arrange the panels and save. What you save becomes the starting layout for every member of this campaign, and anyone can rearrange their own copy afterwards.",
+      "noSources": "This campaign has no imagery sources yet. Add sources in the campaign settings, then come back to set up the workspace.",
+      "create": "Create first view",
+      "waitTitle": "Workspace not set up yet",
+      "waitBody": "A campaign admin still needs to lay out the workspace for this campaign. Please check back later."
+    },
+    "noTasks": {
+      "title": "No annotation tasks yet",
+      "body": "This campaign has no tasks set up. Tasks define the points or polygons that annotators will label.",
+      "setUp": "Set up tasks",
+      "switchToExplore": "Switch to Explore",
+      "askAdmin": "Ask a campaign admin to create tasks, or switch to Explore to start annotating now."
+    },
+    "allDone": {
+      "title": "All tasks completed",
+      "scoped": "Every task in {{name}} has been answered - by you or by another annotator.",
+      "body": "You've completed all pending tasks matching your current filter.",
+      "review": "Review them now",
+      "viewAll": "View all tasks"
+    }
+  },
+  "sliceNav": {
+    "label": "Slice and collection navigation"
+  },
+  "sliceComments": {
+    "hasNote": "Has a note",
+    "comment": "Comment on this imagery",
+    "noteTip": "Note: {{text}}",
+    "dialogTitle": "Imagery note",
+    "clear": "Clear",
+    "placeholder": "What is worth knowing about this imagery?",
+    "footer": "Saved with your annotation. Ctrl+Enter to save."
+  },
+  "guide": {
+    "title": "Campaign guide",
+    "toggleTip": "Campaign guide (G)",
+    "empty": "No guide available for this campaign."
+  },
+  "helpMenu": {
+    "title": "Keyboard shortcuts",
+    "empty": "No shortcuts active",
+    "groups": {
+      "edit": "Editing",
+      "form": "Form",
+      "mode": "Mode",
+      "map": "Map"
+    }
+  },
+  "modeSwitch": {
+    "title": "Work style",
+    "noTasks": "This campaign has no tasks yet",
+    "tasks": "Tasks",
+    "explore": "Explore",
+    "exploreNotAllowed": "Explore labelling is not enabled for you in this campaign"
+  },
+  "originTask": {
+    "tip": "New annotations are saved as found near this task",
+    "label": "Near task #{{number}}",
+    "unlink": "Unlink from task"
+  },
+  "review": {
+    "exit": "Exit review mode",
+    "enter": "Enter review mode",
+    "label": "Review"
+  },
+  "export": {
+    "title": "Export annotations",
+    "label": "Export",
+    "exporting": "Exporting…",
+    "failedAs": "Failed to export annotations as {{format}}",
+    "done": "Annotations exported as {{format}}",
+    "failed": "Failed to export annotations",
+    "merge": "Merge on agreement",
+    "mergeDisabledTip": "Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.",
+    "mergeDisabled": "Disabled - resolve conflicting tasks first.",
+    "mergeHint": "Collapse multi-annotator tasks into one row when all agree.",
+    "geojsonHint": "FeatureCollection (.geojson)",
+    "csvHint": "Tabular export (.csv)"
+  },
+  "toolbar": {
+    "viewTip": "View: {{name}}",
+    "switchView": "Switch View (u)",
+    "selectView": "Select View",
+    "backTo": "Back to {{name}}",
+    "filterTip": "Filter visible tasks",
+    "filter": "Filter Tasks",
+    "settingsTip": "Campaign Settings",
+    "settings": "Settings",
+    "allTasksTip": "Open the full task list, with status and assignments",
+    "allAnnotationsTip": "Open the full annotation list, with everything recorded so far",
+    "allTasks": "All tasks",
+    "allAnnotations": "All annotations",
+    "exitFullscreen": "Exit fullscreen",
+    "enterFullscreen": "Enter fullscreen",
+    "tour": "Take guided tour"
+  },
+  "taskStatus": {
+    "pending": "Pending",
+    "partial": "Partial",
+    "done": "Done",
+    "skipped": "Skipped",
+    "conflicting": "Conflicting"
+  },
+  "taskFilter": {
+    "assignedTo": "Assigned To",
+    "all": "All",
+    "mine": "Mine",
+    "unassigned": "Unassigned",
+    "noUsers": "No assigned users",
+    "status": "Status",
+    "taskSet": "Task set",
+    "allSets": "All sets",
+    "reviewFilters": "Review filters",
+    "clear": "Clear",
+    "label": "Label",
+    "any": "Any",
+    "skippedTip": "Tasks with a skipped annotation, which carries no label",
+    "confidence": "Confidence",
+    "noConfidenceTip": "Tasks whose annotations have no confidence rating, or no annotations",
+    "none": "None",
+    "flaggedTip": "Show only tasks with at least one flagged annotation",
+    "flaggedOnly": "Flagged only"
+  },
+  "tour": {
+    "collectionsAndSlices": {
+      "title": "Collections & Slices",
+      "body": [
+        "Imagery comes in two levels. A collection is a broad window of time - most often a month, sometimes a season or a whole year. Inside it, slices cut that window finer: the weeks or single dates that make it up. The open list here is the slices of the collection you are on.",
+        "That split is what lets you work at whatever grain the question needs. Stepping month by month is usually enough to watch a field change across a season. When something happened on a particular date - a flood, a harvest, a fire - you drop into that one month and walk its weeks until you find the image that shows it, while every other month stays a single glance.",
+        "The left picker chooses the collection, the right one the slice inside it. Both jump straight there, which beats stepping with {{shift+a}} / {{shift+d}} or {{a}} / {{d}} when you already know where you are going."
+      ]
+    },
+    "imageryWindows": {
+      "title": "Imagery Panels",
+      "body": [
+        "These smaller panels each show a different collection over the same place, so you can compare dates at a glance.",
+        "Click any one of them - the header or the map itself - and the main map switches to that collection at full size, on the date the small panel is showing. It is the fastest way to go from \"something changed here\" to looking at it properly."
+      ]
+    },
+    "zoomAndPan": {
+      "title": "Practice: Zoom & Pan",
+      "body": [
+        "Press {{alt+arrowup}} to zoom in and {{alt+arrowdown}} to zoom out. You can also scroll with the mouse wheel.",
+        "Use the arrow keys ({{arrowup}} {{arrowdown}} {{arrowleft}} {{arrowright}}) to pan the map without the mouse."
+      ],
+      "hint": "Try Alt and the up arrow to zoom in, then Alt and the down arrow to zoom back out."
+    },
+    "practiceSlices": {
+      "title": "Practice: Navigate Slices",
+      "body": [
+        "Press {{a}} to go to the previous slice and {{d}} to go to the next slice. The slice picker follows along, so you can see where you are."
+      ],
+      "hint": "Try pressing A and then D, so you have moved in both directions."
+    },
+    "guide": {
+      "title": "Campaign Guide",
+      "body": [
+        "Each campaign can include a guide written by its owner with instructions, label definitions, and examples. Open it from the toolbar.",
+        "If the guide is empty, ask your campaign admin to fill it in from Campaign Settings."
+      ]
+    },
+    "help": {
+      "title": "Keyboard Help",
+      "body": [
+        "This button opens the full keyboard shortcuts reference. It is built from the shortcuts that are actually active right now, so it always matches the mode you are in."
+      ],
+      "hint": "Open it now.",
+      "clickLabel": "the keyboard shortcuts button"
+    },
+    "resize": {
+      "title": "Practice: Resize Panels",
+      "body": [
+        "We've turned Edit Layout on for you. Try dragging a panel's header or body to move it, or drag its edge or corner to resize it. Buttons and inputs still work normally.",
+        "When you are done, use Save or Cancel at the bottom of the Edit Layout panel."
+      ]
+    },
+    "viewSync": {
+      "title": "Imagery Panel Sync",
+      "body": [
+        "{{l}} toggles view sync. With it on, the small imagery panels pan and zoom along with the main map, so whatever you are looking at, you are looking at it on every date at once.",
+        "With it off they hold their own position and load nothing while you move the main map around. On a slow connection, or with a lot of panels open, that is a great deal less imagery to fetch.",
+        "The panel whose collection is currently active follows the main map either way."
+      ]
+    },
+    "sources": {
+      "title": "Practice: Switching Imagery Sources",
+      "body": [
+        "This dropdown lists every imagery source the campaign has - Sentinel-2, Landsat, and any basemaps alongside them. {{i}} cycles through them without opening it.",
+        "Watch the main map as you go. Each source is a different sensor over the same ground, and the basemaps sit in the same ring, so one of the presses will land you on a plain street map."
+      ],
+      "hint": "Press I a few times. Wherever you end up, the tour puts the imagery back as it was."
+    },
+    "visualizations": {
+      "title": "Practice: Switching Visualization Layers",
+      "body": [
+        "The same dropdown lists each source as a heading with its visualization layers underneath - True Color, False Color, NDVI and so on. They are the same pixels rendered differently, and {{shift+i}} cycles the current source's.",
+        "We have moved you onto a source and date that publishes more than one, so there is something to cycle through. Not every source has them: a basemap is one rendering and nothing else.",
+        "Not to be confused with the view dropdown in the toolbar - that picks which set of imagery the whole workspace is built from, while these two switch the source and its rendering inside it."
+      ],
+      "hint": "Press Shift+I to see the same scene rendered another way."
+    },
+    "layout": {
+      "title": "Layout Controls",
+      "body": [
+        "Click Edit Layout to drag and resize all the panels to your liking. Save as a personal or default layout for the campaign. Use the fullscreen button to maximize the annotation workspace."
+      ]
+    },
+    "googleEarth": {
+      "title": "Practice: Open in Google Earth",
+      "hint": "Click the link now.",
+      "clickLabel": "Open in Google Earth"
+    },
+    "practiceWindows": {
+      "title": "Practice: Navigate Collections",
+      "hint": "Try pressing Shift+A and then Shift+D, so you have navigated in both directions."
+    },
+    "mainMapTitle": "Main Map",
+    "timeseriesTitle": "Time Series Chart",
+    "minimapTitle": "Minimap",
+    "controlsTitle": "Annotation Controls",
+    "completeTitle": "Tour Complete",
+    "cheatSheet": {
+      "navigateTasks": "Navigate tasks",
+      "navigateSlices": "Navigate slices",
+      "navigateCollections": "Navigate collections",
+      "zoom": "Zoom in / out",
+      "panMap": "Pan map",
+      "recenter": "Recenter",
+      "toggleCrosshair": "Toggle crosshair",
+      "cycleImagery": "Cycle imagery",
+      "cycleVisualization": "Cycle visualization",
+      "toggleViewSync": "Toggle view sync",
+      "selectLabel": "Select label",
+      "focusComment": "Focus comment",
+      "adjustConfidence": "Adjust confidence",
+      "submit": "Submit",
+      "panTool": "Pan tool",
+      "annotateTool": "Annotate tool",
+      "editTool": "Edit tool",
+      "labelVector": "Label vector features",
+      "timeseriesTool": "Timeseries tool",
+      "fitAnnotations": "Fit to annotations",
+      "saveShape": "Save the drawn shape",
+      "cancelEdit": "Cancel the edit",
+      "deleteSelection": "Delete the selection",
+      "cycleFormFields": "Cycle form fields"
+    },
+    "tasks": {
+      "welcome": {
+        "title": "Welcome to STACNotator!",
+        "body": [
+          "This guided tour will walk you through all the key features of the annotation workspace.",
+          "Almost every action has a keyboard shortcut, making your workflow fast and seamless. We recommend trying to use only the keyboard for a better experience."
+        ]
+      },
+      "taskFilter": {
+        "title": "Task Filter",
+        "body": [
+          "Filter which tasks are visible - by assignee, by status, by task set, or a combination. We have opened it here so you can see what it offers.",
+          "This is how you narrow a campaign of hundreds down to the ones that are yours and still pending, or pull up somebody else's finished work to look over."
+        ]
+      },
+      "mainMap": [
+        "This is the primary map view. It shows the selected imagery at the current collection and slice. Use your mouse to pan and scroll to zoom, or try the keyboard shortcuts you'll learn next."
+      ],
+      "practiceWindows": "Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection. Often you will want to browse imagery in these bigger steps rather than individually by slice, as the first slice (cover slice) is often representative of the whole collection. These are also preloaded at your default zoom-level to make your workflow faster. Set the default zoom in campaign settings for the best experience.",
+      "holdToCycle": {
+        "title": "Tip: Hold to Cycle",
+        "body": [
+          "You can hold {{a}} / {{d}} or {{shift+a}} / {{shift+d}} to smoothly cycle through slices or collections without releasing the key. This is great for spotting changes across time in a flickering animation style."
+        ],
+        "hint": "Try holding Shift+D for a moment to see it in action."
+      },
+      "mapControls": {
+        "title": "Map Controls",
+        "body": [
+          "These controls let you manage the map. Imagery selectors can also be moved into their own panel:"
+        ],
+        "bullets": [
+          "Layer / Collection / Slice selectors - switch imagery directly",
+          "Recenter - snap back to the task location ({{ }})",
+          "Crosshair - toggle the crosshair overlay ({{x}})",
+          "Timeseries probe - click the map to move the probe, + to drop another one to compare"
+        ]
+      },
+      "recenter": {
+        "title": "Practice: Recenter Map",
+        "body": ["Press {{ }} to recenter the map on the current task location."],
+        "hint": "Try pressing Space now."
+      },
+      "crosshair": {
+        "title": "Practice: Toggle Crosshair",
+        "body": ["Press {{x}} to toggle the crosshair overlay on the map."],
+        "hint": "Try pressing X now."
+      },
+      "timeseries": [
+        "The time series chart shows spectral indices (e.g. NDVI) for the task location over time. Vertical bars indicate the currently selected collection/slice.",
+        "You are not stuck with the task point. Pick up the probe tool ({{icon:probe}} in the map header, or {{t}}) and click anywhere on the map to read the curve there instead - a neighbouring field, a patch you believe is a different crop, somewhere you know the answer for.",
+        "The + beside it (or {{shift+t}}) drops a second probe rather than moving the first, so two places are charted side by side and can be compared directly. Clicking a probe again takes it back off the chart.",
+        "The options menu (sliders icon) offers two useful filters: Remove Cloudy hides observations that were flagged as cloud-covered, and Smooth applies a Savitzky-Golay filter to the curve so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result."
+      ],
+      "minimap": [
+        "The minimap gives you a bird's-eye overview of the campaign area. The marker shows the current task location. Coordinates are shown in the header - click the copy icon to grab them or hit the link to open in Google Earth."
+      ],
+      "googleEarth": "Click the highlighted Open in Google Earth link to inspect the current task location in Google Earth. A new tab will open with the coordinates pre-filled - handy for high-resolution context when imagery alone isn't enough.",
+      "controls": {
+        "body": ["This panel is where you actually annotate:"],
+        "selectLabel": "Select a label (or press the number keys 1-9)",
+        "formFields": "Answer the campaign’s questions below the labels - {{tab}} moves between them, and required ones must be filled in before the task can be submitted",
+        "comment": "Optionally add a comment (press {{c}} to focus it)",
+        "confidence": "Adjust your confidence level with {{q}} / {{e}}",
+        "submit": "Press {{enter}} to submit, or use the Skip button to move on"
+      },
+      "practiceTasks": {
+        "title": "Practice: Navigate Tasks",
+        "body": ["Press {{w}} for the previous task and {{s}} for the next task."],
+        "hint": "Try pressing S and then W to move in both directions."
+      },
+      "review": {
+        "title": "Review Mode",
+        "body": ["STACNotator has two ways to review annotations:"],
+        "toggle": "Review toggle (eye icon) - enables review mode directly on this annotation page. You'll see all annotators' labels for each task in the controls panel. If multiple annotators disagree on a task, there are two ways to resolve this:",
+        "toggleOptions": [
+          "Update your label to match others if you think they are correct",
+          "Update your comment to explain why you think the other annotators are wrong or why you disagree with them, and wait for them to revisit this point.",
+          "Authorized reviewers can bypass the consensus finding by setting a label that has precedence over the other labels."
+        ],
+        "list": "Review list (list icon) - navigates to a dedicated review page with a table overview of all annotations, agreement statistics, and filtering options."
+      },
+      "canvasViews": {
+        "title": "Canvas Views",
+        "body": [
+          "Use this dropdown to switch between the different canvas views configured for this campaign. Each view may have its own imagery collections, slices, and visualization layers and help you to organize different imagery sources meaningfully."
+        ]
+      },
+      "complete": [
+        "You're all set! STACNotator is designed to be keyboard-first - nearly every action has a shortcut, so you can annotate efficiently without ever reaching for the mouse. Here's your cheat-sheet:"
+      ]
+    },
+    "explore": {
+      "welcome": {
+        "title": "Welcome to Explore!",
+        "body": [
+          "In Explore you draw annotations directly on the map. This tour will guide you through the key features. Like Tasks mode, almost every action has a keyboard shortcut."
+        ]
+      },
+      "mainMap": {
+        "toolsWithTimeseries": "This is your drawing canvas. Use the tools ({{p}}, {{r}}, {{e}}, {{b}}, {{t}}) to pan, annotate, edit features, label vector features, or probe time series. Use the mouse wheel to zoom and click-drag to pan.",
+        "tools": "This is your drawing canvas. Use the tools ({{p}}, {{r}}, {{e}}, {{b}}) to pan, annotate, edit features, or label vector features. Use the mouse wheel to zoom and click-drag to pan.",
+        "fit": "Press {{ }} to fit the view to everything you have drawn. Everything the rest of the tour talks about ends up here."
+      },
+      "practiceWindows": "Press {{shift+a}} to go to the previous collection and {{shift+d}} to go to the next collection. Watch the main map: each press is a whole month (or whatever this campaign groups by) rather than a single date.",
+      "controls": [
+        "We've switched the Annotate tool on for you, so the labels are on screen: the labels section lists the campaign's annotation classes and their geometry types (point, polygon, line).",
+        "Pick a label, then draw on the map. The number keys 1-9 pick a label and switch to the Annotate tool in one go."
+      ],
+      "drawing": {
+        "title": "Drawing an Annotation",
+        "body": ["Pick a label first - the label decides the shape you draw."],
+        "bullets": [
+          "Point labels: one click on the map and it is placed.",
+          "Polygon and line labels: click each corner in turn. Close the shape with {{enter}}, a double-click, or by clicking the first corner again - whichever your hands are already near.",
+          "{{escape}} while drawing throws the shape away and starts over."
+        ]
+      },
+      "questions": {
+        "title": "Answering the Questions",
+        "body": [
+          "This campaign asks a few questions about every annotation. The moment a shape is finished, the label list here is replaced by those questions.",
+          "{{tab}} and {{shift+tab}} move between the questions, and {{enter}} saves the annotation once they are answered. Anything marked required has to be filled in - closing the panel without it discards the annotation."
+        ]
+      },
+      "editing": {
+        "title": "Changing and Removing Annotations",
+        "body": [
+          "Switch to the Edit tool with {{e}}, then click a shape on the map to pick it up."
+        ],
+        "reshape": "Drag its vertices to reshape it, then {{enter}} to keep the change.",
+        "escape": "{{escape}} drops the selection and leaves the annotation as it was.",
+        "panelWithAnswers": "The panel on the left shows its label and answers while it is selected - both can be changed there and saved.",
+        "panel": "The panel on the left shows its label while it is selected, and lets you change it.",
+        "delete": "{{delete}} removes the selected annotation for good.",
+        "hint": "You can only change or delete other people’s annotations if the campaign allows it."
+      },
+      "tools": {
+        "title": "Practice: Tool Switching",
+        "bodyWithTimeseries": "{{p}} = Pan, {{r}} = Annotate, {{e}} = Edit, {{t}} = Timeseries",
+        "body": "{{p}} = Pan, {{r}} = Annotate, {{e}} = Edit",
+        "hintWithTimeseries": "Try each of P, R, E and T.",
+        "hint": "Try each of P, R and E."
+      },
+      "minimap": [
+        "The minimap gives you a bird's-eye overview of the campaign area. Click anywhere in it to move the main map there - it keeps the main map's current zoom level, so you jump across the campaign area without changing scale. Dragging the viewport rectangle does the same.",
+        "The header shows the coordinates of the current viewport center (where the crosshair sits). Click the copy icon to copy them to your clipboard, or click the link icon to open the location in Google Earth."
+      ],
+      "googleEarth": "Click the highlighted Open in Google Earth link to inspect the current viewport center in Google Earth. A new tab will open with the coordinates pre-filled - handy for high-resolution context when imagery alone isn't enough.",
+      "timeseries": [
+        "The chart plots spectral indices (e.g. NDVI) over time. We have dropped a probe in the middle of your view so there is a curve here to look at - it comes off again when you move on.",
+        "Switch to the probe tool ({{icon:probe}}, or {{t}}) and click anywhere on the map to read the curve there instead. + beside the tool (or {{shift+t}}) drops another probe rather than moving the first, so two places are charted side by side; clicking a probe again takes it back off.",
+        "The options menu (sliders icon) offers two useful filters: Remove Cloudy hides cloud-flagged observations, and Smooth applies a Savitzky-Golay filter so seasonal patterns are easier to spot. When smoothing is enabled you can adjust the window size and polynomial order to fine-tune the result."
+      ],
+      "canvasView": {
+        "title": "Canvas View",
+        "body": [
+          "This dropdown selects the active canvas view. A view is a campaign-level grouping that defines which imagery sources and collections are shown together - think of it as a preset for the whole annotation workspace.",
+          "Switching views may change the available collections, slices, imagery sources, and visualization layers all at once."
+        ]
+      },
+      "complete": [
+        "You're ready to start annotating in Explore! STACNotator is designed to be keyboard-first - here's your cheat-sheet:"
+      ]
+    }
+  },
+  "tourOverlay": {
+    "notBound": "Not bound in this mode",
+    "done": "Done - hit Next when you are ready.",
+    "resizeHint": "Drag a panel edge to resize, then click Save or Cancel.",
+    "click": "Click {{target}}",
+    "highlighted": "the highlighted element",
+    "press": "Press",
+    "step": "Step {{current}} of {{total}}",
+    "closeTip": "Close tour (Esc)",
+    "close": "Close tour",
+    "skip": "Skip Tour",
+    "finish": "Finish"
+  },
+  "panelHost": {
+    "hideLabel": "Hide {{name}}",
+    "hide": "Hide",
+    "dragToMove": "Drag to move"
+  },
+  "hiddenTray": {
+    "title": "Hidden",
+    "show": "Show {{title}}",
+    "dragToResize": "Drag to resize",
+    "resize": "Resize {{title}}",
+    "minimizeLabel": "Minimize {{title}}",
+    "minimize": "Minimize",
+    "empty": "Nothing hidden"
+  },
+  "layoutEdit": {
+    "saved": "Layout saved",
+    "saveFailed": "Failed to save layout",
+    "resetDone": "Layout reset to defaults",
+    "editTip": "Edit canvas layout and panels",
+    "edit": "Edit Layout",
+    "resetTip": "Reset to campaign defaults",
+    "reset": "Reset",
+    "cancelTip": "Discard layout changes",
+    "resetConfirm": {
+      "title": "Reset Layout?",
+      "description": "This will reset the canvas layout to the campaign defaults."
+    },
+    "saveLayout": "Save layout",
+    "savePersonal": "Save as personal",
+    "savePersonalHint": "Only for you",
+    "saveDefault": "Save as default",
+    "saveDefaultHint": "For all users",
+    "confirmDefault": {
+      "title": "Save as Default Layout?",
+      "description": "This overwrites the default layout for every member of this campaign who has no personal layout of their own. Your own personal layout, if you have one, is left alone - to adopt this as yours too, save it here, then hit Reset and save as personal.",
+      "confirm": "Save Default"
+    },
+    "confirmMain": {
+      "title": "Main Layout Modified",
+      "description": "You have modified the main layout (main map, timeseries, or minimap). This change applies to every imagery view in this campaign and may cause layouts to shift. Do you want to save this layout?",
+      "confirm": "Save Layout"
+    }
+  },
+  "tray": {
+    "hiddenPanels": "Hidden panels ({{count}})",
+    "newSize": "Size new panels are added at",
+    "hideAll": "Hide all",
+    "restoreHint": "Click a panel to restore it.",
+    "perRow": "Per row",
+    "perRowLabel": "Panels per row",
+    "height": "Height",
+    "heightLabel": "Panel height",
+    "setup": {
+      "title": "Setting up the workspace",
+      "body": "Drag and resize panels into your team's starting arrangement, then select <strong>Save layout</strong> at the bottom of this panel to show imagery. Everyone can rearrange their own copy later through Edit Layout.",
+      "moveHint": "Drag this panel by its header to move it out of the way."
+    }
+  },
+  "navPanels": {
+    "title": "Map navigation",
+    "timeline": {
+      "separate": "Timeline in a separate panel",
+      "checkbox": "Timeline panel",
+      "orientation": "Timeline orientation"
+    },
+    "imagery": {
+      "separate": "Imagery controls in a separate panel",
+      "checkbox": "Imagery panel",
+      "orientation": "Imagery controls orientation"
+    },
+    "horizontal": "Horizontal",
+    "vertical": "Vertical",
+    "sliceNavigation": "Slice navigation buttons"
+  },
+  "views": {
+    "title": "Views",
+    "newName": "New view",
+    "createFailed": "Failed to create view",
+    "renameFailed": "Failed to rename view",
+    "deleteFailed": "Failed to delete view",
+    "reorderFailed": "Failed to reorder views",
+    "sourcesFailed": "Failed to update view sources",
+    "add": "Add view",
+    "name": "View name",
+    "untitled": "Untitled view",
+    "rename": "Rename",
+    "renameLabel": "Rename {{name}}",
+    "moveUp": "Move up",
+    "moveUpLabel": "Move {{name}} up",
+    "moveDown": "Move down",
+    "moveDownLabel": "Move {{name}} down",
+    "delete": "Delete view",
+    "deleteLabel": "Delete {{name}}",
+    "sources": "Sources in this view",
+    "sourcesHint": "Shared by all annotators. Changes save immediately.",
+    "noSources": "No imagery sources yet - add one in campaign settings.",
+    "firstTip": "First source with imagery opens by default unless a starting collection is starred",
+    "first": "First",
+    "sourceUp": "Move source earlier",
+    "sourceUpLabel": "Move source {{name}} up",
+    "sourceDown": "Move source later",
+    "sourceDownLabel": "Move source {{name}} down",
+    "deleteConfirm": {
+      "title": "Delete view?",
+      "description": "\"{{name}}\" and its saved layouts will be removed for all users."
+    }
+  },
+  "screens": {
+    "empty": "This screen is empty. Send a panel here from the main canvas, then drag panels by their header or body to arrange them.",
+    "screen": "Screen {{id}}",
+    "returnAll": "Return all cards",
+    "moveBack": "Move {{name}} back to the main window or to another screen",
+    "move": "Move {{name}} to another screen",
+    "mainWindow": "Main window",
+    "new": "New screen",
+    "restoreTip": "Reopen your saved screens with their panels",
+    "restore_one": "Restore screen",
+    "restore_other": "Restore {{count}} screens",
+    "hideForNow": "Hide for now",
+    "hideForNowTip": "Hide for now - your screen split stays saved"
+  },
+  "formFields": {
+    "from": "From",
+    "to": "To"
+  },
+  "headerSelect": {
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "collapseLabel": "Collapse {{label}}",
+    "expandLabel": "Expand {{label}}"
+  },
+  "legend": {
+    "scale": "{{name}} color scale",
+    "minAuto": "Min (auto)",
+    "maxAuto": "Max (auto)"
+  },
+  "registrationNotice": "Imagery registration in progress. Imagery will appear automatically.",
+  "missingRequired": "Missing required: {{fields}}",
+  "claims": {
+    "you": "Claimed by you",
+    "other": "{{name}} is working on this",
+    "someoneElse": "Someone else"
+  },
+  "sliceFallback": "Slice {{number}}",
+  "taskActions": {
+    "submitFailed": "The task could not be submitted",
+    "noTask": "No current task to submit",
+    "noneLeft": "No unassigned tasks left to work on.",
+    "nextFailed": "Could not get the next task",
+    "notAllowed": "You are not allowed to label this task in this campaign.",
+    "mismatch": {
+      "title": "Label Mismatch Detected",
+      "description": "This label does not match what the nearest-neighbour embedding model would predict. Are you sure you want to submit this label?",
+      "confirm": "Submit Anyway",
+      "cancel": "Go Back"
+    },
+    "authoritative": {
+      "title": "Submit as authoritative?",
+      "description": "Your label will be recorded as the canonical answer for this task and mark it completed, overriding any other annotators and skipping consensus from assignees.",
+      "confirm": "Submit Authoritative"
+    },
+    "skip": {
+      "title": "Skip annotation?",
+      "description": "You can come back to it later.",
+      "confirm": "Skip"
+    },
+    "finishDraftFirst": "Save or discard the shape you are drawing first."
+  },
+  "drawing": {
+    "labelFailed": "Failed to label features: {{message}}",
+    "labeled_one": "Labeled {{count}} feature(s)",
+    "labeled_other": "Labeled {{count}} feature(s)",
+    "updated": "Annotation updated successfully",
+    "geometryFailed": "Could not save the geometry",
+    "deleted_one": "Annotation deleted",
+    "deleted_other": "Deleted {{count}} annotations",
+    "deleteFailed": "Could not delete",
+    "boxFailed": "Box selection failed",
+    "previousUnsaved": "The previous annotation could not be saved - retry or discard it first.",
+    "saveFailed": "Could not save the annotation - retry or discard it in the panel.",
+    "notAuthorized": "Not authorized to edit other users annotations."
+  },
+  "work": {
+    "draftSaveFailed": "Could not save the open annotation - it is still in the panel, retry there.",
+    "openFailed": "Could not open the annotation for editing",
+    "sliceCommentFailed": "Could not save the slice comment",
+    "flagFailed": "Could not update the flag"
+  },
+  "scenes": {
+    "viewportFailed": "Could not load Planet imagery for this viewport",
+    "dateFailed": "Could not load Planet imagery for this date"
+  },
+  "camera": {
+    "extentFailed": "Could not load the annotation extent"
+  },
+  "map": {
+    "originTask": "Task #{{number}}"
+  }
+}

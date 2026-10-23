@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { type VisualizerListItemOut } from '~/api/client';
 import {
   deleteVisualizerMutation,
@@ -36,6 +37,7 @@ export function ProjectVisualizersSection({
   projectId: number;
   canManage: boolean;
 }) {
+  const { t } = useTranslation('visualizers');
   const [editing, setEditing] = useState<{ id: number | null } | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
@@ -47,7 +49,7 @@ export function ProjectVisualizersSection({
   // a project with no visualizers yet.
   const { data } = useQuery({
     ...listVisualizersOptions({ path }),
-    meta: { errorMessage: 'Failed to load visualizers' },
+    meta: { errorMessage: t('section.loadFailed') },
   });
   const items = data ?? null;
 
@@ -56,9 +58,9 @@ export function ProjectVisualizersSection({
 
   const removeVisualizer = useMutation({
     ...deleteVisualizerMutation(),
-    meta: { errorMessage: 'Failed to delete the visualizer' },
+    meta: { errorMessage: t('section.deleteFailed') },
     onSuccess: () => {
-      showAlert('Visualizer deleted', 'success');
+      showAlert(t('section.deleted'), 'success');
       void reloadVisualizers();
     },
   });
@@ -71,9 +73,9 @@ export function ProjectVisualizersSection({
 
   const remove = async (item: VisualizerListItemOut) => {
     const confirmed = await showConfirmDialog({
-      title: `Delete "${item.name}"?`,
-      description: 'Anyone holding its link will stop being able to open it.',
-      confirmText: 'Delete',
+      title: t('section.deleteTitle', { name: item.name }),
+      description: t('section.deleteDescription'),
+      confirmText: t('section.delete'),
       isDangerous: true,
     });
     if (!confirmed) return;
@@ -84,11 +86,8 @@ export function ProjectVisualizersSection({
     <div id="tab-visualizers" role="tabpanel">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h2 className="section-heading">Visualizers</h2>
-          <p className="section-description">
-            Publish maps that let people explore imagery and predicted layers together. A published
-            map can stay internal to the project, or be fully public to anyone with the link.
-          </p>
+          <h2 className="section-heading">{t('section.title')}</h2>
+          <p className="section-description">{t('section.description')}</p>
         </div>
         {canManage && (
           <Button
@@ -96,7 +95,7 @@ export function ProjectVisualizersSection({
             onClick={() => setEditing({ id: null })}
             leading={<IconPlus className="h-4 w-4" />}
           >
-            New visualizer
+            {t('section.new')}
           </Button>
         )}
       </div>
@@ -106,11 +105,9 @@ export function ProjectVisualizersSection({
       ) : items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-neutral-200 px-6 py-10 text-center">
           <IconMap className="mx-auto h-6 w-6 text-neutral-300" />
-          <p className="mt-2 text-sm text-neutral-600">No visualizers yet.</p>
+          <p className="mt-2 text-sm text-neutral-600">{t('section.empty')}</p>
           <p className="mt-1 text-xs text-neutral-500">
-            {canManage
-              ? 'Build one from imagery a campaign in this project has already registered.'
-              : 'A project admin can publish one from this project’s imagery.'}
+            {canManage ? t('section.emptyManage') : t('section.emptyView')}
           </p>
         </div>
       ) : (
@@ -133,24 +130,27 @@ export function ProjectVisualizersSection({
                   </a>
                   {item.is_public ? (
                     <span
-                      title="Anyone with the link can open this"
+                      title={t('section.publicTitle')}
                       className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700"
                     >
                       <IconGlobe className="h-3 w-3" />
-                      Public
+                      {t('section.public')}
                     </span>
                   ) : (
                     <span
-                      title="Only people with access to this project can open it"
+                      title={t('section.projectOnlyTitle')}
                       className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] text-neutral-600"
                     >
-                      Project only
+                      {t('section.projectOnly')}
                     </span>
                   )}
                 </div>
                 <p className="mt-0.5 truncate text-xs text-neutral-500">
                   {item.description ||
-                    `${item.imagery_count} imagery ${plural(item.imagery_count, 'source')}, ${item.overlay_count} ${plural(item.overlay_count, 'overlay')}`}
+                    t('section.counts', {
+                      imagery: t('section.imageryCount', { count: item.imagery_count }),
+                      overlays: t('section.overlayCount', { count: item.overlay_count }),
+                    })}
                 </p>
               </div>
 
@@ -160,7 +160,7 @@ export function ProjectVisualizersSection({
                     href={visualizerFeedbackPath(item.slug)}
                     target="_blank"
                     rel="noreferrer"
-                    title={`Read ${item.feedback_count} feedback on the map`}
+                    title={t('section.readFeedback', { count: item.feedback_count })}
                     data-testid="visualizer-feedback-count"
                     className="flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800"
                   >
@@ -168,7 +168,7 @@ export function ProjectVisualizersSection({
                     <span className="tabular-nums">{item.feedback_count}</span>
                   </a>
                 )}
-                <RowButton label="Copy link" onClick={() => copyLink(item)}>
+                <RowButton label={t('section.copyLink')} onClick={() => copyLink(item)}>
                   {copied === item.id ? (
                     <IconCheck className="h-4 w-4 text-emerald-600" />
                   ) : (
@@ -179,17 +179,20 @@ export function ProjectVisualizersSection({
                   href={visualizerPath(item.slug)}
                   target="_blank"
                   rel="noreferrer"
-                  title="Open"
+                  title={t('section.open')}
                   className="rounded p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
                 >
                   <IconExternalLink className="h-4 w-4" />
                 </a>
                 {canManage && (
                   <>
-                    <RowButton label="Edit" onClick={() => setEditing({ id: item.id })}>
+                    <RowButton
+                      label={t('section.edit')}
+                      onClick={() => setEditing({ id: item.id })}
+                    >
                       <IconPencil className="h-4 w-4" />
                     </RowButton>
-                    <RowButton label="Delete" danger onClick={() => void remove(item)}>
+                    <RowButton label={t('section.delete')} danger onClick={() => void remove(item)}>
                       <IconTrash className="h-4 w-4" />
                     </RowButton>
                   </>
@@ -221,8 +224,6 @@ export function ProjectVisualizersSection({
     </div>
   );
 }
-
-const plural = (count: number, word: string) => (count === 1 ? word : `${word}s`);
 
 const RowButton = ({
   label,

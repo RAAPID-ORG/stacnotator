@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import { useQuery } from '@tanstack/react-query';
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
@@ -29,6 +30,7 @@ const NO_CAMPAIGNS: CampaignListItemOut[] = [];
 const REGISTRATION_POLL_MS = 5000;
 
 export const ProjectPage = () => {
+  const { t } = useTranslation('projects');
   const projectId = useProjectIdParam();
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
@@ -46,7 +48,7 @@ export const ProjectPage = () => {
   const { project, loading } = useProject(projectId);
   const { data: campaignsData } = useQuery({
     ...listProjectCampaignsOptions({ path: { project_id: projectId } }),
-    meta: { errorMessage: 'Failed to load campaigns' },
+    meta: { errorMessage: t('page.loadCampaignsFailed') },
     // Background setup finishes without a user action, so the badge has to
     // clear itself. Stops as soon as nothing is registering.
     refetchInterval: (query) =>
@@ -56,10 +58,10 @@ export const ProjectPage = () => {
 
   useEffect(() => {
     setBreadcrumbs([
-      { label: 'Projects', path: projectsPath() },
-      { label: project ? capitalizeFirst(project.name) : 'Project' },
+      { label: t('breadcrumb'), path: projectsPath() },
+      { label: project ? capitalizeFirst(project.name) : t('page.breadcrumb') },
     ]);
-  }, [project, setBreadcrumbs]);
+  }, [project, setBreadcrumbs, t]);
 
   if (!loading && !project) return null;
 
@@ -68,7 +70,7 @@ export const ProjectPage = () => {
   // copy went to, not necessarily this one.
   const handleDuplicated = (created: CampaignOut) => {
     setDuplicating(null);
-    showAlert(`Campaign duplicated as "${created.name}"`, 'success');
+    showAlert(t('page.duplicated', { name: created.name }), 'success');
     navigate(campaignPath(created.project_id, created.id, 'settings'));
   };
 
@@ -189,49 +191,47 @@ const CampaignsList = ({
   onOpenSettings,
   onCreate,
   onDuplicate,
-}: CampaignsListProps) => (
-  <>
-    <div className="mb-4 flex items-start justify-between gap-4">
-      <div>
-        <h2 className="section-heading">Campaigns</h2>
-        <p className="section-description">
-          Label remote sensing imagery interactively with your team either task based or
-          explorative.
-        </p>
+}: CampaignsListProps) => {
+  const { t } = useTranslation('projects');
+  return (
+    <>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="section-heading">{t('page.campaigns')}</h2>
+          <p className="section-description">{t('page.campaignsDescription')}</p>
+        </div>
+        {canCreate && (
+          <Button size="sm" onClick={onCreate} leading={<IconPlus className="h-4 w-4" />}>
+            {t('page.newCampaign')}
+          </Button>
+        )}
       </div>
-      {canCreate && (
-        <Button size="sm" onClick={onCreate} leading={<IconPlus className="h-4 w-4" />}>
-          New campaign
-        </Button>
-      )}
-    </div>
 
-    {campaigns.length === 0 ? (
-      <div className="rounded-lg border border-dashed border-neutral-200 px-6 py-10 text-center">
-        <IconDocument className="mx-auto h-6 w-6 text-neutral-300" />
-        <p className="mt-2 text-sm text-neutral-600">No campaigns yet.</p>
-        <p className="mt-1 text-xs text-neutral-500">
-          {canCreate
-            ? 'Create the first one in this project to get started.'
-            : "You'll see campaigns here once one is created."}
-        </p>
-      </div>
-    ) : (
-      <ul className="divide-y divide-neutral-100">
-        {campaigns.map((campaign, index) => (
-          <MotionListItem key={campaign.id} index={index}>
-            <CampaignRow
-              campaign={campaign}
-              onOpen={() => onOpen(campaign)}
-              onOpenSettings={() => onOpenSettings(campaign)}
-              onDuplicate={() => onDuplicate(campaign)}
-            />
-          </MotionListItem>
-        ))}
-      </ul>
-    )}
-  </>
-);
+      {campaigns.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-neutral-200 px-6 py-10 text-center">
+          <IconDocument className="mx-auto h-6 w-6 text-neutral-300" />
+          <p className="mt-2 text-sm text-neutral-600">{t('page.noCampaigns')}</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {canCreate ? t('page.noCampaignsCanCreate') : t('page.noCampaignsCannotCreate')}
+          </p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-neutral-100">
+          {campaigns.map((campaign, index) => (
+            <MotionListItem key={campaign.id} index={index}>
+              <CampaignRow
+                campaign={campaign}
+                onOpen={() => onOpen(campaign)}
+                onOpenSettings={() => onOpenSettings(campaign)}
+                onDuplicate={() => onDuplicate(campaign)}
+              />
+            </MotionListItem>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+};
 
 const CampaignRow = ({
   campaign,
@@ -244,6 +244,7 @@ const CampaignRow = ({
   onOpenSettings: () => void;
   onDuplicate: () => void;
 }) => {
+  const { t } = useTranslation('projects');
   const isMember = campaign.is_member ?? false;
   const isAdmin = campaign.is_admin ?? false;
   const isPublic = campaign.is_public ?? false;
@@ -276,14 +277,14 @@ const CampaignRow = ({
           {capitalizeFirst(campaign.name)}
         </h3>
         {isPublic && (
-          <span title="Public campaign" aria-label="Public campaign">
+          <span title={t('page.publicCampaign')} aria-label={t('page.publicCampaign')}>
             <IconGlobe className="w-3.5 h-3.5 text-brand-500 shrink-0" />
           </span>
         )}
         {initializing && (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-50 text-amber-800 border border-amber-200">
             <span className="w-1 h-1 rounded-full bg-amber-600 animate-pulse" />
-            Initializing
+            {t('page.initializing')}
           </span>
         )}
       </div>
@@ -295,8 +296,8 @@ const CampaignRow = ({
             onOpenSettings();
           }}
           className="shrink-0 grid h-8 w-8 place-items-center rounded-md text-neutral-400 opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100 hover:bg-neutral-200/60 hover:text-neutral-700 cursor-pointer"
-          title="Campaign settings"
-          aria-label={`Settings for ${campaign.name}`}
+          title={t('page.campaignSettings')}
+          aria-label={t('page.settingsFor', { name: campaign.name })}
           data-testid="campaign-settings"
         >
           <IconSettings className="h-4 w-4" />
@@ -310,8 +311,8 @@ const CampaignRow = ({
             onDuplicate();
           }}
           className="shrink-0 grid h-8 w-8 place-items-center rounded-md text-neutral-400 opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100 hover:bg-neutral-200/60 hover:text-neutral-700 cursor-pointer"
-          title="Duplicate campaign"
-          aria-label={`Duplicate ${campaign.name}`}
+          title={t('page.duplicateCampaign')}
+          aria-label={t('page.duplicate', { name: campaign.name })}
           data-testid="duplicate-campaign"
         >
           <IconCopy className="h-4 w-4" />

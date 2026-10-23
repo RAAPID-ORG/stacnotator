@@ -1,3 +1,4 @@
+import i18n from '~/shared/i18n';
 import { isDateRangeValue } from '~/shared/utils/formValues';
 import type {
   AnnotationOut,
@@ -8,6 +9,8 @@ import type {
   PolicyAudience,
 } from '~/api/client';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
+
+const t = i18n.getFixedT(null, 'annotation');
 
 export type FormField = NonNullable<CampaignSettingsOut['form_fields']>[number];
 export type FormValues = NonNullable<AnnotationOut['form_values']>;
@@ -115,7 +118,9 @@ export function missingRequiredFields(fields: FormField[], values: FormValues): 
 }
 
 export function formatMissingFieldsTitle(missing: FormField[]): string {
-  return `Missing required: ${missing.map((f) => f.title).join(', ')}`;
+  return t('missingRequired', {
+    fields: missing.map((f) => f.title).join(', '),
+  });
 }
 
 export { isDateRangeValue };

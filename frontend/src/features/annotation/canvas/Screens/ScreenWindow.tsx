@@ -1,5 +1,6 @@
 import { useMemo, type ComponentType, type ReactNode } from 'react';
 import ReactGridLayout, { getCompactor } from 'react-grid-layout';
+import { useTranslation } from 'react-i18next';
 import { PANEL_DRAG_CANCEL_SELECTOR, PANEL_DRAG_HANDLE_CLASS, PanelHost } from '../PanelHost';
 import { GRID_COLS, GRID_MARGIN, ROW_HEIGHT, type LayoutItem } from '../grid';
 import type { PanelDef } from '../../panels/panels';
@@ -77,6 +78,7 @@ function ScreenGrid({
   onLayoutChange,
   onHidePanel,
 }: ScreenGridProps) {
+  const { t } = useTranslation('annotation');
   const { containerRef, width, isMounted } = useContainerSize();
   useGridGestureRecovery(containerRef, editing);
 
@@ -108,8 +110,7 @@ function ScreenGrid({
       {renderableLayout.length === 0 ? (
         <div className="flex h-full items-center justify-center px-6">
           <p className="max-w-sm text-center text-sm leading-relaxed text-neutral-400">
-            This screen is empty. Send a panel here from the main canvas, then drag panels by their
-            header or body to arrange them.
+            {t('screens.empty')}
           </p>
         </div>
       ) : (
@@ -158,14 +159,15 @@ export function ScreenWindow({
   onBounds,
   windowComponent: WindowComponent,
 }: ScreenWindowProps) {
+  const { t } = useTranslation('annotation');
   return (
     <WindowComponent
-      title={`Screen ${screenId}`}
+      title={t('screens.screen', { id: screenId })}
       bounds={bounds}
       onUserClose={onClose}
       onBlocked={onBlocked}
       onBounds={onBounds}
-      closeLabel="Return all cards"
+      closeLabel={t('screens.returnAll')}
     >
       <ScreenGrid
         screenId={screenId}

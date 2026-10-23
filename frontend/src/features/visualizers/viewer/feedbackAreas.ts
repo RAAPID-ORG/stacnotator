@@ -7,9 +7,9 @@ const AREAS_Z = 20;
 
 /** Green, red or neutral: the verdict is what a reviewer scans for, so it is
  *  what both the badge and the box on the map are coloured by. */
-export const VERDICT: Record<string, { tone: BadgeTone; label: string; color: string }> = {
-  good: { tone: 'green', label: 'Looks good', color: '#16a34a' },
-  wrong: { tone: 'red', label: 'Looks wrong', color: '#dc2626' },
+export const VERDICT: Record<string, { tone: BadgeTone; color: string }> = {
+  good: { tone: 'green', color: '#16a34a' },
+  wrong: { tone: 'red', color: '#dc2626' },
 };
 
 const NEUTRAL = '#525252';

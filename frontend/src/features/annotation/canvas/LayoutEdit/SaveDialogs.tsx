@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { Button } from '~/shared/ui/forms';
@@ -28,6 +29,7 @@ export function SaveDialogs({
   mustSaveDefault = false,
   onSave,
 }: SaveDialogsProps) {
+  const { t } = useTranslation(['annotation', 'common']);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pending, setPending] = useState<PendingSave | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,7 +59,7 @@ export function SaveDialogs({
     <div ref={containerRef} className="relative" data-testid="save-dialogs">
       {mustSaveDefault ? (
         <Button size="sm" onClick={() => requestSave(true)} data-testid="save-required-default">
-          Save layout
+          {t('layoutEdit.saveLayout')}
         </Button>
       ) : (
         <Button
@@ -65,7 +67,7 @@ export function SaveDialogs({
           onClick={() => setMenuOpen((open) => !open)}
           data-testid="save-menu-trigger"
         >
-          Save
+          {t('common:actions.save')}
           <IconChevronDownFilled className="w-3 h-3" />
         </Button>
       )}
@@ -80,8 +82,8 @@ export function SaveDialogs({
             className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100"
             data-testid="save-personal"
           >
-            <div className="font-medium">Save as personal</div>
-            <div className="text-[10px] text-neutral-500">Only for you</div>
+            <div className="font-medium">{t('layoutEdit.savePersonal')}</div>
+            <div className="text-[10px] text-neutral-500">{t('layoutEdit.savePersonalHint')}</div>
           </button>
           {canSaveDefault && (
             <button
@@ -90,8 +92,8 @@ export function SaveDialogs({
               className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 border-t border-neutral-200"
               data-testid="save-default"
             >
-              <div className="font-medium">Save as default</div>
-              <div className="text-[10px] text-neutral-500">For all users</div>
+              <div className="font-medium">{t('layoutEdit.saveDefault')}</div>
+              <div className="text-[10px] text-neutral-500">{t('layoutEdit.saveDefaultHint')}</div>
             </button>
           )}
         </div>
@@ -99,10 +101,10 @@ export function SaveDialogs({
 
       <ConfirmDialog
         isOpen={pending?.step === 'confirmDefault'}
-        title="Save as Default Layout?"
-        description="This overwrites the default layout for every member of this campaign who has no personal layout of their own. Your own personal layout, if you have one, is left alone - to adopt this as yours too, save it here, then hit Reset and save as personal."
-        confirmText="Save Default"
-        cancelText="Cancel"
+        title={t('layoutEdit.confirmDefault.title')}
+        description={t('layoutEdit.confirmDefault.description')}
+        confirmText={t('layoutEdit.confirmDefault.confirm')}
+        cancelText={t('common:actions.cancel')}
         isDangerous
         onCancel={() => setPending(null)}
         onConfirm={() => {
@@ -114,10 +116,10 @@ export function SaveDialogs({
 
       <ConfirmDialog
         isOpen={pending?.step === 'confirmMainLayout'}
-        title="Main Layout Modified"
-        description="You have modified the main layout (main map, timeseries, or minimap). This change applies to every imagery view in this campaign and may cause layouts to shift. Do you want to save this layout?"
-        confirmText="Save Layout"
-        cancelText="Cancel"
+        title={t('layoutEdit.confirmMain.title')}
+        description={t('layoutEdit.confirmMain.description')}
+        confirmText={t('layoutEdit.confirmMain.confirm')}
+        cancelText={t('common:actions.cancel')}
         onCancel={() => setPending(null)}
         onConfirm={() => {
           const { shouldBeDefault } = pending!;

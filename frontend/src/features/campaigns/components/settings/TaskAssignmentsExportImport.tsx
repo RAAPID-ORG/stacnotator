@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { exportTaskAssignments, importTaskAssignments } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 import { FileInput } from '~/shared/ui/FileInput';
@@ -20,6 +21,7 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
   taskSetId,
   onImported,
 }) => {
+  const { t } = useTranslation('campaigns');
   const showAlert = useLayoutStore((state) => state.showAlert);
   const [exporting, setExporting] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -34,7 +36,7 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
         parseAs: 'blob',
       });
       if (!response.response.ok || !response.data) {
-        throw new Error('Failed to export task assignments');
+        throw new Error(t('assignmentsIO.exportFailed'));
       }
       const blob = response.data as Blob;
       const safeName = campaignName.replace(/\s+/g, '_');
@@ -52,9 +54,9 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      showAlert('Task assignments exported', 'success');
+      showAlert(t('assignmentsIO.exported'), 'success');
     } catch (err) {
-      handleError(err, 'Failed to export task assignments');
+      handleError(err, t('assignmentsIO.exportFailed'));
     } finally {
       setExporting(false);
     }
@@ -71,11 +73,15 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
       setImportFile(null);
       await onImported();
       const summary = data
-        ? `Updated ${data.tasks_updated} task(s): ${data.assignees_created} assignee(s), ${data.reviewers_created} reviewer(s)`
-        : 'Task assignments imported';
+        ? t('assignmentsIO.importSummary', {
+            tasks: data.tasks_updated,
+            assignees: data.assignees_created,
+            reviewers: data.reviewers_created,
+          })
+        : t('assignmentsIO.imported');
       showAlert(summary, 'success');
     } catch (err) {
-      handleError(err, 'Failed to import task assignments');
+      handleError(err, t('assignmentsIO.importFailed'));
     } finally {
       setImporting(false);
     }
@@ -87,27 +93,25 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
     <div className="space-y-3">
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
         <Button onClick={handleExport} disabled={exporting} variant="secondary">
-          {exporting ? 'Exporting…' : 'Export'}
+          {exporting ? t('assignmentsIO.exporting') : t('assignmentsIO.export')}
         </Button>
 
         <div className="flex gap-3 items-center flex-1">
           <FileInput
             accept=".csv"
-            action="Choose CSV"
+            action={t('assignmentsIO.chooseCsv')}
             disabled={importing}
             className="flex-1"
             fileName={importFile?.name ?? null}
             onSelect={setImportFile}
           />
           <Button onClick={handleImport} disabled={!importFile || importing}>
-            {importing ? 'Importing…' : 'Import'}
+            {importing ? t('assignmentsIO.importing') : t('assignmentsIO.import')}
           </Button>
         </div>
       </div>
       {taskSetId != null && (
-        <p className="text-xs text-neutral-500">
-          Exports this task set only. Imports apply campaign-wide, matched on annotation number.
-        </p>
+        <p className="text-xs text-neutral-500">{t('assignmentsIO.taskSetScope')}</p>
       )}
     </div>
   );

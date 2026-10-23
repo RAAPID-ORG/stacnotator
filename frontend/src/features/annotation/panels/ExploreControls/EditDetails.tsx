@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { updateAnnotationOpenmode, type AnnotationOut } from '~/api/client';
 import type { FormValues } from '../../campaign/annotation';
 import { useLayoutStore } from '~/shared/stores/layout.store';
@@ -15,6 +16,7 @@ import { FormFields } from '../../components/FormFields';
 import { LabelChips } from '../../components/LabelChips';
 
 function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
+  const { t } = useTranslation('panels');
   const campaign = useCampaign();
   const [labelId, setLabelId] = useState<number | null>(annotation.label_id);
   const [values, setValues] = useState<FormValues>(annotation.form_values ?? {});
@@ -33,7 +35,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
     if (labelId === null) return;
     const { ok, missing } = validateForm(fields, values);
     if (!ok) {
-      showAlert(`Missing required: ${missing.join(', ')}`, 'error');
+      showAlert(t('editDetails.missingRequired', { fields: missing.join(', ') }), 'error');
       return;
     }
     setSaving(true);
@@ -66,9 +68,9 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
           .getState()
           .recordWrites([{ id: annotation.id, labelId, geometry, origin: 'local' }]);
       }
-      showAlert('Annotation updated successfully', 'success');
+      showAlert(t('editDetails.updated'), 'success');
     } catch (error) {
-      handleError(error, 'Could not update the annotation');
+      handleError(error, t('editDetails.updateFailed'));
     } finally {
       setSaving(false);
     }
@@ -77,12 +79,12 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
   return (
     <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-200">
       <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">
-        Selected annotation #{annotation.id}
+        {t('editDetails.selected', { id: annotation.id })}
       </span>
 
       {readOnly && (
         <span className="text-[11px] text-neutral-500" data-testid="annotation-read-only">
-          You are not authorized to edit other users annotations.
+          {t('editDetails.readOnly')}
         </span>
       )}
 
@@ -111,7 +113,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
       <label
         hidden={readOnly}
         className="flex items-center gap-1.5 cursor-pointer select-none"
-        title="Toggle flag-for-review on this annotation. Saves immediately. Press F to toggle."
+        title={t('editDetails.flagTitle')}
       >
         <input
           type="checkbox"
@@ -126,7 +128,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
         <span
           className={`text-[11px] ${annotation.flagged_for_review ? 'text-rose-700 font-semibold' : 'text-neutral-600'}`}
         >
-          Flag for review [F]
+          {t('editDetails.flag')}
         </span>
       </label>
 
@@ -139,7 +141,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
               void useWorkStore.getState().saveEditFlag(true, flagComment || null);
             }
           }}
-          placeholder="Why are you flagging this? (optional)"
+          placeholder={t('editDetails.flagPlaceholder')}
           rows={2}
           maxLength={5000}
           className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500"
@@ -154,7 +156,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
           disabled={saving || !dirty || labelId === null}
           className="self-start px-3 py-1.5 rounded text-[11px] font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
         >
-          Save changes
+          {t('editDetails.save')}
         </button>
       )}
     </div>

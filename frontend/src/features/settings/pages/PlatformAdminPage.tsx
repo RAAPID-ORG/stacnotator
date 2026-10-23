@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
@@ -37,36 +38,40 @@ const NO_TILERS: string[] = [];
 const isDetailedUser = (user: UserOut | UserOutDetailed): user is UserOutDetailed =>
   'is_admin' in user;
 
-const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }) => (
-  <Button
-    variant="secondary"
-    onClick={onClick}
-    disabled={busy}
-    leading={
-      busy ? (
-        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
-      ) : undefined
-    }
-  >
-    Refresh
-  </Button>
-);
+const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }) => {
+  const { t } = useTranslation('settings');
+  return (
+    <Button
+      variant="secondary"
+      onClick={onClick}
+      disabled={busy}
+      leading={
+        busy ? (
+          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+        ) : undefined
+      }
+    >
+      {t('refresh')}
+    </Button>
+  );
+};
 
 export const PlatformAdminPage = () => {
+  const { t } = useTranslation('settings');
   const queryClient = useQueryClient();
   const [platformTab, setPlatformTab] = useState<'organizations' | 'users'>('organizations');
 
@@ -84,14 +89,14 @@ export const PlatformAdminPage = () => {
   const usersQuery = useQuery({
     ...listUsersOptions({}),
     enabled: isPlatformAdmin && platformTab === 'users',
-    meta: { errorMessage: 'Failed to load users' },
+    meta: { errorMessage: t('toasts.loadUsersFailed') },
   });
   const users = useMemo(() => (usersQuery.data ?? []).filter(isDetailedUser), [usersQuery.data]);
 
   const tilersQuery = useQuery({
     ...listGrantableTilersOptions(),
     enabled: isPlatformAdmin && platformTab === 'organizations',
-    meta: { errorMessage: 'Failed to load tilers' },
+    meta: { errorMessage: t('toasts.loadTilersFailed') },
   });
 
   const refreshOrganizationsTab = () => {
@@ -100,46 +105,46 @@ export const PlatformAdminPage = () => {
   };
 
   useEffect(() => {
-    setBreadcrumbs([{ label: 'Platform admin' }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([{ label: t('platformAdmin.title') }]);
+  }, [setBreadcrumbs, t]);
 
   const refetchUsers = () => queryClient.invalidateQueries({ queryKey: listUsersQueryKey({}) });
 
   const grant = useMutation({
     ...grantAdminMutation(),
-    meta: reportedByCaller('Failed to grant admin'),
+    meta: reportedByCaller(t('toasts.grantAdminFailed')),
     onSuccess: (result) => {
       void refetchUsers();
-      showAlert(`${result.success.length} user(s) granted admin successfully`, 'success');
+      showAlert(t('toasts.adminGranted', { count: result.success.length }), 'success');
     },
   });
   const revoke = useMutation({
     ...revokeAdminMutation(),
-    meta: reportedByCaller('Failed to revoke admin'),
+    meta: reportedByCaller(t('toasts.revokeAdminFailed')),
     onSuccess: (result) => {
       void refetchUsers();
-      showAlert(`${result.success.length} admin role(s) revoked successfully`, 'success');
+      showAlert(t('toasts.adminRevoked', { count: result.success.length }), 'success');
     },
   });
 
   const approve = useMutation({
     ...approveOrganizationMutation(),
-    meta: reportedByCaller('Failed to approve organization'),
+    meta: reportedByCaller(t('toasts.approveOrgFailed')),
     onSuccess: refreshOrganizations,
   });
   const reject = useMutation({
     ...rejectOrganizationMutation(),
-    meta: reportedByCaller('Failed to reject organization'),
+    meta: reportedByCaller(t('toasts.rejectOrgFailed')),
     onSuccess: refreshOrganizations,
   });
   const internalStorage = useMutation({
     ...updateInternalStorageMutation(),
-    meta: reportedByCaller('Failed to update internal storage'),
+    meta: reportedByCaller(t('toasts.internalStorageFailed')),
     onSuccess: refreshOrganizations,
   });
   const saveTilers = useMutation({
     ...setOrganizationTilersMutation(),
-    meta: reportedByCaller('Failed to save organization access'),
+    meta: reportedByCaller(t('toasts.saveAccessFailed')),
   });
 
   if (!isPlatformAdmin) return <Navigate to={settingsPath()} replace />;
@@ -155,14 +160,14 @@ export const PlatformAdminPage = () => {
     const organization = await approve.mutateAsync({
       path: { organization_id: organizationId },
     });
-    showAlert(`Organization '${organization.name}' approved`, 'success');
+    showAlert(t('toasts.orgApproved', { name: organization.name }), 'success');
   };
 
   const handleRejectOrganization = async (organizationId: number) => {
     const organization = await reject.mutateAsync({
       path: { organization_id: organizationId },
     });
-    showAlert(`Organization '${organization.name}' rejected`, 'success');
+    showAlert(t('toasts.orgRejected', { name: organization.name }), 'success');
   };
 
   const handleSetInternalStorage = async (organizationId: number, allowed: boolean) => {
@@ -170,7 +175,7 @@ export const PlatformAdminPage = () => {
       path: { organization_id: organizationId },
       body: { allows_internal_storage: allowed },
     });
-    showAlert('Internal storage updated', 'success');
+    showAlert(t('toasts.internalStorageUpdated'), 'success');
   };
 
   // An imperative read for one expanded row, not page state, so it stays a
@@ -188,7 +193,7 @@ export const PlatformAdminPage = () => {
       path: { organization_id: organizationId },
       body: { tiler_names: tilerNames },
     });
-    showAlert('Tile access updated', 'success');
+    showAlert(t('toasts.tileAccessUpdated'), 'success');
   };
 
   const approvals = pendingAdminActions(knownOrgs, true).organizationApprovals;
@@ -199,10 +204,8 @@ export const PlatformAdminPage = () => {
         <FadeIn className="page">
           <header className="page-header">
             <div>
-              <h1 className="page-title">Platform admin</h1>
-              <p className="page-subtitle">
-                Approve organizations and manage platform administrators.
-              </p>
+              <h1 className="page-title">{t('platformAdmin.title')}</h1>
+              <p className="page-subtitle">{t('platformAdmin.subtitle')}</p>
             </div>
           </header>
 
@@ -213,12 +216,12 @@ export const PlatformAdminPage = () => {
                   id: 'organizations',
                   label: (
                     <span className="inline-flex items-center gap-1.5">
-                      Organizations
-                      <CountBadge count={approvals} label="organizations to review" />
+                      {t('tabs.organizations')}
+                      <CountBadge count={approvals} label={t('tabs.organizationsToReview')} />
                     </span>
                   ),
                 },
-                { id: 'users', label: 'Users' },
+                { id: 'users', label: t('tabs.users') },
               ]}
               activeId={platformTab}
               onChange={setPlatformTab}
@@ -229,8 +232,12 @@ export const PlatformAdminPage = () => {
                 <section id="tab-users" role="tabpanel" className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h2 className="section-heading">
-                      Platform users{' '}
-                      <span className="text-neutral-400 font-normal">({users.length})</span>
+                      <Trans
+                        t={t}
+                        i18nKey="platform.usersHeading"
+                        values={{ count: users.length }}
+                        components={{ count: <span className="text-neutral-400 font-normal" /> }}
+                      />
                     </h2>
                     <RefreshButton onClick={refetchUsers} busy={usersQuery.isFetching} />
                   </div>
@@ -247,8 +254,12 @@ export const PlatformAdminPage = () => {
                 <section id="tab-organizations" role="tabpanel" className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h2 className="section-heading">
-                      Organizations{' '}
-                      <span className="text-neutral-400 font-normal">({knownOrgs.length})</span>
+                      <Trans
+                        t={t}
+                        i18nKey="platform.organizationsHeading"
+                        values={{ count: knownOrgs.length }}
+                        components={{ count: <span className="text-neutral-400 font-normal" /> }}
+                      />
                     </h2>
                     <RefreshButton
                       onClick={refreshOrganizationsTab}
@@ -272,7 +283,7 @@ export const PlatformAdminPage = () => {
         </FadeIn>
       </div>
 
-      <LoadingOverlay visible={grant.isPending || revoke.isPending} text="Processing..." />
+      <LoadingOverlay visible={grant.isPending || revoke.isPending} text={t('processing')} />
     </>
   );
 };

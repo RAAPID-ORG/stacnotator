@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import { requestOrganizationMutation } from '~/api/queries';
 import { organizationPath, projectsPath } from '~/app/routes';
@@ -11,6 +12,7 @@ import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { useRefreshOrganizations } from '../hooks/useOrganizations';
 
 export const NewOrganizationPage = () => {
+  const { t } = useTranslation(['organizations', 'common']);
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
   const refreshOrganizations = useRefreshOrganizations();
@@ -22,14 +24,14 @@ export const NewOrganizationPage = () => {
   const [requestedName, setRequestedName] = useState<string | null>(null);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: 'New organization' }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([{ label: t('new.breadcrumb') }]);
+  }, [setBreadcrumbs, t]);
 
   // A platform admin's own request is approved on creation, so the response
   // decides between landing in the new organization and waiting for review.
   const request = useMutation({
     ...requestOrganizationMutation(),
-    meta: { errorMessage: 'Failed to request organization', showUser: false },
+    meta: { errorMessage: t('new.requestFailed'), showUser: false },
     onSuccess: (organization) => {
       void refreshOrganizations();
       if (organization.status === 'pending') {
@@ -50,7 +52,7 @@ export const NewOrganizationPage = () => {
     event.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setNameError('Name is required');
+      setNameError(t('new.nameRequired'));
       return;
     }
     setNameError(null);
@@ -62,35 +64,30 @@ export const NewOrganizationPage = () => {
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">Request organization creation</h1>
-            <p className="page-subtitle">
-              Organizations own projects and manage their own members. A new organization has to be
-              requested and approved by a platform admin before it can hold projects.
-            </p>
+            <h1 className="page-title">{t('new.title')}</h1>
+            <p className="page-subtitle">{t('new.subtitle')}</p>
           </div>
         </header>
 
         {requestedName ? (
           <div className="surface" data-testid="org-request-pending">
             <div className="surface-section space-y-3">
-              <p className="text-sm font-medium text-neutral-900">
-                Your organization request is awaiting platform approval.
-              </p>
+              <p className="text-sm font-medium text-neutral-900">{t('new.awaitingApproval')}</p>
               <p className="text-sm text-neutral-500">
-                {requestedName} stays in the organization switcher as pending until it is approved.
+                {t('new.pendingNote', { name: requestedName })}
               </p>
             </div>
             <div className="surface-section flex items-center justify-end gap-3">
               <Button variant="secondary" onClick={() => setRequestedName(null)}>
-                Request another
+                {t('new.requestAnother')}
               </Button>
-              <Button onClick={() => navigate(projectsPath())}>Back to projects</Button>
+              <Button onClick={() => navigate(projectsPath())}>{t('new.backToProjects')}</Button>
             </div>
           </div>
         ) : (
           <form className="surface" onSubmit={handleSubmit}>
             <div className="surface-section space-y-5">
-              <Field label="Name" htmlFor="org-name" required error={error}>
+              <Field label={t('new.name')} htmlFor="org-name" required error={error}>
                 <Input
                   id="org-name"
                   value={name}
@@ -101,9 +98,9 @@ export const NewOrganizationPage = () => {
                 />
               </Field>
               <Field
-                label="Description"
+                label={t('new.description')}
                 htmlFor="org-description"
-                hint="Optional. What the organization works on."
+                hint={t('new.descriptionHint')}
               >
                 <Textarea
                   id="org-description"
@@ -115,10 +112,10 @@ export const NewOrganizationPage = () => {
             </div>
             <div className="surface-section flex items-center justify-end gap-3">
               <Button variant="secondary" onClick={() => navigate(projectsPath())}>
-                Cancel
+                {t('common:actions.cancel')}
               </Button>
               <Button type="submit" disabled={submitting}>
-                {submitting ? 'Requesting…' : 'Request organization'}
+                {submitting ? t('new.requesting') : t('new.submit')}
               </Button>
             </div>
           </form>

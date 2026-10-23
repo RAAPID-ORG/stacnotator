@@ -10,6 +10,7 @@ import type {
   ImagerySourceOut,
   ImageryCollectionOut,
 } from '~/api/client';
+import i18n from '~/shared/i18n';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
@@ -24,6 +25,8 @@ import type {
   VizParams,
   ImageryGenerationConfig,
 } from './types';
+
+const t = i18n.getFixedT(null, 'imagery');
 
 export type ControllerMode = 'draft' | 'persisted';
 
@@ -472,13 +475,10 @@ export function usePersistedController({
     // about to exist for the first time.
     if (stateRef.current.sources.some((source) => !isRealId(source.id))) {
       const ok = await useLayoutStore.getState().showConfirmDialog({
-        title: 'New sources start off the canvas',
+        title: t('controller.offCanvas.title'),
         isWarning: true,
-        description:
-          'A source only shows up in the annotation view once it belongs to a view. ' +
-          'After saving, open the campaign, click "Edit Layout", and tick the new source ' +
-          'under "Sources in this view".',
-        confirmText: 'Got it, save',
+        description: t('controller.offCanvas.description'),
+        confirmText: t('controller.offCanvas.confirm'),
       });
       if (!ok) return;
     }
@@ -498,7 +498,7 @@ export function usePersistedController({
         }
       }, 5000);
     } catch (e) {
-      handleError(e, 'Failed to save imagery changes');
+      handleError(e, t('controller.saveFailed'));
       refetch?.();
       setPending(false);
       throw e;
@@ -572,8 +572,8 @@ export function usePersistedController({
         // server-side, so unsaved edits would be ignored and confuse the result.
         if (isDirty) {
           handleError(
-            new Error('Save your changes before re-registering this source.'),
-            'Cannot re-register'
+            new Error(t('controller.saveBeforeReregister')),
+            t('controller.cannotReregister')
           );
           return;
         }
@@ -584,7 +584,7 @@ export function usePersistedController({
           });
           refetch?.();
         } catch (e) {
-          handleError(e, 'Failed to re-register source');
+          handleError(e, t('controller.reregisterFailed'));
         } finally {
           setPending(false);
         }
@@ -595,10 +595,7 @@ export function usePersistedController({
         // mosaic) and operates against persisted state. Block when dirty so it
         // doesn't run against a stale config - user must Save first.
         if (isDirty) {
-          handleError(
-            new Error('Save your changes before refreshing this collection.'),
-            'Cannot refresh'
-          );
+          handleError(new Error(t('controller.saveBeforeRefresh')), t('controller.cannotRefresh'));
           return;
         }
         setPending(true);
@@ -608,7 +605,7 @@ export function usePersistedController({
           });
           refetch?.();
         } catch (e) {
-          handleError(e, 'Failed to refresh collection');
+          handleError(e, t('controller.refreshFailed'));
         } finally {
           setPending(false);
         }

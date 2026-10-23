@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '~/app/providers/AuthProvider';
 import {
@@ -8,7 +9,6 @@ import {
   projectsPath,
   settingsPath,
 } from '~/app/routes';
-import { LEGAL_DOCS, legalPath } from '~/features/legal/docs';
 import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
 import { pendingAdminActions } from '~/features/organizations/utils/organizations';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -17,35 +17,31 @@ import { Badge, CountBadge } from '~/shared/ui/Badge';
 import {
   IconBuilding,
   IconCheck,
-  IconDocument,
   IconGear,
   IconPlus,
   IconSelector,
   IconSignOut,
 } from '~/shared/ui/Icons';
 import { handleError } from '~/shared/utils/errorHandler';
-import { MenuItem, MenuLabel, MenuSeparator, SidebarMenu } from './SidebarMenu';
+import { MenuItem, MenuSeparator, SidebarMenu } from './SidebarMenu';
 
 const initial = (text: string) => text.trim().charAt(0).toUpperCase() || '?';
 
-/** A small action on an organization row or heading, so managing, browsing and
- *  creating read as about organizations rather than as one more one to pick. */
+/** A small action beside the organization heading, so browsing and creating
+ *  read as about organizations rather than as one more organization to pick. */
 const OrgAction = ({
   icon,
   children,
   onSelect,
-  testId,
 }: {
   icon: ReactNode;
   children: ReactNode;
   onSelect: () => void;
-  testId?: string;
 }) => (
   <button
     type="button"
     role="menuitem"
     onClick={onSelect}
-    data-testid={testId}
     className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-neutral-500 cursor-pointer transition-colors hover:bg-neutral-100 hover:text-neutral-900 [&>svg]:w-3 [&>svg]:h-3"
   >
     {icon}
@@ -66,6 +62,7 @@ export const AccountMenu = ({
   collapsed: boolean;
   onNavigate?: () => void;
 }) => {
+  const { t } = useTranslation(['common', 'organizations']);
   const navigate = useNavigate();
   const { auth } = useAuth();
   const account = useAccountStore((s) => s.account);
@@ -97,13 +94,13 @@ export const AccountMenu = ({
       await auth.logout();
       navigate('/');
     } catch (err) {
-      handleError(err, 'Sign out failed');
+      handleError(err, t('sidebar.signOutFailed'));
     }
   };
 
   return (
     <SidebarMenu
-      label="Account and organization"
+      label={t('sidebar.accountMenu')}
       testId="account-menu"
       trigger={
         <span className={`flex items-center gap-2.5 h-11 ${collapsed ? 'justify-center' : 'px-2'}`}>
@@ -114,7 +111,7 @@ export const AccountMenu = ({
             {collapsed && (
               <CountBadge
                 count={accessRequests}
-                label="requests waiting on you"
+                label={t('nav.pendingRequests')}
                 className="absolute -right-1.5 -top-1.5 ring-2 ring-white"
               />
             )}
@@ -126,10 +123,10 @@ export const AccountMenu = ({
                   {name}
                 </span>
                 <span className="block truncate text-[11px] text-neutral-500">
-                  {loading ? ' ' : (activeOrg?.name ?? 'No organization')}
+                  {loading ? ' ' : (activeOrg?.name ?? t('organizations:switcher.noOrganization'))}
                 </span>
               </span>
-              <CountBadge count={accessRequests} label="requests waiting on you" />
+              <CountBadge count={accessRequests} label={t('nav.pendingRequests')} />
               <IconSelector className="w-3.5 h-3.5 shrink-0 text-neutral-400" />
             </>
           )}
@@ -143,84 +140,72 @@ export const AccountMenu = ({
         };
         return (
           <>
-            {account?.email && <MenuLabel>{account.email}</MenuLabel>}
-            <MenuItem icon={<IconGear />} onSelect={run(() => go(settingsPath()))}>
-              Account settings
-            </MenuItem>
-
-            <MenuSeparator />
             <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-1">
-              <span className="text-[11px] font-medium text-neutral-400">Organization</span>
+              <span className="text-[11px] font-medium text-neutral-400">
+                {t('organizations:switcher.label')}
+              </span>
               <span className="flex items-center gap-0.5">
                 <OrgAction icon={<IconBuilding />} onSelect={run(() => go(organizationsPath()))}>
-                  Browse
+                  {t('organizations:switcher.browse')}
                 </OrgAction>
                 <OrgAction icon={<IconPlus />} onSelect={run(() => go(newOrganizationPath()))}>
-                  New
+                  {t('organizations:switcher.new')}
                 </OrgAction>
               </span>
             </div>
-            {orgs.map((org) =>
-              org.id === activeOrgId && canManage ? (
-                <div
-                  key={org.id}
-                  className="flex items-center gap-2.5 px-2 py-1.5 text-[13px] text-neutral-900"
-                >
-                  <IconCheck className="w-4 h-4 shrink-0 text-brand-600" />
-                  <span className="flex-1 min-w-0 truncate font-medium">{org.name}</span>
-                  <OrgAction
-                    icon={<IconGear />}
-                    testId="organization-settings"
-                    onSelect={run(() => go(organizationPath(org.id)))}
-                  >
-                    Settings
-                    <CountBadge count={org.pending_access_requests ?? 0} label="access requests" />
-                  </OrgAction>
-                </div>
-              ) : (
-                <MenuItem
-                  key={org.id}
-                  checked={org.id === activeOrgId}
-                  icon={org.id === activeOrgId ? <IconCheck className="text-brand-600" /> : null}
-                  onSelect={run(() => switchTo(org.id))}
-                  trailing={
-                    org.status === 'pending' ? (
-                      <Badge tone="yellow">Pending</Badge>
-                    ) : (
+            {orgs.map((org) => (
+              <MenuItem
+                key={org.id}
+                checked={org.id === activeOrgId}
+                icon={org.id === activeOrgId ? <IconCheck className="text-brand-600" /> : null}
+                onSelect={run(() => switchTo(org.id))}
+                trailing={
+                  org.status === 'pending' ? (
+                    <Badge tone="yellow">{t('organizations:switcher.pending')}</Badge>
+                  ) : (
+                    org.id !== activeOrgId && (
                       <CountBadge
                         count={org.pending_access_requests ?? 0}
-                        label="access requests"
+                        label={t('organizations:switcher.accessRequests')}
                       />
                     )
-                  }
-                >
-                  {org.name}
-                </MenuItem>
-              )
-            )}
+                  )
+                }
+              >
+                {org.name}
+              </MenuItem>
+            ))}
             <MenuItem
               checked={activeOrgId === null}
               icon={activeOrgId === null ? <IconCheck className="text-brand-600" /> : null}
               onSelect={run(() => switchTo(null))}
             >
-              <span className="text-neutral-500">No organization</span>
+              <span className="text-neutral-500">{t('organizations:switcher.noOrganization')}</span>
             </MenuItem>
 
             <MenuSeparator />
-            {LEGAL_DOCS.map((doc) => (
+            {canManage && (
               <MenuItem
-                key={doc.key}
-                icon={<IconDocument />}
-                href={legalPath(doc.key)}
-                onSelect={close}
+                icon={<IconGear />}
+                testId="organization-settings"
+                onSelect={run(() => go(organizationPath(activeOrg.id)))}
+                trailing={
+                  <CountBadge
+                    count={activeOrg.pending_access_requests ?? 0}
+                    label={t('organizations:switcher.accessRequests')}
+                  />
+                }
               >
-                {doc.title}
+                {t('sidebar.organizationSettings')}
               </MenuItem>
-            ))}
+            )}
+            <MenuItem icon={<IconGear />} onSelect={run(() => go(settingsPath()))}>
+              {t('sidebar.accountSettings')}
+            </MenuItem>
 
             <MenuSeparator />
             <MenuItem icon={<IconSignOut />} tone="danger" onSelect={run(() => void signOut())}>
-              Sign out
+              {t('sidebar.signOut')}
             </MenuItem>
           </>
         );

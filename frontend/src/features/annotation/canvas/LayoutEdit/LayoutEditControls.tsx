@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createNewCanvasLayout, type CampaignOutFull, type ImageryViewOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { Button } from '~/shared/ui/forms';
@@ -27,6 +28,7 @@ export function LayoutEditControls({
   mustSaveDefault = false,
   onSetupFinished,
 }: LayoutEditControlsProps) {
+  const { t } = useTranslation(['annotation', 'common']);
   const isMobile = useIsMobile();
   const showAlert = useAppLayoutStore((s) => s.showAlert);
   const editing = useLayoutStore((s) => s.editing);
@@ -60,9 +62,9 @@ export function LayoutEditControls({
       });
       saveLayout();
       if (saveAsDefault) onSetupFinished?.();
-      showAlert('Layout saved', 'success');
+      showAlert(t('layoutEdit.saved'), 'success');
     } catch {
-      showAlert('Failed to save layout', 'error');
+      showAlert(t('layoutEdit.saveFailed'), 'error');
     }
   };
 
@@ -71,7 +73,7 @@ export function LayoutEditControls({
     const mainItems = campaign.default_main_canvas_layout?.layout_data ?? [];
     const viewItems = view?.default_canvas_layout?.layout_data ?? [];
     setLayout(fromGridLayout([...mainItems, ...viewItems], EMPTY_LAYOUT));
-    showAlert('Layout reset to defaults', 'success');
+    showAlert(t('layoutEdit.resetDone'), 'success');
   };
 
   if (!editing) {
@@ -84,13 +86,13 @@ export function LayoutEditControls({
       <button
         type="button"
         onClick={startEditing}
-        title="Edit canvas layout and panels"
+        title={t('layoutEdit.editTip')}
         className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 rounded transition-all"
         data-testid="edit-layout-trigger"
         data-tour="layout-controls"
       >
         <IconLayoutGrid className="w-3.5 h-3.5" />
-        Edit Layout
+        {t('layoutEdit.edit')}
       </button>
     );
   }
@@ -101,10 +103,10 @@ export function LayoutEditControls({
         variant="quiet"
         size="sm"
         onClick={() => setResetConfirmOpen(true)}
-        title="Reset to campaign defaults"
+        title={t('layoutEdit.resetTip')}
         className="mr-auto"
       >
-        Reset
+        {t('layoutEdit.reset')}
       </Button>
       <Button
         variant="quiet"
@@ -113,9 +115,9 @@ export function LayoutEditControls({
           cancelEditing();
           if (mustSaveDefault) onSetupFinished?.();
         }}
-        title="Discard layout changes"
+        title={t('layoutEdit.cancelTip')}
       >
-        Cancel
+        {t('common:actions.cancel')}
       </Button>
       <SaveDialogs
         currentLayout={currentLayout}
@@ -128,10 +130,10 @@ export function LayoutEditControls({
 
       <ConfirmDialog
         isOpen={resetConfirmOpen}
-        title="Reset Layout?"
-        description="This will reset the canvas layout to the campaign defaults."
-        confirmText="Reset"
-        cancelText="Cancel"
+        title={t('layoutEdit.resetConfirm.title')}
+        description={t('layoutEdit.resetConfirm.description')}
+        confirmText={t('layoutEdit.reset')}
+        cancelText={t('common:actions.cancel')}
         onConfirm={handleReset}
         onCancel={() => setResetConfirmOpen(false)}
       />

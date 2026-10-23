@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type OrganizationApiKeyOut } from '~/api/client';
 import {
@@ -25,6 +26,7 @@ const TILE_HOST_PLACEHOLDER = 'tiles.planet.com';
  *  goes to the backend encrypted at rest and is never read back, so a key can
  *  be replaced but never displayed. */
 export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps) => {
+  const { t } = useTranslation(['organizations', 'common']);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const queryClient = useQueryClient();
   const path = { organization_id: organizationId };
@@ -40,7 +42,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
 
   const { data } = useQuery({
     ...listOrganizationApiKeysOptions({ path }),
-    meta: { errorMessage: 'Failed to load API keys' },
+    meta: { errorMessage: t('apiKeys.loadFailed') },
   });
   const keys = data?.items ?? NO_KEYS;
 
@@ -49,7 +51,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
 
   const create = useMutation({
     ...createOrganizationApiKeyMutation(),
-    meta: { errorMessage: 'Failed to add key' },
+    meta: { errorMessage: t('apiKeys.addFailed') },
     onSuccess: () => {
       void refetchKeys();
       setName('');
@@ -60,7 +62,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
   });
   const rotateKey = useMutation({
     ...rotateOrganizationApiKeyMutation(),
-    meta: { errorMessage: 'Failed to replace key' },
+    meta: { errorMessage: t('apiKeys.replaceFailed') },
     onSuccess: () => {
       void refetchKeys();
       setRotatingId(null);
@@ -71,7 +73,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
   });
   const removeKey = useMutation({
     ...deleteOrganizationApiKeyMutation(),
-    meta: { errorMessage: 'Failed to delete key' },
+    meta: { errorMessage: t('apiKeys.deleteFailed') },
     onSuccess: refetchKeys,
   });
 
@@ -91,9 +93,9 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
 
   const remove = async (key: OrganizationApiKeyOut) => {
     const confirmed = await showConfirmDialog({
-      title: `Delete ${key.name}?`,
-      description: 'Imagery using this key stops loading tiles until another key is set.',
-      confirmText: 'Delete',
+      title: t('apiKeys.confirmDeleteTitle', { name: key.name }),
+      description: t('apiKeys.confirmDeleteDescription'),
+      confirmText: t('apiKeys.delete'),
       isDangerous: true,
     });
     if (!confirmed) return;
@@ -102,13 +104,8 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
 
   return (
     <section className="surface surface-section" data-testid="org-api-keys">
-      <h2 className="section-heading">Provider API keys</h2>
-      <p className="section-description">
-        Register API keys from your data providers. These keys will be made usable for all members
-        of your organization, to access imagery that requires an API key. API Keys are saved
-        encrypted and are never exposed to users in their requests. Keys are tied to a host-adress
-        to prevent campaign users trying to pass it anywhere else,
-      </p>
+      <h2 className="section-heading">{t('apiKeys.heading')}</h2>
+      <p className="section-description">{t('apiKeys.description')}</p>
 
       {keys.length > 0 && (
         <ul className="mt-3 divide-y divide-neutral-100 border border-neutral-200 rounded-xl bg-white">
@@ -122,11 +119,11 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                   </span>
                 ) : (
                   <span className="text-[11px] text-amber-700 shrink-0">
-                    No tile host - not usable yet
+                    {t('apiKeys.noTileHost')}
                   </span>
                 )}
                 <span className="text-[11px] text-neutral-500 shrink-0">
-                  added {new Date(key.created_at).toLocaleDateString()}
+                  {t('apiKeys.added', { date: new Date(key.created_at).toLocaleDateString() })}
                 </span>
                 <button
                   type="button"
@@ -138,7 +135,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                   }}
                   className="inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md text-neutral-700 hover:bg-neutral-100"
                 >
-                  Replace
+                  {t('apiKeys.replace')}
                 </button>
                 <button
                   type="button"
@@ -146,7 +143,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                   disabled={busy}
                   className="inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md text-red-600 hover:bg-red-50 disabled:opacity-40"
                 >
-                  Delete
+                  {t('apiKeys.delete')}
                 </button>
               </div>
               {rotatingId === key.id && (
@@ -158,7 +155,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                       autoComplete="off"
                       value={rotateValue}
                       onChange={(e) => setRotateValue(e.target.value)}
-                      placeholder="New key value"
+                      placeholder={t('apiKeys.newValuePlaceholder')}
                       className="!w-64 text-[11px] font-mono"
                     />
                     <Input
@@ -166,7 +163,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                       value={rotateHost}
                       onChange={(e) => setRotateHost(e.target.value)}
                       placeholder={TILE_HOST_PLACEHOLDER}
-                      aria-label="Tile host"
+                      aria-label={t('apiKeys.tileHost')}
                       className="!w-48 text-[11px] font-mono"
                     />
                     <Button
@@ -176,7 +173,7 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
                         busy || !rotateValue.trim() || !rotateHost.trim() || !rotateConfirmed
                       }
                     >
-                      Save
+                      {t('common:actions.save')}
                     </Button>
                   </div>
                   <ReadOnlyKeyConsent confirmed={rotateConfirmed} onChange={setRotateConfirmed} />
@@ -191,17 +188,25 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
         {/* One row: a key is the three of these together, and a wrapped form reads as
             three separate things to fill in. It still wraps when there is no room. */}
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Name" htmlFor="org-key-name" className="min-w-0 flex-1 basis-44">
+          <Field
+            label={t('apiKeys.name')}
+            htmlFor="org-key-name"
+            className="min-w-0 flex-1 basis-44"
+          >
             <Input
               id="org-key-name"
               size="sm"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Planet production"
+              placeholder={t('apiKeys.namePlaceholder')}
               disabled={busy}
             />
           </Field>
-          <Field label="Key" htmlFor="org-key-value" className="min-w-0 flex-1 basis-52">
+          <Field
+            label={t('apiKeys.key')}
+            htmlFor="org-key-value"
+            className="min-w-0 flex-1 basis-52"
+          >
             <Input
               id="org-key-value"
               size="sm"
@@ -209,12 +214,16 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
               autoComplete="off"
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder="Paste provider key"
+              placeholder={t('apiKeys.keyPlaceholder')}
               className="font-mono"
               disabled={busy}
             />
           </Field>
-          <Field label="Tile host" htmlFor="org-key-host" className="min-w-0 flex-1 basis-44">
+          <Field
+            label={t('apiKeys.tileHost')}
+            htmlFor="org-key-host"
+            className="min-w-0 flex-1 basis-44"
+          >
             <Input
               id="org-key-host"
               size="sm"
@@ -230,15 +239,16 @@ export const OrganizationApiKeys = ({ organizationId }: OrganizationApiKeysProps
             onClick={add}
             disabled={busy || !name.trim() || !value.trim() || !host.trim() || !readOnlyConfirmed}
           >
-            Add key
+            {t('apiKeys.add')}
           </Button>
         </div>
         <p className="text-[11px] text-neutral-500 leading-snug">
-          The tile host is the provider address this key belongs to -{' '}
-          <span className="font-mono">{TILE_HOST_PLACEHOLDER}</span> for Planet basemaps and scenes,
-          the host in your provider&apos;s tile URL otherwise (its subdomains count too). The server
-          sends this key there and refuses everywhere else, so a campaign pointing its imagery at
-          some other address cannot use the key to get it delivered there.
+          <Trans
+            t={t}
+            i18nKey="apiKeys.tileHostHelp"
+            values={{ host: TILE_HOST_PLACEHOLDER }}
+            components={{ host: <span className="font-mono" /> }}
+          />
         </p>
         <ReadOnlyKeyConsent confirmed={readOnlyConfirmed} onChange={setReadOnlyConfirmed} />
       </div>

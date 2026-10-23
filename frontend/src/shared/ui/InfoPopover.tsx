@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { IconInfo } from '~/shared/ui/Icons';
 
 interface InfoPopoverProps {
@@ -7,6 +8,7 @@ interface InfoPopoverProps {
 }
 
 export const InfoPopover = ({ children }: InfoPopoverProps) => {
+  const { t } = useTranslation();
   const ref = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -47,7 +49,7 @@ export const InfoPopover = ({ children }: InfoPopoverProps) => {
         type="button"
         onClick={toggle}
         className="inline-flex items-center cursor-pointer shrink-0"
-        title="Show details"
+        title={t('infoPopover.showDetails')}
       >
         <IconInfo className="w-3.5 h-3.5 text-neutral-400 hover:text-brand-600 transition-colors" />
       </button>

@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
 
 interface ReadOnlyKeyConsentProps {
@@ -16,20 +17,24 @@ interface ReadOnlyKeyConsentProps {
  * Shown wherever a key can be typed - the imagery key fields, the Planet wizards, and
  * the organization's shared keys.
  */
-export const ReadOnlyKeyConsent = ({ confirmed, onChange }: ReadOnlyKeyConsentProps) => (
-  <div className="flex items-center gap-1.5 text-[11px] text-neutral-600">
-    <label className="flex items-center gap-1.5 cursor-pointer">
-      <input
-        type="checkbox"
-        checked={confirmed}
-        onChange={(e) => onChange(e.target.checked)}
-        className="accent-brand-600"
-      />
-      I confirm this key is <strong className="font-medium">read-only</strong>
-    </label>
-    <InfoPopover>
-      The key is only used to load imagery, so it never needs more than read access. Provide one
-      scoped to the least access it needs - you are the only one who can check what it can do.
-    </InfoPopover>
-  </div>
-);
+export const ReadOnlyKeyConsent = ({ confirmed, onChange }: ReadOnlyKeyConsentProps) => {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] text-neutral-600">
+      <label className="flex items-center gap-1.5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(e) => onChange(e.target.checked)}
+          className="accent-brand-600"
+        />
+        <Trans
+          t={t}
+          i18nKey="readOnlyKey.confirm"
+          components={{ strong: <strong className="font-medium" /> }}
+        />
+      </label>
+      <InfoPopover>{t('readOnlyKey.info')}</InfoPopover>
+    </div>
+  );
+};

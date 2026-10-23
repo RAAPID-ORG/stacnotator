@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { IconUploadFilled } from '~/shared/ui/Icons';
@@ -12,6 +13,7 @@ import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import { useCampaignSummary } from '../hooks/campaignQueries';
 
 export const ReviewPage = () => {
+  const { t } = useTranslation('campaigns');
   const campaignId = useCampaignIdParam();
   const routeProjectId = useProjectIdParam();
 
@@ -23,12 +25,12 @@ export const ReviewPage = () => {
   const projectId = campaign?.project_id ?? routeProjectId;
   const showAlert = useLayoutStore((state) => state.showAlert);
 
-  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Annotations');
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, t('reviewPage.breadcrumb'));
 
   if (!loading && !campaign) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-neutral-700">Campaign not found</p>
+        <p className="text-neutral-700">{t('notFound')}</p>
       </div>
     );
   }
@@ -50,7 +52,7 @@ export const ReviewPage = () => {
                 aria-expanded={showImport}
                 leading={<IconUploadFilled className="w-4 h-4" />}
               >
-                Import annotations
+                {t('reviewPage.importAnnotations')}
               </Button>
             ) : undefined
           }

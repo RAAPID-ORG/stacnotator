@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '~/shared/i18n';
 import { Modal } from '~/shared/ui/Modal';
 import {
   IconTrash,
@@ -41,7 +43,7 @@ type AddCollectionStep =
 
 const collectionDisplayName = (c: CollectionItem) => {
   if (c.name) return c.name;
-  if (c.slices.length === 0) return 'Untitled';
+  if (c.slices.length === 0) return i18n.t('imagery:untitled');
   const first = c.slices[0]?.startDate?.slice(0, 7) ?? '';
   const last = c.slices[c.slices.length - 1]?.endDate?.slice(0, 7) ?? '';
   return `${first} - ${last}`;
@@ -84,6 +86,7 @@ function SourceRegistration({
   controller: ImageryController;
   source: ImagerySource;
 }) {
+  const { t } = useTranslation('imagery');
   const registration = sourceRegistration(source, controller.campaignId);
   if (!registration) return null;
 
@@ -92,12 +95,12 @@ function SourceRegistration({
   return (
     <div className="space-y-1" data-testid="source-registration">
       <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-        Registration
-        <Tooltip text="Slices become visible once their imagery is registered with the tiler. Re-register to run this source's searches again - use it when a season has moved on and newer imagery should be picked up." />
+        {t('sourceEditor.registration')}
+        <Tooltip text={t('sourceEditor.registrationTooltip')} />
       </label>
       <div className="flex items-center gap-3">
         <span className={`text-[11px] ${complete ? 'text-green-700' : 'text-amber-600'}`}>
-          {registered} of {total} slices registered ({percent}%)
+          {t('sourceEditor.registered', { registered, total, percent })}
         </span>
         {source.refreshable && (
           <button
@@ -107,7 +110,7 @@ function SourceRegistration({
             data-testid="re-register-source"
             className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {controller.pending ? 'Working…' : 'Re-register imagery'}
+            {controller.pending ? t('sourceEditor.working') : t('sourceEditor.reregister')}
           </button>
         )}
       </div>
@@ -116,6 +119,7 @@ function SourceRegistration({
 }
 
 export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps) => {
+  const { t } = useTranslation(['imagery', 'common']);
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
   const [addStep, setAddStep] = useState<AddCollectionStep>(null);
   const [bulkFocus, setBulkFocus] = useState<BulkFocus | null>(null);
@@ -141,7 +145,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
   const handleRemoveSource = async () => {
     if (controller.mode === 'persisted') {
       const ok = window.confirm(
-        `Delete imagery source "${source.name || 'Untitled'}"?\n\nThis cannot be undone.`
+        t('sourceEditor.confirmDelete', { name: source.name || t('untitled') })
       );
       if (!ok) return;
     }
@@ -272,26 +276,22 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
     const count = activeGenerationSeries.otherCollections.length;
     return (
       <Modal
-        title="Collections outside this generated series"
+        title={t('sourceEditor.outsideSeries.title')}
         onClose={() => setGenerationStep(null)}
         maxWidth="max-w-lg"
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => setGenerationStep(null)}>
-              Cancel
+              {t('common:actions.cancel')}
             </Button>
             <Button variant="primary" size="sm" onClick={() => setGenerationStep('editing')}>
-              Continue
+              {t('sourceEditor.outsideSeries.continue')}
             </Button>
           </div>
         }
       >
         <div className="p-4 space-y-3 text-sm text-neutral-700">
-          <p>
-            {count} collection{count === 1 ? '' : 's'} in this source {count === 1 ? 'is' : 'are'}
-            not part of the generated series you are editing. Choose what regeneration should do
-            with {count === 1 ? 'it' : 'them'}.
-          </p>
+          <p>{t('sourceEditor.outsideSeries.description', { count })}</p>
           <label className="flex items-start gap-2 rounded-md border border-brand-200 bg-brand-50/40 p-3 cursor-pointer">
             <input
               type="radio"
@@ -301,10 +301,11 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
               className="mt-0.5"
             />
             <span>
-              <strong className="block text-neutral-800">Keep them</strong>
+              <strong className="block text-neutral-800">
+                {t('sourceEditor.outsideSeries.keep', { count })}
+              </strong>
               <span className="text-xs text-neutral-500">
-                Recommended. Replace only this generated series and leave the other collections in
-                place.
+                {t('sourceEditor.outsideSeries.keepHelp')}
               </span>
             </span>
           </label>
@@ -317,9 +318,11 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
               className="mt-0.5"
             />
             <span>
-              <strong className="block text-neutral-800">Remove them</strong>
+              <strong className="block text-neutral-800">
+                {t('sourceEditor.outsideSeries.remove', { count })}
+              </strong>
               <span className="text-xs text-neutral-500">
-                Replace every collection in this source with the newly generated series.
+                {t('sourceEditor.outsideSeries.removeHelp')}
               </span>
             </span>
           </label>
@@ -330,10 +333,10 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
 
   if (addStep?.kind === 'pick') {
     return (
-      <Modal title="Add collection" onClose={() => setAddStep(null)}>
+      <Modal title={t('sourceEditor.addCollection.title')} onClose={() => setAddStep(null)}>
         <div className="p-3 space-y-1.5">
           <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-1 pt-0.5 pb-1">
-            From STAC catalog
+            {t('sourceEditor.addCollection.fromStac')}
           </p>
           {MPC_PRESETS.map((preset) => (
             <button
@@ -350,20 +353,22 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
             onClick={() => setAddStep({ kind: 'catalog', preset: null })}
             className="w-full text-left px-3 py-2 rounded-md hover:bg-brand-50/30 cursor-pointer transition-colors"
           >
-            <span className="text-sm text-neutral-800">Other STAC catalog…</span>
+            <span className="text-sm text-neutral-800">
+              {t('sourceEditor.addCollection.otherStac')}
+            </span>
           </button>
           <div className="border-t border-neutral-100 my-1.5" />
           <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-1 pt-0.5 pb-1">
-            Manual
+            {t('sourceEditor.addCollection.manual')}
           </p>
           <button
             type="button"
             onClick={addManualCollection}
             className="w-full text-left px-3 py-2 rounded-md hover:bg-neutral-50 cursor-pointer transition-colors"
           >
-            <span className="text-sm text-neutral-800">XYZ tile URL</span>
+            <span className="text-sm text-neutral-800">{t('sourceEditor.addCollection.xyz')}</span>
             <p className="text-[11px] text-neutral-500 mt-0.5">
-              A direct tile server URL with {'{z}/{x}/{y}'} placeholders. No STAC search semantics.
+              {t('sourceEditor.addCollection.xyzHelp', { placeholders: '{z}/{x}/{y}' })}
             </p>
           </button>
         </div>
@@ -378,13 +383,13 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
     const closeCollection = () => setEditingCollectionId(null);
     return (
       <Modal
-        title="Edit collection"
+        title={t('sourceEditor.editCollection')}
         onClose={closeCollection}
         maxWidth="max-w-xl"
         footer={
           <div className="flex items-center justify-between">
             <Button variant="primary" size="sm" onClick={closeCollection}>
-              Done
+              {t('sourceEditor.done')}
             </Button>
           </div>
         }
@@ -408,7 +413,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
 
   return (
     <Modal
-      title="Edit source"
+      title={t('sourceEditor.title')}
       onClose={onClose}
       maxWidth="max-w-xl"
       footer={
@@ -418,11 +423,11 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
             onClick={() => void handleRemoveSource()}
             className="text-xs text-red-500 hover:text-red-700 transition-colors cursor-pointer"
           >
-            Delete source
+            {t('sourceEditor.deleteSource')}
           </button>
           <div className="flex items-center gap-3">
             <Button variant="primary" size="sm" onClick={onClose}>
-              Done
+              {t('sourceEditor.done')}
             </Button>
           </div>
         </div>
@@ -430,13 +435,13 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
     >
       <div className="p-4 space-y-4">
         <div className="space-y-1">
-          <label className="text-xs text-neutral-700 font-medium">Name</label>
+          <label className="text-xs text-neutral-700 font-medium">{t('collection.name')}</label>
           <Input
             size="sm"
             type="text"
             value={source.name}
             onChange={(e) => void updateSource({ name: e.target.value })}
-            placeholder="Source name…"
+            placeholder={t('sourceEditor.namePlaceholder')}
           />
         </div>
 
@@ -457,8 +462,8 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-neutral-700 flex items-center gap-1 shrink-0">
-              Default zoom
-              <Tooltip text="Default zoom level for map windows using this source." />
+              {t('sourceEditor.defaultZoom')}
+              <Tooltip text={t('sourceEditor.defaultZoomTooltip')} />
             </label>
             <Input
               size="sm"
@@ -470,15 +475,13 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
               className="!w-14 text-center"
             />
             {source.defaultZoom < 10 && (
-              <span className="text-[10px] text-amber-600">
-                Low zoom may be slow. Recommended: 10+
-              </span>
+              <span className="text-[10px] text-amber-600">{t('sourceEditor.lowZoom')}</span>
             )}
           </div>
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-neutral-700 flex items-center gap-1 shrink-0">
-              Max native zoom
-              <Tooltip text="Deepest zoom the provider serves real pixels for. Past it the map upscales instead of requesting tiles that cannot get sharper. Leave empty for no limit." />
+              {t('sourceEditor.maxNativeZoom')}
+              <Tooltip text={t('sourceEditor.maxNativeZoomTooltip')} />
             </label>
             <Input
               size="sm"
@@ -495,7 +498,9 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
             />
           </div>
           <div className="flex items-center gap-1.5">
-            <label className="text-xs text-neutral-700 shrink-0">Crosshair</label>
+            <label className="text-xs text-neutral-700 shrink-0">
+              {t('sourceEditor.crosshair')}
+            </label>
             <div className="relative">
               <input
                 type="color"
@@ -518,8 +523,8 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-              Visualization options
-              <Tooltip text="Named visualizations (e.g. True Color, NDVI). URLs are defined per-collection." />
+              {t('sourceEditor.vizOptions')}
+              <Tooltip text={t('sourceEditor.vizOptionsTooltip')} />
             </label>
             <button
               type="button"
@@ -528,7 +533,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
               }
               className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
             >
-              + Add
+              {t('sourceEditor.addViz')}
             </button>
           </div>
           {source.visualizations.map((viz, i) => (
@@ -536,7 +541,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
               <Input
                 size="sm"
                 type="text"
-                placeholder="e.g. True Color"
+                placeholder={t('vizTabs.namePlaceholder')}
                 value={viz.name}
                 onChange={(e) => renameVisualization(i, e.target.value)}
                 className="flex-1"
@@ -545,8 +550,8 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
                 <IconButton
                   tone="brand"
                   onClick={() => setBulkFocus({ kind: 'viz', name: viz.name })}
-                  title="Edit this visualization's params for all collections"
-                  aria-label={`Edit ${viz.name} params for all collections`}
+                  title={t('sourceEditor.editVizAllTitle')}
+                  aria-label={t('sourceEditor.editVizAllAria', { name: viz.name })}
                 >
                   <IconSettings className="w-3.5 h-3.5" />
                 </IconButton>
@@ -558,7 +563,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
                 }
                 disabled={i === 0}
                 className="text-neutral-400 hover:text-neutral-600 disabled:opacity-30 cursor-pointer disabled:cursor-default p-0.5"
-                title="Move up"
+                title={t('sourceEditor.moveUp')}
               >
                 <IconChevronUp className="w-3 h-3" />
               </button>
@@ -569,7 +574,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
                 }
                 disabled={i === source.visualizations.length - 1}
                 className="text-neutral-400 hover:text-neutral-600 disabled:opacity-30 cursor-pointer disabled:cursor-default p-0.5"
-                title="Move down"
+                title={t('sourceEditor.moveDown')}
               >
                 <IconChevronDown className="w-3 h-3" />
               </button>
@@ -577,7 +582,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
                 <IconButton
                   tone="danger"
                   onClick={() => removeVisualization(i)}
-                  aria-label="Remove visualization"
+                  aria-label={t('sourceEditor.removeViz')}
                 >
                   <IconTrash className="w-3 h-3" />
                 </IconButton>
@@ -589,8 +594,8 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-medium text-neutral-700 flex items-center gap-1">
-              Collections
-              <Tooltip text="A collection is a time window of imagery. Each collection contains slices annotators can switch between." />
+              {t('sourceEditor.collections')}
+              <Tooltip text={t('sourceEditor.collectionsTooltip')} />
             </h4>
             <div className="flex items-center gap-3">
               {generationSeries.map((series) => (
@@ -600,7 +605,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
                   onClick={() => openGenerationEditor(series)}
                   className="text-xs font-medium text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
                 >
-                  Edit {series.config.collectionTitle} series
+                  {t('sourceEditor.editSeries', { name: series.config.collectionTitle })}
                 </button>
               ))}
               {hasStac && generationSeries.length === 0 && (
@@ -609,7 +614,7 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
                   onClick={() => setBulkFocus({ kind: 'search' })}
                   className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
                 >
-                  Search settings · all collections
+                  {t('bulk.searchTitle')}
                 </button>
               )}
             </div>
@@ -653,8 +658,12 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
                     e.stopPropagation();
                     void controller.removeCollection(source.id, c.id);
                   }}
-                  title={`Delete collection "${collectionDisplayName(c)}"`}
-                  aria-label={`Delete collection ${collectionDisplayName(c)}`}
+                  title={t('sourceEditor.deleteCollectionTitle', {
+                    name: collectionDisplayName(c),
+                  })}
+                  aria-label={t('sourceEditor.deleteCollectionAria', {
+                    name: collectionDisplayName(c),
+                  })}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                 >
                   <IconTrash className="w-3 h-3" />

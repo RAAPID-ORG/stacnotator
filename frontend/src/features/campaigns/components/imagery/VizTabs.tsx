@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { NamedVizParams, VizParams } from './types';
 import { emptyVizParams } from './types';
 import type { AssetInfo } from '~/api/client';
@@ -36,6 +37,7 @@ export const VizTabs = ({
   onAdd,
   onRemove,
 }: VizTabsProps) => {
+  const { t } = useTranslation('imagery');
   if (visualizations.length === 0) return null;
   const active = Math.min(activeIndex, visualizations.length - 1);
 
@@ -56,13 +58,15 @@ export const VizTabs = ({
               onClick={() => onActiveIndexChange(i)}
               className="px-3 py-1.5 cursor-pointer"
             >
-              {viz.name || `Viz ${i + 1}`}
+              {viz.name || t('vizTabs.fallbackName', { n: i + 1 })}
             </button>
             {onRemove && visualizations.length > 1 && (
               <button
                 type="button"
                 onClick={() => onRemove(i)}
-                aria-label={`Remove ${viz.name || `Viz ${i + 1}`}`}
+                aria-label={t('vizTabs.remove', {
+                  name: viz.name || t('vizTabs.fallbackName', { n: i + 1 }),
+                })}
                 className="pr-2 text-neutral-400 hover:text-red-500 cursor-pointer"
               >
                 <IconTrash className="w-2.5 h-2.5" />
@@ -75,7 +79,7 @@ export const VizTabs = ({
             type="button"
             onClick={onAdd}
             className="text-xs text-neutral-400 hover:text-brand-700 transition-colors cursor-pointer px-2 py-1.5 flex items-center gap-0.5"
-            title="Add visualization"
+            title={t('vizTabs.add')}
           >
             <IconPlus className="w-3 h-3" />
           </button>
@@ -85,13 +89,13 @@ export const VizTabs = ({
       <div className="p-3 space-y-3 bg-white">
         {onNameChange && (
           <div className="space-y-1">
-            <label className="text-xs text-neutral-700">Visualization Name</label>
+            <label className="text-xs text-neutral-700">{t('vizTabs.name')}</label>
             <Input
               type="text"
               size="sm"
               value={visualizations[active]?.name || ''}
               onChange={(e) => onNameChange(active, e.target.value)}
-              placeholder="e.g. True Color"
+              placeholder={t('vizTabs.namePlaceholder')}
             />
           </div>
         )}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
 import { Modal } from '~/shared/ui/Modal';
 import { TaskModeReview } from '~/features/campaigns/components/review/TaskModeReview';
@@ -90,6 +91,7 @@ export const TasksTab: React.FC<Props> = ({
   areaEstimationSets,
   bbox,
 }) => {
+  const { t } = useTranslation('campaigns');
   const campaignId = campaign.id;
   const sectionCls =
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
@@ -135,8 +137,12 @@ export const TasksTab: React.FC<Props> = ({
   const addTasksBody = (
     <div className="p-5 space-y-4">
       <p className="section-description">
-        Tasks define the points or polygons annotators will label. Upload existing locations or
-        generate them with random/grid sampling into <strong>{scopedSet?.name}</strong>.
+        <Trans
+          t={t}
+          i18nKey="tasksTab.addIntro"
+          values={{ name: scopedSet?.name }}
+          components={{ strong: <strong /> }}
+        />
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -153,8 +159,8 @@ export const TasksTab: React.FC<Props> = ({
           }`}
           type="button"
         >
-          <div className="text-sm font-medium">Upload file</div>
-          <div className="text-xs text-neutral-500 mt-0.5">Upload tasks from CSV or GeoJSON</div>
+          <div className="text-sm font-medium">{t('tasksTab.uploadFile')}</div>
+          <div className="text-xs text-neutral-500 mt-0.5">{t('tasksTab.uploadFileHint')}</div>
         </button>
         <button
           onClick={() => setTaskFile(null)}
@@ -165,21 +171,19 @@ export const TasksTab: React.FC<Props> = ({
           }`}
           type="button"
         >
-          <div className="text-sm font-medium">Generate via sampling</div>
-          <div className="text-xs text-neutral-500 mt-0.5">
-            Create tasks using random or grid sampling
-          </div>
+          <div className="text-sm font-medium">{t('tasksTab.generate')}</div>
+          <div className="text-xs text-neutral-500 mt-0.5">{t('tasksTab.generateHint')}</div>
         </button>
       </div>
 
       {taskFile !== null && (
         <div className="space-y-3">
           <p className="text-xs text-neutral-500 leading-relaxed">
-            Upload a <strong>CSV</strong> (<code>id,lon,lat</code>) for point locations, or a{' '}
-            <strong>GeoJSON</strong> file with Point / Polygon features. Polygon geometries are
-            preserved and shown as sample extents during annotation. For Points you may want to
-            specify the sample extent (bbox size around the point) under the General Settings tab.
-            The id <strong>must be unique within your whole campaign and must be numeric.</strong>
+            <Trans
+              t={t}
+              i18nKey="tasksTab.uploadHelp"
+              components={{ strong: <strong />, code: <code /> }}
+            />
           </p>
           <div className="flex gap-3 items-center">
             <FileInput
@@ -193,7 +197,7 @@ export const TasksTab: React.FC<Props> = ({
               onClick={uploadThenClose}
               disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
             >
-              Upload
+              {t('tasksTab.upload')}
             </Button>
           </div>
         </div>
@@ -215,7 +219,8 @@ export const TasksTab: React.FC<Props> = ({
 
   const tasksTableHeading = (
     <h2 className="section-heading">
-      Annotation tasks <span className="text-neutral-400 font-normal">({scopedTasks.length})</span>
+      {t('tasksTab.heading')}{' '}
+      <span className="text-neutral-400 font-normal">({scopedTasks.length})</span>
     </h2>
   );
 
@@ -226,7 +231,7 @@ export const TasksTab: React.FC<Props> = ({
       onClick={() => setOpenDialog('add-tasks')}
       leading={<IconPlus className="w-3.5 h-3.5" />}
     >
-      Add tasks
+      {t('tasksTab.addTasks')}
     </Button>
   );
 
@@ -237,17 +242,15 @@ export const TasksTab: React.FC<Props> = ({
           type="button"
           onClick={() => setOpenDialog('assignments')}
           className="h-8 w-8 inline-flex items-center justify-center rounded text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
-          title="Export or import who these tasks are assigned to"
-          aria-label="Export or import assignments"
+          title={t('tasksTab.assignmentsButtonTitle')}
+          aria-label={t('tasksTab.assignmentsTitle')}
         >
           <IconImportExport className="w-4 h-4" />
         </button>
       )}
       {canAddTasks &&
         (noSetToAddTo ? (
-          <Tooltip text="Select the task set to upload or generate tasks into.">
-            {addTasksButton}
-          </Tooltip>
+          <Tooltip text={t('tasksTab.selectSetFirst')}>{addTasksButton}</Tooltip>
         ) : (
           addTasksButton
         ))}
@@ -286,12 +289,12 @@ export const TasksTab: React.FC<Props> = ({
           </div>
           <p className="text-sm text-neutral-500">
             {scopeIsLocked
-              ? 'No sampling units drawn yet. They appear here once the design above is finished.'
+              ? t('tasksTab.empty.locked')
               : !canManage
-                ? 'No annotation tasks in this set yet.'
+                ? t('tasksTab.empty.readOnly')
                 : taskScope === 'all'
-                  ? 'No annotation tasks yet. Select a set to upload or generate tasks.'
-                  : 'No tasks in this set yet. Add tasks to upload a file or generate them.'}
+                  ? t('tasksTab.empty.all')
+                  : t('tasksTab.empty.set')}
           </p>
         </>
       )}
@@ -308,12 +311,12 @@ export const TasksTab: React.FC<Props> = ({
             className="flex items-center gap-1.5 text-sm text-neutral-500 transition-colors hover:text-neutral-800"
           >
             <IconChevronLeft className="h-4 w-4" />
-            Back to task sets
+            {t('tasksTab.backToSets')}
           </button>
         ) : (
           <>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Task set
+              {t('tasksTab.taskSet')}
             </p>
             <TaskScopeBar
               scope={taskScope}
@@ -372,7 +375,7 @@ export const TasksTab: React.FC<Props> = ({
 
       {openDialog === 'add-tasks' && (
         <Modal
-          title={`Add annotation tasks to ${scopedSet?.name ?? 'this set'}`}
+          title={t('tasksTab.addTitle', { name: scopedSet?.name ?? t('tasksTab.thisSet') })}
           onClose={() => setOpenDialog(null)}
           maxWidth="max-w-3xl"
         >
@@ -382,15 +385,12 @@ export const TasksTab: React.FC<Props> = ({
 
       {openDialog === 'assignments' && (
         <Modal
-          title="Export or import assignments"
+          title={t('tasksTab.assignmentsTitle')}
           onClose={() => setOpenDialog(null)}
           maxWidth="max-w-xl"
         >
           <div className="p-5 space-y-3">
-            <p className="section-description">
-              Who each task is assigned to and who reviews it, as a CSV to edit and upload again.
-              This never creates or removes tasks.
-            </p>
+            <p className="section-description">{t('tasksTab.assignmentsDescription')}</p>
             <TaskAssignmentsExportImport
               campaignId={campaignId}
               campaignName={campaign.name}

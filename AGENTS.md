@@ -87,7 +87,7 @@ For MPC collections with first-valid compositing, the frontend fetches tiles **d
 ## Frontend architecture
 
 Feature-sliced under `frontend/src/`:
-- `app/` - `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `sidebar/`). The sidebar follows the hierarchy: Home and Projects, then the project you are in and, inside it, the campaign - each with its own pages and its own settings (which sections a viewer sees comes from `projects/projectSections.ts` and `campaigns/utils/campaignSections.ts`, so the sidebar and the pages agree). At the bottom, Help, Platform admin (`/admin`, platform admins only) and one account row whose menu holds personal settings, organization switching and organization settings, the legal documents and sign-out
+- `app/` - `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `sidebar/`). The sidebar follows the hierarchy: Home and Projects, then the project you are in and, inside it, the campaign - each with its own pages and its own settings (which sections a viewer sees comes from `projects/projectSections.ts` and `campaigns/utils/campaignSections.ts`, so the sidebar and the pages agree). At the bottom, Help, Platform admin (`/admin`, platform admins only) and one account row whose menu holds organization switching, organization and account settings, and sign-out (the legal documents are linked from the sign-in screen and the bottom of Settings)
 - `features/<name>/` - `annotation`, `campaigns`, `auth`, `settings`, `home`. Most have `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`; `annotation` is layered instead (below). Custom-layers UI follows the surface split: authoring editors under `campaigns/components/`, runtime controls under the annotation panels that own them
 - `shared/` - cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`), `colormaps/` (tiler colormap definitions + select, used by the campaign editors and the annotation legend), `map/` (the OpenLayers engine: `MapView`, `layers.ts`, `Camera`, `tileLoading.ts`, `interactions.ts` - any page that draws a map mounts these), `imagery/` (pure tile URL and render-param mechanics, plus the editable `RenderLegend`)
 - `api/` - generated client (`client/`), `hey-api.ts` config, `queries.ts` (the generated react-query option factories), `queryClient.ts` (the shared cache), plus `stacBrowser.ts` and `tilerToken.ts`
@@ -153,6 +153,38 @@ generated key after a write.
   stays a `useQuery` in the page.
 - Component tests that touch a query use `renderWithQuery` and mock
   `~/api/client/sdk.gen` - mocking `~/api/client` only catches direct callers.
+
+### Translations
+
+UI copy goes through **react-i18next** (`shared/i18n/`); English and Spanish ship today. Strings live in
+`shared/i18n/locales/<lng>/<namespace>.json`, one namespace per feature (`common` for `app/` + `shared/`).
+The language is detected from `localStorage`, then the browser, and switched in Settings > Profile, or
+with `LanguageSelect` on the auth card before sign-in.
+
+**Rule: no user-visible text in code.** Every string a person can read - JSX text, `title`,
+`placeholder`, `aria-label`, toasts, `meta.errorMessage`, validation messages, confirm dialogs, labels
+in option tables - is a key in the locale JSON, and every change ships **both `en` and `es`** in the same
+commit. Adding a component, rewording copy or deleting UI means editing the JSON too (remove keys no code
+uses any more). An English-only string is a bug, not a follow-up.
+
+- Components: `const { t } = useTranslation('campaigns')`. Outside React (stores, pure modules):
+  `const t = i18n.getFixedT(null, 'campaigns')` once under the imports - it fixes the namespace, not the
+  language, so it follows a switch. Never resolve a string at module scope; a constant table of options
+  keeps the value and resolves its label at render. Inside a component's effect, where the hook's `t`
+  would become a dependency, `i18n.t('campaigns:key')`.
+- Keys are typed from the English JSON (`i18next.d.ts`), so `tsc` catches a missing or misspelled key;
+  `locales.test.ts` fails when a Spanish key is missing or a Spanish plural lacks `_one`/`_many`/`_other`.
+  Neither catches a literal string left in JSX, so check your diff for one.
+- Keys are camelCase, nested by screen then purpose (`settings.language.title`), never the English
+  sentence. Reuse an existing key when the text is the same; `common` holds shared actions.
+- One key per sentence with `{{variables}}` (word order differs in Spanish), i18next plurals instead of
+  `n === 1 ? ... : ...`, `<Trans>` only for inline markup.
+- Spanish is neutral international Spanish with informal "tú", in sentence case like the English; keep
+  the established terms (campaña, proyecto, anotación, tarea, etiqueta, corte, capa, configuración).
+- Not translated: user and backend data (names, labels, backend error details), saved default names,
+  brand and format names, the legal documents, and the headless agent render page.
+- Tests run in English (`test-setup.ts`; Playwright's default locale), so keep English copy stable or
+  update the specs that assert on it.
 
 ### The annotation feature
 

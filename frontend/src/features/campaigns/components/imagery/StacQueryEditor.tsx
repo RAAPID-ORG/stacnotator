@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 
 interface StacQueryEditorProps {
   /** Current search query (null = auto-generated from UI fields) */
@@ -18,12 +19,8 @@ interface StacQueryEditorProps {
  * - Auto (value=null): JSON is derived from UI fields, shown read-only with "Customize" button
  * - Custom (value set): JSON textarea is editable, UI fields become indicators
  */
-export const StacQueryEditor = ({
-  value,
-  onChange,
-  autoQuery,
-  label = 'Advanced: Custom Search Query',
-}: StacQueryEditorProps) => {
+export const StacQueryEditor = ({ value, onChange, autoQuery, label }: StacQueryEditorProps) => {
+  const { t } = useTranslation('imagery');
   const [expanded, setExpanded] = useState(false);
   const [jsonText, setJsonText] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -78,10 +75,10 @@ export const StacQueryEditor = ({
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
-        <span className="font-medium">{label}</span>
+        <span className="font-medium">{label ?? t('stacQuery.label')}</span>
         {isCustom && (
           <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
-            Custom
+            {t('stacQuery.custom')}
           </span>
         )}
       </button>
@@ -90,9 +87,7 @@ export const StacQueryEditor = ({
         <div className="border-t border-neutral-200 p-2.5 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-neutral-500">
-              {isCustom
-                ? 'Custom CQL2-JSON query (bbox and datetime injected by backend)'
-                : 'Auto-generated from UI fields'}
+              {isCustom ? t('stacQuery.customHint') : t('stacQuery.autoHint')}
             </span>
             <div className="flex gap-1.5">
               {!isCustom ? (
@@ -101,7 +96,7 @@ export const StacQueryEditor = ({
                   onClick={handleCustomize}
                   className="text-[10px] px-2 py-0.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded transition-colors"
                 >
-                  Customize
+                  {t('stacQuery.customize')}
                 </button>
               ) : (
                 <button
@@ -109,7 +104,7 @@ export const StacQueryEditor = ({
                   onClick={handleReset}
                   className="text-[10px] px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded transition-colors"
                 >
-                  Reset to auto
+                  {t('stacQuery.resetToAuto')}
                 </button>
               )}
             </div>
@@ -132,15 +127,18 @@ export const StacQueryEditor = ({
 
           {parseError && (
             <div className="text-[10px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">
-              Invalid JSON: {parseError}
+              {t('stacQuery.invalidJson', { error: parseError })}
             </div>
           )}
 
           {isCustom && (
             <div className="text-[10px] text-neutral-400 leading-snug">
-              Use <code className="bg-neutral-100 px-1 rounded">{'{sliceStart}'}</code> and{' '}
-              <code className="bg-neutral-100 px-1 rounded">{'{sliceEnd}'}</code> as placeholders
-              for per-slice date ranges. Bbox is injected automatically from campaign settings.
+              <Trans
+                t={t}
+                i18nKey="stacQuery.placeholdersHint"
+                values={{ start: '{sliceStart}', end: '{sliceEnd}' }}
+                components={{ code: <code className="bg-neutral-100 px-1 rounded" /> }}
+              />
             </div>
           )}
         </div>

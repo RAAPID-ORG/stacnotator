@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ProjectUserOut } from '~/api/client';
 import { Button, Input } from '~/shared/ui/forms';
 import { searchUsers } from '~/shared/utils/utility';
@@ -22,6 +23,7 @@ export const AssignSelectedModal = ({
   onAssign,
   onCancel,
 }: Props) => {
+  const { t } = useTranslation(['campaigns', 'common']);
   const [mode, setMode] = useState<AssignSelectedMode>('every-user-every-task');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [userQuery, setUserQuery] = useState('');
@@ -72,14 +74,14 @@ export const AssignSelectedModal = ({
       >
         <div className="px-6 py-4 border-b border-neutral-300">
           <h3 className="text-md font-semibold text-neutral-900">
-            Assign {numTasks} selected task(s)
+            {t('assignSelected.title', { count: numTasks })}
           </h3>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Assignment mode
+              {t('assignSelected.mode')}
             </label>
             <div className="space-y-2">
               <label className="flex items-center gap-2 cursor-pointer text-sm text-neutral-700">
@@ -89,7 +91,7 @@ export const AssignSelectedModal = ({
                   checked={mode === 'every-user-every-task'}
                   onChange={() => setMode('every-user-every-task')}
                 />
-                Every selected user on every task
+                {t('assignSelected.everyUser')}
               </label>
               <label className="flex items-center gap-2 cursor-pointer text-sm text-neutral-700">
                 <input
@@ -98,22 +100,26 @@ export const AssignSelectedModal = ({
                   checked={mode === 'distribute-evenly'}
                   onChange={() => setMode('distribute-evenly')}
                 />
-                Distribute tasks evenly among selected users
+                {t('assignSelected.distribute')}
               </label>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">Select users</label>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              {t('assignSelected.selectUsers')}
+            </label>
             <Input
               value={userQuery}
               onChange={(e) => setUserQuery(e.target.value)}
-              placeholder="Search by name or email…"
+              placeholder={t('assignSelected.searchPlaceholder')}
               className="mb-2"
             />
             <div className="space-y-2 max-h-72 overflow-y-auto border border-neutral-300 rounded-lg p-3">
               {matchingUsers.length === 0 && (
-                <p className="px-1 py-2 text-xs text-neutral-500">No users match your search</p>
+                <p className="px-1 py-2 text-xs text-neutral-500">
+                  {t('assignSelected.noMatches')}
+                </p>
               )}
               {matchingUsers.map((user) => (
                 <label
@@ -141,10 +147,10 @@ export const AssignSelectedModal = ({
 
         <div className="px-6 py-4 border-t border-neutral-300 flex justify-end gap-3">
           <Button variant="secondary" onClick={onCancel} disabled={assigning}>
-            Cancel
+            {t('common:actions.cancel')}
           </Button>
           <Button onClick={handleAssign} disabled={selectedUsers.length === 0 || assigning}>
-            {assigning ? 'Assigning…' : 'Assign'}
+            {assigning ? t('assignSelected.assigning') : t('assignSelected.assign')}
           </Button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Modal } from '~/shared/ui/Modal';
 import { IconGlobe, IconLock, IconPlus } from '~/shared/ui/Icons';
 import { SegmentedControl } from '~/shared/ui/SegmentedControl';
@@ -18,7 +19,7 @@ import type {
 import { createId, emptyVizParams, isItemSortOption } from './types';
 import { buildStacAutoQuery } from './stacQuery';
 import { VizTabs } from './VizTabs';
-import { compositingMethods, servingTiler, NO_TILER_NOTE } from './tilerCapabilities';
+import { compositingMethods, servingTiler, noTilerNote } from './tilerCapabilities';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { CoverSearchParams } from './CoverSearchParams';
 import { COLLECTION_PRESETS, presetVizParams } from './collectionPresets';
@@ -44,7 +45,12 @@ type TemporalPattern =
 
 interface TemporalPatternOption {
   id: Exclude<TemporalPattern, 'custom'>;
-  label: string;
+  label: `catalog.patterns.${
+    | 'monthlyWeekly'
+    | 'monthlyMonthly'
+    | 'weeklyWeekly'
+    | 'yearlyMonthly'
+    | 'yearlyYearly'}`;
   windowInterval: number;
   windowUnit: 'weeks' | 'months' | 'years';
   sliceInterval: number;
@@ -54,7 +60,7 @@ interface TemporalPatternOption {
 const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   {
     id: 'monthly-weekly',
-    label: 'Group by month with weekly detailed imagery',
+    label: 'catalog.patterns.monthlyWeekly',
     windowInterval: 1,
     windowUnit: 'months',
     sliceInterval: 1,
@@ -62,7 +68,7 @@ const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   },
   {
     id: 'monthly-monthly',
-    label: 'Group by month with monthly mosaics',
+    label: 'catalog.patterns.monthlyMonthly',
     windowInterval: 1,
     windowUnit: 'months',
     sliceInterval: 1,
@@ -70,7 +76,7 @@ const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   },
   {
     id: 'weekly-weekly',
-    label: 'Group by week with weekly mosaics',
+    label: 'catalog.patterns.weeklyWeekly',
     windowInterval: 1,
     windowUnit: 'weeks',
     sliceInterval: 1,
@@ -78,7 +84,7 @@ const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   },
   {
     id: 'yearly-monthly',
-    label: 'Group by year with monthly detailed imagery',
+    label: 'catalog.patterns.yearlyMonthly',
     windowInterval: 1,
     windowUnit: 'years',
     sliceInterval: 1,
@@ -86,7 +92,7 @@ const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
   },
   {
     id: 'yearly-yearly',
-    label: 'Group by year with yearly mosaics',
+    label: 'catalog.patterns.yearlyYearly',
     windowInterval: 1,
     windowUnit: 'years',
     sliceInterval: 1,
@@ -149,16 +155,25 @@ export interface CatalogBrowserResult {
   generationSeries?: ImageryGenerationSeries;
 }
 
-const AdvancedToggle = ({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) => (
-  <div className="flex justify-end">
-    <button
-      type="button"
-      onClick={onToggle}
-      className="text-[11px] text-neutral-500 hover:text-brand-700 transition-colors cursor-pointer underline-offset-2 hover:underline"
-    >
-      {expanded ? 'Hide advanced options' : 'Show advanced options'}
-    </button>
-  </div>
+const AdvancedToggle = ({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) => {
+  const { t } = useTranslation('imagery');
+  return (
+    <div className="flex justify-end">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="text-[11px] text-neutral-500 hover:text-brand-700 transition-colors cursor-pointer underline-offset-2 hover:underline"
+      >
+        {expanded ? t('catalog.hideAdvanced') : t('catalog.showAdvanced')}
+      </button>
+    </div>
+  );
+};
+
+const InlinePlus = () => (
+  <span className="inline-flex items-center">
+    <IconPlus className="w-2.5 h-2.5" />
+  </span>
 );
 
 const CatalogSection = ({
@@ -208,6 +223,7 @@ export const CatalogBrowser = ({
   generationSeriesId,
   allowPrivateCatalogs = false,
 }: CatalogBrowserProps) => {
+  const { t } = useTranslation(['imagery', 'common']);
   const [step, setStep] = useState<Step>(initialGeneration ? 'configure' : 'catalog');
   const [catalogs, setCatalogs] = useState<StacCatalogOut[]>([]);
   const [collections, setCollections] = useState<StacCollectionOut[]>([]);
@@ -259,7 +275,7 @@ export const CatalogBrowser = ({
   const catalogTiler = (cat: StacCatalogOut) => servingTiler(cat.url, cat.tiler_name, tilers);
   // A catalog nobody hosts for us has to be ingested, so an arbitrary URL is only an
   // option when some allowed tiler can ingest.
-  const hasIngestTiler = tilers.some((t) => t.kind === 'hosted' && t.allows_ingest);
+  const hasIngestTiler = tilers.some((tiler) => tiler.kind === 'hosted' && tiler.allows_ingest);
   const availableCompositing = compositingMethods(
     selectedCatalog ? catalogTiler(selectedCatalog) : undefined
   );
@@ -400,7 +416,7 @@ export const CatalogBrowser = ({
       : getCollections({ query: { catalog_url: generation.catalogUrl, project_id: projectId } });
     listing
       .then(({ data, error }) => {
-        if (error) throw new Error('Failed to refresh collection metadata');
+        if (error) throw new Error(t('catalog.errors.refreshMetadata'));
         setCatalogSas(sas);
         const match = data?.find((c) => c.id === generation.stacCollectionId);
         if (!match) return;
@@ -408,9 +424,7 @@ export const CatalogBrowser = ({
         setAvailableAssets(match.item_assets ?? {});
       })
       .catch((e: unknown) => {
-        setError(
-          `Saved settings loaded, but current catalog metadata is unavailable: ${extractErrorMessage(e)}`
-        );
+        setError(t('catalog.errors.savedMetadata', { error: extractErrorMessage(e) }));
       })
       .finally(() => setLoading(false));
   };
@@ -436,7 +450,7 @@ export const CatalogBrowser = ({
       // Fetch full collection list to get item_assets metadata
       getCollections({ query: { catalog_url: MPC_API_URL, project_id: projectId } })
         .then(({ data, error }) => {
-          if (error) throw new Error('Failed to fetch collections');
+          if (error) throw new Error(t('catalog.errors.fetchCollections'));
           const cols = data!;
           const match = cols.find((c) => c.id === preset.stacCollectionId);
           const col = match || {
@@ -470,8 +484,10 @@ export const CatalogBrowser = ({
           setStep('configure');
         })
         .catch((e: unknown) => {
-          const msg = handleError(e, `Failed to load ${preset.label} catalog`, { showUser: false });
-          setError(`Could not load ${preset.label}: ${msg}`);
+          const msg = handleError(e, t('catalog.errors.loadPreset', { name: preset.label }), {
+            showUser: false,
+          });
+          setError(t('catalog.errors.couldNotLoad', { name: preset.label, error: msg }));
           setSelectedCollection({
             id: preset.stacCollectionId,
             title: preset.label,
@@ -486,7 +502,7 @@ export const CatalogBrowser = ({
     setLoading(true);
     listCatalogs({ query: { project_id: projectId } })
       .then(({ data, error }) => {
-        if (error) throw new Error('Failed to fetch catalogs');
+        if (error) throw new Error(t('catalog.errors.fetchCatalogs'));
         setCatalogs(data!);
       })
       .catch((e) => setError(e.message))
@@ -515,7 +531,7 @@ export const CatalogBrowser = ({
           const detail =
             (error as { detail?: unknown })?.detail ??
             (typeof error === 'string' ? error : JSON.stringify(error));
-          throw new Error(`Failed to fetch collections: ${detail}`);
+          throw new Error(t('catalog.errors.fetchCollectionsDetail', { detail }));
         }
         setCollections(data!);
       })
@@ -529,7 +545,7 @@ export const CatalogBrowser = ({
       id: 'custom',
       title: customCatalogUrl,
       url: customCatalogUrl.trim(),
-      summary: customCatalogIsPrivate ? 'Private STAC catalog' : 'Custom STAC catalog',
+      summary: customCatalogIsPrivate ? t('catalog.privateSummary') : t('catalog.customSummary'),
       is_mpc: false,
       auth_required: false,
     };
@@ -651,11 +667,11 @@ export const CatalogBrowser = ({
           storage_access: catalogSas ? { kind: 'azure_sas', secret: catalogSas } : null,
         },
       });
-      if (error) throw new Error('Search failed');
+      if (error) throw new Error(t('catalog.errors.search'));
       setItems((prev) => (offset > 0 ? [...prev, ...data!.items] : data!.items));
       setNextOffset(data!.next_offset ?? null);
     } catch (e: unknown) {
-      setError(extractErrorMessage(e, 'Search failed'));
+      setError(extractErrorMessage(e, t('catalog.errors.search')));
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -1028,7 +1044,7 @@ export const CatalogBrowser = ({
   const renderCatalogCard = (cat: StacCatalogOut) => {
     const untileable = !cat.is_mpc && !catalogTiler(cat);
     const selectable = cat.selectable !== false && !untileable;
-    const unavailableReason = untileable ? NO_TILER_NOTE : cat.unavailable_reason;
+    const unavailableReason = untileable ? noTilerNote() : cat.unavailable_reason;
     return (
       <div key={cat.id} className="flex items-start gap-1.5">
         <button
@@ -1050,7 +1066,7 @@ export const CatalogBrowser = ({
             )}
             {cat.auth_required && (
               <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
-                Auth required
+                {t('catalog.authRequired')}
               </span>
             )}
           </span>
@@ -1065,7 +1081,7 @@ export const CatalogBrowser = ({
               {cat.summary ? (
                 <p>{cat.summary}</p>
               ) : (
-                <p className="text-neutral-400 italic">No description available.</p>
+                <p className="text-neutral-400 italic">{t('catalog.noDescription')}</p>
               )}
               <a
                 href={cat.url}
@@ -1104,12 +1120,12 @@ export const CatalogBrowser = ({
     mode === 'mosaic' ? startDate && endDate && startDate <= endDate && hasVizConfig : hasVizConfig;
 
   const stepTitle = initialGeneration
-    ? `Edit ${initialGeneration.collectionTitle} series`
+    ? t('sourceEditor.editSeries', { name: initialGeneration.collectionTitle })
     : step === 'catalog'
-      ? 'Select STAC Catalog'
+      ? t('catalog.selectTitle')
       : step === 'collection'
-        ? selectedCatalog?.title || 'Collections'
-        : selectedCollection?.title || 'Configure';
+        ? selectedCatalog?.title || t('catalog.collectionsTitle')
+        : selectedCollection?.title || t('catalog.configureTitle');
 
   const footer =
     step === 'configure' && mode === 'mosaic' ? (
@@ -1119,14 +1135,16 @@ export const CatalogBrowser = ({
           onClick={onClose}
           className="text-sm text-neutral-600 hover:text-neutral-800 transition-colors cursor-pointer"
         >
-          Cancel
+          {t('common:actions.cancel')}
         </button>
         <Button variant="primary" onClick={handleGenerate} disabled={!isValid}>
           {initialGeneration
-            ? `Regenerate ${preview?.collections ?? ''} Collection${preview?.collections === 1 ? '' : 's'}`
+            ? t('catalog.regenerate', { count: preview?.collections ?? 0 })
             : singleCollection
-              ? 'Add Collection'
-              : `Generate ${preview ? `${preview.collections} Collection${preview.collections !== 1 ? 's' : ''}` : 'Collections'}`}
+              ? t('catalog.addCollection')
+              : preview
+                ? t('catalog.generate', { count: preview.collections })
+                : t('catalog.generateCollections')}
         </Button>
       </div>
     ) : undefined;
@@ -1138,7 +1156,7 @@ export const CatalogBrowser = ({
         {loading && preset && (
           <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
             <div className="w-6 h-6 border-2 border-neutral-300 border-t-brand-500 rounded-full animate-spin mb-3" />
-            <span className="text-sm">Loading {preset.label}...</span>
+            <span className="text-sm">{t('catalog.loadingPreset', { name: preset.label })}</span>
           </div>
         )}
 
@@ -1153,15 +1171,15 @@ export const CatalogBrowser = ({
                   onClick={() => setStep('catalog')}
                   className={`cursor-pointer hover:text-neutral-600 ${step === 'catalog' ? 'text-brand-600 font-medium' : ''}`}
                 >
-                  Catalog
+                  {t('catalog.steps.catalog')}
                 </button>
                 <span>/</span>
                 <span className={step === 'collection' ? 'text-brand-600 font-medium' : ''}>
-                  Collection
+                  {t('catalog.steps.collection')}
                 </span>
                 <span>/</span>
                 <span className={step === 'configure' ? 'text-brand-600 font-medium' : ''}>
-                  Configure
+                  {t('catalog.steps.configure')}
                 </span>
                 {step !== 'catalog' && (
                   <button
@@ -1169,7 +1187,7 @@ export const CatalogBrowser = ({
                     onClick={goBack}
                     className="ml-auto text-neutral-500 hover:text-neutral-700 cursor-pointer text-xs"
                   >
-                    ← Back
+                    {t('wizard.back')}
                   </button>
                 )}
               </div>
@@ -1180,7 +1198,7 @@ export const CatalogBrowser = ({
               <Input
                 type="text"
                 size="sm"
-                placeholder="Search collections..."
+                placeholder={t('catalog.searchCollections')}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoFocus
@@ -1192,10 +1210,7 @@ export const CatalogBrowser = ({
                 className="space-y-2 rounded-md border border-neutral-200 p-3"
                 data-testid="saved-catalog-sas"
               >
-                <p className="text-xs text-neutral-600">
-                  This series reads a private catalog. Paste its SAS token to load the catalog's
-                  bands. It replaces the saved token when you save.
-                </p>
+                <p className="text-xs text-neutral-600">{t('catalog.savedSasHint')}</p>
                 <SasTokenField value={sasInput} onChange={setSasInput} />
                 <Button
                   size="sm"
@@ -1203,7 +1218,7 @@ export const CatalogBrowser = ({
                   disabled={!typedSas || loading}
                   onClick={() => loadSavedMetadata(initialGeneration, typedSas)}
                 >
-                  Load catalog
+                  {t('catalog.loadCatalog')}
                 </Button>
               </div>
             )}
@@ -1214,42 +1229,50 @@ export const CatalogBrowser = ({
               </div>
             )}
 
-            {loading && <div className="text-xs text-neutral-400 py-4 text-center">Loading...</div>}
+            {loading && (
+              <div className="text-xs text-neutral-400 py-4 text-center">
+                {t('catalog.loading')}
+              </div>
+            )}
 
             {/* Catalog list: three categories, each with a visible support note */}
             {step === 'catalog' && !loading && (
               <div className="space-y-4">
                 <CatalogSection
-                  title="Any STAC catalog"
-                  badge="Experimental"
+                  title={t('catalog.sections.any.title')}
+                  badge={t('catalog.sections.experimental')}
                   tone="amber"
-                  note="Enter the full URL of the STAC catalog's API endpoint or catalog.json file, including its full path. Served by our default tiler; may need manual adjustments."
+                  note={t('catalog.sections.any.note')}
                 >
                   {allowPrivateCatalogs && hasIngestTiler && (
                     <div className="space-y-2 pb-2">
                       <p className="text-xs font-medium text-neutral-700">
-                        How is your catalog accessed?
+                        {t('catalog.access.question')}
                       </p>
                       <SegmentedControl
-                        aria-label="Catalog access"
+                        aria-label={t('catalog.access.aria')}
                         value={customCatalogIsPrivate ? 'private' : 'public'}
                         onChange={(access) => setCustomCatalogIsPrivate(access === 'private')}
                         segments={[
-                          { value: 'public', label: 'Public', Icon: IconGlobe },
-                          { value: 'private', label: 'Private Azure container', Icon: IconLock },
+                          { value: 'public', label: t('catalog.access.public'), Icon: IconGlobe },
+                          {
+                            value: 'private',
+                            label: t('catalog.access.private'),
+                            Icon: IconLock,
+                          },
                         ]}
                       />
                       <p className="text-[11px] text-neutral-500">
                         {customCatalogIsPrivate
-                          ? 'The catalog is in a private Azure storage container. Provide its URL and a read-only SAS token below.'
-                          : 'The catalog is publicly accessible without a SAS token.'}
+                          ? t('catalog.access.privateHelp')
+                          : t('catalog.access.publicHelp')}
                       </p>
                     </div>
                   )}
                   <div className="flex gap-2">
                     <Input
                       type="url"
-                      aria-label="STAC catalog URL"
+                      aria-label={t('catalog.urlAria')}
                       size="sm"
                       className="!flex-1"
                       value={customCatalogUrl}
@@ -1263,7 +1286,7 @@ export const CatalogBrowser = ({
                       onClick={loadCustomCatalog}
                       disabled={!hasIngestTiler || !customCatalogReady}
                     >
-                      Load
+                      {t('catalog.load')}
                     </Button>
                   </div>
                   {allowPrivateCatalogs && hasIngestTiler && customCatalogIsPrivate && (
@@ -1272,32 +1295,34 @@ export const CatalogBrowser = ({
                     </div>
                   )}
                   {!hasIngestTiler && (
-                    <p className="text-[11px] text-amber-600 mt-1.5">{NO_TILER_NOTE}</p>
+                    <p className="text-[11px] text-amber-600 mt-1.5">{noTilerNote()}</p>
                   )}
                 </CatalogSection>
 
                 <CatalogSection
-                  title="Provided catalogs"
-                  badge="Recommended"
+                  title={t('catalog.sections.provided.title')}
+                  badge={t('catalog.sections.recommended')}
                   tone="green"
-                  note="Microsoft Planetary Computer and catalogs hosted on our own tilers. Fully supported with fast tile loading."
+                  note={t('catalog.sections.provided.note')}
                 >
                   <div className="space-y-1">{providedCatalogs.map(renderCatalogCard)}</div>
                   {!providedCatalogs.length && (
-                    <p className="text-xs text-neutral-400 py-1">None available.</p>
+                    <p className="text-xs text-neutral-400 py-1">{t('catalog.noneAvailable')}</p>
                   )}
                 </CatalogSection>
 
                 <CatalogSection
-                  title="Public catalogs (StacIndex)"
-                  badge="Experimental"
+                  title={t('catalog.sections.stacIndex.title')}
+                  badge={t('catalog.sections.experimental')}
                   tone="amber"
-                  note="Public STAC APIs indexed by StacIndex. Served by our default tiler."
+                  note={t('catalog.sections.stacIndex.note')}
                 >
                   <div className="space-y-1 max-h-56 overflow-y-auto">
                     {stacIndexCatalogs.map(renderCatalogCard)}
                     {!stacIndexCatalogs.length && (
-                      <p className="text-xs text-neutral-400 text-center py-4">No catalogs found</p>
+                      <p className="text-xs text-neutral-400 text-center py-4">
+                        {t('catalog.noCatalogs')}
+                      </p>
                     )}
                   </div>
                 </CatalogSection>
@@ -1323,7 +1348,7 @@ export const CatalogBrowser = ({
                         {col.title}
                         {!col.selectable && (
                           <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
-                            Unavailable
+                            {t('catalog.unavailable')}
                           </span>
                         )}
                       </span>
@@ -1332,8 +1357,10 @@ export const CatalogBrowser = ({
                         {col.temporal_extent?.start && (
                           <>
                             {' · '}
-                            {col.temporal_extent.start.slice(0, 10)} to{' '}
-                            {col.temporal_extent.end?.slice(0, 10) || 'present'}
+                            {t('catalog.dateRange', {
+                              start: col.temporal_extent.start.slice(0, 10),
+                              end: col.temporal_extent.end?.slice(0, 10) || t('catalog.present'),
+                            })}
                           </>
                         )}
                       </p>
@@ -1348,7 +1375,7 @@ export const CatalogBrowser = ({
                           {col.description ? (
                             <p className="line-clamp-4">{col.description}</p>
                           ) : (
-                            <p className="text-neutral-400 italic">No description available.</p>
+                            <p className="text-neutral-400 italic">{t('catalog.noDescription')}</p>
                           )}
                           <table className="w-full text-[10px]">
                             <tbody>
@@ -1361,18 +1388,22 @@ export const CatalogBrowser = ({
                               {col.temporal_extent?.start && (
                                 <tr className="border-t border-neutral-100">
                                   <td className="py-1 pr-2 text-neutral-500 font-medium whitespace-nowrap">
-                                    Temporal
+                                    {t('catalog.info.temporal')}
                                   </td>
                                   <td className="py-1">
-                                    {col.temporal_extent.start.slice(0, 10)} to{' '}
-                                    {col.temporal_extent.end?.slice(0, 10) || 'present'}
+                                    {t('catalog.dateRange', {
+                                      start: col.temporal_extent.start.slice(0, 10),
+                                      end:
+                                        col.temporal_extent.end?.slice(0, 10) ||
+                                        t('catalog.present'),
+                                    })}
                                   </td>
                                 </tr>
                               )}
                               {(col.keywords?.length ?? 0) > 0 && (
                                 <tr className="border-t border-neutral-100">
                                   <td className="py-1 pr-2 text-neutral-500 font-medium whitespace-nowrap align-top">
-                                    Keywords
+                                    {t('catalog.info.keywords')}
                                   </td>
                                   <td className="py-1">
                                     {(col.keywords ?? []).slice(0, 8).join(', ')}
@@ -1383,7 +1414,7 @@ export const CatalogBrowser = ({
                               {col.item_assets && Object.keys(col.item_assets).length > 0 && (
                                 <tr className="border-t border-neutral-100">
                                   <td className="py-1 pr-2 text-neutral-500 font-medium whitespace-nowrap align-top">
-                                    Assets
+                                    {t('vizConfig.assets')}
                                   </td>
                                   <td className="py-1">
                                     {Object.keys(col.item_assets).slice(0, 10).join(', ')}
@@ -1399,7 +1430,9 @@ export const CatalogBrowser = ({
                   </div>
                 ))}
                 {!filteredCollections.length && (
-                  <p className="text-xs text-neutral-400 text-center py-4">No collections found</p>
+                  <p className="text-xs text-neutral-400 text-center py-4">
+                    {t('catalog.noCollections')}
+                  </p>
                 )}
               </div>
             )}
@@ -1409,28 +1442,22 @@ export const CatalogBrowser = ({
               <div className="space-y-4">
                 {selectedCatalog && !selectedCatalog.is_mpc && (
                   <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
-                    <strong>Non-MPC catalog.</strong> Tile serving goes through our self-hosted
-                    tiler which has noticeable latency compared to Planetary Computer. Only MPC is
-                    currently optimized for fast tile loading.
+                    <Trans t={t} i18nKey="catalog.nonMpcNote" components={{ strong: <strong /> }} />
                   </div>
                 )}
                 {selectedCatalog?.is_mpc && (
                   <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-2.5 py-1.5">
-                    <strong>Microsoft Planetary Computer</strong> - tiles are served directly from
-                    MPC for fast loading when using first-valid compositing. Non-first-valid
-                    compositing or masking will route through our self-hosted tiler (~10x slower
-                    data loading).
+                    <Trans t={t} i18nKey="catalog.mpcNote" components={{ strong: <strong /> }} />
                   </div>
                 )}
                 <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
                   <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
                     <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                      Which imagery to use
-                      <Tooltip text="Narrows which images from this catalog the campaign draws on. Advanced options add sort order, a custom CQL query, and the choice of pulling one single scene instead of a mosaic." />
+                      {t('catalog.which.title')}
+                      <Tooltip text={t('catalog.which.tooltip')} />
                     </h4>
                     <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
-                      Pick the period to cover and how cloudy an image may be. Every image the
-                      campaign shows is searched for within these limits.
+                      {t('catalog.which.description')}
                     </p>
                   </div>
                   <div className="p-3 space-y-3">
@@ -1440,8 +1467,8 @@ export const CatalogBrowser = ({
                     {(showAdvanced || mode === 'single-item') && (
                       <div className="space-y-1">
                         <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-                          What to pull from the catalog
-                          <Tooltip text="A collection mosaic stitches every matching image in a time window into one seamless layer, and is what you want in almost every case. A single item pins the campaign to one specific scene." />
+                          {t('catalog.pull.title')}
+                          <Tooltip text={t('catalog.pull.tooltip')} />
                         </label>
                         <div className="flex gap-2">
                           <button
@@ -1453,7 +1480,7 @@ export const CatalogBrowser = ({
                                 : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
                             }`}
                           >
-                            Collection Mosaic
+                            {t('catalog.pull.mosaic')}
                           </button>
                           <button
                             type="button"
@@ -1464,7 +1491,7 @@ export const CatalogBrowser = ({
                                 : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
                             }`}
                           >
-                            Single Item
+                            {t('collection.singleItem')}
                           </button>
                         </div>
                       </div>
@@ -1474,8 +1501,8 @@ export const CatalogBrowser = ({
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="text-xs text-neutral-700 flex items-center gap-1">
-                          Start Month
-                          <Tooltip text="First month of the temporal range." />
+                          {t('catalog.startMonth')}
+                          <Tooltip text={t('catalog.startMonthTooltip')} />
                         </label>
                         <DateField
                           size="sm"
@@ -1486,8 +1513,8 @@ export const CatalogBrowser = ({
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs text-neutral-700 flex items-center gap-1">
-                          End Month (inclusive)
-                          <Tooltip text="Last month of the temporal range (inclusive)." />
+                          {t('catalog.endMonth')}
+                          <Tooltip text={t('catalog.endMonthTooltip')} />
                         </label>
                         <DateField
                           size="sm"
@@ -1502,7 +1529,7 @@ export const CatalogBrowser = ({
                     {selectedCollection && selectedCollection.has_cloud_cover && (
                       <div className="space-y-1">
                         <label className="text-xs text-neutral-700 font-medium">
-                          Max cloud cover (%)
+                          {t('coverSearch.maxCloudCover')}
                         </label>
                         <div className="flex items-center gap-2">
                           <input
@@ -1524,8 +1551,8 @@ export const CatalogBrowser = ({
                     {showAdvanced && mode === 'mosaic' && (
                       <div className="space-y-1">
                         <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-                          Item Sort Order
-                          <Tooltip text="Controls the order in which STAC items are returned. For first-valid compositing, the first matching item wins - sorting by cloud cover puts the clearest images first." />
+                          {t('catalog.itemSort')}
+                          <Tooltip text={t('catalog.itemSortTooltip')} />
                         </label>
                         <Select
                           size="sm"
@@ -1534,10 +1561,12 @@ export const CatalogBrowser = ({
                             if (isItemSortOption(e.target.value)) setItemSort(e.target.value);
                           }}
                         >
-                          <option value="date_desc">Date (newest first)</option>
-                          <option value="date_asc">Date (oldest first)</option>
+                          <option value="date_desc">{t('coverSearch.sort.dateDesc')}</option>
+                          <option value="date_asc">{t('coverSearch.sort.dateAsc')}</option>
                           {selectedCollection?.has_cloud_cover && (
-                            <option value="cloud_cover_asc">Cloud cover (lowest first)</option>
+                            <option value="cloud_cover_asc">
+                              {t('coverSearch.sort.cloudCoverAsc')}
+                            </option>
                           )}
                         </Select>
                       </div>
@@ -1565,25 +1594,25 @@ export const CatalogBrowser = ({
                     <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
                       <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
                         <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                          Mosaic groups and time periods
-                          <Tooltip text="Groups are imagery collections, not the source STAC collection. Each group contains mosaics for smaller time periods, called slices." />
+                          {t('catalog.groups.title')}
+                          <Tooltip text={t('catalog.groups.tooltip')} />
                         </h4>
                         <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
                           {singleCollection
-                            ? 'The whole date range forms one group (imagery collection). Choose the time periods for detailed imagery within it; each period becomes a mosaic slice.'
-                            : 'Organize mosaics into time-based groups (imagery collections), with detailed imagery periods (slices) inside each group. For example: monthly groups with weekly mosaics. These periods organize available scenes; they do not change how often the satellite captures new images.'}
+                            ? t('catalog.groups.descriptionSingle')
+                            : t('catalog.groups.description')}
                         </p>
                       </div>
                       <div className="p-3 space-y-3">
                         {!showAdvanced && !singleCollection && (
                           <div className="space-y-1">
                             <label className="text-xs text-neutral-700 flex items-center gap-1">
-                              Grouping pattern
-                              <Tooltip text="Choose group and detailed imagery periods, or select Custom to set your own intervals." />
+                              {t('catalog.groups.pattern')}
+                              <Tooltip text={t('catalog.groups.patternTooltip')} />
                             </label>
                             <Select
                               size="sm"
-                              aria-label="Grouping pattern"
+                              aria-label={t('catalog.groups.pattern')}
                               value={matchingPattern}
                               onChange={(e) =>
                                 applyTemporalPattern(e.target.value as TemporalPattern)
@@ -1591,10 +1620,10 @@ export const CatalogBrowser = ({
                             >
                               {TEMPORAL_PATTERNS.map((p) => (
                                 <option key={p.id} value={p.id}>
-                                  {p.label}
+                                  {t(p.label)}
                                 </option>
                               ))}
-                              <option value="custom">Custom…</option>
+                              <option value="custom">{t('catalog.groups.customPattern')}</option>
                             </Select>
                           </div>
                         )}
@@ -1604,13 +1633,13 @@ export const CatalogBrowser = ({
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <label className="text-xs text-neutral-700 flex items-center gap-1">
-                                Group every
-                                <Tooltip text="Each group is an imagery collection. For example, 1 month creates one collection per month." />
+                                {t('catalog.groups.every')}
+                                <Tooltip text={t('catalog.groups.everyTooltip')} />
                               </label>
                               <Input
                                 type="number"
                                 size="sm"
-                                aria-label="Group every"
+                                aria-label={t('catalog.groups.every')}
                                 min="1"
                                 value={collectionPeriodInterval}
                                 onChange={(e) =>
@@ -1619,10 +1648,12 @@ export const CatalogBrowser = ({
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="text-xs text-neutral-700">Group time unit</label>
+                              <label className="text-xs text-neutral-700">
+                                {t('catalog.groups.unit')}
+                              </label>
                               <Select
                                 size="sm"
-                                aria-label="Group time unit"
+                                aria-label={t('catalog.groups.unit')}
                                 value={collectionPeriodUnit}
                                 onChange={(e) =>
                                   setCollectionPeriodUnit(
@@ -1630,9 +1661,9 @@ export const CatalogBrowser = ({
                                   )
                                 }
                               >
-                                <option value="weeks">Weeks</option>
-                                <option value="months">Months</option>
-                                <option value="years">Years</option>
+                                <option value="weeks">{t('catalog.units.weeks')}</option>
+                                <option value="months">{t('catalog.units.months')}</option>
+                                <option value="years">{t('catalog.units.years')}</option>
                               </Select>
                             </div>
                           </div>
@@ -1642,13 +1673,13 @@ export const CatalogBrowser = ({
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <label className="text-xs text-neutral-700 flex items-center gap-1">
-                                Detailed imagery every
-                                <Tooltip text="Each period becomes a mosaic slice within its group (collection). For example, 1 week creates weekly detailed imagery." />
+                                {t('catalog.groups.sliceEvery')}
+                                <Tooltip text={t('catalog.groups.sliceEveryTooltip')} />
                               </label>
                               <Input
                                 type="number"
                                 size="sm"
-                                aria-label="Detailed imagery every"
+                                aria-label={t('catalog.groups.sliceEvery')}
                                 min="1"
                                 value={slicePeriodInterval}
                                 onChange={(e) =>
@@ -1658,11 +1689,11 @@ export const CatalogBrowser = ({
                             </div>
                             <div className="space-y-1">
                               <label className="text-xs text-neutral-700">
-                                Detailed imagery time unit
+                                {t('catalog.groups.sliceUnit')}
                               </label>
                               <Select
                                 size="sm"
-                                aria-label="Detailed imagery time unit"
+                                aria-label={t('catalog.groups.sliceUnit')}
                                 value={slicePeriodUnit}
                                 onChange={(e) =>
                                   setSlicePeriodUnit(
@@ -1670,10 +1701,10 @@ export const CatalogBrowser = ({
                                   )
                                 }
                               >
-                                <option value="days">Days</option>
-                                <option value="weeks">Weeks</option>
-                                <option value="months">Months</option>
-                                <option value="years">Years</option>
+                                <option value="days">{t('catalog.units.days')}</option>
+                                <option value="weeks">{t('catalog.units.weeks')}</option>
+                                <option value="months">{t('catalog.units.months')}</option>
+                                <option value="years">{t('catalog.units.years')}</option>
                               </Select>
                             </div>
                           </div>
@@ -1681,9 +1712,19 @@ export const CatalogBrowser = ({
                         {showAdvanced && (
                           <p className="text-[11px] text-neutral-500">
                             {singleCollection
-                              ? 'One group (imagery collection) covers the full date range'
-                              : `Each group (imagery collection) spans ${collectionPeriodInterval} ${collectionPeriodInterval === 1 ? collectionPeriodUnit.slice(0, -1) : collectionPeriodUnit}`}
-                            {`, with a detailed mosaic (slice) every ${slicePeriodInterval} ${slicePeriodInterval === 1 ? slicePeriodUnit.slice(0, -1) : slicePeriodUnit}.`}
+                              ? t('catalog.groups.summarySingle', {
+                                  slice: t(`catalog.durations.${slicePeriodUnit}`, {
+                                    count: slicePeriodInterval,
+                                  }),
+                                })
+                              : t('catalog.groups.summary', {
+                                  window: t(`catalog.durations.${collectionPeriodUnit}`, {
+                                    count: collectionPeriodInterval,
+                                  }),
+                                  slice: t(`catalog.durations.${slicePeriodUnit}`, {
+                                    count: slicePeriodInterval,
+                                  }),
+                                })}
                           </p>
                         )}
                         <AdvancedToggle
@@ -1703,7 +1744,7 @@ export const CatalogBrowser = ({
                     disabled={loading || !startDate || !endDate}
                     className="w-full py-2 rounded-md bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                   >
-                    {loading ? 'Searching…' : 'Search items'}
+                    {loading ? t('catalog.searching') : t('catalog.searchItems')}
                   </button>
                 )}
 
@@ -1711,7 +1752,7 @@ export const CatalogBrowser = ({
                 {mode === 'single-item' && items.length > 0 && (
                   <div className="space-y-1.5">
                     <label className="text-xs text-neutral-700 font-medium">
-                      Select an item
+                      {t('catalog.selectItem')}
                       <span className="ml-1 font-normal text-neutral-400">({items.length})</span>
                     </label>
                     <div className="space-y-1 max-h-60 overflow-y-auto">
@@ -1732,7 +1773,7 @@ export const CatalogBrowser = ({
                           <div className="min-w-0">
                             <span className="text-xs font-medium block truncate">{item.id}</span>
                             <span className="text-[11px] text-neutral-400">
-                              {item.datetime?.slice(0, 10) || 'No date'}
+                              {item.datetime?.slice(0, 10) || t('catalog.noDate')}
                             </span>
                           </div>
                         </button>
@@ -1745,14 +1786,14 @@ export const CatalogBrowser = ({
                         disabled={loadingMore}
                         className="w-full py-1.5 rounded-md border border-neutral-300 text-xs text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 cursor-pointer transition-colors"
                       >
-                        {loadingMore ? 'Loading…' : 'Load more'}
+                        {loadingMore ? t('common:status.loading') : t('catalog.loadMore')}
                       </button>
                     )}
                   </div>
                 )}
                 {mode === 'single-item' && items.length === 0 && loading && (
                   <div className="text-xs text-neutral-400 text-center py-2">
-                    Searching for items...
+                    {t('catalog.searchingItems')}
                   </div>
                 )}
                 {mode === 'mosaic' &&
@@ -1760,12 +1801,13 @@ export const CatalogBrowser = ({
                   Object.keys(availableAssets).length === 0 &&
                   !loading && (
                     <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2.5 text-xs text-red-800">
-                      <p className="font-semibold">Asset metadata unavailable.</p>
+                      <p className="font-semibold">{t('catalog.noAssets.title')}</p>
                       <p className="mt-1 leading-relaxed">
-                        This collection&apos;s STAC metadata didn&apos;t include per-band{' '}
-                        <code className="font-mono text-[11px]">item_assets</code>, so
-                        visualizations can&apos;t be configured from it. Pick a different
-                        collection, or use the custom STAC registration URL path instead.
+                        <Trans
+                          t={t}
+                          i18nKey="catalog.noAssets.description"
+                          components={{ code: <code className="font-mono text-[11px]" /> }}
+                        />
                       </p>
                     </div>
                   )}
@@ -1773,7 +1815,7 @@ export const CatalogBrowser = ({
                   Object.keys(availableAssets).length === 0 &&
                   !loading && (
                     <div className="text-xs text-neutral-400 text-center py-2">
-                      No asset metadata found for this collection. Try selecting a different one.
+                      {t('catalog.noAssets.singleItem')}
                     </div>
                   )}
 
@@ -1782,16 +1824,15 @@ export const CatalogBrowser = ({
                     <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
                       <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
                         <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                          Visualizations
-                          <Tooltip text="Named rendering configurations for the imagery. Each defines which assets/bands to use and how to display them. Annotators can switch between them in the viewer." />
+                          {t('planet.visualizations')}
+                          <Tooltip text={t('catalog.viz.tooltip')} />
                         </h4>
                         <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
-                          Pre-configured renderings for this dataset (e.g. True Color, False Color).
-                          Add new ones with{' '}
-                          <span className="inline-flex items-center">
-                            <IconPlus className="w-2.5 h-2.5" />
-                          </span>
-                          , or expand advanced options to edit compositing.
+                          <Trans
+                            t={t}
+                            i18nKey="catalog.viz.description"
+                            components={{ plus: <InlinePlus /> }}
+                          />
                         </p>
                       </div>
                       <div className="p-3 space-y-3 bg-white">
@@ -1869,11 +1910,22 @@ export const CatalogBrowser = ({
                 {/* Preview */}
                 {mode === 'mosaic' && preview && preview.collections > 0 && (
                   <div className="rounded-md bg-brand-50 border border-brand-200 px-3 py-2 text-xs text-brand-800">
-                    This will generate <strong>{preview.collections}</strong> collection
-                    {preview.collections !== 1 ? 's' : ''}, each with{' '}
-                    <strong>{preview.slicesPerCollection}</strong> slice
-                    {preview.slicesPerCollection !== 1 ? 's' : ''} and {visualizations.length}{' '}
-                    visualization{visualizations.length !== 1 ? 's' : ''}.
+                    <Trans
+                      t={t}
+                      i18nKey="catalog.preview.sentence"
+                      values={{
+                        collections: t('catalog.preview.collections', {
+                          count: preview.collections,
+                        }),
+                        slices: t('catalog.preview.slices', {
+                          count: preview.slicesPerCollection,
+                        }),
+                        visualizations: t('catalog.preview.visualizations', {
+                          count: visualizations.length,
+                        }),
+                      }}
+                      components={{ strong: <strong /> }}
+                    />
                   </div>
                 )}
 
@@ -1884,17 +1936,15 @@ export const CatalogBrowser = ({
                   );
                   const hasMasking = visualizations.some((v) => v.vizParams.maskLayer);
                   if (!hasAdvancedCompositing && !hasMasking) return null;
-                  const features = [
-                    hasAdvancedCompositing && 'non-first-valid compositing (median, mean, etc.)',
-                    hasMasking && 'pixel masking',
-                  ]
-                    .filter(Boolean)
-                    .join(' and ');
+                  const noteKey =
+                    hasAdvancedCompositing && hasMasking
+                      ? 'catalog.tilerRequired.both'
+                      : hasAdvancedCompositing
+                        ? 'catalog.tilerRequired.compositing'
+                        : 'catalog.tilerRequired.masking';
                   return (
                     <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
-                      <strong>Self-hosted tiler required:</strong> {features} will route tiles
-                      through our backend instead of MPC. Expect ~10x slower data loading compared
-                      to first-valid compositing via MPC.
+                      <Trans t={t} i18nKey={noteKey} components={{ strong: <strong /> }} />
                     </div>
                   );
                 })()}
@@ -1945,25 +1995,24 @@ const CoverSliceSection = ({
   onToggleAdvanced,
   advanced,
 }: CoverSliceSectionProps) => {
+  const { t } = useTranslation('imagery');
   const dedicated = coverMode === 'custom';
   return (
     <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
       <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
         <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-          Cover slice
-          <Tooltip text="The cover slice is the image annotators see first when they open this collection. Pick which existing slice acts as the cover, or generate a separate mosaic spanning the full window." />
+          {t('bulk.coverSlice')}
+          <Tooltip text={t('catalog.cover.tooltip')} />
         </h4>
         <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
-          When annotators open a task, they see one image first for each collection. Decide which
-          one: pick a specific slice, or generate a fresh mosaic that spans the whole window.
+          {t('catalog.cover.description')}
         </p>
       </div>
       <div className="p-3 space-y-3">
         {examples.length > 0 && (
           <div className="space-y-2">
             <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">
-              Preview - your first{' '}
-              {examples.length === 1 ? 'collection' : `${examples.length} collections`}
+              {t('catalog.cover.previewTitle', { count: examples.length })}
             </div>
             <div className="space-y-2">
               {examples.map((col, ci) => {
@@ -1981,12 +2030,12 @@ const CoverSliceSection = ({
                     {dedicated && cover && (
                       <div className="mt-1.5 flex items-center gap-2 rounded border border-brand-300 bg-brand-50 px-2 py-1 text-[10px] text-brand-700">
                         <StarIcon />
-                        <span className="font-semibold">Cover</span>
+                        <span className="font-semibold">{t('collection.coverBadge')}</span>
                         <span className="font-mono">{cover.startDate.slice(5)}</span>
                         <span
                           className="h-px flex-1 bg-brand-300"
                           aria-hidden
-                          title="spans the whole window"
+                          title={t('catalog.cover.spansWindow')}
                         />
                         <span className="font-mono">{cover.endDate.slice(5)}</span>
                       </div>
@@ -2012,9 +2061,7 @@ const CoverSliceSection = ({
               })}
             </div>
             <p className="text-[11px] text-neutral-500 leading-snug">
-              {dedicated
-                ? 'The band is an extra mosaic built from the whole window. It is what annotators see first; the slices below stay exactly as they are.'
-                : 'The highlighted slice is the cover - what annotators see first. No extra mosaic is built.'}
+              {dedicated ? t('catalog.cover.bandHint') : t('catalog.cover.highlightHint')}
             </p>
           </div>
         )}
@@ -2035,15 +2082,17 @@ const CoverSliceSection = ({
               className="mt-0.5"
             />
             <span>
-              <span className="font-medium">Pick an existing slice as the cover</span>
+              <span className="font-medium">{t('catalog.cover.nth')}</span>
               <span className="block text-[11px] text-neutral-500 mt-0.5">
-                Typically the first slice - fast and no extra work for the backend.
+                {t('catalog.cover.nthHelp')}
               </span>
             </span>
           </label>
           {coverMode === 'nth' && (
             <div className="ml-7 flex items-center gap-2">
-              <label className="text-[11px] text-neutral-700">Slice index (1-based)</label>
+              <label className="text-[11px] text-neutral-700">
+                {t('catalog.cover.sliceIndex')}
+              </label>
               <Input
                 type="number"
                 size="sm"
@@ -2070,11 +2119,9 @@ const CoverSliceSection = ({
               className="mt-0.5"
             />
             <span>
-              <span className="font-medium">Generate a fresh cover spanning the full window</span>
+              <span className="font-medium">{t('catalog.cover.custom')}</span>
               <span className="block text-[11px] text-neutral-500 mt-0.5">
-                Best when individual slices have gaps or clouds: The cover composites the whole
-                window i.e by taking all items with the lowest cloud cover from the full range.
-                Configurable in advanced options.
+                {t('catalog.cover.customHelp')}
               </span>
             </span>
           </label>
@@ -2121,12 +2168,10 @@ const CoverSliceAdvancedPanel = ({
   setCoverSearchQuery,
   buildCoverAutoQuery,
 }: CoverSliceAdvancedPanelProps) => {
+  const { t } = useTranslation('imagery');
   return (
     <div className="space-y-3 p-3 rounded-lg bg-white border border-neutral-200">
-      <p className="text-[11px] text-neutral-500">
-        Configure the separate cover-slice search and rendering. By default it inherits from the
-        main visualization params.
-      </p>
+      <p className="text-[11px] text-neutral-500">{t('catalog.cover.advancedHint')}</p>
       <CoverSearchParams
         hasCloudCover={selectedCollection.has_cloud_cover ?? false}
         maxCloudCover={coverMaxCloudCover}
@@ -2141,7 +2186,7 @@ const CoverSliceAdvancedPanel = ({
       {Object.keys(availableAssets).length > 0 && (
         <div className="space-y-2">
           <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
-            Cover visualizations
+            {t('catalog.cover.visualizations')}
           </h5>
           <VizTabs
             visualizations={coverVisualizations}

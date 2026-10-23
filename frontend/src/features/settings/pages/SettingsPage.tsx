@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
-import { Button, Field, Input } from '~/shared/ui/forms';
+import { Button, Field, Input, Select } from '~/shared/ui/forms';
+import { LANGUAGES } from '~/shared/i18n';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
 import { editUserInfoMutation } from '~/api/queries';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -16,8 +18,10 @@ import {
   passwordMeetsAllRequirements,
 } from 'src/features/auth/ui/PasswordRequirements';
 import { FadeIn } from '~/shared/ui/motion';
+import { LEGAL_DOCS, legalPath } from '~/features/legal/docs';
 
 export const SettingsPage = () => {
+  const { t, i18n } = useTranslation(['settings', 'common']);
   // Username editing state
   const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
   const [displayNameInput, setDisplayNameInput] = useState('');
@@ -35,8 +39,8 @@ export const SettingsPage = () => {
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: 'Settings' }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([{ label: t('breadcrumb') }]);
+  }, [setBreadcrumbs, t]);
 
   // Use individual selectors to avoid creating new objects on every render
   const account = useAccountStore((s) => s.account);
@@ -44,11 +48,11 @@ export const SettingsPage = () => {
 
   const editUsername = useMutation({
     ...editUserInfoMutation(),
-    meta: { errorMessage: 'Failed to update username' },
+    meta: { errorMessage: t('toasts.usernameFailed') },
     onSuccess: async () => {
       await fetchAccount();
       setIsEditingDisplayName(false);
-      showAlert('Username updated', 'success');
+      showAlert(t('toasts.usernameUpdated'), 'success');
     },
   });
 
@@ -74,17 +78,15 @@ export const SettingsPage = () => {
     setPasswordSuccess(false);
 
     if (!currentPassword || !newPassword) {
-      setPasswordError('Please fill in all fields.');
+      setPasswordError(t('password.errors.missingFields'));
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setPasswordError('New passwords do not match.');
+      setPasswordError(t('password.errors.mismatch'));
       return;
     }
     if (!newPasswordMeetsRequirements) {
-      setPasswordError(
-        'Password must be at least 8 characters with uppercase, lowercase, number, and special character.'
-      );
+      setPasswordError(t('password.errors.requirements'));
       return;
     }
 
@@ -96,15 +98,9 @@ export const SettingsPage = () => {
       setNewPassword('');
       setConfirmNewPassword('');
       setIsChangingPassword(false);
-      showAlert('Password changed successfully', 'success');
+      showAlert(t('toasts.passwordChanged'), 'success');
     } catch (err) {
-      setPasswordError(
-        authErrorMessage(
-          err,
-          CHANGE_PASSWORD_ERRORS,
-          'Failed to change password. Please try again.'
-        )
-      );
+      setPasswordError(authErrorMessage(err, CHANGE_PASSWORD_ERRORS, t('password.errors.failed')));
     } finally {
       setChangingPassword(false);
     }
@@ -132,8 +128,8 @@ export const SettingsPage = () => {
         <FadeIn className="page">
           <header className="page-header">
             <div>
-              <h1 className="page-title">Settings</h1>
-              <p className="page-subtitle">Manage your profile and sign-in.</p>
+              <h1 className="page-title">{t('title')}</h1>
+              <p className="page-subtitle">{t('subtitle')}</p>
             </div>
           </header>
 
@@ -141,13 +137,13 @@ export const SettingsPage = () => {
             <div className="p-6">
               <div>
                 <section className={sectionCls}>
-                  <h2 className="section-heading">Profile information</h2>
+                  <h2 className="section-heading">{t('profile.title')}</h2>
                   <div className="space-y-4">
-                    <Field label="Email">
+                    <Field label={t('profile.email')}>
                       <Input type="text" value={account.email} disabled />
                     </Field>
                     <Field
-                      label="Username"
+                      label={t('profile.username')}
                       error={isEditingDisplayName ? usernameError(displayNameInput) : undefined}
                     >
                       {isEditingDisplayName ? (
@@ -157,7 +153,7 @@ export const SettingsPage = () => {
                             value={displayNameInput}
                             onChange={(e) => setDisplayNameInput(e.target.value)}
                             disabled={saving}
-                            placeholder="e.g. ada.lovelace"
+                            placeholder={t('profile.usernamePlaceholder')}
                             invalid={Boolean(usernameError(displayNameInput))}
                             autoFocus
                           />
@@ -188,14 +184,14 @@ export const SettingsPage = () => {
                               ) : undefined
                             }
                           >
-                            Save
+                            {t('common:actions.save')}
                           </Button>
                           <Button
                             variant="secondary"
                             onClick={handleCancelEditDisplayName}
                             disabled={saving}
                           >
-                            Cancel
+                            {t('common:actions.cancel')}
                           </Button>
                         </div>
                       ) : (
@@ -204,21 +200,43 @@ export const SettingsPage = () => {
                             type="text"
                             value={account.display_name || ''}
                             disabled
-                            placeholder="No username set"
+                            placeholder={t('profile.noUsername')}
                           />
                           <Button variant="secondary" onClick={handleStartEditDisplayName}>
-                            Edit
+                            {t('common:actions.edit')}
                           </Button>
                         </div>
                       )}
                     </Field>
                     {account.is_admin && (
-                      <Field label="Role">
+                      <Field label={t('profile.role')}>
                         <span className="inline-flex px-3 py-1.5 text-xs font-medium rounded-full bg-brand-100 text-brand-800 border border-brand-200">
-                          Administrator
+                          {t('profile.administrator')}
                         </span>
                       </Field>
                     )}
+                  </div>
+                </section>
+
+                <section className={sectionCls}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h2 className="section-heading">{t('language.title')}</h2>
+                      <p className="section-description">{t('language.description')}</p>
+                    </div>
+                    <div className="w-40 shrink-0">
+                      <Select
+                        value={i18n.resolvedLanguage}
+                        onChange={(e) => i18n.changeLanguage(e.target.value)}
+                        aria-label={t('language.title')}
+                      >
+                        {LANGUAGES.map((language) => (
+                          <option key={language.code} value={language.code} lang={language.code}>
+                            {language.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
                   </div>
                 </section>
 
@@ -228,10 +246,8 @@ export const SettingsPage = () => {
                     {!isChangingPassword ? (
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <h2 className="section-heading">Change password</h2>
-                          <p className="section-description">
-                            Update the password you use to sign in.
-                          </p>
+                          <h2 className="section-heading">{t('password.title')}</h2>
+                          <p className="section-description">{t('password.description')}</p>
                         </div>
                         <Button
                           variant="secondary"
@@ -241,18 +257,18 @@ export const SettingsPage = () => {
                             setPasswordSuccess(false);
                           }}
                         >
-                          Change password
+                          {t('password.change')}
                         </Button>
                       </div>
                     ) : (
                       <div className="space-y-4 max-w-md">
-                        <h2 className="section-heading">Change password</h2>
+                        <h2 className="section-heading">{t('password.title')}</h2>
                         {passwordError && (
                           <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
                             {passwordError}
                           </div>
                         )}
-                        <Field label="Current password">
+                        <Field label={t('password.current')}>
                           <Input
                             type="password"
                             value={currentPassword}
@@ -261,7 +277,7 @@ export const SettingsPage = () => {
                             autoComplete="current-password"
                           />
                         </Field>
-                        <Field label="New password">
+                        <Field label={t('password.new')}>
                           <Input
                             type="password"
                             value={newPassword}
@@ -271,7 +287,7 @@ export const SettingsPage = () => {
                           />
                           <PasswordRequirementsList password={newPassword} />
                         </Field>
-                        <Field label="Confirm new password">
+                        <Field label={t('password.confirmNew')}>
                           <Input
                             type="password"
                             value={confirmNewPassword}
@@ -285,7 +301,7 @@ export const SettingsPage = () => {
                             onClick={handleChangePassword}
                             disabled={saving || !newPasswordMeetsRequirements}
                           >
-                            {saving ? 'Saving…' : 'Update password'}
+                            {saving ? t('password.saving') : t('password.update')}
                           </Button>
                           <Button
                             variant="secondary"
@@ -298,7 +314,7 @@ export const SettingsPage = () => {
                             }}
                             disabled={saving}
                           >
-                            Cancel
+                            {t('common:actions.cancel')}
                           </Button>
                         </div>
                       </div>
@@ -308,10 +324,24 @@ export const SettingsPage = () => {
               </div>
             </div>
           </div>
+
+          <nav className="mt-4 flex gap-4 px-1 text-xs text-neutral-500">
+            {LEGAL_DOCS.map((doc) => (
+              <a
+                key={doc}
+                href={legalPath(doc)}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-neutral-800 hover:underline"
+              >
+                {t(`common:legal.${doc}`)}
+              </a>
+            ))}
+          </nav>
         </FadeIn>
       </div>
 
-      <LoadingOverlay visible={saving} text="Processing..." />
+      <LoadingOverlay visible={saving} text={t('processing')} />
     </>
   );
 };
