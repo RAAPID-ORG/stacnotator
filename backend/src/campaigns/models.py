@@ -6,11 +6,9 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
-    Identity,
     Index,
     Integer,
     String,
-    UniqueConstraint,
     func,
     text,
 )
@@ -23,11 +21,12 @@ from src.layers import LayerOwner
 from src.projects.access import VISIBILITY_PUBLIC
 
 if TYPE_CHECKING:
-    from src.annotation.models import Annotation, AnnotationTask
+    from src.annotation.models import Annotation
     from src.canvas.models import CanvasLayout
     from src.custom_layers.models import CustomMap, VectorLayer
     from src.imagery.models import Basemap, ImagerySource, ImageryView
     from src.projects.models import Project
+    from src.tasks.models import Task, TaskSet
     from src.timeseries.models import Timeseries
 
 
@@ -141,7 +140,7 @@ class Campaign(Base):
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    task_items: Mapped[list["AnnotationTask"]] = relationship(
+    task_items: Mapped[list["Task"]] = relationship(
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
@@ -212,29 +211,3 @@ class Campaign(Base):
         """The campaign's configuration, which the API sends as one ``settings``
         object; it lives on the campaign itself."""
         return self
-
-
-class TaskSet(Base):
-    """
-    A named group of annotation tasks within a campaign. Every task belongs to
-    exactly one set; services enforce that a campaign keeps at least one set.
-    """
-
-    __tablename__ = "task_sets"
-    __table_args__ = (
-        UniqueConstraint("campaign_id", "name"),
-        Index("idx_task_sets_campaign_id", "campaign_id"),
-        {"schema": "data"},
-    )
-
-    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
-    campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),
-        server_default=func.current_timestamp(),
-        nullable=False,
-    )

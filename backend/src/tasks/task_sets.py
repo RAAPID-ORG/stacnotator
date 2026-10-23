@@ -4,10 +4,10 @@ from fastapi import HTTPException
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from src.annotation.models import Annotation, AnnotationTask
-from src.annotation.service import delete_tasks
-from src.campaigns import assignments
-from src.campaigns.models import TaskSet
+from src.annotation.models import Annotation
+from src.tasks import assignments
+from src.tasks.models import Task, TaskSet
+from src.tasks.service import delete_tasks
 
 DEFAULT_TASK_SET_NAME = "Default"
 
@@ -41,14 +41,14 @@ def list_task_sets_with_stats(db: Session, campaign_id: int) -> list[dict]:
             TaskSet.id,
             TaskSet.name,
             TaskSet.created_at,
-            func.count(func.distinct(AnnotationTask.id)).label("num_tasks"),
+            func.count(func.distinct(Task.id)).label("num_tasks"),
             func.count(func.distinct(Annotation.annotation_task_id))
             .filter(Annotation.outcome != "skipped")
             .label("num_labeled"),
         )
         .select_from(TaskSet)
-        .outerjoin(AnnotationTask, AnnotationTask.task_set_id == TaskSet.id)
-        .outerjoin(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
+        .outerjoin(Task, Task.task_set_id == TaskSet.id)
+        .outerjoin(Annotation, Annotation.annotation_task_id == Task.id)
         .where(TaskSet.campaign_id == campaign_id)
         .group_by(TaskSet.id, TaskSet.name, TaskSet.created_at)
         .order_by(TaskSet.id)
@@ -94,9 +94,7 @@ def delete_task_set(db: Session, campaign_id: int, task_set_id: int) -> None:
             status_code=409,
             detail="A campaign must keep at least one task set",
         )
-    tasks = db.scalars(
-        select(AnnotationTask).where(AnnotationTask.task_set_id == task_set_id)
-    ).all()
+    tasks = db.scalars(select(Task).where(Task.task_set_id == task_set_id)).all()
     delete_tasks(db, campaign_id, tasks, delete_annotations=False)
     db.delete(task_set)
     db.commit()
@@ -106,11 +104,7 @@ def move_tasks_to_set(db: Session, campaign_id: int, task_set_id: int, task_ids:
     require_task_set(db, campaign_id, task_set_id)
     if not task_ids:
         return 0
-    found = assignments._verify_tasks_in_campaign(db, campaign_id, task_ids)
-    db.execute(
-        update(AnnotationTask)
-        .where(AnnotationTask.id.in_(task_ids))
-        .values(task_set_id=task_set_id)
-    )
+    found = assignments.verify_tasks_in_campaign(db, campaign_id, task_ids)
+    db.execute(update(Task).where(Task.id.in_(task_ids)).values(task_set_id=task_set_id))
     db.commit()
     return len(found)

@@ -1,4 +1,4 @@
-from src.campaigns.assignments import _IMPORT_REQUIRED_COLUMNS, ASSIGNMENTS_CSV_COLUMNS
+from src.tasks.assignments import _IMPORT_REQUIRED_COLUMNS, ASSIGNMENTS_CSV_COLUMNS
 
 
 def test_the_export_says_which_set_each_task_belongs_to():

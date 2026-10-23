@@ -19,15 +19,10 @@ from sqlalchemy import exists, func, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session, selectinload, undefer
 
-from src.annotation.models import (
-    Annotation,
-    AnnotationTask,
-    AnnotationTaskAssignment,
-)
+from src.annotation.models import Annotation
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
-from src.campaigns.models import Campaign, TaskSet
-from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
+from src.campaigns.models import Campaign
 from src.canvas.layout import remapped_layout
 from src.canvas.models import CanvasLayout
 from src.custom_layers.models import CustomMap
@@ -41,6 +36,8 @@ from src.imagery.models import (
 )
 from src.organizations.models import Organization
 from src.projects.models import Project
+from src.tasks.models import Task, TaskAssignment, TaskSet
+from src.tasks.task_sets import DEFAULT_TASK_SET_NAME
 from src.timeseries.models import Timeseries, TimeseriesWindow
 from src.timeseries.windows import window_grid_key
 
@@ -402,11 +399,11 @@ def duplicate_campaign(
     tasks = (
         list(
             db.scalars(
-                select(AnnotationTask)
-                .where(AnnotationTask.campaign_id == campaign.id)
+                select(Task)
+                .where(Task.campaign_id == campaign.id)
                 # A copied task keeps its embedding; loaded with the rows rather than
                 # one query each when the clone reads it.
-                .options(undefer(AnnotationTask.embedding))
+                .options(undefer(Task.embedding))
             )
         )
         if plan.tasks
@@ -451,9 +448,9 @@ def duplicate_campaign(
             # campaign, so in the copy the task would sit with an account that cannot work
             # it. Those tasks arrive free for anyone to take.
             query = (
-                select(AnnotationTaskAssignment)
-                .join(User, User.id == AnnotationTaskAssignment.user_id)
-                .where(AnnotationTaskAssignment.task_id.in_(task_ids), User.issuer != AGENT_ISSUER)
+                select(TaskAssignment)
+                .join(User, User.id == TaskAssignment.user_id)
+                .where(TaskAssignment.task_id.in_(task_ids), User.issuer != AGENT_ISSUER)
             )
             for assignment in db.scalars(query).all():
                 # An assignment is setup, so it is copied with the tasks.

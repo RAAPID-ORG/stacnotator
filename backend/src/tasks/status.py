@@ -172,10 +172,10 @@ def task_status_inputs(
     `compute_task_status_value` consumes.
 
     The single seam between ORM rows and that pure function - shared by
-    `AnnotationTaskOut`'s validator below and the export path
+    `TaskOut`'s validator below and the export path
     (annotation/export.py), so neither hand-rolls its own conversion.
     `counts_toward_completion` is an attribute attached at request time
-    (annotation/completion.py), not a mapped column; a caller that skipped
+    (tasks/completion.py), not a mapped column; a caller that skipped
     the attach fails here with AttributeError rather than silently counting.
     """
     assignment_list = [{"user_id": a.user_id, "is_review": a.is_review} for a in assignments]

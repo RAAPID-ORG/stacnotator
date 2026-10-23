@@ -3,7 +3,6 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_authenticated_user
-from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
@@ -57,18 +56,21 @@ def rename_timeseries_window(
 
 
 @router.get(
-    "/timeseries/{timeseries_id}/{latitude}/{longitude}/data", response_model=TimeseriesDataResponse
+    "/campaigns/{campaign_id}/timeseries/{timeseries_id}/data",
+    response_model=TimeseriesDataResponse,
 )
 def get_timeseries_data(
+    campaign_id: int,
     timeseries_id: int,
     latitude: float,
     longitude: float,
     db: Session = Depends(get_db),
-    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
 ):
-    """Fetch the actual timeseries data from an external provider based on the timeseries config."""
+    """A series' values at a point, fetched from its provider."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)
-    require_campaign_access(campaign_id=timeseries.campaign_id, db=db, user=user)
+    if timeseries.campaign_id != campaign_id:
+        raise HTTPException(status_code=404, detail="Timeseries not found")
 
     try:
         start, end = ym_range_to_dates(timeseries.start_ym, timeseries.end_ym)

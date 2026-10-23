@@ -10,10 +10,10 @@ from starlette.concurrency import run_in_threadpool
 from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_admin
 from src.campaigns.models import Campaign
-from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.sampling_design import service
 from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategy
+from src.tasks.task_sets import require_task_set
 
 bearer = HTTPBearer()
 router = APIRouter(

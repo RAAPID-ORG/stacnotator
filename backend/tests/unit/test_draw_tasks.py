@@ -13,14 +13,14 @@ from fastapi import HTTPException
 
 from src.annotation.schemas import (
     AnnotationCreate,
-    AnnotationFromTaskCreate,
+    TaskAnswerCreate,
 )
 from src.annotation.service import add_annotation_for_task, create_annotation
-from src.annotation.status import (
+from src.campaigns.schemas import PolicyAudience
+from src.tasks.status import (
     compute_task_status_value,
     resolve_task_outcome,
 )
-from src.campaigns.schemas import PolicyAudience
 from tests.conftest import make_policy
 
 pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
@@ -104,7 +104,7 @@ def test_done_needs_a_shape_of_your_own():
         add_annotation_for_task(
             db,
             _task(),
-            AnnotationFromTaskCreate(label_id=None, comment=None, outcome="drawn"),
+            TaskAnswerCreate(label_id=None, comment=None, outcome="drawn"),
             uuid4(),
         )
 
@@ -117,7 +117,7 @@ def test_done_is_stored_as_drawn():
     db = _db(campaign, has_shapes=True)
 
     annotation = add_annotation_for_task(
-        db, _task(), AnnotationFromTaskCreate(label_id=None, comment=None, outcome="drawn"), uuid4()
+        db, _task(), TaskAnswerCreate(label_id=None, comment=None, outcome="drawn"), uuid4()
     )
 
     assert annotation.outcome == "drawn"
@@ -144,7 +144,7 @@ def test_nothing_here_is_refused_once_you_drew():
         add_annotation_for_task(
             db,
             _task(),
-            AnnotationFromTaskCreate(label_id=None, comment=None, outcome="none_found"),
+            TaskAnswerCreate(label_id=None, comment=None, outcome="none_found"),
             uuid4(),
         )
 

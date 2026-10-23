@@ -10,13 +10,14 @@ from collections.abc import Iterable
 
 from sqlalchemy.orm import Session
 
-from src.annotation.models import Annotation, AnnotationTask
+from src.annotation.models import Annotation
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
     counts_toward_completion,
     get_labelling_policy,
     load_standing,
 )
+from src.tasks.models import Task
 
 
 def attach_counts_toward_completion(
@@ -43,6 +44,6 @@ def attach_counts_toward_completion(
         ann.counts_toward_completion = counts_toward_completion(policy, bool(assigned_ids), ctx)
 
 
-def attach_to_tasks(db: Session, campaign: Campaign, tasks: Iterable[AnnotationTask]) -> None:
+def attach_to_tasks(db: Session, campaign: Campaign, tasks: Iterable[Task]) -> None:
     """`attach_counts_toward_completion` over every row of the given tasks."""
     attach_counts_toward_completion(db, campaign, [a for t in tasks for a in t.annotations])

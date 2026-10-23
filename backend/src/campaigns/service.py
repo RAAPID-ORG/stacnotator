@@ -6,16 +6,10 @@ from fastapi import HTTPException
 from sqlalchemy import ARRAY, Text, and_, cast, delete, exists, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from src.annotation import embeddings_service
-from src.annotation import service as annotation_service
 from src.annotation.forms import campaign_form_fields
-from src.annotation.models import Annotation, AnnotationTask
+from src.annotation.models import Annotation
 from src.auth.models import User
-from src.campaigns import assignments
-from src.campaigns.models import (
-    Campaign,
-    TaskSet,
-)
+from src.campaigns.models import Campaign
 from src.campaigns.policy import _reject_anyone_kind_if_private
 from src.campaigns.schemas import (
     CampaignListItemOut,
@@ -25,7 +19,6 @@ from src.campaigns.schemas import (
     LabellingPolicy,
     default_labelling_policy,
 )
-from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.canvas.service import new_default_main_layout
 from src.custom_layers.service import revoke_campaign_private_searches
 from src.imagery.models import (
@@ -40,6 +33,9 @@ from src.organizations.service import active_organization_ids
 from src.projects.access import VISIBILITY_ORGANIZATION, VISIBILITY_PUBLIC
 from src.projects.models import Project, ProjectUser
 from src.projects.viewer import ViewerStanding
+from src.tasks import embeddings
+from src.tasks.models import Task, TaskSet
+from src.tasks.task_sets import DEFAULT_TASK_SET_NAME
 from src.timeseries.service import add_timeseries
 
 logger = logging.getLogger(__name__)
@@ -212,7 +208,7 @@ def create_campaign(
     campaign.registration_status = "ready"
     campaign.embedding_status = "ready"
     commit_and_register(db, campaign, campaign.bbox)
-    embeddings_service.start_embedding_run(db, campaign)
+    embeddings.start_embedding_run(db, campaign)
     return get_campaign_full(db, campaign.id)
 
 
@@ -249,11 +245,7 @@ def update_campaign(db: Session, campaign: Campaign, changes: CampaignUpdate) ->
     if "embedding_year" in sent:
         campaign.embedding_year = changes.embedding_year
     if recompute_embeddings:
-        db.execute(
-            update(AnnotationTask)
-            .where(AnnotationTask.campaign_id == campaign.id)
-            .values(embedding=None)
-        )
+        db.execute(update(Task).where(Task.campaign_id == campaign.id).values(embedding=None))
 
     if changes.bbox is not None and changes.bbox != campaign.bbox:
         if campaign.registration_status == "registering":
@@ -268,7 +260,7 @@ def update_campaign(db: Session, campaign: Campaign, changes: CampaignUpdate) ->
         commit_and_register(db, campaign, campaign.bbox)
     db.commit()
     if recompute_embeddings:
-        embeddings_service.start_embedding_run(db, campaign)
+        embeddings.start_embedding_run(db, campaign)
     return get_campaign_full(db, campaign.id)
 
 
@@ -380,24 +372,6 @@ def _apply_form_field_changes(db: Session, campaign: Campaign, form_fields: list
             .where(Annotation.campaign_id == campaign.id, Annotation.form_values.isnot(None))
             .values(form_values=Annotation.form_values.op("-")(cast(sorted(strip), ARRAY(Text))))
         )
-
-
-def delete_annotation_tasks(
-    db: Session, campaign_id: int, task_ids: list[int], delete_annotations: bool = False
-) -> int:
-    """Delete tasks of a campaign; see ``annotation.service.delete_tasks`` for what
-    happens to the work done on them."""
-    if not task_ids:
-        return 0
-    assignments._verify_tasks_in_campaign(db, campaign_id, task_ids)
-    tasks = db.scalars(
-        select(AnnotationTask).where(
-            AnnotationTask.id.in_(task_ids), AnnotationTask.campaign_id == campaign_id
-        )
-    ).all()
-    annotation_service.delete_tasks(db, campaign_id, tasks, delete_annotations=delete_annotations)
-    db.commit()
-    return len(tasks)
 
 
 def delete_campaign(db: Session, campaign_id: int) -> None:

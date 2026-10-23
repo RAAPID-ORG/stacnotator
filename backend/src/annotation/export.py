@@ -6,7 +6,7 @@ stubs. ``fetch_annotations_with_context`` is the single DB touch, and the
 ``build_annotations_*`` composers wire the two together for the router.
 
 Never imports annotation/service.py: the shared helpers it needs live in
-annotation/forms.py (form-field parsing) and annotation/completion.py
+annotation/forms.py (form-field parsing) and tasks/completion.py
 (counts-toward-completion attachment).
 """
 
@@ -20,21 +20,19 @@ from shapely.geometry import mapping
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from src.annotation.completion import attach_counts_toward_completion
 from src.annotation.forms import campaign_form_fields
-from src.annotation.models import (
-    Annotation,
-    AnnotationTask,
-)
-from src.annotation.status import (
+from src.annotation.models import Annotation
+from src.auth.models import User
+from src.campaigns.form_fields import CategoryFormField, DateFormField, FormField, form_field_slug
+from src.campaigns.models import Campaign
+from src.tasks.completion import attach_counts_toward_completion
+from src.tasks.models import Task
+from src.tasks.status import (
     agreed_answers,
     compute_task_status_value,
     task_answer,
     task_status_inputs,
 )
-from src.auth.models import User
-from src.campaigns.form_fields import CategoryFormField, DateFormField, FormField, form_field_slug
-from src.campaigns.models import Campaign
 
 
 def _resolve_label_name(campaign: Campaign, label_id: int | None) -> str | None:
@@ -218,14 +216,12 @@ def _conflicting_task_numbers(
     return sorted(conflicts)
 
 
-def _compute_task_status_for_export(
-    task: AnnotationTask | None, task_anns: list[Annotation]
-) -> str | None:
+def _compute_task_status_for_export(task: Task | None, task_anns: list[Annotation]) -> str | None:
     """Compute task status using the shared rule on already-loaded data.
 
     Calls the same logic as the API (``compute_task_status_value`` in schemas.py)
     but feeds it in-memory annotations and the eager-loaded assignments, avoiding
-    ``AnnotationTaskOut.model_validate`` which would lazy-load creator/user/geometry
+    ``TaskOut.model_validate`` which would lazy-load creator/user/geometry
     relationships once per task and annotation (an N+1 storm during export).
     """
     if task is None:
@@ -542,7 +538,7 @@ def fetch_annotations_with_context(
             select(Annotation)
             .where(Annotation.campaign_id == campaign.id)
             .options(
-                joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
+                joinedload(Annotation.annotation_task).selectinload(Task.assignments),
                 joinedload(Annotation.origin_task),
                 joinedload(Annotation.output_of_task),
             )

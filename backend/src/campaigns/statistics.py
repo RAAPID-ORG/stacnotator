@@ -9,8 +9,7 @@ import numpy as np
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from src.annotation.models import Annotation, AnnotationTask
-from src.annotation.status import task_answer
+from src.annotation.models import Annotation
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
@@ -18,6 +17,8 @@ from src.campaigns.schemas import (
     CampaignStatistics,
     PairwiseAgreement,
 )
+from src.tasks.models import Task
+from src.tasks.status import task_answer
 
 logger = logging.getLogger(__name__)
 
@@ -151,8 +152,8 @@ def _scoped_to_set(query: Select[Any], task_set_id: int | None) -> Select[Any]:
     """
     if task_set_id is None:
         return query
-    return query.join(AnnotationTask, Annotation.annotation_task_id == AnnotationTask.id).where(
-        AnnotationTask.task_set_id == task_set_id
+    return query.join(Task, Annotation.annotation_task_id == Task.id).where(
+        Task.task_set_id == task_set_id
     )
 
 

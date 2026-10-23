@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from src.annotation.ingest import GeoJSONParseError, parse_geojson_features
+from src.tasks.ingest import GeoJSONParseError, parse_geojson_features
 
 BARE_POINT = json.dumps({"type": "Point", "coordinates": [20.0, 10.0]}).encode("utf-8")
 FEATURE_COLLECTION = json.dumps(

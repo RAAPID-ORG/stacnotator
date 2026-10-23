@@ -210,7 +210,7 @@ def _image_media_type(upstream: str | None) -> str:
 
 
 @router.get(
-    "/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}",
+    "/campaigns/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}",
     dependencies=[Depends(require_tile_access)],
 )
 async def proxy_basemap_tile(
@@ -282,7 +282,7 @@ def _slice_lookup(slice_id: int, visualization_id: int, owner: LayerOwner):
 
 
 @router.get(
-    "/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}",
+    "/campaigns/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}",
     dependencies=[Depends(require_tile_access)],
 )
 async def proxy_slice_tile(
@@ -324,7 +324,7 @@ def _planet_layer_lookup(source_id: int, layer_id: str, owner: LayerOwner):
 
 
 @router.get(
-    "/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}",
+    "/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}",
     dependencies=[Depends(require_tile_access)],
 )
 async def proxy_planet_layer_tile(

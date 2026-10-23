@@ -39,7 +39,7 @@ def teardown_function():
 
 
 def _tile_url(z=1, x=0, y=0):
-    return f"/api/{CAMPAIGN_ID}/imagery/basemaps/3/tiles/{z}/{x}/{y}"
+    return f"/api/campaigns/{CAMPAIGN_ID}/imagery/basemaps/3/tiles/{z}/{x}/{y}"
 
 
 def test_proxy_rejects_missing_cookie(client):

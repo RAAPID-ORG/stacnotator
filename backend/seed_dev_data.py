@@ -23,14 +23,12 @@ from sqlalchemy.orm import Session
 
 import src.models  # noqa: F401 -- side-effect import: ensures all ORM models are registered before any mapper configures  # isort: skip
 
-from src.annotation.models import AnnotationTask, AnnotationTaskAssignment
 from src.auth.models import User
 from src.auth.providers.firebase import FirebaseAuthProvider
 from src.auth.providers.local import LOCAL_USER, LocalAuthProvider
-from src.campaigns.models import Campaign, TaskSet
+from src.campaigns.models import Campaign
 from src.campaigns.schemas import CampaignSettingsCreate, LabelBase
 from src.campaigns.service import create_campaign
-from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.config import get_settings
 from src.database import SessionLocal
 from src.earth_engine import ensure_earth_engine
@@ -56,6 +54,8 @@ from src.organizations.models import (
 from src.projects.models import Project, ProjectUser
 from src.sampling_design.schemas import RandomSamplingConfig
 from src.sampling_design.service import create_tasks_from_sampling_strategy
+from src.tasks.models import Task, TaskAssignment, TaskSet
+from src.tasks.task_sets import DEFAULT_TASK_SET_NAME
 from src.tilers import registry
 from src.timeseries.schemas import TimeseriesCreate
 
@@ -129,13 +129,11 @@ def _seed_tasks(db: Session, campaign: Campaign, user: User) -> list[int]:
     )
     task_ids = list(
         db.scalars(
-            select(AnnotationTask.id)
-            .where(AnnotationTask.campaign_id == campaign.id)
-            .order_by(AnnotationTask.annotation_number)
+            select(Task.id).where(Task.campaign_id == campaign.id).order_by(Task.annotation_number)
         )
     )
     db.execute(
-        insert(AnnotationTaskAssignment),
+        insert(TaskAssignment),
         [{"task_id": tid, "user_id": user.id} for tid in task_ids],
     )
     db.commit()

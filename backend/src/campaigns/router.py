@@ -1,22 +1,14 @@
-import io
-import zipfile
-
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src import background
-from src.annotation.embeddings_service import EMBEDDING_RUN
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
-from src.campaigns import assignments, duplication, service, statistics, task_sets
+from src.campaigns import duplication, service, statistics
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
-    AssignReviewersRequest,
-    AssignTasksToUsersRequest,
-    AssignTasksToUsersResult,
     CampaignCreate,
     CampaignDuplicateRequest,
     CampaignOut,
@@ -25,21 +17,13 @@ from src.campaigns.schemas import (
     CampaignStatistics,
     CampaignSummaryOut,
     CampaignUpdate,
-    DeleteAnnotationTasksRequest,
-    ImportTaskAssignmentsResult,
-    MoveTasksToSetRequest,
-    MoveTasksToSetResult,
-    TaskSetCreate,
-    TaskSetOut,
-    TaskSetRename,
-    UnassignTasksRequest,
 )
 from src.database import get_db, release
 from src.imagery.registration import REGISTRATION_RUN
 from src.projects.dependencies import require_project_admin
 from src.projects.models import Project
 from src.projects.viewer import project_flags
-from src.routing import attachment_headers
+from src.tasks.embeddings import EMBEDDING_RUN
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -227,204 +211,6 @@ def update_campaign(
     need a public campaign, a new area registers the imagery again and a new
     embedding year fetches embeddings again."""
     return _campaign_out(service.update_campaign(db, campaign, req), db, user)
-
-
-@router.post(
-    "/{campaign_id}/assign-tasks",
-    status_code=200,
-    response_model=AssignTasksToUsersResult,
-)
-def assign_tasks_to_users(
-    campaign_id: int,
-    req: AssignTasksToUsersRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks."""
-    if req.task_set_id is not None:
-        task_sets.require_task_set(db, campaign.id, req.task_set_id, status_code=400)
-    return assignments.assign_tasks_to_users(db, campaign_id, req)
-
-
-@router.post(
-    "/{campaign_id}/unassign-tasks",
-    status_code=200,
-)
-def batch_unassign_tasks(
-    campaign_id: int,
-    req: UnassignTasksRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """
-    Batch-remove assignments from multiple tasks.
-
-    If `user_ids` is provided, only those users are unassigned from each task.
-    Otherwise, all users are unassigned from each task in `task_ids`.
-    """
-    deleted = assignments.unassign_users_from_tasks(db, campaign_id, req.task_ids, req.user_ids)
-    return {"message": f"Successfully removed {deleted} assignment(s)"}
-
-
-@router.post(
-    "/{campaign_id}/assign-reviewers",
-    status_code=200,
-)
-def assign_reviewers(
-    campaign_id: int,
-    req: AssignReviewersRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Add reviewers to a percentage or a fixed number of already-assigned tasks."""
-    if req.task_set_id is not None:
-        task_sets.require_task_set(db, campaign.id, req.task_set_id, status_code=400)
-    num_tasks = assignments.assign_reviewers(db, campaign_id, req)
-    return {"message": f"Assigned reviewers to {num_tasks} task(s)"}
-
-
-@router.delete(
-    "/{campaign_id}/annotation-tasks",
-    status_code=200,
-)
-def delete_annotation_tasks(
-    campaign_id: int,
-    req: DeleteAnnotationTasksRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Delete multiple annotation tasks from a campaign"""
-    deleted_count = service.delete_annotation_tasks(
-        db, campaign_id, req.task_ids, req.delete_annotations
-    )
-    return {"message": f"Successfully deleted {deleted_count} task(s)"}
-
-
-@router.get("/{campaign_id}/task-sets", response_model=list[TaskSetOut])
-def list_task_sets(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    """Task sets of a campaign with per-set task counts (member-accessible)."""
-    return task_sets.list_task_sets_with_stats(db, campaign.id)
-
-
-@router.post("/{campaign_id}/task-sets", response_model=TaskSetOut, status_code=201)
-def create_task_set(
-    campaign_id: int,
-    req: TaskSetCreate,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    created = task_sets.create_task_set(db, campaign.id, req.name)
-    return TaskSetOut(
-        id=created.id,
-        name=created.name,
-        created_at=created.created_at,
-        num_tasks=0,
-        num_labeled=0,
-    )
-
-
-@router.patch("/{campaign_id}/task-sets/{task_set_id}", response_model=TaskSetOut)
-def rename_task_set(
-    campaign_id: int,
-    task_set_id: int,
-    req: TaskSetRename,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    task_sets.rename_task_set(db, campaign.id, task_set_id, req.name)
-    stats = task_sets.list_task_sets_with_stats(db, campaign.id)
-    return next(s for s in stats if s["id"] == task_set_id)
-
-
-@router.delete("/{campaign_id}/task-sets/{task_set_id}", status_code=204)
-def delete_task_set(
-    campaign_id: int,
-    task_set_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    task_sets.delete_task_set(db, campaign.id, task_set_id)
-
-
-@router.post(
-    "/{campaign_id}/task-sets/{task_set_id}/move-tasks",
-    response_model=MoveTasksToSetResult,
-)
-def move_tasks_to_set(
-    campaign_id: int,
-    task_set_id: int,
-    req: MoveTasksToSetRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Move tasks (batched) into the given task set. All ids must belong to the campaign."""
-    num_moved = task_sets.move_tasks_to_set(db, campaign.id, task_set_id, req.task_ids)
-    return MoveTasksToSetResult(num_moved=num_moved)
-
-
-@router.get("/{campaign_id}/export-task-assignments")
-def export_task_assignments(
-    campaign_id: int,
-    task_set_id: int | None = None,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Export task assignments as a ZIP for campaign admins.
-
-    The archive contains two files:
-    - `assignments.csv`: one row per task with comma-separated assignee and
-      reviewer emails, plus a count and `email=label` listing of annotations
-      already on the task (informational, ignored on re-import).
-    - `users.csv`: the campaign's members with roles, so the admin knows which
-      emails are valid to use in the assignee/reviewer columns.
-
-    ``task_set_id`` narrows the archive to one set, so an admin working on a single set
-    is not handed every task in the campaign. Import stays campaign-wide either way:
-    it matches on `annotation_number`, which is unique across the campaign.
-    """
-    assignments_df, users_df = assignments.build_task_assignments_export(db, campaign, task_set_id)
-
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("assignments.csv", assignments_df.to_csv(index=False))
-        archive.writestr("users.csv", users_df.to_csv(index=False))
-    buffer.seek(0)
-
-    return StreamingResponse(
-        buffer,
-        media_type="application/zip",
-        headers=attachment_headers(f"campaign_{campaign.name}_task_assignments", "zip"),
-    )
-
-
-@router.post(
-    "/{campaign_id}/import-task-assignments",
-    response_model=ImportTaskAssignmentsResult,
-)
-async def import_task_assignments(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    file: UploadFile = File(...),
-):
-    """Import task assignments from a CSV (campaign admins only).
-
-    Expects the `assignments.csv` layout from the export: `annotation_number`,
-    `assignees`, and `reviewers` columns (comma-separated emails). Every email
-    must belong to an existing member of this campaign or the whole import is
-    rejected. Listed tasks have their assignments replaced; other tasks are
-    left untouched.
-    """
-    if not (file.filename or "").lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be a CSV")
-
-    contents = await file.read()
-    result = assignments.import_task_assignments(db, campaign.id, contents)
-    return ImportTaskAssignmentsResult(**result)
 
 
 @router.delete("/{campaign_id}", status_code=204)

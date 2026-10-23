@@ -10,11 +10,12 @@ from sqlalchemy.orm import Session
 
 from src import background
 from src.annotation.constants import EMBD_MIN_N_NEIGHBOURS
-from src.annotation.models import Annotation, AnnotationTask
-from src.annotation.schemas import ValidateLabelSubmissionsResponse
+from src.annotation.models import Annotation
 from src.campaigns.models import Campaign
 from src.earth_engine import ensure_earth_engine
 from src.imagery.registration import sanitize_error_message
+from src.tasks.models import Task
+from src.tasks.schemas import ValidateLabelSubmissionsResponse
 
 logger = logging.getLogger(__name__)
 
@@ -163,13 +164,13 @@ def find_nearest_labeled_embeddings(
     """The K tasks nearest the target that someone has labelled, as (task id, label,
     cosine distance), closest first. The HNSW index orders by distance; the join only
     filters out unlabelled tasks."""
-    distance = AnnotationTask.embedding.cosine_distance(target_vector).label("distance")
+    distance = Task.embedding.cosine_distance(target_vector).label("distance")
     stmt = (
-        select(AnnotationTask.id, Annotation.label_id, distance)
-        .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
+        select(Task.id, Annotation.label_id, distance)
+        .join(Annotation, Annotation.annotation_task_id == Task.id)
         .where(
-            AnnotationTask.campaign_id == campaign_id,
-            AnnotationTask.embedding.is_not(None),
+            Task.campaign_id == campaign_id,
+            Task.embedding.is_not(None),
             Annotation.label_id.is_not(None),
         )
         .order_by(distance)
@@ -187,9 +188,9 @@ def task_embedding(db: Session, campaign_id: int, annotation_task_id: int) -> li
     rather than assumed from the caller, as every other query in this module does.
     """
     vector = db.scalar(
-        select(AnnotationTask.embedding).where(
-            AnnotationTask.id == annotation_task_id,
-            AnnotationTask.campaign_id == campaign_id,
+        select(Task.embedding).where(
+            Task.id == annotation_task_id,
+            Task.campaign_id == campaign_id,
         )
     )
     return None if vector is None else list(vector)
@@ -227,16 +228,16 @@ def has_sufficient_validation_data(
     # Single query: count total labeled embeddings AND per-label embeddings
     total_stmt = (
         select(
-            func.count(func.distinct(AnnotationTask.id)).label("total"),
-            func.count(
-                func.distinct(case((Annotation.label_id == label_id, AnnotationTask.id)))
-            ).label("label_count"),
+            func.count(func.distinct(Task.id)).label("total"),
+            func.count(func.distinct(case((Annotation.label_id == label_id, Task.id)))).label(
+                "label_count"
+            ),
         )
-        .select_from(AnnotationTask)
-        .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
+        .select_from(Task)
+        .join(Annotation, Annotation.annotation_task_id == Task.id)
         .where(
-            AnnotationTask.campaign_id == campaign_id,
-            AnnotationTask.embedding.is_not(None),
+            Task.campaign_id == campaign_id,
+            Task.embedding.is_not(None),
             Annotation.label_id.is_not(None),
         )
     )
@@ -298,10 +299,10 @@ def populate_campaign_embeddings(
         raise NotImplementedError(f"Batch fetch not implemented for '{provider}'.")
 
     stmt = select(
-        AnnotationTask.id.label("task_id"),
-        AnnotationTask.geometry,
-        AnnotationTask.embedding.is_not(None).label("has_embedding"),
-    ).where(AnnotationTask.campaign_id == campaign_id)
+        Task.id.label("task_id"),
+        Task.geometry,
+        Task.embedding.is_not(None).label("has_embedding"),
+    ).where(Task.campaign_id == campaign_id)
     rows = db.execute(stmt).all()
 
     # Build the list of GEE-points to fetch
@@ -354,7 +355,7 @@ def populate_campaign_embeddings(
     failed = len(points_to_fetch) - len(all_fetched)
     if all_fetched:
         db.execute(
-            update(AnnotationTask),
+            update(Task),
             [
                 {"id": int(task_id), "embedding": fetched.vector}
                 for task_id, fetched in all_fetched.items()

@@ -17,7 +17,6 @@ import src.models  # noqa: F401 -- side-effect import: ensures all ORM models ar
 
 from src import perf
 from src.agents.router import router as agents_router
-from src.annotation.embeddings_service import EMBEDDING_RUN
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
 from src.background import fail_stale_status_runs
@@ -41,6 +40,8 @@ from src.redact import install_log_redaction
 from src.routing import generate_unique_id
 from src.sampling_design.router import router as sampling_design_router
 from src.stac_browser.router import router as stac_browser_router
+from src.tasks.embeddings import EMBEDDING_RUN
+from src.tasks.router import router as tasks_router
 from src.tile_bulkhead import TileCapacityError
 from src.timeseries.router import router as timeseries_router
 from src.visualizers.router import router as visualizers_router
@@ -376,6 +377,7 @@ app.include_router(organizations_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
 app.include_router(annotations_router, prefix="/api")
+app.include_router(tasks_router, prefix="/api")
 app.include_router(timeseries_router, prefix="/api")
 app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")

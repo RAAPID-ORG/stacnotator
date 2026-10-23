@@ -1,71 +1,56 @@
 import logging
-from collections.abc import Sequence
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import String, delete, exists, func, insert, select, update
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import String, exists, func, select
+from sqlalchemy.orm import Session, joinedload
 
-from src.annotation import claims, spatial
-from src.annotation.completion import (
-    attach_counts_toward_completion,
-    attach_to_tasks,
-)
-from src.annotation.constants import CHANGES_OVERLAP, DELETION_RETENTION
 from src.annotation.forms import (
     FormValidationError,
     campaign_form_fields,
     validate_form_values,
 )
-from src.annotation.models import (
-    Annotation,
-    AnnotationTask,
-    AnnotationTaskAssignment,
-    DeletedAnnotation,
-    ewkt,
-)
+from src.annotation.models import Annotation
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationFacetsOut,
-    AnnotationFromTaskCreate,
     AnnotationListItemOut,
     AnnotationSort,
     AnnotationsPageOut,
-    AnnotationTaskOut,
-    AnnotationTaskSubmitResponse,
     AnnotationUpdate,
     AnnotatorFacet,
     ConfidenceFacet,
     LabelFacet,
     SliceComment,
-    TaskStatusOut,
+    TaskAnswerCreate,
     normalize_slice_comments,
 )
-from src.annotation.status import (
-    agreed_answers,
-    compute_task_status_value,
-    derive_assignment_status,
-    resolve_task_outcome,
-    task_status_inputs,
-)
+from src.annotation.sync import bump_campaign_annotations_version, record_annotation_deletions
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import (
-    PolicyContext,
     build_policy_context,
     counts_toward_completion,
     get_labelling_policy,
     is_allowed,
 )
+from src.geometry import ewkt
+from src.tasks.completion import (
+    attach_counts_toward_completion,
+)
+from src.tasks.models import Task
+from src.tasks.schemas import TaskOut, TaskStatusOut, TaskSubmitResponse
+from src.tasks.service import (
+    get_task,
+    get_user_assignment_status,
+    require_task_access,
+    task_for_annotating,
+)
+from src.tasks.status import (
+    resolve_task_outcome,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def get_user_assignment_status(task: AnnotationTask, user_id: UUID) -> str:
-    """Get a user's status on a task, derived from what they annotated."""
-    _, annotation_list = task_status_inputs([], task.annotations or [])
-    return derive_assignment_status(annotation_list, user_id)
 
 
 def _require_own_annotations(
@@ -94,86 +79,6 @@ def _require_own_annotations(
     )
 
 
-def record_annotation_deletions(
-    db: Session, campaign_id: int, annotation_ids: Sequence[int]
-) -> None:
-    """Tombstone deleted annotations so the changes poll can report them.
-
-    A deletion is the one change that leaves no row for the poll to read, so it
-    gets a record of its own. Issued in the same transaction as the delete, like
-    the version bump: a deletion nothing recorded is one no other annotator's
-    map can learn about. Tombstones the poll can no longer be asked for go at
-    the same time, which is what keeps the table the size of recent work.
-    """
-    if not annotation_ids:
-        return
-    db.execute(
-        insert(DeletedAnnotation),
-        [
-            {"annotation_id": annotation_id, "campaign_id": campaign_id}
-            for annotation_id in annotation_ids
-        ],
-    )
-    db.execute(
-        delete(DeletedAnnotation).where(
-            DeletedAnnotation.campaign_id == campaign_id,
-            DeletedAnnotation.deleted_at < func.now() - DELETION_RETENTION,
-        )
-    )
-
-
-def deletion_cursor_expired(since: datetime, now: datetime) -> bool:
-    """Whether deletions since ``since`` can still be answered from tombstones."""
-    return now - since > DELETION_RETENTION
-
-
-def get_deleted_annotation_ids(db: Session, campaign_id: int, since: datetime) -> list[int]:
-    """Ids tombstoned since ``since``, for the changes poll.
-
-    Reads back a little further than asked for the same reason the changes query
-    does: a row is stamped when its transaction runs, not when it commits.
-    """
-    rows = db.scalars(
-        select(DeletedAnnotation.annotation_id).where(
-            DeletedAnnotation.campaign_id == campaign_id,
-            DeletedAnnotation.deleted_at >= since - CHANGES_OVERLAP,
-        )
-    ).all()
-    return list(rows)
-
-
-def get_changed_task_ids(db: Session, campaign_id: int, since: datetime) -> list[int]:
-    """Tasks whose annotations were written since ``since``, for the task poll.
-
-    A task's status is derived from its annotations, so a write to one of them
-    is what changes it.
-    """
-    rows = db.scalars(
-        select(Annotation.annotation_task_id)
-        .where(
-            Annotation.campaign_id == campaign_id,
-            Annotation.annotation_task_id.is_not(None),
-            Annotation.updated_at >= since - CHANGES_OVERLAP,
-        )
-        .distinct()
-    ).all()
-    return [task_id for task_id in rows if task_id is not None]
-
-
-def bump_campaign_annotations_version(db: Session, campaign_id: int) -> None:
-    """Increment the campaign's annotation version counter.
-
-    Issued in the same transaction as an annotation mutation so the new value
-    commits atomically with the change. The counter is the cache-busting key in
-    annotation vector-tile URLs; any change invalidates the affected tiles.
-    """
-    db.execute(
-        update(Campaign)
-        .where(Campaign.id == campaign_id)
-        .values(annotations_version=Campaign.annotations_version + 1)
-    )
-
-
 def validate_label_id(campaign: Campaign, label_id: int) -> None:
     """Raise HTTP 400 if label_id is not a key in the campaign's label set."""
     if label_id not in campaign.label_names:
@@ -195,27 +100,6 @@ def validate_annotation_form_values(
         raise HTTPException(status_code=400, detail=exc.message) from exc
 
 
-def _require_task_access(
-    db: Session, campaign: Campaign, task: AnnotationTask, user_id: UUID
-) -> PolicyContext:
-    """Raise HTTP 403 unless the user may work this task, per the assigned or
-    unassigned tasks axis. Returns the policy context it checked."""
-    policy = get_labelling_policy(campaign)
-    has_assignments = bool(task.assignments)
-    ctx = build_policy_context(db, campaign, user_id, task=task)
-    axis = policy.assigned_tasks if has_assignments else policy.unassigned_tasks
-    if not is_allowed(axis, ctx):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "You are not allowed to annotate assigned tasks in this campaign"
-                if has_assignments
-                else "You are not allowed to annotate unassigned tasks in this campaign"
-            ),
-        )
-    return ctx
-
-
 def _require_explore_access(db: Session, campaign: Campaign, user_id: UUID) -> None:
     """Raise HTTP 403 unless the user may do explorative (standalone,
     free-drawn) labelling in this campaign, per the `explore` policy axis."""
@@ -226,225 +110,6 @@ def _require_explore_access(db: Session, campaign: Campaign, user_id: UUID) -> N
             status_code=403,
             detail="You are not allowed to create standalone annotations in this campaign",
         )
-
-
-# ============================================================================
-# Task Retrieval
-# ============================================================================
-
-
-def get_annotation_task_by_id(
-    db: Session,
-    task_id: int,
-    campaign: Campaign,
-) -> AnnotationTask | None:
-    """
-    Retrieve a single annotation task by ID, ensuring it belongs to the campaign.
-
-    Args:
-        db: Database session
-        task_id: ID of the task
-        campaign: The campaign the task must belong to (routers pass the
-            object resolved by their access dependency).
-
-    Returns:
-        Annotation task item or None if not found
-    """
-    stmt = (
-        select(AnnotationTask)
-        .where(
-            AnnotationTask.id == task_id,
-            AnnotationTask.campaign_id == campaign.id,
-        )
-        .options(
-            joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
-            joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
-            joinedload(AnnotationTask.claimed_by),
-        )
-    )
-
-    task = db.scalars(stmt).unique().first()
-    if task is not None:
-        _attach_has_embedding(db, [task])
-        _attach_linked_annotations(db, [task])
-        attach_to_tasks(db, campaign, [task])
-    return task
-
-
-def get_annotation_tasks_for_campaign(
-    db: Session,
-    campaign: Campaign,
-    task_ids: Sequence[int] | None = None,
-) -> list[AnnotationTask]:
-    """
-    Retrieve all annotation tasks for a campaign with eager loading
-    to avoid N+1 query problem.
-
-    This loads all related data (geometry, assignments, annotations)
-    in a single optimized query.
-
-    Args:
-        db: Database session
-        campaign: The campaign whose tasks to load.
-        task_ids: Load only these tasks instead of all of them.
-
-    Returns:
-        List of annotation task items with all relationships loaded
-    """
-    stmt = (
-        select(AnnotationTask)
-        .where(AnnotationTask.campaign_id == campaign.id)
-        .options(
-            joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
-            joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
-            joinedload(AnnotationTask.claimed_by),
-        )
-        .order_by(AnnotationTask.annotation_number)
-    )
-    if task_ids is not None:
-        stmt = stmt.where(AnnotationTask.id.in_(task_ids))
-
-    tasks = list(db.scalars(stmt).unique().all())
-    _attach_has_embedding(db, tasks)
-    _attach_linked_annotations(db, tasks)
-    attach_to_tasks(db, campaign, tasks)
-    return tasks
-
-
-def _tasks_for_status(db: Session, campaign: Campaign) -> list[AnnotationTask]:
-    """Tasks carrying only what a status decision needs.
-
-    The full task read also loads geometries, annotators and embedding flags, none of
-    which a status costs. Status itself is still decided by the one shared function,
-    so this is a narrower query rather than a second copy of the rules.
-    """
-    tasks = list(
-        db.scalars(
-            select(AnnotationTask)
-            .where(AnnotationTask.campaign_id == campaign.id)
-            .options(
-                selectinload(AnnotationTask.assignments),
-                selectinload(AnnotationTask.annotations),
-            )
-        )
-        .unique()
-        .all()
-    )
-    attach_to_tasks(db, campaign, tasks)
-    return tasks
-
-
-def get_task_density(
-    db: Session,
-    campaign: Campaign,
-    target_cells: int = 48,
-    task_set_id: int | None = None,
-    bbox: tuple[float, float, float, float] | None = None,
-) -> list[dict]:
-    """Aggregate a campaign's tasks into a grid, split by status and by the label an
-    annotator gave them.
-
-    The campaign maps ask where tasks are and what state they are in, which a grid can
-    answer in a payload that grows with cells rather than with tasks. Status is not a
-    column - it follows from assignments, counting annotations and reviewer slots - so
-    it is derived here with the same function every other read path uses, and the
-    grouping happens in Python rather than as a second copy of those rules in SQL.
-    """
-    grid = spatial.density_grid(campaign.bbox, target_cells, bbox)
-    centroids = spatial.task_centroids(db, campaign.id, task_set_id, bbox)
-    if not centroids:
-        return []
-
-    points = []
-    for task in _tasks_for_status(db, campaign):
-        point = centroids.get(task.id)
-        if point is None:
-            continue
-        annotations = task.annotations or []
-        assignment_list, annotation_list = task_status_inputs(task.assignments or [], annotations)
-        status = compute_task_status_value(assignment_list, annotation_list)
-        agreed = agreed_answers(annotations)
-        points.append((point[0], point[1], (status, agreed[0].label_id if agreed else None)))
-
-    return [
-        {
-            "lon": cell["lon"],
-            "lat": cell["lat"],
-            "task_status": cell["key"][0],
-            "label_id": cell["key"][1],
-            "count": cell["count"],
-        }
-        for cell in spatial.bin_density_cells(points, grid)
-    ]
-
-
-def claim_next_task(
-    db: Session,
-    campaign: Campaign,
-    user_id: UUID,
-    task_set_id: int | None = None,
-    after_annotation_number: int | None = None,
-) -> AnnotationTask | None:
-    """Claim the next free task and return it with the tree the client needs.
-
-    Composes the pick-and-claim with the same decorated fetch every other task
-    read goes through, so the caller can drop the task straight into its list
-    instead of reloading the campaign to find out what it just got.
-    """
-    claimed = claims.claim_next_task(
-        db,
-        campaign_id=campaign.id,
-        user_id=user_id,
-        task_set_id=task_set_id,
-        after_annotation_number=after_annotation_number,
-    )
-    if claimed is None:
-        return None
-    return get_annotation_task_by_id(db, claimed.id, campaign)
-
-
-def _attach_has_embedding(db: Session, tasks: list[AnnotationTask]) -> None:
-    """Set `has_embedding` on each task via one lightweight indexed lookup.
-
-    The vector itself is deferred on the task, so this asks only whether there is one.
-    """
-    if not tasks:
-        return
-    task_ids = [t.id for t in tasks]
-    embedded_ids = set(
-        db.scalars(
-            select(AnnotationTask.id).where(
-                AnnotationTask.id.in_(task_ids), AnnotationTask.embedding.is_not(None)
-            )
-        )
-    )
-    for task in tasks:
-        task.has_embedding = task.id in embedded_ids
-
-
-def _attach_linked_annotations(db: Session, tasks: list[AnnotationTask]) -> None:
-    """Set `nearby_annotation_count`, the standalone annotations drawn after
-    leaving this task for Explore, and `drawn_by_user_ids`, who drew shapes as
-    this draw task's answer."""
-    if not tasks:
-        return
-    task_ids = [t.id for t in tasks]
-    rows = db.execute(
-        select(Annotation.origin_task_id, func.count())
-        .where(Annotation.origin_task_id.in_(task_ids))
-        .group_by(Annotation.origin_task_id)
-    )
-    counts = {task_id: count for task_id, count in rows}
-    drawn_by: dict[int, list[UUID]] = {}
-    for task_id, user_id in db.execute(
-        select(Annotation.output_of_task_id, Annotation.created_by_user_id)
-        .where(Annotation.output_of_task_id.in_(task_ids))
-        .distinct()
-    ):
-        drawn_by.setdefault(task_id, []).append(user_id)
-    for task in tasks:
-        task.nearby_annotation_count = counts.get(task.id, 0)
-        task.drawn_by_user_ids = drawn_by.get(task.id, [])
 
 
 # ============================================================================
@@ -502,9 +167,7 @@ def _validate_origin_tasks(db: Session, campaign: Campaign, items: list[Annotati
         return
     found = set(
         db.execute(
-            select(AnnotationTask.id).where(
-                AnnotationTask.campaign_id == campaign.id, AnnotationTask.id.in_(ids)
-            )
+            select(Task.id).where(Task.campaign_id == campaign.id, Task.id.in_(ids))
         ).scalars()
     )
     if found != ids:
@@ -526,9 +189,9 @@ def _require_drawing_access(
         raise HTTPException(status_code=400, detail="This campaign's tasks take no shapes")
     tasks = (
         db.scalars(
-            select(AnnotationTask)
-            .where(AnnotationTask.campaign_id == campaign.id, AnnotationTask.id.in_(task_ids))
-            .options(joinedload(AnnotationTask.assignments))
+            select(Task)
+            .where(Task.campaign_id == campaign.id, Task.id.in_(task_ids))
+            .options(joinedload(Task.assignments))
         )
         .unique()
         .all()
@@ -536,7 +199,7 @@ def _require_drawing_access(
     if len(tasks) != len(task_ids):
         raise HTTPException(status_code=400, detail="Task not found in this campaign")
     for task in tasks:
-        _require_task_access(db, campaign, task, user_id)
+        require_task_access(db, campaign, task, user_id)
 
 
 def _standalone_annotation(
@@ -570,8 +233,8 @@ def _standalone_annotation(
 
 def add_annotation_for_task(
     db: Session,
-    annotation_task: AnnotationTask,
-    annotation_create: AnnotationFromTaskCreate,
+    annotation_task: Task,
+    annotation_create: TaskAnswerCreate,
     user_id: UUID,
 ) -> Annotation:
     """
@@ -595,7 +258,7 @@ def add_annotation_for_task(
 
     policy = get_labelling_policy(campaign)
     has_assignments = bool(annotation_task.assignments)
-    ctx = _require_task_access(db, campaign, annotation_task, user_id)
+    ctx = require_task_access(db, campaign, annotation_task, user_id)
 
     if annotation_create.is_authoritative and not ctx.is_authoritative:
         raise HTTPException(
@@ -686,33 +349,13 @@ def add_annotation_for_task(
     return annotation
 
 
-def _get_task_for_annotating(
-    db: Session, task_id: int, campaign: Campaign
-) -> AnnotationTask | None:
-    """Fetch a bare task scoped to the campaign, with just enough loaded
-    (assignments) for `add_annotation_for_task`'s policy checks - unlike
-    `get_annotation_task_by_id`, this skips the full annotations/geometry
-    joinedload tree and the counts/has_embedding attachment, all of which
-    would be thrown away by the mutation that follows.
-    """
-    stmt = (
-        select(AnnotationTask)
-        .where(
-            AnnotationTask.id == task_id,
-            AnnotationTask.campaign_id == campaign.id,
-        )
-        .options(joinedload(AnnotationTask.assignments))
-    )
-    return db.scalars(stmt).unique().first()
-
-
 def submit_task_annotation(
     db: Session,
     campaign: Campaign,
     task_id: int,
-    annotation_create: AnnotationFromTaskCreate,
+    annotation_create: TaskAnswerCreate,
     user_id: UUID,
-) -> AnnotationTaskSubmitResponse:
+) -> TaskSubmitResponse:
     """Submit (or skip) a task annotation and report the task's resulting status.
 
     Composes `add_annotation_for_task` with a single post-commit fetch of the
@@ -720,7 +363,7 @@ def submit_task_annotation(
     `assignment_status` - the one fetch that matters is the one reflecting
     what was just committed.
     """
-    task = _get_task_for_annotating(db, task_id, campaign)
+    task = task_for_annotating(db, task_id, campaign)
     if task is None:
         raise HTTPException(
             status_code=404,
@@ -734,11 +377,11 @@ def submit_task_annotation(
         user_id=user_id,
     )
 
-    refreshed_task = get_annotation_task_by_id(db, task_id, campaign)
+    refreshed_task = get_task(db, task_id, campaign)
     if refreshed_task is None:
         raise HTTPException(status_code=404, detail="Annotation task not found in this campaign")
-    task_out = AnnotationTaskOut.model_validate(refreshed_task)
-    return AnnotationTaskSubmitResponse(
+    task_out = TaskOut.model_validate(refreshed_task)
+    return TaskSubmitResponse(
         annotation=annotation,
         task_status=task_out.task_status,
         assignment_status=get_user_assignment_status(refreshed_task, user_id),
@@ -1076,7 +719,7 @@ def get_annotation_by_id(
         )
         .options(
             joinedload(Annotation.creator),
-            joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
+            joinedload(Annotation.annotation_task).selectinload(Task.assignments),
         )
     )
     annotation = db.scalars(stmt).unique().first()
@@ -1102,47 +745,13 @@ def delete_annotation_with_status(
     if task_id is None:
         return None
 
-    task = get_annotation_task_by_id(db, task_id, campaign)
+    task = get_task(db, task_id, campaign)
     if task is None:
         return None
     return TaskStatusOut(
-        task_status=AnnotationTaskOut.model_validate(task).task_status,
+        task_status=TaskOut.model_validate(task).task_status,
         assignment_status=get_user_assignment_status(task, user_id),
     )
-
-
-def delete_tasks(
-    db: Session, campaign_id: int, tasks: Sequence[AnnotationTask], *, delete_annotations: bool
-) -> None:
-    """Delete tasks and what only made sense on them.
-
-    A task row records one annotator's answer to that task and dies with it. A
-    labelled answer is still a labelled place, so unless the admin asks for the
-    annotations to go too it stays as a shape of its own; the shapes drawn on a
-    draw task stay the same way. Nothing commits here.
-    """
-    task_ids = [task.id for task in tasks]
-    if not task_ids:
-        return
-    task_rows = db.scalars(
-        select(Annotation).where(Annotation.annotation_task_id.in_(task_ids))
-    ).all()
-    drop = list(task_rows)
-    if delete_annotations:
-        drop += db.scalars(
-            select(Annotation).where(Annotation.output_of_task_id.in_(task_ids))
-        ).all()
-    else:
-        kept = [row for row in task_rows if row.outcome == "labelled"]
-        for row in kept:
-            row.annotation_task_id = None
-            row.outcome = None
-        drop = [row for row in task_rows if row.outcome is not None]
-    if task_rows or drop:
-        record_annotation_deletions(db, campaign_id, [row.id for row in drop])
-        bump_campaign_annotations_version(db, campaign_id)
-    for doomed in (*drop, *tasks):
-        db.delete(doomed)
 
 
 def delete_annotations(

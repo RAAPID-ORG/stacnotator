@@ -13,7 +13,6 @@ from geoalchemy2.elements import WKTElement
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
-from src.annotation.claims import claim_next_task, claim_task, is_free_work
 from src.annotation.constants import (
     CLAIM_TTL_MINUTES,
     DELETION_RETENTION,
@@ -24,26 +23,22 @@ from src.annotation.export import (
     build_annotations_export,
     build_annotations_geojson_export,
 )
-from src.annotation.ingest import (
-    create_annotation_tasks_from_csv,
-    create_annotations_from_geojson,
-)
-from src.annotation.models import (
-    Annotation,
-    AnnotationTask,
-    AnnotationTaskAssignment,
-)
-from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
+from src.annotation.ingest import create_annotations_from_geojson
+from src.annotation.models import Annotation
+from src.annotation.schemas import AnnotationCreate, AnnotationUpdate, TaskAnswerCreate
 from src.annotation.service import (
     add_annotation_for_task,
     create_annotation,
     create_annotations,
     delete_annotations,
-    deletion_cursor_expired,
     update_annotation,
 )
+from src.annotation.sync import deletion_cursor_expired
 from src.campaigns.schemas import default_labelling_policy
 from src.projects.models import ProjectUser
+from src.tasks.claims import claim_next_task, claim_task, is_free_work
+from src.tasks.ingest import create_annotation_tasks_from_csv
+from src.tasks.models import Task, TaskAssignment
 
 pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
 
@@ -99,7 +94,7 @@ def _make_annotation(ann_id=1, task_id=1, campaign_id=1, user_id=None, label_id=
 
 
 def _make_assignment(task_id=1, user_id=None):
-    a = MagicMock(spec=AnnotationTaskAssignment)
+    a = MagicMock(spec=TaskAssignment)
     a.task_id = task_id
     a.user_id = user_id or uuid4()
     return a
@@ -117,7 +112,7 @@ class TestAddAnnotationForTask:
         # no existing annotation, no assignment
         db.execute.return_value.scalar_one_or_none.return_value = None
 
-        payload = AnnotationFromTaskCreate(
+        payload = TaskAnswerCreate(
             label_id=1, comment="looks good", confidence=3, is_authoritative=None
         )
         add_annotation_for_task(db, task, payload, user_id)
@@ -140,7 +135,7 @@ class TestAddAnnotationForTask:
 
         db.execute.return_value.scalar_one_or_none.return_value = None
 
-        payload = AnnotationFromTaskCreate(label_id=None, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=None, comment=None, confidence=None)
         result = add_annotation_for_task(db, task, payload, user_id)
 
         added = db.add.call_args[0][0]
@@ -159,7 +154,7 @@ class TestAddAnnotationForTask:
 
         db.execute.return_value.scalar_one_or_none.return_value = None
 
-        payload = AnnotationFromTaskCreate(label_id=2, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=2, comment=None, confidence=None)
         add_annotation_for_task(db, task, payload, user_id)
 
         assert not hasattr(assignment, "status")
@@ -172,9 +167,7 @@ class TestAddAnnotationForTask:
 
         db.execute.return_value.scalar_one_or_none.return_value = None
 
-        payload = AnnotationFromTaskCreate(
-            label_id=1, comment=None, confidence=None, active_ms=90_000
-        )
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None, active_ms=90_000)
         add_annotation_for_task(db, task, payload, user_id)
 
         assert db.add.call_args[0][0].active_seconds == 90
@@ -191,7 +184,7 @@ class TestAddAnnotationForTask:
         )
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
 
-        payload = AnnotationFromTaskCreate(
+        payload = TaskAnswerCreate(
             label_id=5, comment="revised", confidence=4, is_authoritative=True
         )
         add_annotation_for_task(db, task, payload, user_id)
@@ -212,7 +205,7 @@ class TestAddAnnotationForTask:
 
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
-        payload = AnnotationFromTaskCreate(label_id=None, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=None, comment=None, confidence=None)
         result = add_annotation_for_task(db, task, payload, user_id)
 
         db.delete.assert_not_called()
@@ -231,9 +224,7 @@ class TestAddAnnotationForTask:
             is_admin=False, is_authoritative_reviewer=False
         )
 
-        payload = AnnotationFromTaskCreate(
-            label_id=1, comment=None, confidence=None, is_authoritative=True
-        )
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None, is_authoritative=True)
 
         with pytest.raises(HTTPException) as exc_info:
             add_annotation_for_task(db, task, payload, user_id)
@@ -251,9 +242,7 @@ class TestAddAnnotationForTask:
 
         db.scalars.return_value.first.return_value = None
 
-        payload = AnnotationFromTaskCreate(
-            label_id=1, comment=None, confidence=None, is_authoritative=True
-        )
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None, is_authoritative=True)
 
         with pytest.raises(HTTPException) as exc_info:
             add_annotation_for_task(db, task, payload, user_id)
@@ -274,9 +263,7 @@ class TestAddAnnotationForTask:
             is_admin=False, is_authoritative_reviewer=True
         )
 
-        payload = AnnotationFromTaskCreate(
-            label_id=7, comment=None, confidence=None, is_authoritative=True
-        )
+        payload = TaskAnswerCreate(label_id=7, comment=None, confidence=None, is_authoritative=True)
         add_annotation_for_task(db, task, payload, user_id)
 
         db.add.assert_called_once()
@@ -299,7 +286,7 @@ class TestAddAnnotationForTask:
         # Only the existing-annotation lookup should run.
         db.execute.return_value.scalar_one_or_none.side_effect = [None]
 
-        payload = AnnotationFromTaskCreate(
+        payload = TaskAnswerCreate(
             label_id=2, comment=None, confidence=None, is_authoritative=False
         )
         add_annotation_for_task(db, task, payload, user_id)
@@ -740,7 +727,7 @@ class TestExportAnnotatorCount:
     The pure-Python record builders are exercised directly via
     ``_build_annotation_records``; ``_compute_task_status_for_export`` is
     patched out so we don't need fully ORM-shaped task objects (it goes
-    through pydantic ``AnnotationTaskOut.model_validate``).
+    through pydantic ``TaskOut.model_validate``).
     """
 
     @staticmethod
@@ -1550,7 +1537,7 @@ class TestClaimTask:
     def test_free_work_means_neither_assigned_nor_worked(self):
         """Both halves matter and neither is checked anywhere else, so losing
         one would silently start handing out other people's tasks."""
-        sql = str(_compiled(select(AnnotationTask.id).where(is_free_work())))
+        sql = str(_compiled(select(Task.id).where(is_free_work())))
         assert "annotation_tasks_assignment" in sql
         assert "annotations" in sql
         assert sql.count("NOT (EXISTS") == 2

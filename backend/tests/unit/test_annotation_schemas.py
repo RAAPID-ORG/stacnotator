@@ -10,14 +10,13 @@ from pydantic import ValidationError
 
 from src.annotation.schemas import (
     AnnotationCreate,
-    AnnotationFromTaskCreate,
-    AnnotationTaskAssignmentOut,
-    AnnotationTaskOut,
     AnnotationUpdate,
     SliceComment,
+    TaskAnswerCreate,
     normalize_slice_comments,
 )
-from src.annotation.status import (
+from src.tasks.schemas import TaskAssignmentOut, TaskOut
+from src.tasks.status import (
     compute_task_status_value,
 )
 
@@ -33,7 +32,7 @@ def _base_assignment(status: str) -> dict:
 
 
 def _assignment_row(*, user_id=None, is_review: bool = False) -> SimpleNamespace:
-    """An ORM-shaped `AnnotationTaskAssignment` stand-in: `AnnotationTaskOut`
+    """An ORM-shaped `TaskAssignment` stand-in: `TaskOut`
     is only ever validated from real ORM rows in production, so tests that
     exercise its `compute_task_status` validator build attribute-bearing
     fakes rather than dicts. No status: it is derived from the annotations."""
@@ -68,11 +67,11 @@ def _annotation_row(
     )
 
 
-def _make_task_out_with_computed_status(assignments_data, annotations_data) -> AnnotationTaskOut:
+def _make_task_out_with_computed_status(assignments_data, annotations_data) -> TaskOut:
     """Validate an ORM-shaped fake task and let compute_task_status derive
-    task_status from it - the only path `AnnotationTaskOut` is built through
-    in production (`AnnotationTaskOut.model_validate` on a real
-    `AnnotationTask` row)."""
+    task_status from it - the only path `TaskOut` is built through
+    in production (`TaskOut.model_validate` on a real
+    `Task` row)."""
     mock_shape = MagicMock()
     mock_shape.wkt = "POINT (0 0)"
     fake_task = SimpleNamespace(
@@ -88,27 +87,27 @@ def _make_task_out_with_computed_status(assignments_data, annotations_data) -> A
         claimed_by=None,
     )
     with patch("src.annotation.schemas.to_shape", return_value=mock_shape):
-        return AnnotationTaskOut.model_validate(fake_task)
+        return TaskOut.model_validate(fake_task)
 
 
 def test_assignment_status_pending_accepted():
-    a = AnnotationTaskAssignmentOut(**_base_assignment("pending"))
+    a = TaskAssignmentOut(**_base_assignment("pending"))
     assert a.status == "pending"
 
 
 def test_assignment_status_done_accepted():
-    a = AnnotationTaskAssignmentOut(**_base_assignment("done"))
+    a = TaskAssignmentOut(**_base_assignment("done"))
     assert a.status == "done"
 
 
 def test_assignment_status_skipped_accepted():
-    a = AnnotationTaskAssignmentOut(**_base_assignment("skipped"))
+    a = TaskAssignmentOut(**_base_assignment("skipped"))
     assert a.status == "skipped"
 
 
 def test_assignment_status_invalid_rejected():
     with pytest.raises(ValidationError):
-        AnnotationTaskAssignmentOut(**_base_assignment("bogus"))
+        TaskAssignmentOut(**_base_assignment("bogus"))
 
 
 def test_task_status_pending_when_no_assignments():
@@ -173,7 +172,7 @@ def test_task_status_is_literal_type():
     """task_status field is annotated as Literal; verify type annotation is not plain str."""
     import typing
 
-    hints = typing.get_type_hints(AnnotationTaskOut)
+    hints = typing.get_type_hints(TaskOut)
     origin = typing.get_origin(hints["task_status"])
     assert origin is typing.Literal, "task_status must be Literal[...], not plain str"
 
@@ -182,7 +181,7 @@ def test_assignment_status_is_literal_type():
     """status field is annotated as Literal; verify type annotation is not plain str."""
     import typing
 
-    hints = typing.get_type_hints(AnnotationTaskAssignmentOut)
+    hints = typing.get_type_hints(TaskAssignmentOut)
     origin = typing.get_origin(hints["status"])
     assert origin is typing.Literal, "status must be Literal[...], not plain str"
 
@@ -428,7 +427,7 @@ def test_annotation_task_out_computes_status_from_counting_flag():
     """End-to-end through the pydantic model_validator (not just the pure
     function): an annotation carrying counts_toward_completion=False must
     not resolve the task, exercising the same code path the API uses when
-    serializing AnnotationTaskOut."""
+    serializing TaskOut."""
     user = uuid4()
     obj = _make_task_out_with_computed_status(
         assignments_data=[_assignment_row(user_id=user)],
@@ -464,8 +463,8 @@ class TestCommentLengthCaps:
     @pytest.mark.parametrize(
         "build",
         [
-            lambda text: AnnotationFromTaskCreate(label_id=1, comment=text),
-            lambda text: AnnotationFromTaskCreate(label_id=1, comment=None, flag_comment=text),
+            lambda text: TaskAnswerCreate(label_id=1, comment=text),
+            lambda text: TaskAnswerCreate(label_id=1, comment=None, flag_comment=text),
             lambda text: AnnotationCreate(label_id=1, comment=text, geometry_wkt="POINT (0 0)"),
             lambda text: AnnotationCreate(
                 label_id=1, comment=None, geometry_wkt="POINT (0 0)", flag_comment=text
@@ -514,7 +513,7 @@ class TestSliceComments:
 
     def test_list_length_capped(self):
         with pytest.raises(ValidationError):
-            AnnotationFromTaskCreate(
+            TaskAnswerCreate(
                 label_id=1,
                 comment=None,
                 slice_comments=[self._note(i, "note") for i in range(101)],

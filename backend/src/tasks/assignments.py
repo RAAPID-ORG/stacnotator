@@ -9,18 +9,19 @@ from fastapi import HTTPException
 from sqlalchemy import CursorResult, Result, delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from src.annotation.claims import is_free_work
-from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
+from src.annotation.models import Annotation
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
-from src.campaigns.models import Campaign, TaskSet
-from src.campaigns.schemas import (
+from src.campaigns.models import Campaign
+from src.projects.models import ProjectUser
+from src.tasks.claims import is_free_work
+from src.tasks.models import Task, TaskAssignment, TaskSet
+from src.tasks.schemas import (
     AssignReviewersRequest,
     AssignTasksToUsersRequest,
     AssignTasksToUsersResult,
     ReviewShareOfTasks,
 )
-from src.projects.models import ProjectUser
 
 ASSIGNMENTS_CSV_COLUMNS = [
     "annotation_number",
@@ -66,16 +67,16 @@ def _verify_campaign_members(
         )
 
 
-def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]) -> list[int]:
+def verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]) -> list[int]:
     """Raise 404 if any task_id isn't in the campaign; otherwise return the
     (unique) found ids so callers who already need them skip a second query."""
     if not task_ids:
         return []
     found = list(
         db.scalars(
-            select(AnnotationTask.id).where(
-                AnnotationTask.id.in_(task_ids),
-                AnnotationTask.campaign_id == campaign_id,
+            select(Task.id).where(
+                Task.id.in_(task_ids),
+                Task.campaign_id == campaign_id,
             )
         ).all()
     )
@@ -90,15 +91,10 @@ def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]
 
 def _eligible_task_ids(db: Session, campaign_id: int, task_set_id: int | None = None) -> list[int]:
     """Campaign tasks free to hand out, locked for update."""
-    conditions = [AnnotationTask.campaign_id == campaign_id, is_free_work()]
+    conditions = [Task.campaign_id == campaign_id, is_free_work()]
     if task_set_id is not None:
-        conditions.append(AnnotationTask.task_set_id == task_set_id)
-    stmt = (
-        select(AnnotationTask.id)
-        .where(*conditions)
-        .order_by(AnnotationTask.id)
-        .with_for_update(skip_locked=True)
-    )
+        conditions.append(Task.task_set_id == task_set_id)
+    stmt = select(Task.id).where(*conditions).order_by(Task.id).with_for_update(skip_locked=True)
     return list(db.scalars(stmt).all())
 
 
@@ -128,8 +124,8 @@ def _filter_new_pairs(db: Session, pairs: list[tuple[int, UUID]]) -> list[tuple[
     task_ids = {task_id for task_id, _ in pairs}
     existing = set(
         db.execute(
-            select(AnnotationTaskAssignment.task_id, AnnotationTaskAssignment.user_id).where(
-                AnnotationTaskAssignment.task_id.in_(task_ids)
+            select(TaskAssignment.task_id, TaskAssignment.user_id).where(
+                TaskAssignment.task_id.in_(task_ids)
             )
         ).all()
     )
@@ -150,7 +146,7 @@ def assign_tasks_to_users(
         }
         user_ids = {uid for uids in mapping.values() for uid in uids}
         _verify_campaign_members(db, campaign_id, user_ids)
-        _verify_tasks_in_campaign(db, campaign_id, list(mapping.keys()))
+        verify_tasks_in_campaign(db, campaign_id, list(mapping.keys()))
     else:
         if req.strategy == "even" and not req.user_ids:
             raise HTTPException(status_code=400, detail="No users selected")
@@ -177,7 +173,7 @@ def assign_tasks_to_users(
     if new_pairs:
         for task_id, user_id in new_pairs:
             db.add(
-                AnnotationTaskAssignment(
+                TaskAssignment(
                     task_id=task_id,
                     user_id=user_id,
                 )
@@ -204,22 +200,20 @@ def unassign_users_from_tasks(
     if not task_ids:
         return 0
 
-    _verify_tasks_in_campaign(db, campaign_id, task_ids)
+    verify_tasks_in_campaign(db, campaign_id, task_ids)
 
-    where_clauses = [AnnotationTaskAssignment.task_id.in_(task_ids)]
+    where_clauses = [TaskAssignment.task_id.in_(task_ids)]
     if user_ids is not None:
         if not user_ids:
             return 0
-        where_clauses.append(AnnotationTaskAssignment.user_id.in_(user_ids))
+        where_clauses.append(TaskAssignment.user_id.in_(user_ids))
 
-    deleted = _deleted_rows(db.execute(delete(AnnotationTaskAssignment).where(*where_clauses)))
+    deleted = _deleted_rows(db.execute(delete(TaskAssignment).where(*where_clauses)))
     db.commit()
     return deleted
 
 
-def _reviewable_tasks(
-    db: Session, campaign_id: int, task_set_id: int | None = None
-) -> list[AnnotationTask]:
+def _reviewable_tasks(db: Session, campaign_id: int, task_set_id: int | None = None) -> list[Task]:
     """Campaign tasks that already have a primary (non-review) assignment.
 
     A reviewer reviews someone else's annotation work, so a task is only
@@ -227,26 +221,26 @@ def _reviewable_tasks(
     no assignment - or with only review assignments - are excluded.
     """
     has_primary_assignment = (
-        select(AnnotationTaskAssignment.id)
+        select(TaskAssignment.id)
         .where(
-            AnnotationTaskAssignment.task_id == AnnotationTask.id,
-            AnnotationTaskAssignment.is_review.is_(False),
+            TaskAssignment.task_id == Task.id,
+            TaskAssignment.is_review.is_(False),
         )
         .exists()
     )
     conditions = [
-        AnnotationTask.campaign_id == campaign_id,
+        Task.campaign_id == campaign_id,
         has_primary_assignment,
     ]
     if task_set_id is not None:
-        conditions.append(AnnotationTask.task_set_id == task_set_id)
-    stmt = select(AnnotationTask).where(*conditions)
+        conditions.append(Task.task_set_id == task_set_id)
+    stmt = select(Task).where(*conditions)
     return list(db.scalars(stmt).all())
 
 
 def _top_up_review_assignments(
     db: Session,
-    tasks_to_review: list[AnnotationTask],
+    tasks_to_review: list[Task],
     num_reviewers: int,
     reviewer_ids: list[UUID],
 ) -> None:
@@ -259,9 +253,7 @@ def _top_up_review_assignments(
     and nobody is assigned twice.
     """
     task_ids_to_review = [task.id for task in tasks_to_review]
-    stmt = select(AnnotationTaskAssignment).where(
-        AnnotationTaskAssignment.task_id.in_(task_ids_to_review)
-    )
+    stmt = select(TaskAssignment).where(TaskAssignment.task_id.in_(task_ids_to_review))
     existing_assignments = db.scalars(stmt).all()
 
     assigned_user_ids: dict[int, set[UUID]] = {}
@@ -284,7 +276,7 @@ def _top_up_review_assignments(
 
     for task_id, user_id in new_pairs:
         db.add(
-            AnnotationTaskAssignment(
+            TaskAssignment(
                 task_id=task_id,
                 user_id=user_id,
                 is_review=True,
@@ -357,10 +349,10 @@ def build_task_assignments_export(
     campaign_id = campaign.id
     label_names = campaign.label_names
 
-    task_query = select(AnnotationTask).where(AnnotationTask.campaign_id == campaign_id)
+    task_query = select(Task).where(Task.campaign_id == campaign_id)
     if task_set_id is not None:
-        task_query = task_query.where(AnnotationTask.task_set_id == task_set_id)
-    tasks = list(db.scalars(task_query.order_by(AnnotationTask.annotation_number)).all())
+        task_query = task_query.where(Task.task_set_id == task_set_id)
+    tasks = list(db.scalars(task_query.order_by(Task.annotation_number)).all())
     task_ids = [task.id for task in tasks]
 
     assignees_by_task: dict[int, list[str]] = defaultdict(list)
@@ -370,12 +362,12 @@ def build_task_assignments_export(
     if task_ids:
         assignment_rows = db.execute(
             select(
-                AnnotationTaskAssignment.task_id,
+                TaskAssignment.task_id,
                 User.email,
-                AnnotationTaskAssignment.is_review,
+                TaskAssignment.is_review,
             )
-            .join(User, User.id == AnnotationTaskAssignment.user_id)
-            .where(AnnotationTaskAssignment.task_id.in_(task_ids))
+            .join(User, User.id == TaskAssignment.user_id)
+            .where(TaskAssignment.task_id.in_(task_ids))
         ).all()
         for task_id, email, is_review in assignment_rows:
             target = reviewers_by_task if is_review else assignees_by_task
@@ -507,9 +499,7 @@ def import_task_assignments(db: Session, campaign_id: int, file_bytes: bytes) ->
         errors.append(f"Duplicate annotation_number(s) in file: {sorted(duplicate_numbers)}")
 
     # Resolve tasks by their campaign-local annotation number.
-    tasks = db.scalars(
-        select(AnnotationTask).where(AnnotationTask.campaign_id == campaign_id)
-    ).all()
+    tasks = db.scalars(select(Task).where(Task.campaign_id == campaign_id)).all()
     task_by_number = {task.annotation_number: task for task in tasks}
     missing_tasks = sorted({n for n, _, _ in parsed} - set(task_by_number))
     if missing_tasks:
@@ -571,9 +561,7 @@ def import_task_assignments(db: Session, campaign_id: int, file_bytes: bytes) ->
         assignee_users = _unique_users(assignees, user_by_email)
         reviewer_users = _unique_users(reviewers, user_by_email)
 
-        db.execute(
-            delete(AnnotationTaskAssignment).where(AnnotationTaskAssignment.task_id == task.id)
-        )
+        db.execute(delete(TaskAssignment).where(TaskAssignment.task_id == task.id))
         for user in assignee_users:
             new_assignments.append((task.id, user.id, False))
         for user in reviewer_users:
@@ -583,7 +571,7 @@ def import_task_assignments(db: Session, campaign_id: int, file_bytes: bytes) ->
 
     for task_id, user_id, is_review in new_assignments:
         db.add(
-            AnnotationTaskAssignment(
+            TaskAssignment(
                 task_id=task_id,
                 user_id=user_id,
                 is_review=is_review,

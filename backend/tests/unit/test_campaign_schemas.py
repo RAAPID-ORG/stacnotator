@@ -7,15 +7,13 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from src.campaigns.schemas import (
-    AssignReviewersRequest,
     CampaignCreate,
     CampaignOut,
     CampaignOutFull,
     CampaignSettingsCreate,
-    ReviewNumberOfTasks,
-    ReviewShareOfTasks,
     default_labelling_policy,
 )
+from src.tasks.schemas import AssignReviewersRequest, ReviewNumberOfTasks, ReviewShareOfTasks
 
 
 def _minimal_settings() -> dict:

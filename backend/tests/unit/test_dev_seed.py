@@ -11,10 +11,10 @@ from seed_dev_data import (
     _stac_search_query,
     _wait_for_registration,
 )
-from src.annotation.models import AnnotationTaskAssignment
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.imagery.registration import _resolved_search_body
+from src.tasks.models import TaskAssignment
 
 
 def test_monthly_slices_cover_the_year_without_overlap():
@@ -67,7 +67,7 @@ def test_seed_tasks_uses_the_default_task_set_and_assigns_each_task(sample_user_
     assert args[3].bounds == tuple(UKRAINE_BBOX.values())
     assert args[4] == 8
     statement, assignments = db.execute.call_args.args
-    assert statement.table.name == AnnotationTaskAssignment.__tablename__
+    assert statement.table.name == TaskAssignment.__tablename__
     assert assignments == [
         {"task_id": 10, "user_id": sample_user_id},
         {"task_id": 11, "user_id": sample_user_id},

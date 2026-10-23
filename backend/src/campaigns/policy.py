@@ -144,7 +144,7 @@ class _AssignmentLike(Protocol):
 
 
 class _TaskLike(Protocol):
-    """Structural stand-in for annotation.models.AnnotationTask - this module
+    """Structural stand-in for annotation.models.Task - this module
     must not import from src.annotation (see module docstring / cycle note).
     Read-only properties (not plain attributes) so mypy matches this
     covariantly against the real ORM model's Mapped columns/relationships."""

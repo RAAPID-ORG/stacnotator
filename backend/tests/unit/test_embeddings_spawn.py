@@ -10,31 +10,31 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.annotation import embeddings_service
+from src.tasks import embeddings
 
 
 @pytest.fixture()
 def spawn(monkeypatch):
     spawn = MagicMock()
-    monkeypatch.setattr(embeddings_service.background, "spawn_status_run", spawn)
+    monkeypatch.setattr(embeddings.background, "spawn_status_run", spawn)
     return spawn
 
 
 def test_spawns_the_embedding_status_run(spawn):
-    embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
+    embeddings.spawn_background_embedding_computation(campaign_id=1, year=2023)
 
     spawn.assert_called_once()
     args, kwargs = spawn.call_args
-    assert args == (1, embeddings_service.EMBEDDING_RUN)
+    assert args == (1, embeddings.EMBEDDING_RUN)
     assert kwargs["name"] == "embedding computation"
 
 
 def test_work_populates_the_year_range_when_earth_engine_is_ready(spawn, monkeypatch):
-    monkeypatch.setattr(embeddings_service, "ensure_earth_engine", lambda: True)
+    monkeypatch.setattr(embeddings, "ensure_earth_engine", lambda: True)
     populate = MagicMock()
-    monkeypatch.setattr(embeddings_service, "populate_campaign_embeddings", populate)
+    monkeypatch.setattr(embeddings, "populate_campaign_embeddings", populate)
 
-    embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
+    embeddings.spawn_background_embedding_computation(campaign_id=1, year=2023)
     db = MagicMock()
     spawn.call_args.kwargs["work"](db)
 
@@ -42,9 +42,9 @@ def test_work_populates_the_year_range_when_earth_engine_is_ready(spawn, monkeyp
 
 
 def test_work_fails_clearly_when_earth_engine_is_unavailable(spawn, monkeypatch):
-    monkeypatch.setattr(embeddings_service, "ensure_earth_engine", lambda: False)
+    monkeypatch.setattr(embeddings, "ensure_earth_engine", lambda: False)
 
-    embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
+    embeddings.spawn_background_embedding_computation(campaign_id=1, year=2023)
 
     with pytest.raises(RuntimeError, match="Earth Engine is unavailable"):
         spawn.call_args.kwargs["work"](MagicMock())
@@ -55,7 +55,7 @@ def test_errors_are_kept_apart_from_imagery_registration(spawn):
     embedding run's with it."""
     from src.imagery.registration import REGISTRATION_RUN
 
-    embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
+    embeddings.spawn_background_embedding_computation(campaign_id=1, year=2023)
 
     assert spawn.call_args.kwargs["sanitize_error"](RuntimeError("GEE exploded")) == "GEE exploded"
-    assert embeddings_service.EMBEDDING_RUN.errors_column != REGISTRATION_RUN.errors_column
+    assert embeddings.EMBEDDING_RUN.errors_column != REGISTRATION_RUN.errors_column

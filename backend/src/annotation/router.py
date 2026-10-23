@@ -9,7 +9,6 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
-    Form,
     HTTPException,
     Query,
     Response,
@@ -19,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.annotation import claims, embeddings_service, export, ingest, service, spatial
+from src.annotation import export, ingest, service, spatial, sync
 from src.annotation.models import Annotation
 from src.annotation.schemas import (
     AnnotationChangeOut,
@@ -27,35 +26,26 @@ from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationDensityCell,
     AnnotationFacetsOut,
-    AnnotationFromTaskCreate,
     AnnotationLabelDensityCell,
     AnnotationOut,
     AnnotationsExtentOut,
     AnnotationSort,
     AnnotationsPageOut,
-    AnnotationTaskChangesOut,
-    AnnotationTaskListOut,
-    AnnotationTaskOut,
-    AnnotationTaskSubmitResponse,
     AnnotationUpdate,
     BatchCreateAnnotationsRequest,
     BatchCreateAnnotationsResponse,
     BatchDeleteAnnotationsRequest,
     BatchDeleteAnnotationsResponse,
-    ClaimNextResponse,
-    ClaimTaskResponse,
-    TaskDensityCell,
-    TaskStatusOut,
-    ValidateLabelSubmissionsResponse,
+    TaskAnswerCreate,
 )
 from src.annotation.tiles import InvalidBBoxError, InvalidTileError, parse_bbox
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
-from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.routing import attachment_headers
+from src.tasks.schemas import TaskStatusOut, TaskSubmitResponse
 from src.tile_bulkhead import tile_slot
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -72,49 +62,18 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-@router.get("/campaigns/{campaign_id}/tasks", response_model=AnnotationTaskListOut)
-def list_tasks(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    tasks = service.get_annotation_tasks_for_campaign(db, campaign)
-    return AnnotationTaskListOut(campaign_id=campaign.id, tasks=tasks)
-
-
-@router.get(
-    "/campaigns/{campaign_id}/tasks/changes",
-    response_model=AnnotationTaskChangesOut,
-)
-def list_task_changes(
-    campaign_id: int,
-    since: datetime | None = None,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-) -> AnnotationTaskChangesOut:
-    """Tasks annotated since ``since``, so one annotator's progress reflects
-    everyone's without reloading the whole task list. Without ``since`` it only
-    hands back the cursor, like the annotation changes poll."""
-    now = spatial.server_now(db)
-    if since is None:
-        return AnnotationTaskChangesOut(server_time=now, tasks=[])
-    task_ids = service.get_changed_task_ids(db, campaign.id, since)
-    tasks = service.get_annotation_tasks_for_campaign(db, campaign, task_ids) if task_ids else []
-    return AnnotationTaskChangesOut(server_time=now, tasks=tasks)
-
-
 @router.post(
     "/campaigns/{campaign_id}/tasks/{task_id}/annotate",
-    response_model=AnnotationTaskSubmitResponse,
+    response_model=TaskSubmitResponse,
 )
 def annotate_task(
     campaign_id: int,
     task_id: int,
-    annotation: AnnotationFromTaskCreate,
+    annotation: TaskAnswerCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> AnnotationTaskSubmitResponse:
+) -> TaskSubmitResponse:
     return service.submit_task_annotation(
         db=db,
         campaign=campaign,
@@ -122,134 +81,6 @@ def annotate_task(
         annotation_create=annotation,
         user_id=user.id,
     )
-
-
-@router.post(
-    "/campaigns/{campaign_id}/tasks/{task_id}/claim",
-    response_model=ClaimTaskResponse,
-)
-def claim_task(
-    campaign_id: int,
-    task_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_authenticated_user),
-    campaign: Campaign = Depends(require_campaign_access),
-) -> ClaimTaskResponse:
-    outcome = claims.claim_task(
-        db=db,
-        campaign_id=campaign_id,
-        task_id=task_id,
-        user_id=user.id,
-    )
-    return ClaimTaskResponse(
-        task_id=task_id,
-        claimed=outcome.claimed,
-        claimed_at=outcome.claimed_at,
-        holder_user_id=outcome.holder_user_id,
-        holder_display_name=outcome.holder_display_name,
-    )
-
-
-@router.post(
-    "/campaigns/{campaign_id}/tasks/claim-next",
-    response_model=ClaimNextResponse,
-)
-def claim_next_task(
-    campaign_id: int,
-    task_set_id: int | None = None,
-    after_annotation_number: int | None = None,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_authenticated_user),
-    campaign: Campaign = Depends(require_campaign_access),
-) -> ClaimNextResponse:
-    """Hand out the next task nobody is working on, claimed in the same
-    transaction so simultaneous callers get different ones.
-
-    `after_annotation_number` keeps the caller moving forward through the
-    campaign and wraps once nothing is left ahead of them.
-    """
-    task = service.claim_next_task(
-        db=db,
-        campaign=campaign,
-        user_id=user.id,
-        task_set_id=task_set_id,
-        after_annotation_number=after_annotation_number,
-    )
-    return ClaimNextResponse(task=AnnotationTaskOut.model_validate(task) if task else None)
-
-
-@router.get(
-    "/campaigns/{campaign_id}/tasks/{task_id}/validate-label",
-    response_model=ValidateLabelSubmissionsResponse,
-)
-def validate_task_label(
-    campaign_id: int,
-    task_id: int,
-    label_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    """Check whether a label_id agrees with the KNN-majority prediction
-    derived from the task's satellite embedding and its nearest neighbours
-    in the same campaign.
-
-    Always returns 200 with a status field indicating the outcome:
-    - ok - label matches neighbours
-    - mismatch - label disagrees with neighbours
-    - skipped_no_embedding - no embedding for the task
-    - skipped_insufficient_data - not enough labeled data yet
-    - disabled - no embedding year configured for this campaign
-    """
-    # Short-circuit if no embedding year is configured
-    if campaign.embedding_year is None:
-        return ValidateLabelSubmissionsResponse(status="disabled", agrees=None)
-
-    return embeddings_service.validate_label_submission(
-        db,
-        campaign_id=campaign_id,
-        annotation_task_id=task_id,
-        label_id=label_id,
-    )
-
-
-@router.post("/campaigns/{campaign_id}/ingest-annotation-task-csv")
-async def ingest_annotation_tasks_from_csv(
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    file: UploadFile = File(...),
-    task_set_id: int = Form(...),
-):
-    if not (file.filename or "").endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be a CSV")
-
-    require_task_set(db, campaign.id, task_set_id, status_code=400)
-    contents = await file.read()
-    num_created = ingest.create_annotation_tasks_from_csv(db, campaign, contents, task_set_id)
-    return {"num_tasks_created": num_created}
-
-
-@router.post("/campaigns/{campaign_id}/ingest-annotation-task-geojson")
-async def ingest_annotation_tasks_from_geojson(
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    file: UploadFile = File(...),
-    task_set_id: int = Form(...),
-):
-    """
-    Ingest annotation tasks from a GeoJSON file.
-
-    Each feature becomes one annotation task. Supported geometry types:
-    Point, Polygon, MultiPolygon. Polygon geometries are stored as-is and
-    displayed as the sample extent during annotation.
-    """
-    fname = (file.filename or "").lower()
-    if not (fname.endswith(".geojson") or fname.endswith(".json")):
-        raise HTTPException(status_code=400, detail="File must be a .geojson or .json file")
-
-    require_task_set(db, campaign.id, task_set_id, status_code=400)
-    contents = await file.read()
-    num_created = ingest.create_annotation_tasks_from_geojson(db, campaign, contents, task_set_id)
-    return {"num_tasks_created": num_created}
 
 
 @router.post("/campaigns/{campaign_id}/ingest-annotations-geojson")
@@ -606,7 +437,7 @@ def get_annotation_changes(
         return AnnotationChangesOut(server_time=now, changes=[])
     # Older than tombstones are kept: what was deleted in between cannot be
     # named any more, so the tiles are the only honest way to catch up.
-    if service.deletion_cursor_expired(since, now):
+    if sync.deletion_cursor_expired(since, now):
         return AnnotationChangesOut(server_time=now, changes=[], truncated=True)
     rows, truncated = spatial.get_annotation_changes(
         db, campaign.id, since, include_tasks=include_tasks
@@ -614,7 +445,7 @@ def get_annotation_changes(
     return AnnotationChangesOut(
         server_time=now,
         changes=[AnnotationChangeOut(**row) for row in rows],
-        deleted=service.get_deleted_annotation_ids(db, campaign.id, since),
+        deleted=sync.get_deleted_annotation_ids(db, campaign.id, since),
         truncated=truncated,
     )
 
@@ -632,33 +463,6 @@ def get_annotations_extent(
     """Return the bounding box of a campaign's annotations for fit-to-bounds."""
     bbox = spatial.get_campaign_annotations_extent(db, campaign.id, include_tasks=include_tasks)
     return AnnotationsExtentOut(bbox=bbox)
-
-
-@router.get(
-    "/campaigns/{campaign_id}/tasks/density",
-    response_model=list[TaskDensityCell],
-)
-def get_task_density(
-    campaign_id: int,
-    task_set_id: int | None = None,
-    bbox: str | None = Query(None, description="minx,miny,maxx,maxy in EPSG:4326"),
-    target_cells: int = Query(48, ge=1, le=512),
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-) -> list[TaskDensityCell]:
-    """A grid of task counts by status and label, for the campaign maps.
-
-    `bbox` both windows the result and sizes the cells, so zooming resolves: cells
-    shrink until one holds a single task and its reported position is that task's own.
-    """
-    try:
-        window = parse_bbox(bbox) if bbox else None
-    except InvalidBBoxError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    cells = service.get_task_density(
-        db, campaign, target_cells=target_cells, task_set_id=task_set_id, bbox=window
-    )
-    return [TaskDensityCell(**cell) for cell in cells]
 
 
 @router.get(

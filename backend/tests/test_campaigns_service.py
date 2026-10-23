@@ -11,22 +11,10 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
-from src.annotation import service as annotation_service
-from src.annotation.models import Annotation, AnnotationTaskAssignment
-from src.campaigns.assignments import (
-    _distribute_evenly,
-    _distribute_fixed,
-    assign_reviewers,
-    assign_tasks_to_users,
-)
+from src.annotation.models import Annotation
 from src.campaigns.form_fields import CategoryFormField, TextFormField
 from src.campaigns.models import Campaign
-from src.campaigns.schemas import (
-    AssignTasksToUsersRequest,
-    CampaignUpdate,
-    ReviewNumberOfTasks,
-    ReviewShareOfTasks,
-)
+from src.campaigns.schemas import CampaignUpdate
 from src.campaigns.service import (
     list_campaigns_with_user_roles,
     update_campaign,
@@ -38,6 +26,15 @@ from src.campaigns.statistics import (
     _scoped_to_set,
 )
 from src.layers import LayerOwner
+from src.tasks import service as tasks_service
+from src.tasks.assignments import (
+    _distribute_evenly,
+    _distribute_fixed,
+    assign_reviewers,
+    assign_tasks_to_users,
+)
+from src.tasks.models import TaskAssignment
+from src.tasks.schemas import AssignTasksToUsersRequest, ReviewNumberOfTasks, ReviewShareOfTasks
 
 
 def _mock_db():
@@ -337,9 +334,7 @@ def _make_tasks(task_ids):
 
 
 def _make_assignment(task_id, user_id, is_review=False):
-    return MagicMock(
-        spec=AnnotationTaskAssignment, task_id=task_id, user_id=user_id, is_review=is_review
-    )
+    return MagicMock(spec=TaskAssignment, task_id=task_id, user_id=user_id, is_review=is_review)
 
 
 class TestAssignReviewersPercentage:
@@ -402,7 +397,7 @@ class TestAssignReviewersPercentage:
         assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert {a.task_id for a in assignments} == {10, 20, 30}
         assert all(a.user_id == u1 for a in assignments)
         assert all(a.is_review is True for a in assignments)
@@ -425,7 +420,7 @@ class TestAssignReviewersPercentage:
         assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert assignments == []
         db.commit.assert_called_once()
 
@@ -452,7 +447,7 @@ class TestAssignReviewersPercentage:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert all(a.user_id != annotator for a in assignments), (
             "Original annotator was assigned as a reviewer for their own task"
         )
@@ -484,7 +479,7 @@ class TestAssignReviewersPercentage:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        new_assignments = [a for a in added if isinstance(a, TaskAssignment)]
 
         # Each task should get exactly 2 new reviewers (r1 and r2)
         from collections import Counter
@@ -539,7 +534,7 @@ class TestAssignReviewersFixed:
         assign_reviewers_fixed(db, 1, num_tasks=2, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert len(assignments) == 2
         assert len({a.task_id for a in assignments}) == 2
         assert all(a.task_id in {10, 20, 30} for a in assignments)
@@ -569,7 +564,7 @@ class TestAssignReviewersFixed:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert all(a.user_id != annotator for a in assignments), (
             "Original annotator was assigned as a reviewer for their own task"
         )
@@ -600,7 +595,7 @@ class TestAssignReviewersFixed:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        new_assignments = [a for a in added if isinstance(a, TaskAssignment)]
 
         from collections import Counter
 
@@ -635,7 +630,7 @@ class TestReviewerTopUp:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        new_assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert len(new_assignments) == 1
         assert new_assignments[0].task_id == 10
         assert new_assignments[0].user_id in {r2, r3}
@@ -664,7 +659,7 @@ class TestReviewerTopUp:
         )
 
         added = [c.args[0] for c in db.add.call_args_list]
-        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        new_assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert new_assignments == []
 
     def test_no_reviewable_tasks_raises_404(self):
@@ -900,9 +895,9 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
     from unittest.mock import MagicMock, patch
 
     from src.campaigns import service
-    from src.campaigns.models import TaskSet
     from src.campaigns.schemas import CampaignSettingsCreate
-    from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
+    from src.tasks.models import TaskSet
+    from src.tasks.task_sets import DEFAULT_TASK_SET_NAME
 
     db = MagicMock()
     db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
@@ -1085,29 +1080,29 @@ class TestDeleteTasks:
         db.scalars.return_value.all.side_effect = list(selects)
         return db
 
-    @patch("src.annotation.service.bump_campaign_annotations_version")
-    @patch("src.annotation.service.record_annotation_deletions")
+    @patch("src.tasks.service.bump_campaign_annotations_version")
+    @patch("src.tasks.service.record_annotation_deletions")
     def test_labelled_answers_become_shapes(self, record_deletions, _bump):
         task = MagicMock(id=1)
         labelled = MagicMock(id=7, outcome="labelled", annotation_task_id=1)
         skipped = MagicMock(id=8, outcome="skipped", annotation_task_id=1)
         db = self._db([labelled, skipped])
 
-        annotation_service.delete_tasks(db, 1, [task], delete_annotations=False)
+        tasks_service.delete_tasks(db, 1, [task], delete_annotations=False)
 
         assert (labelled.annotation_task_id, labelled.outcome) == (None, None)
         assert [c.args[0] for c in db.delete.call_args_list] == [skipped, task]
         record_deletions.assert_called_once_with(db, 1, [8])
 
-    @patch("src.annotation.service.bump_campaign_annotations_version")
-    @patch("src.annotation.service.record_annotation_deletions")
+    @patch("src.tasks.service.bump_campaign_annotations_version")
+    @patch("src.tasks.service.record_annotation_deletions")
     def test_deletes_answers_and_drawn_shapes_when_asked(self, record_deletions, _bump):
         task = MagicMock(id=1)
         answer = MagicMock(id=7, outcome="drawn")
         shape = MagicMock(id=9, outcome=None)
         db = self._db([answer], [shape])
 
-        annotation_service.delete_tasks(db, 1, [task], delete_annotations=True)
+        tasks_service.delete_tasks(db, 1, [task], delete_annotations=True)
 
         assert [c.args[0] for c in db.delete.call_args_list] == [answer, shape, task]
         record_deletions.assert_called_once_with(db, 1, [7, 9])

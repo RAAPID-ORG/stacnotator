@@ -6,9 +6,9 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from src.campaigns import task_sets
-from src.campaigns.models import TaskSet
-from src.campaigns.schemas import TaskSetCreate
+from src.tasks import task_sets
+from src.tasks.models import TaskSet
+from src.tasks.schemas import TaskSetCreate
 
 
 def make_set(set_id=1, campaign_id=10, name="Default"):
@@ -50,7 +50,7 @@ def test_delete_task_set_rejects_last_set():
     assert exc.value.status_code == 409
 
 
-@patch("src.campaigns.task_sets.delete_tasks")
+@patch("src.tasks.task_sets.delete_tasks")
 def test_delete_task_set_deletes_tasks_then_set(delete_tasks):
     db = MagicMock()
     target = make_set()
@@ -118,7 +118,7 @@ def test_task_set_create_strips_name():
 
 
 def test_eligible_task_ids_filters_by_set():
-    from src.campaigns import assignments
+    from src.tasks import assignments
 
     db = MagicMock()
     db.scalars.return_value.all.return_value = [1, 2]
@@ -128,7 +128,7 @@ def test_eligible_task_ids_filters_by_set():
 
 
 def test_eligible_task_ids_without_set_has_no_set_clause():
-    from src.campaigns import assignments
+    from src.tasks import assignments
 
     db = MagicMock()
     db.scalars.return_value.all.return_value = []

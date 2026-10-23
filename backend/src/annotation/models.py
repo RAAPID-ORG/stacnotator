@@ -3,11 +3,8 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 import sqlalchemy as sa
-from geoalchemy2 import Geometry as GeoAlchemyGeometry
 from geoalchemy2.elements import WKBElement, WKTElement
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -18,7 +15,6 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
-    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -26,20 +22,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.database import Base
+from src.geometry import geometry_column
 
-
-def ewkt(wkt: str) -> WKTElement:
-    """WGS84 WKT in the form geometry columns accept on write."""
-    return WKTElement(wkt, srid=4326)
-
-
-def geometry_column() -> Mapped[WKBElement | WKTElement]:
-    """A row's own WGS84 geometry; geoalchemy2 hands back a WKBElement on read and
-    writes take ewkt(wkt). The GiST index is declared with the table."""
-    return mapped_column(
-        GeoAlchemyGeometry(geometry_type="GEOMETRY", srid=4326, spatial_index=False),
-        nullable=False,
-    )
+if TYPE_CHECKING:
+    from src.tasks.models import Task
 
 
 class DeletedAnnotation(Base):
@@ -73,158 +59,6 @@ class DeletedAnnotation(Base):
     )
 
 
-class AnnotationTask(Base):
-    """
-    Represents a single annotation task assigned within a campaign.
-    Each task item has a unique annotation number within its campaign.
-    """
-
-    if TYPE_CHECKING:
-        # Not a column: attached per request by annotation/service.py, which
-        # looks each up in one query rather than per task.
-        has_embedding: bool
-        nearby_annotation_count: int
-        drawn_by_user_ids: list[UUID]
-
-    __tablename__ = "annotation_tasks"
-    __table_args__ = (
-        Index("idx_task_items_campaign_id", "campaign_id"),
-        UniqueConstraint("campaign_id", "annotation_number"),
-        Index("idx_annotation_tasks_task_set_id", "task_set_id"),
-        Index("idx_annotation_tasks_geometry", "geometry", postgresql_using="gist"),
-        Index(
-            "idx_annotation_tasks_embedding_cosine",
-            "embedding",
-            postgresql_using="hnsw",
-            postgresql_with={"m": 16, "ef_construction": 64},
-            postgresql_ops={"embedding": "vector_cosine_ops"},
-        ),
-        # One live claim per user per campaign, enforced by the database rather
-        # than by remembering to release the previous one.
-        Index(
-            "uq_annotation_tasks_one_claim_per_user",
-            "campaign_id",
-            "claimed_by_user_id",
-            unique=True,
-            postgresql_where=text("claimed_by_user_id IS NOT NULL"),
-        ),
-        {"schema": "data"},
-    )
-
-    # Primary key
-    id: Mapped[int] = mapped_column(
-        Integer,
-        Identity(always=True),
-        primary_key=True,
-    )
-
-    # Within Campaign identification
-    annotation_number: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-    )
-
-    # Foreign keys
-    campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    geometry: Mapped[WKBElement | WKTElement] = geometry_column()
-    # The location's 64-D AlphaEarth embedding (pgvector), once it has been fetched.
-    # Deferred: task lists never need it, only the similarity queries do.
-    embedding = mapped_column(Vector(64), nullable=True, deferred=True)
-
-    task_set_id: Mapped[int] = mapped_column(
-        ForeignKey("data.task_sets.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    # Additional columns if ingested from a csv
-    raw_source_data: Mapped[dict | None] = mapped_column(
-        JSONB,
-        nullable=True,
-    )
-
-    # The soft claim: who is working on this task right now, and since when.
-    # A lease, not an assignment - it expires (CLAIM_TTL_MINUTES), it never
-    # decides who may label, and it is deliberately not a row in
-    # annotation_tasks_assignment so that nothing reading assignments sees it.
-    claimed_by_user_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    claimed_at: Mapped[dt_datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-
-    # Relationships
-    campaign: Mapped["Campaign"] = relationship(back_populates="task_items")
-    claimed_by: Mapped["User | None"] = relationship(foreign_keys=[claimed_by_user_id])
-    assignments: Mapped[list["AnnotationTaskAssignment"]] = relationship(
-        "AnnotationTaskAssignment",
-        foreign_keys="[AnnotationTaskAssignment.task_id]",
-        back_populates="annotation_task",
-        cascade="all, delete-orphan",
-    )
-    annotations: Mapped[list["Annotation"]] = relationship(
-        "Annotation",
-        foreign_keys="[Annotation.annotation_task_id]",
-        back_populates="annotation_task",
-    )
-
-
-class AnnotationTaskAssignment(Base):
-    """A user an admin put on a task.
-
-    Admin intent only. A user who picks a task out of the unassigned pool
-    never gets a row here - their claim lives on the task and their work
-    lives on the annotation - which is what keeps `bool(task.assignments)`
-    an honest answer to "is this task assigned" for the labelling policy.
-    Per-assignee status is derived from the annotations, not stored.
-    """
-
-    __tablename__ = "annotation_tasks_assignment"
-    __table_args__ = (
-        Index("idx_annotation_tasks_assignment_task_id", "task_id"),
-        Index("idx_annotation_tasks_assignment_user_id", "user_id"),
-        UniqueConstraint("task_id", "user_id"),
-        {"schema": "data"},
-    )
-
-    # Primary key
-    id: Mapped[int] = mapped_column(
-        Integer,
-        Identity(always=True),
-        primary_key=True,
-    )
-
-    # Foreign keys
-    task_id: Mapped[int] = mapped_column(
-        ForeignKey("data.annotation_tasks.id", ondelete="CASCADE"), nullable=False
-    )
-
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False
-    )
-
-    # True if this assignment is a review of another user's annotation work,
-    # rather than a primary annotation assignment. Reviewers are only added to
-    # tasks that already have a primary (non-review) assignment.
-    is_review: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        server_default=text("false"),
-    )
-
-    # Relationships
-    annotation_task: Mapped["AnnotationTask"] = relationship(
-        back_populates="assignments",
-    )
-    user: Mapped["User | None"] = relationship()
-
-
 class Annotation(Base):
     """
     A labelled shape. Either a task's row for one annotator (annotation_task_id,
@@ -234,7 +68,7 @@ class Annotation(Base):
     """
 
     if TYPE_CHECKING:
-        # Not a column: attached per request by annotation/completion.py on
+        # Not a column: attached per request by tasks/completion.py on
         # task-linked rows (bool); standalone rows never get it.
         counts_toward_completion: bool | None
 
@@ -388,10 +222,10 @@ class Annotation(Base):
 
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="annotations")
-    annotation_task: Mapped["AnnotationTask | None"] = relationship(
+    annotation_task: Mapped["Task | None"] = relationship(
         foreign_keys=[annotation_task_id],
         back_populates="annotations",
     )
-    origin_task: Mapped["AnnotationTask | None"] = relationship(foreign_keys=[origin_task_id])
-    output_of_task: Mapped["AnnotationTask | None"] = relationship(foreign_keys=[output_of_task_id])
+    origin_task: Mapped["Task | None"] = relationship(foreign_keys=[origin_task_id])
+    output_of_task: Mapped["Task | None"] = relationship(foreign_keys=[output_of_task_id])
     creator: Mapped["User"] = relationship()

@@ -13,7 +13,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
+from src.annotation.schemas import AnnotationCreate, AnnotationUpdate, TaskAnswerCreate
 from src.annotation.service import (
     add_annotation_for_task,
     create_annotation,
@@ -414,7 +414,7 @@ class TestAddAnnotationForTaskFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None)
 
         with pytest.raises(HTTPException) as exc:
             add_annotation_for_task(db, self._task(), payload, uuid4())
@@ -426,7 +426,7 @@ class TestAddAnnotationForTaskFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, form_values={"1": 1})
+        payload = TaskAnswerCreate(label_id=1, comment=None, form_values={"1": 1})
 
         annotation = add_annotation_for_task(db, self._task(), payload, uuid4())
 
@@ -437,7 +437,7 @@ class TestAddAnnotationForTaskFormValuesWiring:
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=None, comment="skipping without a label")
+        payload = TaskAnswerCreate(label_id=None, comment="skipping without a label")
 
         annotation = add_annotation_for_task(db, self._task(), payload, uuid4())
 

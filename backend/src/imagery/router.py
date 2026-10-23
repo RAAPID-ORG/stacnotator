@@ -23,12 +23,13 @@ from src.planet.schemas import PlanetSceneLayersIn, PlanetSceneSearchIn, PlanetS
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
+    prefix="/campaigns/{campaign_id}",
     tags=["Imagery"],
     dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 
-@router.put("/{campaign_id}/imagery", status_code=204)
+@router.put("/imagery", status_code=204)
 def save_imagery(
     campaign_id: int,
     editor_state: ImageryEditorStateCreate,
@@ -42,8 +43,8 @@ def save_imagery(
     registration.commit_and_register(db, campaign, campaign.bbox)
 
 
-@router.post("/{campaign_id}/new-layout", status_code=201)
-def create_new_canvas_layout(
+@router.post("/layouts", status_code=201)
+def save_canvas_layout(
     canvas_layout_req: CanvasLayoutCreateRequest,
     campaign_id: int,
     db: Session = Depends(get_db),
@@ -63,7 +64,7 @@ def create_new_canvas_layout(
     return result
 
 
-@router.post("/{campaign_id}/imagery/sources/{source_id}/refresh", status_code=204)
+@router.post("/imagery/sources/{source_id}/refresh", status_code=204)
 def refresh_source_imagery(
     campaign_id: int,
     source_id: int,
@@ -84,7 +85,7 @@ def refresh_source_imagery(
 
 
 @router.post(
-    "/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search",
+    "/imagery/sources/{source_id}/planet-scenes/search",
     response_model=PlanetSceneSearchOut,
 )
 def search_planet_scenes(
@@ -109,7 +110,7 @@ def search_planet_scenes(
 
 
 @router.post(
-    "/{campaign_id}/imagery/sources/{source_id}/planet-scenes/layers",
+    "/imagery/sources/{source_id}/planet-scenes/layers",
     response_model=PlanetSceneSearchOut,
 )
 def mint_planet_scene_layers(
@@ -130,7 +131,7 @@ def mint_planet_scene_layers(
     return scene_search.mint_planet_scene_layers(api_key, series, payload.bbox, payload.slice_ids)
 
 
-@router.post("/{campaign_id}/imagery/views", response_model=ImageryViewOut, status_code=201)
+@router.post("/views", response_model=ImageryViewOut, status_code=201)
 def create_imagery_view(
     campaign_id: int,
     payload: ImageryViewCreate,
@@ -143,7 +144,7 @@ def create_imagery_view(
 
 
 # Declared before /views/{view_id} so "order" is not captured by the int param.
-@router.put("/{campaign_id}/imagery/views/order", status_code=204)
+@router.put("/views/order", status_code=204)
 def reorder_imagery_views(
     campaign_id: int,
     payload: ImageryViewOrderUpdate,
@@ -154,7 +155,7 @@ def reorder_imagery_views(
     service.reorder_views(db, campaign, payload.view_ids)
 
 
-@router.put("/{campaign_id}/imagery/views/{view_id}", response_model=ImageryViewOut)
+@router.put("/views/{view_id}", response_model=ImageryViewOut)
 def update_imagery_view(
     campaign_id: int,
     view_id: int,
@@ -167,7 +168,7 @@ def update_imagery_view(
     return ImageryViewOut.model_validate(service.update_view(db, campaign, view_id, payload))
 
 
-@router.delete("/{campaign_id}/imagery/views/{view_id}", status_code=204)
+@router.delete("/views/{view_id}", status_code=204)
 def delete_imagery_view(
     campaign_id: int,
     view_id: int,

@@ -3,11 +3,11 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from src.annotation import ingest
+from src.tasks import ingest
 
 # Imported for its side effect of registering the ORM mapper; ingest.py's insert()
-# calls need AnnotationTask's table metadata available.
-from src.annotation.models import AnnotationTask  # noqa: F401
+# calls need Task's table metadata available.
+from src.tasks.models import Task  # noqa: F401
 
 CSV = b"id,lat,lon\n1,10.0,20.0\n2,11.0,21.0\n"
 GEOJSON = (

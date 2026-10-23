@@ -13,11 +13,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.annotation.completion import (
-    attach_counts_toward_completion,
-    attach_to_tasks,
-)
-from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
+from src.annotation.schemas import AnnotationCreate, AnnotationUpdate, TaskAnswerCreate
 from src.annotation.service import (
     add_annotation_for_task,
     create_annotation,
@@ -25,6 +21,10 @@ from src.annotation.service import (
     update_annotation,
 )
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience
+from src.tasks.completion import (
+    attach_counts_toward_completion,
+    attach_to_tasks,
+)
 from tests.conftest import make_policy
 
 pytestmark = pytest.mark.usefixtures("membership_from_db_mock")
@@ -190,7 +190,7 @@ class TestTaskAnnotateAxisEnforcement:
         campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=[])))
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         with pytest.raises(HTTPException) as exc:
             add_annotation_for_task(db, self._task(assignments=[]), payload, uuid4())
@@ -203,7 +203,7 @@ class TestTaskAnnotateAxisEnforcement:
         campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=["members"])))
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         add_annotation_for_task(db, self._task(assignments=[]), payload, uuid4())
 
@@ -219,7 +219,7 @@ class TestTaskAnnotateAxisEnforcement:
         db.get.return_value = campaign
         assignee_id = uuid4()
         task = self._task(assignments=[SimpleNamespace(user_id=assignee_id)])
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         with pytest.raises(HTTPException) as exc:
             add_annotation_for_task(db, task, payload, assignee_id)
@@ -235,7 +235,7 @@ class TestTaskAnnotateAxisEnforcement:
         db.get.return_value = campaign
         assignee_id = uuid4()
         task = self._task(assignments=[SimpleNamespace(user_id=assignee_id)])
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         add_annotation_for_task(db, task, payload, assignee_id)
 
@@ -247,7 +247,7 @@ class TestTaskAnnotateAxisEnforcement:
         db = _db(cu=None)
         db.get.return_value = campaign
         task = self._task(assignments=[SimpleNamespace(user_id=uuid4())])
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         with pytest.raises(HTTPException) as exc:
             add_annotation_for_task(db, task, payload, uuid4())
@@ -258,7 +258,7 @@ class TestTaskAnnotateAxisEnforcement:
         campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=["members"])))
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         result = add_annotation_for_task(db, self._task(assignments=[]), payload, uuid4())
 
@@ -276,7 +276,7 @@ class TestTaskAnnotateAxisEnforcement:
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
         task = self._task(assignments=[SimpleNamespace(user_id=uuid4())])
-        payload = AnnotationFromTaskCreate(label_id=1, comment=None, confidence=None)
+        payload = TaskAnswerCreate(label_id=1, comment=None, confidence=None)
 
         result = add_annotation_for_task(db, task, payload, uuid4())
 

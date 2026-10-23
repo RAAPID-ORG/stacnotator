@@ -19,7 +19,8 @@ from sqlalchemy import ColumnElement, exists, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from src.annotation.constants import CLAIM_TTL_MINUTES
-from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
+from src.annotation.models import Annotation
+from src.tasks.models import Task, TaskAssignment
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,7 @@ class ClaimOutcome:
     holder_display_name: str | None = None
 
 
-def live_claim_holder(task: AnnotationTask, now: datetime) -> UUID | None:
+def live_claim_holder(task: Task, now: datetime) -> UUID | None:
     """Who holds an unexpired claim on `task`, if anyone."""
     if task.claimed_by_user_id is None or task.claimed_at is None:
         return None
@@ -53,15 +54,15 @@ def release_claims_for_user(
     (campaign_id, claimed_by_user_id) is the backstop if they do.
     """
     stmt = (
-        update(AnnotationTask)
+        update(Task)
         .where(
-            AnnotationTask.campaign_id == campaign_id,
-            AnnotationTask.claimed_by_user_id == user_id,
+            Task.campaign_id == campaign_id,
+            Task.claimed_by_user_id == user_id,
         )
         .values(claimed_by_user_id=None, claimed_at=None)
     )
     if keep_task_id is not None:
-        stmt = stmt.where(AnnotationTask.id != keep_task_id)
+        stmt = stmt.where(Task.id != keep_task_id)
     db.execute(stmt)
 
 
@@ -75,9 +76,7 @@ def claim_task(db: Session, campaign_id: int, task_id: int, user_id: UUID) -> Cl
     # The row lock serializes concurrent claims on the same task, so the loser
     # reads the winner's claim rather than overwriting it.
     task = db.execute(
-        select(AnnotationTask)
-        .where(AnnotationTask.id == task_id, AnnotationTask.campaign_id == campaign_id)
-        .with_for_update()
+        select(Task).where(Task.id == task_id, Task.campaign_id == campaign_id).with_for_update()
     ).scalar_one_or_none()
     if task is None:
         raise HTTPException(status_code=404, detail="Annotation task not found in this campaign")
@@ -110,26 +109,21 @@ def is_free_work() -> ColumnElement[bool]:
     One definition, used both to check a task the caller named and to pick one
     they did not, so "what can be leased" cannot drift between the two.
     """
-    return ~exists().where(AnnotationTaskAssignment.task_id == AnnotationTask.id) & ~exists().where(
-        Annotation.annotation_task_id == AnnotationTask.id
+    return ~exists().where(TaskAssignment.task_id == Task.id) & ~exists().where(
+        Annotation.annotation_task_id == Task.id
     )
 
 
 def is_open_assignment() -> ColumnElement[bool]:
     """A primary assignment its assignee has not labelled or skipped yet."""
-    return ~AnnotationTaskAssignment.is_review & ~exists().where(
-        Annotation.annotation_task_id == AnnotationTaskAssignment.task_id,
-        Annotation.created_by_user_id == AnnotationTaskAssignment.user_id,
+    return ~TaskAssignment.is_review & ~exists().where(
+        Annotation.annotation_task_id == TaskAssignment.task_id,
+        Annotation.created_by_user_id == TaskAssignment.user_id,
     )
 
 
 def _is_leasable(db: Session, task_id: int) -> bool:
-    return (
-        db.execute(
-            select(AnnotationTask.id).where(AnnotationTask.id == task_id, is_free_work())
-        ).first()
-        is not None
-    )
+    return db.execute(select(Task.id).where(Task.id == task_id, is_free_work())).first() is not None
 
 
 def claim_next_task(
@@ -138,7 +132,7 @@ def claim_next_task(
     user_id: UUID,
     task_set_id: int | None = None,
     after_annotation_number: int | None = None,
-) -> AnnotationTask | None:
+) -> Task | None:
     """Claim the next task nobody is on, or None when the pool is drained.
 
     The pick and the claim happen in one transaction, so concurrent callers
@@ -148,21 +142,21 @@ def claim_next_task(
     nothing is left ahead of them.
     """
     now = datetime.now(UTC)
-    free = select(AnnotationTask).where(
-        AnnotationTask.campaign_id == campaign_id,
+    free = select(Task).where(
+        Task.campaign_id == campaign_id,
         or_(
-            AnnotationTask.claimed_by_user_id.is_(None),
-            AnnotationTask.claimed_at <= now - timedelta(minutes=CLAIM_TTL_MINUTES),
+            Task.claimed_by_user_id.is_(None),
+            Task.claimed_at <= now - timedelta(minutes=CLAIM_TTL_MINUTES),
         ),
         is_free_work(),
     )
     if task_set_id is not None:
-        free = free.where(AnnotationTask.task_set_id == task_set_id)
+        free = free.where(Task.task_set_id == task_set_id)
     if after_annotation_number is not None:
         # Everything ahead of the cursor first (False sorts before True), then
         # back round to the start of the campaign.
-        free = free.order_by(AnnotationTask.annotation_number <= after_annotation_number)
-    free = free.order_by(AnnotationTask.annotation_number)
+        free = free.order_by(Task.annotation_number <= after_annotation_number)
+    free = free.order_by(Task.annotation_number)
 
     task = db.execute(free.limit(1).with_for_update(skip_locked=True)).scalar_one_or_none()
     if task is None:

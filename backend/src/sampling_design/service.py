@@ -12,18 +12,13 @@ from shapely.geometry import MultiPolygon, Point, Polygon, box
 from shapely.ops import unary_union
 from sqlalchemy.orm import Session
 
-from src.annotation.ingest import (
-    MAX_FILE_SIZE,
-    GeoJSONParseError,
-    insert_tasks,
-    parse_geojson_features,
-)
 from src.campaigns.models import Campaign
 from src.sampling_design.schemas import (
     MAX_TASKS_PER_RUN,
     GridSamplingConfig,
     RandomSamplingConfig,
 )
+from src.tasks.ingest import MAX_FILE_SIZE, GeoJSONParseError, insert_tasks, parse_geojson_features
 
 logger = logging.getLogger(__name__)
 

@@ -3,8 +3,8 @@
 from types import SimpleNamespace
 
 from src.campaigns.duplication import clone_row, plan_copy
-from src.campaigns.models import TaskSet
 from src.imagery.models import ImagerySlice
+from src.tasks.models import TaskSet
 
 
 class TestCloneRow:

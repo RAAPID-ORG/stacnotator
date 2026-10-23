@@ -4,6 +4,7 @@ from src.auth.models import *  # noqa
 from src.campaigns.models import *  # noqa
 from src.canvas.models import *  # noqa
 from src.annotation.models import *  # noqa
+from src.tasks.models import *  # noqa
 from src.imagery.models import *  # noqa
 import src.organizations.models  # noqa: F401
 import src.projects.models  # noqa: F401

@@ -16,21 +16,18 @@ from src.agents.schemas import (
     NextTasksOut,
 )
 from src.annotation import service as annotation_service
-from src.annotation.claims import is_free_work, is_open_assignment
-from src.annotation.models import (
-    Annotation,
-    AnnotationTask,
-    AnnotationTaskAssignment,
-)
-from src.annotation.schemas import AnnotationFromTaskCreate, AnnotationTaskSubmitResponse
+from src.annotation.models import Annotation
+from src.annotation.schemas import TaskAnswerCreate
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
-from src.campaigns.assignments import assign_tasks_to_users
 from src.campaigns.dependencies import require_campaign_access
 from src.campaigns.models import Campaign
-from src.campaigns.schemas import AssignTasksToUsersRequest
 from src.projects.models import ProjectUser
 from src.projects.viewer import project_flags
+from src.tasks.assignments import assign_tasks_to_users
+from src.tasks.claims import is_free_work, is_open_assignment
+from src.tasks.models import Task, TaskAssignment
+from src.tasks.schemas import AssignTasksToUsersRequest, TaskSubmitResponse
 
 MAX_AGENTS_PER_OWNER = 20
 
@@ -116,11 +113,11 @@ def _unique_name(db: Session, name: str) -> str:
 def _owner_open_assignments(db: Session, owner: User, campaign_id: int):
     """The owner's own assignments in the campaign they have not labelled or skipped."""
     return (
-        select(AnnotationTaskAssignment)
-        .join(AnnotationTask, AnnotationTask.id == AnnotationTaskAssignment.task_id)
+        select(TaskAssignment)
+        .join(Task, Task.id == TaskAssignment.task_id)
         .where(
-            AnnotationTask.campaign_id == campaign_id,
-            AnnotationTaskAssignment.user_id == owner.id,
+            Task.campaign_id == campaign_id,
+            TaskAssignment.user_id == owner.id,
             is_open_assignment(),
         )
     )
@@ -131,11 +128,11 @@ def _hand_over_own_tasks(
 ) -> int:
     query = _owner_open_assignments(db, owner, agent.campaign_id)
     if task_set_id is not None:
-        query = query.where(AnnotationTask.task_set_id == task_set_id)
+        query = query.where(Task.task_set_id == task_set_id)
     assignments = db.scalars(
-        query.order_by(AnnotationTask.annotation_number)
+        query.order_by(Task.annotation_number)
         .limit(count)
-        .with_for_update(of=AnnotationTaskAssignment, skip_locked=True)
+        .with_for_update(of=TaskAssignment, skip_locked=True)
     ).all()
     for assignment in assignments:
         assignment.user_id = agent.user_id
@@ -146,10 +143,10 @@ def _hand_over_own_tasks(
 def _has_point_tasks(db: Session, campaign_id: int) -> bool:
     return (
         db.scalar(
-            select(AnnotationTask.id)
+            select(Task.id)
             .where(
-                AnnotationTask.campaign_id == campaign_id,
-                func.ST_GeometryType(AnnotationTask.geometry) == "ST_Point",
+                Task.campaign_id == campaign_id,
+                func.ST_GeometryType(Task.geometry) == "ST_Point",
             )
             .limit(1)
         )
@@ -186,10 +183,8 @@ def owned_agents(db: Session, campaign_id: int, owner: User) -> list[LabellingAg
 def agent_out(db: Session, agent: LabellingAgent, project_id: int) -> AgentOut:
     assigned = db.scalar(
         select(func.count())
-        .select_from(AnnotationTaskAssignment)
-        .where(
-            AnnotationTaskAssignment.user_id == agent.user_id, ~AnnotationTaskAssignment.is_review
-        )
+        .select_from(TaskAssignment)
+        .where(TaskAssignment.user_id == agent.user_id, ~TaskAssignment.is_review)
     )
     last_active = db.scalar(
         select(func.max(Annotation.updated_at)).where(
@@ -213,13 +208,9 @@ def agent_out(db: Session, agent: LabellingAgent, project_id: int) -> AgentOut:
 
 def agents_overview(db: Session, campaign: Campaign, owner: User) -> AgentsOverviewOut:
     role = owner_role(db, campaign, owner)
-    total = db.scalar(
-        select(func.count())
-        .select_from(AnnotationTask)
-        .where(AnnotationTask.campaign_id == campaign.id)
-    )
+    total = db.scalar(select(func.count()).select_from(Task).where(Task.campaign_id == campaign.id))
     handable = (
-        select(AnnotationTask.id).where(AnnotationTask.campaign_id == campaign.id, is_free_work())
+        select(Task.id).where(Task.campaign_id == campaign.id, is_free_work())
         if role == "admin"
         else _owner_open_assignments(db, owner, campaign.id)
     )
@@ -242,11 +233,11 @@ def _open_tasks_query(agent: LabellingAgent):
     campaign: a duplicated campaign can carry the same assignment into a campaign whose
     imagery this agent was never set up for."""
     return (
-        select(AnnotationTask)
-        .join(AnnotationTaskAssignment, AnnotationTaskAssignment.task_id == AnnotationTask.id)
+        select(Task)
+        .join(TaskAssignment, TaskAssignment.task_id == Task.id)
         .where(
-            AnnotationTask.campaign_id == agent.campaign_id,
-            AnnotationTaskAssignment.user_id == agent.user_id,
+            Task.campaign_id == agent.campaign_id,
+            TaskAssignment.user_id == agent.user_id,
             is_open_assignment(),
         )
     )
@@ -256,7 +247,7 @@ def _open_task_count(db: Session, agent: LabellingAgent) -> int:
     return db.scalar(select(func.count()).select_from(_open_tasks_query(agent).subquery())) or 0
 
 
-def _task_out(task: AnnotationTask) -> AgentTaskOut:
+def _task_out(task: Task) -> AgentTaskOut:
     """Polygons are placed at their centroid."""
     shape = to_shape(task.geometry)
     centroid = shape.centroid
@@ -281,12 +272,10 @@ def next_tasks(db: Session, agent_id: UUID, owner: User) -> NextTasksOut:
     )
 
 
-def _upcoming_tasks(db: Session, agent: LabellingAgent) -> list[AnnotationTask]:
+def _upcoming_tasks(db: Session, agent: LabellingAgent) -> list[Task]:
     return list(
         db.scalars(
-            _open_tasks_query(agent)
-            .order_by(AnnotationTask.annotation_number)
-            .limit(UPCOMING_TASKS)
+            _open_tasks_query(agent).order_by(Task.annotation_number).limit(UPCOMING_TASKS)
         ).all()
     )
 
@@ -307,16 +296,14 @@ def _take_over_task(db: Session, agent: LabellingAgent) -> bool:
     ).all()
     for sibling in sorted(siblings, key=lambda s: _open_task_count(db, s), reverse=True):
         open_ids = db.scalars(
-            _open_tasks_query(sibling)
-            .with_only_columns(AnnotationTask.id)
-            .order_by(AnnotationTask.annotation_number)
+            _open_tasks_query(sibling).with_only_columns(Task.id).order_by(Task.annotation_number)
         ).all()
         for task_id in reversed(open_ids[1:]):
             assignment = db.scalars(
-                select(AnnotationTaskAssignment)
+                select(TaskAssignment)
                 .where(
-                    AnnotationTaskAssignment.task_id == task_id,
-                    AnnotationTaskAssignment.user_id == sibling.user_id,
+                    TaskAssignment.task_id == task_id,
+                    TaskAssignment.user_id == sibling.user_id,
                 )
                 .with_for_update(skip_locked=True)
             ).first()
@@ -335,27 +322,25 @@ def release_tasks(db: Session, owner: User, role: Role, agents: list[LabellingAg
     agent_ids = [agent.user_id for agent in agents]
     if not agent_ids:
         return 0
-    unfinished = (AnnotationTaskAssignment.user_id.in_(agent_ids), is_open_assignment())
+    unfinished = (TaskAssignment.user_id.in_(agent_ids), is_open_assignment())
     released = 0
     if role == "member":
-        owners = aliased(AnnotationTaskAssignment)
+        owners = aliased(TaskAssignment)
         owner_has_task = exists().where(
-            owners.task_id == AnnotationTaskAssignment.task_id, owners.user_id == owner.id
+            owners.task_id == TaskAssignment.task_id, owners.user_id == owner.id
         )
         returned = db.execute(
-            update(AnnotationTaskAssignment)
-            .where(*unfinished, ~owner_has_task)
-            .values(user_id=owner.id)
+            update(TaskAssignment).where(*unfinished, ~owner_has_task).values(user_id=owner.id)
         )
         released += cast("CursorResult[Any]", returned).rowcount
-    deleted = db.execute(delete(AnnotationTaskAssignment).where(*unfinished))
+    deleted = db.execute(delete(TaskAssignment).where(*unfinished))
     db.commit()
     return released + cast("CursorResult[Any]", deleted).rowcount
 
 
 def submit_annotation(
-    db: Session, agent_id: UUID, owner: User, task_id: int, body: AnnotationFromTaskCreate
-) -> AnnotationTaskSubmitResponse:
+    db: Session, agent_id: UUID, owner: User, task_id: int, body: TaskAnswerCreate
+) -> TaskSubmitResponse:
     agent, campaign, _ = get_agent(db, agent_id, owner)
     return annotation_service.submit_task_annotation(
         db=db, campaign=campaign, task_id=task_id, annotation_create=body, user_id=agent.user_id

@@ -7,14 +7,14 @@ import pandas as pd
 import pytest
 from fastapi import HTTPException
 
-from src.annotation.models import AnnotationTaskAssignment
-from src.campaigns.assignments import (
+from src.tasks.assignments import (
     USERS_CSV_COLUMNS,
     _split_emails,
     _unique_users,
     build_task_assignments_export,
     import_task_assignments,
 )
+from src.tasks.models import TaskAssignment
 
 
 def _mock_db():
@@ -253,7 +253,7 @@ class TestImportApply:
         # Existing assignments for the task are cleared first.
         assert db.execute.call_count == 1
         added = [c.args[0] for c in db.add.call_args_list]
-        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assignments = [a for a in added if isinstance(a, TaskAssignment)]
         assert {(a.user_id, a.is_review) for a in assignments} == {
             (alice.id, False),
             (bob.id, True),
@@ -276,7 +276,7 @@ class TestImportApply:
         # Task still gets its assignments deleted, but nothing is added.
         assert db.execute.call_count == 1
         added = [c.args[0] for c in db.add.call_args_list]
-        assert [a for a in added if isinstance(a, AnnotationTaskAssignment)] == []
+        assert [a for a in added if isinstance(a, TaskAssignment)] == []
         assert result == {
             "tasks_updated": 1,
             "assignees_created": 0,

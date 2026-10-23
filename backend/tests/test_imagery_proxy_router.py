@@ -21,7 +21,7 @@ from src.tilers import tokens
 
 CAMPAIGN_ID = 3
 BASEMAP_ID = 7
-TILE_PATH = f"/api/{CAMPAIGN_ID}/imagery/basemaps/{BASEMAP_ID}/tiles/5/1/2"
+TILE_PATH = f"/api/campaigns/{CAMPAIGN_ID}/imagery/basemaps/{BASEMAP_ID}/tiles/5/1/2"
 
 
 def _serve_basemap(monkeypatch, url: str, log: list[str]) -> None:
