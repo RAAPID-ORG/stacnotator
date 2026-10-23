@@ -322,6 +322,7 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
       storageAccess: sc.storage_access
         ? { kind: sc.storage_access.kind, expiresAt: sc.storage_access.expires_at ?? null }
         : null,
+      cloudCollectionId: sc.cloud_collection_id ?? undefined,
       vizUrls,
     };
   } else {

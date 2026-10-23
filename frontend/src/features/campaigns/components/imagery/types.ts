@@ -134,6 +134,9 @@ export interface StacBrowserCollectionData {
   sasToken?: string;
   /** Set when the saved collection reads its catalog with a SAS token. */
   storageAccess?: StorageAccess | null;
+  /** A managed cloud catalog. The server resolves its catalog, tiler and access, so the
+   *  save sends this id instead of any of them. */
+  cloudCollectionId?: number;
   vizUrls: VisualizationUrl[];
 }
 

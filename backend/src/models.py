@@ -11,3 +11,4 @@ from src.timeseries.models import *  # noqa
 from src.custom_layers.models import *  # noqa
 from src.visualizers.models import *  # noqa
 from src.agents.models import *  # noqa
+from src.cloud_imagery.models import *  # noqa

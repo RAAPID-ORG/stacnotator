@@ -9,6 +9,7 @@ import { IconWarning } from '~/shared/ui/Icons';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { projectsPath } from '~/app/routes';
 import { type ProjectOut } from '~/api/client';
+import { CatalogsSection } from '~/features/cloudImagery/CatalogsPage';
 import {
   deleteProjectMutation,
   getProjectQueryKey,
@@ -157,6 +158,10 @@ export const ProjectSettingsSection = ({ project }: ProjectSettingsSectionProps)
           disabled={saving}
           name="project-visibility-settings"
         />
+      </section>
+
+      <section className={sectionCls}>
+        <CatalogsSection projectId={project.id} />
       </section>
 
       <section className={sectionCls}>

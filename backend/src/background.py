@@ -60,10 +60,14 @@ class StatusField:
     heartbeat_column: str
     errors_column: str
     interrupted_error: str
+    # Opt-in fencing: a run started with an ``attempt`` only writes while this column still
+    # holds that attempt, so a superseded run can never overwrite its successor.
+    attempt_column: str | None = None
 
     def __post_init__(self) -> None:
         columns = self.model.__table__.columns.keys()
-        for name in (self.status_column, self.heartbeat_column, self.errors_column):
+        names = (self.status_column, self.heartbeat_column, self.errors_column)
+        for name in (*names, *([self.attempt_column] if self.attempt_column else [])):
             if name not in columns:
                 raise ValueError(f"{name!r} is not a column on {self.table}")
 
@@ -83,13 +87,26 @@ def begin_status_run(row, field: StatusField) -> None:
     setattr(row, field.heartbeat_column, func.now())
 
 
-def _stamp_heartbeat(row_id: int, field: StatusField) -> None:
+def _fence(field: StatusField, attempt: int | None) -> tuple[str, dict]:
+    if attempt is None or field.attempt_column is None:
+        return "", {}
+    # A fenced run that a sweep already failed must stay failed, even if its worker lives on.
+    return (
+        f" AND {field.attempt_column} = :attempt AND {field.status_column} = 'registering'",
+        {"attempt": attempt},
+    )
+
+
+def _stamp_heartbeat(row_id: int, field: StatusField, attempt: int | None = None) -> None:
     """One beat, on its own short-lived connection so the pool is never held."""
+    fence, params = _fence(field, attempt)
     db = SessionLocal()
     try:
         db.execute(
-            text(f"UPDATE {field.table} SET {field.heartbeat_column} = now() WHERE id = :id"),
-            {"id": row_id},
+            text(
+                f"UPDATE {field.table} SET {field.heartbeat_column} = now() WHERE id = :id{fence}"
+            ),
+            {"id": row_id, **params},
         )
         db.commit()
     except Exception:
@@ -99,7 +116,7 @@ def _stamp_heartbeat(row_id: int, field: StatusField) -> None:
 
 
 @contextmanager
-def heartbeat(row_id: int, field: StatusField) -> Iterator[None]:
+def heartbeat(row_id: int, field: StatusField, attempt: int | None = None) -> Iterator[None]:
     """Keep the run's heartbeat fresh for as long as the with-block executes.
 
     Stamps once on entry, then every HEARTBEAT_INTERVAL_SECONDS from a side
@@ -108,11 +125,13 @@ def heartbeat(row_id: int, field: StatusField) -> Iterator[None]:
     """
     stop = threading.Event()
 
+    fenced = {} if attempt is None else {"attempt": attempt}
+
     def _beat() -> None:
         while not stop.wait(HEARTBEAT_INTERVAL_SECONDS):
-            _stamp_heartbeat(row_id, field)
+            _stamp_heartbeat(row_id, field, **fenced)
 
-    _stamp_heartbeat(row_id, field)
+    _stamp_heartbeat(row_id, field, **fenced)
     thread = threading.Thread(
         target=_beat, daemon=True, name=f"heartbeat-{field.status_column}-{row_id}"
     )
@@ -131,6 +150,7 @@ def finish_status_run(
     field: StatusField,
     status: str,
     errors: list[dict],
+    attempt: int | None = None,
 ) -> None:
     """Atomically flip a run's status column and append to its errors column.
 
@@ -147,18 +167,20 @@ def finish_status_run(
     # SessionLocal runs with autoflush=False: flush any ORM writes already staged
     # on this session, or this Core statement could run without seeing them.
     db.flush()
+    fence, params = _fence(field, attempt)
     db.execute(
         text(
             f"UPDATE {field.table} "
             f"SET {field.errors_column} = coalesce({field.errors_column}, '[]'::jsonb) "
             "        || cast(:new_errors AS jsonb), "
             f"    {field.status_column} = :status "
-            "WHERE id = :row_id"
+            f"WHERE id = :row_id{fence}"
         ),
         {
             "new_errors": json.dumps(errors),
             "status": status,
             "row_id": row_id,
+            **params,
         },
     )
 
@@ -170,6 +192,7 @@ def spawn_status_run(
     name: str,
     work: Callable[[Session], list[dict] | None],
     sanitize_error: Callable[[Exception], str],
+    attempt: int | None = None,
 ) -> None:
     """Run ``work`` on a daemon thread with its own session and heartbeat.
 
@@ -180,11 +203,13 @@ def spawn_status_run(
     user-facing registration_errors message.
     """
 
+    fenced = {} if attempt is None else {"attempt": attempt}
+
     def _run() -> None:
         db = SessionLocal()
         try:
             logger.info("Background %s started for %s %d", name, field.table, row_id)
-            with heartbeat(row_id, field):
+            with heartbeat(row_id, field, **fenced):
                 errors = work(db) or []
             finish_status_run(
                 db,
@@ -192,6 +217,7 @@ def spawn_status_run(
                 field=field,
                 status="failed" if errors else "ready",
                 errors=errors,
+                **fenced,
             )
             db.commit()
             if errors:
@@ -214,6 +240,7 @@ def spawn_status_run(
                     field=field,
                     status="failed",
                     errors=[{"error": sanitize_error(exc)}],
+                    **fenced,
                 )
                 db.commit()
             except Exception:

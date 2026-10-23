@@ -144,6 +144,8 @@ services:
       AZURE_SIGNING_ENABLED: ${AZURE_SIGNING_ENABLED:-false}
       # Allow POST /ingest so non-MPC STAC-API mosaics can be registered locally.
       ALLOW_STAC_API_INGEST: ${ALLOW_STAC_API_INGEST:-true}
+      # Managed private catalog imports. Safe here: no public STAC API reads this pgstac.
+      ALLOW_MANAGED_CATALOGS: ${ALLOW_MANAGED_CATALOGS:-true}
     # The tiler fetches overlay COGs itself, so it needs the same host alias the backend
     # has - lets it reach e.g. a `python3 -m http.server` on the host serving a prediction COG.
     extra_hosts:

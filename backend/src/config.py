@@ -53,6 +53,8 @@ class TilerCfg(BaseModel):
     stac_url: str | None = None
     title: str | None = None
     allows_ingest: bool = False
+    # Where the tiler runs (e.g. "westeurope"), when the operator states it; never guessed.
+    region: str | None = None
 
 
 # Share of the pool kept out of tiles' reach. Tiles are the burstiest traffic by an
@@ -126,6 +128,11 @@ class Settings(BaseSettings):
     # still competes with the event loop for the GIL, and that loop answers gunicorn's
     # heartbeat. Too many threads starve it into killing the worker as unresponsive.
     THREAD_POOL_MAX: int = 40
+
+    # Cloud catalog imports: live runs allowed across all web processes (counted in the DB),
+    # and files per tiler batch (capped by the tiler's own max_batch_items).
+    CLOUD_IMPORT_MAX_CONCURRENT: int = Field(default=2, ge=1)
+    CLOUD_IMPORT_BATCH_SIZE: int = Field(default=50, ge=1)
 
     # Most requests one worker will accept at once before shedding with 503. Just above
     # the pool: past that a request cannot get a connection anyway, so admitting it only

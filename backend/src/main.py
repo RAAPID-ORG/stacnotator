@@ -22,6 +22,8 @@ from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
 from src.background import fail_stale_status_runs
 from src.campaigns.router import router as campaigns_router
+from src.cloud_imagery.router import router as cloud_imagery_router
+from src.cloud_imagery.service import IMPORT_RUN
 from src.config import (
     DEV_APIKEY_ENCRYPTION_SECRET,
     DEV_TILER_TOKEN_SECRET,
@@ -104,7 +106,7 @@ def _sweep_stale_background_runs() -> None:
         db = SessionLocal()
         try:
             fail_stale_status_runs(
-                db, (REGISTRATION_RUN, EMBEDDING_RUN, VISUALIZER_REGISTRATION_RUN)
+                db, (REGISTRATION_RUN, EMBEDDING_RUN, VISUALIZER_REGISTRATION_RUN, IMPORT_RUN)
             )
             db.commit()
         finally:
@@ -381,6 +383,7 @@ app.include_router(imagery_proxy_router, prefix="/api")
 app.include_router(stac_browser_router, prefix="/api")
 app.include_router(planet_router, prefix="/api")
 app.include_router(custom_layers_router, prefix="/api")
+app.include_router(cloud_imagery_router, prefix="/api")
 app.include_router(visualizers_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

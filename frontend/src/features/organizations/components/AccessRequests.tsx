@@ -19,8 +19,7 @@ const actionClass =
   'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';
 
-/** Registered users asking to join, for an org admin to decide on. Renders
- *  nothing while there are none, so a quiet org keeps a quiet page. */
+/** Registered users asking to join, for an org admin to decide on. */
 export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const queryClient = useQueryClient();
@@ -73,7 +72,16 @@ export const AccessRequests = ({ organizationId }: AccessRequestsProps) => {
     if (confirmed) decide(request, false);
   };
 
-  if (requests.length === 0) return null;
+  if (requests.length === 0) {
+    return (
+      <section className="surface surface-section" data-testid="org-access-requests">
+        <h2 className="section-heading">Access requests</h2>
+        <p className="section-description">
+          No one is waiting to join. Requests from people who find this organization appear here.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="surface surface-section" data-testid="org-access-requests">

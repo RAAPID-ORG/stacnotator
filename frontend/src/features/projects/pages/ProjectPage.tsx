@@ -73,6 +73,7 @@ export const ProjectPage = () => {
 
   const selectTab = (tab: ProjectTab) => {
     const next = new URLSearchParams(searchParams);
+    next.delete('catalog');
     if (tab === 'campaigns') {
       next.delete('tab');
     } else {
@@ -167,7 +168,7 @@ const ProjectTabs = ({
         items={availableTabs.map((tab) => ({ id: tab, label: capitalizeFirst(tab) }))}
         activeId={activeTab}
         onChange={onSelectTab}
-        className="!mb-0 !border-neutral-200 px-6"
+        className="!mb-0 !border-neutral-200 overflow-x-auto px-6 [&>button]:shrink-0 [&>button]:whitespace-nowrap"
       />
 
       <div className="p-6">

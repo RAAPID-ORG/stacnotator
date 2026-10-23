@@ -40,6 +40,7 @@ class Tiler:
     stac_url: str | None  # browsable STAC catalog; None => not browsable
     title: str | None = None  # human-friendly catalog name for the wizard (falls back to name)
     allows_ingest: bool = False  # can pull an arbitrary external STAC catalog into its pgstac
+    region: str | None = None  # where the operator says it runs; never guessed
 
 
 def all_tilers() -> list[Tiler]:
@@ -72,6 +73,7 @@ def all_tilers() -> list[Tiler]:
                 stac_url=cfg.stac_url,
                 title=cfg.title,
                 allows_ingest=cfg.allows_ingest,
+                region=cfg.region,
             )
         )
     return tilers

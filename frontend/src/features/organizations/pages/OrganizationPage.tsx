@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { type OrganizationOut } from '~/api/client';
 import { updateOrganizationMutation } from '~/api/queries';
@@ -8,6 +8,7 @@ import { Badge, type BadgeTone } from '~/shared/ui/Badge';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
+import TabNavigator from '~/shared/ui/TabNavigator';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { AccessRequests } from '../components/AccessRequests';
 import { OrganizationApiKeys } from '../components/OrganizationApiKeys';
@@ -19,6 +20,15 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   pending: 'yellow',
   rejected: 'red',
 };
+
+const ORG_TABS = ['details', 'members', 'api-keys'] as const;
+type OrgTab = (typeof ORG_TABS)[number];
+const ORG_TAB_LABELS: Record<OrgTab, string> = {
+  details: 'Details',
+  members: 'Members',
+  'api-keys': 'API keys',
+};
+const isOrgTab = (t: string | null): t is OrgTab => ORG_TABS.some((tab) => tab === t);
 
 const DetailsForm = ({ org }: { org: OrganizationOut }) => {
   const refreshOrganizations = useRefreshOrganizations();
@@ -119,6 +129,17 @@ export const OrganizationPage = () => {
   const refreshOrganizations = useRefreshOrganizations();
 
   const org = orgs.find((o) => o.id === organizationId);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab: OrgTab = isOrgTab(tabParam) ? tabParam : 'details';
+
+  const selectTab = (tab: OrgTab) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('catalog');
+    if (tab === 'details') next.delete('tab');
+    else next.set('tab', tab);
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     setBreadcrumbs([{ label: org?.name ?? 'Organization' }]);
@@ -179,10 +200,22 @@ export const OrganizationPage = () => {
 
         {org ? (
           <>
-            <DetailsForm org={org} />
-            <AccessRequests organizationId={org.id} />
-            <OrganizationApiKeys organizationId={org.id} />
-            <OrganizationMembers organizationId={org.id} />
+            <TabNavigator<OrgTab>
+              items={ORG_TABS.map((id) => ({ id, label: ORG_TAB_LABELS[id] }))}
+              activeId={activeTab}
+              onChange={selectTab}
+              className="!mb-0 overflow-x-auto [&>button]:shrink-0 [&>button]:whitespace-nowrap"
+            />
+            <div className="space-y-4 pt-4">
+              {activeTab === 'details' && <DetailsForm org={org} />}
+              {activeTab === 'members' && (
+                <>
+                  <AccessRequests organizationId={org.id} />
+                  <OrganizationMembers organizationId={org.id} />
+                </>
+              )}
+              {activeTab === 'api-keys' && <OrganizationApiKeys organizationId={org.id} />}
+            </div>
           </>
         ) : (
           <SkeletonForm sections={2} />

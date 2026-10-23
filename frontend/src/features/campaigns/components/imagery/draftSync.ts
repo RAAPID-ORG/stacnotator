@@ -29,7 +29,7 @@ const toIdField = (id: string): number | undefined => {
 
 export const isRealId = (id: string): boolean => toIdField(id) !== undefined;
 
-const toVizParamsPayload = (v: VizParams): VizParamsCreate => ({
+export const toVizParamsPayload = (v: VizParams): VizParamsCreate => ({
   assets: v.assets,
   asset_as_band: v.assetAsBand,
   bidx: v.bidx?.length ? v.bidx : undefined,
@@ -110,10 +110,15 @@ export function collectionToBackend(
             const configured = (data.visualizations ?? []).filter((v) => v.vizParams);
             const paramsByName = new Map(configured.map((v) => [v.name, v.vizParams]));
             const names = sourceVizNames.length ? sourceVizNames : configured.map((v) => v.name);
+            const managed = data.cloudCollectionId != null;
             return {
-              catalog_url: data.catalogUrl,
-              stac_collection_id: data.stacCollectionId,
-              tiler: data.tiler ?? null,
+              ...(managed
+                ? { cloud_collection_id: data.cloudCollectionId }
+                : {
+                    catalog_url: data.catalogUrl,
+                    stac_collection_id: data.stacCollectionId,
+                    tiler: data.tiler ?? null,
+                  }),
               visualizations: names.map((name) => {
                 const cover = data.coverVisualizations?.find((c) => c.name === name);
                 return {
@@ -127,10 +132,11 @@ export function collectionToBackend(
               max_cloud_cover: data.maxCloudCover,
               search_query: data.searchQuery ?? null,
               cover_search_query: data.coverSearchQuery ?? null,
-              internal_storage: data.internalStorage ?? false,
-              storage_access: data.sasToken
-                ? { kind: 'azure_sas' as const, secret: data.sasToken }
-                : null,
+              internal_storage: managed ? false : (data.internalStorage ?? false),
+              storage_access:
+                !managed && data.sasToken
+                  ? { kind: 'azure_sas' as const, secret: data.sasToken }
+                  : null,
             };
           })()
         : null,

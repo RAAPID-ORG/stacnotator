@@ -1,9 +1,15 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import type { CollectionOut } from '~/api/client';
+import { listCollectionsOptions } from '~/api/queries';
 import { Modal } from '~/shared/ui/Modal';
 import { Input, Button } from '~/shared/ui/forms';
 import { IconStac, IconChevronRight } from '~/shared/ui/Icons';
+import { extractErrorMessage } from '~/shared/utils/errorHandler';
 import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
-import type { CatalogBrowserPreset, CatalogBrowserResult } from './CatalogBrowser';
+import type { CatalogBrowserPreset, CatalogBrowserResult, ManagedCatalog } from './CatalogBrowser';
+import { catalogPresets } from './managedCatalog';
 import { CollectionEditor } from './CollectionEditor';
 import { PlanetBrowser } from './PlanetBrowser';
 import { PlanetSceneBrowser } from './PlanetSceneBrowser';
@@ -24,6 +30,7 @@ type WizardStep =
   | { kind: 'configure-preset'; preset: CatalogBrowserPreset }
   | { kind: 'planet-mosaics' }
   | { kind: 'planet-scenes' }
+  | { kind: 'managed-catalog'; catalog: ManagedCatalog }
   | { kind: 'custom-stac-question' }
   | { kind: 'custom-stac-browse' }
   | { kind: 'custom-xyz' };
@@ -61,7 +68,11 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
       step.kind === 'custom-stac-question'
     ) {
       setStep({ kind: 'pick-preset' });
-    } else if (step.kind === 'custom-stac-browse' || step.kind === 'custom-xyz') {
+    } else if (
+      step.kind === 'custom-stac-browse' ||
+      step.kind === 'custom-xyz' ||
+      step.kind === 'managed-catalog'
+    ) {
       setStep({ kind: 'custom-stac-question' });
     }
   };
@@ -117,6 +128,19 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
     );
   }
 
+  if (step.kind === 'managed-catalog') {
+    return (
+      <CatalogBrowser
+        projectId={controller.projectId}
+        initialMode="mosaic"
+        campaignBbox={controller.campaignBbox}
+        managedCatalog={step.catalog}
+        onAdd={(result) => finalizeFromCatalog(result, step.catalog.title)}
+        onClose={back}
+      />
+    );
+  }
+
   if (step.kind === 'planet-mosaics') {
     return <PlanetBrowser projectId={controller.projectId} onAdd={added} onClose={back} />;
   }
@@ -160,7 +184,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
                   <span className="text-sm font-medium text-neutral-900">Custom (other)</span>
                 </div>
                 <p className="text-xs text-neutral-500 mt-1 leading-snug">
-                  Bring your own STAC catalog or raw XYZ tile URLs.
+                  Use your own cloud imagery, a STAC catalog or XYZ tile URLs.
                 </p>
               </button>
               {MPC_PRESETS.map((preset) => (
@@ -226,7 +250,7 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
         {step.kind === 'custom-stac-question' && (
           <>
             <p className="text-xs text-neutral-600 leading-relaxed">
-              Where does your imagery come from? Pick the option that matches your data provider.
+              Is your imagery already in a STAC catalog?
             </p>
             <button
               type="button"
@@ -244,6 +268,12 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
                 <code className="font-mono text-[11px]">/v1</code> or similar, choose this.
               </p>
             </button>
+            {controller.allowsPrivateCatalogs && (
+              <CustomCatalogs
+                projectId={controller.projectId}
+                onPick={(catalog) => setStep({ kind: 'managed-catalog', catalog })}
+              />
+            )
             <button
               type="button"
               onClick={() => setStep({ kind: 'custom-xyz' })}
@@ -262,6 +292,81 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
         )}
       </div>
     </Modal>
+  );
+};
+
+const toManagedCatalog = (c: CollectionOut): ManagedCatalog => ({
+  id: c.id,
+  title: c.title,
+  tiler: c.tiler,
+  containerUrl: c.container_url,
+  visualizations: catalogPresets(c),
+});
+
+/** The project's ready cloud catalogs; picking one copies its presets into the campaign. */
+const CustomCatalogs = ({
+  projectId,
+  onPick,
+}: {
+  projectId: number;
+  onPick: (catalog: ManagedCatalog) => void;
+}) => {
+  const { data, error } = useQuery({
+    ...listCollectionsOptions({ query: { project_id: projectId } }),
+    staleTime: 0,
+    select: (response) => {
+      if (!Array.isArray(response.items)) {
+        throw new Error('The catalog service returned an invalid collection list.');
+      }
+      return response;
+    },
+    meta: { errorMessage: 'Failed to load custom catalogs', showUser: false },
+  });
+  const catalogs = data?.items ?? [];
+  return (
+    <div
+      className="space-y-3 rounded-lg border border-neutral-200 px-4 py-3.5"
+      data-testid="custom-catalogs"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-neutral-900">
+          No - I have my own imagery in cloud storage
+        </p>
+        <Link
+          to={`/projects/${projectId}?tab=settings#imagery`}
+          className="shrink-0 text-xs leading-5 text-brand-700 hover:underline"
+        >
+          Manage
+        </Link>
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-red-600">
+          Custom catalogs could not be loaded: {extractErrorMessage(error)}
+        </p>
+      )}
+      {data && catalogs.length === 0 && (
+        <p className="text-xs text-neutral-500">No imagery indexed yet.</p>
+      )}
+      {catalogs.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          onClick={() => onPick(toManagedCatalog(c))}
+          className="w-full text-left px-4 py-3 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <IconStac className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+            <span className="text-sm font-medium text-neutral-900">{c.title}</span>
+          </div>
+          <p className="text-xs text-neutral-500 mt-1 leading-snug">
+            {c.item_count ?? 0} files
+            {c.interval?.[0]
+              ? `, ${c.interval[0].slice(0, 10)} to ${c.interval[1]?.slice(0, 10) ?? '…'}`
+              : ''}
+          </p>
+        </button>
+      ))}
+    </div>
   );
 };
 

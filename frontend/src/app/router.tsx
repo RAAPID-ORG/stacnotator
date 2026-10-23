@@ -43,6 +43,9 @@ import {
 const lazyCreateCampaign = async () => ({
   Component: (await importCreateCampaign()).CreateCampaignPage,
 });
+const lazyCatalogs = async () => ({
+  Component: (await import('~/features/cloudImagery/CatalogsPage')).CatalogsPage,
+});
 const lazyAnnotation = async () => ({ Component: (await importAnnotation()).AnnotationPage });
 const lazyAgents = async () => ({ Component: (await importAgents()).AgentsPage });
 const lazyCampaignOverview = async () => ({
@@ -98,6 +101,7 @@ const router = createBrowserRouter(
         <Route path=":projectId" loader={requireProjectId}>
           <Route index lazy={lazyProject} />
           <Route path="campaigns/new" lazy={lazyCreateCampaign} />
+          <Route path="catalogs" lazy={lazyCatalogs} />
           <Route path="campaigns/:campaignId" loader={requireCampaignId}>
             <Route index lazy={lazyCampaignOverview} />
             <Route path="annotate" lazy={lazyAnnotation} />

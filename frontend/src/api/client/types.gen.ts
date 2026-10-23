@@ -2125,6 +2125,129 @@ export type ClaimTaskResponse = {
 };
 
 /**
+ * CollectionCreate
+ */
+export type CollectionCreate = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Tiler
+     */
+    tiler: string;
+    /**
+     * Container Url
+     */
+    container_url: string;
+    /**
+     * Prefix
+     */
+    prefix?: string;
+    /**
+     * Storage Access
+     */
+    storage_access: {
+        kind: 'azure_sas';
+    } & AzureSasAccess;
+    /**
+     * Data Region
+     */
+    data_region?: string | null;
+    /**
+     * Visualizations
+     */
+    visualizations?: Array<Visualization>;
+};
+
+/**
+ * CollectionList
+ */
+export type CollectionList = {
+    /**
+     * Items
+     */
+    items: Array<CollectionOut>;
+};
+
+/**
+ * CollectionOut
+ */
+export type CollectionOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Project Id
+     */
+    project_id: number;
+    /**
+     * Status
+     */
+    status: 'draft' | 'importing' | 'ready' | 'failed';
+    /**
+     * Tiler
+     */
+    tiler: string;
+    /**
+     * Container Url
+     */
+    container_url: string;
+    /**
+     * Prefix
+     */
+    prefix: string;
+    storage_access: StorageAccessOut | null;
+    /**
+     * Data Region
+     */
+    data_region: string | null;
+    /**
+     * Tiler Region
+     */
+    tiler_region: string | null;
+    /**
+     * Visualizations
+     */
+    visualizations: Array<Visualization>;
+    /**
+     * Bbox
+     */
+    bbox: Array<number> | null;
+    /**
+     * Interval
+     */
+    interval: Array<string | null> | null;
+    /**
+     * Item Count
+     */
+    item_count: number | null;
+    /**
+     * Import Id
+     */
+    import_id: number | null;
+    /**
+     * Asset Key
+     */
+    asset_key?: string;
+    /**
+     * Item Assets
+     */
+    item_assets?: {
+        [key: string]: AssetInfo;
+    };
+};
+
+/**
  * CollectionStacConfigCreate
  */
 export type CollectionStacConfigCreate = {
@@ -2170,6 +2293,10 @@ export type CollectionStacConfigCreate = {
     storage_access?: ({
         kind: 'azure_sas';
     } & AzureSasAccess) | null;
+    /**
+     * Cloud Collection Id
+     */
+    cloud_collection_id?: number | null;
 };
 
 /**
@@ -2213,6 +2340,36 @@ export type CollectionStacConfigOut = {
      */
     internal_storage?: boolean;
     storage_access?: StorageAccessOut | null;
+    /**
+     * Cloud Collection Id
+     */
+    cloud_collection_id?: number | null;
+};
+
+/**
+ * CollectionUpdate
+ */
+export type CollectionUpdate = {
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Visualizations
+     */
+    visualizations?: Array<Visualization> | null;
+    /**
+     * Storage Access
+     */
+    storage_access?: ({
+        kind: 'azure_sas';
+    } & AzureSasAccess) | null;
+    /**
+     * Band Names
+     */
+    band_names?: {
+        [key: string]: Array<string>;
+    } | null;
 };
 
 /**
@@ -2453,6 +2610,38 @@ export type DeleteAnnotationTasksRequest = {
 };
 
 /**
+ * DiscoverOut
+ */
+export type DiscoverOut = {
+    /**
+     * Objects
+     */
+    objects: Array<DiscoveredObject>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * DiscoveredObject
+ */
+export type DiscoveredObject = {
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Etag
+     */
+    etag: string;
+    /**
+     * Size
+     */
+    size: number;
+};
+
+/**
  * EmbeddingYearUpdateResponse
  *
  * Response after updating the embedding year.
@@ -2466,6 +2655,44 @@ export type EmbeddingYearUpdateResponse = {
      * Embeddings Recomputed
      */
     embeddings_recomputed: boolean;
+};
+
+/**
+ * FileSelection
+ */
+export type FileSelection = {
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * Etag
+     */
+    etag: string;
+    /**
+     * Datetime
+     */
+    datetime?: string | null;
+    /**
+     * Start Datetime
+     */
+    start_datetime?: string | null;
+    /**
+     * End Datetime
+     */
+    end_datetime?: string | null;
+    /**
+     * Item Key
+     */
+    item_key?: string | null;
+    /**
+     * Asset Key
+     */
+    asset_key?: string;
+    /**
+     * Band Names
+     */
+    band_names?: Array<string> | null;
 };
 
 /**
@@ -3009,6 +3236,68 @@ export type ImageryViewUpdate = {
      * Source Ids
      */
     source_ids?: Array<number> | null;
+};
+
+/**
+ * ImportCreate
+ */
+export type ImportCreate = {
+    /**
+     * Files
+     */
+    files: Array<FileSelection>;
+};
+
+/**
+ * ImportIssue
+ */
+export type ImportIssue = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Path
+     */
+    path: string | null;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
+ * ImportOut
+ */
+export type ImportOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Collection Id
+     */
+    collection_id: number;
+    /**
+     * Status
+     */
+    status: 'registering' | 'ready' | 'failed';
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Completed
+     */
+    completed: number;
+    /**
+     * Errors
+     */
+    errors: Array<ImportIssue>;
+    /**
+     * Retryable
+     */
+    retryable: boolean;
 };
 
 /**
@@ -5253,6 +5542,19 @@ export type VectorOverlayOut = {
      * Color
      */
     color: string;
+};
+
+/**
+ * Visualization
+ *
+ * A preset suggested to campaigns; a campaign copies it, there is no live link.
+ */
+export type Visualization = {
+    /**
+     * Name
+     */
+    name: string;
+    viz_params: VizParamsCreate;
 };
 
 /**
@@ -10978,6 +11280,284 @@ export type UpdateVisualizerVectorLayerResponses = {
 };
 
 export type UpdateVisualizerVectorLayerResponse = UpdateVisualizerVectorLayerResponses[keyof UpdateVisualizerVectorLayerResponses];
+
+export type ListCollectionsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+        /**
+         * Include Drafts
+         */
+        include_drafts?: boolean;
+    };
+    url: '/api/cloud-imagery/collections';
+};
+
+export type ListCollectionsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCollectionsError = ListCollectionsErrors[keyof ListCollectionsErrors];
+
+export type ListCollectionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CollectionList;
+};
+
+export type ListCollectionsResponse = ListCollectionsResponses[keyof ListCollectionsResponses];
+
+export type CreateCollectionData = {
+    body: CollectionCreate;
+    path?: never;
+    query?: never;
+    url: '/api/cloud-imagery/collections';
+};
+
+export type CreateCollectionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateCollectionError = CreateCollectionErrors[keyof CreateCollectionErrors];
+
+export type CreateCollectionResponses = {
+    /**
+     * Successful Response
+     */
+    201: CollectionOut;
+};
+
+export type CreateCollectionResponse = CreateCollectionResponses[keyof CreateCollectionResponses];
+
+export type DeleteCollectionData = {
+    body?: never;
+    path: {
+        /**
+         * Collection Id
+         */
+        collection_id: number;
+    };
+    query?: never;
+    url: '/api/cloud-imagery/collections/{collection_id}';
+};
+
+export type DeleteCollectionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteCollectionError = DeleteCollectionErrors[keyof DeleteCollectionErrors];
+
+export type DeleteCollectionResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteCollectionResponse = DeleteCollectionResponses[keyof DeleteCollectionResponses];
+
+export type GetCollectionData = {
+    body?: never;
+    path: {
+        /**
+         * Collection Id
+         */
+        collection_id: number;
+    };
+    query?: never;
+    url: '/api/cloud-imagery/collections/{collection_id}';
+};
+
+export type GetCollectionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCollectionError = GetCollectionErrors[keyof GetCollectionErrors];
+
+export type GetCollectionResponses = {
+    /**
+     * Successful Response
+     */
+    200: CollectionOut;
+};
+
+export type GetCollectionResponse = GetCollectionResponses[keyof GetCollectionResponses];
+
+export type UpdateCollectionData = {
+    body: CollectionUpdate;
+    path: {
+        /**
+         * Collection Id
+         */
+        collection_id: number;
+    };
+    query?: never;
+    url: '/api/cloud-imagery/collections/{collection_id}';
+};
+
+export type UpdateCollectionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCollectionError = UpdateCollectionErrors[keyof UpdateCollectionErrors];
+
+export type UpdateCollectionResponses = {
+    /**
+     * Successful Response
+     */
+    200: CollectionOut;
+};
+
+export type UpdateCollectionResponse = UpdateCollectionResponses[keyof UpdateCollectionResponses];
+
+export type DiscoverObjectsData = {
+    body?: never;
+    path: {
+        /**
+         * Collection Id
+         */
+        collection_id: number;
+    };
+    query?: {
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/cloud-imagery/collections/{collection_id}/discover';
+};
+
+export type DiscoverObjectsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DiscoverObjectsError = DiscoverObjectsErrors[keyof DiscoverObjectsErrors];
+
+export type DiscoverObjectsResponses = {
+    /**
+     * Successful Response
+     */
+    200: DiscoverOut;
+};
+
+export type DiscoverObjectsResponse = DiscoverObjectsResponses[keyof DiscoverObjectsResponses];
+
+export type StartImportData = {
+    body: ImportCreate;
+    path: {
+        /**
+         * Collection Id
+         */
+        collection_id: number;
+    };
+    query?: never;
+    url: '/api/cloud-imagery/collections/{collection_id}/imports';
+};
+
+export type StartImportErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartImportError = StartImportErrors[keyof StartImportErrors];
+
+export type StartImportResponses = {
+    /**
+     * Successful Response
+     */
+    202: ImportOut;
+};
+
+export type StartImportResponse = StartImportResponses[keyof StartImportResponses];
+
+export type GetImportData = {
+    body?: never;
+    path: {
+        /**
+         * Import Id
+         */
+        import_id: number;
+    };
+    query?: never;
+    url: '/api/cloud-imagery/imports/{import_id}';
+};
+
+export type GetImportErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetImportError = GetImportErrors[keyof GetImportErrors];
+
+export type GetImportResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportOut;
+};
+
+export type GetImportResponse = GetImportResponses[keyof GetImportResponses];
+
+export type RetryImportData = {
+    body?: never;
+    path: {
+        /**
+         * Import Id
+         */
+        import_id: number;
+    };
+    query?: never;
+    url: '/api/cloud-imagery/imports/{import_id}/retry';
+};
+
+export type RetryImportErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RetryImportError = RetryImportErrors[keyof RetryImportErrors];
+
+export type RetryImportResponses = {
+    /**
+     * Successful Response
+     */
+    202: ImportOut;
+};
+
+export type RetryImportResponse = RetryImportResponses[keyof RetryImportResponses];
 
 export type ListVisualizersData = {
     body?: never;

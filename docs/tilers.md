@@ -133,6 +133,22 @@ Private custom maps follow the same restrictions as private STAC imagery: they c
 be attached to visualizers or copied into another organization. A map already linked to
 a visualizer cannot be changed to SAS access until it is unlinked.
 
+### Managed cloud catalogs
+
+Project cloud catalogs index selected Azure Blob GeoTIFFs directly, without an existing
+STAC API. Use a hosted tiler with the `/catalogs` endpoints, configured with
+`allows_ingest: true` in `TILERS` and allowed for the project's organization.
+Enable `ALLOW_MANAGED_CATALOGS=true` on the tiler **only when no public STAC API exposes
+its pgstac database**: the index contains private catalog metadata. The optional
+development tiler enables this and does not run a public STAC service. The backend checks
+the tiler's Azure catalog capability before indexing.
+
+Indexing reads raster metadata and stores STAC items; it does not copy the source files.
+The backend limits concurrent jobs with `CLOUD_IMPORT_MAX_CONCURRENT` (default 2) and
+preferred batch size with `CLOUD_IMPORT_BATCH_SIZE` (default 50), subject to tiler limits.
+Tile reads use the catalog's own encrypted SAS access, not the tiler's managed identity;
+source files must remain available and the token must remain valid.
+
 ## Tilers and their flags
 
 `backend/src/tilers/registry.py` is the single source of truth for which tilers exist. MPC and

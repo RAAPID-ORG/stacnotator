@@ -31,6 +31,18 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Cloud cover filtering with `isNull OR <=` pattern (handles SAR/non-optical collections)
 - Dynamic cloud cover availablility detection from catalog metadata
 
+### Cloud Imagery Catalogs
+
+- Project and platform admins index Azure Blob GeoTIFFs under **Project > Settings > Imagery catalogs**; source files stay in storage
+- Setup connects a container using a read/list SAS token, with an optional folder prefix and storage region, then selects files, indexes them and configures display presets
+- Dates use `YYYY-MM-DD` or start/end intervals in UTC; filename extraction and CSV entry support bulk assignment
+- Files with the same date or interval become assets of one STAC item. Asset names can be assigned individually or by filename rules and must be distinct within each item
+- Indexing detects band counts and names; band display names and visualization presets are editable afterward. Progress and file-specific errors remain available when reopening a catalog, with retry for recoverable failures
+- Ready catalogs are available under **Custom (other) > No - I have my own imagery in cloud storage** in the campaign imagery wizard, within the same project only. Presets are copied into campaigns, so later catalog edits do not change existing campaigns
+- Catalogs used by campaign imagery cannot be deleted or have their SAS replaced until those references are removed; deleting an unused catalog leaves source files intact. Private catalogs cannot be published through visualizers
+
+Requires a hosted tiler with [managed catalog support](tilers.md#managed-cloud-catalogs).
+
 ### Planet Basemaps
 
 - Add a source straight from a Planet basemap **series** (global monthly, quarterly, NICFI medres): the wizard lists the series the organization's Planet key can see, and expands the chosen one into collections and slices in one step
