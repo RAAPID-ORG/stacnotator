@@ -12,9 +12,11 @@ export interface WidthGripProps {
 
 const KEY_STEP = 16;
 
-/** A grip on an element's right edge: drag to set its width, arrow keys to
- *  nudge it, double-click to go back to the default. A button, so the layout
- *  editor never mistakes the drag for moving the whole panel. */
+/** A grip on its parent's right edge: drag to set the width, arrow keys to
+ *  nudge it, double-click to go back to the default. A drag starts from the
+ *  width the parent is drawn at, which may exceed `width` when it stretches.
+ *  A button, so the layout editor never mistakes the drag for moving the whole
+ *  panel. */
 export function WidthGrip({
   width,
   min,
@@ -36,7 +38,10 @@ export function WidthGrip({
         e.preventDefault();
         e.stopPropagation();
         e.currentTarget.setPointerCapture(e.pointerId);
-        start.current = { x: e.clientX, width };
+        start.current = {
+          x: e.clientX,
+          width: e.currentTarget.parentElement?.offsetWidth ?? width,
+        };
       }}
       onPointerMove={(e) => {
         if (!start.current) return;

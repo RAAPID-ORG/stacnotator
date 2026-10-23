@@ -40,7 +40,7 @@ interface PrefsState {
   labelStyles: Record<number, Partial<LabelStyle>>;
   legendOverrides: Record<number, LegendOverride>;
   timeseriesChart: TimeseriesChartOptions;
-  /** Width in px the user dragged the task panel's label chips to. Absent
+  /** Minimum width in px the user dragged the task panel's labels to. Absent
    *  means the default width. */
   taskLabelWidth: number | null;
 

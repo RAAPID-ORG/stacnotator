@@ -6,7 +6,7 @@ export interface LabelGridProps {
   selectedId: number | null;
   onSelect: (id: number | null) => void;
   disabled?: boolean;
-  width?: number;
+  minWidth?: number;
   resize?: LabelChipsProps<LabelBase>['resize'];
 }
 
@@ -15,13 +15,13 @@ export function LabelGrid({
   selectedId,
   onSelect,
   disabled,
-  width,
+  minWidth,
   resize,
 }: LabelGridProps) {
   return (
     <LabelChips
       fill
-      width={width}
+      minWidth={minWidth}
       resize={resize}
       labels={labels}
       selectedId={selectedId}

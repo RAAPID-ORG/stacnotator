@@ -31,8 +31,9 @@ export interface LabelChipsProps<L extends LabelChipItem> {
   renderUnder?: (label: L) => React.ReactNode;
   /** Let the chips stretch across the row instead of keeping a fixed width. */
   fill?: boolean;
-  /** Every chip this wide, in px, rather than the default. */
-  width?: number;
+  /** Lay the chips on a grid, each at least this wide in px and all
+   *  stretched evenly to fill the row, a new column as soon as one fits. */
+  minWidth?: number;
   /** Puts a grip on each chip's right edge that resizes all of them at once. */
   resize?: Omit<WidthGripProps, 'width' | 'label' | 'className'>;
 }
@@ -48,22 +49,28 @@ export function LabelChips<L extends LabelChipItem>({
   renderAfter,
   renderUnder,
   fill = false,
-  width,
+  minWidth,
   resize,
 }: LabelChipsProps<L>) {
   const visible = isSelectable ? labels.filter(isSelectable) : labels;
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div
+      className={minWidth != null ? 'grid gap-1.5' : 'flex flex-wrap gap-1.5'}
+      style={
+        minWidth != null
+          ? { gridTemplateColumns: `repeat(auto-fill, minmax(min(${minWidth}px, 100%), 1fr))` }
+          : undefined
+      }
+    >
       {visible.map((label, index) => {
         const selected = selectedId === label.id;
         const under = renderUnder?.(label);
         return (
           <Fragment key={label.id}>
             <div
-              style={width != null ? { width } : undefined}
               className={`relative flex items-center gap-1 min-w-0 max-w-full ${
-                width != null ? 'shrink-0' : fill ? 'grow shrink basis-40' : ''
+                fill && minWidth == null ? 'grow shrink basis-40' : ''
               }`}
             >
               <button
@@ -71,7 +78,7 @@ export function LabelChips<L extends LabelChipItem>({
                 disabled={disabled}
                 onClick={() => onSelect(label)}
                 className={`${
-                  width != null || fill ? 'grow shrink basis-0' : 'w-40'
+                  minWidth != null || fill ? 'grow shrink basis-0' : 'w-40'
                 } self-stretch min-w-0 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 justify-between ${
                   selected
                     ? 'bg-brand-50 text-brand-700 border-brand-600 border font-semibold'
@@ -102,13 +109,13 @@ export function LabelChips<L extends LabelChipItem>({
               {resize && (
                 <WidthGrip
                   {...resize}
-                  width={width ?? 160}
+                  width={minWidth ?? 160}
                   label="Label width"
                   className="-right-1.5"
                 />
               )}
             </div>
-            {under && <div className="basis-full w-full">{under}</div>}
+            {under && <div className="basis-full w-full col-span-full">{under}</div>}
           </Fragment>
         );
       })}

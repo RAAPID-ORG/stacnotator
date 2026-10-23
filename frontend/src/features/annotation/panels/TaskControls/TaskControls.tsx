@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { AnnotationTaskOut } from '~/api/client';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
@@ -18,7 +18,6 @@ import {
   taskLabellingPolicy,
 } from '../../taskActions';
 import { LabelGrid } from './LabelGrid';
-import { labelColumnCount, labelColumnWidth, type LabelColumnBox } from './labelColumns';
 import { PointJumper } from './PointJumper';
 import { ReviewList } from './ReviewList';
 import { currentTask, useTasksStore } from '../../stores/tasks';
@@ -46,6 +45,8 @@ const sectionHeaderClass = (active = false) =>
 
 const textareaClass =
   'w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors';
+
+const cellClass = 'flex flex-col p-3 border-r border-b border-neutral-100';
 
 const DEFAULT_LABEL_WIDTH = 160;
 const MIN_LABEL_WIDTH = 96;
@@ -85,37 +86,6 @@ export function TaskControls() {
   const showAlert = useLayoutStore((s) => s.showAlert);
   const labelWidth = usePrefsStore((s) => s.taskLabelWidth) ?? DEFAULT_LABEL_WIDTH;
   const setLabelWidth = usePrefsStore((s) => s.setTaskLabelWidth);
-  // A callback ref, because the panel is only mounted once tasks have loaded.
-  // The label column's padding and gap are read off the page rather than
-  // restated here, so the sums stay right whatever the spacing scale is.
-  const [panel, setPanel] = useState<{ width: number; box: LabelColumnBox }>({
-    width: 0,
-    box: { gap: 0, inset: 0 },
-  });
-  const panelObserver = useRef<ResizeObserver | null>(null);
-  const panelRef = useCallback((node: HTMLDivElement | null) => {
-    panelObserver.current?.disconnect();
-    panelObserver.current = null;
-    if (!node) return;
-    panelObserver.current = new ResizeObserver(([entry]) => {
-      const column = node.querySelector<HTMLElement>('[data-task-labels]');
-      if (!entry || !column) return;
-      const cs = getComputedStyle(column);
-      const px = (v: string) => parseFloat(v) || 0;
-      setPanel({
-        width: entry.contentRect.width,
-        box: {
-          gap: px(cs.rowGap),
-          inset:
-            px(cs.paddingLeft) +
-            px(cs.paddingRight) +
-            px(cs.borderLeftWidth) +
-            px(cs.borderRightWidth),
-        },
-      });
-    });
-    panelObserver.current.observe(node);
-  }, []);
   const task = visibleTasks[currentIndex] ?? null;
 
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
@@ -181,20 +151,16 @@ export function TaskControls() {
         : 'Submit';
 
   return (
-    // Narrow, everything stacks. From @md the labels keep a column of their own,
-    // as many chips wide as fit, and everything else stacks beside it.
-    <div ref={panelRef} className="@container w-full h-full bg-white overflow-y-auto">
+    // Narrow, everything stacks. With room for two columns the labels sit
+    // beside the rest; with room for three they go full width on top and the
+    // rest fill a row of equal-height cells beneath, as many across as fit.
+    <div className="@container w-full h-full bg-white overflow-y-auto overflow-x-hidden">
       {isReviewMode && <ReviewList task={task} currentUserId={currentUserId} labels={labels} />}
-      <div className="flex flex-col @md:flex-row">
+      <div className="flex flex-col @min-[30rem]:flex-row @min-[45rem]:flex-col">
         <div
           data-task-labels
           tabIndex={-1}
-          style={
-            {
-              '--task-labels-w': `${labelColumnWidth(labelColumnCount(panel.width, labelWidth, labels.length, panel.box), labelWidth, panel.box)}px`,
-            } as React.CSSProperties
-          }
-          className={`relative flex shrink-0 flex-col gap-1.5 p-3 border-b border-neutral-100 @md:border-b-0 @md:border-r w-full @md:w-(--task-labels-w) @md:max-w-[calc(100%-12rem)] ${
+          className={`flex flex-col gap-1.5 p-3 border-b border-neutral-100 @min-[30rem]:flex-1 @min-[30rem]:basis-0 @min-[30rem]:border-b-0 @min-[30rem]:border-r @min-[45rem]:flex-none @min-[45rem]:basis-auto @min-[45rem]:border-r-0 @min-[45rem]:border-b ${
             labelGroupActive ? activeGroupClass : ''
           } focus:outline-none`}
         >
@@ -222,7 +188,7 @@ export function TaskControls() {
             selectedId={selectedLabelId}
             onSelect={setSelectedLabelId}
             disabled={isBusy}
-            width={labelWidth}
+            minWidth={labelWidth}
             resize={{
               min: MIN_LABEL_WIDTH,
               max: MAX_LABEL_WIDTH,
@@ -232,7 +198,9 @@ export function TaskControls() {
           />
         </div>
 
-        <div className="grid min-w-0 flex-1 grid-cols-1 content-start @md:max-w-lg">
+        {/* Cells draw their own right and bottom rules; the grid hangs a pixel
+            past the panel edge so the outer column's rule is clipped away. */}
+        <div className="-mr-px grid flex-1 basis-0 grid-cols-[repeat(auto-fill,minmax(min(15rem,100%),1fr))] content-start @min-[45rem]:basis-auto">
           <FormFields
             fields={fields}
             values={formValues}
@@ -241,7 +209,7 @@ export function TaskControls() {
             disabled={isBusy}
           />
 
-          <div data-task-comment className="flex flex-col gap-1.5 p-3 border-b border-neutral-100">
+          <div data-task-comment className={`${cellClass} gap-1.5`}>
             <textarea
               data-task-comment-input
               value={comment}
@@ -254,7 +222,7 @@ export function TaskControls() {
             />
           </div>
 
-          <div data-task-confidence className="flex flex-col gap-2 p-3 border-b border-neutral-100">
+          <div data-task-confidence className={`${cellClass} gap-2`}>
             <div className="flex flex-col gap-1">
               <div className="flex justify-between items-center">
                 <span className={sectionHeaderClass()}>Confidence</span>
@@ -368,36 +336,40 @@ export function TaskControls() {
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 p-3">
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={() => previous(catalog)}
-              aria-label="Previous point"
-              title="Previous point"
-              className={navButtonClass}
-            >
-              <IconChevronLeft className="w-3 h-3" />
-              <span className="@max-[15rem]:hidden">Prev</span>
-            </button>
-            <PointJumper
-              key={task.annotation_number}
-              current={task.annotation_number}
-              disabled={isBusy}
-              onJump={(num) => goToAnnotationNumber(num, catalog)}
-              onNotFound={(num) => showAlert(`Point #${num} is not in the current filter`, 'error')}
-            />
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={() => void advance()}
-              aria-label="Next point"
-              title="Next point"
-              className={navButtonClass}
-            >
-              <span className="@max-[15rem]:hidden">Next</span>
-              <IconChevronRight className="w-3 h-3" />
-            </button>
+          <div className={cellClass}>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => previous(catalog)}
+                aria-label="Previous point"
+                title="Previous point"
+                className={navButtonClass}
+              >
+                <IconChevronLeft className="w-3 h-3" />
+                <span className="@max-[15rem]:hidden">Prev</span>
+              </button>
+              <PointJumper
+                key={task.annotation_number}
+                current={task.annotation_number}
+                disabled={isBusy}
+                onJump={(num) => goToAnnotationNumber(num, catalog)}
+                onNotFound={(num) =>
+                  showAlert(`Point #${num} is not in the current filter`, 'error')
+                }
+              />
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => void advance()}
+                aria-label="Next point"
+                title="Next point"
+                className={navButtonClass}
+              >
+                <span className="@max-[15rem]:hidden">Next</span>
+                <IconChevronRight className="w-3 h-3" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
