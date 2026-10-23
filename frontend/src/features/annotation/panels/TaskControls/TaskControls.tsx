@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { AnnotationTaskOut } from '~/api/client';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
@@ -17,8 +17,8 @@ import {
   submitAuthoritative,
   taskLabellingPolicy,
 } from '../../taskActions';
-import { ColumnResizer } from './ColumnResizer';
 import { LabelGrid } from './LabelGrid';
+import { labelColumnCount, labelColumnWidth, type LabelColumnBox } from './labelColumns';
 import { PointJumper } from './PointJumper';
 import { ReviewList } from './ReviewList';
 import { currentTask, useTasksStore } from '../../stores/tasks';
@@ -47,11 +47,9 @@ const sectionHeaderClass = (active = false) =>
 const textareaClass =
   'w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors';
 
-const DEFAULT_LABELS_WIDTH = 224;
-const MIN_LABELS_WIDTH = 128;
-/** Keep in step with the `max-w` on the label column: what the right column
- *  needs to stay usable beside it. */
-const RIGHT_COLUMN_RESERVE = 192;
+const DEFAULT_LABEL_WIDTH = 160;
+const MIN_LABEL_WIDTH = 96;
+const MAX_LABEL_WIDTH = 480;
 
 const navButtonClass =
   'flex-1 min-w-7 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer';
@@ -85,9 +83,39 @@ export function TaskControls() {
   );
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const showAlert = useLayoutStore((s) => s.showAlert);
-  const labelsRef = useRef<HTMLDivElement>(null);
-  const labelsWidth = usePrefsStore((s) => s.taskLabelsWidth) ?? DEFAULT_LABELS_WIDTH;
-  const setLabelsWidth = usePrefsStore((s) => s.setTaskLabelsWidth);
+  const labelWidth = usePrefsStore((s) => s.taskLabelWidth) ?? DEFAULT_LABEL_WIDTH;
+  const setLabelWidth = usePrefsStore((s) => s.setTaskLabelWidth);
+  // A callback ref, because the panel is only mounted once tasks have loaded.
+  // The label column's padding and gap are read off the page rather than
+  // restated here, so the sums stay right whatever the spacing scale is.
+  const [panel, setPanel] = useState<{ width: number; box: LabelColumnBox }>({
+    width: 0,
+    box: { gap: 0, inset: 0 },
+  });
+  const panelObserver = useRef<ResizeObserver | null>(null);
+  const panelRef = useCallback((node: HTMLDivElement | null) => {
+    panelObserver.current?.disconnect();
+    panelObserver.current = null;
+    if (!node) return;
+    panelObserver.current = new ResizeObserver(([entry]) => {
+      const column = node.querySelector<HTMLElement>('[data-task-labels]');
+      if (!entry || !column) return;
+      const cs = getComputedStyle(column);
+      const px = (v: string) => parseFloat(v) || 0;
+      setPanel({
+        width: entry.contentRect.width,
+        box: {
+          gap: px(cs.rowGap),
+          inset:
+            px(cs.paddingLeft) +
+            px(cs.paddingRight) +
+            px(cs.borderLeftWidth) +
+            px(cs.borderRightWidth),
+        },
+      });
+    });
+    panelObserver.current.observe(node);
+  }, []);
   const task = visibleTasks[currentIndex] ?? null;
 
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
@@ -153,16 +181,19 @@ export function TaskControls() {
         : 'Submit';
 
   return (
-    // Narrow, everything stacks. From @md the labels keep a column of their own
-    // that the user sizes, and everything else stacks in the column beside it.
-    <div className="@container w-full h-full bg-white overflow-y-auto">
+    // Narrow, everything stacks. From @md the labels keep a column of their own,
+    // as many chips wide as fit, and everything else stacks beside it.
+    <div ref={panelRef} className="@container w-full h-full bg-white overflow-y-auto">
       {isReviewMode && <ReviewList task={task} currentUserId={currentUserId} labels={labels} />}
       <div className="flex flex-col @md:flex-row">
         <div
-          ref={labelsRef}
           data-task-labels
           tabIndex={-1}
-          style={{ '--task-labels-w': `${labelsWidth}px` } as React.CSSProperties}
+          style={
+            {
+              '--task-labels-w': `${labelColumnWidth(labelColumnCount(panel.width, labelWidth, labels.length, panel.box), labelWidth, panel.box)}px`,
+            } as React.CSSProperties
+          }
           className={`relative flex shrink-0 flex-col gap-1.5 p-3 border-b border-neutral-100 @md:border-b-0 @md:border-r w-full @md:w-(--task-labels-w) @md:max-w-[calc(100%-12rem)] ${
             labelGroupActive ? activeGroupClass : ''
           } focus:outline-none`}
@@ -191,13 +222,13 @@ export function TaskControls() {
             selectedId={selectedLabelId}
             onSelect={setSelectedLabelId}
             disabled={isBusy}
-          />
-          <ColumnResizer
-            columnRef={labelsRef}
-            min={MIN_LABELS_WIDTH}
-            reserve={RIGHT_COLUMN_RESERVE}
-            onResize={setLabelsWidth}
-            onReset={() => setLabelsWidth(null)}
+            width={labelWidth}
+            resize={{
+              min: MIN_LABEL_WIDTH,
+              max: MAX_LABEL_WIDTH,
+              onResize: setLabelWidth,
+              onReset: () => setLabelWidth(null),
+            }}
           />
         </div>
 

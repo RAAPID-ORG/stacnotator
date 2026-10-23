@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { WidthGrip, type WidthGripProps } from './WidthGrip';
 
 export interface LabelChipItem {
   id: number;
@@ -30,6 +31,10 @@ export interface LabelChipsProps<L extends LabelChipItem> {
   renderUnder?: (label: L) => React.ReactNode;
   /** Let the chips stretch across the row instead of keeping a fixed width. */
   fill?: boolean;
+  /** Every chip this wide, in px, rather than the default. */
+  width?: number;
+  /** Puts a grip on each chip's right edge that resizes all of them at once. */
+  resize?: Omit<WidthGripProps, 'width' | 'label' | 'className'>;
 }
 
 export function LabelChips<L extends LabelChipItem>({
@@ -43,6 +48,8 @@ export function LabelChips<L extends LabelChipItem>({
   renderAfter,
   renderUnder,
   fill = false,
+  width,
+  resize,
 }: LabelChipsProps<L>) {
   const visible = isSelectable ? labels.filter(isSelectable) : labels;
 
@@ -54,8 +61,9 @@ export function LabelChips<L extends LabelChipItem>({
         return (
           <Fragment key={label.id}>
             <div
-              className={`flex items-center gap-1 min-w-0 max-w-full ${
-                fill ? 'grow shrink basis-40' : ''
+              style={width != null ? { width } : undefined}
+              className={`relative flex items-center gap-1 min-w-0 max-w-full ${
+                width != null ? 'shrink-0' : fill ? 'grow shrink basis-40' : ''
               }`}
             >
               <button
@@ -63,7 +71,7 @@ export function LabelChips<L extends LabelChipItem>({
                 disabled={disabled}
                 onClick={() => onSelect(label)}
                 className={`${
-                  fill ? 'grow shrink basis-0' : 'w-40'
+                  width != null || fill ? 'grow shrink basis-0' : 'w-40'
                 } min-w-0 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 justify-between ${
                   selected
                     ? 'bg-brand-50 text-brand-700 border-brand-600 border font-semibold'
@@ -91,6 +99,14 @@ export function LabelChips<L extends LabelChipItem>({
                 </span>
               </button>
               {renderAfter?.(label)}
+              {resize && (
+                <WidthGrip
+                  {...resize}
+                  width={width ?? 160}
+                  label="Label width"
+                  className="-right-1.5"
+                />
+              )}
             </div>
             {under && <div className="basis-full w-full">{under}</div>}
           </Fragment>

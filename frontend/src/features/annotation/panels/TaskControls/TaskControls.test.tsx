@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
 import type { AnnotationTaskOut, CampaignOutFull } from '~/api/client';
@@ -63,6 +63,16 @@ afterEach(() => {
   useTasksStore.getState().reset();
   useWorkStore.getState().resetForm();
   useCampaignStore.getState().setReviewMode(false);
+});
+
+// jsdom has no ResizeObserver; the panel measures itself to lay out its label
+// column, which none of these tests is about.
+beforeAll(() => {
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
 });
 
 describe('TaskControls labelling policy', () => {
