@@ -547,8 +547,9 @@ def _validate_origin_tasks(db: Session, campaign: Campaign, items: list[Annotati
 def _require_drawing_access(
     db: Session, campaign: Campaign, user_id: UUID, output_task_ids: set[int | None]
 ) -> None:
-    """Raise unless the user may draw shapes linked this way: a draw task's
-    shapes need the right to work that task, every other shape the explore axis."""
+    """Raise unless the user may save shapes with these draw-task links, None
+    standing for a shape that answers no task. A draw task's shapes need the
+    right to work that task; every other shape needs the explore axis."""
     if None in output_task_ids:
         _require_explore_access(db, campaign, user_id)
     task_ids = output_task_ids - {None}
