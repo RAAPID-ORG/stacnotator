@@ -247,7 +247,7 @@ Post-creation editing via the settings page (three tabs):
 - Imagery: source display settings, visualization params, source refresh (re-ingest a source's searches), add/remove visualizations, and independently reopening any saved temporal generator to regenerate its series (unrelated/manual collections are preserved by default after an explicit choice)
 - Time Series: add/remove configurations
 
-Tasks (upload, generate, assign, move between sets, delete) live on the campaign's separate Tasks page; members and roles are managed in the project settings. Project visibility is a project attribute, not a campaign one.
+Tasks (upload, generate, assign, move between sets, delete) live on the campaign's separate Tasks page; members and roles are managed in the project settings. Project visibility is a project attribute, not a campaign one. Deleting tasks takes each annotator's answer to them along; a labelled answer stays as a shape of its own unless the admin chooses to delete the annotations too, which also removes the shapes drawn for a draw task.
 
 ## Python SDK (Active Learning)
 
@@ -281,7 +281,7 @@ Campaign creation kicks off async background threads for:
 - **Mosaic registration** - STAC searches, item storage, tile URL generation
 - **Embedding computation** - Earth Engine calls for satellite embeddings
 
-Both run independently with status tracking (`registering` → `ready`/`failed`). Annotation access is blocked until completion (campaign admins can still enter edit mode via "Set up layout anyway" to author views and layout). Errors are stored and displayed in settings.
+Both run independently with status tracking (`registering` → `ready`/`failed`), each keeping its own errors. Annotation access is blocked until completion (campaign admins can still enter edit mode via "Set up layout anyway" to author views and layout). Errors are stored and displayed in settings. A published visualizer polls while its own imagery registers.
 
 ## Deployment
 
