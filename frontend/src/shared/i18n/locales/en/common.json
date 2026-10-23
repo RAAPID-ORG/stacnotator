@@ -77,11 +77,7 @@
     "unexpected": "An unexpected error occurred. Try reloading the page.",
     "boundaryMessage": "We encountered an unexpected error. Your data is safe.",
     "technicalDetails": "Technical details",
-    "boundaryPersists": "If this problem persists, please contact support or try refreshing the page.",
-    "appTitle": "Application error",
-    "appMessage": "Something went wrong while loading the application.",
-    "details": "Error details",
-    "appPersists": "If the problem persists, contact support or check the browser console for more details."
+    "boundaryPersists": "If this problem persists, please contact support or try refreshing the page."
   },
   "confirmDialog": {
     "dontAskAgain": "Don't ask again this session"

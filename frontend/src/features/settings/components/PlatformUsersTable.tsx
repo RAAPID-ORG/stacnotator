@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Spinner } from '~/shared/ui/Spinner';
 import { useTranslation } from 'react-i18next';
 import type { UserOutDetailed } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
@@ -142,7 +143,7 @@ export const PlatformUsersTable = ({
               <tr>
                 <td colSpan={5} className="px-4 py-10">
                   <div className="flex flex-col items-center gap-2">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-200 border-t-brand-600" />
+                    <Spinner size="sm" />
                     <span className="text-xs text-neutral-500">{t('usersTable.loading')}</span>
                   </div>
                 </td>

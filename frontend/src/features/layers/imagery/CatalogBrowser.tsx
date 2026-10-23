@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
+import { Spinner } from '~/shared/ui/Spinner';
 import { Trans, useTranslation } from 'react-i18next';
 import { Modal } from '~/shared/ui/Modal';
 import { IconGlobe, IconLock, IconPlus } from '~/shared/ui/Icons';
@@ -1004,7 +1005,7 @@ export const CatalogBrowser = ({
         {/* Full-screen loading for preset initialization */}
         {loading && preset && (
           <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
-            <div className="w-6 h-6 border-2 border-neutral-300 border-t-brand-500 rounded-full animate-spin mb-3" />
+            <Spinner size="sm" className="mb-3" />
             <span className="text-sm">{t('catalog.loadingPreset', { name: preset.label })}</span>
           </div>
         )}

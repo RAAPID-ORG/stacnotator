@@ -4,7 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from '~/app/App';
 import '~/styles/app.css';
 import '~/shared/i18n';
-import { RootErrorFallback } from '~/shared/ui/RootErrorFallback';
+import { ErrorFallback } from '~/shared/ui/ErrorFallback';
 import { ErrorBoundary } from 'react-error-boundary';
 import { client } from '~/api/client/client.gen';
 import { setupClientInterceptors } from '~/features/auth/core/interceptors';
@@ -47,7 +47,7 @@ const visualizerSlug = visualizerSlugFromPath(window.location.pathname);
 const isAgentRender = window.location.pathname.replace(/\/$/, '') === '/agent-render';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <ErrorBoundary FallbackComponent={RootErrorFallback}>
+  <ErrorBoundary FallbackComponent={ErrorFallback}>
     <QueryClientProvider client={queryClient}>
       {legalKey ? (
         <Suspense fallback={null}>
