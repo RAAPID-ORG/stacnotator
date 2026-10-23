@@ -311,7 +311,6 @@
     "customizeCover": "Customize cover separately",
     "stacConfig": "STAC Configuration",
     "singleItem": "Single Item",
-    "mosaic": "Mosaic",
     "catalogUrl": "Catalog URL",
     "stacCollectionId": "STAC Collection ID",
     "internalStorage": "Hosted in internal storage",

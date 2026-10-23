@@ -15,6 +15,7 @@ import type {
   VizParams,
 } from './types';
 import { emptyVizParams, isPlanetSceneConfig } from './types';
+import { buildStacAutoQuery } from './stacQuery';
 
 /** Local IDs are strings: real DB rows are decimal-integer strings (from
  *  server), freshly-added entities are random UUID slices. Only emit `id`
@@ -126,8 +127,23 @@ export function collectionToBackend(
                 };
               }),
               max_cloud_cover: data.maxCloudCover,
-              search_query: data.searchQuery ?? null,
-              cover_search_query: data.coverSearchQuery ?? null,
+              // A query left to the settings is built from them here, so the
+              // stored search always matches what the editor shows.
+              search_query:
+                data.searchQuery ??
+                buildStacAutoQuery(data.stacCollectionId, {
+                  maxCloudCover: data.maxCloudCover,
+                  itemSort: data.itemSort,
+                }),
+              cover_search_query: col.hasDedicatedCover
+                ? (data.coverSearchQuery ??
+                  (data.coverMaxCloudCover !== undefined || data.coverItemSort
+                    ? buildStacAutoQuery(data.stacCollectionId, {
+                        maxCloudCover: data.coverMaxCloudCover ?? data.maxCloudCover,
+                        itemSort: data.coverItemSort ?? data.itemSort,
+                      })
+                    : null))
+                : null,
               internal_storage: data.internalStorage ?? false,
               storage_access: data.sasToken
                 ? { kind: 'azure_sas' as const, secret: data.sasToken }

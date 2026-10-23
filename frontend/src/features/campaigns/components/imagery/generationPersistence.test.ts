@@ -49,7 +49,6 @@ describe('generation-series persistence payload', () => {
             catalogUrl: config.catalogUrl,
             stacCollectionId: config.stacCollectionId,
             isMpc: false,
-            mode: 'mosaic',
             visualizations: config.visualizations,
             vizUrls: [],
           },

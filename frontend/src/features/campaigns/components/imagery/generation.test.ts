@@ -44,7 +44,6 @@ const collection = (id: string, start: string, seriesId?: string): CollectionIte
     catalogUrl: 'https://example.test/stac',
     stacCollectionId: 'sentinel',
     isMpc: false,
-    mode: 'mosaic',
     visualizations: [
       { name: 'RGB', vizParams: { assets: ['red'], assetAsBand: false, rescale: '' } },
     ],

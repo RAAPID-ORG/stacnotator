@@ -1,5 +1,6 @@
 import type { CampaignOutFull, CanvasLayoutItem, ImageryViewOut } from '~/api/client';
 import { TIMESERIES_KEY_PREFIX } from '../campaign/timeseries';
+import { sameValue } from '~/shared/utils/equality';
 
 export const GRID_COLS = 60;
 export const ROW_HEIGHT = 15;
@@ -111,20 +112,9 @@ export function layoutForView(
   return { main: fromGridLayout(chrome, EMPTY_LAYOUT).main, windows: viewWindows(view) };
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  return aKeys.every((k) =>
-    deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])
-  );
-}
-
 /** Drives the "applies to all views" warning before saving. */
 export function mainLayoutChanged(a: WorkspaceLayout, b: WorkspaceLayout): boolean {
-  return !deepEqual(a.main, b.main);
+  return !sameValue(a.main, b.main);
 }
 
 /**

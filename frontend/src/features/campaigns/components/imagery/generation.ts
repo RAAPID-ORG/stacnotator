@@ -41,9 +41,7 @@ export function editableGenerationSeries(source: ImagerySource): EditableGenerat
     if (isPlanetSceneConfig(series.config)) return [];
     const candidates = source.collections.filter(
       (collection) =>
-        collection.generationSeriesId === series.id &&
-        collection.data.type === 'stac_browser' &&
-        collection.data.mode === 'mosaic'
+        collection.generationSeriesId === series.id && collection.data.type === 'stac_browser'
     );
     if (candidates.length === 0) return [];
     const candidateIds = new Set(candidates.map((collection) => collection.id));

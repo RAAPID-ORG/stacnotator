@@ -1,23 +1,11 @@
 import type { ImagerySource, NamedVizParams, StacBrowserCollectionData, VizParams } from './types';
 import { isPlanetSceneConfig } from './types';
-
-const stable = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(stable);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(([, entry]) => entry !== undefined)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, entry]) => [key, stable(entry)])
-    );
-  }
-  return value;
-};
+import { sameValue } from '~/shared/utils/equality';
 
 export function matchingRendering(a: VizParams, b: VizParams): boolean {
   const { compositing: _a, ...renderA } = a;
   const { compositing: _b, ...renderB } = b;
-  return JSON.stringify(stable(renderA)) === JSON.stringify(stable(renderB));
+  return sameValue(renderA, renderB);
 }
 
 export function followingCoverParams(

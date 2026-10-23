@@ -20,7 +20,6 @@ const collection = (id: string, extra: Partial<CollectionItem['data']> = {}): Co
     catalogUrl: CATALOG,
     stacCollectionId: 'imagery',
     isMpc: false,
-    mode: 'mosaic',
     visualizations: [
       { name: 'RGB', vizParams: { assets: ['data'], assetAsBand: false, rescale: '' } },
     ],

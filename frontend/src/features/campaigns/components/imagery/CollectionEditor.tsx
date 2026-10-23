@@ -469,7 +469,7 @@ export const CollectionEditor = ({
                         />
                       </div>
                     </div>
-                    {sb && sb.mode === 'mosaic' && isActiveCover && (
+                    {sb && isActiveCover && (
                       <div className="mt-2 border-t border-brand-100 pt-1.5">
                         <button
                           type="button"
@@ -578,11 +578,6 @@ export const CollectionEditor = ({
                         MPC
                       </span>
                     )}
-                    <span className="text-[9px] bg-neutral-200 text-neutral-600 px-1.5 py-0.5 rounded-full font-medium">
-                      {sb.mode === 'single-item'
-                        ? t('collection.singleItem')
-                        : t('collection.mosaic')}
-                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -691,15 +686,13 @@ export const CollectionEditor = ({
                   )}
 
                   {/* Custom Search Query */}
-                  {sb.mode === 'mosaic' && (
-                    <div className="mt-2">
-                      <StacQueryEditor
-                        value={sb.searchQuery ?? null}
-                        onChange={(query) => updateSb({ searchQuery: query ?? undefined })}
-                        autoQuery={buildAutoQuery(sb.maxCloudCover, sb.itemSort)}
-                      />
-                    </div>
-                  )}
+                  <div className="mt-2">
+                    <StacQueryEditor
+                      value={sb.searchQuery ?? null}
+                      onChange={(query) => updateSb({ searchQuery: query ?? undefined })}
+                      autoQuery={buildAutoQuery(sb.maxCloudCover, sb.itemSort)}
+                    />
+                  </div>
 
                   {/* Visualization parameters - tabs synced with source vizNames.
                       Cover first: it is what annotators see when a task opens. */}
@@ -761,7 +754,7 @@ export const CollectionEditor = ({
                           onActiveIndexChange={setActiveVizIndex}
                           collectionId={sb.stacCollectionId}
                           availableAssets={availableAssets}
-                          showCompositing={sb.mode === 'mosaic'}
+                          showCompositing
                           compositingMethods={availableCompositing}
                           onParamsChange={writeVizParams}
                         />

@@ -111,9 +111,6 @@ export interface StacBrowserCollectionData {
   isMpc: boolean;
   /** Hosted tiler name to register/render on (null/undefined => default tiler). Non-MPC only. */
   tiler?: string | null;
-  mode: 'single-item' | 'mosaic';
-  itemHref?: string;
-  mosaicId?: string;
   /** Max cloud cover percentage (0-100) for STAC search filtering */
   maxCloudCover?: number;
   /** How to sort items in the mosaic (affects which pixel wins in first-valid compositing) */

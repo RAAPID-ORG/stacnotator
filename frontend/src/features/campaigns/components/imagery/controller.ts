@@ -14,6 +14,7 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
 import { isPlanetSceneConfig } from './types';
+import { cloudCoverOf, readStoredQuery } from './stacQuery';
 import type {
   Basemap,
   CollectionItem,
@@ -295,14 +296,20 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
     const byName = new Map(vizConfigs.map((vc) => [vc.name, vc]));
     const namesForViz = sourceVizNames.length > 0 ? sourceVizNames : ['Default'];
     const hasDedicatedCover = col.has_dedicated_cover ?? false;
+    const stacId = sc.stac_collection_id ?? '';
+    const regular = readStoredQuery(stacId, sc.search_query, sc.max_cloud_cover ?? undefined);
+    const coverCloud = cloudCoverOf(sc.cover_search_query);
+    const cover = readStoredQuery(stacId, sc.cover_search_query, coverCloud);
     data = {
       type: 'stac_browser',
       catalogUrl: sc.catalog_url ?? '',
-      stacCollectionId: sc.stac_collection_id ?? '',
+      stacCollectionId: stacId,
       isMpc: isMpcCatalogUrl(sc.catalog_url),
       tiler: sc.tiler ?? null,
-      mode: 'mosaic',
       maxCloudCover: sc.max_cloud_cover ?? undefined,
+      itemSort: regular.itemSort,
+      coverMaxCloudCover: coverCloud,
+      coverItemSort: cover.itemSort,
       visualizations: namesForViz.map((name) => ({
         name,
         vizParams: vizParamsToFrontend(byName.get(name)?.render_params),
@@ -313,8 +320,8 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
             vizParams: vizParamsToFrontend(byName.get(name)?.cover_render_params),
           }))
         : undefined,
-      searchQuery: (sc.search_query as Record<string, unknown>) ?? undefined,
-      coverSearchQuery: (sc.cover_search_query as Record<string, unknown>) ?? undefined,
+      searchQuery: regular.custom,
+      coverSearchQuery: cover.custom,
       internalStorage: sc.internal_storage ?? false,
       storageAccess: sc.storage_access
         ? { kind: sc.storage_access.kind, expiresAt: sc.storage_access.expires_at ?? null }

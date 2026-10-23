@@ -18,7 +18,6 @@ const data: StacBrowserCollectionData = {
   catalogUrl: 'https://example.test/stac',
   stacCollectionId: 'sentinel-2-l2a',
   isMpc: false,
-  mode: 'mosaic',
   visualizations: [{ name: 'Vegetation', vizParams: falseColor }],
   coverVisualizations: [{ name: 'Vegetation', vizParams: { ...falseColor, compositing: 'first' } }],
   vizUrls: [{ vizName: 'Vegetation', url: 'https://tiles.test/false-color' }],

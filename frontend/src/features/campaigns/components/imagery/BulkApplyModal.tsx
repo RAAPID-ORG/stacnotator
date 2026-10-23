@@ -20,6 +20,7 @@ import type { ImageryController } from './controller';
 import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { compositingMethods, servingTiler } from './tilerCapabilities';
 import { setVisualization, updateRegularVisualization } from './visualizations';
+import { sameValue } from '~/shared/utils/equality';
 
 export type BulkFocus = { kind: 'viz'; name: string } | { kind: 'search' };
 
@@ -34,22 +35,7 @@ const stacCols = (source: ImagerySource) =>
   source.collections.filter((c) => c.data.type === 'stac_browser');
 const coverCols = (source: ImagerySource) => stacCols(source).filter((c) => c.hasDedicatedCover);
 
-const stable = (v: unknown): unknown => {
-  if (Array.isArray(v)) return v.map(stable);
-  if (v && typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    return Object.fromEntries(
-      Object.keys(o)
-        .sort()
-        .map((k) => [k, stable(o[k])])
-    );
-  }
-  return v;
-};
-const deepEqual = (a: unknown, b: unknown) =>
-  JSON.stringify(stable(a)) === JSON.stringify(stable(b));
-
-const allUniform = <T,>(values: T[], value: T) => values.every((v) => deepEqual(v, value));
+const allUniform = <T,>(values: T[], value: T) => values.every((v) => sameValue(v, value));
 
 const getRegularViz = (source: ImagerySource, name: string) => {
   const values = stacCols(source).map(
@@ -190,7 +176,6 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
   const cols = stacCols(source);
   const first = cols[0];
   const collectionId = first ? sbData(first).stacCollectionId : '';
-  const allMosaic = cols.every((c) => sbData(c).mode === 'mosaic');
   const hasCover = coverCols(source).length > 0;
 
   useEffect(() => {
@@ -219,7 +204,7 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
         name={focus.name}
         collectionId={collectionId}
         availableAssets={availableAssets}
-        showCompositing={allMosaic}
+        showCompositing
         compositingMethods={compositingMethods(
           first ? servingTiler(sbData(first).catalogUrl, sbData(first).tiler, tilers) : undefined
         )}
@@ -292,8 +277,8 @@ const VizFocus = ({
   const [regularDraft, setRegularDraft] = useState<VizParams>(regular.value);
   const [coverDraft, setCoverDraft] = useState<VizParams>(cover.value);
 
-  const regularDirty = !deepEqual(regularDraft, regular.value);
-  const coverDirty = hasCover && !deepEqual(coverDraft, cover.value);
+  const regularDirty = !sameValue(regularDraft, regular.value);
+  const coverDirty = hasCover && !sameValue(coverDraft, cover.value);
 
   const apply = () => {
     let collections = source.collections;
@@ -366,8 +351,8 @@ const SearchFocus = ({
   const [regularDraft, setRegularDraft] = useState<SearchValue>(regular.value);
   const [coverDraft, setCoverDraft] = useState<SearchValue>(cover.value);
 
-  const regularDirty = !deepEqual(regularDraft, regular.value);
-  const coverDirty = hasCover && !deepEqual(coverDraft, cover.value);
+  const regularDirty = !sameValue(regularDraft, regular.value);
+  const coverDirty = hasCover && !sameValue(coverDraft, cover.value);
 
   const apply = () => {
     let collections = source.collections;

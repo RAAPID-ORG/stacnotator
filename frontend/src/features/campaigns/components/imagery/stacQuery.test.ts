@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildStacAutoQuery } from './stacQuery';
+import { buildStacAutoQuery, cloudCoverOf, readStoredQuery } from './stacQuery';
 
 interface Cql2Filter {
   op: string;
@@ -44,5 +44,37 @@ describe('buildStacAutoQuery', () => {
       op: 'anyinteracts',
       args: [{ property: 'datetime' }, { interval: ['{sliceStart}', '{sliceEnd}'] }],
     });
+  });
+});
+
+describe('reading a stored query back', () => {
+  // The database hands JSONB back with its keys reordered.
+  const reordered = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(reordered)
+      : value && typeof value === 'object'
+        ? Object.fromEntries(
+            Object.entries(value)
+              .reverse()
+              .map(([k, v]) => [k, reordered(v)])
+          )
+        : value;
+
+  it('recovers the settings of a query the editor built, and keeps it editable from them', () => {
+    const stored = reordered(
+      buildStacAutoQuery('sentinel-2-l2a', { maxCloudCover: 30, itemSort: 'cloud_cover_asc' })
+    ) as Record<string, unknown>;
+
+    expect(cloudCoverOf(stored)).toBe(30);
+    expect(readStoredQuery('sentinel-2-l2a', stored, 30)).toEqual({
+      itemSort: 'cloud_cover_asc',
+      custom: undefined,
+    });
+  });
+
+  it('keeps a hand-written query as the custom one', () => {
+    const query = buildStacAutoQuery('sentinel-2-l2a', { itemId: 'S2A_123' });
+
+    expect(readStoredQuery('sentinel-2-l2a', query, undefined).custom).toBe(query);
   });
 });

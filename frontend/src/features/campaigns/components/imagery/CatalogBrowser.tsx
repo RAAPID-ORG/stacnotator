@@ -389,10 +389,6 @@ export const CatalogBrowser = ({
   /** Build the cover slice search query from cover-specific params. */
   const buildCoverAutoQuery = () => buildQuery(coverMaxCloudCover, coverItemSort);
 
-  /** Effective query: user's custom override, or the auto-generated one */
-  const effectiveQuery = searchQuery ?? buildAutoQuery();
-  const effectiveCoverQuery = coverSearchQuery ?? buildCoverAutoQuery();
-
   // Multiple named visualizations
   const [visualizations, setVisualizations] = useState<NamedVizParams[]>([
     ...(initialGeneration?.visualizations ?? [{ name: 'True Color', vizParams: emptyVizParams() }]),
@@ -857,7 +853,6 @@ export const CatalogBrowser = ({
           isMpc: selectedCatalog.is_mpc,
           // Only hosted tiler catalogs pin a tiler; MPC is auto-routed by catalog URL.
           tiler: selectedCatalog.is_mpc ? null : (selectedCatalog.tiler_name ?? null),
-          mode: 'mosaic',
           // Only meaningful when the collection's items carry eo:cloud_cover. Persisting
           // it otherwise makes the tiler ingest filter on a property the items lack,
           // dropping every item (0 items -> 204 tiles). buildQuery gates the search the
@@ -871,8 +866,8 @@ export const CatalogBrowser = ({
               ? coverMaxCloudCover
               : undefined,
           coverItemSort: coverMode === 'custom' ? coverItemSort : undefined,
-          searchQuery: effectiveQuery ?? undefined,
-          coverSearchQuery: coverMode === 'custom' ? (effectiveCoverQuery ?? undefined) : undefined,
+          searchQuery: searchQuery ?? undefined,
+          coverSearchQuery: coverMode === 'custom' ? (coverSearchQuery ?? undefined) : undefined,
           internalStorage: initialGeneration?.internalStorage,
           sasToken: catalogSas ?? undefined,
           vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
@@ -905,9 +900,7 @@ export const CatalogBrowser = ({
         stacCollectionId: selectedCollection.id,
         isMpc: selectedCatalog.is_mpc,
         tiler: selectedCatalog.is_mpc ? null : (selectedCatalog.tiler_name ?? null),
-        mode: 'single-item',
-        itemHref: item.self_href || undefined,
-        maxCloudCover: selectedCollection.has_cloud_cover ? maxCloudCover : undefined,
+        searchQuery: buildStacAutoQuery(selectedCollection.id, { itemId: item.id }),
         visualizations,
         sasToken: catalogSas ?? undefined,
         vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
