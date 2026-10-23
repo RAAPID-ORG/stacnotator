@@ -640,7 +640,8 @@
       "policy": "Failed to update labelling access",
       "extent": "Failed to update sample extent",
       "researchSharing": "Failed to update research sharing",
-      "bbox": "Failed to save settings"
+      "bbox": "Failed to save settings",
+      "taskOutput": "Failed to update the task output"
     },
     "toasts": {
       "embeddingsRecomputed": "Embeddings recomputed for {{year}}",
@@ -652,7 +653,8 @@
       "extentUpdated": "Sample extent updated",
       "researchOn": "Annotations from this campaign may now be published as research data",
       "researchOff": "Research sharing turned off",
-      "bboxUpdated": "Campaign settings updated successfully"
+      "bboxUpdated": "Campaign settings updated successfully",
+      "taskOutputUpdated": "Task output updated"
     },
     "renameLabels": {
       "title": "Rename existing labels?",
@@ -692,6 +694,13 @@
       "title": "Research data sharing",
       "description": "Allow the annotations created in this campaign to be published as open research data, without any annotator's name. Off by default. Turning it off stops future releases - anything already published cannot be recalled. See the Terms of Service.",
       "label": "Publishable as research data"
+    },
+    "taskOutput": {
+      "title": "Task output",
+      "description": "What finishes a task: picking a label for the task's own point or polygon, or drawing shapes around it. Fixed once the first task has been annotated.",
+      "label": "Tasks are finished by",
+      "classify": "Labelling the task location",
+      "draw": "Drawing shapes around it"
     },
     "saveSettings": "Save settings",
     "extent": {

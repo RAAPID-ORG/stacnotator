@@ -237,7 +237,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   const savingResearchSharing = saveResearchSharing.isPending;
   const saveTaskOutput = useMutation({
     ...updateTaskOutputMutation(),
-    ...saved('Failed to update the task output', 'Task output updated'),
+    ...saved(t('generalTab.errors.taskOutput'), t('generalTab.toasts.taskOutputUpdated')),
   });
   const parsedExtent = sampleExtent.trim() === '' ? null : Number(sampleExtent);
   const extentValid = parsedExtent === null || (Number.isFinite(parsedExtent) && parsedExtent > 0);
@@ -366,13 +366,10 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
       <section className={sectionCls}>
         <div>
-          <h2 className="section-heading">Task output</h2>
-          <p className="section-description">
-            What finishes a task: picking a label for the task&apos;s own point or polygon, or
-            drawing shapes around it. Fixed once the first task has been annotated.
-          </p>
+          <h2 className="section-heading">{t('generalTab.taskOutput.title')}</h2>
+          <p className="section-description">{t('generalTab.taskOutput.description')}</p>
         </div>
-        <Field label="Tasks are finished by" className="w-72">
+        <Field label={t('generalTab.taskOutput.label')} className="w-72">
           <Select
             value={campaign.settings.task_output ?? 'classify'}
             onChange={(e) =>
@@ -383,8 +380,8 @@ export const GeneralSettingsTab: React.FC<Props> = ({
             }
             disabled={saveTaskOutput.isPending}
           >
-            <option value="classify">Labelling the task location</option>
-            <option value="draw">Drawing shapes around it</option>
+            <option value="classify">{t('generalTab.taskOutput.classify')}</option>
+            <option value="draw">{t('generalTab.taskOutput.draw')}</option>
           </Select>
         </Field>
       </section>

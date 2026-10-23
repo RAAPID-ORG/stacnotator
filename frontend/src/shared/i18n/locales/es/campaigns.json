@@ -675,7 +675,8 @@
       "policy": "No se pudo actualizar el acceso al etiquetado",
       "extent": "No se pudo actualizar la extensión de la muestra",
       "researchSharing": "No se pudo actualizar el uso compartido para investigación",
-      "bbox": "No se pudo guardar la configuración"
+      "bbox": "No se pudo guardar la configuración",
+      "taskOutput": "No se pudo actualizar el resultado de las tareas"
     },
     "toasts": {
       "embeddingsRecomputed": "Embeddings recalculados para {{year}}",
@@ -687,7 +688,8 @@
       "extentUpdated": "Extensión de la muestra actualizada",
       "researchOn": "Las anotaciones de esta campaña ahora pueden publicarse como datos de investigación",
       "researchOff": "Uso compartido para investigación desactivado",
-      "bboxUpdated": "Configuración de la campaña actualizada correctamente"
+      "bboxUpdated": "Configuración de la campaña actualizada correctamente",
+      "taskOutputUpdated": "Resultado de las tareas actualizado"
     },
     "renameLabels": {
       "title": "¿Renombrar etiquetas existentes?",
@@ -731,6 +733,13 @@
       "title": "Uso compartido de datos para investigación",
       "description": "Permite que las anotaciones creadas en esta campaña se publiquen como datos abiertos de investigación, sin el nombre de ningún anotador. Desactivado de forma predeterminada. Desactivarlo detiene las publicaciones futuras; lo que ya se haya publicado no se puede retirar. Consulta los Términos del servicio.",
       "label": "Publicable como datos de investigación"
+    },
+    "taskOutput": {
+      "title": "Resultado de las tareas",
+      "description": "Qué completa una tarea: elegir una etiqueta para el propio punto o polígono de la tarea, o dibujar formas a su alrededor. Queda fijo una vez anotada la primera tarea.",
+      "label": "Las tareas se completan",
+      "classify": "Etiquetando la ubicación de la tarea",
+      "draw": "Dibujando formas a su alrededor"
     },
     "saveSettings": "Guardar configuración",
     "extent": {
