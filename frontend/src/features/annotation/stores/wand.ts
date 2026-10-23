@@ -24,20 +24,10 @@ export type WandStatus =
   | { phase: 'segmenting' }
   | { phase: 'error'; message: string };
 
-/** The click-grown outline grow and shrink act on: which proposal it is, and
- *  where it sits among the stops its flood found. */
-export interface Growth {
-  proposalId: string;
-  index: number;
-  stops: number;
-}
-
 export interface WandRun {
   found: number;
   millis: number;
   metresPerPixel: number;
-  /** Dates whose edges went into a click-grown outline. */
-  dates?: number;
 }
 
 interface WandState {
@@ -48,10 +38,6 @@ interface WandState {
   proposals: Proposal[];
   backend: Backend | null;
   lastRun: WandRun | null;
-  growth: Growth | null;
-  /** Average edges over several dates of the source before growing - the
-   *  classic way to separate fields one date shows as alike. */
-  multiDate: boolean;
 
   setMode: (mode: WandMode) => void;
   setStatus: (status: WandStatus) => void;
@@ -60,9 +46,6 @@ interface WandState {
   finish: (proposals: Proposal[], run: WandRun) => void;
   fail: (message: string) => void;
   toggle: (id: string) => void;
-  setGrowth: (growth: Growth | null) => void;
-  reshape: (id: string, geometry: GeoJSON.Polygon) => void;
-  setMultiDate: (multiDate: boolean) => void;
   /** Drops the proposals; a run in flight still lands. */
   discard: () => void;
   reset: () => void;
@@ -74,8 +57,6 @@ const initial = {
   area: null,
   proposals: [],
   lastRun: null,
-  growth: null,
-  multiDate: false,
 };
 
 export const useWandStore = create<WandState>()((set) => ({
@@ -100,11 +81,7 @@ export const useWandStore = create<WandState>()((set) => ({
     set((s) => ({
       proposals: s.proposals.map((p) => (p.id === id ? { ...p, accepted: !p.accepted } : p)),
     })),
-  setGrowth: (growth) => set({ growth }),
-  reshape: (id, geometry) =>
-    set((s) => ({ proposals: s.proposals.map((p) => (p.id === id ? { ...p, geometry } : p)) })),
-  setMultiDate: (multiDate) => set({ multiDate }),
-  discard: () => set({ proposals: [], growth: null }),
+  discard: () => set({ proposals: [] }),
   // The backend is a property of this browser, not of the campaign.
   reset: () => set(initial),
 }));
