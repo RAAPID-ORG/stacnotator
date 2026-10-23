@@ -18,10 +18,17 @@ test.describe('Creating a project without an organization', () => {
 
     const panel = appPage.getByTestId('org-gating-panel');
     await expect(panel).toBeVisible();
-    await expect(panel).toContainText('Ask an organization admin to add you');
+    await expect(panel).toContainText('Request access to an organization');
 
-    await panel.getByRole('button', { name: 'Request an organization' }).click();
+    await panel.getByRole('button', { name: 'Create new organization' }).click();
     await expect(appPage).toHaveURL(/\/organizations\/new$/);
+
+    await appPage.goBack();
+    await appPage
+      .getByTestId('org-gating-panel')
+      .getByRole('button', { name: 'Browse organizations' })
+      .click();
+    await expect(appPage).toHaveURL(/\/organizations$/);
   });
 
   test('a viewer in no organization still lands on the project they were invited to', async ({
