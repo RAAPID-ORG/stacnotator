@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 const itemClass =
   'flex w-full items-center gap-2.5 px-2 py-1.5 rounded-md text-left text-[13px] cursor-pointer ' +
@@ -12,8 +12,7 @@ type SidebarMenuProps = {
   children: (close: () => void) => ReactNode;
 };
 
-/** A menu that opens upward from a sidebar row, with the keyboard behaviour of
- *  a menu button: arrows move between items, Escape returns to the trigger. */
+/** A menu that opens upward from a sidebar row and closes on any click outside it. */
 export const SidebarMenu = ({
   label,
   trigger,
@@ -23,13 +22,6 @@ export const SidebarMenu = ({
 }: SidebarMenuProps) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  const items = useCallback(
-    () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? []),
-    []
-  );
 
   useEffect(() => {
     if (!open) return;
@@ -39,40 +31,12 @@ export const SidebarMenu = ({
       }
     };
     document.addEventListener('mousedown', onPointerDown);
-    const all = items();
-    (all.find((item) => item.getAttribute('aria-checked') === 'true') ?? all[0])?.focus();
     return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [open, items]);
-
-  const close = () => {
-    setOpen(false);
-    triggerRef.current?.focus();
-  };
-
-  const onMenuKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      close();
-      return;
-    }
-    if (e.key === 'Tab') {
-      // Refocus the trigger without cancelling the default, so Tab and
-      // Shift-Tab leave the closed menu in natural document order.
-      close();
-      return;
-    }
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    e.preventDefault();
-    const all = items();
-    const current = all.findIndex((item) => item === document.activeElement);
-    const step = e.key === 'ArrowDown' ? 1 : -1;
-    all[(current + step + all.length) % all.length]?.focus();
-  };
+  }, [open]);
 
   return (
     <div ref={containerRef} className="relative">
       <button
-        ref={triggerRef}
         type="button"
         data-testid={testId}
         aria-label={label}
@@ -87,13 +51,11 @@ export const SidebarMenu = ({
       </button>
       {open && (
         <div
-          ref={menuRef}
           role="menu"
           aria-label={label}
-          onKeyDown={onMenuKeyDown}
           className="absolute bottom-full left-0 mb-1 w-64 max-h-[70vh] overflow-y-auto p-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-50"
         >
-          {children(close)}
+          {children(() => setOpen(false))}
         </div>
       )}
     </div>
