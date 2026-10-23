@@ -5,8 +5,6 @@ const KNOWN = {
   id: 'ada-user',
   email: 'ada@example.org',
   display_name: 'Ada Lovelace',
-  is_admin: false,
-  issuer: 'firebase',
 };
 const UNKNOWN_EMAIL = 'nobody@example.org';
 

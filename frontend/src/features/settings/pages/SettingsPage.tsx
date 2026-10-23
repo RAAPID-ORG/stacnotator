@@ -208,7 +208,7 @@ export const SettingsPage = () => {
                         </div>
                       )}
                     </Field>
-                    {account.is_admin && (
+                    {account.is_platform_admin && (
                       <Field label={t('profile.role')}>
                         <span className="inline-flex px-3 py-1.5 text-xs font-medium rounded-full bg-brand-100 text-brand-800 border border-brand-200">
                           {t('profile.administrator')}

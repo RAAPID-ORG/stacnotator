@@ -466,13 +466,12 @@ def test_get_platform_admin_ids_returns_matching_set():
 
 
 def _db_with_campaign_user(cu=None, is_platform_admin=False):
-    """A MagicMock db wired so the CampaignUser lookup (`db.scalars(...).first()`)
-    and auth.service.is_admin's role check (`db.execute(...).first()`) - two
-    different mock chains - can be configured independently. Both default to
-    "no" so tests only need to name what they're asserting."""
+    """A MagicMock db wired so the project membership lookup (`db.scalars(...).first()`)
+    and the platform-admin check (`db.scalar(...)`) can be configured independently.
+    Both default to "no" so tests only need to name what they're asserting."""
     db = MagicMock()
     db.scalars.return_value.first.return_value = cu
-    db.execute.return_value.first.return_value = ("admin",) if is_platform_admin else None
+    db.scalar.return_value = is_platform_admin
     return db
 
 
@@ -570,7 +569,7 @@ def test_build_policy_context_org_member_on_org_public_campaign_is_member():
     db.scalars.side_effect = lambda *_a, **_k: MagicMock(
         first=MagicMock(return_value=next(lookups))
     )
-    db.execute.return_value.first.return_value = None  # not a platform admin
+    db.scalar.return_value = False  # not a platform admin
 
     ctx = build_policy_context(db, campaign, user_id)
 

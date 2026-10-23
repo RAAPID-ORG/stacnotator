@@ -35,7 +35,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
   const { t } = useTranslation('organizations');
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   // Emails only reach platform admins; everyone else manages members by name.
-  const showEmails = useAccountStore((s) => s.account?.is_admin ?? false);
+  const showEmails = useAccountStore((s) => s.account?.is_platform_admin ?? false);
 
   const queryClient = useQueryClient();
   const path = { organization_id: organizationId };

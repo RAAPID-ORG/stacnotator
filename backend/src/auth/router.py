@@ -5,7 +5,7 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth import service
-from src.auth.dependencies import require_admin, require_authenticated_user
+from src.auth.dependencies import require_authenticated_user, require_platform_admin
 from src.auth.models import User
 from src.auth.schemas import (
     AcceptTermsRequest,
@@ -41,10 +41,7 @@ def _user_or_404(user: User | None) -> User:
 
 
 @router.get("/me", response_model=MeOut)
-def me(
-    user: User = Depends(require_authenticated_user),
-    db: Session = Depends(get_db),
-):
+def me(user: User = Depends(require_authenticated_user)):
     """Get current authenticated user's details."""
     return user
 
@@ -66,7 +63,7 @@ def get_tiler_token(
     db: Session = Depends(get_db),
 ):
     """Set a short-lived, campaign-scoped tiler HttpOnly cookie (authenticated users only)."""
-    set_tiler_cookie(response, sub=str(user.id), campaigns=visible_campaign_ids(db, user.id))
+    set_tiler_cookie(response, sub=str(user.id), campaigns=visible_campaign_ids(db, user))
     return {"expires_in": TILER_TOKEN_TTL}
 
 
@@ -83,7 +80,7 @@ def list_users(
     admins to pick members to add, without handing out the platform's address book.
     """
     users = service.get_all_users(db)
-    if user.is_admin:
+    if user.is_platform_admin:
         return users
     return [UserOut.for_viewer(u, with_email=False) for u in users]
 
@@ -101,7 +98,7 @@ def edit_user_info(
     Users can edit their own information.
     Admins can edit any user's information.
     """
-    if user.id != user_id and not user.is_admin:
+    if user.id != user_id and not user.is_platform_admin:
         raise HTTPException(
             status_code=403, detail="Not authorized to edit this user's information"
         )
@@ -110,37 +107,12 @@ def edit_user_info(
 
 
 # ============================================================================
-# Admin Role Operations
+# Platform Admin Operations
 # ============================================================================
 
 
-@router.post("/users/{user_id}/grant-admin", response_model=UserOutDetailed)
-def grant_admin_single(
-    user_id: UUID,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Grant the platform admin role to a single user (admin only)."""
-    return _user_or_404(service.grant_admin(db, user_id))
-
-
-@router.post("/users/{user_id}/revoke-admin", response_model=UserOutDetailed)
-def revoke_admin_single(
-    user_id: UUID,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Revoke admin role from a single user (admin only).
-
-    Removes admin role from the specified user.
-    Prevents revoking admin from the last admin user.
-    """
-    return _user_or_404(service.revoke_admin(db, user_id))
-
-
 @router.get("/grantable-tilers", response_model=list[str])
-def list_grantable_tilers(_: dict = Depends(require_admin)):
+def list_grantable_tilers(_: User = Depends(require_platform_admin)):
     """All configured tilers an admin can grant to an organization (MPC + hosted)."""
     return registry.all_names()
 
@@ -148,7 +120,7 @@ def list_grantable_tilers(_: dict = Depends(require_admin)):
 @router.post("/users/grant-admin", response_model=BulkUserActionResponse)
 def grant_admin(
     request: BulkUserActionRequest,
-    _: dict = Depends(require_admin),
+    _: User = Depends(require_platform_admin),
     db: Session = Depends(get_db),
 ):
     """Grant the platform admin role to multiple users in one transaction (admin only)."""
@@ -158,7 +130,7 @@ def grant_admin(
 @router.post("/users/revoke-admin", response_model=BulkUserActionResponse)
 def revoke_admin(
     request: BulkUserActionRequest,
-    _: dict = Depends(require_admin),
+    _: User = Depends(require_platform_admin),
     db: Session = Depends(get_db),
 ):
     """

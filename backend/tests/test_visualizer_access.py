@@ -17,13 +17,13 @@ from src.visualizers.router import _require_viewer
 
 def _db(membership=None, org_membership=None):
     db = MagicMock()
-    db.query.return_value.filter.return_value.one_or_none.return_value = membership
+    db.get.return_value = membership
     db.scalars.return_value.first.return_value = org_membership
     return db
 
 
 def _user(is_admin=False):
-    return MagicMock(id=uuid4(), is_admin=is_admin)
+    return MagicMock(id=uuid4(), is_platform_admin=is_admin)
 
 
 def _visualizer(*, is_public, visibility="private"):

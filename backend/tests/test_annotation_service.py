@@ -814,7 +814,7 @@ class TestPublicCampaignAnnotationOwnership:
         # No project membership and no platform-admin role, so the policy's
         # modify_others audience (campaign admins by default) excludes them.
         db.scalars.return_value.first.return_value = None
-        db.execute.return_value.first.return_value = None
+        db.scalar.return_value = False  # not a platform admin
 
         payload = AnnotationUpdate(
             label_id=3, comment=None, geometry_wkt=None, is_authoritative=None
@@ -829,7 +829,7 @@ class TestPublicCampaignAnnotationOwnership:
         existing = _make_annotation(ann_id=5, user_id=uuid4())
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
         db.scalars.return_value.first.return_value = None
-        db.execute.return_value.first.return_value = None
+        db.scalar.return_value = False  # not a platform admin
 
         payload = AnnotationUpdate(
             label_id=3, comment=None, geometry_wkt=None, is_authoritative=None
@@ -858,7 +858,7 @@ class TestPublicCampaignAnnotationOwnership:
         # No project membership and no platform-admin role, so the policy's
         # modify_others audience (campaign admins by default) excludes them.
         db.scalars.return_value.first.return_value = None
-        db.execute.return_value.first.return_value = None
+        db.scalar.return_value = False  # not a platform admin
 
         with pytest.raises(HTTPException) as exc_info:
             delete_annotation(db, 10, self._make_public_campaign(), user_id=other_user_id)
@@ -870,7 +870,7 @@ class TestPublicCampaignAnnotationOwnership:
         existing.annotation_task_id = None
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
         db.scalars.return_value.first.return_value = None
-        db.execute.return_value.first.return_value = None
+        db.scalar.return_value = False  # not a platform admin
 
         with pytest.raises(HTTPException) as exc_info:
             delete_annotation(db, 10, self._make_private_campaign(), user_id=uuid4())

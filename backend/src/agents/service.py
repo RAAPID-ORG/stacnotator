@@ -44,7 +44,7 @@ def owner_role(db: Session, campaign: Campaign, user: User) -> Role:
     """Agents act as project members, so only members run them. Campaign admins hand
     them work from the open pool, which is what assigning tasks takes; other members only
     their own assigned tasks."""
-    if user.is_admin:
+    if user.is_platform_admin:
         return "admin"
     membership = db.scalar(
         select(ProjectUser).where(

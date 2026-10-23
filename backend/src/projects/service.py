@@ -12,23 +12,18 @@ from src.campaigns.models import Campaign
 from src.campaigns.policy import strip_anyone_kind
 from src.campaigns.schemas import CampaignListItemOut, LabellingPolicy
 from src.organizations.models import (
-    MEMBER_STATUS_ACTIVE,
     ORG_STATUS_APPROVED,
     Organization,
-    OrganizationUser,
 )
 from src.organizations.service import (
     invite_emails,
     is_active_org_member,
     normalize_emails,
 )
-from src.projects.access import (
-    VISIBILITY_PUBLIC,
-    is_policy_member,
-    resolve_project_flags,
-)
+from src.projects.access import VISIBILITY_PUBLIC, ProjectFlags
 from src.projects.models import Project, ProjectUser
 from src.projects.schemas import ProjectOut, ProjectTilersOut, TilerOption
+from src.projects.viewer import ViewerStanding, project_flags
 from src.tilers import registry
 
 
@@ -53,7 +48,7 @@ def create_project(
     org = db.get(Organization, organization_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
-    if not user.is_admin:
+    if not user.is_platform_admin:
         if org.status != ORG_STATUS_APPROVED:
             raise HTTPException(status_code=403, detail="Organization is not approved yet")
         if not is_active_org_member(db, user.id, organization_id):
@@ -81,98 +76,42 @@ def create_project(
     return project
 
 
+def _project_out(project: Project, flags: ProjectFlags, campaign_count: int) -> ProjectOut:
+    return ProjectOut.model_validate(project).model_copy(
+        update={
+            "is_admin": flags.is_admin,
+            "is_member": flags.is_member,
+            "has_access": flags.has_access,
+            "campaign_count": campaign_count,
+        }
+    )
+
+
 def list_projects_for_user(db: Session, user: User) -> list[ProjectOut]:
     projects = db.scalars(select(Project).order_by(Project.created_at.desc())).all()
-    memberships = {
-        pu.project_id: pu
-        for pu in db.scalars(select(ProjectUser).where(ProjectUser.user_id == user.id))
-    }
-    org_ids = set(
-        db.scalars(
-            select(OrganizationUser.organization_id)
-            .join(Organization, Organization.id == OrganizationUser.organization_id)
-            .where(
-                OrganizationUser.user_id == user.id,
-                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-                Organization.status == ORG_STATUS_APPROVED,
-            )
-        )
-    )
     rows = db.execute(select(Campaign.project_id, func.count()).group_by(Campaign.project_id)).all()
-    counts: dict = {row[0]: row[1] for row in rows}
-    viewer_is_platform_admin = user.is_admin
-
-    items: list[ProjectOut] = []
-    for project in projects:
-        membership = memberships.get(project.id)
-        flags = resolve_project_flags(
-            visibility=project.visibility,
-            is_active_org_member=project.organization_id in org_ids,
-            is_member=membership is not None,
-            member_is_admin=membership.is_admin if membership else False,
-            is_platform_admin=viewer_is_platform_admin,
-        )
-        if not flags.visible:
-            continue
-        out = ProjectOut.model_validate(project)
-        out.is_admin = flags.is_admin
-        out.is_member = flags.is_member
-        out.has_access = flags.has_access
-        out.campaign_count = counts.get(project.id, 0)
-        items.append(out)
-    return items
+    counts: dict[int, int] = {project_id: count for project_id, count in rows}
+    return [
+        _project_out(project, flags, counts.get(project.id, 0))
+        for project, flags in ViewerStanding(db, user).visible(projects)
+    ]
 
 
 def list_project_campaigns(db: Session, project: Project, user: User) -> list[CampaignListItemOut]:
-    membership = db.get(ProjectUser, (user.id, project.id))
-    is_member = is_policy_member(
-        visibility=project.visibility,
-        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
-        is_member=membership is not None,
-        is_platform_admin=user.is_admin,
-    )
-    is_admin = user.is_admin or (membership is not None and membership.is_admin)
+    flags = project_flags(db, user, project)
     campaigns = db.scalars(
         select(Campaign)
         .where(Campaign.project_id == project.id)
         .order_by(Campaign.created_at.desc())
     ).all()
-    return [
-        CampaignListItemOut(
-            id=c.id,
-            name=c.name,
-            created_at=c.created_at,
-            project_id=project.id,
-            is_admin=is_admin,
-            is_member=is_member,
-            is_public=project.visibility == VISIBILITY_PUBLIC,
-            registration_status=c.registration_status,
-            embedding_status=c.embedding_status,
-        )
-        for c in campaigns
-    ]
+    return [CampaignListItemOut.for_viewer(c, project, flags) for c in campaigns]
 
 
 def get_project_out(db: Session, project: Project, user: User) -> ProjectOut:
-    membership = db.get(ProjectUser, (user.id, project.id))
-    flags = resolve_project_flags(
-        visibility=project.visibility,
-        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
-        is_member=membership is not None,
-        member_is_admin=membership.is_admin if membership else False,
-        is_platform_admin=user.is_admin,
+    count = db.scalar(
+        select(func.count()).select_from(Campaign).where(Campaign.project_id == project.id)
     )
-    out = ProjectOut.model_validate(project)
-    out.is_admin = flags.is_admin
-    out.is_member = flags.is_member
-    out.has_access = flags.has_access
-    out.campaign_count = (
-        db.scalar(
-            select(func.count()).select_from(Campaign).where(Campaign.project_id == project.id)
-        )
-        or 0
-    )
-    return out
+    return _project_out(project, project_flags(db, user, project), count or 0)
 
 
 def _strip_anyone_from_campaign_policies(db: Session, project: Project) -> None:

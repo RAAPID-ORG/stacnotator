@@ -27,7 +27,7 @@ def _db(org, membership):
 
 
 def _user(is_admin=False):
-    return MagicMock(id=uuid4(), is_admin=is_admin)
+    return MagicMock(id=uuid4(), is_platform_admin=is_admin)
 
 
 def test_missing_org_raises_404():

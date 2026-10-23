@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -20,6 +20,7 @@ from src.imagery.schemas import (
     ImagerySourceOut,
     ImageryViewOut,
 )
+from src.projects.access import VISIBILITY_PUBLIC, ProjectFlags
 from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
 
 
@@ -325,13 +326,25 @@ class CampaignListItemOut(BaseModel):
     name: str
     created_at: datetime
     project_id: int
-    is_admin: bool = False
-    is_member: bool = False
-    is_public: bool = False
-    registration_status: str = "ready"
-    embedding_status: str = "ready"
+    is_admin: bool
+    is_member: bool
+    is_public: bool
+    registration_status: str
+    embedding_status: str
 
-    model_config = ConfigDict(from_attributes=True)
+    @classmethod
+    def for_viewer(cls, campaign: Any, project: Any, flags: ProjectFlags) -> "CampaignListItemOut":
+        return cls(
+            id=campaign.id,
+            name=campaign.name,
+            created_at=campaign.created_at,
+            project_id=project.id,
+            is_admin=flags.is_admin,
+            is_member=flags.is_policy_member,
+            is_public=project.visibility == VISIBILITY_PUBLIC,
+            registration_status=campaign.registration_status,
+            embedding_status=campaign.embedding_status,
+        )
 
 
 class CampaignOutFull(CampaignOut):

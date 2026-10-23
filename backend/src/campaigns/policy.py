@@ -17,8 +17,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.auth.constants import ROLE_ADMIN
-from src.auth.models import UserRole
+from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience
 from src.organizations.models import (
@@ -139,19 +138,8 @@ class _TaskLike(Protocol):
 
 
 def is_platform_admin(db: Session, user_id: UUID) -> bool:
-    """Whether user_id holds the platform-wide admin role.
-
-    The single canonical check for "is this a platform admin" - same
-    `auth.user_roles` row auth.service.is_admin queries, just homed here so
-    both campaigns and annotation call sites share one implementation instead
-    of the same query re-encoded under different names.
-    """
-    return (
-        db.execute(
-            select(UserRole).where(UserRole.user_id == user_id, UserRole.role == ROLE_ADMIN)
-        ).first()
-        is not None
-    )
+    """For call sites holding a user id rather than the User."""
+    return bool(db.scalar(select(User.is_platform_admin).where(User.id == user_id)))
 
 
 def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> bool:
@@ -276,9 +264,5 @@ def get_platform_admin_ids(db: Session, user_ids: Iterable[UUID]) -> set[UUID]:
     if not candidates:
         return set()
     return set(
-        db.scalars(
-            select(UserRole.user_id).where(
-                UserRole.role == ROLE_ADMIN, UserRole.user_id.in_(candidates)
-            )
-        ).all()
+        db.scalars(select(User.id).where(User.is_platform_admin, User.id.in_(candidates))).all()
     )

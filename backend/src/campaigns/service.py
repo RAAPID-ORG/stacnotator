@@ -15,6 +15,7 @@ from src.annotation.geometries import (
     delete_rows_and_orphan_geometries,
 )
 from src.annotation.models import Annotation, AnnotationTask, Embedding
+from src.auth.models import User
 from src.campaigns import assignments
 from src.campaigns.models import (
     Campaign,
@@ -22,7 +23,6 @@ from src.campaigns.models import (
     TaskSet,
 )
 from src.campaigns.policy import _reject_anyone_kind_if_private
-from src.campaigns.policy import is_platform_admin as is_global_admin
 from src.campaigns.schemas import (
     CampaignListItemOut,
     CampaignSettingsCreate,
@@ -46,19 +46,10 @@ from src.imagery.registration import (
 )
 from src.imagery.service import create_imagery_from_editor_state
 from src.layers import LayerOwner
-from src.organizations.models import (
-    MEMBER_STATUS_ACTIVE,
-    ORG_STATUS_APPROVED,
-    Organization,
-    OrganizationUser,
-)
-from src.projects.access import (
-    VISIBILITY_ORGANIZATION,
-    VISIBILITY_PUBLIC,
-    has_project_access,
-    is_policy_member,
-)
+from src.organizations.service import active_organization_ids
+from src.projects.access import VISIBILITY_ORGANIZATION, VISIBILITY_PUBLIC
 from src.projects.models import Project, ProjectUser
+from src.projects.viewer import ViewerStanding
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import sync_campaign_timeseries_windows
 
@@ -70,89 +61,32 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[CampaignListItemOut]:
-    """Campaigns visible to the user with role info, resolved through the
-    owning project. Platform admins see all; others see platform-public
-    projects' campaigns, campaigns of projects they belong to, and org-public
-    campaigns of orgs they are active members of."""
-    stmt = (
+def list_campaigns_with_user_roles(db: Session, user: User) -> list[CampaignListItemOut]:
+    """Every campaign the user can open, with their roles on its project."""
+    campaigns = db.scalars(
         select(Campaign).options(joinedload(Campaign.project)).order_by(Campaign.created_at.desc())
-    )
-    campaigns = db.scalars(stmt).unique().all()
-    memberships = {
-        pu.project_id: pu
-        for pu in db.scalars(select(ProjectUser).where(ProjectUser.user_id == user_id))
-    }
-    org_ids = set(
-        db.scalars(
-            select(OrganizationUser.organization_id)
-            .join(Organization, Organization.id == OrganizationUser.organization_id)
-            .where(
-                OrganizationUser.user_id == user_id,
-                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-                Organization.status == ORG_STATUS_APPROVED,
-            )
-        )
-    )
-    user_is_global_admin = is_global_admin(db, user_id)
-
-    results: list[CampaignListItemOut] = []
-    for campaign in campaigns:
-        membership = memberships.get(campaign.project_id)
-        is_active_org_member = campaign.project.organization_id in org_ids
-        if not has_project_access(
-            visibility=campaign.project.visibility,
-            is_active_org_member=is_active_org_member,
-            is_member=membership is not None,
-            is_platform_admin=user_is_global_admin,
-        ):
-            continue
-        is_member = is_policy_member(
-            visibility=campaign.project.visibility,
-            is_active_org_member=is_active_org_member,
-            is_member=membership is not None,
-            is_platform_admin=user_is_global_admin,
-        )
-        is_admin = user_is_global_admin or (membership is not None and membership.is_admin)
-        results.append(
-            CampaignListItemOut(
-                id=campaign.id,
-                name=campaign.name,
-                created_at=campaign.created_at,
-                project_id=campaign.project_id,
-                is_admin=is_admin,
-                is_member=is_member,
-                is_public=campaign.project.visibility == VISIBILITY_PUBLIC,
-                registration_status=campaign.registration_status,
-                embedding_status=campaign.embedding_status,
-            )
-        )
-    return results
+    ).all()
+    standing = ViewerStanding(db, user)
+    items = [(campaign, standing.flags(campaign.project)) for campaign in campaigns]
+    return [
+        CampaignListItemOut.for_viewer(campaign, campaign.project, flags)
+        for campaign, flags in items
+        if flags.has_access
+    ]
 
 
-def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
-    """Campaign ids visible to the user (same visibility rules as
-    list_campaigns_with_user_roles), without the joinedload of campaign users
-    or role bookkeeping - for callers like tiler-token minting that only need
-    the ids to scope a token."""
-    if is_global_admin(db, user_id):
+def visible_campaign_ids(db: Session, user: User) -> list[int]:
+    """Ids of the campaigns list_campaigns_with_user_roles returns, in one query,
+    for scoping a tiler token."""
+    if user.is_platform_admin:
         return list(db.scalars(select(Campaign.id)).all())
 
-    active_org_ids = (
-        select(OrganizationUser.organization_id)
-        .join(Organization, Organization.id == OrganizationUser.organization_id)
-        .where(
-            OrganizationUser.user_id == user_id,
-            OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-            Organization.status == ORG_STATUS_APPROVED,
-        )
-    )
     stmt = (
         select(Campaign.id)
         .join(Project, Project.id == Campaign.project_id)
         .outerjoin(
             ProjectUser,
-            and_(ProjectUser.project_id == Project.id, ProjectUser.user_id == user_id),
+            and_(ProjectUser.project_id == Project.id, ProjectUser.user_id == user.id),
         )
         .where(
             or_(
@@ -160,7 +94,7 @@ def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
                 ProjectUser.user_id.is_not(None),
                 and_(
                     Project.visibility == VISIBILITY_ORGANIZATION,
-                    Project.organization_id.in_(active_org_ids),
+                    Project.organization_id.in_(active_organization_ids(user.id)),
                 ),
             )
         )

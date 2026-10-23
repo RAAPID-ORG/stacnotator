@@ -36,7 +36,7 @@ class UserOutDetailed(BaseModel):
     id: UUID
     email: str
     display_name: str | None = None
-    is_admin: bool
+    is_platform_admin: bool
     issuer: str
     external_uid: str
 

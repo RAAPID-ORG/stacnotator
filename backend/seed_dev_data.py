@@ -24,8 +24,9 @@ from sqlalchemy.orm import Session
 import src.models  # noqa: F401 -- side-effect import: ensures all ORM models are registered before any mapper configures  # isort: skip
 
 from src.annotation.models import AnnotationTask, AnnotationTaskAssignment
-from src.auth.constants import ROLE_ADMIN, ROLE_USER
-from src.auth.models import User, UserRole
+from src.auth.models import User
+from src.auth.providers.firebase import FirebaseAuthProvider
+from src.auth.providers.local import LOCAL_USER, LocalAuthProvider
 from src.campaigns.models import Campaign, TaskSet
 from src.campaigns.schemas import CampaignSettingsCreate, LabelBase
 from src.campaigns.service import create_campaign
@@ -161,21 +162,20 @@ def _wait_for_registration(db: Session, campaign_id: int, timeout: float = 180) 
 
 
 def _ensure_user(db: Session, firebase_uid: str | None = None) -> User:
-    """Return existing user or create a new one with the user + admin roles.
+    """Return the existing user or create one, as a platform admin.
 
-    In local auth mode, creates the fixed local user (issuer="local",
-    external_uid="local-user") so that it matches the LocalAuthProvider.
+    In local auth mode this is the fixed user LocalAuthProvider authenticates as.
     """
     settings = get_settings()
     is_local = settings.AUTH_PROVIDER == "local"
 
     if is_local:
-        issuer = "local"
-        external_uid = "local-user"
-        email = "local@localhost"
+        issuer = LocalAuthProvider.name
+        external_uid = LOCAL_USER["uid"]
+        email = LOCAL_USER["email"]
         display_name = "Local Admin"
     else:
-        issuer = "firebase"
+        issuer = FirebaseAuthProvider.name
         external_uid = firebase_uid or "dev-test-uid"
         email = f"dev-{external_uid}@test.com"
         display_name = "Dev Test User"
@@ -191,17 +191,13 @@ def _ensure_user(db: Session, firebase_uid: str | None = None) -> User:
             external_uid=external_uid,
             email=email,
             display_name=display_name,
+            is_platform_admin=True,
         )
         db.add(user)
-        db.flush()
-        db.add(UserRole(user_id=user.id, role=ROLE_USER))
-        db.add(UserRole(user_id=user.id, role=ROLE_ADMIN))
-        db.flush()
     else:
         logger.info("Using existing user: %s", user.email)
-        if not user.is_admin:
-            db.add(UserRole(user_id=user.id, role=ROLE_ADMIN))
-        db.flush()
+        user.is_platform_admin = True
+    db.flush()
 
     return user
 

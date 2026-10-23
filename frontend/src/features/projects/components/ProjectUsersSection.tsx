@@ -44,7 +44,7 @@ const pickerLabel = (user: UserOut) =>
 export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectionProps) => {
   const { t } = useTranslation('projects');
   const showAlert = useLayoutStore((state) => state.showAlert);
-  const showEmails = useAccountStore((state) => state.account?.is_admin ?? false);
+  const showEmails = useAccountStore((state) => state.account?.is_platform_admin ?? false);
 
   const queryClient = useQueryClient();
   const path = { project_id: projectId };

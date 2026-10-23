@@ -169,19 +169,19 @@ export const PlatformUsersTable = ({
                   <td className="px-4 py-3 text-sm text-neutral-600">{user.display_name || '-'}</td>
                   <td className="px-4 py-3">
                     <span
-                      data-user-role={user.is_admin ? 'admin' : 'user'}
+                      data-user-role={user.is_platform_admin ? 'admin' : 'user'}
                       className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border ${
-                        user.is_admin
+                        user.is_platform_admin
                           ? 'bg-accent-50 text-accent-800 border-accent-200'
                           : 'bg-neutral-50 text-neutral-700 border-neutral-200'
                       }`}
                     >
-                      {user.is_admin ? t('usersTable.admin') : t('usersTable.user')}
+                      {user.is_platform_admin ? t('usersTable.admin') : t('usersTable.user')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">
-                      {!user.is_admin ? (
+                      {!user.is_platform_admin ? (
                         <button
                           onClick={() => handleSingleAction(user.id, 'grant-admin')}
                           disabled={processingAction}

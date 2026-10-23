@@ -1536,23 +1536,23 @@ export type CampaignListItemOut = {
     /**
      * Is Admin
      */
-    is_admin?: boolean;
+    is_admin: boolean;
     /**
      * Is Member
      */
-    is_member?: boolean;
+    is_member: boolean;
     /**
      * Is Public
      */
-    is_public?: boolean;
+    is_public: boolean;
     /**
      * Registration Status
      */
-    registration_status?: string;
+    registration_status: string;
     /**
      * Embedding Status
      */
-    embedding_status?: string;
+    embedding_status: string;
 };
 
 /**
@@ -3210,9 +3210,9 @@ export type MeOut = {
      */
     display_name?: string | null;
     /**
-     * Is Admin
+     * Is Platform Admin
      */
-    is_admin: boolean;
+    is_platform_admin: boolean;
     /**
      * Issuer
      */
@@ -5112,9 +5112,9 @@ export type UserOutDetailed = {
      */
     display_name?: string | null;
     /**
-     * Is Admin
+     * Is Platform Admin
      */
-    is_admin: boolean;
+    is_platform_admin: boolean;
     /**
      * Issuer
      */
@@ -6102,9 +6102,9 @@ export type MeOutWritable = {
      */
     display_name?: string | null;
     /**
-     * Is Admin
+     * Is Platform Admin
      */
-    is_admin: boolean;
+    is_platform_admin: boolean;
     /**
      * Issuer
      */
@@ -6292,66 +6292,6 @@ export type EditUserInfoResponses = {
 };
 
 export type EditUserInfoResponse = EditUserInfoResponses[keyof EditUserInfoResponses];
-
-export type GrantAdminSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/grant-admin';
-};
-
-export type GrantAdminSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GrantAdminSingleError = GrantAdminSingleErrors[keyof GrantAdminSingleErrors];
-
-export type GrantAdminSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type GrantAdminSingleResponse = GrantAdminSingleResponses[keyof GrantAdminSingleResponses];
-
-export type RevokeAdminSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/revoke-admin';
-};
-
-export type RevokeAdminSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeAdminSingleError = RevokeAdminSingleErrors[keyof RevokeAdminSingleErrors];
-
-export type RevokeAdminSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type RevokeAdminSingleResponse = RevokeAdminSingleResponses[keyof RevokeAdminSingleResponses];
 
 export type ListGrantableTilersData = {
     body?: never;

@@ -48,10 +48,9 @@ from src.campaigns.schemas import (
 )
 from src.database import get_db, release
 from src.imagery.registration import REGISTRATION_RUN
-from src.organizations.service import is_active_org_member
-from src.projects.access import is_policy_member
-from src.projects.dependencies import assert_project_admin
-from src.projects.models import Project, ProjectUser
+from src.projects.dependencies import require_project_admin
+from src.projects.models import Project
+from src.projects.viewer import project_flags
 from src.routing import attachment_headers
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -67,26 +66,14 @@ def _with_viewer_roles[T: CampaignSummaryOut](
 ) -> T:
     """Stamp the caller's own roles on the owning project onto a campaign
     response, so clients don't need a second round-trip to the member list.
-
-    Each flag mirrors what enforcement actually grants. Platform admins clear the
-    admin check everywhere, but the authoritative-reviewer check reads the
-    membership row alone (campaigns/policy.py:is_authoritative_reviewer), so a
-    platform admin without that row must not be offered authoritative submit.
-    Org-public projects grant active org members member standing (no roles),
-    matching build_policy_context.
-    """
-    membership = db.get(ProjectUser, (user.id, project_id))
+    Each flag mirrors what enforcement grants (projects/access.py)."""
     project = db.get(Project, project_id)
-    out.viewer_is_admin = user.is_admin or (membership is not None and membership.is_admin)
-    out.viewer_is_member = project is not None and is_policy_member(
-        visibility=project.visibility,
-        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
-        is_member=membership is not None,
-        is_platform_admin=user.is_admin,
-    )
-    out.viewer_is_authoritative_reviewer = (
-        membership is not None and membership.is_authoritative_reviewer
-    )
+    if project is None:
+        return out
+    flags = project_flags(db, user, project)
+    out.viewer_is_admin = flags.is_admin
+    out.viewer_is_member = flags.is_policy_member
+    out.viewer_is_authoritative_reviewer = flags.is_authoritative_reviewer
     return out
 
 
@@ -101,7 +88,7 @@ def list_all_campaigns(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ):
-    items = service.list_campaigns_with_user_roles(db, user_id=user.id)
+    items = service.list_campaigns_with_user_roles(db, user)
     return CampaignsListResponse(items=items)
 
 
@@ -156,7 +143,7 @@ def create_campaign(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ):
-    assert_project_admin(db, user, campaign.project_id)
+    require_project_admin(project_id=campaign.project_id, db=db, user=user)
     created = service.create_campaign(
         db,
         name=campaign.name,
@@ -179,7 +166,7 @@ def _duplicate_target(
     if req.target_project_id is None or req.target_project_id == campaign.project_id:
         return None
 
-    project = assert_project_admin(db, user, req.target_project_id)
+    project = require_project_admin(project_id=req.target_project_id, db=db, user=user)
     if req.include_annotations:
         raise HTTPException(
             status_code=400,

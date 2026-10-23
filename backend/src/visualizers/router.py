@@ -9,10 +9,9 @@ from src.auth.dependencies import optional_user, require_authenticated_user
 from src.auth.models import User
 from src.database import get_db
 from src.imagery import registration
-from src.organizations.service import is_active_org_member
-from src.projects.access import has_project_access
 from src.projects.dependencies import require_project_access, require_project_admin
-from src.projects.models import Project, ProjectUser
+from src.projects.models import Project
+from src.projects.viewer import project_flags
 from src.tilers.tokens import TILER_TOKEN_TTL, set_tiler_cookie
 from src.visualizers import service
 from src.visualizers.dependencies import require_visualizer_admin
@@ -166,22 +165,9 @@ def _require_viewer(
             raise HTTPException(status_code=404, detail="Visualizer not found")
         return Viewer(visualizer=visualizer, user=None, can_edit=False)
 
-    project = visualizer.project
-    membership = (
-        db.query(ProjectUser)
-        .filter(ProjectUser.project_id == project.id, ProjectUser.user_id == user.id)
-        .one_or_none()
-    )
-    can_edit = (membership is not None and membership.is_admin) or user.is_admin
-    if visualizer.is_public or can_edit:
-        return Viewer(visualizer=visualizer, user=user, can_edit=can_edit)
-    if has_project_access(
-        visibility=project.visibility,
-        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
-        is_member=membership is not None,
-        is_platform_admin=user.is_admin,
-    ):
-        return Viewer(visualizer=visualizer, user=user, can_edit=False)
+    flags = project_flags(db, user, visualizer.project)
+    if visualizer.is_public or flags.has_access:
+        return Viewer(visualizer=visualizer, user=user, can_edit=flags.is_admin)
     raise HTTPException(status_code=404, detail="Visualizer not found")
 
 

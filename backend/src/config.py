@@ -6,7 +6,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import quote_plus
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEFAULT_CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
@@ -159,7 +159,14 @@ class Settings(BaseSettings):
     # and an unrecognised value fails startup.
     ENVIRONMENT: Literal["development", "testing", "production"] = "development"
 
-    AUTH_PROVIDER: str = "firebase"
+    AUTH_PROVIDER: Literal["firebase", "local"] = "firebase"
+
+    @model_validator(mode="after")
+    def _no_local_auth_in_production(self) -> "Settings":
+        # Local auth signs every request in as an admin, so it must never boot in production.
+        if self.ENVIRONMENT == "production" and self.AUTH_PROVIDER == "local":
+            raise ValueError("AUTH_PROVIDER=local cannot be used with ENVIRONMENT=production")
+        return self
 
     # Firebase credentials: can be either a file path or direct JSON content
     FIREBASE_CREDENTIALS_PATH: str | None = None

@@ -1,6 +1,3 @@
-ROLE_USER = "user"
-ROLE_ADMIN = "admin"
-
 # Labelling agents (see src/agents) are annotator users of their own, marked by this
 # issuer. They do the work of a member but are not one: member and address-book lists
 # leave them out, while attribution (statistics, review, exports) keeps them.

@@ -2,12 +2,11 @@ import logging
 
 from fastapi import Request
 
-from src.auth.constants import ROLE_ADMIN, ROLE_USER
 from src.auth.providers.base import AuthenticatedUser, AuthProvider
-from src.config import get_settings
 
-settings = get_settings()
 logger = logging.getLogger(__name__)
+
+LOCAL_USER: AuthenticatedUser = {"uid": "local-user", "email": "local@localhost"}
 
 
 class LocalAuthProvider(AuthProvider):
@@ -19,17 +18,12 @@ class LocalAuthProvider(AuthProvider):
     """
 
     name = "local"
-    bootstrap_roles = (ROLE_USER, ROLE_ADMIN)
+    grants_platform_admin = True
 
     def __init__(self):
-        if settings.ENVIRONMENT == "production":
-            raise RuntimeError(
-                "AUTH_PROVIDER=local cannot be used with ENVIRONMENT=production. "
-                "Use 'firebase' or another provider for production deployments."
-            )
         logger.warning(
             "LOCAL AUTH MODE: All requests authenticated as admin. Do NOT expose to a network."
         )
 
     async def authenticate(self, request: Request) -> AuthenticatedUser:
-        return {"uid": "local-user", "email": "local@localhost"}
+        return LOCAL_USER

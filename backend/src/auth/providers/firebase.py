@@ -9,8 +9,7 @@ from fastapi import Request
 from firebase_admin import auth, credentials
 from starlette.concurrency import run_in_threadpool
 
-from src.auth.exceptions import ExternalAuthEmailNotVerified
-from src.auth.providers.base import AuthenticatedUser, AuthProvider
+from src.auth.providers.base import AuthenticatedUser, AuthProvider, ExternalAuthEmailNotVerified
 from src.config import get_settings
 
 settings = get_settings()
@@ -62,7 +61,7 @@ class FirebaseAuthProvider(AuthProvider):
     """
     Firebase Authentication provider implementation.
 
-    Validates Firebase ID tokens from request headers or cookies.
+    Validates Firebase ID tokens from the Authorization header.
     """
 
     name = "firebase"
@@ -88,8 +87,7 @@ class FirebaseAuthProvider(AuthProvider):
         """
         Authenticate user via Firebase ID token.
 
-        Checks for token in cookies (firebase_token) or Authorization header.
-        Verifies the token with Firebase and returns normalized user data.
+        Verifies the bearer token with Firebase and returns normalized user data.
 
         Args:
             request: FastAPI request object
@@ -97,17 +95,10 @@ class FirebaseAuthProvider(AuthProvider):
         Returns:
             Authenticated user data if token is valid, None otherwise
         """
-        # Try cookie first
-        token = request.cookies.get("firebase_token")
-
-        # Fall back to Authorization header
-        if not token:
-            header = request.headers.get("Authorization")
-            if header and header.startswith("Bearer "):
-                token = header.split(" ")[1]
-
-        if not token:
+        header = request.headers.get("Authorization")
+        if not header or not header.startswith("Bearer "):
             return None
+        token = header.split(" ")[1]
 
         cached = _verified_cache.get(token)
         if cached is not None:

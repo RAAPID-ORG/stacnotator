@@ -1,31 +1,25 @@
 import uuid
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import (
-    TIMESTAMP,
-    CheckConstraint,
-    ForeignKey,
-    Index,
-    Text,
-    UniqueConstraint,
-    func,
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import TIMESTAMP, Boolean, Index, Text, UniqueConstraint, false, func, text
+from sqlalchemy.orm import Mapped, mapped_column
 
-from src.auth.constants import ROLE_ADMIN, ROLE_USER
 from src.database import Base
 
 
 class User(Base):
     """
     Represents an authenticated user in the system.
-    Supports external identity providers with role-based access control.
+    Supports external identity providers.
     """
 
     __tablename__ = "users"
     __table_args__ = (
         UniqueConstraint("issuer", "external_uid", name="users_issuer_external_uid_uniq"),
         UniqueConstraint("email", name="users_email_uniq"),
+        # Usernames are unique regardless of case.
+        Index("users_display_name_lower_uniq", text("lower(display_name)"), unique=True),
         {"schema": "auth"},
     )
 
@@ -49,47 +43,12 @@ class User(Base):
     terms_accepted_version: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Audit timestamps
-    created_at: Mapped[str] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
         nullable=False,
     )
 
-    # Relationships
-    roles = relationship(
-        "UserRole",
-        cascade="all, delete-orphan",
-        lazy="selectin",
-    )
-
-    @property
-    def is_admin(self) -> bool:
-        """Platform admin. Org- and project-level rights live on the membership rows."""
-        return any(r.role == ROLE_ADMIN for r in self.roles)
-
-
-class UserRole(Base):
-    """
-    Association table for user roles with role validation.
-    Composite primary key of user_id and role allows multiple roles per user.
-    """
-
-    __tablename__ = "user_roles"
-    __table_args__ = (
-        CheckConstraint(
-            f"role IN ('{ROLE_USER}', '{ROLE_ADMIN}')",
-            name="user_roles_role_check",
-        ),
-        Index("user_roles_user_id_idx", "user_id"),
-        {"schema": "auth"},
-    )
-
-    # Composite primary key
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    role: Mapped[str] = mapped_column(Text, primary_key=True)
-
-    # Relationships
-    user = relationship("User", back_populates="roles")
+    # Platform-wide administration. Organization and project rights live on
+    # their membership rows.
+    is_platform_admin: Mapped[bool] = mapped_column(Boolean, server_default=false(), nullable=False)

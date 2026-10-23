@@ -7,23 +7,18 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.auth.constants import ROLE_ADMIN, TERMS_VERSION
-from src.auth.dependencies import (
-    require_admin,
-    require_authenticated_user,
-)
-from src.auth.exceptions import ExternalAuthEmailNotVerified
-from src.auth.models import User, UserRole
+from src.auth.constants import TERMS_VERSION
+from src.auth.dependencies import require_authenticated_user, require_platform_admin
+from src.auth.models import User
+from src.auth.providers.base import ExternalAuthEmailNotVerified
 from src.auth.router import edit_user_info as router_edit_user_info
 from src.auth.router import list_users
 from src.auth.service import (
     accept_terms,
     edit_user_info,
     get_all_users,
-    grant_admin,
     grant_admin_bulk,
     register_user,
-    revoke_admin,
     revoke_admin_bulk,
 )
 
@@ -36,26 +31,14 @@ def _mock_db():
     return db
 
 
-def _make_user(user_id=None, email="test@example.com", roles=None):
-    """Build a User-like mock with working role properties."""
+def _make_user(user_id=None, email="test@example.com", admin=False):
     user = MagicMock(spec=User)
     user.id = user_id or uuid4()
     user.email = email
     user.display_name = "Test"
     user.issuer = "firebase"
     user.external_uid = f"ext-{user.id}"
-
-    role_objects = []
-    for r in roles or []:
-        role_obj = MagicMock(spec=UserRole)
-        role_obj.role = r
-        role_objects.append(role_obj)
-
-    user.roles = role_objects
-
-    # Wire up the property logic since MagicMock won't run the real @property
-    type(user).is_admin = property(lambda self: any(r.role == ROLE_ADMIN for r in self.roles))
-
+    user.is_platform_admin = admin
     return user
 
 
@@ -146,126 +129,59 @@ class TestRegisterUser:
         db.commit.assert_called_once()
 
 
-class TestGrantAdmin:
-    def test_grants_admin_role(self):
-        db = _mock_db()
-        user_id = uuid4()
-        db.get.return_value = _make_user(user_id=user_id)
-
-        with patch("src.auth.service._get_roles", return_value=set()):
-            grant_admin(db, user_id)
-
-        assert db.add.call_args[0][0].role == ROLE_ADMIN
-        db.commit.assert_called_once()
-
-    def test_grant_admin_already_admin_is_noop(self):
-        db = _mock_db()
-        user_id = uuid4()
-        db.get.return_value = _make_user(user_id=user_id, roles=[ROLE_ADMIN])
-
-        with patch("src.auth.service._get_roles", return_value={ROLE_ADMIN}):
-            grant_admin(db, user_id)
-
-        db.add.assert_not_called()
-        db.commit.assert_not_called()
-
-    def test_grant_admin_nonexistent_returns_none(self):
-        db = _mock_db()
-        db.get.return_value = None
-
-        assert grant_admin(db, uuid4()) is None
-
-
-class TestRevokeAdmin:
-    def test_revoke_admin(self):
-        db = _mock_db()
-        user_id = uuid4()
-        user = _make_user(user_id=user_id, roles=[ROLE_ADMIN])
-        role_record = MagicMock()
-        db.get.return_value = user
-        db.scalar.return_value = role_record
-
-        with patch("src.auth.service._admin_count", return_value=2):
-            revoke_admin(db, user_id)
-
-        db.delete.assert_called_once_with(role_record)
-
-    def test_revoke_last_admin_raises(self):
-        db = _mock_db()
-        user_id = uuid4()
-        user = _make_user(user_id=user_id, roles=[ROLE_ADMIN])
-        db.get.return_value = user
-        db.scalar.return_value = MagicMock()  # role exists
-
-        with (
-            patch("src.auth.service._admin_count", return_value=1),
-            pytest.raises(HTTPException) as exc_info,
-        ):
-            revoke_admin(db, user_id)
-
-        assert exc_info.value.status_code == 409
-        assert "last admin" in exc_info.value.detail.lower()
-
-    def test_revoke_nonexistent_returns_none(self):
-        db = _mock_db()
-        db.get.return_value = None
-
-        result = revoke_admin(db, uuid4())
-        assert result is None
-
-
-class TestRequireAdmin:
+class TestRequirePlatformAdmin:
     def test_admin_passes(self):
-        user = _make_user(roles=[ROLE_ADMIN])
-        db = _mock_db()
-
-        result = require_admin(user=user, db=db)
-        assert result is user
+        user = _make_user(admin=True)
+        assert require_platform_admin(user=user) is user
 
     def test_non_admin_raises_403(self):
-        user = _make_user(roles=[])
-        db = _mock_db()
-
         with pytest.raises(HTTPException) as exc_info:
-            require_admin(user=user, db=db)
+            require_platform_admin(user=_make_user())
 
         assert exc_info.value.status_code == 403
 
 
-class TestBulkRoleOperations:
-    """The bulk helpers share one code path; cover the branches unique to it."""
-
-    def test_revoke_admin_bulk_refuses_to_remove_last_admin(self):
+class TestPlatformAdminChanges:
+    def test_revoke_refuses_to_remove_the_last_admin(self):
         db = _mock_db()
-        user_id = uuid4()
-        user = _make_user(user_id=user_id, roles=[ROLE_ADMIN])
+        user = _make_user(admin=True)
         db.get.return_value = user
-        db.scalar.return_value = MagicMock()  # admin role row exists
 
         with (
             patch("src.auth.service._admin_count", return_value=1),
             pytest.raises(HTTPException) as exc_info,
         ):
-            revoke_admin_bulk(db, [user_id])
+            revoke_admin_bulk(db, [user.id])
 
         assert exc_info.value.status_code == 409
-        db.delete.assert_not_called()  # guard aborts before any deletion
+        assert user.is_platform_admin is True
+        db.commit.assert_not_called()
 
-    def test_grant_admin_bulk_skips_existing_admin(self):
+    def test_revoke_leaves_other_admins(self):
         db = _mock_db()
-        u1, u2 = uuid4(), uuid4()
-        user1 = _make_user(user_id=u1)
-        user2 = _make_user(user_id=u2, roles=[ROLE_ADMIN])
-        users = {u1: user1, u2: user2}
-        db.get.side_effect = lambda _model, uid: users[uid]
+        user = _make_user(admin=True)
+        db.get.return_value = user
 
-        roles = {u1: set(), u2: {ROLE_ADMIN}}
-        with patch("src.auth.service._get_roles", side_effect=lambda _db, uid: roles[uid]):
-            result = grant_admin_bulk(db, [u1, u2])
+        with patch("src.auth.service._admin_count", return_value=2):
+            result = revoke_admin_bulk(db, [user.id])
+
+        assert result.success == [user]
+        assert user.is_platform_admin is False
+
+    def test_grant_skips_existing_admin_and_reports_unknown_ids(self):
+        db = _mock_db()
+        u1, u2, missing = uuid4(), uuid4(), uuid4()
+        user1 = _make_user(user_id=u1)
+        user2 = _make_user(user_id=u2, admin=True)
+        users = {u1: user1, u2: user2}
+        db.get.side_effect = lambda _model, uid: users.get(uid)
+
+        result = grant_admin_bulk(db, [u1, u2, missing])
 
         assert result.success == [user1]
-        assert result.already_in_state == [user2]  # already admin
-        assert db.add.call_args[0][0].role == ROLE_ADMIN
+        assert result.already_in_state == [user2]
+        assert result.not_found == [str(missing)]
+        assert user1.is_platform_admin is True
 
 
 class TestRequireAuthenticatedUser:
@@ -325,7 +241,7 @@ class TestListUsersVisibility:
     """Only platform admins see account details through the user list."""
 
     def test_admin_sees_detailed_records(self):
-        admin = _make_user(roles=[ROLE_ADMIN])
+        admin = _make_user(admin=True)
         other = _make_user()
         everyone = [admin, other]
 
@@ -371,7 +287,7 @@ class TestEditUserInfoAuthorization:
         edit.assert_called_once()
 
     def test_admin_can_edit_another_user(self):
-        admin = _make_user(roles=[ROLE_ADMIN])
+        admin = _make_user(admin=True)
         other_id = uuid4()
         updated = _make_user(user_id=other_id)
 

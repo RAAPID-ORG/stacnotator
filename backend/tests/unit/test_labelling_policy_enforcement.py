@@ -37,14 +37,13 @@ def _campaign(policy: LabellingPolicy, *, campaign_id=1, is_public=False):
 
 
 def _db(cu=None):
-    """A MagicMock db where the CampaignUser membership lookup
-    (`db.scalars(...).first()`) and auth.service.is_admin's platform-role
-    check (`db.execute(...).first()`) - two independent mock chains - both
-    default to "no", and the generic `scalar_one_or_none()` chain (used for
-    existing-annotation/assignment lookups) defaults to "not found"."""
+    """A MagicMock db where the project membership lookup (`db.scalars(...).first()`)
+    and the platform-admin check (`db.scalar(...)`) both default to "no", and the
+    generic `scalar_one_or_none()` chain (existing-annotation/assignment lookups)
+    defaults to "not found"."""
     db = MagicMock()
     db.execute.return_value.scalar_one_or_none.return_value = None
-    db.execute.return_value.first.return_value = None
+    db.scalar.return_value = False  # not a platform admin
     db.scalars.return_value.first.return_value = cu
     return db
 

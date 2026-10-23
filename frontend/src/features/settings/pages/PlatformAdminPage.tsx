@@ -77,7 +77,7 @@ export const PlatformAdminPage = () => {
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
-  const isPlatformAdmin = useAccountStore((s) => s.account?.is_admin ?? false);
+  const isPlatformAdmin = useAccountStore((s) => s.account?.is_platform_admin ?? false);
 
   // The same list the sidebar reads: for a platform admin it is every
   // organization on the platform, which is what this page administers. One cache

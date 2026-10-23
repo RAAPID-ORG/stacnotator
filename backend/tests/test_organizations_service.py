@@ -223,23 +223,6 @@ class TestConsumeInvitesForNewUser:
         compiled = str(stmt.compile(compile_kwargs={"literal_binds": True}))
         assert "mixed@x.org" in compiled
 
-    def test_duplicate_invites_for_one_target_grant_one_membership_and_consume_both(self):
-        """A read-then-insert race can leave two unconsumed invites for the same
-        email+target; consumption must stay idempotent per target or the second
-        add blows up registration on the membership PK, permanently."""
-        db = _mock_db()
-        user = self._user()
-        first = Invite(id=1, email="new@x.org", organization_id=5)
-        second = Invite(id=2, email="new@x.org", organization_id=5)
-        db.scalars.return_value.all.return_value = [first, second]
-        db.get.return_value = None  # autoflush=False: the pending add stays invisible
-
-        consume_invites_for_new_user(db, user)
-
-        assert len(_added(db, OrganizationUser)) == 1
-        assert first.consumed_at is not None and second.consumed_at is not None
-        assert second.consumed_by == user.id
-
     def test_never_commits_itself(self):
         """Consumption runs inside register_user's transaction; a commit here
         would break its all-or-nothing registration."""

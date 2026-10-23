@@ -162,7 +162,7 @@ export const AppSidebar = ({
 }: AppSidebarProps) => {
   const { t } = useTranslation();
   const { pathname, search } = useLocation();
-  const isPlatformAdmin = useAccountStore((s) => s.account?.is_admin ?? false);
+  const isPlatformAdmin = useAccountStore((s) => s.account?.is_platform_admin ?? false);
   const { orgs } = useOrganizations();
   const approvals = pendingAdminActions(orgs, isPlatformAdmin).organizationApprovals;
 

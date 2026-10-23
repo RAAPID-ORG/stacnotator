@@ -382,7 +382,7 @@ class TestListProjectCampaigns:
     def test_maps_campaigns_with_project_visibility(self):
         db = _mock_db()
         project = self._project("public")
-        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        user = SimpleNamespace(id=uuid4(), is_platform_admin=False)
         self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], ProjectUser(is_admin=False))
 
         items = list_project_campaigns(db, project, user)
@@ -397,7 +397,7 @@ class TestListProjectCampaigns:
     def test_project_admin_membership_marks_is_admin(self):
         db = _mock_db()
         project = self._project("private")
-        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        user = SimpleNamespace(id=uuid4(), is_platform_admin=False)
         self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], ProjectUser(is_admin=True))
 
         items = list_project_campaigns(db, project, user)
@@ -408,7 +408,7 @@ class TestListProjectCampaigns:
     def test_non_member_on_public_project_is_neither_member_nor_admin(self):
         db = _mock_db()
         project = self._project("public")
-        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        user = SimpleNamespace(id=uuid4(), is_platform_admin=False)
         self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], None)
 
         items = list_project_campaigns(db, project, user)
@@ -419,7 +419,7 @@ class TestListProjectCampaigns:
     def test_org_member_on_org_public_project_is_member_without_admin(self):
         db = _mock_db()
         project = self._project("organization")
-        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        user = SimpleNamespace(id=uuid4(), is_platform_admin=False)
         self._db_with(
             db, [self._campaign(1, datetime(2026, 1, 1))], None, org_membership=SimpleNamespace()
         )
@@ -433,7 +433,7 @@ class TestListProjectCampaigns:
     def test_platform_admin_is_member_and_admin_without_membership(self):
         db = _mock_db()
         project = self._project("private")
-        user = SimpleNamespace(id=uuid4(), is_admin=True)
+        user = SimpleNamespace(id=uuid4(), is_platform_admin=True)
         self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], None)
 
         items = list_project_campaigns(db, project, user)
@@ -444,7 +444,7 @@ class TestListProjectCampaigns:
     def test_queries_project_campaigns_newest_first(self):
         db = _mock_db()
         project = self._project("private")
-        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        user = SimpleNamespace(id=uuid4(), is_platform_admin=False)
         self._db_with(db, [], ProjectUser(is_admin=False))
 
         list_project_campaigns(db, project, user)

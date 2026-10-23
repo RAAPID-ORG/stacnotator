@@ -1,6 +1,7 @@
 """Tests for campaign service layer (campaigns/service.py)."""
 
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -715,7 +716,9 @@ class TestListCampaignsVisibility:
         campaign.name = f"Campaign {cid}"
         campaign.created_at = datetime(2024, 1, 1)
         campaign.project_id = project_id
-        campaign.project = MagicMock(visibility=visibility, organization_id=organization_id)
+        campaign.project = MagicMock(
+            id=project_id, visibility=visibility, organization_id=organization_id
+        )
         campaign.registration_status = "ready"
         campaign.embedding_status = "ready"
         return campaign
@@ -727,9 +730,9 @@ class TestListCampaignsVisibility:
         return pu
 
     def _stub(self, db, campaigns, memberships, org_ids=()):
-        """First db.scalars(...) call is the Campaign query (chained
-        .unique().all()); the second is the ProjectUser query and the third
-        the active-org-ids query, both iterated directly."""
+        """First db.scalars(...) call is the Campaign query (.all()); the second is
+        the ProjectUser query and the third the active-org-ids query, both
+        iterated directly."""
         calls = {"i": 0}
 
         def side_effect(*_args, **_kwargs):
@@ -737,7 +740,7 @@ class TestListCampaignsVisibility:
             calls["i"] += 1
             if i == 0:
                 chain = MagicMock()
-                chain.unique.return_value.all.return_value = campaigns
+                chain.all.return_value = campaigns
                 return chain
             if i == 1:
                 return memberships
@@ -745,15 +748,9 @@ class TestListCampaignsVisibility:
 
         db.scalars.side_effect = side_effect
 
-    def _list(self, db, user_id, *, is_global_admin=False):
-        import src.campaigns.service as svc
-
-        original = svc.is_global_admin
-        svc.is_global_admin = lambda db, uid: is_global_admin
-        try:
-            return list_campaigns_with_user_roles(db, user_id)
-        finally:
-            svc.is_global_admin = original
+    def _list(self, db, user_id, *, is_platform_admin=False):
+        user = SimpleNamespace(id=user_id, is_platform_admin=is_platform_admin)
+        return list_campaigns_with_user_roles(db, user)
 
     def test_regular_user_sees_public_and_member_campaigns(self):
         db = _mock_db()
@@ -817,7 +814,7 @@ class TestListCampaignsVisibility:
         public_campaign = self._make_campaign(2, project_id=2, visibility="public")
         self._stub(db, campaigns=[private_campaign, public_campaign], memberships=[])
 
-        results = self._list(db, user_id, is_global_admin=True)
+        results = self._list(db, user_id, is_platform_admin=True)
 
         assert len(results) == 2
 
@@ -829,17 +826,15 @@ class TestVisibleCampaignIds:
 
     def _statement(self):
         db = _mock_db()
-        db.execute.return_value.first.return_value = None  # not a platform admin
 
-        visible_campaign_ids(db, uuid4())
+        visible_campaign_ids(db, SimpleNamespace(id=uuid4(), is_platform_admin=False))
 
         return db.scalars.call_args.args[0]
 
     def test_platform_admin_gets_every_campaign_unfiltered(self):
         db = _mock_db()
-        db.execute.return_value.first.return_value = ("admin",)
 
-        visible_campaign_ids(db, uuid4())
+        visible_campaign_ids(db, SimpleNamespace(id=uuid4(), is_platform_admin=True))
 
         assert "WHERE" not in str(db.scalars.call_args.args[0])
 

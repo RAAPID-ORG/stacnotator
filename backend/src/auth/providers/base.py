@@ -1,46 +1,40 @@
 from abc import ABC, abstractmethod
-from typing import NotRequired, TypedDict
+from typing import TypedDict
 
 from fastapi import Request
 
 
 class AuthenticatedUser(TypedDict):
-    """
-    Normalized user data from external authentication provider.
-
-    Provides a consistent interface regardless of the underlying
-    authentication service (Firebase, Auth0, etc.).
-    """
+    """Normalized user data from the authentication provider."""
 
     uid: str
     email: str | None
-    name: NotRequired[str]
+
+
+class ExternalAuthEmailNotVerified(Exception):
+    def __init__(self, message: str = "Email address is not verified with the auth provider"):
+        super().__init__(message)
 
 
 class AuthProvider(ABC):
     """
-    Abstract base class for external authentication providers.
-
-    Should be used to add support for new authentication
-    providers (e.g. when we switch to Azure etc).
+    An authentication backend, selected by AUTH_PROVIDER.
 
     Attributes:
-        name: Unique identifier for this auth provider
-        bootstrap_roles: Roles granted automatically the first time a user
-            registers through this provider (empty for providers where roles
-            are assigned separately, e.g. by an admin).
+        name: Unique identifier for this auth provider, stored as the user's issuer
+        grants_platform_admin: Whether a user registering through this provider
+            becomes a platform admin (only the single-user local provider)
     """
 
     name: str
-    bootstrap_roles: tuple[str, ...] = ()
+    grants_platform_admin: bool = False
 
     @abstractmethod
     async def authenticate(self, request: Request) -> AuthenticatedUser | None:
         """
         Validate incoming request and extract authenticated user data.
 
-        Should check for authentication tokens in headers or cookies
-        and validate them with the external provider.
+        Should read the bearer token and validate it with the provider.
 
         Args:
             request: FastAPI request object
