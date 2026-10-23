@@ -9,11 +9,6 @@ function campaignWithLabels(
 }
 
 describe('extendedLabels', () => {
-  it('defaults a missing geometry_type to polygon', () => {
-    const [label] = extendedLabels(campaignWithLabels([{ id: 1, name: 'Tree' }]));
-    expect(label.geometry_type).toBe('polygon');
-  });
-
   it('keeps an explicit geometry_type', () => {
     const [label] = extendedLabels(
       campaignWithLabels([{ id: 1, name: 'Tree', geometry_type: 'point' }])
@@ -22,7 +17,11 @@ describe('extendedLabels', () => {
   });
 
   it('assigns colors from the palette by list position, cycling on overflow', () => {
-    const labels = Array.from({ length: 11 }, (_, i) => ({ id: i, name: `L${i}` }));
+    const labels = Array.from({ length: 11 }, (_, i) => ({
+      id: i,
+      name: `L${i}`,
+      geometry_type: 'polygon' as const,
+    }));
     const result = extendedLabels(campaignWithLabels(labels));
     expect(result[0].color).toBe(result[10].color);
     expect(result[0].color).not.toBe(result[1].color);

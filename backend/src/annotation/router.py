@@ -201,7 +201,7 @@ def validate_task_label(
     - disabled - no embedding year configured for this campaign
     """
     # Short-circuit if no embedding year is configured
-    if campaign.settings.embedding_year is None:
+    if campaign.embedding_year is None:
         return ValidateLabelSubmissionsResponse(status="disabled", agrees=None)
 
     return embeddings_service.validate_label_submission(

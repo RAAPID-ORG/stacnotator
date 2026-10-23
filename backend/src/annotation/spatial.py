@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from src.annotation.constants import CHANGES_LIMIT, CHANGES_OVERLAP
 from src.annotation.tiles import MIN_TILE_ZOOM, build_mvt_query, task_filter_sql
-from src.campaigns.models import CampaignSettings
+from src.campaigns.models import Campaign
 
 
 def render_annotation_tile(
@@ -195,15 +195,12 @@ def _density_cell_size(
     """
     if get_campaign_annotations_extent(db, campaign_id, include_tasks=include_tasks) is None:
         return None
-    settings = db.execute(
+    area = db.execute(
         select(
-            CampaignSettings.bbox_west,
-            CampaignSettings.bbox_south,
-            CampaignSettings.bbox_east,
-            CampaignSettings.bbox_north,
-        ).where(CampaignSettings.campaign_id == campaign_id)
+            Campaign.bbox_west, Campaign.bbox_south, Campaign.bbox_east, Campaign.bbox_north
+        ).where(Campaign.id == campaign_id)
     ).one()
-    return density_grid(tuple(settings), target_cells)
+    return density_grid(tuple(area), target_cells)
 
 
 def get_annotation_density(

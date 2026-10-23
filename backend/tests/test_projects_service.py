@@ -263,9 +263,9 @@ class TestUpdateProjectVisibility:
 
     def _campaign_with_policy(self, is_public=True):
         campaign = MagicMock()
-        campaign.settings.labelling_policy = default_labelling_policy(
-            is_public=is_public
-        ).model_dump(mode="json")
+        campaign.labelling_policy = default_labelling_policy(is_public=is_public).model_dump(
+            mode="json"
+        )
         return campaign
 
     def test_public_to_private_strips_anyone_from_every_campaign(self):
@@ -275,7 +275,7 @@ class TestUpdateProjectVisibility:
 
         update_project(db, 1, visibility="private")
 
-        policy = campaign.settings.labelling_policy
+        policy = campaign.labelling_policy
         assert "anyone" not in policy["explore"]["kinds"]
         assert "anyone" not in policy["unassigned_tasks"]["kinds"]
         assert "anyone" not in policy["assigned_tasks"]["kinds"]
@@ -295,7 +295,7 @@ class TestUpdateProjectVisibility:
 
         update_project(db, 1, visibility="organization")
 
-        assert "anyone" not in campaign.settings.labelling_policy["explore"]["kinds"]
+        assert "anyone" not in campaign.labelling_policy["explore"]["kinds"]
 
     def test_public_to_private_strips_across_multiple_campaigns(self):
         db = _mock_db()
@@ -306,49 +306,49 @@ class TestUpdateProjectVisibility:
         update_project(db, 1, visibility="private")
 
         for campaign in (c1, c2):
-            assert "anyone" not in campaign.settings.labelling_policy["explore"]["kinds"]
+            assert "anyone" not in campaign.labelling_policy["explore"]["kinds"]
 
     def test_already_private_to_private_does_not_touch_policy(self):
         db = _mock_db()
         campaign = self._campaign_with_policy(is_public=True)
-        original = dict(campaign.settings.labelling_policy)
+        original = dict(campaign.labelling_policy)
         self._project(db, visibility="private", campaigns=[campaign])
 
         update_project(db, 1, visibility="private")
 
-        assert campaign.settings.labelling_policy == original
+        assert campaign.labelling_policy == original
 
     def test_org_public_to_private_does_not_strip_policy(self):
         # 'anyone' could never be stored while org-public; nothing to strip.
         db = _mock_db()
         campaign = self._campaign_with_policy(is_public=False)
-        original = dict(campaign.settings.labelling_policy)
+        original = dict(campaign.labelling_policy)
         self._project(db, visibility="organization", campaigns=[campaign])
 
         update_project(db, 1, visibility="private")
 
-        assert campaign.settings.labelling_policy == original
+        assert campaign.labelling_policy == original
 
     def test_flipping_to_public_does_not_strip_policy(self):
         db = _mock_db()
         campaign = self._campaign_with_policy(is_public=False)
-        original = dict(campaign.settings.labelling_policy)
+        original = dict(campaign.labelling_policy)
         self._project(db, visibility="private", campaigns=[campaign])
 
         update_project(db, 1, visibility="public")
 
-        assert campaign.settings.labelling_policy == original
+        assert campaign.labelling_policy == original
 
     def test_visibility_none_leaves_visibility_untouched(self):
         db = _mock_db()
         campaign = self._campaign_with_policy(is_public=True)
-        original = dict(campaign.settings.labelling_policy)
+        original = dict(campaign.labelling_policy)
         project = self._project(db, visibility="public", campaigns=[campaign])
 
         update_project(db, 1, name="New name")
 
         assert project.visibility == "public"
-        assert campaign.settings.labelling_policy == original
+        assert campaign.labelling_policy == original
         assert project.name == "New name"
 
     def test_not_found_raises_404(self):

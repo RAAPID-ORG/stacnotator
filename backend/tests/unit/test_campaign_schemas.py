@@ -86,7 +86,11 @@ def _campaign_orm_stub(project_id: int = 7) -> SimpleNamespace:
         is_public=False,
         annotations_version=0,
         settings=SimpleNamespace(
-            **{**_minimal_settings(), "labels": {"1": {"name": "Forest"}}},
+            **{
+                **_minimal_settings(),
+                "labels": [{"id": 1, "name": "Forest", "geometry_type": "polygon"}],
+            },
+            task_output="classify",
             labelling_policy=default_labelling_policy(),
             form_fields=[],
             research_sharing=False,

@@ -17,7 +17,6 @@ from src.campaigns.schemas import (
     AnnotatorInfo,
     CampaignStatistics,
     PairwiseAgreement,
-    label_id_to_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -168,7 +167,7 @@ def get_campaign_statistics(
         _scoped_to_set(select(Annotation).where(Annotation.campaign_id == campaign.id), task_set_id)
     ).all()
 
-    label_names = label_id_to_name(campaign.settings.labels)
+    label_names = campaign.label_names
 
     def label_distribution(anns: Iterable[Annotation]) -> dict[str, int]:
         return dict(

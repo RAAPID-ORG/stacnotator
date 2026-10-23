@@ -39,7 +39,7 @@ def save_imagery(
     edit flow's Save button - reconciles adds/updates/deletes across sources,
     collections, slices, and basemaps in a single transaction."""
     pending = service.save_imagery_editor_state(db, campaign, editor_state)
-    registration.commit_and_register(db, campaign, pending, campaign.settings.bbox)
+    registration.commit_and_register(db, campaign, pending, campaign.bbox)
 
 
 @router.post("/{campaign_id}/new-layout", status_code=201)
@@ -80,9 +80,7 @@ def refresh_source_imagery(
     background.begin_status_run(campaign, registration.REGISTRATION_RUN)
     campaign.registration_errors = None
     db.commit()
-    registration.spawn_background_source_refresh(
-        campaign.id, collection_ids, list(campaign.settings.bbox)
-    )
+    registration.spawn_background_source_refresh(campaign.id, collection_ids, list(campaign.bbox))
 
 
 @router.post(

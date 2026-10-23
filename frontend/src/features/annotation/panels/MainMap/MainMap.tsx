@@ -509,9 +509,7 @@ export function MainMapBody() {
   // A held-back shape is not stored yet, and nothing on the map says why. The
   // reason rides on the shape itself, listing what is outstanding.
   const missing =
-    draft.phase === 'draft'
-      ? missingRequiredFields(campaign.settings.form_fields ?? [], formValues)
-      : [];
+    draft.phase === 'draft' ? missingRequiredFields(campaign.settings.form_fields, formValues) : [];
 
   // Confirm/delete ride on the geometry they act on rather than in a corner of
   // the page, which is what makes them findable on a big map. A draft outranks

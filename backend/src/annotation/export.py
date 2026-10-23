@@ -41,12 +41,7 @@ def _resolve_label_name(campaign: Campaign, label_id: int | None) -> str | None:
     """Resolve a label ID to its name from campaign settings."""
     if label_id is None:
         return None
-    labels = campaign.settings.labels
-    label_id_str = str(label_id)
-    if label_id_str in labels:
-        name: str = labels[label_id_str]["name"]
-        return name
-    return None
+    return campaign.label_names.get(label_id)
 
 
 def form_export_columns(fields: list[FormField]) -> list[str]:
@@ -66,7 +61,7 @@ def format_form_value(field: FormField, value: object) -> object | None:
     "start/end", everything else (number/text/date) passes through as-is.
 
     Value shapes are guaranteed by write-path validation, the answered-field
-    change guard in update_campaign_form_fields, and migration aa7formnorm;
+    change guard in campaigns.service.update_campaign, and migration aa7formnorm;
     a mismatch is a bug and raises."""
     return _format_form_value(field, value, _option_names(field))
 

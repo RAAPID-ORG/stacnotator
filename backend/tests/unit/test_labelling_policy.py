@@ -1,13 +1,13 @@
 """Unit tests for the labelling-policy model layer: schema validation, the
 pure policy.py evaluation core, and the admin update service call.
 
-DB-free per repo convention: CampaignSettings/Campaign are plain SQLAlchemy
+DB-free per repo convention: Campaign is a plain SQLAlchemy
 model instances (no session), and the DB session in service tests is a
 MagicMock.
 """
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -15,7 +15,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from src.campaigns import service
-from src.campaigns.models import Campaign, CampaignSettings
+from src.campaigns.models import Campaign
 from src.campaigns.policy import (
     CampaignStanding,
     PolicyContext,
@@ -26,6 +26,7 @@ from src.campaigns.policy import (
     load_standing,
 )
 from src.campaigns.schemas import (
+    CampaignUpdate,
     LabellingPolicy,
     PolicyAudience,
     default_labelling_policy,
@@ -37,7 +38,7 @@ from tests.conftest import make_policy
 def _campaign(visibility: str = "private") -> Campaign:
     campaign = Campaign(id=1, name="x", default_work_mode="tasks")
     campaign.project = Project(id=1, visibility=visibility, organization_id=5)
-    campaign.settings = CampaignSettings(campaign_id=1, labelling_policy={})
+    campaign.labelling_policy = {}
     return campaign
 
 
@@ -247,8 +248,14 @@ def test_counts_toward_completion_uses_unassigned_tasks_axis_for_unassigned_task
 
 
 # ============================================================================
-# PATCH /campaigns/{id}/labelling-policy service call (mocked db)
+# Updating the labelling policy (mocked db)
 # ============================================================================
+
+
+def _update_policy(db, campaign, policy):
+    with patch.object(service, "get_campaign_full", return_value=campaign):
+        updated = service.update_campaign(db, campaign, CampaignUpdate(labelling_policy=policy))
+    return LabellingPolicy.model_validate(updated.labelling_policy)
 
 
 def test_update_labelling_policy_rejects_anyone_for_private_campaign():
@@ -262,7 +269,7 @@ def test_update_labelling_policy_rejects_anyone_for_private_campaign():
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        service.update_labelling_policy(db, campaign, req)
+        _update_policy(db, campaign, req)
 
     assert exc_info.value.status_code == 400
     db.commit.assert_not_called()
@@ -278,7 +285,7 @@ def test_update_labelling_policy_allows_anyone_for_public_campaign():
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
 
-    result = service.update_labelling_policy(db, campaign, req)
+    result = _update_policy(db, campaign, req)
 
     assert result.explore.kinds == ["anyone"]
     db.commit.assert_called_once()
@@ -294,10 +301,10 @@ def test_update_labelling_policy_persists_without_anyone_on_private_campaign():
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
 
-    result = service.update_labelling_policy(db, campaign, req)
+    result = _update_policy(db, campaign, req)
 
     assert result.explore.kinds == ["members"]
-    assert campaign.settings.labelling_policy["explore"]["kinds"] == ["members"]
+    assert campaign.labelling_policy["explore"]["kinds"] == ["members"]
     db.commit.assert_called_once()
 
 
@@ -308,7 +315,7 @@ def test_update_labelling_policy_persists_without_anyone_on_private_campaign():
 
 def test_get_labelling_policy_reads_stored_policy():
     campaign = _campaign()
-    campaign.settings.labelling_policy = {
+    campaign.labelling_policy = {
         "explore": {"kinds": ["anyone"], "user_ids": []},
         "unassigned_tasks": {"kinds": ["members"], "user_ids": []},
         "assigned_tasks": {"kinds": ["members"], "user_ids": []},
@@ -408,24 +415,14 @@ def _campaign_settings_create() -> "service.CampaignSettingsCreate":
     )
 
 
-def _db_capturing_campaign_settings() -> MagicMock:
-    """A MagicMock db that mimics just enough of a real flush's relationship
-    back-population for create_campaign to run past `campaign.settings.
-    embedding_year`: when the CampaignSettings row is added, wire it onto the
-    just-added Campaign's `.settings` the way a real flush/refresh would.
-    """
+def _db_capturing_campaign() -> MagicMock:
     db = MagicMock()
-    captured: dict = {}
-
-    def _capture_add(obj):
-        if isinstance(obj, Campaign):
-            captured["campaign"] = obj
-        elif isinstance(obj, CampaignSettings):
-            captured["settings"] = obj
-            captured["campaign"].settings = obj
-
-    db.add.side_effect = _capture_add
+    db.get.return_value = MagicMock(visibility="private")
     return db
+
+
+def _added_campaign(db) -> Campaign:
+    return next(c.args[0] for c in db.add.call_args_list if isinstance(c.args[0], Campaign))
 
 
 def test_create_campaign_rejects_anyone_for_private_campaign():
@@ -449,7 +446,7 @@ def test_create_campaign_rejects_anyone_for_private_campaign():
 
 
 def test_create_campaign_allows_anyone_for_public_campaign():
-    db = _db_capturing_campaign_settings()
+    db = _db_capturing_campaign()
     db.get.return_value = MagicMock(visibility="public")  # db.get(Project, project_id)
     policy = make_policy(explore=PolicyAudience(kinds=["anyone"]))
 
@@ -471,7 +468,7 @@ def test_create_campaign_no_explicit_policy_public_gets_anyone_default():
     thread is_public into the default, granting 'anyone' on the three
     labellable axes - not the private default, which would immediately be
     inconsistent with a public project."""
-    db = _db_capturing_campaign_settings()
+    db = _db_capturing_campaign()
     db.get.return_value = MagicMock(visibility="public")  # db.get(Project, project_id)
 
     service.create_campaign(
@@ -483,15 +480,12 @@ def test_create_campaign_no_explicit_policy_public_gets_anyone_default():
         user_id=uuid4(),
     )
 
-    settings_call = next(
-        call for call in db.add.call_args_list if isinstance(call.args[0], CampaignSettings)
-    )
-    stored_policy = settings_call.args[0].labelling_policy
+    stored_policy = _added_campaign(db).labelling_policy
     assert "anyone" in stored_policy["explore"]["kinds"]
 
 
 def test_create_campaign_no_explicit_policy_private_gets_private_default():
-    db = _db_capturing_campaign_settings()
+    db = _db_capturing_campaign()
     db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
 
     service.create_campaign(
@@ -503,10 +497,7 @@ def test_create_campaign_no_explicit_policy_private_gets_private_default():
         user_id=uuid4(),
     )
 
-    settings_call = next(
-        call for call in db.add.call_args_list if isinstance(call.args[0], CampaignSettings)
-    )
-    stored_policy = settings_call.args[0].labelling_policy
+    stored_policy = _added_campaign(db).labelling_policy
     assert "anyone" not in stored_policy["explore"]["kinds"]
 
 

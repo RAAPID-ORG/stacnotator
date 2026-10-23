@@ -13,7 +13,7 @@ from src.sampling_design.service import clip_to_campaign, read_region_file
 
 
 def _campaign(west, south, east, north):
-    return SimpleNamespace(settings=SimpleNamespace(bbox=(west, south, east, north)))
+    return SimpleNamespace(bbox=(west, south, east, north))
 
 
 class TestClipToCampaign:

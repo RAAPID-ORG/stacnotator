@@ -39,10 +39,10 @@ def _campaign(task_output):
     campaign = MagicMock()
     campaign.id = 1
     campaign.is_public = False
-    campaign.settings.task_output = task_output
-    campaign.settings.labels = {"1": {"name": "Field"}}
-    campaign.settings.form_fields = []
-    campaign.settings.labelling_policy = make_policy(
+    campaign.task_output = task_output
+    campaign.label_names = {1: "Field"}
+    campaign.form_fields = []
+    campaign.labelling_policy = make_policy(
         explore=PolicyAudience(kinds=["members"]),
         unassigned_tasks=PolicyAudience(kinds=["members"]),
         assigned_tasks=PolicyAudience(kinds=["members"]),

@@ -26,19 +26,13 @@ from src.campaigns.schemas import (
     CampaignSummaryOut,
     CampaignUpdate,
     DeleteAnnotationTasksRequest,
-    EmbeddingYearUpdateResponse,
     ImportTaskAssignmentsResult,
-    LabellingPolicy,
     MoveTasksToSetRequest,
     MoveTasksToSetResult,
     TaskSetCreate,
     TaskSetOut,
     TaskSetRename,
     UnassignTasksRequest,
-    UpdateCampaignBBoxRequest,
-    UpdateCampaignFormFieldsRequest,
-    UpdateCampaignLabelsRequest,
-    UpdateEmbeddingYearRequest,
 )
 from src.database import get_db, release
 from src.imagery.registration import REGISTRATION_RUN
@@ -227,81 +221,12 @@ def update_campaign(
     campaign: Campaign = Depends(require_campaign_admin),
     user: User = Depends(require_authenticated_user),
 ):
-    """Change the campaign's name, guide, sample extent, research sharing or task
-    output. Only the fields sent change. The task output (labelling tasks or
-    drawing around them) is fixed once any task has been annotated."""
+    """Change any of the campaign's settings; only the fields sent change. Labels
+    keep their ids and cannot be removed, a removed form field takes its answers
+    with it, the task output is fixed once tasks are worked, 'anyone' audiences
+    need a public campaign, a new area registers the imagery again and a new
+    embedding year fetches embeddings again."""
     return _campaign_out(service.update_campaign(db, campaign, req), db, user)
-
-
-@router.patch("/{campaign_id}/bbox", response_model=CampaignOut)
-def update_campaign_bbox(
-    campaign_id: int,
-    req: UpdateCampaignBBoxRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
-):
-    updated = service.update_campaign_bbox(
-        db, campaign, req.bbox_west, req.bbox_south, req.bbox_east, req.bbox_north
-    )
-    return _campaign_out(updated, db, user)
-
-
-@router.patch("/{campaign_id}/labels", response_model=CampaignOut)
-def update_campaign_labels(
-    campaign_id: int,
-    req: UpdateCampaignLabelsRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
-):
-    """Replace the campaign's label set. Renames (same id, new name) and adds
-    (new id) are accepted; removing an existing label is rejected since it
-    would orphan annotations that reference it."""
-    return _campaign_out(service.update_campaign_labels(db, campaign, req.labels), db, user)
-
-
-@router.patch("/{campaign_id}/form-fields", response_model=CampaignOut)
-def update_campaign_form_fields(
-    campaign_id: int,
-    req: UpdateCampaignFormFieldsRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
-):
-    """Replace the campaign's custom form fields. Edits (same id) and adds (new
-    id) are accepted. A removed field is deleted with its stored answers;
-    reshaping a field that already has answers is rejected."""
-    updated = service.update_campaign_form_fields(db, campaign, req.form_fields)
-    return _campaign_out(updated, db, user)
-
-
-@router.patch("/{campaign_id}/embedding-year", response_model=EmbeddingYearUpdateResponse)
-def update_embedding_year(
-    campaign_id: int,
-    req: UpdateEmbeddingYearRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Set or change the year used for satellite embeddings.
-
-    When the year changes, all existing embeddings are deleted and
-    re-fetched for the new year.  This can take some time for large
-    campaigns.
-    """
-    return service.update_embedding_year(db, campaign, req.embedding_year)
-
-
-@router.patch("/{campaign_id}/labelling-policy", response_model=LabellingPolicy)
-def update_labelling_policy(
-    campaign_id: int,
-    req: LabellingPolicy,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Replace the campaign's labelling policy. Rejects 'anyone' audiences
-    with 400 unless the campaign is public."""
-    return service.update_labelling_policy(db, campaign, req)
 
 
 @router.post(

@@ -15,7 +15,7 @@ project need not be on the target one. See ``CopyPlan``.
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session, selectinload
 
@@ -355,19 +355,19 @@ def duplicate_campaign(
         include_user_layouts=include_user_layouts,
         include_assignments=include_assignments,
     )
-    dup = Campaign(
+    dup: Campaign = clone_row(
+        campaign,
         name=plan.name,
         project_id=plan.project_id,
-        default_work_mode=campaign.default_work_mode,
-        registration_status=campaign.registration_status,
+        created_at=func.now(),
         # Embeddings hang off tasks; without tasks there is nothing pending.
         embedding_status=campaign.embedding_status if plan.tasks else "ready",
-        registration_errors=campaign.registration_errors,
+        registration_heartbeat_at=None,
+        embedding_heartbeat_at=None,
+        annotations_version=0,
     )
     db.add(dup)
     db.flush()
-
-    db.add(clone_row(campaign.settings, campaign_id=dup.id))
 
     source_map, collection_map, slice_map = _duplicate_imagery(
         db, campaign, dup, keep_shared_keys=plan.shared_api_keys

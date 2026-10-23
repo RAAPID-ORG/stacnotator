@@ -63,12 +63,12 @@ def _make_campaign(label_ids=(1, 2, 3, 4, 5, 6, 7)):
     """Return a MagicMock campaign whose label set contains the given ids.
 
     Carries the default labelling policy (members-everywhere) as its stored
-    dict, matching what every real settings row holds - policy-enforcement
+    dict, matching what every real campaign holds - policy-enforcement
     tests below override it explicitly where they need a specific policy.
     """
     campaign = MagicMock()
-    campaign.settings.labels = {str(lid): {"name": f"Label {lid}"} for lid in label_ids}
-    campaign.settings.labelling_policy = default_labelling_policy().model_dump(mode="json")
+    campaign.label_names = {lid: f"Label {lid}" for lid in label_ids}
+    campaign.labelling_policy = default_labelling_policy().model_dump(mode="json")
     campaign.is_public = False
     return campaign
 
@@ -769,9 +769,9 @@ class TestExportAnnotatorCount:
 
     @staticmethod
     def _campaign():
-        # _resolve_label_name reads campaign.settings.labels; an empty dict
+        # _resolve_label_name reads campaign.label_names; an empty dict
         # is enough for these tests (no label_name assertions).
-        return SimpleNamespace(settings=SimpleNamespace(labels={}))
+        return SimpleNamespace(label_names={})
 
     @staticmethod
     def _task(task_id=1, annotation_number=42):
@@ -929,11 +929,9 @@ class TestExportMergeCorrectness:
 
     @classmethod
     def _campaign(cls, labels=None):
+        labels = cls.LABELS if labels is None else labels
         return SimpleNamespace(
-            id=1,
-            settings=SimpleNamespace(
-                labels=cls.LABELS if labels is None else labels, form_fields=[]
-            ),
+            id=1, label_names={int(k): v["name"] for k, v in labels.items()}, form_fields=[]
         )
 
     @staticmethod
@@ -1350,10 +1348,8 @@ class TestExportFormFields:
     def _campaign(cls, *, form_fields=None):
         return SimpleNamespace(
             id=1,
-            settings=SimpleNamespace(
-                labels=cls.LABELS,
-                form_fields=cls.FORM_FIELDS if form_fields is None else form_fields,
-            ),
+            label_names={int(k): v["name"] for k, v in cls.LABELS.items()},
+            form_fields=cls.FORM_FIELDS if form_fields is None else form_fields,
         )
 
     @staticmethod
@@ -1687,12 +1683,11 @@ class TestCreateAnnotationsFromGeojson:
 
     @classmethod
     def _campaign(cls, *, labels=None, form_fields=None):
+        labels = cls.LABELS if labels is None else labels
         return SimpleNamespace(
             id=1,
-            settings=SimpleNamespace(
-                labels=cls.LABELS if labels is None else labels,
-                form_fields=form_fields or [],
-            ),
+            label_names={int(k): v["name"] for k, v in labels.items()},
+            form_fields=form_fields or [],
         )
 
     @staticmethod
@@ -1890,9 +1885,7 @@ def _bump_import(db):
     }
     contents = json.dumps({"type": "FeatureCollection", "features": [feature]}).encode()
     db.execute.side_effect = [[SimpleNamespace(id=101)], MagicMock()]
-    campaign = SimpleNamespace(
-        id=1, settings=SimpleNamespace(labels={"1": {"name": "A"}}, form_fields=[])
-    )
+    campaign = SimpleNamespace(id=1, label_names={1: "A"}, form_fields=[])
     with patch("src.annotation.ingest.bump_campaign_annotations_version") as bump:
         create_annotations_from_geojson(db, campaign, contents, uuid4())
     bump.assert_called_once()

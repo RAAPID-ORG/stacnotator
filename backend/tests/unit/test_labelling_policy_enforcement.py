@@ -34,8 +34,8 @@ def _campaign(policy: LabellingPolicy, *, campaign_id=1, is_public=False):
     campaign = MagicMock()
     campaign.id = campaign_id
     campaign.is_public = is_public
-    campaign.settings.labels = {"1": {"name": "Forest"}}
-    campaign.settings.labelling_policy = policy.model_dump(mode="json")
+    campaign.label_names = {1: "Forest"}
+    campaign.labelling_policy = policy.model_dump(mode="json")
     return campaign
 
 

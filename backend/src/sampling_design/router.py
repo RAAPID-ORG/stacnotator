@@ -61,7 +61,7 @@ async def generate_tasks_from_sampling(
     require_task_set(db, campaign.id, task_set_id, status_code=400)
 
     if use_campaign_bbox:
-        region_geometry: Polygon | MultiPolygon = box(*campaign.settings.bbox)
+        region_geometry: Polygon | MultiPolygon = box(*campaign.bbox)
     else:
         if not region_file:
             raise HTTPException(

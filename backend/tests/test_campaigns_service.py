@@ -20,7 +20,7 @@ from src.campaigns.assignments import (
     assign_tasks_to_users,
 )
 from src.campaigns.form_fields import CategoryFormField, TextFormField
-from src.campaigns.models import Campaign, CampaignSettings
+from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
     AssignTasksToUsersRequest,
     CampaignUpdate,
@@ -30,8 +30,6 @@ from src.campaigns.schemas import (
 from src.campaigns.service import (
     list_campaigns_with_user_roles,
     update_campaign,
-    update_campaign_bbox,
-    update_campaign_form_fields,
     visible_campaign_ids,
 )
 from src.campaigns.statistics import (
@@ -223,57 +221,56 @@ class TestUpdateCampaign:
         db = _mock_db()
         campaign = MagicMock()
         campaign.name = "Old"
-        campaign.settings.guide_markdown = "keep"
+        campaign.guide_markdown = "keep"
 
         with patch("src.campaigns.service.get_campaign_full"):
             update_campaign(db, campaign, CampaignUpdate(name="New", research_sharing=True))
 
         assert campaign.name == "New"
-        assert campaign.settings.research_sharing is True
-        assert campaign.settings.guide_markdown == "keep"
+        assert campaign.research_sharing is True
+        assert campaign.guide_markdown == "keep"
         db.commit.assert_called_once()
 
     def test_null_clears_a_nullable_field(self):
         campaign = MagicMock()
         with patch("src.campaigns.service.get_campaign_full"):
             update_campaign(_mock_db(), campaign, CampaignUpdate(guide_markdown=None))
-        assert campaign.settings.guide_markdown is None
+        assert campaign.guide_markdown is None
 
     def test_null_is_refused_for_a_required_field(self):
         with pytest.raises(ValidationError):
             CampaignUpdate(name=None)
 
 
-class TestUpdateCampaignBbox:
-    def test_updates_bbox_fields(self):
-        db = _mock_db()
-        settings = MagicMock()
-        campaign = MagicMock()
-        campaign.settings = settings
-        db.get.return_value = campaign
-
-        update_campaign_bbox(db, campaign, -10, -20, 10, 20)
-
-        assert settings.bbox_west == -10
-        assert settings.bbox_south == -20
-        assert settings.bbox_east == 10
-        assert settings.bbox_north == 20
-        db.commit.assert_called_once()
-
-    def test_commits_registration_status_before_spawning_for_new_roi(self):
-        db = _mock_db()
-        campaign = MagicMock(
-            spec=Campaign,
-            id=1,
-            layer_owner=LayerOwner(campaign_id=1),
-            registration_status="ready",
-            registration_errors=[{"error": "old"}],
+def _move_area(db, campaign):
+    with patch("src.campaigns.service.get_campaign_full"):
+        update_campaign(
+            db,
+            campaign,
+            CampaignUpdate(bbox_west=-10, bbox_south=-20, bbox_east=10, bbox_north=20),
         )
-        campaign.settings = CampaignSettings()
+
+
+def _campaign_row(**kwargs) -> Campaign:
+    return Campaign(
+        id=1,
+        registration_status="ready",
+        bbox_west=0,
+        bbox_south=0,
+        bbox_east=1,
+        bbox_north=1,
+        **kwargs,
+    )
+
+
+class TestUpdateCampaignArea:
+    def test_commits_registration_status_before_spawning_for_new_area(self):
+        db = _mock_db()
+        campaign = _campaign_row(registration_errors=[{"error": "old"}])
         pending = [MagicMock()]
 
         def committed():
-            assert campaign.settings.bbox_west == -10
+            assert campaign.bbox_west == -10
             assert campaign.registration_status == "registering"
             assert campaign.registration_heartbeat_at is not None
             assert campaign.registration_errors is None
@@ -289,35 +286,34 @@ class TestUpdateCampaignBbox:
                 "src.imagery.registration.spawn_background_registration", side_effect=spawned
             ) as spawn,
         ):
-            update_campaign_bbox(db, campaign, -10, -20, 10, 20)
+            _move_area(db, campaign)
 
         prepare.assert_called_once_with(campaign.imagery_sources)
         spawn.assert_called_once_with(LayerOwner(campaign_id=1), pending, [-10, -20, 10, 20])
 
     def test_without_stac_imagery_does_not_start_registration(self):
         db = _mock_db()
-        campaign = MagicMock(registration_status="ready")
-        db.get.return_value = campaign
+        campaign = _campaign_row()
         with (
             patch("src.campaigns.service.prepare_reregistration", return_value=[]),
             patch("src.imagery.registration.spawn_background_registration") as spawn,
         ):
-            update_campaign_bbox(db, campaign, -10, -20, 10, 20)
+            _move_area(db, campaign)
 
+        assert campaign.bbox == (-10, -20, 10, 20)
         assert campaign.registration_status == "ready"
         spawn.assert_not_called()
 
-    def test_cannot_change_roi_during_registration(self):
+    def test_cannot_change_area_during_registration(self):
         db = _mock_db()
-        campaign = MagicMock(registration_status="registering")
-        campaign.settings.bbox_west = 0
-        db.get.return_value = campaign
+        campaign = _campaign_row()
+        campaign.registration_status = "registering"
 
         with pytest.raises(HTTPException) as exc_info:
-            update_campaign_bbox(db, campaign, -10, -20, 10, 20)
+            _move_area(db, campaign)
 
         assert exc_info.value.status_code == 409
-        assert campaign.settings.bbox_west == 0
+        assert campaign.bbox_west == 0
         db.commit.assert_not_called()
 
 
@@ -908,14 +904,7 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
     from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 
     db = MagicMock()
-    mock_settings = MagicMock()
-    mock_settings.embedding_year = None
     db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
-
-    def mock_refresh(obj):
-        obj.settings = mock_settings
-
-    db.refresh.side_effect = mock_refresh
 
     with patch("src.campaigns.service.get_campaign_full"):
         service.create_campaign(
@@ -934,6 +923,10 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
     assert added_task_sets[0].name == DEFAULT_TASK_SET_NAME
 
 
+def _save_form_fields(db, campaign, fields):
+    return update_campaign(db, campaign, CampaignUpdate(form_fields=fields))
+
+
 class TestUpdateCampaignFormFields:
     CATEGORY_FIELD = {
         "id": 1,
@@ -944,10 +937,8 @@ class TestUpdateCampaignFormFields:
     }
 
     def _campaign(self, db, fields):
-        settings = MagicMock()
-        settings.form_fields = fields
         campaign = MagicMock()
-        campaign.settings = settings
+        campaign.form_fields = fields
         db.get.return_value = campaign
         return campaign
 
@@ -964,7 +955,7 @@ class TestUpdateCampaignFormFields:
         campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(
+            _save_form_fields(
                 db,
                 campaign,
                 [
@@ -973,7 +964,7 @@ class TestUpdateCampaignFormFields:
                 ],
             )
 
-        stored = campaign.settings.form_fields
+        stored = campaign.form_fields
         assert [f["id"] for f in stored] == [1, 2]
         assert stored[0]["title"] == "Crop type"
         db.commit.assert_called_once()
@@ -985,11 +976,9 @@ class TestUpdateCampaignFormFields:
         self._answered(db, "1")
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(
-                db, campaign, [TextFormField(id=2, type="text", title="Notes")]
-            )
+            _save_form_fields(db, campaign, [TextFormField(id=2, type="text", title="Notes")])
 
-        assert [f["id"] for f in campaign.settings.form_fields] == [2]
+        assert [f["id"] for f in campaign.form_fields] == [2]
         db.execute.assert_called_once()
         sql = _compile(db.execute.call_args[0][0])
         # Discards only the removed field's key (leaving answers to surviving
@@ -1002,11 +991,9 @@ class TestUpdateCampaignFormFields:
         campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(
-                db, campaign, [TextFormField(id=2, type="text", title="Notes")]
-            )
+            _save_form_fields(db, campaign, [TextFormField(id=2, type="text", title="Notes")])
 
-        assert [f["id"] for f in campaign.settings.form_fields] == [2]
+        assert [f["id"] for f in campaign.form_fields] == [2]
         db.execute.assert_not_called()
 
     def test_keeping_every_field_touches_no_annotation(self):
@@ -1014,7 +1001,7 @@ class TestUpdateCampaignFormFields:
         campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, campaign, [self._category(title="Crop type")])
+            _save_form_fields(db, campaign, [self._category(title="Crop type")])
 
         db.execute.assert_not_called()
 
@@ -1025,7 +1012,7 @@ class TestUpdateCampaignFormFields:
         self._answered(db, "1", "7")
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, campaign, [])
+            _save_form_fields(db, campaign, [])
 
         db.execute.assert_called_once()
         assert "form_values - CAST(ARRAY['1', '7'] AS TEXT[])" in _compile(
@@ -1039,9 +1026,7 @@ class TestUpdateCampaignFormFields:
         self._answered(db, "1")
 
         with pytest.raises(HTTPException):
-            update_campaign_form_fields(
-                db, campaign, [TextFormField(id=1, type="text", title="Crop")]
-            )
+            _save_form_fields(db, campaign, [TextFormField(id=1, type="text", title="Crop")])
 
         db.execute.assert_not_called()
         db.commit.assert_not_called()
@@ -1052,9 +1037,7 @@ class TestUpdateCampaignFormFields:
         self._answered(db, "1")
 
         with pytest.raises(HTTPException) as exc_info:
-            update_campaign_form_fields(
-                db, campaign, [TextFormField(id=1, type="text", title="Crop")]
-            )
+            _save_form_fields(db, campaign, [TextFormField(id=1, type="text", title="Crop")])
         assert exc_info.value.status_code == 409
 
     def test_type_change_without_answers_succeeds(self):
@@ -1063,11 +1046,9 @@ class TestUpdateCampaignFormFields:
         self._answered(db)
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(
-                db, campaign, [TextFormField(id=1, type="text", title="Crop")]
-            )
+            _save_form_fields(db, campaign, [TextFormField(id=1, type="text", title="Crop")])
 
-        assert campaign.settings.form_fields[0]["type"] == "text"
+        assert campaign.form_fields[0]["type"] == "text"
 
     def test_removing_an_option_with_answers_is_rejected(self):
         db = _mock_db()
@@ -1075,9 +1056,7 @@ class TestUpdateCampaignFormFields:
         self._answered(db, "1")
 
         with pytest.raises(HTTPException) as exc_info:
-            update_campaign_form_fields(
-                db, campaign, [self._category(options=[{"id": 1, "name": "Maize"}])]
-            )
+            _save_form_fields(db, campaign, [self._category(options=[{"id": 1, "name": "Maize"}])])
         assert exc_info.value.status_code == 409
 
     def test_renaming_and_adding_options_succeeds(self):
@@ -1090,9 +1069,9 @@ class TestUpdateCampaignFormFields:
         ]
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, campaign, [self._category(options=new_options)])
+            _save_form_fields(db, campaign, [self._category(options=new_options)])
 
-        assert [o["id"] for o in campaign.settings.form_fields[0]["options"]] == [1, 2, 3]
+        assert [o["id"] for o in campaign.form_fields[0]["options"]] == [1, 2, 3]
         db.scalars.assert_not_called()
 
 

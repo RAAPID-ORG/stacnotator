@@ -1718,7 +1718,7 @@ export type CampaignSettingsOut = {
     /**
      * Labels
      */
-    labels: Array<LabelBase>;
+    labels: Array<LabelOut>;
     /**
      * Bbox West
      */
@@ -1738,20 +1738,20 @@ export type CampaignSettingsOut = {
     /**
      * Embedding Year
      */
-    embedding_year?: number | null;
+    embedding_year: number | null;
     /**
      * Guide Markdown
      */
-    guide_markdown?: string | null;
+    guide_markdown: string | null;
     /**
      * Sample Extent Meters
      */
-    sample_extent_meters?: number | null;
+    sample_extent_meters: number | null;
     labelling_policy: LabellingPolicy;
     /**
      * Form Fields
      */
-    form_fields?: Array<({
+    form_fields: Array<({
         type: 'category' | 'multicategory';
     } & CategoryFormField) | ({
         type: 'number';
@@ -1767,7 +1767,7 @@ export type CampaignSettingsOut = {
     /**
      * Task Output
      */
-    task_output?: 'classify' | 'draw';
+    task_output: 'classify' | 'draw';
 };
 
 /**
@@ -1883,7 +1883,7 @@ export type CampaignSummaryOut = {
  * CampaignUpdate
  *
  * A partial update: only the fields sent are changed, and sending null
- * clears the nullable ones.
+ * clears the nullable ones. The area is sent whole or not at all.
  */
 export type CampaignUpdate = {
     /**
@@ -1906,6 +1906,43 @@ export type CampaignUpdate = {
      * Task Output
      */
     task_output?: 'classify' | 'draw' | null;
+    /**
+     * Labels
+     */
+    labels?: Array<LabelBase> | null;
+    /**
+     * Form Fields
+     */
+    form_fields?: Array<({
+        type: 'category' | 'multicategory';
+    } & CategoryFormField) | ({
+        type: 'number';
+    } & NumberFormField) | ({
+        type: 'text';
+    } & TextFormField) | ({
+        type: 'date' | 'daterange';
+    } & DateFormField)> | null;
+    /**
+     * Embedding Year
+     */
+    embedding_year?: number | null;
+    labelling_policy?: LabellingPolicy | null;
+    /**
+     * Bbox West
+     */
+    bbox_west?: number | null;
+    /**
+     * Bbox South
+     */
+    bbox_south?: number | null;
+    /**
+     * Bbox East
+     */
+    bbox_east?: number | null;
+    /**
+     * Bbox North
+     */
+    bbox_north?: number | null;
 };
 
 /**
@@ -2420,22 +2457,6 @@ export type DeleteAnnotationTasksRequest = {
      * Delete Annotations
      */
     delete_annotations?: boolean;
-};
-
-/**
- * EmbeddingYearUpdateResponse
- *
- * Response after updating the embedding year.
- */
-export type EmbeddingYearUpdateResponse = {
-    /**
-     * Embedding Year
-     */
-    embedding_year: number | null;
-    /**
-     * Embeddings Recomputed
-     */
-    embeddings_recomputed: boolean;
 };
 
 /**
@@ -3064,7 +3085,7 @@ export type LabelBase = {
     /**
      * Geometry Type
      */
-    geometry_type?: 'point' | 'polygon' | 'line' | null;
+    geometry_type?: 'point' | 'polygon' | 'line';
 };
 
 /**
@@ -3081,6 +3102,24 @@ export type LabelFacet = {
      * Count
      */
     count: number;
+};
+
+/**
+ * LabelOut
+ */
+export type LabelOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Geometry Type
+     */
+    geometry_type: 'point' | 'polygon' | 'line';
 };
 
 /**
@@ -4856,74 +4895,6 @@ export type UnassignTasksRequest = {
      * User Ids
      */
     user_ids?: Array<string> | null;
-};
-
-/**
- * UpdateCampaignBBoxRequest
- */
-export type UpdateCampaignBBoxRequest = {
-    /**
-     * Bbox West
-     */
-    bbox_west: number;
-    /**
-     * Bbox South
-     */
-    bbox_south: number;
-    /**
-     * Bbox East
-     */
-    bbox_east: number;
-    /**
-     * Bbox North
-     */
-    bbox_north: number;
-};
-
-/**
- * UpdateCampaignFormFieldsRequest
- *
- * Replace the campaign's custom form fields. Existing field IDs must be
- * preserved (stored annotation answers key off them); new fields get new ids.
- */
-export type UpdateCampaignFormFieldsRequest = {
-    /**
-     * Form Fields
-     */
-    form_fields: Array<({
-        type: 'category' | 'multicategory';
-    } & CategoryFormField) | ({
-        type: 'number';
-    } & NumberFormField) | ({
-        type: 'text';
-    } & TextFormField) | ({
-        type: 'date' | 'daterange';
-    } & DateFormField)>;
-};
-
-/**
- * UpdateCampaignLabelsRequest
- *
- * Replace the campaign's label set. Existing label IDs are preserved (so
- * annotations referencing them continue to resolve); new labels get appended.
- */
-export type UpdateCampaignLabelsRequest = {
-    /**
-     * Labels
-     */
-    labels: Array<LabelBase>;
-};
-
-/**
- * UpdateEmbeddingYearRequest
- *
- * Set or change the year from which satellite embeddings are sourced.
- */
-export type UpdateEmbeddingYearRequest = {
-    /**
-     * Embedding Year
-     */
-    embedding_year?: number | null;
 };
 
 /**
@@ -7665,156 +7636,6 @@ export type GetCampaignWithImageryWindowsResponses = {
 };
 
 export type GetCampaignWithImageryWindowsResponse = GetCampaignWithImageryWindowsResponses[keyof GetCampaignWithImageryWindowsResponses];
-
-export type UpdateCampaignBboxData = {
-    body: UpdateCampaignBBoxRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/bbox';
-};
-
-export type UpdateCampaignBboxErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignBboxError = UpdateCampaignBboxErrors[keyof UpdateCampaignBboxErrors];
-
-export type UpdateCampaignBboxResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignBboxResponse = UpdateCampaignBboxResponses[keyof UpdateCampaignBboxResponses];
-
-export type UpdateCampaignLabelsData = {
-    body: UpdateCampaignLabelsRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/labels';
-};
-
-export type UpdateCampaignLabelsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignLabelsError = UpdateCampaignLabelsErrors[keyof UpdateCampaignLabelsErrors];
-
-export type UpdateCampaignLabelsResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignLabelsResponse = UpdateCampaignLabelsResponses[keyof UpdateCampaignLabelsResponses];
-
-export type UpdateCampaignFormFieldsData = {
-    body: UpdateCampaignFormFieldsRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/form-fields';
-};
-
-export type UpdateCampaignFormFieldsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignFormFieldsError = UpdateCampaignFormFieldsErrors[keyof UpdateCampaignFormFieldsErrors];
-
-export type UpdateCampaignFormFieldsResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignFormFieldsResponse = UpdateCampaignFormFieldsResponses[keyof UpdateCampaignFormFieldsResponses];
-
-export type UpdateEmbeddingYearData = {
-    body: UpdateEmbeddingYearRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/embedding-year';
-};
-
-export type UpdateEmbeddingYearErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateEmbeddingYearError = UpdateEmbeddingYearErrors[keyof UpdateEmbeddingYearErrors];
-
-export type UpdateEmbeddingYearResponses = {
-    /**
-     * Successful Response
-     */
-    200: EmbeddingYearUpdateResponse;
-};
-
-export type UpdateEmbeddingYearResponse = UpdateEmbeddingYearResponses[keyof UpdateEmbeddingYearResponses];
-
-export type UpdateLabellingPolicyData = {
-    body: LabellingPolicy;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/labelling-policy';
-};
-
-export type UpdateLabellingPolicyErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateLabellingPolicyError = UpdateLabellingPolicyErrors[keyof UpdateLabellingPolicyErrors];
-
-export type UpdateLabellingPolicyResponses = {
-    /**
-     * Successful Response
-     */
-    200: LabellingPolicy;
-};
-
-export type UpdateLabellingPolicyResponse = UpdateLabellingPolicyResponses[keyof UpdateLabellingPolicyResponses];
 
 export type AssignTasksToUsersData = {
     body: AssignTasksToUsersRequest;

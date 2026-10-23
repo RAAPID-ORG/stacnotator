@@ -47,7 +47,7 @@ export function extendedLabels(
 ): ExtendedLabel[] {
   return (campaign?.settings.labels ?? []).map((label, index) => ({
     ...label,
-    geometry_type: (label.geometry_type as GeometryType) || 'polygon',
+    geometry_type: label.geometry_type,
     color: LABEL_COLORS[index % LABEL_COLORS.length],
   }));
 }

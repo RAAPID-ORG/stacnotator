@@ -107,7 +107,7 @@ class TestBuildExport:
     def test_two_frames_with_pairs_and_users(self):
         db = _mock_db()
         campaign = MagicMock(id=1)
-        campaign.settings.labels = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
+        campaign.label_names = {1: "Forest", 2: "Water"}
 
         cu = MagicMock(is_admin=True, is_authoritative_reviewer=False)
         cu.user = MagicMock(email="alice@x.com", display_name="Alice")

@@ -579,7 +579,6 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
                 ),
                 selectinload(Campaign.custom_maps),
                 selectinload(Campaign.vector_layers),
-                selectinload(Campaign.settings),
             )
             .order_by(Campaign.name)
         )
@@ -619,12 +618,11 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
 
 
 def _campaign_area(campaign: Campaign) -> VisualizerArea:
-    settings = campaign.settings
     return VisualizerArea(
-        west=settings.bbox_west,
-        south=settings.bbox_south,
-        east=settings.bbox_east,
-        north=settings.bbox_north,
+        west=campaign.bbox_west,
+        south=campaign.bbox_south,
+        east=campaign.bbox_east,
+        north=campaign.bbox_north,
     )
 
 

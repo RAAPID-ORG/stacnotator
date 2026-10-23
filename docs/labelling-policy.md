@@ -72,17 +72,19 @@ flag (project visibility arrived later); `aa6polback` re-backfills so every
 campaign is guaranteed to carry a policy. The one semantic change for
 pre-policy campaigns: a member's label on someone else's assigned task is
 now "extra" instead of completing the task. Campaign duplication clones the
-policy along with the settings row.
+policy along with the rest of the campaign.
 
 ## Where things live
 
-- Storage: `labelling_policy` JSONB on `data.settings`
+- Storage: `labelling_policy` JSONB on `data.campaigns`
   (`campaigns/models.py`), validated by `LabellingPolicy` in
   `campaigns/schemas.py`.
 - Evaluation: pure core in `campaigns/policy.py` (`is_allowed`,
-  `counts_toward_completion`). Enforcement builds the role context per call
-  (`build_policy_context`); the read/export layer amortizes it via a role
-  map built once per request (`annotation/completion.py`).
+  `counts_toward_completion`). Who someone is in a campaign comes from one
+  `CampaignStanding`, resolved through `projects/access.py` and loaded in at
+  most three queries whether a request asks about one user (enforcement,
+  `build_policy_context`) or about every author in a task list or export
+  (`annotation/completion.py`).
 - Enforcement: 403s in `annotation/service.py` on annotation-creating paths;
   annotation updates gate on the `explore` axis. Deletion is not
   policy-gated (only the public-campaign ownership rule applies), and
@@ -93,7 +95,7 @@ policy along with the settings row.
   is the authority; frontend gating (disabled Explore toggle, task notices)
   is UX only.
 - Editing: campaign wizard and the settings "Labelling access" card, via
-  `PATCH /campaigns/{id}/labelling-policy` (admin only). The PATCH replaces
+  `labelling_policy` in `PATCH /campaigns/{id}` (admin only). It replaces
   the whole policy (the four labelling axes required, `modify_others`
   optional and defaulting to admins); `anyone` on a non-public
   project is rejected (400).

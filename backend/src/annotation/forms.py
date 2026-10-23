@@ -22,7 +22,7 @@ FORM_FIELDS_ADAPTER: TypeAdapter[list[FormField]] = TypeAdapter(list[FormField])
 
 
 def campaign_form_fields(campaign: Campaign) -> list[FormField]:
-    return FORM_FIELDS_ADAPTER.validate_python(campaign.settings.form_fields)
+    return FORM_FIELDS_ADAPTER.validate_python(campaign.form_fields)
 
 
 class FormValidationError(ValueError):

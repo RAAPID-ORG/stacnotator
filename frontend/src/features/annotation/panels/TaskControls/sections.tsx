@@ -36,7 +36,7 @@ export function FieldsSection() {
   const setFormValues = useWorkStore((s) => s.setFormValues);
   return (
     <FormFields
-      fields={campaign.settings.form_fields ?? []}
+      fields={campaign.settings.form_fields}
       values={formValues}
       onChange={setFormValues}
       activeFieldIndex={activeFieldIndex}

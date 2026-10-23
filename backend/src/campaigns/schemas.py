@@ -38,7 +38,7 @@ def _check_form_fields(value: list[FormField]) -> list[FormField]:
 ValidatedFormFields = Annotated[list[FormField], AfterValidator(_check_form_fields)]
 
 
-# Mirrors the settings table's own CHECKs. Without them a map panned past the
+# Mirrors the campaign table's own CHECKs. Without them a map panned past the
 # antimeridian sends a longitude like -196 and the insert raises CheckViolation,
 # which reaches the user as a 500 instead of a message about the area they drew.
 Longitude = Annotated[float, Field(ge=-180, le=180)]
@@ -64,13 +64,7 @@ class LabelBase(BaseModel):
 
     id: int  # ID that is used for annotation
     name: str
-    geometry_type: Literal["point", "polygon", "line"] | None = None
-
-
-def label_id_to_name(labels: dict) -> dict[int, str]:
-    """Decode a campaign's labels JSONB ({"1": {"name": "Forest", ...}}) into
-    {label_id: display_name}."""
-    return {int(label_id): data["name"] for label_id, data in labels.items()}
+    geometry_type: Literal["point", "polygon", "line"] = "polygon"
 
 
 PolicyAudienceKind = Literal["admins", "authoritative", "assignees", "members", "anyone"]
@@ -89,6 +83,10 @@ _COMPLETE_ASSIGNED_ALLOWED_KINDS: frozenset[str] = frozenset(
 # Never "anyone": undoing other people's work is not something a campaign can
 # open to the public, however public its labelling is.
 _MODIFY_OTHERS_ALLOWED_KINDS: frozenset[str] = frozenset({"admins", "authoritative", "members"})
+
+
+class LabelOut(LabelBase):
+    geometry_type: Literal["point", "polygon", "line"]
 
 
 class PolicyAudience(BaseModel):
@@ -114,7 +112,7 @@ def _validate_axis_kinds(
 class LabellingPolicy(BaseModel):
     """Who may label what, and whose labels count toward task completion.
 
-    See docs/labelling-policy.md for what each axis governs. A PATCH replaces
+    See docs/labelling-policy.md for what each axis governs. An update replaces
     the whole policy, so every axis is required.
     """
 
@@ -182,32 +180,18 @@ TaskOutput = Literal["classify", "draw"]
 
 
 class CampaignSettingsOut(BaseModel):
-    labels: list[LabelBase]
+    labels: list[LabelOut]
     bbox_west: float
     bbox_south: float
     bbox_east: float
     bbox_north: float
-    embedding_year: int | None = None
-    guide_markdown: str | None = None
-    sample_extent_meters: float | None = None
+    embedding_year: int | None
+    guide_markdown: str | None
+    sample_extent_meters: float | None
     labelling_policy: LabellingPolicy
-    form_fields: list[FormField] = []
+    form_fields: list[FormField]
     research_sharing: bool
-    task_output: TaskOutput = "classify"
-
-    @field_validator("labels", mode="before")
-    @classmethod
-    def convert_labels(cls, v):
-        """Convert the labels JSONB dict from the DB into list[LabelBase]:
-        {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, ...}]."""
-        return [
-            LabelBase(
-                id=int(k),
-                name=vv["name"],
-                geometry_type=vv.get("geometry_type"),
-            )
-            for k, vv in v.items()
-        ]
+    task_output: TaskOutput
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -228,16 +212,9 @@ class CampaignSettingsCreate(BaseModel):
         _check_bbox_order(self.bbox_west, self.bbox_east, self.bbox_south, self.bbox_north)
         return self
 
-    # Helper to convert labels to dict in DB
     def to_orm(self) -> dict:
-        labels_dict = {}
-        for label in self.labels:
-            label_data = {"name": label.name}
-            if label.geometry_type is not None:
-                label_data["geometry_type"] = label.geometry_type
-            labels_dict[str(label.id)] = label_data
         return {
-            "labels": labels_dict,
+            "labels": [label.model_dump() for label in self.labels],
             "bbox_west": self.bbox_west,
             "bbox_south": self.bbox_south,
             "bbox_east": self.bbox_east,
@@ -352,20 +329,54 @@ class CampaignsListResponse(BaseModel):
 
 class CampaignUpdate(BaseModel):
     """A partial update: only the fields sent are changed, and sending null
-    clears the nullable ones."""
+    clears the nullable ones. The area is sent whole or not at all."""
 
     name: str | None = Field(default=None, min_length=1, max_length=255)
     guide_markdown: str | None = None
     sample_extent_meters: float | None = None
     research_sharing: bool | None = None
     task_output: TaskOutput | None = None
+    labels: list[LabelBase] | None = None
+    form_fields: ValidatedFormFields | None = None
+    embedding_year: int | None = None
+    labelling_policy: LabellingPolicy | None = None
+    bbox_west: Longitude | None = None
+    bbox_south: Latitude | None = None
+    bbox_east: Longitude | None = None
+    bbox_north: Latitude | None = None
 
     @model_validator(mode="after")
     def _required_fields_are_not_cleared(self) -> "CampaignUpdate":
-        for field in ("name", "research_sharing", "task_output"):
+        for field in (
+            "name",
+            "research_sharing",
+            "task_output",
+            "labels",
+            "form_fields",
+            "labelling_policy",
+        ):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null")
+        sent = [
+            v is not None
+            for v in (self.bbox_west, self.bbox_south, self.bbox_east, self.bbox_north)
+        ]
+        if any(sent) and not all(sent):
+            raise ValueError("The area takes all four of bbox_west/south/east/north")
+        if (bbox := self.bbox) is not None:
+            _check_bbox_order(bbox[0], bbox[2], bbox[1], bbox[3])
         return self
+
+    @property
+    def bbox(self) -> tuple[float, float, float, float] | None:
+        if (
+            self.bbox_west is None
+            or self.bbox_south is None
+            or self.bbox_east is None
+            or self.bbox_north is None
+        ):
+            return None
+        return (self.bbox_west, self.bbox_south, self.bbox_east, self.bbox_north)
 
 
 class CampaignDuplicateRequest(BaseModel):
@@ -386,45 +397,6 @@ class CampaignDuplicateRequest(BaseModel):
     include_assignments: bool = True
     include_user_layouts: bool = True
     target_project_id: int | None = None
-
-
-class UpdateCampaignBBoxRequest(BaseModel):
-    bbox_west: Longitude
-    bbox_south: Latitude
-    bbox_east: Longitude
-    bbox_north: Latitude
-
-    @model_validator(mode="after")
-    def _check_bbox(self) -> "UpdateCampaignBBoxRequest":
-        _check_bbox_order(self.bbox_west, self.bbox_east, self.bbox_south, self.bbox_north)
-        return self
-
-
-class UpdateEmbeddingYearRequest(BaseModel):
-    """Set or change the year from which satellite embeddings are sourced."""
-
-    embedding_year: int | None = None
-
-
-class UpdateCampaignLabelsRequest(BaseModel):
-    """Replace the campaign's label set. Existing label IDs are preserved (so
-    annotations referencing them continue to resolve); new labels get appended."""
-
-    labels: list[LabelBase]
-
-
-class UpdateCampaignFormFieldsRequest(BaseModel):
-    """Replace the campaign's custom form fields. Existing field IDs must be
-    preserved (stored annotation answers key off them); new fields get new ids."""
-
-    form_fields: ValidatedFormFields
-
-
-class EmbeddingYearUpdateResponse(BaseModel):
-    """Response after updating the embedding year."""
-
-    embedding_year: int | None
-    embeddings_recomputed: bool
 
 
 class AssignTasksToUsersRequest(BaseModel):

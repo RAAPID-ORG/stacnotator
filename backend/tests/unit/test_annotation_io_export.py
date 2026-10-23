@@ -27,7 +27,7 @@ from src.annotation.export import build_export_records
 
 
 def _campaign():
-    return SimpleNamespace(settings=SimpleNamespace(labels={}, form_fields=[]))
+    return SimpleNamespace(label_names={}, form_fields=[])
 
 
 def _task(*, task_id=1, annotation_number=1, assignments=None):

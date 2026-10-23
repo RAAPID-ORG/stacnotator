@@ -3,14 +3,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import type { CampaignOut, LabelBase, LabellingPolicy, ProjectUserOut } from '~/api/client';
-import {
-  updateCampaignBboxMutation,
-  updateCampaignFormFieldsMutation,
-  updateCampaignLabelsMutation,
-  updateCampaignMutation,
-  updateEmbeddingYearMutation,
-  updateLabellingPolicyMutation,
-} from '~/api/queries';
+import { updateCampaignMutation } from '~/api/queries';
 import { useRefreshCampaign } from '~/features/campaigns/hooks/campaignQueries';
 import { projectPath } from '~/app/routes';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
@@ -66,17 +59,9 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     campaign.settings.embedding_year ?? null
   );
   const saveEmbeddingYear = useMutation({
-    ...updateEmbeddingYearMutation(),
+    ...updateCampaignMutation(),
     meta: { errorMessage: t('generalTab.errors.embeddingYear') },
-    onSuccess: (result) => {
-      void refreshCampaign();
-      showAlert(
-        result.embeddings_recomputed
-          ? t('generalTab.toasts.embeddingsRecomputed', { year: embeddingYear })
-          : t('generalTab.toasts.embeddingYearUpdated'),
-        'success'
-      );
-    },
+    onSuccess: refreshCampaign,
   });
   const savingEmbeddingYear = saveEmbeddingYear.isPending;
 
@@ -94,7 +79,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   // name) are allowed; deletes are blocked by the editor and the backend.
   const [labelsDraft, setLabelsDraft] = useState<LabelBase[]>(campaign.settings.labels);
   const saveLabels = useMutation({
-    ...updateCampaignLabelsMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.labels'), t('generalTab.toasts.labelsUpdated')),
   });
   const savingLabels = saveLabels.isPending;
@@ -126,15 +111,15 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   // recorded for it, and the backend rejects reshaping a field that already
   // has stored answers.
   const [formFieldsDraft, setFormFieldsDraft] = useState<FormField[]>(
-    campaign.settings.form_fields ?? []
+    campaign.settings.form_fields
   );
   const saveFormFields = useMutation({
-    ...updateCampaignFormFieldsMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.formFields'), t('generalTab.toasts.formFieldsUpdated')),
   });
   const savingFormFields = saveFormFields.isPending;
   const savedFormFields = useMemo(
-    () => campaign.settings.form_fields ?? [],
+    () => campaign.settings.form_fields,
     [campaign.settings.form_fields]
   );
   const formFieldsChanged = JSON.stringify(formFieldsDraft) !== JSON.stringify(savedFormFields);
@@ -184,11 +169,11 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     campaign.settings.labelling_policy
   );
   const savePolicy = useMutation({
-    ...updateLabellingPolicyMutation(),
+    ...updateCampaignMutation(),
     meta: { errorMessage: t('generalTab.errors.policy') },
-    onSuccess: (policy) => {
+    onSuccess: (updated) => {
       // The server normalises the audiences, so the draft follows what it stored.
-      setPolicyDraft(policy);
+      setPolicyDraft(updated.settings.labelling_policy);
       void refreshCampaign();
       showAlert(t('generalTab.toasts.policyUpdated'), 'success');
     },
@@ -199,7 +184,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
   const handleSavePolicy = async () => {
     if (!policyChanged) return;
-    savePolicy.mutate({ path, body: policyDraft });
+    savePolicy.mutate({ path, body: { labelling_policy: policyDraft } });
   };
 
   // Sample extent local state
@@ -268,7 +253,20 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       if (!confirmed) return;
     }
 
-    saveEmbeddingYear.mutate({ path, body: { embedding_year: embeddingYear } });
+    // A new year fetches every task's embedding again; clearing it fetches nothing.
+    const recomputes = embeddingYear !== null;
+    saveEmbeddingYear.mutate(
+      { path, body: { embedding_year: embeddingYear } },
+      {
+        onSuccess: () =>
+          showAlert(
+            recomputes
+              ? t('generalTab.toasts.embeddingsRecomputed', { year: embeddingYear })
+              : t('generalTab.toasts.embeddingYearUpdated'),
+            'success'
+          ),
+      }
+    );
   };
 
   const [bboxDraft, setBboxDraft] = useState({
@@ -278,7 +276,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     bbox_north: campaign.settings.bbox_north,
   });
   const saveBbox = useMutation({
-    ...updateCampaignBboxMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.bbox'), t('generalTab.toasts.bboxUpdated')),
   });
   const savingBbox = saveBbox.isPending;
@@ -463,7 +461,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           {formFieldsChanged && (
             <button
               type="button"
-              onClick={() => setFormFieldsDraft(campaign.settings.form_fields ?? [])}
+              onClick={() => setFormFieldsDraft(campaign.settings.form_fields)}
               disabled={savingFormFields}
               className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
             >

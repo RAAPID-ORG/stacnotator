@@ -15,7 +15,7 @@ from src.campaigns.router import _with_viewer_roles
 from src.campaigns.schemas import (
     CampaignDuplicateRequest,
     CampaignOut,
-    UpdateCampaignLabelsRequest,
+    CampaignUpdate,
     default_labelling_policy,
 )
 from src.projects.models import ProjectUser
@@ -129,7 +129,7 @@ def _campaign_row():
         created_at=datetime(2026, 1, 1),
         default_work_mode="explore",
         settings=SimpleNamespace(
-            labels={"1": {"name": "Forest", "geometry_type": "polygon"}},
+            labels=[{"id": 1, "name": "Forest", "geometry_type": "polygon"}],
             bbox_west=0.0,
             bbox_south=0.0,
             bbox_east=1.0,
@@ -140,6 +140,7 @@ def _campaign_row():
             labelling_policy=default_labelling_policy().model_dump(),
             form_fields=[],
             research_sharing=False,
+            task_output="classify",
         ),
         imagery_sources=[],
         imagery_views=[],
@@ -156,14 +157,14 @@ class TestMutationResponsesCarryViewerFlags:
         row = _campaign_row()
         monkeypatch.setattr(
             campaigns_router.service,
-            "update_campaign_labels",
-            lambda db, campaign_id, labels: row,
+            "update_campaign",
+            lambda db, campaign, update: row,
         )
         db = _db(SimpleNamespace(is_admin=True, is_authoritative_reviewer=False))
 
-        out = campaigns_router.update_campaign_labels(
+        out = campaigns_router.update_campaign(
             campaign_id=row.id,
-            req=UpdateCampaignLabelsRequest(labels=[]),
+            req=CampaignUpdate(labels=[]),
             db=db,
             campaign=row,
             user=_user(is_admin=False),

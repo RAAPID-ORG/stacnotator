@@ -6,6 +6,7 @@ import { buildImageryCatalog } from '../../campaign/imagery';
 import {
   apiSuccess,
   makeCampaign,
+  makeSettings,
   makeClaimTaskResponse,
   makeTask,
   makeTaskAnnotation,
@@ -68,11 +69,7 @@ afterEach(() => {
 describe('TaskControls labelling policy', () => {
   it('shows the not-allowed notice and disables Submit when unassigned_tasks denies the viewer', async () => {
     const campaign = makeCampaign({
-      settings: {
-        bbox_west: -10,
-        bbox_south: -20,
-        bbox_east: 10,
-        bbox_north: 20,
+      settings: makeSettings({
         labelling_policy: {
           explore: { kinds: ['anyone'] },
           assigned_tasks: { kinds: ['anyone'] },
@@ -80,9 +77,8 @@ describe('TaskControls labelling policy', () => {
           modify_others: { kinds: ['admins'] },
           unassigned_tasks: { kinds: [] },
         },
-        labels: [{ id: 5, name: 'water' }],
-        research_sharing: false,
-      },
+        labels: [{ id: 5, name: 'water', geometry_type: 'polygon' }],
+      }),
     });
     seed(campaign, [NOT_ALLOWED_TASK]);
 
@@ -95,11 +91,7 @@ describe('TaskControls labelling policy', () => {
 
   it('allows labelling and hides the notice when the policy permits it', async () => {
     const campaign = makeCampaign({
-      settings: {
-        bbox_west: -10,
-        bbox_south: -20,
-        bbox_east: 10,
-        bbox_north: 20,
+      settings: makeSettings({
         labelling_policy: {
           explore: { kinds: ['anyone'] },
           assigned_tasks: { kinds: ['anyone'] },
@@ -107,9 +99,8 @@ describe('TaskControls labelling policy', () => {
           modify_others: { kinds: ['admins'] },
           unassigned_tasks: { kinds: ['anyone'] },
         },
-        labels: [{ id: 5, name: 'water' }],
-        research_sharing: false,
-      },
+        labels: [{ id: 5, name: 'water', geometry_type: 'polygon' }],
+      }),
     });
     seed(campaign, [NOT_ALLOWED_TASK]);
 
@@ -123,11 +114,7 @@ describe('TaskControls labelling policy', () => {
 const OPEN_TASK: AnnotationTaskOut = makeTask({ id: 2, annotation_number: 2 });
 
 const OPEN_POLICY = makeCampaign({
-  settings: {
-    bbox_west: -10,
-    bbox_south: -20,
-    bbox_east: 10,
-    bbox_north: 20,
+  settings: makeSettings({
     labelling_policy: {
       explore: { kinds: ['anyone'] },
       assigned_tasks: { kinds: ['anyone'] },
@@ -135,9 +122,8 @@ const OPEN_POLICY = makeCampaign({
       modify_others: { kinds: ['admins'] },
       unassigned_tasks: { kinds: ['anyone'] },
     },
-    research_sharing: false,
-    labels: [{ id: 5, name: 'water' }],
-  },
+    labels: [{ id: 5, name: 'water', geometry_type: 'polygon' }],
+  }),
 });
 
 // A claim is advisory. Somebody else holding the task is worth showing, but

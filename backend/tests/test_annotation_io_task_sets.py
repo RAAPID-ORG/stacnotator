@@ -25,7 +25,7 @@ def _inserted_task_records(db):
     raise AssertionError("no insert into annotation_tasks")
 
 
-CAMPAIGN = SimpleNamespace(id=1, settings=SimpleNamespace(embedding_year=None))
+CAMPAIGN = SimpleNamespace(id=1, embedding_year=None)
 
 
 def _db_with_geometry_ids(ids):

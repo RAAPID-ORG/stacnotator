@@ -184,7 +184,7 @@ export function ExploreControls() {
   const editing = useWorkStore((s) => s.edit !== null);
 
   const labels = extendedLabels(campaign);
-  const fields = campaign.settings.form_fields ?? [];
+  const fields = campaign.settings.form_fields;
   const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
   const selectedLabel = labels.find((l) => l.id === selectedLabelId) ?? null;
   const draftLabel =

@@ -108,7 +108,7 @@ def clip_to_campaign(region: Polygon | MultiPolygon, campaign: Campaign) -> Poly
     """The part of `region` with area inside the campaign's box. A region that
     merely touches the box leaves lines behind, which the samplers cannot draw
     from, so that is no overlap."""
-    clipped = region.intersection(box(*campaign.settings.bbox))
+    clipped = region.intersection(box(*campaign.bbox))
     polygons = [part for part in shapely.get_parts(clipped) if isinstance(part, Polygon)]
     if not polygons:
         raise HTTPException(

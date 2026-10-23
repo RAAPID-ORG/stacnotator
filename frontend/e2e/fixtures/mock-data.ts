@@ -14,9 +14,9 @@ export const MOCK_USER = {
 
 // Labels for the campaign
 export const LABELS = [
-  { id: 1, name: 'forest', geometry_type: null },
-  { id: 2, name: 'cropland', geometry_type: null },
-  { id: 3, name: 'urban', geometry_type: null },
+  { id: 1, name: 'forest', geometry_type: 'polygon' },
+  { id: 2, name: 'cropland', geometry_type: 'polygon' },
+  { id: 3, name: 'urban', geometry_type: 'polygon' },
 ];
 
 // Two slices with unique tile URLs (so we can verify the correct one loads)
@@ -161,6 +161,10 @@ export const MOCK_CAMPAIGN = {
     bbox_east: 31.0,
     bbox_north: 51.0,
     embedding_year: null,
+    guide_markdown: null,
+    sample_extent_meters: null,
+    form_fields: [],
+    task_output: 'classify',
     // Mirrors DEFAULT_LABELLING_POLICY (campaigns/utils/labellingPolicy.ts) / backend
     // default_labelling_policy(): AnnotationPage/AnnotationToolbar read
     // campaign.settings.labelling_policy.explore unconditionally.

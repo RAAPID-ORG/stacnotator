@@ -55,7 +55,7 @@ export function TaskControls() {
   const setSelectedLabelId = useWorkStore((s) => s.setSelectedLabelId);
 
   const labels = campaign.settings.labels;
-  const fields = campaign.settings.form_fields ?? [];
+  const fields = campaign.settings.form_fields;
   const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
 
   // A draw task's form holds the answers for the shape being drawn, which may

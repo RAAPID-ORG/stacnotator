@@ -155,7 +155,7 @@ export function campaignContext(campaign: CampaignOutFull) {
     sample_extent_meters: settings.sample_extent_meters ?? null,
     guide_markdown: settings.guide_markdown ?? null,
     labels: settings.labels,
-    form_fields: settings.form_fields ?? [],
+    form_fields: settings.form_fields,
     imagery,
     basemaps: campaign.basemaps.map((b) => ({
       basemap_id: b.id,

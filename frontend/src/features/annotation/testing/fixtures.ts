@@ -26,6 +26,32 @@ import type {
  * override only the fields their scenario cares about.
  * Not a `*.test.ts` file so vitest never collects it as a spec.
  */
+export function makeSettings(
+  overrides: Partial<CampaignOutFull['settings']> = {}
+): CampaignOutFull['settings'] {
+  return {
+    bbox_west: -10,
+    bbox_south: -20,
+    bbox_east: 10,
+    bbox_north: 20,
+    labelling_policy: {
+      explore: { kinds: ['anyone'] },
+      assigned_tasks: { kinds: ['anyone'] },
+      complete_assigned: { kinds: ['anyone'] },
+      modify_others: { kinds: ['admins'] },
+      unassigned_tasks: { kinds: ['anyone'] },
+    },
+    labels: [],
+    form_fields: [],
+    research_sharing: false,
+    task_output: 'classify',
+    embedding_year: null,
+    guide_markdown: null,
+    sample_extent_meters: null,
+    ...overrides,
+  };
+}
+
 export function makeCampaign(overrides: Partial<CampaignOutFull> = {}): CampaignOutFull {
   return {
     id: 7,
@@ -40,21 +66,7 @@ export function makeCampaign(overrides: Partial<CampaignOutFull> = {}): Campaign
     time_series: [],
     default_main_canvas_layout: null,
     personal_main_canvas_layout: null,
-    settings: {
-      bbox_west: -10,
-      bbox_south: -20,
-      bbox_east: 10,
-      bbox_north: 20,
-      labelling_policy: {
-        explore: { kinds: ['anyone'] },
-        assigned_tasks: { kinds: ['anyone'] },
-        complete_assigned: { kinds: ['anyone'] },
-        modify_others: { kinds: ['admins'] },
-        unassigned_tasks: { kinds: ['anyone'] },
-      },
-      labels: [],
-      research_sharing: false,
-    },
+    settings: makeSettings(),
     ...overrides,
   };
 }

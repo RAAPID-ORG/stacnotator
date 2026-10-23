@@ -386,7 +386,7 @@ function exploreBindings(): Binding[] {
     },
     {
       key: 'escape',
-      help: (campaign.settings.form_fields ?? []).some((f) => f.required)
+      help: campaign.settings.form_fields.some((f) => f.required)
         ? t('keymap.closeDraft')
         : t('keymap.closeQuestions'),
       when: draftIsOpen,

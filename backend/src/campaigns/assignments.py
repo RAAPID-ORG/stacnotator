@@ -19,7 +19,6 @@ from src.campaigns.schemas import (
     AssignTasksToUsersRequest,
     AssignTasksToUsersResult,
     ReviewShareOfTasks,
-    label_id_to_name,
 )
 from src.projects.models import ProjectUser
 
@@ -356,7 +355,7 @@ def build_task_assignments_export(
     assignments needs the same list of valid emails.
     """
     campaign_id = campaign.id
-    label_names = label_id_to_name(campaign.settings.labels)
+    label_names = campaign.label_names
 
     task_query = select(AnnotationTask).where(AnnotationTask.campaign_id == campaign_id)
     if task_set_id is not None:

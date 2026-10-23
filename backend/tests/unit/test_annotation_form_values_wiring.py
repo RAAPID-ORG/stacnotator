@@ -42,14 +42,14 @@ def _campaign(form_fields=None, *, campaign_id=1, is_public=False):
     campaign = MagicMock()
     campaign.id = campaign_id
     campaign.is_public = is_public
-    campaign.settings.labels = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
-    campaign.settings.labelling_policy = make_policy(
+    campaign.label_names = {1: "Forest", 2: "Water"}
+    campaign.labelling_policy = make_policy(
         explore=PolicyAudience(kinds=["members"]),
         unassigned_tasks=PolicyAudience(kinds=["members"]),
         assigned_tasks=PolicyAudience(kinds=["members"]),
         complete_assigned=PolicyAudience(kinds=["members"]),
     ).model_dump(mode="json")
-    campaign.settings.form_fields = form_fields if form_fields is not None else []
+    campaign.form_fields = form_fields if form_fields is not None else []
     return campaign
 
 
@@ -98,7 +98,7 @@ class TestValidateAnnotationFormValuesHelper:
     def test_fields_are_parsed_from_campaign_settings_form_fields(self):
         # A different campaign's field list rejects an option id that would
         # be valid under REQUIRED_CATEGORY_FIELD, proving the fields actually
-        # come from campaign.settings.form_fields rather than being ignored.
+        # come from campaign.form_fields rather than being ignored.
         other_fields = [
             {
                 "id": 1,

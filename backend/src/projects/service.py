@@ -3,7 +3,6 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.orm.attributes import flag_modified
 
 from src.annotation.geometries import delete_orphan_geometries
 from src.auth.constants import AGENT_ISSUER
@@ -119,9 +118,8 @@ def _strip_anyone_from_campaign_policies(db: Session, project: Project) -> None:
     invalidates the 'anyone' audience on every campaign policy inside the
     project."""
     for campaign in project.campaigns:
-        policy = LabellingPolicy.model_validate(campaign.settings.labelling_policy)
-        campaign.settings.labelling_policy = strip_anyone_kind(policy).model_dump(mode="json")
-        flag_modified(campaign.settings, "labelling_policy")
+        policy = LabellingPolicy.model_validate(campaign.labelling_policy)
+        campaign.labelling_policy = strip_anyone_kind(policy).model_dump(mode="json")
 
 
 def update_project(

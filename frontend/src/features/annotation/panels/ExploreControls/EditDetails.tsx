@@ -27,7 +27,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
 
   const labels = extendedLabels(campaign);
   const selectable = labelsWithSameGeometry(labels, annotation.label_id);
-  const fields = campaign.settings.form_fields ?? [];
+  const fields = campaign.settings.form_fields;
   const dirty =
     labelId !== annotation.label_id || !formValuesEqual(values, annotation.form_values ?? {});
 

@@ -70,7 +70,7 @@ def register_agent(
             status_code=409,
             detail=f"At most {MAX_AGENTS_PER_OWNER} agents per person in a campaign",
         )
-    if campaign.settings.sample_extent_meters is None and _has_point_tasks(db, campaign.id):
+    if campaign.sample_extent_meters is None and _has_point_tasks(db, campaign.id):
         raise HTTPException(
             status_code=409,
             detail="Set the campaign's sample extent before registering agents: it is the "

@@ -182,7 +182,7 @@ def bump_campaign_annotations_version(db: Session, campaign_id: int) -> None:
 
 def validate_label_id(campaign: Campaign, label_id: int) -> None:
     """Raise HTTP 400 if label_id is not a key in the campaign's label set."""
-    if str(label_id) not in campaign.settings.labels:
+    if label_id not in campaign.label_names:
         raise HTTPException(
             status_code=400,
             detail=f"label_id {label_id} is not a label of this campaign",
@@ -358,13 +358,7 @@ def get_task_density(
     it is derived here with the same function every other read path uses, and the
     grouping happens in Python rather than as a second copy of those rules in SQL.
     """
-    settings = campaign.settings
-    aoi = (
-        (settings.bbox_west, settings.bbox_south, settings.bbox_east, settings.bbox_north)
-        if settings
-        else None
-    )
-    grid = spatial.density_grid(aoi, target_cells, bbox)
+    grid = spatial.density_grid(campaign.bbox, target_cells, bbox)
     centroids = spatial.task_centroids(db, campaign.id, task_set_id, bbox)
     if not centroids:
         return []
@@ -535,7 +529,7 @@ def _require_drawing_access(
     task_ids = output_task_ids - {None}
     if not task_ids:
         return
-    if campaign.settings.task_output != "draw":
+    if campaign.task_output != "draw":
         raise HTTPException(status_code=400, detail="This campaign's tasks take no shapes")
     tasks = (
         db.scalars(
@@ -619,7 +613,7 @@ def add_annotation_for_task(
 
     try:
         outcome = resolve_task_outcome(
-            campaign.settings.task_output, annotation_create.label_id, annotation_create.outcome
+            campaign.task_output, annotation_create.label_id, annotation_create.outcome
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

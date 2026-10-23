@@ -157,13 +157,13 @@ def get_labelling_policy(campaign: Campaign) -> LabellingPolicy:
     """Read a campaign's labelling policy. Every campaign carries one: the
     creation path always writes settings, the column is non-null with a full
     server default, and migration aa6polback backfilled the stragglers."""
-    return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
+    return LabellingPolicy.model_validate(campaign.labelling_policy)
 
 
 def _reject_anyone_kind_if_private(policy: LabellingPolicy, is_public: bool) -> None:
     """'anyone' only makes sense once the campaign itself is public - enforce
     this invariant at every write of a labelling policy (campaign creation
-    and the PATCH .../labelling-policy endpoint), not just one of them."""
+    and a campaign update), not just one of them."""
     axes = (
         policy.explore,
         policy.unassigned_tasks,

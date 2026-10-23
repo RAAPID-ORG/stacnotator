@@ -1,9 +1,9 @@
-"""The settings table CHECKs, enforced before the insert rather than by it."""
+"""The campaign area CHECKs, enforced before the write rather than by it."""
 
 import pytest
 from pydantic import ValidationError
 
-from src.campaigns.schemas import CampaignSettingsCreate, UpdateCampaignBBoxRequest
+from src.campaigns.schemas import CampaignSettingsCreate, CampaignUpdate
 
 VALID = {
     "labels": [],
@@ -44,8 +44,12 @@ def test_an_inverted_latitude_range_is_refused():
         CampaignSettingsCreate(**{**VALID, "bbox_south": 70.0, "bbox_north": 65.0})
 
 
-def test_the_bbox_update_endpoint_is_held_to_the_same_rules():
+def test_an_update_is_held_to_the_same_rules():
     with pytest.raises(ValidationError):
-        UpdateCampaignBBoxRequest(
-            bbox_west=-196.17, bbox_south=65.3, bbox_east=-176.5, bbox_north=67.7
-        )
+        CampaignUpdate(bbox_west=-196.17, bbox_south=65.3, bbox_east=-176.5, bbox_north=67.7)
+
+
+def test_an_update_sends_the_whole_area_or_none_of_it():
+    with pytest.raises(ValidationError):
+        CampaignUpdate(bbox_west=-176.5, bbox_south=65.3)
+    assert CampaignUpdate(name="x").bbox is None

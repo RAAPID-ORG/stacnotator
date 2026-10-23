@@ -72,7 +72,7 @@ export const AnnotationsReview = ({
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<number>>(new Set());
   // Answers are long enough to swamp the table, so one row opens at a time.
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const formFields = campaign.settings.form_fields ?? [];
+  const formFields = campaign.settings.form_fields;
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
 
   useEffect(() => {

@@ -1,8 +1,8 @@
 """Field definitions for campaign custom forms.
 
 A campaign's form is an ordered list of fields stored as JSONB on
-data.settings.form_fields. The built-in label select is NOT part of this
-list; it stays a separate concept (settings.labels).
+data.campaigns.form_fields. The built-in label select is NOT part of this
+list; it stays a separate concept (campaigns.labels).
 """
 
 import re

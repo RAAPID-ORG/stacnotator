@@ -456,7 +456,7 @@ def start_embedding_run(db: Session, campaign: Campaign) -> None:
     """Fetch embeddings for every task of the campaign that has none yet, off the
     request path. Commits the run's start; a no-op for a campaign without an
     embedding year."""
-    year = campaign.settings.embedding_year
+    year = campaign.embedding_year
     if year is None:
         return
     background.begin_status_run(campaign, EMBEDDING_RUN)
