@@ -163,5 +163,9 @@
     "signOut": "Cerrar sesión",
     "agree": "Acepto",
     "acceptFailed": "No se pudo registrar tu aceptación. Inténtalo de nuevo."
+  },
+  "typeToDelete": {
+    "typeToConfirm": "Escribe <name>{{name}}</name> para confirmar:",
+    "placeholder": "Escribe aquí el nombre"
   }
 }

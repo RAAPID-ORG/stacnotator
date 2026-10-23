@@ -112,8 +112,6 @@
     "deleteDescription": "Deleting a project permanently deletes its campaigns and every annotation in them.",
     "deleteProject": "Delete project",
     "deleteWarning": "This action <strong>cannot be undone</strong>. It permanently deletes the project <name>{{name}}</name>, every campaign inside it, and all of their tasks, annotations and settings.",
-    "deleteTypeToConfirm": "Please type <name>{{name}}</name> to confirm:",
-    "deletePlaceholder": "Type project name here",
     "updateFailed": "Failed to update project",
     "deleteFailed": "Failed to delete project",
     "deleted": "Project deleted",

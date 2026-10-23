@@ -114,8 +114,6 @@
     "deleteDescription": "Al eliminar un proyecto se eliminan permanentemente sus campañas y todas sus anotaciones.",
     "deleteProject": "Eliminar proyecto",
     "deleteWarning": "Esta acción <strong>no se puede deshacer</strong>. Elimina permanentemente el proyecto <name>{{name}}</name>, todas sus campañas y todas sus tareas, anotaciones y configuración.",
-    "deleteTypeToConfirm": "Escribe <name>{{name}}</name> para confirmar:",
-    "deletePlaceholder": "Escribe aquí el nombre del proyecto",
     "updateFailed": "No se pudo actualizar el proyecto",
     "deleteFailed": "No se pudo eliminar el proyecto",
     "deleted": "Proyecto eliminado",

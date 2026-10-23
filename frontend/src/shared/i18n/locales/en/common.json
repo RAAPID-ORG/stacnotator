@@ -163,5 +163,9 @@
     "signOut": "Sign out",
     "agree": "I agree",
     "acceptFailed": "Could not record your acceptance. Please try again."
+  },
+  "typeToDelete": {
+    "typeToConfirm": "Please type <name>{{name}}</name> to confirm:",
+    "placeholder": "Type the name here"
   }
 }

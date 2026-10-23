@@ -173,8 +173,6 @@
       "timeseries": "All timeseries configurations",
       "settings": "All campaign settings"
     },
-    "typeToConfirm": "Please type <name>{{name}}</name> to confirm:",
-    "placeholder": "Type campaign name here",
     "confirm": "Delete campaign"
   },
   "moveTasks": {

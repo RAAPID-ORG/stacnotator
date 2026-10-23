@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Modal } from '~/shared/ui/Modal';
 import { useTranslation } from 'react-i18next';
 import type { ProjectUserOut } from '~/api/client';
 import { Button, Input } from '~/shared/ui/forms';
@@ -67,85 +68,13 @@ export const AssignSelectedModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
-        data-testid="assign-selected-dialog"
-      >
-        <div className="px-6 py-4 border-b border-neutral-300">
-          <h3 className="text-md font-semibold text-neutral-900">
-            {t('assignSelected.title', { count: numTasks })}
-          </h3>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              {t('assignSelected.mode')}
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer text-sm text-neutral-700">
-                <input
-                  type="radio"
-                  name="assign-selected-mode"
-                  checked={mode === 'every-user-every-task'}
-                  onChange={() => setMode('every-user-every-task')}
-                />
-                {t('assignSelected.everyUser')}
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-sm text-neutral-700">
-                <input
-                  type="radio"
-                  name="assign-selected-mode"
-                  checked={mode === 'distribute-evenly'}
-                  onChange={() => setMode('distribute-evenly')}
-                />
-                {t('assignSelected.distribute')}
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              {t('assignSelected.selectUsers')}
-            </label>
-            <Input
-              value={userQuery}
-              onChange={(e) => setUserQuery(e.target.value)}
-              placeholder={t('assignSelected.searchPlaceholder')}
-              className="mb-2"
-            />
-            <div className="space-y-2 max-h-72 overflow-y-auto border border-neutral-300 rounded-lg p-3">
-              {matchingUsers.length === 0 && (
-                <p className="px-1 py-2 text-xs text-neutral-500">
-                  {t('assignSelected.noMatches')}
-                </p>
-              )}
-              {matchingUsers.map((user) => (
-                <label
-                  key={user.user.id}
-                  className="flex items-center gap-3 p-2 bg-neutral-50 rounded-lg cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedUsers.includes(user.user.id)}
-                    onChange={() => handleToggleUser(user.user.id)}
-                  />
-                  <div>
-                    <div className="font-medium text-neutral-900 text-sm">
-                      {user.user.display_name}
-                    </div>
-                    {user.user.email && (
-                      <div className="text-xs text-neutral-500">{user.user.email}</div>
-                    )}
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="px-6 py-4 border-t border-neutral-300 flex justify-end gap-3">
+    <Modal
+      title={t('assignSelected.title', { count: numTasks })}
+      onClose={onCancel}
+      maxWidth="max-w-lg"
+      testId="assign-selected-dialog"
+      footer={
+        <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={onCancel} disabled={assigning}>
             {t('common:actions.cancel')}
           </Button>
@@ -153,7 +82,72 @@ export const AssignSelectedModal = ({
             {assigning ? t('assignSelected.assigning') : t('assignSelected.assign')}
           </Button>
         </div>
+      }
+    >
+      <div className="px-6 py-4 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
+            {t('assignSelected.mode')}
+          </label>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-neutral-700">
+              <input
+                type="radio"
+                name="assign-selected-mode"
+                checked={mode === 'every-user-every-task'}
+                onChange={() => setMode('every-user-every-task')}
+              />
+              {t('assignSelected.everyUser')}
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-neutral-700">
+              <input
+                type="radio"
+                name="assign-selected-mode"
+                checked={mode === 'distribute-evenly'}
+                onChange={() => setMode('distribute-evenly')}
+              />
+              {t('assignSelected.distribute')}
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-2">
+            {t('assignSelected.selectUsers')}
+          </label>
+          <Input
+            value={userQuery}
+            onChange={(e) => setUserQuery(e.target.value)}
+            placeholder={t('assignSelected.searchPlaceholder')}
+            className="mb-2"
+          />
+          <div className="space-y-2 max-h-72 overflow-y-auto border border-neutral-300 rounded-lg p-3">
+            {matchingUsers.length === 0 && (
+              <p className="px-1 py-2 text-xs text-neutral-500">{t('assignSelected.noMatches')}</p>
+            )}
+            {matchingUsers.map((user) => (
+              <label
+                key={user.user.id}
+                className="flex items-center gap-3 p-2 bg-neutral-50 rounded-lg cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.includes(user.user.id)}
+                  onChange={() => handleToggleUser(user.user.id)}
+                />
+                <div>
+                  <div className="font-medium text-neutral-900 text-sm">
+                    {user.user.display_name}
+                  </div>
+                  {user.user.email && (
+                    <div className="text-xs text-neutral-500">{user.user.email}</div>
+                  )}
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
+    </Modal>
   );
 };

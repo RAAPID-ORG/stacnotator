@@ -25,7 +25,7 @@ export interface PrivateCatalog {
 }
 
 /** What the generator offers until someone picks otherwise. */
-export const DEFAULT_MAX_CLOUD_COVER = 90;
+const DEFAULT_MAX_CLOUD_COVER = 90;
 
 const regularSlices = (collection: CollectionItem): ImagerySlice[] =>
   collection.hasDedicatedCover

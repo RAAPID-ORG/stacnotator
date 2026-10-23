@@ -103,7 +103,7 @@ export const isPlanetSceneConfig = (
   config: ImageryGenerationSeries['config']
 ): config is PlanetScenesGenerationConfig => 'kind' in config && config.kind === 'planet_scenes';
 
-export const ITEM_SORT_OPTIONS = ['date_desc', 'date_asc', 'cloud_cover_asc'] as const;
+const ITEM_SORT_OPTIONS = ['date_desc', 'date_asc', 'cloud_cover_asc'] as const;
 export type ItemSortOption = (typeof ITEM_SORT_OPTIONS)[number];
 export const isItemSortOption = (v: string): v is ItemSortOption =>
   (ITEM_SORT_OPTIONS as readonly string[]).includes(v);

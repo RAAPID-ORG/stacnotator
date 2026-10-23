@@ -181,8 +181,6 @@
       "timeseries": "Todas las configuraciones de series temporales",
       "settings": "Toda la configuración de la campaña"
     },
-    "typeToConfirm": "Escribe <name>{{name}}</name> para confirmar:",
-    "placeholder": "Escribe aquí el nombre de la campaña",
     "confirm": "Eliminar campaña"
   },
   "moveTasks": {
