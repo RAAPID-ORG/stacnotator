@@ -68,6 +68,9 @@ interface LayoutState {
 
   setLayout: (layout: WorkspaceLayout) => void;
   setNavigationPanel: (id: 'timeline' | 'imagery', visible: boolean) => void;
+  /** Move a task-panel section into a panel of its own at `size`, or back
+   *  into the task panel with `null`. */
+  setTaskSection: (id: string, size: { w: number; h: number } | null) => void;
   setPanelOptions: (
     id: 'main' | 'timeline' | 'imagery',
     options: Pick<LayoutItem, 'orientation' | 'expanded_sections' | 'slice_navigation'>
@@ -163,6 +166,16 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
         }
         const items = packItem(toGridLayout(s.currentLayout), id, { w: 36, h: 5 });
         return { currentLayout: fromGridLayout(items, s.currentLayout) };
+      }),
+    setTaskSection: (id, size) =>
+      set((s) => {
+        const items = toGridLayout(s.currentLayout);
+        return {
+          currentLayout: fromGridLayout(
+            size ? packItem(items, id, size) : items.filter((item) => item.i !== id),
+            s.currentLayout
+          ),
+        };
       }),
     setPanelOptions: (id, options) =>
       set((s) => {

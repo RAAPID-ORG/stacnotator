@@ -1,6 +1,5 @@
 import { Fragment } from 'react';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { WidthGrip, type WidthGripProps } from './WidthGrip';
 
 export interface LabelChipItem {
   id: number;
@@ -34,8 +33,6 @@ export interface LabelChipsProps<L extends LabelChipItem> {
   /** Lay the chips on a grid, each at least this wide in px and all
    *  stretched evenly to fill the row, a new column as soon as one fits. */
   minWidth?: number;
-  /** Puts a grip on each chip's right edge that resizes all of them at once. */
-  resize?: Omit<WidthGripProps, 'width' | 'label' | 'className'>;
 }
 
 export function LabelChips<L extends LabelChipItem>({
@@ -50,7 +47,6 @@ export function LabelChips<L extends LabelChipItem>({
   renderUnder,
   fill = false,
   minWidth,
-  resize,
 }: LabelChipsProps<L>) {
   const visible = isSelectable ? labels.filter(isSelectable) : labels;
 
@@ -69,7 +65,7 @@ export function LabelChips<L extends LabelChipItem>({
         return (
           <Fragment key={label.id}>
             <div
-              className={`relative flex items-center gap-1 min-w-0 max-w-full ${
+              className={`flex items-center gap-1 min-w-0 max-w-full ${
                 fill && minWidth == null ? 'grow shrink basis-40' : ''
               }`}
             >
@@ -106,14 +102,6 @@ export function LabelChips<L extends LabelChipItem>({
                 </span>
               </button>
               {renderAfter?.(label)}
-              {resize && (
-                <WidthGrip
-                  {...resize}
-                  width={minWidth ?? 160}
-                  label="Label width"
-                  className="-right-1.5"
-                />
-              )}
             </div>
             {under && <div className="basis-full w-full col-span-full">{under}</div>}
           </Fragment>

@@ -39,6 +39,7 @@ import {
   mergeLayoutChange,
   mobileStack,
   packItem,
+  TASK_SECTION_PREFIX,
   toGridLayout,
   withoutKeys,
   type LayoutItem,
@@ -77,6 +78,14 @@ interface DeepLink {
 }
 
 /** Number(null) is 0, so every numeric parameter needs the presence check. */
+/** A hidden imagery window leaves the canvas; a hidden task section goes back
+ *  into the task panel. */
+function hidePanel(id: string): void {
+  const layout = useLayoutStore.getState();
+  if (id.startsWith(TASK_SECTION_PREFIX)) layout.setTaskSection(id, null);
+  else layout.hideWindow(Number(id));
+}
+
 function numberParam(params: URLSearchParams, name: string): number | undefined {
   const raw = params.get(name);
   if (raw === null) return undefined;
@@ -391,8 +400,13 @@ export function AnnotationPage() {
   const mobileLayout = useMemo(() => {
     if (!isMobile || !campaign) return undefined;
     const keys = groupTimeseriesIntoWindows(campaign.time_series).map((w) => w.key);
-    return mobileStack(currentLayout.windows, keys, window.innerHeight);
-  }, [isMobile, campaign, currentLayout.windows]);
+    return mobileStack(
+      currentLayout.windows,
+      keys,
+      window.innerHeight,
+      Object.keys(currentLayout.main.taskSections ?? {})
+    );
+  }, [isMobile, campaign, currentLayout.windows, currentLayout.main.taskSections]);
 
   // A sent-away panel keeps its slot in the stored layout (that is where it
   // returns to) but is withheld from the grid so it can use the space.
@@ -556,7 +570,7 @@ export function AnnotationPage() {
           layout={canvasLayout}
           onLayoutChange={handleLayoutChange}
           editing={editing && !isMobile}
-          onHidePanel={(id) => useLayoutStore.getState().hideWindow(Number(id))}
+          onHidePanel={hidePanel}
           fullscreen={isFullscreen}
           outerRef={canvasRef}
           mobileLayout={mobileLayout}
@@ -600,7 +614,7 @@ export function AnnotationPage() {
             layout={screen.layout}
             editing={editing}
             onLayoutChange={(l) => useLayoutStore.getState().setScreenLayout(screen.id, l)}
-            onHidePanel={(id) => useLayoutStore.getState().hideWindow(Number(id))}
+            onHidePanel={hidePanel}
             onClose={() => useLayoutStore.getState().closeScreen(screen.id)}
             bounds={screen.bounds ?? SCREEN_DEFAULT_BOUNDS}
             onBounds={(b) => useLayoutStore.getState().rememberScreenBounds(screen.id, b)}

@@ -1,6 +1,10 @@
 import type { CampaignOutFull, CanvasLayoutItem, ImageryViewOut } from '~/api/client';
 import { TIMESERIES_KEY_PREFIX } from '../campaign/timeseries';
 
+/** Task-panel sections the user has moved into panels of their own are keyed
+ *  `task:<section>`; the rest stay inside the task panel. */
+export const TASK_SECTION_PREFIX = 'task:';
+
 export const GRID_COLS = 60;
 export const ROW_HEIGHT = 15;
 export const GRID_MARGIN: [number, number] = [6, 6];
@@ -16,6 +20,7 @@ export interface MainLayout {
   timeseries: Record<string, LayoutItem>;
   timeline?: LayoutItem;
   imagery?: LayoutItem;
+  taskSections?: Record<string, LayoutItem>;
 }
 
 export interface WorkspaceLayout {
@@ -46,6 +51,7 @@ export function toGridLayout(l: WorkspaceLayout): LayoutItem[] {
     ...(l.main.timeline ? [l.main.timeline] : []),
     ...(l.main.imagery ? [l.main.imagery] : []),
     ...Object.values(l.main.timeseries),
+    ...Object.values(l.main.taskSections ?? {}),
     ...Object.values(l.windows),
   ];
 }
@@ -59,6 +65,7 @@ export function toGridLayout(l: WorkspaceLayout): LayoutItem[] {
 export function fromGridLayout(items: LayoutItem[], prev: WorkspaceLayout): WorkspaceLayout {
   let { main, minimap, controls } = prev.main;
   const timeseries: Record<string, LayoutItem> = {};
+  const taskSections: Record<string, LayoutItem> = {};
   const windows: Record<number, LayoutItem> = {};
   const navigation: Pick<MainLayout, 'timeline' | 'imagery'> = {};
   const previous = new Map(toGridLayout(prev).map((item) => [item.i, item]));
@@ -84,10 +91,21 @@ export function fromGridLayout(items: LayoutItem[], prev: WorkspaceLayout): Work
     else if (item.i === 'controls') controls = item;
     else if (item.i === 'timeline' || item.i === 'imagery') navigation[item.i] = item;
     else if (item.i.startsWith(TIMESERIES_KEY_PREFIX)) timeseries[item.i] = item;
+    else if (item.i.startsWith(TASK_SECTION_PREFIX)) taskSections[item.i] = item;
     else if (Number.isFinite(Number(item.i))) windows[Number(item.i)] = item;
   }
 
-  return { main: { main, minimap, controls, timeseries, ...navigation }, windows };
+  return {
+    main: {
+      main,
+      minimap,
+      controls,
+      timeseries,
+      ...navigation,
+      ...(Object.keys(taskSections).length > 0 && { taskSections }),
+    },
+    windows,
+  };
 }
 
 /** The windows a view carries: the user's saved layout for it, else the
@@ -340,13 +358,15 @@ export function scaleWidthToScreen(w: number, sourcePx: number, targetPx: number
 
 /**
  * Mobile ignores the saved desktop grid for a single stacked column: main and
- * controls take half the viewport each so both fit above the fold, then the
- * timeseries groups, the minimap, and every visible window.
+ * controls take half the viewport each so both fit above the fold, then any
+ * task sections moved out of the controls, the timeseries groups, the
+ * minimap, and every visible window.
  */
 export function mobileStack(
   windows: Record<number, LayoutItem>,
   timeseriesKeys: string[],
-  viewportH: number
+  viewportH: number,
+  taskSectionKeys: string[] = []
 ): LayoutItem[] {
   const half = Math.max(20, Math.floor(viewportH / ROW_HEIGHT / 2));
   const rest = 18;
@@ -359,6 +379,7 @@ export function mobileStack(
 
   push('main', half);
   push('controls', half);
+  for (const key of taskSectionKeys) push(key, 10);
   for (const key of timeseriesKeys) push(key, rest);
   push('minimap', rest);
   for (const id of Object.keys(windows)
