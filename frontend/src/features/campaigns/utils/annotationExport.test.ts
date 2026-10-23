@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exportRows, parseExportErrorDetail, resolveExportFilename } from './tasks';
+import { exportRows, parseExportErrorDetail, resolveExportFilename } from './annotationExport';
 
 describe('exportRows', () => {
   it('builds a CSV request with no merge query when merge-on-agreement is off', () => {

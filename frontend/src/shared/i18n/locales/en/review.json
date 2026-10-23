@@ -56,15 +56,17 @@
     "noUsers": "No users found"
   },
   "export": {
-    "failedAs": "Failed to export annotations as {{format}}",
-    "succeeded": "Annotations exported as {{format}}",
-    "failed": "Failed to export annotations",
+    "title": "Export annotations",
+    "label": "Export",
     "exporting": "Exporting…",
-    "button": "Export",
-    "mergeDisabledTitle": "Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.",
-    "mergeOnAgreement": "Merge on agreement",
+    "failedAs": "Failed to export annotations as {{format}}",
+    "done": "Annotations exported as {{format}}",
+    "failed": "Failed to export annotations",
+    "merge": "Merge on agreement",
+    "mergeDisabledTip": "Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.",
     "mergeDisabled": "Disabled - resolve conflicting tasks first.",
-    "mergeHint": "Collapse multi-annotator tasks into one row when all annotators agree.",
+    "mergeHint": "Collapse multi-annotator tasks into one row when all agree.",
+    "geojsonHint": "FeatureCollection (.geojson)",
     "csvHint": "Tabular export (.csv)"
   },
   "statistics": {

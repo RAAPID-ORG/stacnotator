@@ -17,7 +17,7 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 import { answeredFields } from '~/shared/utils/formValues';
 import { FormAnswers } from './FormAnswers';
 import { ClassDistributionMap } from './ClassDistributionMap';
-import { ExportDropdown } from './ExportDropdown';
+import { ExportMenu } from './ExportMenu';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { UserFilterDropdown } from './UserFilterDropdown';
@@ -265,9 +265,9 @@ export const AnnotationsReview = ({
             )}
           </div>
           <div className="flex items-center gap-3">
-            <ExportDropdown
+            <ExportMenu
               campaignId={campaignId}
-              campaign={campaign}
+              campaignName={campaign.name}
               disabled={stats.total === 0}
               showMergeToggle={false}
             />

@@ -19,7 +19,7 @@ import type { PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import { useCampaignStore } from '../../stores/campaign';
 import { useLayoutStore as useAnnotationLayoutStore } from '../../stores/layout';
 import type { TaskFilter } from '../../campaign/tasks';
-import { ExportMenu } from './ExportMenu';
+import { ExportMenu } from '~/features/campaigns/components/review/ExportMenu';
 import { GuidePanel } from './GuidePanel';
 import { HelpMenu } from './HelpMenu';
 import { ModeSwitch, OriginTaskChip, ReviewToggle } from './ModeSwitch';
@@ -213,8 +213,9 @@ export function Toolbar({
         <ExportMenu
           campaignId={campaign.id}
           campaignName={campaign.name}
-          isTaskMode={workMode === 'tasks'}
+          showMergeToggle={workMode === 'tasks'}
           hasConflicts={hasConflicts}
+          compact
         />
       </div>
 

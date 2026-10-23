@@ -205,20 +205,6 @@
     "enter": "Entrar en el modo de revisión",
     "label": "Revisión"
   },
-  "export": {
-    "title": "Exportar anotaciones",
-    "label": "Exportar",
-    "exporting": "Exportando…",
-    "failedAs": "No se pudieron exportar las anotaciones como {{format}}",
-    "done": "Anotaciones exportadas como {{format}}",
-    "failed": "No se pudieron exportar las anotaciones",
-    "merge": "Combinar si hay acuerdo",
-    "mergeDisabledTip": "Deshabilitado: esta campaña tiene tareas en conflicto. Resuélvelas en el modo de revisión antes de combinar por acuerdo.",
-    "mergeDisabled": "Deshabilitado: resuelve primero las tareas en conflicto.",
-    "mergeHint": "Agrupa en una sola fila las tareas con varios anotadores cuando todos coinciden.",
-    "geojsonHint": "FeatureCollection (.geojson)",
-    "csvHint": "Exportación tabular (.csv)"
-  },
   "toolbar": {
     "viewTip": "Vista: {{name}}",
     "switchView": "Cambiar de vista (u)",

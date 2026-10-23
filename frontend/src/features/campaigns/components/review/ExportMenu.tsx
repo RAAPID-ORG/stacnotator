@@ -1,27 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exportAnnotations, exportAnnotationsGeojson } from '~/api/client';
-import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
-import { useLayoutStore } from '~/shared/stores/layout.store';
-import { Dropdown } from '~/shared/ui/motion';
-import { IconChevronDownFilled, IconDownloadFilled } from '~/shared/ui/Icons';
-import { handleError } from '~/shared/utils/errorHandler';
 import {
   exportRows,
-  resolveExportFilename,
   parseExportErrorDetail,
+  resolveExportFilename,
   type ExportFormat,
-} from '../../campaign/tasks';
+} from '~/features/campaigns/utils/annotationExport';
+import { useDismissOnOutside } from '~/shared/hooks/useDismissOnOutside';
+import { useLayoutStore } from '~/shared/stores/layout.store';
+import { IconChevronDownFilled, IconDownloadFilled } from '~/shared/ui/Icons';
+import { Dropdown } from '~/shared/ui/motion';
+import { Spinner } from '~/shared/ui/Spinner';
+import { handleError } from '~/shared/utils/errorHandler';
 
-export interface ExportMenuProps {
+interface ExportMenuProps {
   campaignId: number;
   campaignName: string;
-  isTaskMode: boolean;
-  hasConflicts: boolean;
-}
-
-function isBlob(body: unknown): body is Blob {
-  return body instanceof Blob;
+  /** Offer merging agreeing task rows into one; only tasks have several annotators. */
+  showMergeToggle: boolean;
+  /** Merging is refused while tasks disagree, so the toggle says so instead. */
+  hasConflicts?: boolean;
+  disabled?: boolean;
+  /** The annotation toolbar's compact trigger rather than a page button. */
+  compact?: boolean;
 }
 
 function hasStringDetail(error: unknown): error is { detail: string } {
@@ -40,7 +42,6 @@ function exportErrorDetail(error: unknown): string | null {
   return hasStringDetail(error) ? error.detail : null;
 }
 
-/** Triggers a browser download for a blob response. */
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -52,13 +53,16 @@ function downloadBlob(blob: Blob, filename: string): void {
   document.body.removeChild(a);
 }
 
+/** Download a campaign's annotations as GeoJSON or CSV. */
 export function ExportMenu({
   campaignId,
   campaignName,
-  isTaskMode,
-  hasConflicts,
+  showMergeToggle,
+  hasConflicts = false,
+  disabled = false,
+  compact = false,
 }: ExportMenuProps) {
-  const { t } = useTranslation('annotation');
+  const { t } = useTranslation('review');
   const [open, setOpen] = useState(false);
   const [mergeOnAgreement, setMergeOnAgreement] = useState(false);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
@@ -67,6 +71,7 @@ export function ExportMenu({
 
   useDismissOnOutside(containerRef, () => setOpen(false), open);
 
+  // Conflicts can appear while the toggle is on; a merged export would be refused.
   useEffect(() => {
     if (hasConflicts && mergeOnAgreement) setMergeOnAgreement(false);
   }, [hasConflicts, mergeOnAgreement]);
@@ -75,19 +80,15 @@ export function ExportMenu({
     setOpen(false);
     setExporting(format);
     try {
-      const request = exportRows(campaignId, mergeOnAgreement);
       const fetcher = format === 'geojson' ? exportAnnotationsGeojson : exportAnnotations;
-      const result = await fetcher(request);
-      const body = isBlob(result.data) ? result.data : null;
-
+      const result = await fetcher(exportRows(campaignId, mergeOnAgreement));
+      const body = result.data instanceof Blob ? result.data : null;
       if (!result.response.ok || !body) {
         const detail = exportErrorDetail(result.error);
         throw new Error(detail ?? t('export.failedAs', { format: format.toUpperCase() }));
       }
-
       const contentDisposition = result.response.headers.get('Content-Disposition');
-      const filename = resolveExportFilename(campaignName, format, contentDisposition);
-      downloadBlob(body, filename);
+      downloadBlob(body, resolveExportFilename(campaignName, format, contentDisposition));
       showAlert(t('export.done', { format: format.toUpperCase() }), 'success');
     } catch (err) {
       handleError(err, t('export.failed'));
@@ -96,28 +97,36 @@ export function ExportMenu({
     }
   };
 
+  const busy = exporting !== null;
   return (
     <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        disabled={exporting !== null}
-        className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${open ? 'bg-neutral-100' : ''} ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+        disabled={busy || disabled}
         title={t('export.title')}
         data-testid="export-menu-trigger"
+        className={
+          compact
+            ? `flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${open ? 'bg-neutral-100' : ''}`
+            : 'px-4 py-2 bg-white border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2'
+        }
       >
-        <IconDownloadFilled className="w-4 h-4" />
-        <span className="hidden desktop:inline">
-          {exporting ? t('export.exporting') : t('export.label')}
+        {busy && !compact ? <Spinner size="xs" /> : <IconDownloadFilled className="w-4 h-4" />}
+        <span className={compact ? 'hidden desktop:inline' : undefined}>
+          {busy ? t('export.exporting') : t('export.label')}
         </span>
-        <IconChevronDownFilled className="hidden desktop:block w-3 h-3" />
+        <IconChevronDownFilled className={compact ? 'hidden desktop:block w-3 h-3' : 'w-3 h-3'} />
       </button>
-      <Dropdown open={open} className="absolute top-full left-0 mt-1 z-20 origin-top-left">
+      <Dropdown
+        open={open}
+        className={`absolute top-full mt-1 z-20 ${compact ? 'left-0 origin-top-left' : 'right-0 origin-top-right'}`}
+      >
         <div
           className="bg-white border border-neutral-200 rounded-lg shadow-lg min-w-[240px]"
           data-testid="export-menu"
         >
-          {isTaskMode && (
+          {showMergeToggle && (
             <label
               className={`flex items-start gap-2 px-3 py-2 border-b border-neutral-200 ${hasConflicts ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-neutral-50'}`}
               title={hasConflicts ? t('export.mergeDisabledTip') : undefined}
@@ -137,22 +146,19 @@ export function ExportMenu({
               </span>
             </label>
           )}
-          <button
-            type="button"
-            onClick={() => handleExport('geojson')}
-            className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900"
-          >
-            <div className="font-medium">GeoJSON</div>
-            <div className="text-[10px] text-neutral-500">{t('export.geojsonHint')}</div>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleExport('csv')}
-            className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
-          >
-            <div className="font-medium">CSV</div>
-            <div className="text-[10px] text-neutral-500">{t('export.csvHint')}</div>
-          </button>
+          {(['geojson', 'csv'] as const).map((format, i) => (
+            <button
+              key={format}
+              type="button"
+              onClick={() => handleExport(format)}
+              className={`w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 ${i > 0 ? 'border-t border-neutral-200' : ''}`}
+            >
+              <div className="font-medium">{format === 'geojson' ? 'GeoJSON' : 'CSV'}</div>
+              <div className="text-[10px] text-neutral-500">
+                {format === 'geojson' ? t('export.geojsonHint') : t('export.csvHint')}
+              </div>
+            </button>
+          ))}
         </div>
       </Dropdown>
     </div>

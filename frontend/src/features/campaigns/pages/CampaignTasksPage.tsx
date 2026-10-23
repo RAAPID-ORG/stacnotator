@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
+import { ExportMenu } from '~/features/campaigns/components/review/ExportMenu';
 import { Button } from '~/shared/ui/forms';
 import type { TaskScope } from '~/features/campaigns/components/settings/TaskScopeBar';
 import {
@@ -350,9 +350,10 @@ export const CampaignTasksPage = () => {
             </div>
             {campaign && (
               <div className="flex items-center gap-3">
-                <ExportDropdown
+                <ExportMenu
                   campaignId={campaignId}
-                  campaign={campaign}
+                  campaignName={campaign.name}
+                  showMergeToggle
                   disabled={annotationTasks.length === 0}
                   hasConflicts={annotationTasks.some((task) => task.task_status === 'conflicting')}
                 />
