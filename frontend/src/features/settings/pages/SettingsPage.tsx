@@ -18,6 +18,7 @@ import {
   passwordMeetsAllRequirements,
 } from 'src/features/auth/ui/PasswordRequirements';
 import { FadeIn } from '~/shared/ui/motion';
+import { LEGAL_DOCS, legalPath } from '~/features/legal/docs';
 
 export const SettingsPage = () => {
   const { t, i18n } = useTranslation(['settings', 'common']);
@@ -323,6 +324,20 @@ export const SettingsPage = () => {
               </div>
             </div>
           </div>
+
+          <nav className="mt-4 flex gap-4 px-1 text-xs text-neutral-500">
+            {LEGAL_DOCS.map((doc) => (
+              <a
+                key={doc}
+                href={legalPath(doc)}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-neutral-800 hover:underline"
+              >
+                {t(`common:legal.${doc}`)}
+              </a>
+            ))}
+          </nav>
         </FadeIn>
       </div>
 

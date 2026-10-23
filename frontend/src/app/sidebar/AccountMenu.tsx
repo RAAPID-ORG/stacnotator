@@ -9,7 +9,6 @@ import {
   projectsPath,
   settingsPath,
 } from '~/app/routes';
-import { LEGAL_DOCS, legalPath } from '~/features/legal/docs';
 import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
 import { pendingAdminActions } from '~/features/organizations/utils/organizations';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -203,23 +202,6 @@ export const AccountMenu = ({
             <MenuItem icon={<IconGear />} onSelect={run(() => go(settingsPath()))}>
               {t('sidebar.accountSettings')}
             </MenuItem>
-
-            <MenuSeparator />
-            <div className="flex items-center gap-3 px-2 py-1.5 text-[12px] text-neutral-500">
-              {LEGAL_DOCS.map((doc) => (
-                <a
-                  key={doc}
-                  role="menuitem"
-                  href={legalPath(doc)}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={close}
-                  className="hover:text-neutral-900 hover:underline"
-                >
-                  {t(`legal.${doc}`)}
-                </a>
-              ))}
-            </div>
 
             <MenuSeparator />
             <MenuItem icon={<IconSignOut />} tone="danger" onSelect={run(() => void signOut())}>
