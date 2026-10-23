@@ -19,7 +19,6 @@ from src.annotation import service as annotation_service
 from src.annotation.claims import is_free_work, is_open_assignment
 from src.annotation.models import (
     Annotation,
-    AnnotationGeometry,
     AnnotationTask,
     AnnotationTaskAssignment,
 )
@@ -148,10 +147,9 @@ def _has_point_tasks(db: Session, campaign_id: int) -> bool:
     return (
         db.scalar(
             select(AnnotationTask.id)
-            .join(AnnotationGeometry, AnnotationGeometry.id == AnnotationTask.geometry_id)
             .where(
                 AnnotationTask.campaign_id == campaign_id,
-                func.ST_GeometryType(AnnotationGeometry.geometry) == "ST_Point",
+                func.ST_GeometryType(AnnotationTask.geometry) == "ST_Point",
             )
             .limit(1)
         )
@@ -260,7 +258,7 @@ def _open_task_count(db: Session, agent: LabellingAgent) -> int:
 
 def _task_out(task: AnnotationTask) -> AgentTaskOut:
     """Polygons are placed at their centroid."""
-    shape = to_shape(task.geometry.geometry)
+    shape = to_shape(task.geometry)
     centroid = shape.centroid
     return AgentTaskOut(
         task_id=task.id,
@@ -287,7 +285,6 @@ def _upcoming_tasks(db: Session, agent: LabellingAgent) -> list[AnnotationTask]:
     return list(
         db.scalars(
             _open_tasks_query(agent)
-            .options(joinedload(AnnotationTask.geometry))
             .order_by(AnnotationTask.annotation_number)
             .limit(UPCOMING_TASKS)
         ).all()

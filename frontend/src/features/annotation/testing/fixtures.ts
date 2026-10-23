@@ -179,7 +179,7 @@ const annotationDefaults = {
 } satisfies AnnotationFromTaskOut;
 
 export function makeAnnotation(overrides: Partial<AnnotationOut> = {}): AnnotationOut {
-  return { ...annotationDefaults, geometry: { id: 1, geometry: 'POINT (1 2)' }, ...overrides };
+  return { ...annotationDefaults, geometry_wkt: 'POINT (1 2)', ...overrides };
 }
 
 export function makeTaskAnnotation(
@@ -194,7 +194,7 @@ export function makeTask(overrides: Partial<AnnotationTaskOut> = {}): Annotation
     annotation_number: 1,
     task_set_id: 1,
     task_status: 'pending',
-    geometry: { id: 1, geometry: 'POINT (1 2)' },
+    geometry_wkt: 'POINT (1 2)',
     assignments: [],
     annotations: [],
     ...overrides,

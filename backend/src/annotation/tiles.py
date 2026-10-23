@@ -66,7 +66,7 @@ def build_mvt_query(
 ) -> tuple[str, dict]:
     """Build the PostGIS MVT query for one tile of a campaign's annotations.
 
-    The spatial filter tests the bare ``g.geometry`` column against a tile
+    The spatial filter tests the bare ``a.geometry`` column against a tile
     envelope transformed into the geometry's SRID (4326), so the GiST index on
     that column is used; only the surviving rows are reprojected to 3857 for
     ``ST_AsMVTGeom``. Rows are selected against the margin-expanded envelope but
@@ -90,14 +90,13 @@ def build_mvt_query(
         SELECT ST_AsMVT(mvt.*, '{MVT_LAYER_NAME}') AS tile
         FROM (
             SELECT
-                ST_AsMVTGeom(ST_Transform(g.geometry, 3857), bounds.clip_3857) AS geom,
+                ST_AsMVTGeom(ST_Transform(a.geometry, 3857), bounds.clip_3857) AS geom,
                 a.id AS annotation_id,
                 a.label_id AS label_id
             FROM data.annotations a
-            JOIN data.annotation_geometries g ON g.id = a.geometry_id
             CROSS JOIN bounds
             WHERE a.campaign_id = :campaign_id
-              AND g.geometry && bounds.select_4326
+              AND a.geometry && bounds.select_4326
               {task_filter_sql(include_tasks)}
         ) AS mvt
         WHERE mvt.geom IS NOT NULL

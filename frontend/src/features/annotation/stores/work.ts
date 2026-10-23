@@ -619,7 +619,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           if (result.response.status === 404) get().recordDeletes([annotationId]);
           return;
         }
-        const geometry = wktToGeometry(annotation.geometry.geometry);
+        const geometry = wktToGeometry(annotation.geometry_wkt);
         set({
           edit: { annotation, geometry, pending: null, busy: false },
           selection: [annotationId],

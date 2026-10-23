@@ -13,6 +13,7 @@ from uuid import UUID
 import numpy as np
 import pandas as pd
 from fastapi import HTTPException
+from geoalchemy2.elements import WKTElement
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 from sqlalchemy import func, insert, select
@@ -24,7 +25,7 @@ from src.annotation.forms import (
     campaign_form_fields,
     validate_form_values,
 )
-from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTask, ewkt
+from src.annotation.models import Annotation, AnnotationTask, ewkt
 from src.annotation.service import bump_campaign_annotations_version, validate_label_id
 from src.campaigns.models import Campaign
 
@@ -57,23 +58,17 @@ def insert_tasks(
         numbers = [(highest or 0) + i + 1 for i in range(len(geometry_wkts))]
 
     try:
-        geometry_ids = db.scalars(
-            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
-            [{"geometry": ewkt(wkt)} for wkt in geometry_wkts],
-        ).all()
         db.execute(
             insert(AnnotationTask),
             [
                 {
                     "annotation_number": number,
                     "campaign_id": campaign.id,
-                    "geometry_id": geometry_id,
+                    "geometry": ewkt(wkt),
                     "raw_source_data": source,
                     "task_set_id": task_set_id,
                 }
-                for number, geometry_id, source in zip(
-                    numbers, geometry_ids, raw_source_data, strict=True
-                )
+                for number, wkt, source in zip(numbers, geometry_wkts, raw_source_data, strict=True)
             ],
         )
         db.commit()
@@ -86,7 +81,7 @@ def insert_tasks(
         ) from None
 
     start_embedding_run(db, campaign)
-    return len(geometry_ids)
+    return len(geometry_wkts)
 
 
 def create_annotation_tasks_from_csv(
@@ -315,7 +310,7 @@ def create_annotations_from_geojson(
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     fields = campaign_form_fields(campaign)
-    geometry_records: list[dict] = []
+    geometries: list[WKTElement] = []
     label_ids: list[int] = []
     source_ids: list[int | None] = []
     form_values_list: list[dict | None] = []
@@ -371,7 +366,7 @@ def create_annotations_from_geojson(
                 )
             seen_source_ids.add(source_id)
 
-        geometry_records.append({"geometry": ewkt(geom.wkt)})
+        geometries.append(ewkt(geom.wkt))
         label_ids.append(label_id)
         source_ids.append(source_id)
         form_values_list.append(form_values)
@@ -393,15 +388,9 @@ def create_annotations_from_geojson(
             )
 
     try:
-        geo_result = db.execute(
-            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
-            geometry_records,
-        )
-        geometry_ids = [row.id for row in geo_result]
-
         annotation_records = [
             {
-                "geometry_id": gid,
+                "geometry": geometry,
                 "campaign_id": campaign.id,
                 "created_by_user_id": user_id,
                 "annotation_task_id": None,
@@ -409,8 +398,8 @@ def create_annotations_from_geojson(
                 "source_id": source_id,
                 "form_values": form_values,
             }
-            for gid, label_id, source_id, form_values in zip(
-                geometry_ids, label_ids, source_ids, form_values_list, strict=True
+            for geometry, label_id, source_id, form_values in zip(
+                geometries, label_ids, source_ids, form_values_list, strict=True
             )
         ]
 

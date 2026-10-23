@@ -131,7 +131,7 @@ function focusExtent(
 
 function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog: ImageryCatalog) {
   if (!task) return null;
-  const geometry = wktToGeometry(task.geometry.geometry);
+  const geometry = wktToGeometry(task.geometry_wkt);
   const sourceId = useImageryStore.getState().address?.sourceId ?? null;
   const hex = sourceId != null ? catalog.sources.get(sourceId)?.crosshair_hex6 : null;
   const settings = useCampaignStore.getState().campaign?.settings;
@@ -142,7 +142,7 @@ function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog:
     crosshairColor: hex ? `#${hex}` : null,
     upcoming: state.visibleTasks
       .slice(state.currentIndex + 1, state.currentIndex + 1 + PREFETCH_AHEAD)
-      .map((t) => geometryCentroid(wktToGeometry(t.geometry.geometry))),
+      .map((t) => geometryCentroid(wktToGeometry(t.geometry_wkt))),
   };
 }
 

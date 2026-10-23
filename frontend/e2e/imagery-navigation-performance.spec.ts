@@ -126,7 +126,7 @@ test('all visible imagery panels start loading a newly selected task together', 
             status: 'pending',
           })),
           annotations: [],
-          geometry: index === 4 ? { ...task.geometry, geometry: 'POINT(100 0)' } : task.geometry,
+          geometry_wkt: index === 4 ? 'POINT(100 0)' : task.geometry_wkt,
         })),
       },
     });

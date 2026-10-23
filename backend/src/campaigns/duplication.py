@@ -17,14 +17,12 @@ from dataclasses import dataclass
 
 from sqlalchemy import exists, func, select
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, undefer
 
 from src.annotation.models import (
     Annotation,
-    AnnotationGeometry,
     AnnotationTask,
     AnnotationTaskAssignment,
-    Embedding,
 )
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
@@ -325,18 +323,6 @@ def _duplicate_imagery(
     return source_map, collection_map, slice_map
 
 
-def _duplicate_geometries(db: Session, geometry_ids: set[int]) -> dict[int, int]:
-    """Copy the given geometries, returning old id -> new id."""
-    if not geometry_ids:
-        return {}
-    originals = list(
-        db.scalars(select(AnnotationGeometry).where(AnnotationGeometry.id.in_(geometry_ids)))
-    )
-    return id_map(
-        originals, insert_all(db, [AnnotationGeometry(geometry=g.geometry) for g in originals])
-    )
-
-
 def duplicate_campaign(
     db: Session,
     campaign: Campaign,
@@ -422,7 +408,15 @@ def duplicate_campaign(
         )
 
     tasks = (
-        list(db.scalars(select(AnnotationTask).where(AnnotationTask.campaign_id == campaign.id)))
+        list(
+            db.scalars(
+                select(AnnotationTask)
+                .where(AnnotationTask.campaign_id == campaign.id)
+                # A copied task keeps its embedding; loaded with the rows rather than
+                # one query each when the clone reads it.
+                .options(undefer(AnnotationTask.embedding))
+            )
+        )
         if plan.tasks
         else []
     )
@@ -431,11 +425,6 @@ def duplicate_campaign(
         if plan.annotations
         else []
     )
-
-    # Every geometry the copy will reference is cloned exactly once, one insert
-    # per level rather than a round trip per shape. Tasks and their annotations
-    # share a geometry row, which is what the accumulated map preserves.
-    geometry_map = _duplicate_geometries(db, {task.geometry_id for task in tasks})
 
     task_map: dict[int, int] = {}
     if not plan.tasks:
@@ -455,7 +444,6 @@ def duplicate_campaign(
                     clone_row(
                         task,
                         campaign_id=dup.id,
-                        geometry_id=geometry_map[task.geometry_id],
                         task_set_id=set_map[task.task_set_id],
                         claimed_by_user_id=None,
                         claimed_at=None,
@@ -481,24 +469,17 @@ def duplicate_campaign(
                 # only when they do.
                 db.add(clone_row(assignment, task_id=task_map[assignment.task_id]))
 
-        for embedding in db.scalars(
-            select(Embedding).where(Embedding.annotation_task_id.in_(task_ids))
-        ):
-            db.add(clone_row(embedding, annotation_task_id=task_map[embedding.annotation_task_id]))
-
     # An annotation made on a task only comes along when its task did.
     copied = [
         annotation
         for annotation in annotations
         if annotation.annotation_task_id is None or annotation.annotation_task_id in task_map
     ]
-    geometry_map |= _duplicate_geometries(db, {a.geometry_id for a in copied} - set(geometry_map))
     for annotation in copied:
         db.add(
             clone_row(
                 annotation,
                 campaign_id=dup.id,
-                geometry_id=geometry_map[annotation.geometry_id],
                 annotation_task_id=(
                     task_map[annotation.annotation_task_id]
                     if annotation.annotation_task_id is not None

@@ -55,7 +55,7 @@ const tasks = (real?.tasks ?? []).map((task: any) => ({
 }));
 
 function pointOf(task: any): { lon: number; lat: number } {
-  const numbers = task.geometry.geometry.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  const numbers = task.geometry_wkt.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
   if (numbers.length < 2) throw new Error(`Task ${task.id} is not a point`);
   return { lon: numbers[0], lat: numbers[1] };
 }

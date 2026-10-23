@@ -9,10 +9,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from src.annotation import embeddings_service
 from src.annotation import service as annotation_service
 from src.annotation.forms import campaign_form_fields
-from src.annotation.geometries import (
-    delete_orphan_geometries,
-)
-from src.annotation.models import Annotation, AnnotationTask, Embedding
+from src.annotation.models import Annotation, AnnotationTask
 from src.auth.models import User
 from src.campaigns import assignments
 from src.campaigns.models import (
@@ -217,22 +214,22 @@ def create_campaign(
     return get_campaign_full(db, campaign.id)
 
 
-def update_campaign(db: Session, campaign: Campaign, update: CampaignUpdate) -> Campaign:
+def update_campaign(db: Session, campaign: Campaign, changes: CampaignUpdate) -> Campaign:
     """Change what was sent and leave the rest. Labels, form fields and the task
     output each guard the annotations already made against them; a new area
     registers the imagery again, a new embedding year fetches embeddings again."""
-    sent = update.model_fields_set
-    if "task_output" in sent and update.task_output is not None:
-        _check_task_output_change(db, campaign, update.task_output)
-    if "labels" in sent and update.labels is not None:
-        _check_label_changes(db, campaign, update.labels)
-        campaign.labels = [label.model_dump() for label in update.labels]
-    if "form_fields" in sent and update.form_fields is not None:
-        _apply_form_field_changes(db, campaign, update.form_fields)
-        campaign.form_fields = [field.model_dump() for field in update.form_fields]
-    if "labelling_policy" in sent and update.labelling_policy is not None:
-        _reject_anyone_kind_if_private(update.labelling_policy, campaign.is_public)
-        campaign.labelling_policy = update.labelling_policy.model_dump(mode="json")
+    sent = changes.model_fields_set
+    if "task_output" in sent and changes.task_output is not None:
+        _check_task_output_change(db, campaign, changes.task_output)
+    if "labels" in sent and changes.labels is not None:
+        _check_label_changes(db, campaign, changes.labels)
+        campaign.labels = [label.model_dump() for label in changes.labels]
+    if "form_fields" in sent and changes.form_fields is not None:
+        _apply_form_field_changes(db, campaign, changes.form_fields)
+        campaign.form_fields = [field.model_dump() for field in changes.form_fields]
+    if "labelling_policy" in sent and changes.labelling_policy is not None:
+        _reject_anyone_kind_if_private(changes.labelling_policy, campaign.is_public)
+        campaign.labelling_policy = changes.labelling_policy.model_dump(mode="json")
     for field in (
         "name",
         "guide_markdown",
@@ -241,26 +238,29 @@ def update_campaign(db: Session, campaign: Campaign, update: CampaignUpdate) -> 
         "task_output",
     ):
         if field in sent:
-            setattr(campaign, field, getattr(update, field))
+            setattr(campaign, field, getattr(changes, field))
 
-    recompute_embeddings = "embedding_year" in sent and update.embedding_year not in (
+    recompute_embeddings = "embedding_year" in sent and changes.embedding_year not in (
         None,
         campaign.embedding_year,
     )
     if "embedding_year" in sent:
-        campaign.embedding_year = update.embedding_year
+        campaign.embedding_year = changes.embedding_year
     if recompute_embeddings:
-        task_ids = select(AnnotationTask.id).where(AnnotationTask.campaign_id == campaign.id)
-        db.execute(delete(Embedding).where(Embedding.annotation_task_id.in_(task_ids)))
+        db.execute(
+            update(AnnotationTask)
+            .where(AnnotationTask.campaign_id == campaign.id)
+            .values(embedding=None)
+        )
 
-    if update.bbox is not None and update.bbox != campaign.bbox:
+    if changes.bbox is not None and changes.bbox != campaign.bbox:
         if campaign.registration_status == "registering":
             raise HTTPException(
                 status_code=409,
                 detail="Wait for imagery registration to finish before changing the area",
             )
         campaign.bbox_west, campaign.bbox_south, campaign.bbox_east, campaign.bbox_north = (
-            update.bbox
+            changes.bbox
         )
         drop_mosaics(campaign.imagery_sources)
         commit_and_register(db, campaign, campaign.bbox)
@@ -406,6 +406,4 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
     into the session to delete them one statement at a time."""
     revoke_campaign_private_searches(db, campaign_id)
     db.execute(delete(Campaign).where(Campaign.id == campaign_id))
-    # Geometries have no campaign FK, so the cascade above cannot reach them.
-    delete_orphan_geometries(db)
     db.commit()

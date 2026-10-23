@@ -4,7 +4,6 @@ from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from src.annotation.geometries import delete_orphan_geometries
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign
@@ -149,11 +148,9 @@ def delete_project(db: Session, project_id: int) -> None:
     """Deletes the project and, via the database's own cascade, all its
     campaigns and everything under them. Deleting the ORM object instead would
     load every task and annotation into the session and delete them one
-    statement at a time. Annotation geometries have no campaign FK, so orphans
-    are swept explicitly."""
+    statement at a time."""
     _get_project(db, project_id)
     db.execute(delete(Project).where(Project.id == project_id))
-    delete_orphan_geometries(db)
     db.commit()
 
 

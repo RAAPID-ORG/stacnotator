@@ -83,7 +83,7 @@ test.describe('Timeseries chart renders', () => {
     await annotationPage.locator('[data-tour^="timeseries:"] canvas').waitFor({ timeout: 5000 });
     expect(tsUrls.length).toBeGreaterThan(0);
     // URL contains the task's longitude (from POINT(lon lat))
-    const taskLon = TASK_1.geometry.geometry.match(/POINT\(([^ ]+)/)?.[1] ?? '';
+    const taskLon = TASK_1.geometry_wkt.match(/POINT\(([^ ]+)/)?.[1] ?? '';
     expect(tsUrls.some((u) => u.includes(taskLon))).toBe(true);
   });
 });
@@ -292,7 +292,7 @@ test.describe('Data fetching with task navigation', () => {
     await waitForNavIdle(annotationPage);
 
     // Wait for a request containing TASK_2's longitude
-    const task2Lon = TASK_2.geometry.geometry.match(/POINT\(([^ ]+)/)?.[1] ?? '';
+    const task2Lon = TASK_2.geometry_wkt.match(/POINT\(([^ ]+)/)?.[1] ?? '';
     await annotationPage
       .waitForFunction(
         ({ lon, tsId }) =>

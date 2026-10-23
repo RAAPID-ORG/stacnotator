@@ -196,10 +196,7 @@ function makeTask(
     id,
     annotation_number: annotationNumber,
     task_status: opts.status ?? 'pending',
-    geometry: {
-      id: id * 10,
-      geometry: `POINT(${lon} ${lat})`,
-    },
+    geometry_wkt: `POINT(${lon} ${lat})`,
     assignments: opts.assignments ?? [
       {
         user_id: TEST_USER_ID,
@@ -247,7 +244,7 @@ export const TASK_3 = makeTask(300, 3, 50.3, 30.9, {
       created_at: '2024-06-15T10:00:00Z',
       confidence: 8,
       is_authoritative: false,
-      geometry: { id: 3010, geometry: 'POINT(30.90 50.30)' },
+      geometry_wkt: 'POINT(30.90 50.30)',
     },
   ],
   assignments: [
@@ -291,7 +288,7 @@ export const TASK_5 = makeTask(500, 5, 50.55, 30.6, {
       is_authoritative: false,
       flagged_for_review: true,
       flag_comment: 'Unsure about this one',
-      geometry: { id: 5010, geometry: 'POINT(30.60 50.55)' },
+      geometry_wkt: 'POINT(30.60 50.55)',
     },
     {
       id: 5002,
@@ -301,7 +298,7 @@ export const TASK_5 = makeTask(500, 5, 50.55, 30.6, {
       created_at: '2024-06-16T11:00:00Z',
       confidence: 5,
       is_authoritative: true,
-      geometry: { id: 5020, geometry: 'POINT(30.60 50.55)' },
+      geometry_wkt: 'POINT(30.60 50.55)',
     },
   ],
   assignments: [
@@ -467,7 +464,7 @@ export function makeSubmitResponse(
             created_at: new Date().toISOString(),
             confidence,
             is_authoritative: false,
-            geometry: { id: taskId * 10 + 2, geometry: 'POINT(0 0)' },
+            geometry_wkt: 'POINT(0 0)',
           }
         : null,
     task_status:
@@ -911,7 +908,7 @@ function makeOpenAnnotation(
     is_authoritative: false,
     flagged_for_review: opts.flagged ?? false,
     flag_comment: opts.flagged ? (opts.flagComment ?? null) : null,
-    geometry: { id: id * 10, geometry: wkt },
+    geometry_wkt: wkt,
     // The annotations list returns a centroid instead of the geometry, so mocks carry
     // both: one shape for the annotation page, the other for the review table.
     ...wktCentroid(wkt),
@@ -976,7 +973,7 @@ export function makeCreateAnnotationResponse(body: any, id: number) {
     is_authoritative: false,
     flagged_for_review: body?.flagged_for_review ?? false,
     flag_comment: body?.flag_comment ?? null,
-    geometry: { id: id * 10, geometry: body?.geometry_wkt ?? 'POINT(0 0)' },
+    geometry_wkt: body?.geometry_wkt ?? 'POINT(0 0)',
   };
 }
 
@@ -990,9 +987,7 @@ export function makeUpdateAnnotationResponse(existing: any, body: any) {
     flag_comment:
       body?.flagged_for_review === false ? null : (body?.flag_comment ?? existing.flag_comment),
     updated_at: '2024-07-02T10:00:00Z',
-    geometry: body?.geometry_wkt
-      ? { ...existing.geometry, geometry: body.geometry_wkt }
-      : existing.geometry,
+    geometry_wkt: body?.geometry_wkt ?? existing.geometry_wkt,
   };
 }
 

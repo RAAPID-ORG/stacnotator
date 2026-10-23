@@ -5,8 +5,8 @@ from src.annotation.service import _SORTS, MAX_ANNOTATION_PAGE
 def test_the_list_row_carries_no_geometry():
     """The whole reason this schema exists. Geometry is what turned one page load into
     a 70 MB, ten-second request on a campaign with 100k annotations."""
-    assert "geometry" not in AnnotationListItemOut.model_fields
-    assert "geometry" in AnnotationOut.model_fields
+    assert "geometry_wkt" not in AnnotationListItemOut.model_fields
+    assert "geometry_wkt" in AnnotationOut.model_fields
 
 
 def test_the_list_row_carries_a_point_to_fly_to():

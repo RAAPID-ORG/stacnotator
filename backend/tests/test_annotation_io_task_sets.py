@@ -28,14 +28,8 @@ def _inserted_task_records(db):
 CAMPAIGN = SimpleNamespace(id=1, embedding_year=None)
 
 
-def _db_with_geometry_ids(ids):
-    db = MagicMock()
-    db.scalars.return_value.all.return_value = ids
-    return db
-
-
 def test_csv_ingest_stamps_task_set_id():
-    db = _db_with_geometry_ids([101, 102])
+    db = MagicMock()
     ingest.create_annotation_tasks_from_csv(db, CAMPAIGN, contents=CSV, task_set_id=7)
     records = _inserted_task_records(db)
     assert all(r["task_set_id"] == 7 for r in records)
@@ -43,7 +37,7 @@ def test_csv_ingest_stamps_task_set_id():
 
 
 def test_geojson_ingest_stamps_task_set_id():
-    db = _db_with_geometry_ids([101])
+    db = MagicMock()
     db.scalar.return_value = 0  # current max annotation_number
     ingest.create_annotation_tasks_from_geojson(db, CAMPAIGN, contents=GEOJSON, task_set_id=7)
     records = _inserted_task_records(db)

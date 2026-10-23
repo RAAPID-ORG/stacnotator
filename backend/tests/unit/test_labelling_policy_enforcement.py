@@ -182,7 +182,9 @@ class TestTaskAnnotateAxisEnforcement:
 
     @staticmethod
     def _task(assignments=None):
-        return SimpleNamespace(id=1, campaign_id=1, geometry_id=10, assignments=assignments or [])
+        return SimpleNamespace(
+            id=1, campaign_id=1, geometry="POINT(0 0)", assignments=assignments or []
+        )
 
     def test_unassigned_task_denied_when_axis_is_no_one(self):
         campaign = _campaign(make_policy(unassigned_tasks=PolicyAudience(kinds=[])))

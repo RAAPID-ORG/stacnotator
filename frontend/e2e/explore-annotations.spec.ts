@@ -326,7 +326,7 @@ test.describe.skip('Editing annotations', () => {
     expect(put).toBeTruthy();
     expect(put!.body.geometry_wkt).toBeTruthy();
     const moved = parseWkt(put!.body.geometry_wkt);
-    const original = parseWkt(EXPLORE_ANN_CENTER.geometry.geometry);
+    const original = parseWkt(EXPLORE_ANN_CENTER.geometry_wkt);
     expect(Math.abs(moved.lon - original.lon) + Math.abs(moved.lat - original.lat)).toBeGreaterThan(
       0
     );

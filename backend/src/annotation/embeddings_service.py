@@ -5,19 +5,12 @@ from datetime import datetime
 
 import ee
 from geoalchemy2.shape import to_shape
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
 
 from src import background
 from src.annotation.constants import EMBD_MIN_N_NEIGHBOURS
-from src.annotation.models import (
-    Annotation,
-    AnnotationGeometry,
-    AnnotationTask,
-)
-from src.annotation.models import (
-    Embedding as EmbeddingRow,
-)
+from src.annotation.models import Annotation, AnnotationTask
 from src.annotation.schemas import ValidateLabelSubmissionsResponse
 from src.campaigns.models import Campaign
 from src.earth_engine import ensure_earth_engine
@@ -166,58 +159,46 @@ def find_nearest_labeled_embeddings(
     campaign_id: int,
     target_vector: list[float],
     k: int = 10,
-) -> list[tuple[EmbeddingRow, int, float]]:
-    """Find the K nearest embeddings that have a labeled annotation.
-
-    Only tasks with at least one annotation where label_id IS NOT NULL
-    are considered. Returns (EmbeddingRow, label_id, cosine_distance)
-    tuples ordered closest-first. The HNSW index is still used for the
-    vector ordering; the extra JOIN just filters out unlabeled rows.
-    """
-    distance = EmbeddingRow.vector.cosine_distance(target_vector).label("distance")
+) -> list[tuple[int, int, float]]:
+    """The K tasks nearest the target that someone has labelled, as (task id, label,
+    cosine distance), closest first. The HNSW index orders by distance; the join only
+    filters out unlabelled tasks."""
+    distance = AnnotationTask.embedding.cosine_distance(target_vector).label("distance")
     stmt = (
-        select(EmbeddingRow, Annotation.label_id, distance)
-        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
+        select(AnnotationTask.id, Annotation.label_id, distance)
         .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
         .where(
             AnnotationTask.campaign_id == campaign_id,
-            Annotation.label_id.isnot(None),
+            AnnotationTask.embedding.is_not(None),
+            Annotation.label_id.is_not(None),
         )
         .order_by(distance)
         .limit(k)
     )
-    return [(row, label, dist) for row, label, dist in db.execute(stmt).all()]
+    return [(task_id, label, dist) for task_id, label, dist in db.execute(stmt).all()]
 
 
-def get_embedding_by_task(
-    db: Session,
-    campaign_id: int,
-    annotation_task_id: int,
-) -> EmbeddingRow | None:
-    """Return the embedding row for a task of this campaign, or None.
+def task_embedding(db: Session, campaign_id: int, annotation_task_id: int) -> list[float] | None:
+    """A task's embedding, or None when it has none yet.
 
     The task id reaches this module straight off the URL, and the route's gate
     only proves the caller may see ``campaign_id`` - not that the task belongs to
     it. Taking the campaign as an argument is what keeps the pair checked here
     rather than assumed from the caller, as every other query in this module does.
     """
-    return db.scalars(
-        select(EmbeddingRow)
-        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
-        .where(
-            EmbeddingRow.annotation_task_id == annotation_task_id,
+    vector = db.scalar(
+        select(AnnotationTask.embedding).where(
+            AnnotationTask.id == annotation_task_id,
             AnnotationTask.campaign_id == campaign_id,
         )
-    ).first()
+    )
+    return None if vector is None else list(vector)
 
 
-def knn_label_agrees(
-    nearest: list[tuple[EmbeddingRow, int, float]],
-    label_id: int,
-) -> bool:
+def knn_label_agrees(nearest: list[tuple[int, int, float]], label_id: int) -> bool:
     """Return True if the majority label among nearest neighbours equals label_id.
 
-    Expects tuples of (EmbeddingRow, label_id, distance) as returned by
+    Expects tuples of (task id, label_id, distance) as returned by
     find_nearest_labeled_embeddings.
     """
     if not nearest:
@@ -246,17 +227,17 @@ def has_sufficient_validation_data(
     # Single query: count total labeled embeddings AND per-label embeddings
     total_stmt = (
         select(
-            func.count(func.distinct(EmbeddingRow.id)).label("total"),
+            func.count(func.distinct(AnnotationTask.id)).label("total"),
             func.count(
-                func.distinct(case((Annotation.label_id == label_id, EmbeddingRow.id)))
+                func.distinct(case((Annotation.label_id == label_id, AnnotationTask.id)))
             ).label("label_count"),
         )
-        .select_from(EmbeddingRow)
-        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
+        .select_from(AnnotationTask)
         .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
         .where(
             AnnotationTask.campaign_id == campaign_id,
-            Annotation.label_id.isnot(None),
+            AnnotationTask.embedding.is_not(None),
+            Annotation.label_id.is_not(None),
         )
     )
     row = db.execute(total_stmt).one()
@@ -277,8 +258,8 @@ def validate_label_submission(
     distinguish between a genuine mismatch and a skip due to missing data.
     """
 
-    embedding = get_embedding_by_task(db, campaign_id, annotation_task_id)
-    if not embedding:
+    embedding = task_embedding(db, campaign_id, annotation_task_id)
+    if embedding is None:
         return ValidateLabelSubmissionsResponse(
             status="skipped_no_embedding",
             agrees=None,
@@ -293,7 +274,7 @@ def validate_label_submission(
     nearest = find_nearest_labeled_embeddings(
         db,
         campaign_id=campaign_id,
-        target_vector=list(embedding.vector),
+        target_vector=embedding,
         k=EMBD_MIN_N_NEIGHBOURS,
     )
 
@@ -316,18 +297,11 @@ def populate_campaign_embeddings(
     if provider != "alphaearth_gee":
         raise NotImplementedError(f"Batch fetch not implemented for '{provider}'.")
 
-    # Single query: tasks + geometry + whether embedding already exists
-    stmt = (
-        select(
-            AnnotationTask.id.label("task_id"),
-            AnnotationGeometry.geometry,
-            func.bool_or(EmbeddingRow.id.isnot(None)).label("has_embedding"),
-        )
-        .join(AnnotationGeometry, AnnotationGeometry.id == AnnotationTask.geometry_id)
-        .outerjoin(EmbeddingRow, EmbeddingRow.annotation_task_id == AnnotationTask.id)
-        .where(AnnotationTask.campaign_id == campaign_id)
-        .group_by(AnnotationTask.id, AnnotationGeometry.geometry)
-    )
+    stmt = select(
+        AnnotationTask.id.label("task_id"),
+        AnnotationTask.geometry,
+        AnnotationTask.embedding.is_not(None).label("has_embedding"),
+    ).where(AnnotationTask.campaign_id == campaign_id)
     rows = db.execute(stmt).all()
 
     # Build the list of GEE-points to fetch
@@ -377,20 +351,16 @@ def populate_campaign_embeddings(
                 exc,
             )
 
-    # Store results - single bulk insert
     failed = len(points_to_fetch) - len(all_fetched)
-
-    new_rows = [
-        EmbeddingRow(
-            annotation_task_id=int(task_id_str),
-            vector=fetched.vector,
+    if all_fetched:
+        db.execute(
+            update(AnnotationTask),
+            [
+                {"id": int(task_id), "embedding": fetched.vector}
+                for task_id, fetched in all_fetched.items()
+            ],
         )
-        for task_id_str, fetched in all_fetched.items()
-    ]
-    logger.info("New embedding rows to insert: %d", len(new_rows))
-    db.add_all(new_rows)
-    db.flush()
-    created = len(new_rows)
+    created = len(all_fetched)
 
     total = len(rows)
     summary = {

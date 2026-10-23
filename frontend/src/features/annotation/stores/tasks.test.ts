@@ -42,7 +42,7 @@ function task(id: number, annotationNumber: number, lon: number, lat: number): A
   return makeTask({
     id,
     annotation_number: annotationNumber,
-    geometry: { id, geometry: `POINT (${lon} ${lat})` },
+    geometry_wkt: `POINT (${lon} ${lat})`,
   });
 }
 
@@ -268,7 +268,7 @@ describe('task session sample extent', () => {
       makeTask({
         id: 9,
         annotation_number: 9,
-        geometry: { id: 9, geometry: 'POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))' },
+        geometry_wkt: 'POLYGON ((0 0, 0 1, 1 1, 1 0, 0 0))',
       }),
     ]);
 

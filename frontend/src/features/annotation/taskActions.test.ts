@@ -63,7 +63,7 @@ const TASK: AnnotationTaskOut = {
   annotation_number: 1,
   task_set_id: 1,
   task_status: 'pending',
-  geometry: { id: 1, geometry: 'POINT(0 0)' },
+  geometry_wkt: 'POINT(0 0)',
   annotations: [],
   assignments: [{ user_id: 'u1', status: 'pending' }],
 };

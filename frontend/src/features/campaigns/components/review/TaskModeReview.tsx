@@ -796,7 +796,7 @@ export const TaskModeReview = ({
                 </thead>
                 <tbody>
                   {pageTasks.map((task, index) => {
-                    const latLon = extractCentroidFromWKT(task.geometry.geometry);
+                    const latLon = extractCentroidFromWKT(task.geometry_wkt);
                     const taskStatus = task.task_status;
                     const assignments = task.assignments;
                     const annotations = task.annotations || [];

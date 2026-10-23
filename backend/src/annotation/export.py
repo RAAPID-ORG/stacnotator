@@ -309,9 +309,7 @@ def _build_export_record_for_annotation(
     record["stacnotator_imagery_start_date"] = annotation.imagery_start_date
     record["stacnotator_imagery_end_date"] = annotation.imagery_end_date
     if include_geometry_wkt:
-        record["stacnotator_geometry_wkt"] = (
-            _geometry_to_wkt(annotation.geometry.geometry) if annotation.geometry else None
-        )
+        record["stacnotator_geometry_wkt"] = _geometry_to_wkt(annotation.geometry)
     return record
 
 
@@ -404,8 +402,7 @@ def _build_export_record_merged(
     record["stacnotator_active_seconds"] = sum(measured) if measured else None
     record["stacnotator_annotator_count"] = len(labeled)
     if include_geometry_wkt:
-        geom = canonical.geometry.geometry if canonical.geometry else None
-        record["stacnotator_geometry_wkt"] = _geometry_to_wkt(geom) if geom is not None else None
+        record["stacnotator_geometry_wkt"] = _geometry_to_wkt(canonical.geometry)
     return record
 
 
@@ -545,7 +542,6 @@ def fetch_annotations_with_context(
             select(Annotation)
             .where(Annotation.campaign_id == campaign.id)
             .options(
-                joinedload(Annotation.geometry),
                 joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
                 joinedload(Annotation.origin_task),
                 joinedload(Annotation.output_of_task),
@@ -620,12 +616,10 @@ def build_annotations_geojson_export(
 
     features = []
     for record, canonical in zip(records, canonical_annotations, strict=True):
-        geojson_geometry = None
-        if canonical.geometry:
-            try:
-                geojson_geometry = mapping(to_shape(canonical.geometry.geometry))
-            except Exception:
-                geojson_geometry = None
+        try:
+            geojson_geometry = mapping(to_shape(canonical.geometry))
+        except Exception:
+            geojson_geometry = None
 
         properties: dict = {}
         for col in columns:

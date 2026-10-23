@@ -1088,9 +1088,9 @@ class TestDeleteTasks:
     @patch("src.annotation.service.bump_campaign_annotations_version")
     @patch("src.annotation.service.record_annotation_deletions")
     def test_labelled_answers_become_shapes(self, record_deletions, _bump):
-        task = MagicMock(id=1, geometry_id=11)
-        labelled = MagicMock(id=7, geometry_id=11, outcome="labelled", annotation_task_id=1)
-        skipped = MagicMock(id=8, geometry_id=11, outcome="skipped", annotation_task_id=1)
+        task = MagicMock(id=1)
+        labelled = MagicMock(id=7, outcome="labelled", annotation_task_id=1)
+        skipped = MagicMock(id=8, outcome="skipped", annotation_task_id=1)
         db = self._db([labelled, skipped])
 
         annotation_service.delete_tasks(db, 1, [task], delete_annotations=False)
@@ -1102,9 +1102,9 @@ class TestDeleteTasks:
     @patch("src.annotation.service.bump_campaign_annotations_version")
     @patch("src.annotation.service.record_annotation_deletions")
     def test_deletes_answers_and_drawn_shapes_when_asked(self, record_deletions, _bump):
-        task = MagicMock(id=1, geometry_id=11)
-        answer = MagicMock(id=7, geometry_id=11, outcome="drawn")
-        shape = MagicMock(id=9, geometry_id=12, outcome=None)
+        task = MagicMock(id=1)
+        answer = MagicMock(id=7, outcome="drawn")
+        shape = MagicMock(id=9, outcome=None)
         db = self._db([answer], [shape])
 
         annotation_service.delete_tasks(db, 1, [task], delete_annotations=True)

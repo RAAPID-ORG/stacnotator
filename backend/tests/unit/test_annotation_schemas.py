@@ -79,7 +79,7 @@ def _make_task_out_with_computed_status(assignments_data, annotations_data) -> A
         id=1,
         annotation_number=1,
         task_set_id=1,
-        geometry=SimpleNamespace(id=1, geometry=object()),
+        geometry=object(),
         assignments=assignments_data,
         annotations=annotations_data,
         has_embedding=False,

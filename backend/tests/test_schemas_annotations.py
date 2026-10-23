@@ -60,7 +60,7 @@ def _make_task(assignments, annotations, task_id=1):
         id=task_id,
         annotation_number=1,
         task_set_id=1,
-        geometry=SimpleNamespace(id=1, geometry=WKTElement("POINT(0 0)", srid=4326)),
+        geometry=WKTElement("POINT(0 0)", srid=4326),
         assignments=assignment_rows,
         annotations=annotation_rows,
         has_embedding=False,

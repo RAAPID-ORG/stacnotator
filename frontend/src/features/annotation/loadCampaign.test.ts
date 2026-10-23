@@ -43,7 +43,7 @@ const source = makeSource({
 const view = makeView({ id: 100, name: 'V1', source_ids: [1] });
 
 const task = (overrides: Partial<AnnotationTaskOut> = {}): AnnotationTaskOut =>
-  makeTask({ id: 1, geometry: { id: 1, geometry: 'POINT(0 0)' }, ...overrides });
+  makeTask({ id: 1, geometry_wkt: 'POINT(0 0)', ...overrides });
 
 function mockApi({
   tasks = [task()],

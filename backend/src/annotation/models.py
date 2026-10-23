@@ -4,7 +4,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from geoalchemy2 import Geometry as GeoAlchemyGeometry
-from geoalchemy2.elements import WKBElement
+from geoalchemy2.elements import WKBElement, WKTElement
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
@@ -28,28 +28,16 @@ from src.campaigns.models import Campaign
 from src.database import Base
 
 
-def ewkt(wkt: str) -> str:
+def ewkt(wkt: str) -> WKTElement:
     """WGS84 WKT in the form geometry columns accept on write."""
-    return f"SRID=4326;{wkt}"
+    return WKTElement(wkt, srid=4326)
 
 
-class AnnotationGeometry(Base):
-    """Stores geometry data for annotations and annotation tasks."""
-
-    __tablename__ = "annotation_geometries"
-    __table_args__ = {"schema": "data"}
-
-    # Primary key
-    id: Mapped[int] = mapped_column(
-        Integer,
-        Identity(always=True),
-        primary_key=True,
-    )
-
-    # Geometry data (PostGIS)
-    # geoalchemy2 hands back a WKBElement on read; writes take ewkt(wkt).
-    geometry: Mapped[WKBElement] = mapped_column(
-        GeoAlchemyGeometry(geometry_type="GEOMETRY", srid=4326),
+def geometry_column() -> Mapped[WKBElement | WKTElement]:
+    """A row's own WGS84 geometry; geoalchemy2 hands back a WKBElement on read and
+    writes take ewkt(wkt). The GiST index is declared with the table."""
+    return mapped_column(
+        GeoAlchemyGeometry(geometry_type="GEOMETRY", srid=4326, spatial_index=False),
         nullable=False,
     )
 
@@ -103,7 +91,14 @@ class AnnotationTask(Base):
         Index("idx_task_items_campaign_id", "campaign_id"),
         UniqueConstraint("campaign_id", "annotation_number"),
         Index("idx_annotation_tasks_task_set_id", "task_set_id"),
-        Index("idx_annotation_tasks_geometry_id", "geometry_id"),
+        Index("idx_annotation_tasks_geometry", "geometry", postgresql_using="gist"),
+        Index(
+            "idx_annotation_tasks_embedding_cosine",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
         # One live claim per user per campaign, enforced by the database rather
         # than by remembering to release the previous one.
         Index(
@@ -135,10 +130,10 @@ class AnnotationTask(Base):
         nullable=False,
     )
 
-    geometry_id: Mapped[int] = mapped_column(
-        ForeignKey("data.annotation_geometries.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    geometry: Mapped[WKBElement | WKTElement] = geometry_column()
+    # The location's 64-D AlphaEarth embedding (pgvector), once it has been fetched.
+    # Deferred: task lists never need it, only the similarity queries do.
+    embedding = mapped_column(Vector(64), nullable=True, deferred=True)
 
     task_set_id: Mapped[int] = mapped_column(
         ForeignKey("data.task_sets.id", ondelete="CASCADE"),
@@ -166,7 +161,6 @@ class AnnotationTask(Base):
 
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="task_items")
-    geometry: Mapped[AnnotationGeometry] = relationship()
     claimed_by: Mapped["User | None"] = relationship(foreign_keys=[claimed_by_user_id])
     assignments: Mapped[list["AnnotationTaskAssignment"]] = relationship(
         "AnnotationTaskAssignment",
@@ -266,7 +260,7 @@ class Annotation(Base):
             "outcome IS NULL OR (outcome = 'labelled') = (label_id IS NOT NULL)",
             name="annotations_outcome_label_match",
         ),
-        Index("idx_annotations_geometry_id", "geometry_id"),
+        Index("idx_annotations_geometry", "geometry", postgresql_using="gist"),
         Index("idx_annotations_created_by_user_id", "created_by_user_id"),
         Index("idx_annotations_imagery_slice_id", "imagery_slice_id"),
         # Backs the annotation changes poll: one annotator picking up another's
@@ -300,12 +294,11 @@ class Annotation(Base):
         primary_key=True,
     )
 
-    # Foreign keys
-    geometry_id: Mapped[int] = mapped_column(
-        ForeignKey("data.annotation_geometries.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    # A task's answer starts out on the task's geometry and keeps its own copy, so
+    # moving one never moves the other.
+    geometry: Mapped[WKBElement | WKTElement] = geometry_column()
 
+    # Foreign keys
     campaign_id: Mapped[int] = mapped_column(
         ForeignKey("data.campaigns.id", ondelete="CASCADE"),
         nullable=False,
@@ -395,7 +388,6 @@ class Annotation(Base):
 
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="annotations")
-    geometry: Mapped[AnnotationGeometry] = relationship()
     annotation_task: Mapped["AnnotationTask | None"] = relationship(
         foreign_keys=[annotation_task_id],
         back_populates="annotations",
@@ -403,39 +395,3 @@ class Annotation(Base):
     origin_task: Mapped["AnnotationTask | None"] = relationship(foreign_keys=[origin_task_id])
     output_of_task: Mapped["AnnotationTask | None"] = relationship(foreign_keys=[output_of_task_id])
     creator: Mapped["User"] = relationship()
-
-
-class Embedding(Base):
-    """Stores a 64-D embedding vector linked to an annotation task."""
-
-    __tablename__ = "embeddings"
-    __table_args__ = (
-        Index(
-            "idx_embeddings_vector_cosine",
-            "vector",
-            postgresql_using="hnsw",
-            postgresql_with={"m": 16, "ef_construction": 64},
-            postgresql_ops={"vector": "vector_cosine_ops"},
-        ),
-        Index("idx_embeddings_annotation_task_id", "annotation_task_id"),
-        {"schema": "data"},
-    )
-
-    # Primary key
-    id: Mapped[int] = mapped_column(
-        Integer,
-        Identity(always=True),
-        primary_key=True,
-    )
-
-    # Foreign key to the task this embedding belongs to
-    annotation_task_id: Mapped[int] = mapped_column(
-        ForeignKey("data.annotation_tasks.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    # 64-D embedding vector (pgvector)
-    vector = mapped_column(Vector(64), nullable=False)
-
-    # Relationships
-    annotation_task: Mapped["AnnotationTask"] = relationship()

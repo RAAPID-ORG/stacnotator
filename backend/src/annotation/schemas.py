@@ -1,9 +1,16 @@
 from datetime import datetime
-from typing import Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 from uuid import UUID
 
 from geoalchemy2.shape import to_shape
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 
 from src.annotation.constants import AssignmentStatus, TaskOutcome, TaskStatus
 from src.annotation.status import (
@@ -43,19 +50,12 @@ def normalize_slice_comments(comments: list[SliceComment] | None) -> list[dict] 
     return [c.model_dump() for c in by_slice.values()] or None
 
 
-class GeometryOut(BaseModel):
-    id: int
-    geometry: str
+def _wkt(value: Any) -> str:
+    """A geometry column as WKT, like every geometry this API hands out."""
+    return value if isinstance(value, str) else to_shape(value).wkt
 
-    @field_validator("geometry", mode="before")
-    @classmethod
-    def convert_geometry(cls, v):
-        """Convert GeoAlchemy2 Geometry objects to WKT representation."""
-        if v is None:
-            return None
-        return to_shape(v).wkt
 
-    model_config = ConfigDict(from_attributes=True)
+Wkt = Annotated[str, BeforeValidator(_wkt)]
 
 
 class AnnotationFromTaskOut(BaseModel):
@@ -99,7 +99,7 @@ class AnnotationFromTaskOut(BaseModel):
 
 
 class AnnotationOut(AnnotationFromTaskOut):
-    geometry: GeometryOut
+    geometry_wkt: Wkt = Field(validation_alias=AliasChoices("geometry", "geometry_wkt"))
     # Origin: set for task-bound annotations, None for standalone (explore)
     # ones. Lets the annotations page open the matching work mode on "View".
     annotation_task_id: int | None = None
@@ -237,7 +237,7 @@ class AnnotationTaskOut(BaseModel):
     annotation_number: int
     task_set_id: int
     task_status: TaskStatus
-    geometry: GeometryOut
+    geometry_wkt: Wkt = Field(validation_alias=AliasChoices("geometry", "geometry_wkt"))
     assignments: list[AnnotationTaskAssignmentOut]
     annotations: list[AnnotationFromTaskOut]
     # The soft claim on this task. Concurrency only: it says who is working on

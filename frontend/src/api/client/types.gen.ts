@@ -738,7 +738,10 @@ export type AnnotationOut = {
      * Counts Toward Completion
      */
     counts_toward_completion?: boolean | null;
-    geometry: GeometryOut;
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt: string;
     /**
      * Annotation Task Id
      */
@@ -830,7 +833,10 @@ export type AnnotationTaskOut = {
      * Task Status
      */
     task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
-    geometry: GeometryOut;
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt: string;
     /**
      * Assignments
      */
@@ -2503,20 +2509,6 @@ export type GenerateTasksResponse = {
      * Message
      */
     message: string;
-};
-
-/**
- * GeometryOut
- */
-export type GeometryOut = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Geometry
-     */
-    geometry: string;
 };
 
 /**

@@ -54,15 +54,14 @@ def get_annotation_ids_in_bbox(
 
     Backs box/multi-select against the tiled display: the geometry never leaves
     the server, only the ids needed to highlight and bulk-delete. The filter
-    keeps ``g.geometry`` bare so the GiST index is used.
+    keeps ``a.geometry`` bare so the GiST index is used.
     """
     sql = text(
         f"""
         SELECT a.id
         FROM data.annotations a
-        JOIN data.annotation_geometries g ON g.id = a.geometry_id
         WHERE a.campaign_id = :campaign_id
-          AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)
+          AND a.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)
           {task_filter_sql(include_tasks)}
         """  # noqa: S608
     )
@@ -92,9 +91,8 @@ def get_campaign_annotations_extent(
         SELECT
             ST_XMin(ext), ST_YMin(ext), ST_XMax(ext), ST_YMax(ext)
         FROM (
-            SELECT ST_Extent(g.geometry) AS ext
+            SELECT ST_Extent(a.geometry) AS ext
             FROM data.annotations a
-            JOIN data.annotation_geometries g ON g.id = a.geometry_id
             WHERE a.campaign_id = :campaign_id
               {task_filter_sql(include_tasks)}
         ) AS e
@@ -164,14 +162,13 @@ def task_centroids(
         scope += " AND t.task_set_id = :task_set_id"
         params["task_set_id"] = task_set_id
     if bbox is not None:
-        scope += " AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
+        scope += " AND t.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
         params |= dict(zip(("minx", "miny", "maxx", "maxy"), bbox, strict=True))
 
     sql = text(
         f"""
-        SELECT t.id, ST_X(ST_Centroid(g.geometry)), ST_Y(ST_Centroid(g.geometry))
+        SELECT t.id, ST_X(ST_Centroid(t.geometry)), ST_Y(ST_Centroid(t.geometry))
         FROM data.annotation_tasks t
-        JOIN data.annotation_geometries g ON g.id = t.geometry_id
         WHERE t.campaign_id = :campaign_id{scope}
         """  # noqa: S608
     )
@@ -228,9 +225,8 @@ def get_annotation_density(
         f"""
         SELECT avg(ST_X(c)) AS lon, avg(ST_Y(c)) AS lat, count(*) AS n
         FROM (
-            SELECT ST_Centroid(g.geometry) AS c
+            SELECT ST_Centroid(a.geometry) AS c
             FROM data.annotations a
-            JOIN data.annotation_geometries g ON g.id = a.geometry_id
             WHERE a.campaign_id = :campaign_id
               {task_filter_sql(include_tasks)}
         ) AS pts
@@ -272,9 +268,8 @@ def get_annotation_changes(
         since = since.replace(tzinfo=UTC)
     sql = text(
         f"""
-        SELECT a.id, a.label_id, a.created_by_user_id, ST_AsText(g.geometry) AS geometry_wkt
+        SELECT a.id, a.label_id, a.created_by_user_id, ST_AsText(a.geometry) AS geometry_wkt
         FROM data.annotations a
-        JOIN data.annotation_geometries g ON g.id = a.geometry_id
         WHERE a.campaign_id = :campaign_id
           AND a.updated_at >= :since
           {task_filter_sql(include_tasks)}
@@ -328,7 +323,7 @@ def get_annotation_density_by_label(
     else:
         minx, miny, maxx, maxy = bbox
         grid = density_grid(None, target_cells, bbox)
-        window = "AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
+        window = "AND a.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)"
         params |= {"minx": minx, "miny": miny, "maxx": maxx, "maxy": maxy}
     if grid is None:
         return []
@@ -338,9 +333,8 @@ def get_annotation_density_by_label(
         f"""
         SELECT avg(ST_X(c)) AS lon, avg(ST_Y(c)) AS lat, label_id, count(*) AS n
         FROM (
-            SELECT ST_Centroid(g.geometry) AS c, a.label_id AS label_id
+            SELECT ST_Centroid(a.geometry) AS c, a.label_id AS label_id
             FROM data.annotations a
-            JOIN data.annotation_geometries g ON g.id = a.geometry_id
             WHERE a.campaign_id = :campaign_id
               {task_filter_sql(include_tasks)}
               {window}

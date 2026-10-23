@@ -63,7 +63,7 @@ def _db(campaign, *, has_shapes=False):
 
 
 def _task():
-    return SimpleNamespace(id=1, campaign_id=1, geometry_id=10, assignments=[])
+    return SimpleNamespace(id=1, campaign_id=1, geometry="POINT(0 0)", assignments=[])
 
 
 def test_classify_outcome_follows_the_label():

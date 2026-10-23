@@ -18,17 +18,11 @@ from src.annotation.forms import (
     campaign_form_fields,
     validate_form_values,
 )
-from src.annotation.geometries import (
-    delete_orphan_geometries,
-    delete_rows_and_orphan_geometries,
-)
 from src.annotation.models import (
     Annotation,
-    AnnotationGeometry,
     AnnotationTask,
     AnnotationTaskAssignment,
     DeletedAnnotation,
-    Embedding,
     ewkt,
 )
 from src.annotation.schemas import (
@@ -263,7 +257,6 @@ def get_annotation_task_by_id(
             AnnotationTask.campaign_id == campaign.id,
         )
         .options(
-            joinedload(AnnotationTask.geometry),
             joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
             joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
             joinedload(AnnotationTask.claimed_by),
@@ -302,7 +295,6 @@ def get_annotation_tasks_for_campaign(
         select(AnnotationTask)
         .where(AnnotationTask.campaign_id == campaign.id)
         .options(
-            joinedload(AnnotationTask.geometry),
             joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
             joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
             joinedload(AnnotationTask.claimed_by),
@@ -414,16 +406,17 @@ def claim_next_task(
 def _attach_has_embedding(db: Session, tasks: list[AnnotationTask]) -> None:
     """Set `has_embedding` on each task via one lightweight indexed lookup.
 
-    Kept out of the main joinedload chain so it does not multiply the result
-    rows; Embedding has its own hnsw index and FK on annotation_task_id.
+    The vector itself is deferred on the task, so this asks only whether there is one.
     """
     if not tasks:
         return
     task_ids = [t.id for t in tasks]
     embedded_ids = set(
-        db.execute(
-            select(Embedding.annotation_task_id).where(Embedding.annotation_task_id.in_(task_ids))
-        ).scalars()
+        db.scalars(
+            select(AnnotationTask.id).where(
+                AnnotationTask.id.in_(task_ids), AnnotationTask.embedding.is_not(None)
+            )
+        )
     )
     for task in tasks:
         task.has_embedding = task.id in embedded_ids
@@ -547,14 +540,13 @@ def _require_drawing_access(
 
 
 def _standalone_annotation(
-    geometry_id: int,
     campaign: Campaign,
     user_id: UUID,
     item: AnnotationCreate,
     form_values: dict | None,
 ) -> Annotation:
     return Annotation(
-        geometry_id=geometry_id,
+        geometry=ewkt(item.geometry_wkt),
         campaign_id=campaign.id,
         created_by_user_id=user_id,
         annotation_task_id=None,
@@ -675,7 +667,7 @@ def add_annotation_for_task(
         annotation = existing_annotation
     else:
         annotation = Annotation(
-            geometry_id=annotation_task.geometry_id,
+            geometry=annotation_task.geometry,
             annotation_task_id=annotation_task.id,
             campaign_id=annotation_task.campaign_id,
             created_by_user_id=user_id,
@@ -796,15 +788,9 @@ def create_annotations(
         raise HTTPException(status_code=400, detail=exc.message) from exc
 
     try:
-        geometries = [AnnotationGeometry(geometry=ewkt(a.geometry_wkt)) for a in annotations_create]
-        db.add_all(geometries)
-        db.flush()
-
         annotations = [
-            _standalone_annotation(geometry.id, campaign, user_id, a, form_values)
-            for a, geometry, form_values in zip(
-                annotations_create, geometries, normalized_form_values, strict=True
-            )
+            _standalone_annotation(campaign, user_id, a, form_values)
+            for a, form_values in zip(annotations_create, normalized_form_values, strict=True)
         ]
         db.add_all(annotations)
         bump_campaign_annotations_version(db, campaign.id)
@@ -824,8 +810,8 @@ def update_annotation(
     user_id: UUID,
     campaign: Campaign,
 ) -> Annotation:
-    """Apply the fields the update carries. A new geometry gets a new geometry
-    row. Somebody else's annotation needs the campaign's modify_others axis."""
+    """Apply the fields the update carries. Somebody else's annotation needs the
+    campaign's modify_others axis."""
     # Scoped to the campaign - without this, an annotation from any campaign
     # platform-wide would be editable through this endpoint, and the policy /
     # ownership checks below would evaluate against the wrong campaign.
@@ -844,12 +830,7 @@ def update_annotation(
     try:
         # Update geometry if provided
         if annotation_update.geometry_wkt is not None:
-            old_geometry_id = annotation.geometry_id
-            new_geometry = AnnotationGeometry(geometry=ewkt(annotation_update.geometry_wkt))
-            db.add(new_geometry)
-            db.flush()  # Get new geometry ID
-            annotation.geometry_id = new_geometry.id
-            delete_orphan_geometries(db, [old_geometry_id])
+            annotation.geometry = ewkt(annotation_update.geometry_wkt)
 
             # The imagery snapshot reflects what was viewed during this geometry
             # edit, so it only refreshes alongside a geometry change.
@@ -1025,7 +1006,7 @@ def list_annotations_page(
 
     total = db.execute(select(func.count()).select_from(Annotation).where(*conditions)).scalar_one()
 
-    centroid = func.ST_Centroid(AnnotationGeometry.geometry)
+    centroid = func.ST_Centroid(Annotation.geometry)
     rows = db.execute(
         select(
             Annotation.id,
@@ -1044,7 +1025,6 @@ def list_annotations_page(
             Annotation.form_values,
         )
         .select_from(Annotation)
-        .join(AnnotationGeometry, AnnotationGeometry.id == Annotation.geometry_id)
         .outerjoin(User, User.id == Annotation.created_by_user_id)
         .where(*conditions)
         .order_by(*_SORTS[sort])
@@ -1095,7 +1075,6 @@ def get_annotation_by_id(
             Annotation.campaign_id == campaign.id,
         )
         .options(
-            joinedload(Annotation.geometry),
             joinedload(Annotation.creator),
             joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
         )
@@ -1162,7 +1141,8 @@ def delete_tasks(
     if task_rows or drop:
         record_annotation_deletions(db, campaign_id, [row.id for row in drop])
         bump_campaign_annotations_version(db, campaign_id)
-    delete_rows_and_orphan_geometries(db, [*drop, *tasks])
+    for doomed in (*drop, *tasks):
+        db.delete(doomed)
 
 
 def delete_annotations(
@@ -1197,7 +1177,8 @@ def delete_annotations(
     _require_own_annotations(db, list(annotations), campaign, user_id, "delete")
 
     try:
-        delete_rows_and_orphan_geometries(db, annotations)
+        for annotation in annotations:
+            db.delete(annotation)
         record_annotation_deletions(db, campaign.id, sorted(found_ids))
         bump_campaign_annotations_version(db, campaign.id)
         db.commit()

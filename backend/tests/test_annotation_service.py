@@ -30,7 +30,6 @@ from src.annotation.ingest import (
 )
 from src.annotation.models import (
     Annotation,
-    AnnotationGeometry,
     AnnotationTask,
     AnnotationTaskAssignment,
 )
@@ -73,11 +72,11 @@ def _make_campaign(label_ids=(1, 2, 3, 4, 5, 6, 7)):
     return campaign
 
 
-def _make_task(task_id=1, campaign_id=1, geometry_id=10, assignments=None):
+def _make_task(task_id=1, campaign_id=1, assignments=None):
     task = MagicMock()
     task.id = task_id
     task.campaign_id = campaign_id
-    task.geometry_id = geometry_id
+    task.geometry = "POINT(0 0)"
     task.assignments = assignments if assignments is not None else []
     return task
 
@@ -316,23 +315,8 @@ class TestAddAnnotationForTask:
 class TestCreateAnnotations:
     """Standalone annotations, created in one transaction."""
 
-    @staticmethod
-    def _flush_assigns_geom_ids(db):
-        # Emulate the DB assigning ids on flush so annotations can wire geometry_id.
-        state = {"next": 1000}
-
-        def _flush():
-            for call in db.add_all.call_args_list:
-                for obj in call.args[0]:
-                    if isinstance(obj, AnnotationGeometry) and obj.id is None:
-                        obj.id = state["next"]
-                        state["next"] += 1
-
-        db.flush.side_effect = _flush
-
-    def test_creates_one_geometry_and_annotation_per_item(self):
+    def test_creates_one_annotation_per_item_with_its_own_geometry(self):
         db = _mock_db()
-        self._flush_assigns_geom_ids(db)
         campaign = _make_campaign()
         campaign.id = 7
         user_id = uuid4()
@@ -347,13 +331,9 @@ class TestCreateAnnotations:
 
         assert len(created) == 3
         added = [obj for call in db.add_all.call_args_list for obj in call.args[0]]
-        geoms = [o for o in added if isinstance(o, AnnotationGeometry)]
         anns = [o for o in added if isinstance(o, Annotation)]
-        assert len(geoms) == 3
         assert len(anns) == 3
-        # Each annotation is wired to a distinct flushed geometry id + the campaign/user.
-        assert all(a.geometry_id is not None for a in anns)
-        assert len({a.geometry_id for a in anns}) == 3
+        assert [a.geometry.data for a in anns] == ["POINT(0 0)", "POINT(1 1)", "POINT(2 2)"]
         assert all(a.campaign_id == 7 for a in anns)
         assert all(a.created_by_user_id == user_id for a in anns)
         assert all(a.annotation_task_id is None for a in anns)
@@ -423,11 +403,10 @@ class TestUpdateAnnotation:
 
         assert existing.comment == "updated comment"
 
-    def test_update_geometry_creates_new_record(self):
+    def test_update_geometry_replaces_the_rows_own(self):
         db = _mock_db()
         user_id = uuid4()
         existing = _make_annotation(ann_id=5)
-        existing.geometry_id = 100
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
         payload = AnnotationUpdate(
@@ -438,10 +417,7 @@ class TestUpdateAnnotation:
         )
         update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
-        # Should have added a new AnnotationGeometry and flushed to get its id
-        added_geom = db.add.call_args[0][0]
-        assert isinstance(added_geom, AnnotationGeometry)
-        db.flush.assert_called()
+        assert existing.geometry.data == "POLYGON((0 0,1 0,1 1,0 1,0 0))"
 
     def test_geometry_update_refreshes_imagery_snapshot(self):
         db = _mock_db()
@@ -945,8 +921,7 @@ class TestExportMergeCorrectness:
 
     @staticmethod
     def _geom(wkt):
-        # Mirrors the ORM shape: annotation.geometry.geometry is the geo element.
-        return SimpleNamespace(geometry=WKTElement(wkt, srid=4326))
+        return WKTElement(wkt, srid=4326)
 
     @staticmethod
     def _ann(*, ann_id, label_id, user_id=None, task=None, geometry=None, **overrides):
@@ -1709,7 +1684,6 @@ class TestCreateAnnotationsFromGeojson:
     def test_happy_path_creates_annotations(self):
         db = MagicMock()
         db.execute.side_effect = [
-            [SimpleNamespace(id=101), SimpleNamespace(id=102)],  # geometry insert returning ids
             MagicMock(),  # annotation insert
             MagicMock(),  # annotations version bump
         ]
@@ -1720,8 +1694,8 @@ class TestCreateAnnotationsFromGeojson:
 
         assert num == 2
         db.commit.assert_called_once()
-        # Second execute call carries the annotation records.
-        annotation_records = db.execute.call_args_list[1][0][1]
+        # The first execute call carries the annotation records.
+        annotation_records = db.execute.call_args_list[0][0][1]
         assert [r["label_id"] for r in annotation_records] == [1, 2]
         assert all(r["annotation_task_id"] is None for r in annotation_records)
         assert all(r["created_by_user_id"] == user_id for r in annotation_records)
@@ -1767,7 +1741,7 @@ class TestCreateAnnotationsFromGeojson:
         num = create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
 
         assert num == 2
-        annotation_records = db.execute.call_args_list[1][0][1]
+        annotation_records = db.execute.call_args_list[0][0][1]
         assert [r["source_id"] for r in annotation_records] == [500, 501]
 
     def test_rejects_duplicate_source_id_in_file(self):
@@ -1803,7 +1777,7 @@ class TestCreateAnnotationsFromGeojson:
         )
 
         assert num == 1
-        annotation_records = db.execute.call_args_list[1][0][1]
+        annotation_records = db.execute.call_args_list[0][0][1]
         assert annotation_records[0]["form_values"] == {"1": 1}
 
     def test_no_form_values_property_imports_none(self):
@@ -1819,7 +1793,7 @@ class TestCreateAnnotationsFromGeojson:
             db, self._campaign(form_fields=self.FORM_FIELDS), contents, uuid4()
         )
 
-        annotation_records = db.execute.call_args_list[1][0][1]
+        annotation_records = db.execute.call_args_list[0][0][1]
         assert annotation_records[0]["form_values"] is None
 
     def test_rejects_unknown_form_field_id(self):

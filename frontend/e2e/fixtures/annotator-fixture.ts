@@ -665,7 +665,7 @@ export const test = base.extend<AnnotatorFixtures>({
       });
       const annId = Number(extractPathParams(pathname).annotation_id);
       const idx = annotations.findIndex((a) => a.id === annId);
-      const existing = idx >= 0 ? annotations[idx] : { id: annId, geometry: {} };
+      const existing = idx >= 0 ? annotations[idx] : { id: annId, geometry_wkt: 'POINT(0 0)' };
       const updated = makeUpdateAnnotationResponse(existing, body);
       if (idx >= 0) annotations[idx] = updated;
       await route.fulfill({ json: updated });
