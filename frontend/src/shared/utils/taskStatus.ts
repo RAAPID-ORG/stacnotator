@@ -1,4 +1,4 @@
-import type { AnnotationTaskOut } from '~/api/client';
+import type { AnnotationFromTaskOut, AnnotationTaskOut } from '~/api/client';
 
 /**
  * Task-level status values, matching backend-computed task_status. The tuple is what
@@ -75,4 +75,18 @@ export function countTasksByStatus(
     if (s !== undefined && s in counts) counts[s]++;
   }
   return counts;
+}
+
+export type TaskOutcome = NonNullable<AnnotationFromTaskOut['outcome']>;
+
+const OUTCOME_LABELS: Record<Exclude<TaskOutcome, 'labelled'>, string> = {
+  skipped: 'Skipped',
+  drawn: 'Drew shapes',
+  none_found: 'Nothing here',
+};
+
+/** How a task row without a label reads: a skip, or a draw task's answer.
+ *  Null for a labelled row, which reads as its label. */
+export function outcomeLabel(outcome: TaskOutcome | null | undefined): string | null {
+  return outcome && outcome !== 'labelled' ? OUTCOME_LABELS[outcome] : null;
 }

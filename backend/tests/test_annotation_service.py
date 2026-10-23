@@ -84,6 +84,7 @@ def _make_annotation(ann_id=1, task_id=1, campaign_id=1, user_id=None, label_id=
     ann = MagicMock(spec=Annotation)
     ann.id = ann_id
     ann.annotation_task_id = task_id
+    ann.output_of_task_id = None
     ann.campaign_id = campaign_id
     ann.created_by_user_id = user_id or uuid4()
     ann.label_id = label_id
@@ -933,9 +934,11 @@ class TestExportAnnotatorCount:
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
             annotation_task_id=task.id if task else None,
             counts_toward_completion=True if task else None,
+            outcome=(("labelled" if label_id is not None else "skipped") if task else None),
             campaign_id=1,
             annotation_task=task,
             origin_task=None,
+            output_of_task=None,
             geometry=None,
             imagery_slice_id=None,
             imagery_source_name=None,
@@ -1099,9 +1102,11 @@ class TestExportMergeCorrectness:
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
             annotation_task_id=task.id if task else None,
             counts_toward_completion=True if task else None,
+            outcome=(("labelled" if label_id is not None else "skipped") if task else None),
             campaign_id=1,
             annotation_task=task,
             origin_task=None,
+            output_of_task=None,
             geometry=geometry,
             imagery_slice_id=None,
             imagery_source_name=None,
@@ -1509,9 +1514,11 @@ class TestExportFormFields:
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
             annotation_task_id=task.id if task else None,
             counts_toward_completion=True if task else None,
+            outcome=(("labelled" if label_id is not None else "skipped") if task else None),
             campaign_id=1,
             annotation_task=task,
             origin_task=None,
+            output_of_task=None,
             geometry=None,
             imagery_slice_id=None,
             imagery_source_name=None,

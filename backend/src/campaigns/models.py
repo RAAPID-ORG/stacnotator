@@ -192,6 +192,7 @@ class CampaignSettings(Base):
         # Bounding box logical ordering
         CheckConstraint("bbox_west < bbox_east", name="settings_bbox_lon_order"),
         CheckConstraint("bbox_south < bbox_north", name="settings_bbox_lat_order"),
+        CheckConstraint("task_output IN ('classify', 'draw')", name="settings_task_output_values"),
         {"schema": "data"},
     )
 
@@ -223,6 +224,12 @@ class CampaignSettings(Base):
     # Side length (in meters) of the square extent around each task centroid.
     # NULL means no extent is drawn (only crosshair shown for point tasks).
     sample_extent_meters: Mapped[float | None] = mapped_column(nullable=True)
+
+    # What finishing a task means: picking a label for the task's own geometry
+    # (classify), or drawing shapes around it (draw). Fixed once tasks are worked.
+    task_output: Mapped[str] = mapped_column(
+        String(20), server_default=text("'classify'"), nullable=False
+    )
 
     # When on, annotations created in this campaign may be published as open
     # research data, without any annotator's name. Set by campaign admins; see

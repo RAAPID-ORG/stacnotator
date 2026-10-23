@@ -23,6 +23,7 @@ import { fitAnnotations, mainCamera, minimapCamera, pan, zoom } from './map/came
 import { tasksModeTarget } from '~/shared/map/minimap/follow';
 import {
   campaignState,
+  drawsShapes,
   formFields,
   toPolicyContext,
   useCampaignStore,
@@ -409,8 +410,22 @@ function adjustConfidence(delta: number): void {
   revealConfidence();
 }
 
+function taskStepBindings(): Binding[] {
+  const { catalog } = campaignState();
+  return [
+    { key: 'w', help: 'Previous task', run: () => useTasksStore.getState().previous(catalog) },
+    { key: 's', help: 'Next task', run: () => void advance() },
+  ];
+}
+
+/** A draw task is worked with Explore's drawing keys, plus stepping between
+ *  tasks. Finishing one is the panel's Done button. */
+function drawTaskBindings(): Binding[] {
+  return [...exploreBindings(), ...taskStepBindings()];
+}
+
 function taskBindings(): Binding[] {
-  const { campaign, catalog } = campaignState();
+  const { campaign } = campaignState();
   const labels = campaign.settings.labels;
 
   // Below 10 labels a single keystroke always resolves the selection, so only
@@ -444,8 +459,7 @@ function taskBindings(): Binding[] {
       })
     ),
 
-    { key: 'w', help: 'Previous task', run: () => useTasksStore.getState().previous(catalog) },
-    { key: 's', help: 'Next task', run: () => void advance() },
+    ...taskStepBindings(),
     { key: 'q', help: 'Decrease confidence', run: () => adjustConfidence(-1) },
     { key: 'e', help: 'Increase confidence', run: () => adjustConfidence(1) },
     {
@@ -689,10 +703,15 @@ export function canEnterMode(mode: WorkMode): boolean {
 
 export function pageKeymap(): Binding[] {
   const { workMode, isMobile } = campaignState();
-  // Drawing is Explore's map behaviour, and the one surface that edits data by
-  // pointer - mobile gets the read-only canvas instead.
-  const editing = workMode === 'explore' && !isMobile ? editBindings() : [];
-  const mode = workMode === 'tasks' ? taskBindings() : exploreBindings();
+  // Drawing is the one surface that edits data by pointer - mobile gets the
+  // read-only canvas instead.
+  const editing = drawsShapes() && !isMobile ? editBindings() : [];
+  const mode =
+    workMode === 'explore'
+      ? exploreBindings()
+      : drawsShapes()
+        ? drawTaskBindings()
+        : taskBindings();
   return [
     ...tag(editing, 'edit'),
     ...tag(formFieldBindings(), 'form'),

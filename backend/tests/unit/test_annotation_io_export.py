@@ -55,6 +55,7 @@ def _annotation(
         active_seconds=active_seconds,
         source_id=None,
         label_id=label_id,
+        outcome=("labelled" if label_id is not None else "skipped") if task else None,
         created_by_user_id=created_by_user_id or uuid4(),
         is_authoritative=is_authoritative,
         counts_toward_completion=counts_toward_completion,
@@ -72,6 +73,7 @@ def _annotation(
         annotation_task=task,
         annotation_task_id=task.id if task else None,
         origin_task=origin_task,
+        output_of_task=None,
     )
 
 

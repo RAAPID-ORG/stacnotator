@@ -12,6 +12,7 @@ import {
   countTasksByStatus,
   formatTaskStatus,
   getTaskStatusColor,
+  outcomeLabel,
 } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT, formatDuration } from '~/shared/utils/utility';
 import { TasksByLabelMap } from './TasksByLabelMap';
@@ -960,13 +961,10 @@ export const TaskModeReview = ({
                                           ann.created_by_user_id?.substring(0, 8) ||
                                           'Unknown';
 
-                                      const isSkippedAnn =
-                                        annotator?.status === 'skipped' || ann.label_id == null;
+                                      const isSkippedAnn = ann.outcome === 'skipped';
                                       const label = ann.label_id
                                         ? `#${ann.label_id}`
-                                        : isSkippedAnn
-                                          ? 'Skipped'
-                                          : '-';
+                                        : (outcomeLabel(ann.outcome) ?? '-');
                                       const confidence =
                                         ann.confidence != null ? `${ann.confidence}/5` : '-';
                                       const hasComment = ann.comment && ann.comment.trim() !== '';

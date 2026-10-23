@@ -134,6 +134,10 @@ export type AgentAnnotate = {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
     /**
+     * Outcome
+     */
+    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
+    /**
      * Active Ms
      */
     active_ms?: number | null;
@@ -391,6 +395,10 @@ export type AnnotationCreate = {
      * Origin Task Id
      */
     origin_task_id?: number | null;
+    /**
+     * Output Of Task Id
+     */
+    output_of_task_id?: number | null;
 };
 
 /**
@@ -490,6 +498,10 @@ export type AnnotationFromTaskCreate = {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
     /**
+     * Outcome
+     */
+    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
+    /**
      * Active Ms
      */
     active_ms?: number | null;
@@ -507,6 +519,10 @@ export type AnnotationFromTaskOut = {
      * Label Id
      */
     label_id: number | null;
+    /**
+     * Outcome
+     */
+    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
     /**
      * Comment
      */
@@ -693,6 +709,10 @@ export type AnnotationOut = {
      */
     label_id: number | null;
     /**
+     * Outcome
+     */
+    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
+    /**
      * Comment
      */
     comment: string | null;
@@ -775,6 +795,10 @@ export type AnnotationOut = {
      * Origin Task Id
      */
     origin_task_id?: number | null;
+    /**
+     * Output Of Task Id
+     */
+    output_of_task_id?: number | null;
 };
 
 /**
@@ -883,6 +907,10 @@ export type AnnotationTaskOut = {
      * Nearby Annotation Count
      */
     nearby_annotation_count?: number;
+    /**
+     * Drawn By User Ids
+     */
+    drawn_by_user_ids?: Array<string>;
 };
 
 /**
@@ -890,8 +918,8 @@ export type AnnotationTaskOut = {
  *
  * Response from submitting or skipping an annotation task.
  *
- * The annotation is always there: a skip is stored as a label-less one, so
- * every submission leaves a record behind.
+ * The annotation is always there: a skip is stored with the outcome `skipped`,
+ * so every submission leaves a record behind.
  */
 export type AnnotationTaskSubmitResponse = {
     /**
@@ -1772,6 +1800,10 @@ export type CampaignSettingsCreate = {
     } & TextFormField) | ({
         type: 'date' | 'daterange';
     } & DateFormField)>;
+    /**
+     * Task Output
+     */
+    task_output?: 'classify' | 'draw';
 };
 
 /**
@@ -1827,6 +1859,10 @@ export type CampaignSettingsOut = {
      * Research Sharing
      */
     research_sharing: boolean;
+    /**
+     * Task Output
+     */
+    task_output?: 'classify' | 'draw';
 };
 
 /**
@@ -5024,6 +5060,16 @@ export type UpdateSampleExtentRequest = {
 };
 
 /**
+ * UpdateTaskOutputRequest
+ */
+export type UpdateTaskOutputRequest = {
+    /**
+     * Task Output
+     */
+    task_output: 'classify' | 'draw';
+};
+
+/**
  * UserOut
  *
  * A user as other users see them. `email` is filled for platform admins
@@ -7887,6 +7933,36 @@ export type UpdateResearchSharingResponses = {
 };
 
 export type UpdateResearchSharingResponse = UpdateResearchSharingResponses[keyof UpdateResearchSharingResponses];
+
+export type UpdateTaskOutputData = {
+    body: UpdateTaskOutputRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-output';
+};
+
+export type UpdateTaskOutputErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateTaskOutputError = UpdateTaskOutputErrors[keyof UpdateTaskOutputErrors];
+
+export type UpdateTaskOutputResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateTaskOutputResponse = UpdateTaskOutputResponses[keyof UpdateTaskOutputResponses];
 
 export type UpdateCampaignGuideData = {
     body: UpdateCampaignGuideRequest;

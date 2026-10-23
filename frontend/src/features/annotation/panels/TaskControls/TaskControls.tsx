@@ -7,6 +7,7 @@ import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign
 import { useWorkStore } from '../../stores/work';
 import { activeGroupClass } from '../../components/FormFields';
 import { DEFAULT_CONFIDENCE } from '../../taskActions';
+import { ExploreControls } from '../ExploreControls/ExploreControls';
 import { LabelGrid } from './LabelGrid';
 import { ReviewList } from './ReviewList';
 import { ActionBar, CommentSection, ConfidenceSection, FieldsSection } from './sections';
@@ -55,8 +56,11 @@ export function TaskControls() {
   const fields = campaign.settings.form_fields ?? [];
   const labelGroupActive = isLabelGroupActive(activeFieldIndex, fields.length);
 
+  // A draw task's form holds the answers for the shape being drawn, which may
+  // still be open when the task changes.
+  const drawTask = campaign.settings.task_output === 'draw';
   useEffect(() => {
-    loadTaskIntoForm(task, currentUserId);
+    if (!drawTask) loadTaskIntoForm(task, currentUserId);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload the form whenever the current task identity or user changes, not on every object replacement or keystroke against it
   }, [task?.id, currentUserId]);
 
@@ -88,44 +92,48 @@ export function TaskControls() {
     <div className="@container flex h-full w-full flex-col bg-white">
       <div data-task-scroll className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {isReviewMode && <ReviewList task={task} currentUserId={currentUserId} labels={labels} />}
-        <div className={sectionGridClass}>
-          <div
-            data-task-labels
-            tabIndex={-1}
-            className={`${sectionCellClass} gap-1.5 @min-[45rem]:col-span-full ${
-              labelGroupActive ? activeGroupClass : ''
-            } focus:outline-none`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className={sectionHeaderClass(labelGroupActive)}>Label</span>
-              <label
-                className="flex items-center gap-1.5 cursor-pointer select-none"
-                title="Validate against prior labels using embedding similarity (kNN)"
-              >
-                <span className="relative">
-                  <input
-                    type="checkbox"
-                    checked={knnValidationEnabled}
-                    onChange={(e) => setKnnValidationEnabled(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
-                  <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
-                </span>
-                <span className="text-[10px] text-neutral-600">Validate</span>
-              </label>
+        {drawTask ? (
+          <ExploreControls />
+        ) : (
+          <div className={sectionGridClass}>
+            <div
+              data-task-labels
+              tabIndex={-1}
+              className={`${sectionCellClass} gap-1.5 @min-[45rem]:col-span-full ${
+                labelGroupActive ? activeGroupClass : ''
+              } focus:outline-none`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className={sectionHeaderClass(labelGroupActive)}>Label</span>
+                <label
+                  className="flex items-center gap-1.5 cursor-pointer select-none"
+                  title="Validate against prior labels using embedding similarity (kNN)"
+                >
+                  <span className="relative">
+                    <input
+                      type="checkbox"
+                      checked={knnValidationEnabled}
+                      onChange={(e) => setKnnValidationEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
+                    <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
+                  </span>
+                  <span className="text-[10px] text-neutral-600">Validate</span>
+                </label>
+              </div>
+              <LabelGrid
+                labels={labels}
+                selectedId={selectedLabelId}
+                onSelect={setSelectedLabelId}
+                disabled={isSubmitting}
+              />
             </div>
-            <LabelGrid
-              labels={labels}
-              selectedId={selectedLabelId}
-              onSelect={setSelectedLabelId}
-              disabled={isSubmitting}
-            />
+            <FieldsSection />
+            <CommentSection />
+            <ConfidenceSection />
           </div>
-          <FieldsSection />
-          <CommentSection />
-          <ConfidenceSection />
-        </div>
+        )}
       </div>
       <ActionBar task={task} />
     </div>

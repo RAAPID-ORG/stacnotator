@@ -178,6 +178,11 @@ def clone_row(obj, **overrides):
     return type(obj)(**data)
 
 
+def _copied_task(task_map: dict[int, int], task_id: int | None) -> int | None:
+    """The copy of a task an annotation links to, or None when it was not copied."""
+    return task_map.get(task_id) if task_id is not None else None
+
+
 def insert_all[Row](db: Session, rows: list[Row]) -> list[Row]:
     """Insert a whole level of the copy in one flush. Flushing per row is what
     turns duplicating a campaign with thousands of slices or tasks into
@@ -487,6 +492,8 @@ def duplicate_campaign(
                     if annotation.annotation_task_id is not None
                     else None
                 ),
+                origin_task_id=_copied_task(task_map, annotation.origin_task_id),
+                output_of_task_id=_copied_task(task_map, annotation.output_of_task_id),
                 imagery_slice_id=(
                     slice_map.get(annotation.imagery_slice_id)
                     if annotation.imagery_slice_id is not None

@@ -225,6 +225,8 @@ function markerStyle(state: SavedAnnotations): (feature: GeoFeature) => StyleSpe
 export interface ComposeContext {
   catalog: ImageryCatalog;
   mode: WorkMode;
+  /** The page draws shapes (see `useDrawsShapes`), so it shows the saved ones. */
+  drawsShapes: boolean;
 }
 
 /** One flat tile with a hairline border, repeated over the whole grid. Drawn
@@ -339,10 +341,11 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     }
   }
 
-  // Saved annotations are Explore's subject. A task map shows only what the
-  // page is pointed at - its footprint and crosshair - and so do its windows,
-  // where a point task's own annotation would just sit under the crosshair.
-  if (mode === 'explore' && state.showAnnotations && state.annotations) {
+  // Saved annotations are what Explore and draw tasks work on. A classify task
+  // map shows only what the page is pointed at - its footprint and crosshair -
+  // and so do its windows, where a point task's own annotation would just sit
+  // under the crosshair.
+  if (ctx.drawsShapes && state.showAnnotations && state.annotations) {
     const annotations = state.annotations;
     // Whatever the overlay draws, the tiles do not: their copy is out of date
     // (or gone), and drawing both would double every shape.

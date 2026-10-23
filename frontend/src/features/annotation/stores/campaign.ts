@@ -181,6 +181,13 @@ export const useCampaignStore = create<CampaignState>((set, get) => ({
  *  near. */
 export const originTaskId = (): number | undefined => useCampaignStore.getState().originTask?.id;
 
+/** Whether the page draws shapes: Explore always, Tasks when the campaign's
+ *  tasks are answered by drawing around them instead of picking a label. */
+const drawsShapesIn = (s: CampaignState): boolean =>
+  s.workMode === 'explore' || s.campaign?.settings.task_output === 'draw';
+export const drawsShapes = (): boolean => drawsShapesIn(useCampaignStore.getState());
+export const useDrawsShapes = (): boolean => useCampaignStore(drawsShapesIn);
+
 /** The loaded campaign. The page gates on the load, so every panel below it
  *  can treat this as present. */
 export function useCampaign(): CampaignOutFull {

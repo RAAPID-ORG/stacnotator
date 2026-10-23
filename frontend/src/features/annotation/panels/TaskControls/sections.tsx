@@ -10,6 +10,7 @@ import { useWorkStore } from '../../stores/work';
 import {
   advance,
   DEFAULT_CONFIDENCE,
+  finishDrawTask,
   skipCurrent,
   submitAnnotation,
   submitAuthoritative,
@@ -151,6 +152,8 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
   // Kept across tasks: a reviewer settling a batch of tasks settles them all.
   const [authoritative, setAuthoritative] = useState(false);
   const asAuthoritative = authoritative && campaign.viewer_is_authoritative_reviewer === true;
+  // A draw task is answered by its shapes: Done replaces Submit.
+  const drawTask = campaign.settings.task_output === 'draw';
 
   const hasExistingLabel =
     task.annotations.find((a) => a.created_by_user_id === currentUserId)?.label_id != null;
@@ -161,15 +164,20 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
   // Skipping is labelling with no label, so it is gated the same way. Keying
   // it on assignment would put it out of reach on the whole unassigned pool.
   const isSkipDisabled = isBusy || !mayLabel;
+  const drewHere =
+    useWorkStore((s) => s.drawnTaskIds.includes(task.id)) ||
+    (task.drawn_by_user_ids ?? []).some((id) => id === currentUserId);
   const submitLabel = isBusy
     ? 'Submitting…'
-    : asAuthoritative
-      ? 'Submit authoritative'
-      : isRemovingLabel(readiness)
-        ? 'Remove Label'
-        : hasExistingLabel
-          ? 'Update'
-          : 'Submit';
+    : drawTask
+      ? 'Done'
+      : asAuthoritative
+        ? 'Submit authoritative'
+        : isRemovingLabel(readiness)
+          ? 'Remove Label'
+          : hasExistingLabel
+            ? 'Update'
+            : 'Submit';
 
   return (
     <div className="shrink-0 flex flex-col gap-1.5 px-3 py-2 border-t border-neutral-200 bg-neutral-50/60">
@@ -188,17 +196,28 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
       )}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-1.5">
+        <div className="flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-1.5">
           <button
             type="button"
             disabled={isSkipDisabled}
             title={!mayLabel ? 'You are not allowed to label this task' : undefined}
             onClick={() => void skipCurrent()}
-            className="inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className={`${drawTask ? 'flex-1' : ''} inline-flex items-center justify-center h-7 px-1.5 text-[11px] font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed`}
           >
             Skip
           </button>
-          {campaign.viewer_is_authoritative_reviewer && (
+          {drawTask && (
+            <button
+              type="button"
+              disabled={isSkipDisabled || drewHere}
+              title={drewHere ? 'You drew shapes for this task - press Done' : undefined}
+              onClick={() => void finishDrawTask('none_found')}
+              className="flex-1 inline-flex items-center justify-center h-7 px-1.5 text-[11px] font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Nothing here
+            </button>
+          )}
+          {campaign.viewer_is_authoritative_reviewer && !drawTask && (
             <label
               className="flex shrink-0 cursor-pointer select-none flex-col items-center gap-0.5"
               title="Submit as authoritative: your label overrides other annotators and completes the task."
@@ -219,8 +238,14 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
           )}
           <button
             type="button"
-            disabled={isSubmitDisabled}
-            onClick={() => void (asAuthoritative ? submitAuthoritative() : submitAnnotation())}
+            disabled={drawTask ? isSkipDisabled : isSubmitDisabled}
+            onClick={() =>
+              void (drawTask
+                ? finishDrawTask('drawn')
+                : asAuthoritative
+                  ? submitAuthoritative()
+                  : submitAnnotation())
+            }
             title={
               asAuthoritative
                 ? isAssignedToTask
@@ -228,7 +253,7 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
                   : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
                 : undefined
             }
-            className={`flex-1 min-w-0 inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-white rounded-md shadow-sm transition-colors whitespace-nowrap disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed ${
+            className={`flex-1 min-w-[5rem] inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-white rounded-md shadow-sm transition-colors whitespace-nowrap disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed ${
               asAuthoritative
                 ? 'bg-amber-600 hover:bg-amber-700'
                 : 'bg-brand-600 hover:bg-brand-700'

@@ -15,6 +15,7 @@ from src.annotation.constants import (
     TASK_STATUS_PARTIAL,
     TASK_STATUS_PENDING,
     TASK_STATUS_SKIPPED,
+    TaskOutcome,
     TaskStatus,
 )
 
@@ -67,6 +68,8 @@ class GeometryOut(BaseModel):
 class AnnotationFromTaskOut(BaseModel):
     id: int
     label_id: int | None
+    # Set on task rows, None on shapes.
+    outcome: TaskOutcome | None = None
     comment: str | None
     created_by_user_id: UUID
     created_by_user_email: str | None = None
@@ -108,6 +111,7 @@ class AnnotationOut(AnnotationFromTaskOut):
     # ones. Lets the annotations page open the matching work mode on "View".
     annotation_task_id: int | None = None
     origin_task_id: int | None = None
+    output_of_task_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -238,16 +242,16 @@ class AnnotationTaskAssignmentOut(BaseModel):
 def derive_assignment_status(annotation_list: list[dict], user_id: UUID) -> str:
     """A user's state on a task, read off their annotation.
 
-    A label means done, a label-less annotation means they looked and skipped,
-    and no annotation at all means they have not acted. Stored nowhere: the
-    annotation is the record of the work, so there is no second copy to keep
-    in step with it.
+    An answer means done, an annotation without one means they looked and
+    skipped, and no annotation at all means they have not acted. Stored
+    nowhere: the annotation is the record of the work, so there is no second
+    copy to keep in step with it.
     """
     for annotation in annotation_list:
         if annotation["created_by_user_id"] == user_id:
             return (
                 ANNOTATION_TASK_STATUS_DONE
-                if annotation.get("label_id") is not None
+                if annotation["answer"] is not None
                 else ANNOTATION_TASK_STATUS_SKIPPED
             )
     return ANNOTATION_TASK_STATUS_PENDING
@@ -260,22 +264,23 @@ def compute_task_status_value(
 
     Only counting annotations (`counts_toward_completion` is True; every
     task-linked read path attaches the boolean before this runs) drive
-    done/partial/conflicting. Review assignments set a required review-label
-    count, satisfiable by a counting label from any non-primary user, not
-    just the assigned reviewer(s).
+    done/partial/conflicting. An answer is a label, or for a draw task whether
+    shapes were drawn (`task_answer`). Review assignments set a required
+    review-answer count, satisfiable by a counting answer from any non-primary
+    user, not just the assigned reviewer(s).
     """
     counting = [a for a in annotation_list if a["counts_toward_completion"]]
-    labeled = [a for a in counting if a.get("label_id") is not None]
-    has_authoritative_label = any(a.get("is_authoritative") for a in labeled)
+    answered = [a for a in counting if a["answer"] is not None]
+    has_authoritative_answer = any(a.get("is_authoritative") for a in answered)
 
-    if has_authoritative_label:
-        # An authoritative reviewer's label resolves the task on its own,
+    if has_authoritative_answer:
+        # An authoritative reviewer's answer resolves the task on its own,
         # overriding assignment-based aggregation.
         return TASK_STATUS_DONE
     if not assignment_list:
-        # Nobody was assigned, so whoever picked it up settles it: a label
-        # completes it, a label-less annotation is the skip they left behind.
-        if labeled:
+        # Nobody was assigned, so whoever picked it up settles it: an answer
+        # completes it, an annotation without one is the skip they left behind.
+        if answered:
             return TASK_STATUS_DONE
         return TASK_STATUS_SKIPPED if annotation_list else TASK_STATUS_PENDING
 
@@ -289,38 +294,38 @@ def compute_task_status_value(
     num_reviewers_required = sum(1 for a in assignment_list if a.get("is_review"))
     if num_reviewers_required:
         primary_ids = {a["user_id"] for a in assignment_list if not a.get("is_review")}
-        primary_labeled = {
-            a["created_by_user_id"]: a["label_id"]
-            for a in labeled
+        primary_answers = {
+            a["created_by_user_id"]: a["answer"]
+            for a in answered
             if a["created_by_user_id"] in primary_ids
         }
-        # Anyone else with a counting label fills a review slot, whether or
+        # Anyone else with a counting answer fills a review slot, whether or
         # not they hold an assignment row on this task.
-        review_labeled = {
-            a["created_by_user_id"]: a["label_id"]
-            for a in labeled
+        review_answers = {
+            a["created_by_user_id"]: a["answer"]
+            for a in answered
             if a["created_by_user_id"] not in primary_ids
         }
-        if not primary_labeled and not review_labeled:
+        if not primary_answers and not review_answers:
             return TASK_STATUS_PENDING
-        if primary_labeled.keys() != primary_ids or len(review_labeled) < num_reviewers_required:
+        if primary_answers.keys() != primary_ids or len(review_answers) < num_reviewers_required:
             return TASK_STATUS_PARTIAL
-        labels = set(primary_labeled.values()) | set(review_labeled.values())
-        return TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
+        answers = set(primary_answers.values()) | set(review_answers.values())
+        return TASK_STATUS_DONE if len(answers) == 1 else TASK_STATUS_CONFLICTING
 
     all_assigned_ids = {a["user_id"] for a in assignment_list}
-    labeled_ids = {
-        a["created_by_user_id"] for a in labeled if a["created_by_user_id"] in all_assigned_ids
+    answered_ids = {
+        a["created_by_user_id"] for a in answered if a["created_by_user_id"] in all_assigned_ids
     }
-    if not labeled_ids:
-        # Nobody labeled yet; some may have skipped or still be pending.
+    if not answered_ids:
+        # Nobody answered yet; some may have skipped or still be pending.
         return TASK_STATUS_PENDING
-    if labeled_ids != all_assigned_ids:
-        # Some assignees labeled, others didn't (skip or not-yet-acted).
+    if answered_ids != all_assigned_ids:
+        # Some assignees answered, others didn't (skip or not-yet-acted).
         # Not enough information to call this done or conflicting.
         return TASK_STATUS_PARTIAL
-    labels = {a["label_id"] for a in labeled if a["created_by_user_id"] in labeled_ids}
-    return TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
+    answers = {a["answer"] for a in answered if a["created_by_user_id"] in answered_ids}
+    return TASK_STATUS_DONE if len(answers) == 1 else TASK_STATUS_CONFLICTING
 
 
 class _AssignmentRow(Protocol):
@@ -330,9 +335,36 @@ class _AssignmentRow(Protocol):
 
 class _AnnotationRow(Protocol):
     label_id: int | None
+    outcome: str | None
     created_by_user_id: UUID
     is_authoritative: bool
     counts_toward_completion: bool | None
+
+
+def task_answer(annotation: _AnnotationRow) -> int | str | None:
+    """What one task row answers, comparable across annotators: the label of a
+    classify task, whether shapes were drawn for a draw task, None for a skip."""
+    if annotation.outcome == "labelled":
+        return annotation.label_id
+    if annotation.outcome == "skipped":
+        return None
+    return annotation.outcome
+
+
+def resolve_task_outcome(
+    task_output: str, label_id: int | None, outcome: TaskOutcome | None
+) -> TaskOutcome:
+    """The outcome a task submission stores, or ValueError when it does not fit
+    the campaign. A classify submission may leave it out: the label says it."""
+    if task_output == "draw":
+        if label_id is not None:
+            raise ValueError("Draw tasks are answered with shapes, not a label")
+        if outcome not in ("drawn", "none_found", "skipped"):
+            raise ValueError("Draw tasks take the outcome drawn, none_found or skipped")
+        return outcome
+    if outcome in ("drawn", "none_found"):
+        raise ValueError("This campaign's tasks are answered with a label")
+    return "labelled" if label_id is not None else "skipped"
 
 
 def task_status_inputs(
@@ -351,7 +383,7 @@ def task_status_inputs(
     assignment_list = [{"user_id": a.user_id, "is_review": a.is_review} for a in assignments]
     annotation_list = [
         {
-            "label_id": a.label_id,
+            "answer": task_answer(a),
             "created_by_user_id": a.created_by_user_id,
             "is_authoritative": a.is_authoritative,
             "counts_toward_completion": a.counts_toward_completion,
@@ -380,6 +412,8 @@ class AnnotationTaskOut(BaseModel):
     has_embedding: bool = False
     # Standalone annotations drawn after leaving this task for Explore.
     nearby_annotation_count: int = 0
+    # Who has drawn shapes as this draw task's answer.
+    drawn_by_user_ids: list[UUID] = []
 
     @model_validator(mode="before")
     @classmethod
@@ -440,6 +474,8 @@ class AnnotationFromTaskCreate(BaseModel):
     flag_comment: str | None = Field(default=None, max_length=5000)
     slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
     form_values: dict[str, FormValue] | None = None
+    # Required for draw tasks; a classify submission's label already says it.
+    outcome: TaskOutcome | None = None
     # Active time the client measured for this task since the last submit. Capped
     # at an hour so a misbehaving client cannot distort the duration statistics.
     active_ms: int | None = Field(default=None, ge=0, le=3_600_000)
@@ -457,8 +493,8 @@ class TaskStatusOut(BaseModel):
 class AnnotationTaskSubmitResponse(TaskStatusOut):
     """Response from submitting or skipping an annotation task.
 
-    The annotation is always there: a skip is stored as a label-less one, so
-    every submission leaves a record behind.
+    The annotation is always there: a skip is stored with the outcome `skipped`,
+    so every submission leaves a record behind.
     """
 
     annotation: AnnotationFromTaskOut
@@ -502,6 +538,8 @@ class AnnotationCreate(BaseModel):
     form_values: dict[str, FormValue] | None = None
     # The task the annotator was on when they drew this standalone annotation.
     origin_task_id: int | None = None
+    # The draw task this shape answers. At most one of the two links is set.
+    output_of_task_id: int | None = None
 
 
 class AnnotationsExtentOut(BaseModel):
