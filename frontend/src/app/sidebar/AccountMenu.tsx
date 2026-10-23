@@ -28,21 +28,24 @@ import { MenuItem, MenuLabel, MenuSeparator, SidebarMenu } from './SidebarMenu';
 
 const initial = (text: string) => text.trim().charAt(0).toUpperCase() || '?';
 
-/** A small action beside the organization heading, so browsing and creating
- *  read as about organizations rather than as one more organization to pick. */
+/** A small action on an organization row or heading, so managing, browsing and
+ *  creating read as about organizations rather than as one more one to pick. */
 const OrgAction = ({
   icon,
   children,
   onSelect,
+  testId,
 }: {
   icon: ReactNode;
   children: ReactNode;
   onSelect: () => void;
+  testId?: string;
 }) => (
   <button
     type="button"
     role="menuitem"
     onClick={onSelect}
+    data-testid={testId}
     className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-neutral-500 cursor-pointer transition-colors hover:bg-neutral-100 hover:text-neutral-900 [&>svg]:w-3 [&>svg]:h-3"
   >
     {icon}
@@ -144,21 +147,6 @@ export const AccountMenu = ({
             <MenuItem icon={<IconGear />} onSelect={run(() => go(settingsPath()))}>
               Account settings
             </MenuItem>
-            {canManage && (
-              <MenuItem
-                icon={<IconGear />}
-                testId="organization-settings"
-                onSelect={run(() => go(organizationPath(activeOrg.id)))}
-                trailing={
-                  <CountBadge
-                    count={activeOrg.pending_access_requests ?? 0}
-                    label="access requests"
-                  />
-                }
-              >
-                Organization settings
-              </MenuItem>
-            )}
 
             <MenuSeparator />
             <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-1">
@@ -172,28 +160,44 @@ export const AccountMenu = ({
                 </OrgAction>
               </span>
             </div>
-            {orgs.map((org) => (
-              <MenuItem
-                key={org.id}
-                checked={org.id === activeOrgId}
-                icon={org.id === activeOrgId ? <IconCheck className="text-brand-600" /> : null}
-                onSelect={run(() => switchTo(org.id))}
-                trailing={
-                  org.status === 'pending' ? (
-                    <Badge tone="yellow">Pending</Badge>
-                  ) : (
-                    org.id !== activeOrgId && (
+            {orgs.map((org) =>
+              org.id === activeOrgId && canManage ? (
+                <div
+                  key={org.id}
+                  className="flex items-center gap-2.5 px-2 py-1.5 text-[13px] text-neutral-900"
+                >
+                  <IconCheck className="w-4 h-4 shrink-0 text-brand-600" />
+                  <span className="flex-1 min-w-0 truncate font-medium">{org.name}</span>
+                  <OrgAction
+                    icon={<IconGear />}
+                    testId="organization-settings"
+                    onSelect={run(() => go(organizationPath(org.id)))}
+                  >
+                    Settings
+                    <CountBadge count={org.pending_access_requests ?? 0} label="access requests" />
+                  </OrgAction>
+                </div>
+              ) : (
+                <MenuItem
+                  key={org.id}
+                  checked={org.id === activeOrgId}
+                  icon={org.id === activeOrgId ? <IconCheck className="text-brand-600" /> : null}
+                  onSelect={run(() => switchTo(org.id))}
+                  trailing={
+                    org.status === 'pending' ? (
+                      <Badge tone="yellow">Pending</Badge>
+                    ) : (
                       <CountBadge
                         count={org.pending_access_requests ?? 0}
                         label="access requests"
                       />
                     )
-                  )
-                }
-              >
-                {org.name}
-              </MenuItem>
-            ))}
+                  }
+                >
+                  {org.name}
+                </MenuItem>
+              )
+            )}
             <MenuItem
               checked={activeOrgId === null}
               icon={activeOrgId === null ? <IconCheck className="text-brand-600" /> : null}

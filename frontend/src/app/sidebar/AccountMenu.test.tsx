@@ -71,7 +71,7 @@ describe('AccountMenu', () => {
 
       await screen.findByText('Harvest');
       await userEvent.click(screen.getByTestId('account-menu'));
-      const settings = screen.queryByRole('menuitem', { name: 'Organization settings' });
+      const settings = screen.queryByTestId('organization-settings');
       if (!canManage) {
         expect(settings).toBeNull();
         return;
@@ -95,7 +95,7 @@ describe('AccountMenu', () => {
 
     await screen.findByText('No organization');
     await userEvent.click(screen.getByTestId('account-menu'));
-    expect(screen.queryByRole('menuitem', { name: 'Organization settings' })).toBeNull();
+    expect(screen.queryByTestId('organization-settings')).toBeNull();
     expect(screen.getByRole('menuitemradio', { name: 'No organization' })).toBeTruthy();
   });
 });
