@@ -36,7 +36,6 @@ USERS_CSV_COLUMNS = ["email", "display_name", "is_admin", "is_authoritative_revi
 # informational (existing labels) and ignored so a round-trip doesn't error.
 _IMPORT_REQUIRED_COLUMNS = {"annotation_number", "assignees", "reviewers"}
 _MAX_REPORTED_ERRORS = 50
-_SKIPPED_LABEL = "SKIPPED"
 
 
 def _deleted_rows(result: Result[Any]) -> int:
@@ -527,7 +526,7 @@ def build_task_assignments_export(
 
     assignees_by_task: dict[int, list[str]] = defaultdict(list)
     reviewers_by_task: dict[int, list[str]] = defaultdict(list)
-    annotations_by_task: dict[int, list[tuple[str, int | None]]] = defaultdict(list)
+    annotations_by_task: dict[int, list[tuple[str, int | None, str]]] = defaultdict(list)
 
     if task_ids:
         assignment_rows = db.execute(
@@ -544,12 +543,14 @@ def build_task_assignments_export(
             target[task_id].append(email)
 
         annotation_rows = db.execute(
-            select(Annotation.annotation_task_id, User.email, Annotation.label_id)
+            select(
+                Annotation.annotation_task_id, User.email, Annotation.label_id, Annotation.outcome
+            )
             .join(User, User.id == Annotation.created_by_user_id)
             .where(Annotation.annotation_task_id.in_(task_ids))
         ).all()
-        for task_id, email, label_id in annotation_rows:
-            annotations_by_task[task_id].append((email, label_id))
+        for task_id, email, label_id, outcome in annotation_rows:
+            annotations_by_task[task_id].append((email, label_id, outcome))
 
     set_names = {
         row[0]: row[1]
@@ -560,10 +561,10 @@ def build_task_assignments_export(
 
     assignment_records = []
     for task in tasks:
-        annotations = sorted(annotations_by_task.get(task.id, []), key=lambda pair: pair[0])
+        annotations = sorted(annotations_by_task.get(task.id, []), key=lambda row: row[0])
         existing = [
-            f"{email}={label_names.get(label_id, f'Label {label_id}') if label_id is not None else _SKIPPED_LABEL}"
-            for email, label_id in annotations
+            f"{email}={label_names.get(label_id, f'Label {label_id}') if label_id is not None else outcome.upper()}"
+            for email, label_id, outcome in annotations
         ]
         assignment_records.append(
             {

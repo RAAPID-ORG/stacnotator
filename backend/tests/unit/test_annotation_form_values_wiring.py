@@ -265,6 +265,7 @@ class TestUpdateAnnotationFormValuesWiring:
     def test_persists_normalized_form_values_when_label_present(self):
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
+        existing.output_of_task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -285,6 +286,7 @@ class TestUpdateAnnotationFormValuesWiring:
     def test_rejects_empty_form_values_when_required_and_label_present(self):
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
+        existing.output_of_task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -310,6 +312,7 @@ class TestUpdateAnnotationFormValuesWiring:
         # annotation" message.
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
+        existing.output_of_task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -333,6 +336,7 @@ class TestUpdateAnnotationFormValuesWiring:
     def test_omitted_form_values_keeps_stored_values(self):
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
+        existing.output_of_task_id = None
         existing.label_id = 1
         author = uuid4()
         existing.created_by_user_id = author
@@ -353,6 +357,7 @@ class TestUpdateAnnotationFormValuesWiring:
         # slipping through because form_values was absent from the payload.
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
+        existing.output_of_task_id = None
         existing.label_id = None
         author = uuid4()
         existing.created_by_user_id = author
@@ -372,6 +377,7 @@ class TestUpdateAnnotationFormValuesWiring:
     def test_label_edit_keeps_satisfying_stored_values(self):
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
+        existing.output_of_task_id = None
         existing.label_id = None
         author = uuid4()
         existing.created_by_user_id = author
@@ -389,6 +395,7 @@ class TestUpdateAnnotationFormValuesWiring:
     def test_empty_form_values_clears_when_label_absent(self):
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
+        existing.output_of_task_id = None
         existing.label_id = None
         author = uuid4()
         existing.created_by_user_id = author

@@ -26,7 +26,7 @@ from src.annotation.models import (
     Annotation,
     AnnotationTask,
 )
-from src.annotation.schemas import compute_task_status_value, task_status_inputs
+from src.annotation.schemas import compute_task_status_value, task_answer, task_status_inputs
 from src.auth.models import User
 from src.campaigns.form_fields import CategoryFormField, DateFormField, FormField, form_field_slug
 from src.campaigns.models import Campaign
@@ -129,8 +129,11 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_task_id",
     "stacnotator_task_status",
     "stacnotator_counts_toward_completion",
+    "stacnotator_outcome",
     "stacnotator_origin_task_id",
     "stacnotator_origin_annotation_number",
+    "stacnotator_output_of_task_id",
+    "stacnotator_output_of_annotation_number",
     "stacnotator_label_id",
     "stacnotator_label_name",
     "stacnotator_annotator_count",
@@ -206,8 +209,8 @@ def _group_annotations_by_task(
 def _conflicting_task_numbers(
     grouped: dict[int, list[Annotation]],
 ) -> list[int]:
-    """Return human-readable annotation_numbers of any task whose labeled
-    annotators disagree (>= 2 distinct label_ids among labeled annotations).
+    """Return human-readable annotation_numbers of any task whose annotators
+    disagree (>= 2 distinct answers, see ``task_answer``).
 
     Only annotations whose `counts_toward_completion` is True are considered,
     mirroring `compute_task_status_value` - an extra label the labelling
@@ -217,10 +220,10 @@ def _conflicting_task_numbers(
     conflicts: list[int] = []
     for task_id, task_anns in grouped.items():
         counting = [a for a in task_anns if a.counts_toward_completion]
-        labeled = [a for a in counting if a.label_id is not None]
-        if any(a.is_authoritative for a in labeled):
+        answered = [a for a in counting if task_answer(a) is not None]
+        if any(a.is_authoritative for a in answered):
             continue
-        if len(labeled) >= 2 and len({a.label_id for a in labeled}) > 1:
+        if len({task_answer(a) for a in answered}) > 1:
             task = task_anns[0].annotation_task
             conflicts.append(task.annotation_number if task else task_id)
     return sorted(conflicts)
@@ -285,11 +288,17 @@ def _build_export_record_for_annotation(
         record["stacnotator_annotation_number"] = task.annotation_number
         record["stacnotator_task_status"] = task_status
         record["stacnotator_counts_toward_completion"] = annotation.counts_toward_completion
+        record["stacnotator_outcome"] = annotation.outcome
     else:
         origin = annotation.origin_task
         record["stacnotator_origin_task_id"] = origin.id if origin else None
         record["stacnotator_origin_annotation_number"] = (
             origin.annotation_number if origin else None
+        )
+        output_of = annotation.output_of_task
+        record["stacnotator_output_of_task_id"] = output_of.id if output_of else None
+        record["stacnotator_output_of_annotation_number"] = (
+            output_of.annotation_number if output_of else None
         )
 
     record["stacnotator_annotation_id"] = annotation.id
@@ -540,6 +549,7 @@ def fetch_annotations_with_context(
                 joinedload(Annotation.geometry),
                 joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
                 joinedload(Annotation.origin_task),
+                joinedload(Annotation.output_of_task),
             )
         )
         .unique()

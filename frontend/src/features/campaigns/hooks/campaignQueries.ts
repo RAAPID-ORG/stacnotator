@@ -59,16 +59,19 @@ const NO_ANNOTATIONS: AnnotationListItemOut[] = [];
  * trips - which none of those pages render. Use that one only where the imagery is
  * actually needed: the settings editor and the annotation page.
  */
-export const useCampaignSummary = (campaignId: number) => {
+export const useCampaignSummary = (campaignId: number | null) => {
   const { t } = useTranslation('campaigns');
+  // The sidebar asks on every route, so the hook stays unconditional and only
+  // runs once there is a campaign to read.
   const { data, isPending } = useQuery({
-    ...getCampaignSummaryOptions({ path: { campaign_id: campaignId } }),
+    ...getCampaignSummaryOptions({ path: { campaign_id: campaignId ?? 0 } }),
+    enabled: campaignId !== null,
     meta: { errorMessage: t('errors.loadCampaign') },
     // These pages are reachable during setup, so what they say about it has to
     // stop being true on its own. Stops as soon as setup finishes.
     refetchInterval: (query) => (isRegistering(query.state.data) ? REGISTRATION_POLL_MS : false),
   });
-  return { campaign: data, loading: isPending };
+  return { campaign: data, loading: campaignId !== null && isPending };
 };
 
 /** The whole campaign, imagery included. Only the settings editor and the annotation

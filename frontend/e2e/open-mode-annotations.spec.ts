@@ -592,7 +592,7 @@ test.describe('Annotations page View deep link', () => {
     await page.getByRole('button', { name: 'View' }).click();
 
     // Tasks mode, positioned on TASK_3, with the review list visible.
-    await expect(page.locator('input[type="number"][title="Press Enter to go"]')).toHaveValue(
+    await expect(page.locator('[data-testid="goto-point"]')).toHaveValue(
       String(TASK_3.annotation_number),
       { timeout: 15_000 }
     );

@@ -45,6 +45,7 @@ export const ROUTE = {
   projectTilers: /\/api\/projects\/\d+\/tilers/,
   projectUsers: /\/api\/projects\/\d+\/users(\?.*)?$/,
   users: /\/api\/auth\/users(\?.*)?$/,
+  campaignSummary: /\/api\/campaigns\/\d+\/summary(\?.*)?$/,
 };
 
 /** Captured API request for assertions. */
@@ -165,7 +166,7 @@ export async function waitForNavIdle(page: Page, timeout = 5000): Promise<void> 
   await controls.waitFor({ state: 'visible', timeout });
   await nextFrames(page);
   const idle = controls
-    .locator('input[type="number"][title="Press Enter to go"]:not([disabled])')
+    .locator('[data-testid="goto-point"]:not([disabled])')
     .or(controls.getByText('No tasks match the current filter.'));
   await idle.first().waitFor({ state: 'visible', timeout });
 }
@@ -239,6 +240,12 @@ async function installOrgProjectMocks(page: Page, api: ApiCapture): Promise<void
   await page.route(ROUTE.project, async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     await route.fulfill({ json: MOCK_PROJECT });
+  });
+
+  // The sidebar names the campaign on every campaign route, so every page that
+  // opens one reads its summary.
+  await page.route(ROUTE.campaignSummary, async (route) => {
+    await route.fulfill({ json: MOCK_CAMPAIGN });
   });
 
   await page.route(ROUTE.projects, async (route) => {

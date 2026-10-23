@@ -11,7 +11,7 @@ import { test, expect, waitForNavIdle } from './fixtures/annotator-fixture';
 import { TASK_3, TASK_4, TASK_5 } from './fixtures/mock-data';
 
 const gotoInput = (page: import('@playwright/test').Page) =>
-  page.locator('input[type="number"][title="Press Enter to go"]');
+  page.locator('[data-testid="goto-point"]');
 
 const enterReviewMode = async (page: import('@playwright/test').Page) => {
   await page.locator('[data-tour="review-toggle"] button').first().click();

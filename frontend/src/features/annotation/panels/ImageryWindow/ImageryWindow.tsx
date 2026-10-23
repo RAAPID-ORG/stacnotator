@@ -5,7 +5,7 @@ import { type ImageryCatalog } from '../../campaign/imagery';
 import { awaitingImageryRegistration } from '../../campaign/tileUrls';
 import { type SliceAddress } from '../../campaign/imageryNav';
 import { addressAtSlice, collectionAddress } from '../../campaign/imageryNav';
-import { useCampaignStore, useCatalog } from '../../stores/campaign';
+import { useCampaignStore, useCatalog, useDrawsShapes } from '../../stores/campaign';
 import { useImageryStore, type ImageryState } from '../../stores/imagery';
 import { usePrefsStore } from '../../stores/prefs';
 import { useSavedAnnotations, useWorkStore } from '../../stores/work';
@@ -103,6 +103,7 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
   const catalog = useCatalog();
   const registrationStatus = useCampaignStore((s) => s.campaign?.registration_status);
   const mode = useCampaignStore((s) => s.workMode);
+  const drawsShapes = useDrawsShapes();
   const originTask = useCampaignStore((s) => s.originTask);
   const imagery = useImageryStore();
   const legendOverrides = usePrefsStore((s) => s.legendOverrides);
@@ -162,8 +163,18 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
       crosshairColor: focus?.crosshairColor ?? null,
       originTask,
     };
-    return composeLayers({ catalog, mode }, state);
-  }, [catalog, mode, imagery, address, annotations, legendOverrides, focus, originTask]);
+    return composeLayers({ catalog, mode, drawsShapes }, state);
+  }, [
+    catalog,
+    mode,
+    drawsShapes,
+    imagery,
+    address,
+    annotations,
+    legendOverrides,
+    focus,
+    originTask,
+  ]);
 
   const source = address ? catalog.sources.get(address.sourceId) : undefined;
   const healing = useEmptyHealing({

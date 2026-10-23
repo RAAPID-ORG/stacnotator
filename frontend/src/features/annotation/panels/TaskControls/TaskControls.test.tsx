@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
 import type { AnnotationTaskOut, CampaignOutFull } from '~/api/client';
 import { buildImageryCatalog } from '../../campaign/imagery';
@@ -18,7 +18,7 @@ import { useTasksStore } from '../../stores/tasks';
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
-  return { ...actual, claimAnnotationTask: vi.fn() };
+  return { ...actual, claimAnnotationTask: vi.fn(), completeAnnotationTask: vi.fn() };
 });
 
 const FILTER = {
@@ -158,5 +158,44 @@ describe('TaskControls claim conflict', () => {
     await waitFor(() => expect(api.claimAnnotationTask).toHaveBeenCalled());
     expect(alerts).toEqual([]);
     expect(useTasksStore.getState().currentIndex).toBe(0);
+  });
+});
+
+// A draw task is answered by the shapes drawn around it, so the panel swaps
+// the label form for the drawing tools and Done records that answer.
+describe('TaskControls draw task', () => {
+  it('finishes the task as drawn, with no label', async () => {
+    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+      apiSuccess(makeClaimTaskResponse({ task_id: OPEN_TASK.id, claimed: true }))
+    );
+    vi.mocked(api.completeAnnotationTask).mockResolvedValue(
+      apiSuccess({
+        annotation: makeTaskAnnotation({ id: 11, label_id: null, outcome: 'drawn' }),
+        task_status: 'done',
+        assignment_status: 'done',
+      })
+    );
+    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [OPEN_TASK]);
+
+    render(<TaskControls />);
+    expect(screen.queryByRole('button', { name: /submit/i })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
+
+    await waitFor(() => expect(api.completeAnnotationTask).toHaveBeenCalled());
+    expect(vi.mocked(api.completeAnnotationTask).mock.calls[0][0].body).toMatchObject({
+      label_id: null,
+      outcome: 'drawn',
+    });
+  });
+
+  it('turns Nothing here off once this user has drawn on the task', async () => {
+    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [
+      { ...OPEN_TASK, drawn_by_user_ids: ['u1'] },
+    ]);
+
+    render(<TaskControls />);
+
+    const nothingHere = await screen.findByRole('button', { name: 'Nothing here' });
+    expect((nothingHere as HTMLButtonElement).disabled).toBe(true);
   });
 });

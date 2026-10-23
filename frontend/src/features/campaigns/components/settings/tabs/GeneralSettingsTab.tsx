@@ -12,6 +12,7 @@ import {
   updateLabellingPolicyMutation,
   updateResearchSharingMutation,
   updateSampleExtentMutation,
+  updateTaskOutputMutation,
 } from '~/api/queries';
 import { useRefreshCampaign } from '~/features/campaigns/hooks/campaignQueries';
 import { projectPath } from '~/app/routes';
@@ -234,6 +235,10 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     onSuccess: refreshCampaign,
   });
   const savingResearchSharing = saveResearchSharing.isPending;
+  const saveTaskOutput = useMutation({
+    ...updateTaskOutputMutation(),
+    ...saved('Failed to update the task output', 'Task output updated'),
+  });
   const parsedExtent = sampleExtent.trim() === '' ? null : Number(sampleExtent);
   const extentValid = parsedExtent === null || (Number.isFinite(parsedExtent) && parsedExtent > 0);
   const extentChanged = parsedExtent !== (campaign.settings.sample_extent_meters ?? null);
@@ -357,6 +362,31 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           disabled={savingResearchSharing}
           label={t('generalTab.research.label')}
         />
+      </section>
+
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Task output</h2>
+          <p className="section-description">
+            What finishes a task: picking a label for the task&apos;s own point or polygon, or
+            drawing shapes around it. Fixed once the first task has been annotated.
+          </p>
+        </div>
+        <Field label="Tasks are finished by" className="w-72">
+          <Select
+            value={campaign.settings.task_output ?? 'classify'}
+            onChange={(e) =>
+              saveTaskOutput.mutate({
+                path,
+                body: { task_output: e.target.value === 'draw' ? 'draw' : 'classify' },
+              })
+            }
+            disabled={saveTaskOutput.isPending}
+          >
+            <option value="classify">Labelling the task location</option>
+            <option value="draw">Drawing shapes around it</option>
+          </Select>
+        </Field>
       </section>
 
       <section className={sectionCls}>

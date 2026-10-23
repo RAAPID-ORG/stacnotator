@@ -44,6 +44,7 @@ from src.campaigns.schemas import (
     UpdateLabellingPolicyRequest,
     UpdateResearchSharingRequest,
     UpdateSampleExtentRequest,
+    UpdateTaskOutputRequest,
 )
 from src.database import get_db, release
 from src.imagery.registration import REGISTRATION_RUN
@@ -260,6 +261,18 @@ def update_research_sharing(
     return _campaign_out(
         service.update_research_sharing(db, campaign_id, req.research_sharing), db, user
     )
+
+
+@router.patch("/{campaign_id}/task-output", response_model=CampaignOut)
+def update_task_output(
+    campaign_id: int,
+    req: UpdateTaskOutputRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
+):
+    """Whether tasks are finished by labelling them or by drawing shapes around them."""
+    return _campaign_out(service.update_task_output(db, campaign_id, req.task_output), db, user)
 
 
 @router.patch("/{campaign_id}/guide", response_model=CampaignOut)

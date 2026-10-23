@@ -129,7 +129,10 @@ class TestBuildExport:
             db,
             tasks=[_task(1001, 10), _task(1002, 20)],
             assignment_rows=[(10, "alice@x.com", False), (10, "bob@x.com", True)],
-            annotation_rows=[(10, "alice@x.com", 1), (10, "carol@x.com", None)],
+            annotation_rows=[
+                (10, "alice@x.com", 1, "labelled"),
+                (10, "carol@x.com", None, "skipped"),
+            ],
             campaign_users=[cu],
         )
 
@@ -139,7 +142,7 @@ class TestBuildExport:
         assert row.assignees == "alice@x.com"
         assert row.reviewers == "bob@x.com"
         assert row.annotation_count == 2
-        # sorted by email; missing label renders as SKIPPED
+        # sorted by email; a skip renders as SKIPPED
         assert row.existing_annotations == "alice@x.com=Forest, carol@x.com=SKIPPED"
 
         empty = assignments_df[assignments_df.annotation_number == 1002].iloc[0]

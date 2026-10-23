@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Toaster, toast, useSonner } from 'sonner';
-import { AppSidebar } from 'src/app/AppSidebar';
+import { AppSidebar } from 'src/app/sidebar/AppSidebar';
 import { ConfirmDialog } from 'src/shared/ui/ConfirmDialog';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Breadcrumbs } from 'src/shared/ui/Breadcrumbs';

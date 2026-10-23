@@ -367,7 +367,7 @@ export function reviewRows(
       isExtra: annotation.counts_toward_completion === false,
       // Read off the annotation, not an assignment: somebody who took the
       // task out of the free pool and skipped it has no assignment row.
-      isSkipped: annotation.label_id == null,
+      isSkipped: annotation.outcome === 'skipped',
     };
   });
 }

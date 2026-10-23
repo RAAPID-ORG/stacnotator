@@ -17,6 +17,7 @@ import { StepData } from './StepData';
 import { StepDesign } from './StepDesign';
 import { StepPrior } from './StepPrior';
 import { formatCount } from './format';
+import { scrollableParent } from '~/shared/utils/scroll';
 
 interface Props {
   plan: AreaEstimationPlan;
@@ -111,15 +112,4 @@ export const PlanWizard = ({ plan, update, onActivate, activating, onCancel }: P
       </div>
     </div>
   );
-};
-
-/** The one box the wizard sits in, so scrolling it leaves the app shell alone. */
-const scrollableParent = (from: HTMLElement | null): HTMLElement | null => {
-  for (let node = from?.parentElement ?? null; node; node = node.parentElement) {
-    const { overflowY } = getComputedStyle(node);
-    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
-      return node;
-    }
-  }
-  return null;
 };

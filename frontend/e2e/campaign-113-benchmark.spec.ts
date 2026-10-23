@@ -84,7 +84,7 @@ function tileKey(url: string): string | null {
 }
 
 async function waitForBenchmarkNavigation(page: import('@playwright/test').Page): Promise<void> {
-  const input = page.locator('input[type="number"][title="Press Enter to go"]');
+  const input = page.locator('[data-testid="goto-point"]');
   await input.waitFor({ state: 'visible', timeout: 30_000 });
   await expect(input).toBeEnabled({ timeout: 30_000 });
   await page.evaluate(
@@ -390,7 +390,7 @@ test(`campaign ${CAMPAIGN_ID} cold random-task benchmark`, async ({ annotationPa
     annotationPage.on('response', onResponse);
     annotationPage.on('requestfinished', onRequestFinished);
 
-    const gotoInput = annotationPage.locator('input[type="number"][title="Press Enter to go"]');
+    const gotoInput = annotationPage.locator('[data-testid="goto-point"]');
     await gotoInput.fill(String(task.annotation_number));
     await annotationPage.evaluate((targets) => {
       const state = window as typeof window & {

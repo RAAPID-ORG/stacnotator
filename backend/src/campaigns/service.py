@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import ARRAY, Text, and_, cast, delete, func, or_, select, update
+from sqlalchemy import ARRAY, Text, and_, cast, delete, exists, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -685,6 +685,30 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
     # Geometries have no campaign FK, so the cascade above cannot reach them.
     delete_orphan_geometries(db)
     db.commit()
+
+
+def update_task_output(db: Session, campaign_id: int, task_output: str) -> Campaign:
+    """Switch between labelling tasks and drawing around them. Locked once any
+    task has been worked: the outcomes stored so far would change meaning."""
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+    if campaign.settings.task_output != task_output and db.scalar(
+        select(
+            exists().where(
+                Annotation.campaign_id == campaign_id, Annotation.annotation_task_id.isnot(None)
+            )
+        )
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="The task output cannot change once tasks have been annotated",
+        )
+    campaign.settings.task_output = task_output
+    db.commit()
+    return get_campaign_full(db, campaign_id)
 
 
 def update_research_sharing(db: Session, campaign_id: int, research_sharing: bool) -> Campaign:

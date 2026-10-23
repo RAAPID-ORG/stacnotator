@@ -92,6 +92,7 @@ class AnnotationTask(Base):
         # looks each up in one query rather than per task.
         has_embedding: bool
         nearby_annotation_count: int
+        drawn_by_user_ids: list[UUID]
 
     __tablename__ = "annotation_tasks"
     __table_args__ = (
@@ -244,9 +245,22 @@ class Annotation(Base):
         Index("idx_annotations_campaign_id", "campaign_id"),
         Index("idx_annotations_task_id", "annotation_task_id"),
         Index("idx_annotations_origin_task_id", "origin_task_id"),
+        Index("idx_annotations_output_of_task_id", "output_of_task_id"),
         CheckConstraint(
-            "annotation_task_id IS NULL OR origin_task_id IS NULL",
-            name="annotations_origin_only_standalone",
+            "num_nonnulls(annotation_task_id, origin_task_id, output_of_task_id) <= 1",
+            name="annotations_single_task_link",
+        ),
+        CheckConstraint(
+            "outcome IS NULL OR outcome IN ('labelled', 'skipped', 'drawn', 'none_found')",
+            name="annotations_outcome_values",
+        ),
+        CheckConstraint(
+            "annotation_task_id IS NULL OR outcome IS NOT NULL",
+            name="annotations_task_row_has_outcome",
+        ),
+        CheckConstraint(
+            "outcome IS NULL OR (outcome = 'labelled') = (label_id IS NOT NULL)",
+            name="annotations_outcome_label_match",
         ),
         Index("idx_annotations_geometry_id", "geometry_id"),
         Index("idx_annotations_created_by_user_id", "created_by_user_id"),
@@ -311,6 +325,12 @@ class Annotation(Base):
         nullable=True,
     )
 
+    # The draw task this shape was drawn as the answer to.
+    output_of_task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.annotation_tasks.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Imagery the annotator was viewing in the main window when drawing/editing.
     # The FK gives traceability; the snapshotted dates survive slice edits/deletes.
     imagery_slice_id: Mapped[int | None] = mapped_column(
@@ -328,6 +348,8 @@ class Annotation(Base):
 
     # Annotation data
     label_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Set on every task row (see TaskOutcome), never on a drawn shape.
+    outcome: Mapped[str | None] = mapped_column(String(20), nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Notes the annotator attached to individual imagery slices, one per slice.
     # Each entry snapshots the slice's source and dates for the same reason the
@@ -375,6 +397,7 @@ class Annotation(Base):
         back_populates="annotations",
     )
     origin_task: Mapped["AnnotationTask | None"] = relationship(foreign_keys=[origin_task_id])
+    output_of_task: Mapped["AnnotationTask | None"] = relationship(foreign_keys=[output_of_task_id])
     creator: Mapped["User"] = relationship()
 
 

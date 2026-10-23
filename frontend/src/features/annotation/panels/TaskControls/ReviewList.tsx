@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
 import i18n from '~/shared/i18n';
+import { outcomeLabel } from '~/shared/utils/taskStatus';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { addressOfSlice, describeSlice } from '../../campaign/sliceComments';
 import type { SliceComment } from '../../campaign/sliceComments';
@@ -89,9 +90,7 @@ function AnnotationCard({
     ? capitalizeFirst(label.name)
     : annotation.label_id
       ? `#${annotation.label_id}`
-      : isSkipped
-        ? t('review.skipped')
-        : '-';
+      : (outcomeLabel(annotation.outcome) ?? '-');
 
   const bg = isAuthoritative
     ? 'bg-amber-50 border-amber-200'

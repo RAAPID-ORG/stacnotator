@@ -6,6 +6,10 @@ ANNOTATION_TASK_STATUS_PENDING = "pending"
 ANNOTATION_TASK_STATUS_DONE = "done"
 ANNOTATION_TASK_STATUS_SKIPPED = "skipped"
 
+# What one annotator's task row says about the task. `labelled` belongs to
+# classify campaigns, `drawn` and `none_found` to draw campaigns.
+TaskOutcome = Literal["labelled", "skipped", "drawn", "none_found"]
+
 # How long a soft claim stays active before considered stale
 CLAIM_TTL_MINUTES = 30
 

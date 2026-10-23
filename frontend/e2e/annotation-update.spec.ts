@@ -18,7 +18,7 @@ async function gotoTask3(page: import('@playwright/test').Page) {
   await filterBtn.click();
   await waitForNavIdle(page);
 
-  const gotoInput = page.locator('input[type="number"][title="Press Enter to go"]');
+  const gotoInput = page.locator('[data-testid="goto-point"]');
   await gotoInput.fill(TASK_3.annotation_number.toString());
   await gotoInput.press('Enter');
   await waitForNavIdle(page);

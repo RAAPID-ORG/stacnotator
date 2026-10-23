@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { IconChevronRight } from '~/shared/ui/Icons';
 import {
   extendedLabels,
   isLabelGroupActive,
@@ -95,8 +96,14 @@ function ShortcutLegend() {
   if (rows.length === 0) return null;
 
   return (
-    <div className="pt-2 border-t border-neutral-200 w-full">
-      <span className="font-semibold text-neutral-700 text-[11px]">{t('explore.shortcuts')}</span>
+    <details
+      data-testid="explore-shortcuts"
+      className="group pt-2 border-t border-neutral-200 w-full"
+    >
+      <summary className="flex items-center gap-1 cursor-pointer select-none list-none font-semibold text-neutral-700 text-[11px] [&::-webkit-details-marker]:hidden">
+        <IconChevronRight className="w-3 h-3 text-neutral-400 transition-transform group-open:rotate-90" />
+        {t('explore.shortcuts')}
+      </summary>
       <ul className="mt-1.5 space-y-0.5 max-w-xs">
         {rows.map((row) => (
           <li key={row.key} className="flex items-center justify-between gap-3 text-[11px]">
@@ -107,7 +114,7 @@ function ShortcutLegend() {
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   );
 }
 

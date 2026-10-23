@@ -13,7 +13,7 @@ import { test, expect, waitForNavIdle } from './fixtures/annotator-fixture';
 import { TASK_3 } from './fixtures/mock-data';
 
 const gotoInput = (page: import('@playwright/test').Page) =>
-  page.locator('input[type="number"][title="Press Enter to go"]');
+  page.locator('[data-testid="goto-point"]');
 
 const openFilterPanel = async (page: import('@playwright/test').Page) => {
   const btn = page.locator('[data-tour="task-filter"] button').first();

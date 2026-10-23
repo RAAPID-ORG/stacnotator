@@ -427,12 +427,16 @@
       },
       "recenter": {
         "title": "Práctica: recentrar el mapa",
-        "body": ["Pulsa {{ }} para recentrar el mapa en la ubicación de la tarea actual."],
+        "body": [
+          "Pulsa {{ }} para recentrar el mapa en la ubicación de la tarea actual."
+        ],
         "hint": "Prueba a pulsar Espacio ahora."
       },
       "crosshair": {
         "title": "Práctica: mostrar u ocultar la retícula",
-        "body": ["Pulsa {{x}} para mostrar u ocultar la retícula sobre el mapa."],
+        "body": [
+          "Pulsa {{x}} para mostrar u ocultar la retícula sobre el mapa."
+        ],
         "hint": "Prueba a pulsar X ahora."
       },
       "timeseries": [
@@ -446,7 +450,9 @@
       ],
       "googleEarth": "Haz clic en el enlace resaltado Abrir en Google Earth para inspeccionar la ubicación de la tarea actual en Google Earth. Se abrirá una pestaña nueva con las coordenadas ya introducidas, muy útil para obtener contexto en alta resolución cuando las imágenes no bastan.",
       "controls": {
-        "body": ["En este panel es donde anotas realmente:"],
+        "body": [
+          "En este panel es donde anotas realmente:"
+        ],
         "selectLabel": "Selecciona una etiqueta (o pulsa las teclas numéricas 1-9)",
         "formFields": "Responde a las preguntas de la campaña debajo de las etiquetas: {{tab}} pasa de una a otra, y las obligatorias deben completarse antes de poder enviar la tarea",
         "comment": "Si quieres, añade un comentario (pulsa {{c}} para enfocarlo)",
@@ -455,12 +461,16 @@
       },
       "practiceTasks": {
         "title": "Práctica: navegar por las tareas",
-        "body": ["Pulsa {{w}} para ir a la tarea anterior y {{s}} para ir a la siguiente."],
+        "body": [
+          "Pulsa {{w}} para ir a la tarea anterior y {{s}} para ir a la siguiente."
+        ],
         "hint": "Prueba a pulsar S y luego W para moverte en ambas direcciones."
       },
       "review": {
         "title": "Modo de revisión",
-        "body": ["STACNotator ofrece dos formas de revisar anotaciones:"],
+        "body": [
+          "STACNotator ofrece dos formas de revisar anotaciones:"
+        ],
         "toggle": "Botón de revisión (icono de ojo): activa el modo de revisión directamente en esta página de anotación. Verás las etiquetas de todos los anotadores para cada tarea en el panel de controles. Si varios anotadores no están de acuerdo en una tarea, hay dos formas de resolverlo:",
         "toggleOptions": [
           "Actualiza tu etiqueta para que coincida con la de los demás si crees que tienen razón",
@@ -498,7 +508,9 @@
       ],
       "drawing": {
         "title": "Dibujar una anotación",
-        "body": ["Elige primero una etiqueta: la etiqueta decide la forma que dibujas."],
+        "body": [
+          "Elige primero una etiqueta: la etiqueta decide la forma que dibujas."
+        ],
         "bullets": [
           "Etiquetas de punto: un clic en el mapa y queda colocado.",
           "Etiquetas de polígono y de línea: haz clic en cada vértice por orden. Cierra la forma con {{enter}}, con un doble clic o haciendo clic de nuevo en el primer vértice, lo que tengas más a mano.",
@@ -638,7 +650,7 @@
     },
     "horizontal": "Horizontal",
     "vertical": "Vertical",
-    "sliceNavigation": "Navegación de cortes en escritorio"
+    "sliceNavigation": "Botones de navegación entre cortes"
   },
   "views": {
     "title": "Vistas",

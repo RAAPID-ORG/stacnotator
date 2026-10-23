@@ -78,6 +78,14 @@ interface DeepLink {
 }
 
 /** Number(null) is 0, so every numeric parameter needs the presence check. */
+/** One stable function, so the poll is not restarted on every render. */
+const syncDrawTasks = async (): Promise<void> => {
+  await Promise.all([
+    useWorkStore.getState().syncRemoteAnnotations(),
+    useTasksStore.getState().syncRemoteTasks(),
+  ]);
+};
+
 function numberParam(params: URLSearchParams, name: string): number | undefined {
   const raw = params.get(name);
   if (raw === null) return undefined;
@@ -252,12 +260,14 @@ export function AnnotationPage() {
   useHotkeys(bindings, [bindings]);
 
   // Explore draws everyone's annotations; tasks mode counts everyone's
-  // progress. Each keeps up with what it shows.
+  // progress, and draw tasks do both. Each keeps up with what it shows.
   useRemoteSync(
     campaign?.id ?? null,
     workMode === 'explore'
       ? useWorkStore.getState().syncRemoteAnnotations
-      : useTasksStore.getState().syncRemoteTasks
+      : campaign?.settings.task_output === 'draw'
+        ? syncDrawTasks
+        : useTasksStore.getState().syncRemoteTasks
   );
 
   // A deep link can seed a mode the campaign's policy does not allow this

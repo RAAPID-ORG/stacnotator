@@ -10,6 +10,7 @@ import {
 import i18n from '~/shared/i18n';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
+import type { TaskOutcome } from '~/shared/utils/taskStatus';
 import { isAudienceMember, type PolicyContext } from '~/features/campaigns/utils/labellingPolicy';
 import {
   maySubmitTask,
@@ -125,6 +126,8 @@ export interface SubmitParams {
    *  moved on, removing takes your work off the task - so the intent is passed
    *  rather than guessed from the absent label. */
   isSkip?: boolean;
+  /** Required for draw tasks; a classify submission's label already says it. */
+  outcome?: TaskOutcome;
 }
 
 export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome> {
@@ -186,6 +189,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         flag_comment: params.flagged ? params.flagComment || null : null,
         form_values: Object.keys(params.formValues).length ? params.formValues : null,
         slice_comments: params.sliceComments,
+        outcome: params.outcome ?? null,
         active_ms: readTaskActiveMs(task.id),
       },
     });
@@ -237,6 +241,7 @@ async function run(options: {
   isAuthoritative?: boolean;
   confirmMismatch?: boolean;
   isSkip?: boolean;
+  outcome?: TaskOutcome;
 }): Promise<SubmitOutcome> {
   const { catalog } = campaignState();
   const task = currentTask();
@@ -258,6 +263,7 @@ async function run(options: {
     knnValidationEnabled: useTasksStore.getState().knnValidationEnabled,
     confirmMismatch: options.confirmMismatch,
     isSkip: options.isSkip,
+    outcome: options.outcome,
   });
 
   const tasks = useTasksStore.getState();
@@ -383,6 +389,20 @@ export async function skipCurrent(): Promise<void> {
     if (!confirmed) return;
   }
   await guarded(async () => {
-    await run({ labelId: null, isSkip: true });
+    await run({ labelId: null, isSkip: true, outcome: 'skipped' });
+  });
+}
+
+/** Finishes a draw task: `drawn` once this user's shapes for it are on the
+ *  map (the server checks there is at least one), `none_found` when there was
+ *  nothing to draw. */
+export async function finishDrawTask(outcome: 'drawn' | 'none_found'): Promise<void> {
+  const { draft } = useWorkStore.getState();
+  if ((draft.phase === 'draft' || draft.phase === 'committing') && draft.savedId === null) {
+    alert('Save or discard the shape you are drawing first.', 'error');
+    return;
+  }
+  await guarded(async () => {
+    await run({ labelId: null, outcome });
   });
 }

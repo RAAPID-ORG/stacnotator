@@ -91,7 +91,7 @@ const CAMPAIGN: CampaignOutFull = makeCampaign({
 const CATALOG = buildImageryCatalog(CAMPAIGN);
 
 function ctxFor(mode: 'tasks' | 'explore'): ComposeContext {
-  return { catalog: CATALOG, mode };
+  return { catalog: CATALOG, mode, drawsShapes: mode === 'explore' };
 }
 
 function stateWith(overrides: Partial<ComposeState> = {}): ComposeState {

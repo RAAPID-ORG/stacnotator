@@ -11,4 +11,7 @@ export const organizationsPath = () => '/organizations';
 export const newOrganizationPath = () => '/organizations/new';
 export const organizationPath = (orgId: number) => `/organizations/${orgId}`;
 
+export const settingsPath = () => '/settings';
+export const platformAdminPath = () => '/admin';
+
 export const ANNOTATION_ROUTE = /^\/projects\/\d+\/campaigns\/\d+\/annotate/;

@@ -16,6 +16,8 @@ Imagery registration runs per campaign but succeeds per source: each source repo
 ## Campaign Modes
 
 - **Task Mode** - Predefined annotation locations (points/polygons). Tasks are assigned to annotators who visit each location and label it.
+  - **Task output** (campaign setting, fixed once tasks are annotated): `classify` tasks are finished by picking a label for the task's own geometry; `draw` tasks by drawing shapes around it. In a draw campaign Task mode carries the drawing tools, every shape is saved against the current task (`output_of_task_id`), and the task is finished with **Done**, **Nothing here** or **Skip**.
+  - Each annotator's task row stores its outcome (`labelled`, `skipped`, `drawn`, `none_found`), which is what task status compares across annotators.
 - **Open/Explore Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
 
 Every campaign supports both; who may do what is governed by the labelling policy (four audience axes: explore, unassigned tasks, assigned tasks, counting toward completion). See [labelling-policy.md](labelling-policy.md). The campaign `mode` is the default work mode the UI opens in.
@@ -71,7 +73,7 @@ Every campaign supports both; who may do what is governed by the labelling polic
 - Drag-and-resize grid layout (react-grid-layout). In **Edit Layout**, drag a panel by its header or body; buttons and form fields remain interactive. Imagery windows are hidden with their header's **Hide** button, not by clicking their body.
 - Save, Reset, and Cancel live in a fixed bottom row of the floating **Edit Layout** panel. The actions stay visible while its contents scroll, and the Save menu opens upwards to stay on screen. Minimize remains in the header; expand the panel after minimizing it to access the actions.
 - In **Edit Layout > Map navigation**, move the timeline and imagery selectors into separate resizable panels with horizontal or vertical orientation. The timeline starts beside the map vertically, or directly below it horizontally, sharing the map's original footprint without moving neighboring panels. Both remain freely draggable and resizable. Detached imagery always shows source radio choices, with smaller, directly selectable visualizations beneath each source. Collections and dates start as compact dropdowns without headings, separated by subtle dividers. In Edit Layout, click **Expand** or **Collapse** to choose whether each shows its radio choices inline; this preference saves with the layout. Map action buttons stay in the map header. During layout editing, the entire timeline panel becomes an amber "Timeline" drag header; outside editing it returns to the slider with no header. Turn a separate panel off to return its controls to the map.
-- **Desktop slice navigation** is enabled by default for newly created campaigns and can be toggled in the same section; existing campaigns keep their saved preference. It sits at the bottom of the main map, with single arrows for slices and double arrows for collections in one compact control. Mobile keeps its bottom-of-screen navigation and compact map controls regardless of the desktop arrangement. These preferences follow the personal or campaign-default layout, including Save, Cancel, and Reset.
+- **Slice navigation buttons** are enabled by default for newly created campaigns and can be toggled in the same section; existing campaigns keep their saved preference. They sit at the bottom of the main map, with single arrows for slices and double arrows for collections in one compact control. Mobile keeps its bottom-of-screen navigation and compact map controls regardless of the desktop arrangement. These preferences follow the personal or campaign-default layout, including Save, Cancel, and Reset.
 - First-view setup guidance lives in the movable, resizable Layout panel rather
   than taking space above the canvas. Dragging and resizing end when focus is lost
   or a mouse release is missed, on both the main canvas and secondary screens.
@@ -217,6 +219,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 
 - Authentication: Firebase (multi-user) or local mode (single-user, no setup required)
 - Platform roles: `user` and `admin`; access control otherwise runs through organizations and projects (see above)
+- Navigation: the sidebar lists the current project's sections (Campaigns, Visualizers, Members, Project settings) and, inside a campaign, its pages (Overview, Annotate, Tasks, Annotations, Agents, Campaign settings), showing only what the viewer's role allows. The account menu at the bottom switches organization and opens Account settings or Organization settings; platform admins get a separate Platform admin page
 - Project-scoped membership with per-member admin and authoritative-reviewer flags, applying to every campaign in the project
 - Organization approval by platform admins; email invites pre-authorize signups
 - Firebase mode: signup with email+pw (requires email validation) or via GoogleAuth

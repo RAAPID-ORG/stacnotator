@@ -29,6 +29,7 @@ import {
   importProject,
   importReview,
   importSdkAuth,
+  importPlatformAdmin,
   importSettings,
   prefetchAnnotationChunk,
   prefetchCampaignChunks,
@@ -57,6 +58,9 @@ const lazyCampaignTasks = async () => ({
 });
 const lazyReview = async () => ({ Component: (await importReview()).ReviewPage });
 const lazySettings = async () => ({ Component: (await importSettings()).SettingsPage });
+const lazyPlatformAdmin = async () => ({
+  Component: (await importPlatformAdmin()).PlatformAdminPage,
+});
 const lazySdkAuth = async () => ({ Component: (await importSdkAuth()).SdkAuthPage });
 const lazyNewProject = async () => ({ Component: (await importNewProject()).NewProjectPage });
 const lazyProject = async () => ({ Component: (await importProject()).ProjectPage });
@@ -118,6 +122,7 @@ const router = createBrowserRouter(
       <Route path="organizations/new" lazy={lazyNewOrganization} />
       <Route path="organizations/:orgId" loader={requireOrgId} lazy={lazyOrganization} />
       <Route path="settings" lazy={lazySettings} />
+      <Route path="admin" lazy={lazyPlatformAdmin} />
       <Route path="sdk-auth" lazy={lazySdkAuth} />
       {/* Unmatched paths render a friendly 404 within the layout. */}
       <Route path="*" element={<NotFoundPage />} />

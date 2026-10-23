@@ -13,6 +13,7 @@ import { commitEdit, deleteSelection } from './drawing';
 import type { Binding } from './hotkeys';
 import {
   handleFormFieldKey,
+  commentFieldIndex,
   LABEL_FIELD_INDEX,
   type FormField,
   type FormKeyContext,
@@ -23,6 +24,7 @@ import { fitAnnotations, mainCamera, minimapCamera, pan, zoom } from './map/came
 import { tasksModeTarget } from '~/shared/map/minimap/follow';
 import {
   campaignState,
+  drawsShapes,
   formFields,
   toPolicyContext,
   useCampaignStore,
@@ -120,6 +122,7 @@ function commitDigits(labels: LabelBase[]): void {
   if (!label) return;
   const work = useWorkStore.getState();
   work.setSelectedLabelId(work.selectedLabelId === label.id ? null : label.id);
+  reveal(document.querySelector<HTMLElement>(`[data-task-labels] [data-label-id="${label.id}"]`));
 }
 
 /** Buffers up to two digits so label 12 can be typed as two keystrokes rather
@@ -158,12 +161,16 @@ function formKeysApply(): boolean {
 
 function formKeyContext(): FormKeyContext {
   const work = useWorkStore.getState();
+  const fields = formFields();
   return {
-    fields: formFields(),
-    activeIndex: work.activeFieldIndex,
+    fields,
+    // However the comment box got focus - Tab, its 'c' key or a click - Tab
+    // goes on from there.
+    activeIndex: commentIsFocused() ? commentFieldIndex(fields.length) : work.activeFieldIndex,
     values: work.formValues,
     setValues: work.setFormValues,
     setActiveIndex: work.setActiveFieldIndex,
+    hasComment: commentBox() !== null,
   };
 }
 
@@ -185,10 +192,16 @@ function runFormKey(e: KeyboardEvent): void {
     return;
   }
   if (e.key === 'Tab') {
-    const field = activeFormField();
+    // The stop Tab just moved to, read before focus moves - the comment box
+    // may still hold focus, which formKeyContext would report as the stop.
+    const fields = formFields();
+    const index = useWorkStore.getState().activeFieldIndex;
+    const field = index !== null && index >= 0 ? fields[index] : undefined;
     if (field) focusFormFieldInput(field.id);
-    else if (formKeyContext().activeIndex === LABEL_FIELD_INDEX) {
+    else if (index === LABEL_FIELD_INDEX) {
       revealAndFocus(document.querySelector<HTMLElement>('[data-task-labels]'));
+    } else if (index === commentFieldIndex(fields.length) && commentBox()) {
+      revealAndFocus(document.querySelector('[data-task-comment]'), commentBox());
     }
     return;
   }
@@ -397,8 +410,22 @@ function adjustConfidence(delta: number): void {
   revealConfidence();
 }
 
+function taskStepBindings(): Binding[] {
+  const { catalog } = campaignState();
+  return [
+    { key: 'w', help: t('keymap.previousTask'), run: () => useTasksStore.getState().previous(catalog) },
+    { key: 's', help: t('keymap.nextTask'), run: () => void advance() },
+  ];
+}
+
+/** A draw task is worked with Explore's drawing keys, plus stepping between
+ *  tasks. Finishing one is the panel's Done button. */
+function drawTaskBindings(): Binding[] {
+  return [...exploreBindings(), ...taskStepBindings()];
+}
+
 function taskBindings(): Binding[] {
-  const { campaign, catalog } = campaignState();
+  const { campaign } = campaignState();
   const labels = campaign.settings.labels;
 
   // Below 10 labels a single keystroke always resolves the selection, so only
@@ -432,22 +459,9 @@ function taskBindings(): Binding[] {
       })
     ),
 
-    {
-      key: 'w',
-      help: t('keymap.previousTask'),
-      run: () => useTasksStore.getState().previous(catalog),
-    },
-    { key: 's', help: t('keymap.nextTask'), run: () => void advance() },
-    {
-      key: 'q',
-      help: t('keymap.decreaseConfidence'),
-      run: () => adjustConfidence(-1),
-    },
-    {
-      key: 'e',
-      help: t('keymap.increaseConfidence'),
-      run: () => adjustConfidence(1),
-    },
+    ...taskStepBindings(),
+    { key: 'q', help: t('keymap.decreaseConfidence'), run: () => adjustConfidence(-1) },
+    { key: 'e', help: t('keymap.increaseConfidence'), run: () => adjustConfidence(1) },
     {
       key: 'c',
       help: t('keymap.focusComment'),
@@ -722,10 +736,15 @@ export function canEnterMode(mode: WorkMode): boolean {
 
 export function pageKeymap(): Binding[] {
   const { workMode, isMobile } = campaignState();
-  // Drawing is Explore's map behaviour, and the one surface that edits data by
-  // pointer - mobile gets the read-only canvas instead.
-  const editing = workMode === 'explore' && !isMobile ? editBindings() : [];
-  const mode = workMode === 'tasks' ? taskBindings() : exploreBindings();
+  // Drawing is the one surface that edits data by pointer - mobile gets the
+  // read-only canvas instead.
+  const editing = drawsShapes() && !isMobile ? editBindings() : [];
+  const mode =
+    workMode === 'explore'
+      ? exploreBindings()
+      : drawsShapes()
+        ? drawTaskBindings()
+        : taskBindings();
   return [
     ...tag(editing, 'edit'),
     ...tag(formFieldBindings(), 'form'),

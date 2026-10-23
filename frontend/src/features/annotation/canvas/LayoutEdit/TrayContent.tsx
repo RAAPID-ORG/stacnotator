@@ -166,31 +166,29 @@ export function TrayContent({
       title={t('layoutEdit.edit')}
       footerActions={footerActions}
       sections={
-        <>
-          {settingUpFirstView && (
-            <div
-              className="mb-2 rounded-md border border-brand-200 bg-brand-50 p-2 text-xs leading-snug text-brand-900"
-              data-testid="first-view-setup-guidance"
-            >
-              <p className="mb-1 font-medium">{t('tray.setup.title')}</p>
-              <p>
-                <Trans
-                  t={t}
-                  i18nKey="tray.setup.body"
-                  components={{ strong: <span className="font-medium" /> }}
-                />
-              </p>
-              <p className="mt-2">{t('tray.setup.moveHint')}</p>
-            </div>
-          )}
-          {isCampaignAdmin && (
-            <div className="mb-2 border-b border-neutral-100 pb-2">
-              <ViewAdmin />
-            </div>
-          )}
-          <NavigationPanels />
-        </>
+        (settingUpFirstView || isCampaignAdmin) && (
+          <>
+            {settingUpFirstView && (
+              <div
+                className="mb-2 rounded-md border border-brand-200 bg-brand-50 p-2 text-xs leading-snug text-brand-900"
+                data-testid="first-view-setup-guidance"
+              >
+                <p className="mb-1 font-medium">{t('tray.setup.title')}</p>
+                <p>
+                  <Trans
+                    t={t}
+                    i18nKey="tray.setup.body"
+                    components={{ strong: <span className="font-medium" /> }}
+                  />
+                </p>
+                <p className="mt-2">{t('tray.setup.moveHint')}</p>
+              </div>
+            )}
+            {isCampaignAdmin && <ViewAdmin />}
+          </>
+        )
       }
+      pinnedSection={<NavigationPanels />}
       listHeader={<HiddenPanelsHeader count={items.length} />}
       storageKey="annotation:layoutPanel"
       onAdd={(id) => showWindow(Number(id))}
