@@ -199,7 +199,7 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
             disabled={isSkipDisabled}
             title={!mayLabel ? 'You are not allowed to label this task' : undefined}
             onClick={() => void skipCurrent()}
-            className="inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center h-7 px-1.5 text-[11px] font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Skip
           </button>
@@ -208,7 +208,7 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
               type="button"
               disabled={isSkipDisabled}
               onClick={() => void finishDrawTask('none_found')}
-              className="inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center h-7 px-1.5 text-[11px] font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Nothing here
             </button>
