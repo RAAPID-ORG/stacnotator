@@ -87,7 +87,7 @@ class CustomMap(Base, _OwnedLayer):
 
 
 class VectorLayer(Base, _OwnedLayer):
-    """A campaign-scoped PMTiles vector layer rendered client-side in open mode.
+    """A campaign-scoped PMTiles vector layer rendered client-side.
 
     Just a ``.pmtiles`` URL the frontend reads directly via HTTP range requests.
     """

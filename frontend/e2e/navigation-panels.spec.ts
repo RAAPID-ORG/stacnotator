@@ -163,7 +163,7 @@ test('saving a new source shows an orange off-canvas warning before persisting',
   await page.getByRole('button', { name: 'Discard', exact: true }).click();
 });
 
-for (const mode of ['tasks', 'open']) {
+for (const mode of ['tasks', 'explore']) {
   test(`${mode}: source order saves on the view and selects the first source after reload`, async ({
     annotationPage: page,
   }) => {
@@ -173,7 +173,7 @@ for (const mode of ['tasks', 'open']) {
       route.fulfill({
         json: {
           ...MOCK_CAMPAIGN_MULTI_SOURCE,
-          mode,
+          default_work_mode: mode,
           viewer_is_admin: true,
           imagery_views: [view, alternateView],
         },

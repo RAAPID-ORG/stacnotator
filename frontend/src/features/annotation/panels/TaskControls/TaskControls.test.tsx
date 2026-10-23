@@ -18,7 +18,7 @@ import { useTasksStore } from '../../stores/tasks';
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
-  return { ...actual, claimAnnotationTask: vi.fn(), completeAnnotationTask: vi.fn() };
+  return { ...actual, claimTask: vi.fn(), annotateTask: vi.fn() };
 });
 
 const FILTER = {
@@ -45,7 +45,7 @@ function seed(campaign: CampaignOutFull, tasks: AnnotationTaskOut[]): void {
 }
 
 // No assignments (unassigned_tasks gates it) and someone else's annotation
-// already on it, so useClaims' claimTask no-ops without hitting the network
+// already on it, so useClaims' requestClaim no-ops without hitting the network
 // stub (isClaimable is false once a task carries any annotation).
 const NOT_ALLOWED_TASK: AnnotationTaskOut = makeTask({
   id: 1,
@@ -141,7 +141,7 @@ const OPEN_POLICY = makeCampaign({
 // it must not move the user off a task they are entitled to label.
 describe('TaskControls claim conflict', () => {
   it('stays on a task somebody else holds instead of skipping past it', async () => {
-    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+    vi.mocked(api.claimTask).mockResolvedValue(
       apiSuccess(
         makeClaimTaskResponse({
           task_id: OPEN_TASK.id,
@@ -155,7 +155,7 @@ describe('TaskControls claim conflict', () => {
 
     render(<TaskControls />);
 
-    await waitFor(() => expect(api.claimAnnotationTask).toHaveBeenCalled());
+    await waitFor(() => expect(api.claimTask).toHaveBeenCalled());
     expect(alerts).toEqual([]);
     expect(useTasksStore.getState().currentIndex).toBe(0);
   });
@@ -165,10 +165,10 @@ describe('TaskControls claim conflict', () => {
 // the label form for the drawing tools and Done records that answer.
 describe('TaskControls draw task', () => {
   it('finishes the task as drawn, with no label', async () => {
-    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+    vi.mocked(api.claimTask).mockResolvedValue(
       apiSuccess(makeClaimTaskResponse({ task_id: OPEN_TASK.id, claimed: true }))
     );
-    vi.mocked(api.completeAnnotationTask).mockResolvedValue(
+    vi.mocked(api.annotateTask).mockResolvedValue(
       apiSuccess({
         annotation: makeTaskAnnotation({ id: 11, label_id: null, outcome: 'drawn' }),
         task_status: 'done',
@@ -181,8 +181,8 @@ describe('TaskControls draw task', () => {
     expect(screen.queryByRole('button', { name: /submit/i })).toBeNull();
     fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
 
-    await waitFor(() => expect(api.completeAnnotationTask).toHaveBeenCalled());
-    expect(vi.mocked(api.completeAnnotationTask).mock.calls[0][0].body).toMatchObject({
+    await waitFor(() => expect(api.annotateTask).toHaveBeenCalled());
+    expect(vi.mocked(api.annotateTask).mock.calls[0][0].body).toMatchObject({
       label_id: null,
       outcome: 'drawn',
     });

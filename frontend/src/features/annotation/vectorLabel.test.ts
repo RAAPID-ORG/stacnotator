@@ -4,7 +4,7 @@ vi.mock('~/api/client', async (importActual) => {
   const actual = await importActual<typeof import('~/api/client')>();
   return {
     ...actual,
-    createAnnotationOpenmode: vi.fn(),
+    createAnnotation: vi.fn(),
     batchCreateAnnotations: vi.fn(),
   };
 });
@@ -47,7 +47,7 @@ function seed(fields: FormField[] = [], formValues: FormValues = {}) {
 }
 
 beforeEach(() => {
-  vi.mocked(api.createAnnotationOpenmode).mockReset();
+  vi.mocked(api.createAnnotation).mockReset();
   vi.mocked(api.batchCreateAnnotations).mockReset();
   seed();
 });
@@ -85,10 +85,10 @@ describe('dedupeHits', () => {
 
 describe('labelGeometries', () => {
   it('creates one annotation from a single clicked feature', async () => {
-    vi.mocked(api.createAnnotationOpenmode).mockResolvedValue(apiSuccess(makeAnnotation()));
+    vi.mocked(api.createAnnotation).mockResolvedValue(apiSuccess(makeAnnotation()));
 
     expect(await labelGeometries([SQUARE])).toEqual({ kind: 'saved', count: 1 });
-    expect(api.createAnnotationOpenmode).toHaveBeenCalledWith({
+    expect(api.createAnnotation).toHaveBeenCalledWith({
       path: { campaign_id: 5 },
       body: annotationBody(SQUARE, 7, {}),
     });
@@ -115,7 +115,7 @@ describe('labelGeometries', () => {
     seed(REQUIRED_FIELDS);
 
     expect(await labelGeometries([SQUARE])).toEqual({ kind: 'blocked', missing: ['Crop'] });
-    expect(api.createAnnotationOpenmode).not.toHaveBeenCalled();
+    expect(api.createAnnotation).not.toHaveBeenCalled();
     expect(api.batchCreateAnnotations).not.toHaveBeenCalled();
   });
 
@@ -127,11 +127,11 @@ describe('labelGeometries', () => {
   it('does nothing when no label is armed', async () => {
     useWorkStore.setState({ selectedLabelId: null });
     expect(await labelGeometries([SQUARE])).toEqual({ kind: 'noop' });
-    expect(api.createAnnotationOpenmode).not.toHaveBeenCalled();
+    expect(api.createAnnotation).not.toHaveBeenCalled();
   });
 
   it('reports a failed save rather than throwing', async () => {
-    vi.mocked(api.createAnnotationOpenmode).mockRejectedValue(new Error('boom'));
+    vi.mocked(api.createAnnotation).mockRejectedValue(new Error('boom'));
     expect(await labelGeometries([SQUARE])).toMatchObject({ kind: 'error' });
   });
 });

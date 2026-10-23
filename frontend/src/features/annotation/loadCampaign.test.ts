@@ -24,12 +24,12 @@ vi.mock('~/api/client', async (importActual) => {
   return {
     ...actual,
     getCampaignWithImageryWindows: vi.fn(),
-    getAllAnnotationTasks: vi.fn(),
+    listTasks: vi.fn(),
     listTaskSets: vi.fn(),
   };
 });
 
-import { getAllAnnotationTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
+import { listTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
 import { loadCampaign } from './loadCampaign';
 
 const source = makeSource({
@@ -48,29 +48,29 @@ const task = (overrides: Partial<AnnotationTaskOut> = {}): AnnotationTaskOut =>
 function mockApi({
   tasks = [task()],
   taskSets = [] as TaskSetOut[],
-  mode = 'tasks' as 'tasks' | 'open',
+  mode = 'tasks' as 'tasks' | 'explore',
   isPublic = false,
 }: {
   tasks?: AnnotationTaskOut[];
   taskSets?: TaskSetOut[];
-  mode?: 'tasks' | 'open';
+  mode?: 'tasks' | 'explore';
   isPublic?: boolean;
 } = {}) {
   const campaign = makeCampaign({
-    mode,
+    default_work_mode: mode,
     is_public: isPublic,
     imagery_sources: [source],
     imagery_views: [view],
   });
   vi.mocked(getCampaignWithImageryWindows).mockResolvedValue(apiSuccess(campaign));
-  vi.mocked(getAllAnnotationTasks).mockResolvedValue(apiSuccess(makeTaskList({ tasks })));
+  vi.mocked(listTasks).mockResolvedValue(apiSuccess(makeTaskList({ tasks })));
   vi.mocked(listTaskSets).mockResolvedValue(apiSuccess(taskSets));
   return campaign;
 }
 
 beforeEach(() => {
   vi.mocked(getCampaignWithImageryWindows).mockReset();
-  vi.mocked(getAllAnnotationTasks).mockReset();
+  vi.mocked(listTasks).mockReset();
   vi.mocked(listTaskSets).mockReset();
   usePrefsStore.setState({ pinnedStart: {} });
   useCampaignStore.setState({
@@ -134,14 +134,12 @@ describe('loadCampaign happy path', () => {
     });
     const source2 = { ...source, collections: [source.collections[0], second] };
     const campaign = makeCampaign({
-      mode: 'tasks',
+      default_work_mode: 'tasks',
       imagery_sources: [source2],
       imagery_views: [view],
     });
     vi.mocked(getCampaignWithImageryWindows).mockResolvedValue(apiSuccess(campaign));
-    vi.mocked(getAllAnnotationTasks).mockResolvedValue(
-      apiSuccess(makeTaskList({ tasks: [task()] }))
-    );
+    vi.mocked(listTasks).mockResolvedValue(apiSuccess(makeTaskList({ tasks: [task()] })));
     vi.mocked(listTaskSets).mockResolvedValue(apiSuccess([]));
 
     usePrefsStore.getState().setPinnedStart(100, 20);
@@ -151,7 +149,7 @@ describe('loadCampaign happy path', () => {
   });
 
   it('stages a deep-linked annotation id only in explore mode', async () => {
-    mockApi({ mode: 'open', tasks: [] });
+    mockApi({ mode: 'explore', tasks: [] });
     const result = await loadCampaign(5, {
       now: 1000,
       currentUserId: 'u1',

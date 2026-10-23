@@ -114,7 +114,7 @@ test('all visible imagery panels start loading a newly selected task together', 
   // The default pending filter only contains tasks 1 and 2. Make all five
   // visible, so task 5 is outside the three-task look-ahead cache and remains
   // a genuinely cold random jump.
-  await annotationPage.route('**/api/campaigns/*/annotation-tasks', async (route) => {
+  await annotationPage.route('**/api/campaigns/*/tasks', async (route) => {
     await route.fulfill({
       json: {
         ...MOCK_TASK_LIST,

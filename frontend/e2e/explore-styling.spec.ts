@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures/annotator-fixture';
 import type { ApiCapture } from './fixtures/annotator-fixture';
-import { MOCK_CAMPAIGN_OPEN_MODE } from './fixtures/mock-data';
+import { MOCK_CAMPAIGN_EXPLORE } from './fixtures/mock-data';
 
 type Page = import('@playwright/test').Page;
 
@@ -8,8 +8,8 @@ type Page = import('@playwright/test').Page;
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Wait until open mode has finished laying out (toolbar + map ready). */
-async function waitOpenModeReady(page: Page): Promise<void> {
+/** Wait until Explore has finished laying out (toolbar + map ready). */
+async function waitExploreReady(page: Page): Promise<void> {
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
   await page
@@ -18,12 +18,12 @@ async function waitOpenModeReady(page: Page): Promise<void> {
     .waitFor({ state: 'visible', timeout: 10_000 });
 }
 
-async function loadOpenMode(page: Page, api: ApiCapture): Promise<void> {
+async function loadExplore(page: Page, api: ApiCapture): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
-    await route.fulfill({ json: MOCK_CAMPAIGN_OPEN_MODE });
+    await route.fulfill({ json: MOCK_CAMPAIGN_EXPLORE });
   });
   await page.reload();
-  await waitOpenModeReady(page);
+  await waitExploreReady(page);
   api.clear();
 }
 
@@ -44,9 +44,9 @@ async function openFirstLabelStyleEditor(page: Page) {
 // Per-label styling persists across reloads
 // ---------------------------------------------------------------------------
 
-test.describe('Open mode - per-label styling', () => {
+test.describe('Explore - per-label styling', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
+    await loadExplore(annotationPage, api);
   });
 
   test('a per-label fill color recolors the swatch and survives a reload', async ({
@@ -68,7 +68,7 @@ test.describe('Open mode - per-label styling', () => {
     // Reload the whole app: the override must come back from localStorage,
     // not reset to the default color.
     await page.reload();
-    await waitOpenModeReady(page);
+    await waitExploreReady(page);
 
     const reopened = await openFirstLabelStyleEditor(page);
     await expect(reopened.fillColorInput).toHaveValue('#ff00aa');
@@ -91,9 +91,9 @@ test.describe('Open mode - per-label styling', () => {
 // Visibility toggle: button and the D hotkey drive the same state
 // ---------------------------------------------------------------------------
 
-test.describe('Open mode - drawn object visibility', () => {
+test.describe('Explore - drawn object visibility', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
+    await loadExplore(annotationPage, api);
   });
 
   test('the eye button and the Shift+X hotkey both toggle visibility', async ({
@@ -116,10 +116,10 @@ test.describe('Open mode - drawn object visibility', () => {
     await expect(showBtn).toHaveCount(0);
   });
 
-  test('the toggle is not bound to keys already used in open mode', async ({
+  test('the toggle is not bound to keys already used in Explore', async ({
     annotationPage: page,
   }) => {
-    // `a`/`d` drive slice navigation (live in open mode via the task-mode
+    // `a`/`d` drive slice navigation (live in Explore via the task-mode
     // keyboard hook), `p` is Pan, `e` is Edit. None of them may toggle
     // annotation visibility - regression guard against a key collision.
     const hideBtn = page.locator('[title="Hide drawn objects (Shift+X)"]');

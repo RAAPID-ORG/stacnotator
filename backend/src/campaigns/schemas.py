@@ -23,10 +23,12 @@ from src.imagery.schemas import (
 from src.projects.access import VISIBILITY_PUBLIC, ProjectFlags
 from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
 
-
 # ============================================================================
 # Campaign Related Schemas
 # ============================================================================
+WorkMode = Literal["tasks", "explore"]
+
+
 def _check_form_fields(value: list[FormField]) -> list[FormField]:
     validate_form_fields(value)
     return value
@@ -286,7 +288,7 @@ class CampaignSummaryOut(BaseModel):
     project_id: int
     name: str
     created_at: datetime
-    mode: Literal["tasks", "open"]
+    default_work_mode: WorkMode
     is_public: bool = False
     registration_status: str = "ready"
     embedding_status: str = "ready"
@@ -313,7 +315,7 @@ class CampaignOut(CampaignSummaryOut):
 
 class CampaignCreate(BaseModel):
     name: str
-    mode: Literal["tasks", "open"] = "tasks"  # for default mode. actual ACL in labelling_policy
+    default_work_mode: WorkMode = "tasks"
     project_id: int
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None

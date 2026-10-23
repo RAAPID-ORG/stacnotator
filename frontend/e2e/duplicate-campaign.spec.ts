@@ -52,7 +52,7 @@ test.describe('Duplicate campaign', () => {
     await expect(appPage.getByTestId('duplicate-assignments')).toBeVisible();
   });
 
-  test('annotations without tasks surfaces the open-mode-only hint', async ({ appPage }) => {
+  test('annotations without tasks surfaces the explore-only hint', async ({ appPage }) => {
     await openCampaignsList(appPage);
     await appPage.getByTestId('duplicate-campaign').click();
 

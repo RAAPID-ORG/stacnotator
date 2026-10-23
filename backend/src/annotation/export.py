@@ -194,7 +194,7 @@ def _group_annotations_by_task(
 ) -> tuple[dict[int, list[Annotation]], list[Annotation]]:
     """Split annotations into (task-grouped, standalone).
 
-    Standalone = open-mode annotations with no task assignment.
+    Standalone = annotations with no task row of their own.
     """
     grouped: dict[int, list[Annotation]] = {}
     standalone: list[Annotation] = []
@@ -275,7 +275,7 @@ def _build_export_record_for_annotation(
     ``task_annotator_count`` is the number of labeled annotations on the
     annotation's parent task (matches the merged-path definition). All rows
     for the same task carry the same value so downstream agreement analyses
-    can be derived even when rows aren't collapsed. Standalone (open-mode)
+    can be derived even when rows aren't collapsed. Standalone
     annotations have no task grouping and default to 1.
     """
     record: dict = {}

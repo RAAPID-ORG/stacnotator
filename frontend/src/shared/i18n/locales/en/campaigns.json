@@ -262,7 +262,7 @@
     "addFailed": "Failed to add vector layer",
     "deleteFailed": "Failed to delete vector layer",
     "title": "Vector layers (PMTiles)",
-    "description": "Toggle on/off in open mode, hover to highlight, and label features by clicking with the Label vector tool.",
+    "description": "Toggle them on or off while annotating, hover to highlight, and label features by clicking with the Label vector tool.",
     "add": "+ Add vector layer",
     "loadError": "Could not load the vector layers.",
     "tryAgain": "Try again",
@@ -312,7 +312,7 @@
       "title": "Keep personal layouts?",
       "body": "Copies the canvas window arrangements individual users saved for themselves."
     },
-    "withoutTasksNotice": "Without tasks, only annotations that are not linked to a task (open-mode labels) are copied."
+    "withoutTasksNotice": "Without tasks, only annotations that are not linked to a task (Explore labels) are copied."
   },
   "assignAll": {
     "failed": "Assignment failed",

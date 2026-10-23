@@ -147,7 +147,7 @@ def create_campaign(
     created = service.create_campaign(
         db,
         name=campaign.name,
-        mode=campaign.mode,
+        default_work_mode=campaign.default_work_mode,
         project_id=campaign.project_id,
         settings=campaign.settings,
         user_id=user.id,

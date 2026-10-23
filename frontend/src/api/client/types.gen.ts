@@ -1460,9 +1460,9 @@ export type CampaignCreate = {
      */
     name: string;
     /**
-     * Mode
+     * Default Work Mode
      */
-    mode?: 'tasks' | 'open';
+    default_work_mode?: 'tasks' | 'explore';
     /**
      * Project Id
      */
@@ -1603,9 +1603,9 @@ export type CampaignOut = {
      */
     created_at: string;
     /**
-     * Mode
+     * Default Work Mode
      */
-    mode: 'tasks' | 'open';
+    default_work_mode: 'tasks' | 'explore';
     /**
      * Is Public
      */
@@ -1690,9 +1690,9 @@ export type CampaignOutFull = {
      */
     created_at: string;
     /**
-     * Mode
+     * Default Work Mode
      */
-    mode: 'tasks' | 'open';
+    default_work_mode: 'tasks' | 'explore';
     /**
      * Is Public
      */
@@ -1934,9 +1934,9 @@ export type CampaignSummaryOut = {
      */
     created_at: string;
     /**
-     * Mode
+     * Default Work Mode
      */
-    mode: 'tasks' | 'open';
+    default_work_mode: 'tasks' | 'explore';
     /**
      * Is Public
      */
@@ -5909,9 +5909,9 @@ export type CampaignOutWritable = {
      */
     created_at: string;
     /**
-     * Mode
+     * Default Work Mode
      */
-    mode: 'tasks' | 'open';
+    default_work_mode: 'tasks' | 'explore';
     /**
      * Is Public
      */
@@ -5996,9 +5996,9 @@ export type CampaignOutFullWritable = {
      */
     created_at: string;
     /**
-     * Mode
+     * Default Work Mode
      */
-    mode: 'tasks' | 'open';
+    default_work_mode: 'tasks' | 'explore';
     /**
      * Is Public
      */
@@ -8264,36 +8264,6 @@ export type DeleteAnnotationTasksResponses = {
     200: unknown;
 };
 
-export type GetAllAnnotationTasksData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/annotation-tasks';
-};
-
-export type GetAllAnnotationTasksErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAllAnnotationTasksError = GetAllAnnotationTasksErrors[keyof GetAllAnnotationTasksErrors];
-
-export type GetAllAnnotationTasksResponses = {
-    /**
-     * Successful Response
-     */
-    200: AnnotationTaskListOut;
-};
-
-export type GetAllAnnotationTasksResponse = GetAllAnnotationTasksResponses[keyof GetAllAnnotationTasksResponses];
-
 export type ListTaskSetsData = {
     body?: never;
     path: {
@@ -8558,7 +8528,37 @@ export type GetCampaignStatisticsEndpointResponses = {
 
 export type GetCampaignStatisticsEndpointResponse = GetCampaignStatisticsEndpointResponses[keyof GetCampaignStatisticsEndpointResponses];
 
-export type GetAnnotationTaskChangesData = {
+export type ListTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks';
+};
+
+export type ListTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTasksError = ListTasksErrors[keyof ListTasksErrors];
+
+export type ListTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationTaskListOut;
+};
+
+export type ListTasksResponse = ListTasksResponses[keyof ListTasksResponses];
+
+export type ListTaskChangesData = {
     body?: never;
     path: {
         /**
@@ -8572,28 +8572,28 @@ export type GetAnnotationTaskChangesData = {
          */
         since?: string | null;
     };
-    url: '/api/campaigns/{campaign_id}/annotation-tasks/changes';
+    url: '/api/campaigns/{campaign_id}/tasks/changes';
 };
 
-export type GetAnnotationTaskChangesErrors = {
+export type ListTaskChangesErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetAnnotationTaskChangesError = GetAnnotationTaskChangesErrors[keyof GetAnnotationTaskChangesErrors];
+export type ListTaskChangesError = ListTaskChangesErrors[keyof ListTaskChangesErrors];
 
-export type GetAnnotationTaskChangesResponses = {
+export type ListTaskChangesResponses = {
     /**
      * Successful Response
      */
     200: AnnotationTaskChangesOut;
 };
 
-export type GetAnnotationTaskChangesResponse = GetAnnotationTaskChangesResponses[keyof GetAnnotationTaskChangesResponses];
+export type ListTaskChangesResponse = ListTaskChangesResponses[keyof ListTaskChangesResponses];
 
-export type CompleteAnnotationTaskData = {
+export type AnnotateTaskData = {
     body: AnnotationFromTaskCreate;
     path: {
         /**
@@ -8601,33 +8601,33 @@ export type CompleteAnnotationTaskData = {
          */
         campaign_id: number;
         /**
-         * Annotation Task Id
+         * Task Id
          */
-        annotation_task_id: number;
+        task_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/{annotation_task_id}/annotate';
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/annotate';
 };
 
-export type CompleteAnnotationTaskErrors = {
+export type AnnotateTaskErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CompleteAnnotationTaskError = CompleteAnnotationTaskErrors[keyof CompleteAnnotationTaskErrors];
+export type AnnotateTaskError = AnnotateTaskErrors[keyof AnnotateTaskErrors];
 
-export type CompleteAnnotationTaskResponses = {
+export type AnnotateTaskResponses = {
     /**
      * Successful Response
      */
     200: AnnotationTaskSubmitResponse;
 };
 
-export type CompleteAnnotationTaskResponse = CompleteAnnotationTaskResponses[keyof CompleteAnnotationTaskResponses];
+export type AnnotateTaskResponse = AnnotateTaskResponses[keyof AnnotateTaskResponses];
 
-export type ClaimAnnotationTaskData = {
+export type ClaimTaskData = {
     body?: never;
     path: {
         /**
@@ -8635,33 +8635,33 @@ export type ClaimAnnotationTaskData = {
          */
         campaign_id: number;
         /**
-         * Annotation Task Id
+         * Task Id
          */
-        annotation_task_id: number;
+        task_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/{annotation_task_id}/claim';
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/claim';
 };
 
-export type ClaimAnnotationTaskErrors = {
+export type ClaimTaskErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type ClaimAnnotationTaskError = ClaimAnnotationTaskErrors[keyof ClaimAnnotationTaskErrors];
+export type ClaimTaskError = ClaimTaskErrors[keyof ClaimTaskErrors];
 
-export type ClaimAnnotationTaskResponses = {
+export type ClaimTaskResponses = {
     /**
      * Successful Response
      */
     200: ClaimTaskResponse;
 };
 
-export type ClaimAnnotationTaskResponse = ClaimAnnotationTaskResponses[keyof ClaimAnnotationTaskResponses];
+export type ClaimTaskResponse2 = ClaimTaskResponses[keyof ClaimTaskResponses];
 
-export type ClaimNextAnnotationTaskData = {
+export type ClaimNextTaskData = {
     body?: never;
     path: {
         /**
@@ -8679,28 +8679,28 @@ export type ClaimNextAnnotationTaskData = {
          */
         after_annotation_number?: number | null;
     };
-    url: '/api/campaigns/{campaign_id}/annotation-tasks/claim-next';
+    url: '/api/campaigns/{campaign_id}/tasks/claim-next';
 };
 
-export type ClaimNextAnnotationTaskErrors = {
+export type ClaimNextTaskErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type ClaimNextAnnotationTaskError = ClaimNextAnnotationTaskErrors[keyof ClaimNextAnnotationTaskErrors];
+export type ClaimNextTaskError = ClaimNextTaskErrors[keyof ClaimNextTaskErrors];
 
-export type ClaimNextAnnotationTaskResponses = {
+export type ClaimNextTaskResponses = {
     /**
      * Successful Response
      */
     200: ClaimNextResponse;
 };
 
-export type ClaimNextAnnotationTaskResponse = ClaimNextAnnotationTaskResponses[keyof ClaimNextAnnotationTaskResponses];
+export type ClaimNextTaskResponse = ClaimNextTaskResponses[keyof ClaimNextTaskResponses];
 
-export type ValidateAnnotationSubmissionData = {
+export type ValidateTaskLabelData = {
     body?: never;
     path: {
         /**
@@ -8708,9 +8708,9 @@ export type ValidateAnnotationSubmissionData = {
          */
         campaign_id: number;
         /**
-         * Annotation Task Id
+         * Task Id
          */
-        annotation_task_id: number;
+        task_id: number;
     };
     query: {
         /**
@@ -8718,26 +8718,26 @@ export type ValidateAnnotationSubmissionData = {
          */
         label_id: number;
     };
-    url: '/api/campaigns/{campaign_id}/annotations/{annotation_task_id}/validate-submission';
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/validate-label';
 };
 
-export type ValidateAnnotationSubmissionErrors = {
+export type ValidateTaskLabelErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type ValidateAnnotationSubmissionError = ValidateAnnotationSubmissionErrors[keyof ValidateAnnotationSubmissionErrors];
+export type ValidateTaskLabelError = ValidateTaskLabelErrors[keyof ValidateTaskLabelErrors];
 
-export type ValidateAnnotationSubmissionResponses = {
+export type ValidateTaskLabelResponses = {
     /**
      * Successful Response
      */
     200: ValidateLabelSubmissionsResponse;
 };
 
-export type ValidateAnnotationSubmissionResponse = ValidateAnnotationSubmissionResponses[keyof ValidateAnnotationSubmissionResponses];
+export type ValidateTaskLabelResponse = ValidateTaskLabelResponses[keyof ValidateTaskLabelResponses];
 
 export type GetKnnValidationStatusData = {
     body?: never;
@@ -8853,7 +8853,70 @@ export type IngestAnnotationsFromGeojsonResponses = {
     200: unknown;
 };
 
-export type CreateAnnotationOpenmodeData = {
+export type ListAnnotationsForCampaignData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+        /**
+         * User Ids
+         */
+        user_ids?: Array<string> | null;
+        /**
+         * Label Ids
+         */
+        label_ids?: Array<number> | null;
+        /**
+         * Confidences
+         */
+        confidences?: Array<number> | null;
+        /**
+         * Flagged Only
+         */
+        flagged_only?: boolean;
+        /**
+         * Search
+         */
+        search?: string | null;
+        /**
+         * Sort
+         */
+        sort?: 'default' | 'id-asc' | 'id-desc' | 'confidence-asc' | 'confidence-desc' | 'time-asc' | 'time-desc';
+    };
+    url: '/api/campaigns/{campaign_id}/annotations';
+};
+
+export type ListAnnotationsForCampaignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAnnotationsForCampaignError = ListAnnotationsForCampaignErrors[keyof ListAnnotationsForCampaignErrors];
+
+export type ListAnnotationsForCampaignResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationsPageOut;
+};
+
+export type ListAnnotationsForCampaignResponse = ListAnnotationsForCampaignResponses[keyof ListAnnotationsForCampaignResponses];
+
+export type CreateAnnotationData = {
     body: AnnotationCreate;
     path: {
         /**
@@ -8862,26 +8925,26 @@ export type CreateAnnotationOpenmodeData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/create-annotation';
+    url: '/api/campaigns/{campaign_id}/annotations';
 };
 
-export type CreateAnnotationOpenmodeErrors = {
+export type CreateAnnotationErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CreateAnnotationOpenmodeError = CreateAnnotationOpenmodeErrors[keyof CreateAnnotationOpenmodeErrors];
+export type CreateAnnotationError = CreateAnnotationErrors[keyof CreateAnnotationErrors];
 
-export type CreateAnnotationOpenmodeResponses = {
+export type CreateAnnotationResponses = {
     /**
      * Successful Response
      */
     200: AnnotationOut;
 };
 
-export type CreateAnnotationOpenmodeResponse = CreateAnnotationOpenmodeResponses[keyof CreateAnnotationOpenmodeResponses];
+export type CreateAnnotationResponse = CreateAnnotationResponses[keyof CreateAnnotationResponses];
 
 export type BatchCreateAnnotationsData = {
     body: BatchCreateAnnotationsRequest;
@@ -8912,40 +8975,6 @@ export type BatchCreateAnnotationsResponses = {
 };
 
 export type BatchCreateAnnotationsResponse2 = BatchCreateAnnotationsResponses[keyof BatchCreateAnnotationsResponses];
-
-export type UpdateAnnotationOpenmodeData = {
-    body: AnnotationUpdate;
-    path: {
-        /**
-         * Annotation Id
-         */
-        annotation_id: number;
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/annotations/{annotation_id}/update';
-};
-
-export type UpdateAnnotationOpenmodeErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateAnnotationOpenmodeError = UpdateAnnotationOpenmodeErrors[keyof UpdateAnnotationOpenmodeErrors];
-
-export type UpdateAnnotationOpenmodeResponses = {
-    /**
-     * Successful Response
-     */
-    200: AnnotationOut;
-};
-
-export type UpdateAnnotationOpenmodeResponse = UpdateAnnotationOpenmodeResponses[keyof UpdateAnnotationOpenmodeResponses];
 
 export type DeleteAnnotationData = {
     body?: never;
@@ -9016,6 +9045,40 @@ export type GetAnnotationResponses = {
 };
 
 export type GetAnnotationResponse = GetAnnotationResponses[keyof GetAnnotationResponses];
+
+export type UpdateAnnotationData = {
+    body: AnnotationUpdate;
+    path: {
+        /**
+         * Annotation Id
+         */
+        annotation_id: number;
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotations/{annotation_id}';
+};
+
+export type UpdateAnnotationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAnnotationError = UpdateAnnotationErrors[keyof UpdateAnnotationErrors];
+
+export type UpdateAnnotationResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationOut;
+};
+
+export type UpdateAnnotationResponse = UpdateAnnotationResponses[keyof UpdateAnnotationResponses];
 
 export type BatchDeleteAnnotationsData = {
     body: BatchDeleteAnnotationsRequest;
@@ -9112,69 +9175,6 @@ export type ExportAnnotationsGeojsonResponses = {
      */
     200: unknown;
 };
-
-export type ListAnnotationsForCampaignData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: {
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-        /**
-         * User Ids
-         */
-        user_ids?: Array<string> | null;
-        /**
-         * Label Ids
-         */
-        label_ids?: Array<number> | null;
-        /**
-         * Confidences
-         */
-        confidences?: Array<number> | null;
-        /**
-         * Flagged Only
-         */
-        flagged_only?: boolean;
-        /**
-         * Search
-         */
-        search?: string | null;
-        /**
-         * Sort
-         */
-        sort?: 'default' | 'id-asc' | 'id-desc' | 'confidence-asc' | 'confidence-desc' | 'time-asc' | 'time-desc';
-    };
-    url: '/api/campaigns/{campaign_id}/annotations';
-};
-
-export type ListAnnotationsForCampaignErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListAnnotationsForCampaignError = ListAnnotationsForCampaignErrors[keyof ListAnnotationsForCampaignErrors];
-
-export type ListAnnotationsForCampaignResponses = {
-    /**
-     * Successful Response
-     */
-    200: AnnotationsPageOut;
-};
-
-export type ListAnnotationsForCampaignResponse = ListAnnotationsForCampaignResponses[keyof ListAnnotationsForCampaignResponses];
 
 export type GetAnnotationDensityByLabelData = {
     body?: never;

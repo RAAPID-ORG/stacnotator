@@ -50,7 +50,7 @@ df = campaign.get_samples()
 | column | meaning |
 | --- | --- |
 | `annotation_id` | stable id, the key `update_samples` de-duplicates on |
-| `task_id` | predefined task the label answers (NA for open-mode annotations) |
+| `task_id` | predefined task the label answers (NA for Explore annotations) |
 | `lat`, `lon` | filled for point samples; NA for polygons/boxes |
 | `label_id`, `label` | class id and resolved name |
 | `confidence` | annotator-reported 0-10 (NA if unset) |
@@ -125,7 +125,7 @@ campaign.register_overlay(
 
 Vector data (field boundaries, reference polygons, ...) registers as a PMTiles overlay - the
 browser reads the file directly via range requests, so it is usable immediately and needs no
-tile server. Annotators toggle vector overlays in open mode:
+tile server. Annotators toggle vector overlays while annotating:
 
 ```python
 campaign.register_vector_overlay(

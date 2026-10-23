@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures/annotator-fixture';
 import type { ApiCapture } from './fixtures/annotator-fixture';
 import {
-  MOCK_CAMPAIGN_OPEN_MODE_MULTI,
+  MOCK_CAMPAIGN_EXPLORE_MULTI,
   MOCK_TIMESERIES_DATA,
   MOCK_TIMESERIES_ENTRY,
   COLLECTION_S2,
@@ -12,9 +12,9 @@ import { clickMapAt, clickMapCenter, getMinimapCenter } from './fixtures/imagery
 
 type Page = import('@playwright/test').Page;
 
-async function loadOpenModeMulti(page: Page, api: ApiCapture): Promise<void> {
+async function loadExploreMulti(page: Page, api: ApiCapture): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
-    await route.fulfill({ json: MOCK_CAMPAIGN_OPEN_MODE_MULTI });
+    await route.fulfill({ json: MOCK_CAMPAIGN_EXPLORE_MULTI });
   });
   await page.route(`**/api/timeseries/${MOCK_TIMESERIES_ENTRY.id}/**`, async (route) => {
     await route.fulfill({ json: { data: MOCK_TIMESERIES_DATA } });
@@ -38,12 +38,12 @@ const windowCard = (page: Page, collectionId: number) =>
 // This view puts VHR first, independently of the campaign's source order.
 
 // ---------------------------------------------------------------------------
-// Imagery correctness in open mode
+// Imagery correctness in Explore
 // ---------------------------------------------------------------------------
 
-test.describe('Imagery in open mode', () => {
+test.describe('Imagery in Explore', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenModeMulti(annotationPage, api);
+    await loadExploreMulti(annotationPage, api);
   });
 
   test('I cycles the active source VHR -> S2 -> VHR', async ({ annotationPage }) => {
@@ -241,9 +241,9 @@ function tsLon(url: string): number | null {
   return m ? parseFloat(m[1]) : null;
 }
 
-test.describe('Timeseries probe in open mode', () => {
+test.describe('Timeseries probe in Explore', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenModeMulti(annotationPage, api);
+    await loadExploreMulti(annotationPage, api);
   });
 
   test('T then click loads timeseries for the clicked point (≈ viewport centre)', async ({

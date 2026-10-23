@@ -19,7 +19,7 @@ interface Props {
   saving: boolean;
   campaignName: string;
   imagery: ImagerySourceOut[];
-  campaignMode: 'tasks' | 'open';
+  campaignMode: 'tasks' | 'explore';
   campaignSettings?: CampaignSettingsOut;
 }
 

@@ -1199,7 +1199,7 @@ def get_annotation_by_id(
 ) -> Annotation | None:
     """Fetch one annotation (with geometry + creator) scoped to a campaign.
 
-    Used by the open-mode tiled view to pull a single annotation's full-
+    Used by the tiled annotation view to pull a single annotation's full-
     resolution geometry when the user clicks a tile feature to edit it.
     """
     stmt = (

@@ -9,7 +9,7 @@ interface ExportDropdownProps {
   campaignId: number;
   campaign: CampaignSummaryOut;
   disabled: boolean;
-  /** Show the "merge on agreement" toggle. Hidden in open mode where it
+  /** Show the "merge on agreement" toggle. Hidden in Explore where it
    *  has no meaning (no tasks, no multi-annotator merging). Default true. */
   showMergeToggle?: boolean;
   /** Disables the merge toggle with a tooltip explaining the user must

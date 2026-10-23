@@ -8,8 +8,8 @@ import type {
   TaskSetOut,
 } from '~/api/client';
 import {
-  getAllAnnotationTasksOptions,
-  getAllAnnotationTasksQueryKey,
+  listTasksOptions,
+  listTasksQueryKey,
   getCampaignOptions,
   getCampaignSummaryOptions,
   getCampaignQueryKey,
@@ -98,7 +98,7 @@ export const useCampaignTasks = (campaignId: number, options?: { enabled?: boole
   const { t } = useTranslation('campaigns');
   const enabled = options?.enabled ?? true;
   const { data, isPending } = useQuery({
-    ...getAllAnnotationTasksOptions({ path: { campaign_id: campaignId } }),
+    ...listTasksOptions({ path: { campaign_id: campaignId } }),
     ...SHARED_WORK,
     enabled,
     meta: { errorMessage: t('errors.loadTasks') },
@@ -151,7 +151,7 @@ export const useRefreshCampaignTasks = (campaignId: number) => {
   return useCallback(
     () =>
       queryClient.invalidateQueries({
-        queryKey: getAllAnnotationTasksQueryKey({ path: { campaign_id: campaignId } }),
+        queryKey: listTasksQueryKey({ path: { campaign_id: campaignId } }),
       }),
     [queryClient, campaignId]
   );

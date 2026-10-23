@@ -16,9 +16,9 @@ vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
   return {
     ...actual,
-    completeAnnotationTask: vi.fn(),
+    annotateTask: vi.fn(),
     deleteAnnotation: vi.fn(),
-    validateAnnotationSubmission: vi.fn(),
+    validateTaskLabel: vi.fn(),
   };
 });
 
@@ -83,26 +83,26 @@ const BASE_PARAMS: SubmitParams = {
 
 beforeEach(() => {
   seedCampaign(makeCampaign({ id: 5 }));
-  vi.mocked(api.completeAnnotationTask).mockReset();
+  vi.mocked(api.annotateTask).mockReset();
   vi.mocked(api.deleteAnnotation).mockReset();
-  vi.mocked(api.validateAnnotationSubmission).mockReset();
+  vi.mocked(api.validateTaskLabel).mockReset();
 });
 
 describe('submitCurrent', () => {
-  it('returns needsConfirm on a KNN mismatch and never calls completeAnnotationTask', async () => {
-    vi.mocked(api.validateAnnotationSubmission).mockResolvedValue(validated('mismatch'));
+  it('returns needsConfirm on a KNN mismatch and never calls annotateTask', async () => {
+    vi.mocked(api.validateTaskLabel).mockResolvedValue(validated('mismatch'));
 
     const outcome = await submitCurrent({ ...BASE_PARAMS, knnValidationEnabled: true });
 
     expect(outcome).toEqual({ kind: 'needsConfirm' });
-    expect(api.completeAnnotationTask).not.toHaveBeenCalled();
+    expect(api.annotateTask).not.toHaveBeenCalled();
   });
 
   it.each(['ok', 'skipped_no_embedding', 'skipped_insufficient_data', 'disabled'] as const)(
     'submits straight through when KNN validation returns %s',
     async (status) => {
-      vi.mocked(api.validateAnnotationSubmission).mockResolvedValue(validated(status));
-      vi.mocked(api.completeAnnotationTask).mockResolvedValue(submitted());
+      vi.mocked(api.validateTaskLabel).mockResolvedValue(validated(status));
+      vi.mocked(api.annotateTask).mockResolvedValue(submitted());
 
       const outcome = await submitCurrent({ ...BASE_PARAMS, knnValidationEnabled: true });
 
@@ -111,7 +111,7 @@ describe('submitCurrent', () => {
   );
 
   it('resubmits without re-checking KNN once the caller confirms a mismatch', async () => {
-    vi.mocked(api.completeAnnotationTask).mockResolvedValue(submitted());
+    vi.mocked(api.annotateTask).mockResolvedValue(submitted());
 
     const outcome = await submitCurrent({
       ...BASE_PARAMS,
@@ -120,14 +120,12 @@ describe('submitCurrent', () => {
     });
 
     expect(outcome.kind).toBe('submitted');
-    expect(api.validateAnnotationSubmission).not.toHaveBeenCalled();
+    expect(api.validateTaskLabel).not.toHaveBeenCalled();
   });
 
   it('a successful submit updates the task with the new annotation and statuses', async () => {
     const newAnnotation = annotation({ comment: 'hi' });
-    vi.mocked(api.completeAnnotationTask).mockResolvedValue(
-      submitted({ annotation: newAnnotation })
-    );
+    vi.mocked(api.annotateTask).mockResolvedValue(submitted({ annotation: newAnnotation }));
 
     const outcome = await submitCurrent(BASE_PARAMS);
 
@@ -138,8 +136,8 @@ describe('submitCurrent', () => {
     expect(outcome.task.assignments).toEqual([{ user_id: 'u1', status: 'done' }]);
   });
 
-  it('a skip (no label, no existing annotation) still goes through completeAnnotationTask and submits', async () => {
-    vi.mocked(api.completeAnnotationTask).mockResolvedValue(
+  it('a skip (no label, no existing annotation) still goes through annotateTask and submits', async () => {
+    vi.mocked(api.annotateTask).mockResolvedValue(
       submitted({
         annotation: annotation({ label_id: null }),
         assignment_status: 'skipped',
@@ -162,7 +160,7 @@ describe('submitCurrent', () => {
     const outcome = await submitCurrent({ ...BASE_PARAMS, formValues: {} });
 
     expect(outcome).toEqual({ kind: 'blocked', missing: ['Condition'] });
-    expect(api.completeAnnotationTask).not.toHaveBeenCalled();
+    expect(api.annotateTask).not.toHaveBeenCalled();
   });
 
   it('removes the label via deleteAnnotation when clearing an existing label with no comment', async () => {
@@ -182,7 +180,7 @@ describe('submitCurrent', () => {
     expect(outcome.kind).toBe('removed');
     if (outcome.kind !== 'removed') throw new Error('expected removed');
     expect(outcome.task.annotations).toEqual([]);
-    expect(api.completeAnnotationTask).not.toHaveBeenCalled();
+    expect(api.annotateTask).not.toHaveBeenCalled();
   });
 
   it('skipping a task you already labelled records the skip instead of deleting it', async () => {
@@ -190,7 +188,7 @@ describe('submitCurrent', () => {
       ...TASK,
       annotations: [annotation({ id: 7 })],
     };
-    vi.mocked(api.completeAnnotationTask).mockResolvedValue(
+    vi.mocked(api.annotateTask).mockResolvedValue(
       submitted({
         annotation: annotation({ label_id: null }),
         assignment_status: 'skipped',
@@ -212,8 +210,8 @@ describe('submitCurrent', () => {
     expect(api.deleteAnnotation).not.toHaveBeenCalled();
   });
 
-  it('returns an error outcome when completeAnnotationTask rejects', async () => {
-    vi.mocked(api.completeAnnotationTask).mockRejectedValue(new Error('network down'));
+  it('returns an error outcome when annotateTask rejects', async () => {
+    vi.mocked(api.annotateTask).mockRejectedValue(new Error('network down'));
 
     const outcome = await submitCurrent(BASE_PARAMS);
 

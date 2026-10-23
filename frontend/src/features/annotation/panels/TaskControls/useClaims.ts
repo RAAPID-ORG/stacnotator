@@ -1,6 +1,6 @@
 import i18n from '~/shared/i18n';
 import { useEffect } from 'react';
-import { claimAnnotationTask, type AnnotationTaskOut } from '~/api/client';
+import { claimTask, type AnnotationTaskOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 import { getActiveClaim, isClaimable } from '../../campaign/tasks';
 
@@ -19,7 +19,7 @@ export interface ClaimTaskParams {
  *  the server says about its holder - which may be somebody else. Contention
  *  is not an error: the badge shows who is on it and labelling stays allowed.
  *  Returns null when there was nothing to do. */
-export async function claimTask(params: ClaimTaskParams): Promise<AnnotationTaskOut | null> {
+export async function requestClaim(params: ClaimTaskParams): Promise<AnnotationTaskOut | null> {
   const { campaignId, task, currentUserId, now } = params;
   const claim = getActiveClaim(task, now);
   if (claim && claim.userId !== currentUserId) return null;
@@ -27,8 +27,8 @@ export async function claimTask(params: ClaimTaskParams): Promise<AnnotationTask
   if (claim && claim.heldForMs < CLAIM_RENEW_MS) return null;
   if (!claim && !isClaimable(task, now)) return null;
 
-  const { data } = await claimAnnotationTask({
-    path: { campaign_id: campaignId, annotation_task_id: task.id },
+  const { data } = await claimTask({
+    path: { campaign_id: campaignId, task_id: task.id },
   });
   if (!data) return null;
 
@@ -67,7 +67,7 @@ export function useClaims(options: UseClaimsOptions): void {
       // swallowed rather than escaping as an unhandled rejection.
       let updated: AnnotationTaskOut | null;
       try {
-        updated = await claimTask({ campaignId, task, currentUserId, now: Date.now() });
+        updated = await requestClaim({ campaignId, task, currentUserId, now: Date.now() });
       } catch (error) {
         if (!cancelled) handleError(error, t('task.claimFailed'));
         return;

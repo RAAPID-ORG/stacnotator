@@ -32,9 +32,9 @@ test.describe('Annotation Submission', () => {
 
     const req = lastAnnotateRequest(api.requests);
     expect(req).toBeDefined();
-    expect(req!.pathname).toBe('/api/campaigns/42/100/annotate');
+    expect(req!.pathname).toBe('/api/campaigns/42/tasks/100/annotate');
     expect(req!.pathParams.campaign_id).toBe('42');
-    expect(req!.pathParams.annotation_task_id).toBe('100');
+    expect(req!.pathParams.task_id).toBe('100');
     expect(req!.body.label_id).toBe(LABELS[0].id); // forest = 1
     expect(req!.body.confidence).toBeGreaterThanOrEqual(1);
   });

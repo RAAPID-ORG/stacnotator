@@ -73,8 +73,8 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-@router.get("/campaigns/{campaign_id}/annotation-tasks", response_model=AnnotationTaskListOut)
-def get_all_annotation_tasks(
+@router.get("/campaigns/{campaign_id}/tasks", response_model=AnnotationTaskListOut)
+def list_tasks(
     campaign_id: int,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
@@ -84,10 +84,10 @@ def get_all_annotation_tasks(
 
 
 @router.get(
-    "/campaigns/{campaign_id}/annotation-tasks/changes",
+    "/campaigns/{campaign_id}/tasks/changes",
     response_model=AnnotationTaskChangesOut,
 )
-def get_annotation_task_changes(
+def list_task_changes(
     campaign_id: int,
     since: datetime | None = None,
     db: Session = Depends(get_db),
@@ -105,12 +105,12 @@ def get_annotation_task_changes(
 
 
 @router.post(
-    "/campaigns/{campaign_id}/{annotation_task_id}/annotate",
+    "/campaigns/{campaign_id}/tasks/{task_id}/annotate",
     response_model=AnnotationTaskSubmitResponse,
 )
-def complete_annotation_task(
+def annotate_task(
     campaign_id: int,
-    annotation_task_id: int,
+    task_id: int,
     annotation: AnnotationFromTaskCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
@@ -119,19 +119,19 @@ def complete_annotation_task(
     return service.submit_task_annotation(
         db=db,
         campaign=campaign,
-        task_id=annotation_task_id,
+        task_id=task_id,
         annotation_create=annotation,
         user_id=user.id,
     )
 
 
 @router.post(
-    "/campaigns/{campaign_id}/{annotation_task_id}/claim",
+    "/campaigns/{campaign_id}/tasks/{task_id}/claim",
     response_model=ClaimTaskResponse,
 )
-def claim_annotation_task(
+def claim_task(
     campaign_id: int,
-    annotation_task_id: int,
+    task_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
@@ -139,11 +139,11 @@ def claim_annotation_task(
     outcome = claims.claim_task(
         db=db,
         campaign_id=campaign_id,
-        task_id=annotation_task_id,
+        task_id=task_id,
         user_id=user.id,
     )
     return ClaimTaskResponse(
-        task_id=annotation_task_id,
+        task_id=task_id,
         claimed=outcome.claimed,
         claimed_at=outcome.claimed_at,
         holder_user_id=outcome.holder_user_id,
@@ -152,10 +152,10 @@ def claim_annotation_task(
 
 
 @router.post(
-    "/campaigns/{campaign_id}/annotation-tasks/claim-next",
+    "/campaigns/{campaign_id}/tasks/claim-next",
     response_model=ClaimNextResponse,
 )
-def claim_next_annotation_task(
+def claim_next_task(
     campaign_id: int,
     task_set_id: int | None = None,
     after_annotation_number: int | None = None,
@@ -180,12 +180,12 @@ def claim_next_annotation_task(
 
 
 @router.get(
-    "/campaigns/{campaign_id}/annotations/{annotation_task_id}/validate-submission",
+    "/campaigns/{campaign_id}/tasks/{task_id}/validate-label",
     response_model=ValidateLabelSubmissionsResponse,
 )
-def validate_annotation_submission(
+def validate_task_label(
     campaign_id: int,
-    annotation_task_id: int,
+    task_id: int,
     label_id: int,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
@@ -208,7 +208,7 @@ def validate_annotation_submission(
     return embeddings_service.validate_label_submission(
         db,
         campaign_id=campaign_id,
-        annotation_task_id=annotation_task_id,
+        annotation_task_id=task_id,
         label_id=label_id,
     )
 
@@ -299,12 +299,12 @@ async def ingest_annotations_from_geojson(
 
 
 # ============================================================================
-# Open-Mode Annotation
+# Annotations outside a task's own row (Explore, and shapes drawn for a task)
 # ============================================================================
 
 
-@router.post("/campaigns/{campaign_id}/create-annotation", response_model=AnnotationOut)
-def create_annotation_openmode(
+@router.post("/campaigns/{campaign_id}/annotations", response_model=AnnotationOut)
+def create_annotation(
     campaign_id: int,
     annotation: AnnotationCreate,
     db: Session = Depends(get_db),
@@ -343,10 +343,8 @@ def batch_create_annotations(
     return BatchCreateAnnotationsResponse(created_count=created)
 
 
-@router.put(
-    "/campaigns/{campaign_id}/annotations/{annotation_id}/update", response_model=AnnotationOut
-)
-def update_annotation_openmode(
+@router.put("/campaigns/{campaign_id}/annotations/{annotation_id}", response_model=AnnotationOut)
+def update_annotation(
     annotation_id: int,
     annotation_update: AnnotationUpdate,
     db: Session = Depends(get_db),
@@ -363,7 +361,7 @@ def update_annotation_openmode(
 
 
 # ============================================================================
-# Common - for both modes
+# Any annotation
 # ============================================================================
 
 
@@ -502,9 +500,7 @@ def list_annotations_for_campaign(
 
 
 # ============================================================================
-# Open-Mode Tiled View
-#
-# Serve open-mode annotations as vector tiles for the viewport .
+# Map reads: vector tiles, density, extent, and the changes poll
 # ============================================================================
 
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getAnnotationTaskChanges, type AnnotationTaskOut, type TaskSetOut } from '~/api/client';
+import { listTaskChanges, type AnnotationTaskOut, type TaskSetOut } from '~/api/client';
 import { geometryCentroid, squareAround, wktToGeometry } from '../campaign/annotation';
 import type { ImageryCatalog } from '../campaign/imagery';
 import {
@@ -247,7 +247,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   syncRemoteTasks: async () => {
     try {
       const { campaign, catalog } = campaignState();
-      const result = await getAnnotationTaskChanges({
+      const result = await listTaskChanges({
         path: { campaign_id: campaign.id },
         query: { since: get().syncCursor },
       });

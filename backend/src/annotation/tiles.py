@@ -1,4 +1,4 @@
-"""Pure functional core for serving open-mode annotations as vector tiles.
+"""Pure functional core for serving annotations as vector tiles.
 
 Holds the DB-free logic behind the MVT tile endpoint: parsing/validating the
 inputs and assembling the PostGIS query. Kept separate from ``service.py`` so

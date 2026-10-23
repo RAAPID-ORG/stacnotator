@@ -2,10 +2,10 @@ import { useCallback, useMemo } from 'react';
 import {
   batchCreateAnnotations,
   batchDeleteAnnotations,
-  createAnnotationOpenmode,
+  createAnnotation,
   deleteAnnotation,
   getAnnotationIdsInBbox,
-  updateAnnotationOpenmode,
+  updateAnnotation,
   type AnnotationCreate,
 } from '~/api/client';
 import i18n from '~/shared/i18n';
@@ -108,7 +108,7 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
   try {
     let count = 1;
     if (bodies.length === 1) {
-      await createAnnotationOpenmode({ path: { campaign_id: campaignId }, body: bodies[0] });
+      await createAnnotation({ path: { campaign_id: campaignId }, body: bodies[0] });
     } else {
       // One request and one transaction for the set: labelling hundreds of
       // vector features must not be hundreds of round trips.
@@ -154,7 +154,7 @@ export async function commitEdit(): Promise<boolean> {
   work.setEditBusy(true);
   try {
     const answers = edit.annotation.form_values ?? {};
-    const result = await updateAnnotationOpenmode({
+    const result = await updateAnnotation({
       path: { campaign_id: campaignState().campaign.id, annotation_id: edit.annotation.id },
       body: {
         label_id: edit.annotation.label_id,

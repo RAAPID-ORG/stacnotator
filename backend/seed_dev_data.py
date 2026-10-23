@@ -3,7 +3,7 @@ Development database seeding script.
 Creates two sample Ukraine campaigns with Sentinel-2 imagery (12 monthly slices)
 and optional S2 NDVI timeseries when Earth Engine is configured:
   1. Task-mode campaign with 100 random sample points within Ukraine's bounding box
-  2. Open-mode campaign (same region and imagery, no tasks)
+  2. Explore campaign (same region and imagery, no tasks)
 
 Usage:
     python seed_dev_data.py              # Seed (local auth: auto-creates local user,
@@ -67,7 +67,7 @@ UKRAINE_BBOX = dict(bbox_west=22.1, bbox_south=44.3, bbox_east=40.2, bbox_north=
 MPC_CATALOG_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
 CAMPAIGN_NAME = "Ukraine Dev Campaign"
-OPEN_CAMPAIGN_NAME = "Ukraine Open-Mode Dev Campaign"
+EXPLORE_CAMPAIGN_NAME = "Ukraine Explore Dev Campaign"
 
 
 def _monthly_slices(year: int) -> list[ImagerySliceCreate]:
@@ -281,7 +281,7 @@ def seed_dev_data(firebase_uid: str | None = None):
         project = _ensure_dev_org_and_project(db, user)
 
         # Only replace the demo campaigns in the seeded project.
-        for name in (CAMPAIGN_NAME, OPEN_CAMPAIGN_NAME):
+        for name in (CAMPAIGN_NAME, EXPLORE_CAMPAIGN_NAME):
             existing = db.execute(
                 select(Campaign).where(Campaign.name == name, Campaign.project_id == project.id)
             ).scalar_one_or_none()
@@ -378,7 +378,7 @@ def seed_dev_data(firebase_uid: str | None = None):
         campaign = create_campaign(
             db,
             name=CAMPAIGN_NAME,
-            mode="tasks",
+            default_work_mode="tasks",
             project_id=project.id,
             settings=settings,
             user_id=user.id,
@@ -391,28 +391,30 @@ def seed_dev_data(firebase_uid: str | None = None):
         logger.info("Creating and assigning 100 random sample tasks...")
         task_ids = _seed_tasks(db, campaign, user)
 
-        # Open-mode campaign (same imagery & timeseries, no tasks)
-        logger.info("Creating open-mode campaign via service...")
-        open_campaign = create_campaign(
+        # Explore campaign (same imagery & timeseries, no tasks)
+        logger.info("Creating explore campaign via service...")
+        explore_campaign = create_campaign(
             db,
-            name=OPEN_CAMPAIGN_NAME,
-            mode="open",
+            name=EXPLORE_CAMPAIGN_NAME,
+            default_work_mode="explore",
             project_id=project.id,
             settings=settings,
             user_id=user.id,
             imagery_editor_state=imagery_editor_state,
             timeseries_configs=timeseries_configs,
         )
-        logger.info("Open-mode campaign created: id=%d", open_campaign.id)
-        _seed_default_view(db, open_campaign.id)
+        logger.info("Explore campaign created: id=%d", explore_campaign.id)
+        _seed_default_view(db, explore_campaign.id)
 
         logger.info("Waiting for imagery registration before exiting...")
-        for campaign_id in (campaign.id, open_campaign.id):
+        for campaign_id in (campaign.id, explore_campaign.id):
             _wait_for_registration(db, campaign_id)
 
         logger.info("\nDatabase seeding complete!")
         logger.info("  Task-mode Campaign  : id=%d  name=%s", campaign.id, campaign.name)
-        logger.info("  Open-mode Campaign  : id=%d  name=%s", open_campaign.id, open_campaign.name)
+        logger.info(
+            "  Explore Campaign    : id=%d  name=%s", explore_campaign.id, explore_campaign.name
+        )
         logger.info("  User                : %s", user.email)
         logger.info("  Firebase UID        : %s", user.external_uid)
         logger.info("  Imagery items       : 1 source, 1 collection, 12 monthly slices")

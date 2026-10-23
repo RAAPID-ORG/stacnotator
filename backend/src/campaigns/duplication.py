@@ -340,7 +340,7 @@ def duplicate_campaign(
 ) -> Campaign:
     """Create the duplicate in one transaction and commit. Returns the new
     campaign row. Annotations linked to a task are only copied when the tasks
-    are copied too; without them only free (open-mode) annotations carry over.
+    are copied too; without them only standalone annotations carry over.
 
     ``target_project`` sends the copy to another project, which narrows what it
     may carry (see ``CopyPlan``); the caller is responsible for checking the
@@ -357,7 +357,7 @@ def duplicate_campaign(
     dup = Campaign(
         name=plan.name,
         project_id=plan.project_id,
-        mode=campaign.mode,
+        default_work_mode=campaign.default_work_mode,
         registration_status=campaign.registration_status,
         # Embeddings hang off tasks; without tasks there is nothing pending.
         embedding_status=campaign.embedding_status if plan.tasks else "ready",

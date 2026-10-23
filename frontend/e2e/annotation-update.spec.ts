@@ -66,7 +66,7 @@ test.describe('Annotation Update', () => {
 
     const req = api.requests.find((r) => r.method === 'POST' && r.pathname.endsWith('/annotate'));
     expect(req).toBeDefined();
-    expect(req!.pathParams.annotation_task_id).toBe(TASK_3.id.toString());
+    expect(req!.pathParams.task_id).toBe(TASK_3.id.toString());
     expect(req!.body.label_id).toBe(2); // cropland
   });
 });

@@ -1,13 +1,13 @@
 import { test, expect } from './fixtures/annotator-fixture';
 import type { ApiCapture } from './fixtures/annotator-fixture';
-import { MOCK_CAMPAIGN_OPEN_MODE_FORMS } from './fixtures/mock-data';
+import { MOCK_CAMPAIGN_EXPLORE_FORMS } from './fixtures/mock-data';
 import { drawPolygon, waitForCreate } from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
 
-async function loadOpenModeForms(page: Page, api: ApiCapture): Promise<void> {
+async function loadExploreForms(page: Page, api: ApiCapture): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
-    await route.fulfill({ json: MOCK_CAMPAIGN_OPEN_MODE_FORMS });
+    await route.fulfill({ json: MOCK_CAMPAIGN_EXPLORE_FORMS });
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
@@ -22,7 +22,7 @@ async function loadOpenModeForms(page: Page, api: ApiCapture): Promise<void> {
 const controls = (page: Page) => page.locator('[data-tour="controls"]');
 const catalog = (page: Page) => page.locator('[data-testid="draft-catalog"]');
 const createPosts = (api: ApiCapture) =>
-  api.requests.filter((r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation'));
+  api.requests.filter((r) => r.method === 'POST' && r.pathname.endsWith('/annotations'));
 
 const POLY: Array<[number, number]> = [
   [-50, -40],
@@ -30,9 +30,9 @@ const POLY: Array<[number, number]> = [
   [0, 50],
 ];
 
-test.describe('Open mode custom-field catalog', () => {
+test.describe('Explore custom-field catalog', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenModeForms(annotationPage, api);
+    await loadExploreForms(annotationPage, api);
   });
 
   test('custom fields stay hidden until a geometry is drawn', async ({ annotationPage }) => {

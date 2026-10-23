@@ -10,7 +10,7 @@ BASE = "https://app.example.org"
 CAMPAIGN_PAYLOAD = {
     "id": 42,
     "name": "Crop mapping",
-    "mode": "open",
+    "default_work_mode": "explore",
     "settings": {"labels": [{"id": 1, "name": "Maize", "geometry_type": "point"}]},
 }
 

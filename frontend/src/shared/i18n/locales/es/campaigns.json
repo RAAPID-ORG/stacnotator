@@ -276,7 +276,7 @@
     "addFailed": "No se pudo añadir la capa vectorial",
     "deleteFailed": "No se pudo eliminar la capa vectorial",
     "title": "Capas vectoriales (PMTiles)",
-    "description": "Actívalas o desactívalas en el modo abierto, pasa el cursor para resaltar y etiqueta entidades haciendo clic con la herramienta Etiquetar vector.",
+    "description": "Actívalas o desactívalas al anotar, pasa el cursor para resaltar y etiqueta entidades haciendo clic con la herramienta Etiquetar vector.",
     "add": "+ Añadir capa vectorial",
     "loadError": "No se pudieron cargar las capas vectoriales.",
     "tryAgain": "Reintentar",
@@ -326,7 +326,7 @@
       "title": "¿Conservar los diseños personales?",
       "body": "Copia la disposición de las ventanas del lienzo que cada usuario guardó para sí mismo."
     },
-    "withoutTasksNotice": "Sin tareas, solo se copian las anotaciones que no están vinculadas a una tarea (etiquetas del modo abierto)."
+    "withoutTasksNotice": "Sin tareas, solo se copian las anotaciones que no están vinculadas a una tarea (etiquetas de Explorar)."
   },
   "assignAll": {
     "failed": "La asignación falló",

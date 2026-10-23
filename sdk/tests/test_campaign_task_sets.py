@@ -9,7 +9,12 @@ from stacnotator.client import Client
 
 BASE = "https://app.example.org"
 
-CAMPAIGN_PAYLOAD = {"id": 42, "name": "Crop mapping", "mode": "tasks", "settings": {"labels": []}}
+CAMPAIGN_PAYLOAD = {
+    "id": 42,
+    "name": "Crop mapping",
+    "default_work_mode": "tasks",
+    "settings": {"labels": []},
+}
 
 SETS = [
     {

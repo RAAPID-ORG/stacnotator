@@ -18,9 +18,9 @@ Imagery registration runs per campaign but succeeds per source: each source repo
 - **Task Mode** - Predefined annotation locations (points/polygons). Tasks are assigned to annotators who visit each location and label it.
   - **Task output** (campaign setting, fixed once tasks are annotated): `classify` tasks are finished by picking a label for the task's own geometry; `draw` tasks by drawing shapes around it. In a draw campaign Task mode carries the drawing tools, every shape is saved against the current task (`output_of_task_id`), and the task is finished with **Done**, **Nothing here** or **Skip**.
   - Each annotator's task row stores its outcome (`labelled`, `skipped`, `drawn`, `none_found`), which is what task status compares across annotators.
-- **Open/Explore Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
+- **Explore Mode** - Free-form annotation. Annotators navigate freely and create annotations anywhere within the campaign's bounding box.
 
-Every campaign supports both; who may do what is governed by the labelling policy (four audience axes: explore, unassigned tasks, assigned tasks, counting toward completion). See [labelling-policy.md](labelling-policy.md). The campaign `mode` is the default work mode the UI opens in.
+Every campaign supports both; who may do what is governed by the labelling policy (four audience axes: explore, unassigned tasks, assigned tasks, counting toward completion). See [labelling-policy.md](labelling-policy.md). The campaign's `default_work_mode` is the mode the annotation page opens in.
 
 ## Imagery Configuration
 
@@ -143,7 +143,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Comments/remarks field
 - Annotations can be flagged for review (`F`) with a flag comment, filterable in review
 
-### Shared Annotation View (open mode)
+### Shared Annotation View
 
 - Saved annotations are drawn from backend-rendered vector tiles, so a campaign with hundreds of thousands of them loads the same way a small one does (nothing is drawn below zoom 9)
 - Writes made while the page is open are drawn over the tiles right away instead of refetching them; the tiles are only refetched when that overlay grows large
@@ -167,7 +167,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 - Each field has a title, optional description (shown on hover of a "?" icon), and a required flag
 - Required fields block submission while a label is selected; skipping stays ungated
 - Hotkeys: Tab/Shift+Tab cycle fields, number keys toggle options or focus the active input, Esc leaves the field
-- Open mode reveals the fields only after a geometry is drawn: the label list is replaced by the questions catalog for that shape, committed by drawing the next shape, Enter, or the Save button; Esc or the x close the draft, committing it when all required fields are answered and discarding it otherwise. Campaigns without fields keep the instant-save draw. Edit mode can change an annotation's answers and its label (same geometry type)
+- Explore reveals the fields only after a geometry is drawn: the label list is replaced by the questions catalog for that shape, committed by drawing the next shape, Enter, or the Save button; Esc or the x close the draft, committing it when all required fields are answered and discarding it otherwise. Campaigns without fields keep the instant-save draw. Edit mode can change an annotation's answers and its label (same geometry type)
 - Export adds one column per field (`stacnotator_field_<slug>`); multi category values join into one cell; GeoJSON export carries raw values for lossless re-import
 
 ### Navigation
@@ -211,7 +211,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 ## Review & Quality Assurance
 
 - **Task Mode Review** - per-task annotation overview, filtering, statistics. Multiple annotators per task possible.
-- **Open Mode Review** - annotation distribution map, location-based browsing
+- **Explore Review** - annotation distribution map, location-based browsing
 - **Inter-Annotator Agreement** - Krippendorff's Alpha, pairwise agreement, per-user statistics
 - Authoritative reviewer role (project-scoped) for validation: disagreement can be resolved by an authoritative label (which alone completes the task) or by the users changing their labels to agreement.
 

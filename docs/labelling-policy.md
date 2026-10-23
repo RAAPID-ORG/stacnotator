@@ -1,10 +1,9 @@
 # Labelling policy
 
 Who may label what in a campaign, and whose labels count toward task
-completion. The policy replaces the old "open mode vs task mode" question:
-every campaign supports both free exploration and task work, and the policy
-controls access to each. (The campaign `mode` field still exists, but only
-as the default work mode the UI opens in.)
+completion. Every campaign supports both free exploration (Explore) and task
+work, and the policy controls access to each. The campaign's
+`default_work_mode` only picks which of the two the annotation page opens in.
 
 ## The axes
 

@@ -24,7 +24,7 @@ import {
   MOCK_PROJECT_USERS,
   makeSubmitResponse,
   makeDeleteResponse,
-  MOCK_OPEN_ANNOTATIONS,
+  MOCK_EXPLORE_ANNOTATIONS,
   makeCreateAnnotationResponse,
   makeUpdateAnnotationResponse,
   MOCK_TIMESERIES_DATA,
@@ -54,7 +54,7 @@ export interface CapturedRequest {
   url: string;
   pathname: string;
   body: any;
-  /** e.g. { campaign_id: '42', annotation_task_id: '100' } */
+  /** e.g. { campaign_id: '42', task_id: '100' } */
   pathParams: Record<string, string>;
 }
 
@@ -83,16 +83,13 @@ export class ApiCapture {
 /** Extract path params from a URL pattern like /api/campaigns/{campaign_id}/... */
 function extractPathParams(pathname: string): Record<string, string> {
   const patterns: [RegExp, string[]][] = [
-    [/^\/api\/campaigns\/(\d+)\/(\d+)\/annotate$/, ['campaign_id', 'annotation_task_id']],
-    [/^\/api\/campaigns\/(\d+)\/annotation-tasks$/, ['campaign_id']],
-    [/^\/api\/campaigns\/(\d+)\/annotations\/(\d+)\/update$/, ['campaign_id', 'annotation_id']],
+    [/^\/api\/campaigns\/(\d+)\/tasks\/(\d+)\/annotate$/, ['campaign_id', 'task_id']],
+    [/^\/api\/campaigns\/(\d+)\/tasks$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/annotations\/batch-delete$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/annotations\/(\d+)$/, ['campaign_id', 'annotation_id']],
-    [/^\/api\/campaigns\/(\d+)\/create-annotation$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/annotations$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/detailed$/, ['campaign_id']],
     [/^\/api\/projects\/(\d+)\/users$/, ['project_id']],
-    [/^\/api\/campaigns\/(\d+)\/(\d+)\/validate$/, ['campaign_id', 'annotation_task_id']],
   ];
 
   for (const [re, names] of patterns) {
@@ -494,13 +491,13 @@ export const test = base.extend<AnnotatorFixtures>({
     // Track ongoing task list data (mutable so tests can change it mid-flight)
     const taskListData = { ...MOCK_TASK_LIST };
 
-    // Open-mode annotation list (mutable so create/delete reflect within a test).
+    // Explore annotation list (mutable so create/delete reflect within a test).
     // Reset per page setup so each test starts from the same baseline.
-    let openAnnotations: any[] = MOCK_OPEN_ANNOTATIONS.map((a) => ({ ...a }));
+    let annotations: any[] = MOCK_EXPLORE_ANNOTATIONS.map((a) => ({ ...a }));
     let nextOpenAnnotationId = 9100;
-    // Fixed bbox covering the mock open-mode annotations (near 30.5, 50.5),
+    // Fixed bbox covering the mock annotations (near 30.5, 50.5),
     // used by the extent / navigation tile-metadata mocks.
-    const openAnnotationsBbox = (): [number, number, number, number] => [30.4, 50.4, 30.6, 50.6];
+    const annotationsBbox = (): [number, number, number, number] => [30.4, 50.4, 30.6, 50.6];
 
     // GET /api/timeseries/:id/:lat/:lon/data
     // Default so any campaign with a timeseries widget gets real data instead
@@ -530,8 +527,8 @@ export const test = base.extend<AnnotatorFixtures>({
       await route.fulfill({ json: MOCK_CAMPAIGN });
     });
 
-    // GET /api/campaigns/:id/annotation-tasks
-    await page.route('**/api/campaigns/*/annotation-tasks', async (route) => {
+    // GET /api/campaigns/:id/tasks
+    await page.route('**/api/campaigns/*/tasks', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
       api.requests.push({
         method: 'GET',
@@ -556,8 +553,8 @@ export const test = base.extend<AnnotatorFixtures>({
       await route.fulfill({ json: MOCK_TASK_SETS });
     });
 
-    // POST /api/campaigns/:id/:taskId/annotate  (completeAnnotationTask)
-    await page.route('**/api/campaigns/*/*/annotate', async (route) => {
+    // POST /api/campaigns/:id/tasks/:taskId/annotate  (annotateTask)
+    await page.route('**/api/campaigns/*/tasks/*/annotate', async (route) => {
       const body = await parseBody(route);
       const pathname = new URL(route.request().url()).pathname;
       api.requests.push({
@@ -568,7 +565,7 @@ export const test = base.extend<AnnotatorFixtures>({
         pathParams: extractPathParams(pathname),
       });
       const resp = makeSubmitResponse(
-        Number(extractPathParams(pathname).annotation_task_id),
+        Number(extractPathParams(pathname).task_id),
         body?.label_id ?? null,
         body?.comment ?? null,
         body?.confidence ?? 5
@@ -591,8 +588,8 @@ export const test = base.extend<AnnotatorFixtures>({
       const offset = Number(url.searchParams.get('offset') ?? 0);
       await route.fulfill({
         json: {
-          items: openAnnotations.slice(offset, offset + limit),
-          total: openAnnotations.length,
+          items: annotations.slice(offset, offset + limit),
+          total: annotations.length,
           limit,
           offset,
         },
@@ -603,17 +600,17 @@ export const test = base.extend<AnnotatorFixtures>({
     await page.route('**/api/campaigns/*/annotations/facets', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
       const byLabel = new Map<number | null, number>();
-      openAnnotations.forEach((a) => byLabel.set(a.label_id, (byLabel.get(a.label_id) ?? 0) + 1));
+      annotations.forEach((a) => byLabel.set(a.label_id, (byLabel.get(a.label_id) ?? 0) + 1));
       await route.fulfill({
         json: {
-          total: openAnnotations.length,
-          with_confidence: openAnnotations.filter((a) => a.confidence != null).length,
+          total: annotations.length,
+          with_confidence: annotations.filter((a) => a.confidence != null).length,
           annotators: [
             {
               user_id: TEST_USER_ID,
               email: 'test@example.com',
               display_name: 'Test User',
-              count: openAnnotations.length,
+              count: annotations.length,
             },
           ],
           labels: [...byLabel].map(([label_id, count]) => ({ label_id, count })),
@@ -626,7 +623,7 @@ export const test = base.extend<AnnotatorFixtures>({
     await page.route('**/api/campaigns/*/annotations/density-by-label', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
       await route.fulfill({
-        json: openAnnotations
+        json: annotations
           .filter((a) => a.centroid_lat != null)
           .map((a) => ({
             lon: a.centroid_lon,
@@ -637,8 +634,9 @@ export const test = base.extend<AnnotatorFixtures>({
       });
     });
 
-    // POST /api/campaigns/:id/create-annotation  (open mode: draw)
-    await page.route('**/api/campaigns/*/create-annotation', async (route) => {
+    // POST /api/campaigns/:id/annotations  (draw)
+    await page.route(/\/api\/campaigns\/\d+\/annotations$/, async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
       const body = await parseBody(route);
       const pathname = new URL(route.request().url()).pathname;
       api.requests.push({
@@ -649,12 +647,12 @@ export const test = base.extend<AnnotatorFixtures>({
         pathParams: extractPathParams(pathname),
       });
       const created = makeCreateAnnotationResponse(body, nextOpenAnnotationId++);
-      openAnnotations.push(created);
+      annotations.push(created);
       await route.fulfill({ json: created });
     });
 
-    // PUT /api/campaigns/:id/annotations/:annId/update  (open mode: edit geometry / flag)
-    await page.route('**/api/campaigns/*/annotations/*/update', async (route) => {
+    // PUT /api/campaigns/:id/annotations/:annId  (edit geometry / flag)
+    await page.route('**/api/campaigns/*/annotations/*', async (route) => {
       if (route.request().method() !== 'PUT') return route.fallback();
       const body = await parseBody(route);
       const pathname = new URL(route.request().url()).pathname;
@@ -666,10 +664,10 @@ export const test = base.extend<AnnotatorFixtures>({
         pathParams: extractPathParams(pathname),
       });
       const annId = Number(extractPathParams(pathname).annotation_id);
-      const idx = openAnnotations.findIndex((a) => a.id === annId);
-      const existing = idx >= 0 ? openAnnotations[idx] : { id: annId, geometry: {} };
+      const idx = annotations.findIndex((a) => a.id === annId);
+      const existing = idx >= 0 ? annotations[idx] : { id: annId, geometry: {} };
       const updated = makeUpdateAnnotationResponse(existing, body);
-      if (idx >= 0) openAnnotations[idx] = updated;
+      if (idx >= 0) annotations[idx] = updated;
       await route.fulfill({ json: updated });
     });
 
@@ -685,11 +683,11 @@ export const test = base.extend<AnnotatorFixtures>({
         pathParams: extractPathParams(pathname),
       });
       const annId = Number(extractPathParams(pathname).annotation_id);
-      openAnnotations = openAnnotations.filter((a) => a.id !== annId);
+      annotations = annotations.filter((a) => a.id !== annId);
       await route.fulfill({ json: makeDeleteResponse() });
     });
 
-    // POST /api/campaigns/:id/annotations/batch-delete  (open mode: multi-delete)
+    // POST /api/campaigns/:id/annotations/batch-delete  (multi-delete)
     // Registered after the single-delete route so it wins LIFO for this path.
     await page.route('**/api/campaigns/*/annotations/batch-delete', async (route) => {
       if (route.request().method() !== 'POST') return route.fallback();
@@ -703,12 +701,12 @@ export const test = base.extend<AnnotatorFixtures>({
         pathParams: extractPathParams(pathname),
       });
       const ids = new Set<number>((body?.annotation_ids ?? []) as number[]);
-      const before = openAnnotations.length;
-      openAnnotations = openAnnotations.filter((a) => !ids.has(a.id));
-      await route.fulfill({ json: { deleted_count: before - openAnnotations.length } });
+      const before = annotations.length;
+      annotations = annotations.filter((a) => !ids.has(a.id));
+      await route.fulfill({ json: { deleted_count: before - annotations.length } });
     });
 
-    // --- Open-mode viewport vector tiles -----------------------------------
+    // --- Annotation vector tiles -------------------------------------------
     // Annotations are served as MVT tiles + lightweight metadata endpoints
     // instead of one load-all call. Registered after the generic annotation
     // routes so these specific paths win (Playwright matches most-recent-first).
@@ -724,7 +722,7 @@ export const test = base.extend<AnnotatorFixtures>({
 
     // GET annotations extent -> bbox spanning the mock annotations.
     await page.route('**/api/campaigns/*/annotations/extent*', async (route) => {
-      await route.fulfill({ json: { bbox: openAnnotationsBbox() } });
+      await route.fulfill({ json: { bbox: annotationsBbox() } });
     });
 
     // GET annotation ids in bbox -> every mock annotation (box-select selects all).
@@ -736,7 +734,7 @@ export const test = base.extend<AnnotatorFixtures>({
         body: null,
         pathParams: extractPathParams(new URL(route.request().url()).pathname),
       });
-      await route.fulfill({ json: openAnnotations.map((a) => a.id) });
+      await route.fulfill({ json: annotations.map((a) => a.id) });
     });
 
     // GET annotation density -> the minimap overview, empty in mock mode.
@@ -746,11 +744,11 @@ export const test = base.extend<AnnotatorFixtures>({
 
     // GET navigation batch -> mock annotations newest-first as nav items.
     await page.route('**/api/campaigns/*/annotations/navigation*', async (route) => {
-      const items = [...openAnnotations].reverse().map((a) => ({
+      const items = [...annotations].reverse().map((a) => ({
         id: a.id,
         label_id: a.label_id ?? null,
         updated_at: a.updated_at ?? '2024-01-01T00:00:00Z',
-        bbox: openAnnotationsBbox(),
+        bbox: annotationsBbox(),
       }));
       await route.fulfill({ json: items });
     });
@@ -760,7 +758,7 @@ export const test = base.extend<AnnotatorFixtures>({
       if (route.request().method() !== 'GET') return route.fallback();
       const pathname = new URL(route.request().url()).pathname;
       const annId = Number(extractPathParams(pathname).annotation_id);
-      const found = openAnnotations.find((a) => a.id === annId);
+      const found = annotations.find((a) => a.id === annId);
       if (!found) return route.fulfill({ status: 404, json: { detail: 'not found' } });
       await route.fulfill({ json: found });
     });
@@ -779,12 +777,12 @@ export const test = base.extend<AnnotatorFixtures>({
     });
 
     // GET task changes -> the poll that keeps task progress current.
-    await page.route('**/api/campaigns/*/annotation-tasks/changes*', async (route) => {
+    await page.route('**/api/campaigns/*/tasks/changes*', async (route) => {
       await route.fulfill({ json: { server_time: '2024-01-01T00:00:00Z', tasks: [] } });
     });
 
-    // GET /api/campaigns/:id/:taskId/validate  (KNN validation)
-    await page.route('**/api/campaigns/*/*/validate*', async (route) => {
+    // GET /api/campaigns/:id/tasks/:taskId/validate-label  (KNN validation)
+    await page.route('**/api/campaigns/*/tasks/*/validate-label*', async (route) => {
       await route.fulfill({ json: { status: 'ok' } });
     });
 

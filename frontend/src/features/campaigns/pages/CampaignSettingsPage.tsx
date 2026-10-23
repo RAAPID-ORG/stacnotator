@@ -470,7 +470,7 @@ export const CampaignSettingsPage = () => {
                       saving={saving}
                       campaignName={campaignName}
                       imagery={imagery}
-                      campaignMode={campaign.mode || 'tasks'}
+                      campaignMode={campaign.default_work_mode}
                       campaignSettings={campaign.settings || {}}
                     />
                   )}

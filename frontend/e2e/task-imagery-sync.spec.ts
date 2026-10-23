@@ -76,7 +76,7 @@ async function assertFullSync(
   await selectAndSubmit(page, '1');
   const req = lastAnnotate(api.requests);
   expect(req, `[${label}] no annotate request`).toBeDefined();
-  expect(req!.pathParams.annotation_task_id, `[${label}] task_id`).toBe(expectedTaskId.toString());
+  expect(req!.pathParams.task_id, `[${label}] task_id`).toBe(expectedTaskId.toString());
 }
 
 test.describe('Initial load', () => {
@@ -90,7 +90,7 @@ test.describe('Initial load', () => {
     await selectAndSubmit(annotationPage, '1');
     const req = lastAnnotate(api.requests);
     expect(req).toBeDefined();
-    expect(req!.pathParams.annotation_task_id).toBe('100');
+    expect(req!.pathParams.task_id).toBe('100');
     expect(req!.pathParams.campaign_id).toBe('42');
   });
 });
@@ -188,7 +188,7 @@ test.describe('Submit auto-advance', () => {
     await selectAndSubmit(page, '2');
     const req = lastAnnotate(api.requests);
     expect(req).toBeDefined();
-    expect(req!.pathParams.annotation_task_id).toBe('200');
+    expect(req!.pathParams.task_id).toBe('200');
   });
 });
 
@@ -217,7 +217,7 @@ test.describe('Filter changes', () => {
 
     api.clear();
     await selectAndSubmit(page, '1');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe('100');
   });
 
   test('done-only filter shows TASK_3 location, switch back shows TASK_1', async ({
@@ -251,7 +251,7 @@ test.describe('Filter changes', () => {
 
     api.clear();
     await selectAndSubmit(page, '1');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe('100');
   });
 });
 
@@ -294,7 +294,7 @@ test.describe('Review mode', () => {
 
     api.clear();
     await selectAndSubmit(page, '1');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(TASK_3.id.toString());
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(TASK_3.id.toString());
   });
 
   test('navigate through all review tasks: crosshair + tiles correct at TASK_4 and TASK_5', async ({
@@ -334,7 +334,7 @@ test.describe('Imagery controls do not move crosshair', () => {
 
     api.clear();
     await selectAndSubmit(page, '1');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe('100');
   });
 
   test('collection switch Shift+d: crosshair stays at TASK_1', async ({ annotationPage, api }) => {
@@ -344,7 +344,7 @@ test.describe('Imagery controls do not move crosshair', () => {
 
     api.clear();
     await selectAndSubmit(page, '1');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe('100');
   });
 
   test('s then d then w: crosshair + imagery back at TASK_1', async ({ annotationPage, api }) => {
@@ -365,7 +365,7 @@ test.describe('Imagery controls do not move crosshair', () => {
 
     api.clear();
     await selectAndSubmit(page, '1');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe('100');
   });
 });
 
@@ -423,7 +423,7 @@ test.describe('Chaos scenarios', () => {
     await page.keyboard.press('1');
     await page.keyboard.press('Enter');
     await waitAutoAdvanceTo(page, '2');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe('100');
     await assertCrosshairAt(page, TASK_2.id, 'after submit 1');
 
     await page.keyboard.press('d');
@@ -433,7 +433,7 @@ test.describe('Chaos scenarios', () => {
     await page.keyboard.press('2');
     await page.keyboard.press('Enter');
     await waitNavSettled(page);
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('200');
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe('200');
   });
 
   test('filter then navigate then filter then GoTo: crosshair always matches', async ({
@@ -499,7 +499,7 @@ test.describe('Chaos scenarios', () => {
 
     api.clear();
     await selectAndSubmit(page, '1');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(TASK_3.id.toString());
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(TASK_3.id.toString());
   });
 });
 

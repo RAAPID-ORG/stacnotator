@@ -3,7 +3,7 @@
 How a campaign's saved annotations get on screen, stay editable, and stay in
 step with the other people annotating the same campaign.
 
-An open-mode campaign can hold hundreds of thousands of annotations, and the
+A campaign can hold hundreds of thousands of annotations, and the
 workspace draws them on the main map plus every imagery window at once. Sending
 that as GeoJSON does not scale, so saved annotations are rendered by Postgres as
 vector tiles. Everything the tiles cannot show yet - the shape being edited,

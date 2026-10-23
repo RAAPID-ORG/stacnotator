@@ -51,7 +51,7 @@ test.describe('Task Status Filtering', () => {
 
     const req = api.requests.find((r) => r.method === 'POST' && r.pathname.endsWith('/annotate'));
     expect(req).toBeDefined();
-    expect(req!.pathParams.annotation_task_id).toBe('100');
+    expect(req!.pathParams.task_id).toBe('100');
   });
 
   test('adding Done to the filter exposes completed tasks', async ({ annotationPage }) => {

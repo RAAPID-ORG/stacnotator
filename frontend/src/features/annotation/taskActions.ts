@@ -1,8 +1,8 @@
 import {
-  claimNextAnnotationTask,
-  completeAnnotationTask,
+  claimNextTask,
+  annotateTask,
   deleteAnnotation,
-  validateAnnotationSubmission,
+  validateTaskLabel,
   type AnnotationTaskAssignmentOut,
   type AnnotationTaskOut,
   type AnnotationTaskSubmitResponse,
@@ -167,8 +167,8 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
 
   if (params.knnValidationEnabled && labelId !== null && !params.confirmMismatch) {
     try {
-      const validation = await validateAnnotationSubmission({
-        path: { campaign_id: campaignId, annotation_task_id: task.id },
+      const validation = await validateTaskLabel({
+        path: { campaign_id: campaignId, task_id: task.id },
         query: { label_id: labelId },
       });
       if (validation.data?.status === 'mismatch') return { kind: 'needsConfirm' };
@@ -178,8 +178,8 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
   }
 
   try {
-    const response = await completeAnnotationTask({
-      path: { campaign_id: campaignId, annotation_task_id: task.id },
+    const response = await annotateTask({
+      path: { campaign_id: campaignId, task_id: task.id },
       body: {
         label_id: labelId,
         comment: comment || null,
@@ -298,7 +298,7 @@ export async function advance(): Promise<void> {
 
   const current = currentTask();
   try {
-    const { data } = await claimNextAnnotationTask({
+    const { data } = await claimNextTask({
       path: { campaign_id: campaignState().campaign.id },
       query: {
         task_set_id: tasks.filter.taskSetId,

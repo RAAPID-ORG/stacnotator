@@ -2,12 +2,12 @@ import { test, expect } from './fixtures/annotator-fixture';
 import type { ApiCapture } from './fixtures/annotator-fixture';
 import {
   MOCK_CAMPAIGN,
-  MOCK_CAMPAIGN_OPEN_MODE,
-  MOCK_CAMPAIGN_OPEN_MODE_NO_TS,
-  OPEN_ANN_CENTER,
-  OPEN_ANN_NE_FLAGGED,
-  OPEN_ANN_SW_POLYGON,
-  OPEN_MODE_CENTER,
+  MOCK_CAMPAIGN_EXPLORE,
+  MOCK_CAMPAIGN_EXPLORE_NO_TS,
+  EXPLORE_ANN_CENTER,
+  EXPLORE_ANN_NE_FLAGGED,
+  EXPLORE_ANN_SW_POLYGON,
+  EXPLORE_CENTER,
   TASK_3,
 } from './fixtures/mock-data';
 import {
@@ -33,14 +33,14 @@ type Page = import('@playwright/test').Page;
 // Loading
 // ---------------------------------------------------------------------------
 
-async function loadOpenMode(
+async function loadExplore(
   page: Page,
   api: ApiCapture,
   opts: { noTimeseries?: boolean } = {}
 ): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({
-      json: opts.noTimeseries ? MOCK_CAMPAIGN_OPEN_MODE_NO_TS : MOCK_CAMPAIGN_OPEN_MODE,
+      json: opts.noTimeseries ? MOCK_CAMPAIGN_EXPLORE_NO_TS : MOCK_CAMPAIGN_EXPLORE,
     });
   });
   await page.reload();
@@ -62,12 +62,12 @@ const ACTIVE = /bg-brand-50/;
 // Mode renders correctly
 // ---------------------------------------------------------------------------
 
-test.describe('Open mode renders', () => {
+test.describe('Explore renders', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
+    await loadExplore(annotationPage, api);
   });
 
-  test('renders ControlsOpenMode tools and no Submit/Update button', async ({ annotationPage }) => {
+  test('renders the Explore tools and no Submit/Update button', async ({ annotationPage }) => {
     await expect(tool(annotationPage, 'Pan (P)')).toBeVisible();
     await expect(tool(annotationPage, 'Annotate (R)')).toBeVisible();
     await expect(tool(annotationPage, 'Edit (E)')).toBeVisible();
@@ -93,7 +93,7 @@ test.describe('Open mode renders', () => {
   // `crosshair: workMode === 'tasks'`.
   test('minimap centre is the bbox centre on load', async ({ annotationPage }) => {
     const c = await getMinimapCenter(annotationPage);
-    assertCoordsMatch(c, OPEN_MODE_CENTER, 'initial centre');
+    assertCoordsMatch(c, EXPLORE_CENTER, 'initial centre');
   });
 
   test('default active tool is Pan', async ({ annotationPage }) => {
@@ -107,7 +107,7 @@ test.describe('Open mode renders', () => {
 
 test.describe('Tools and label selection', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
+    await loadExplore(annotationPage, api);
   });
 
   test('P / R / E / T activate the matching tool', async ({ annotationPage }) => {
@@ -161,7 +161,7 @@ test.describe('Tools and label selection', () => {
     annotationPage,
     api,
   }) => {
-    await loadOpenMode(annotationPage, api, { noTimeseries: true });
+    await loadExplore(annotationPage, api, { noTimeseries: true });
     await expect(tool(annotationPage, 'Timeseries (T)')).toHaveCount(0);
   });
 });
@@ -172,7 +172,7 @@ test.describe('Tools and label selection', () => {
 
 test.describe('Creating annotations', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
+    await loadExplore(annotationPage, api);
   });
 
   test('point draw at centre posts a POINT at the viewport centre', async ({
@@ -185,7 +185,7 @@ test.describe('Creating annotations', () => {
     await Promise.all([waitForCreate(annotationPage), clickMapCenter(annotationPage)]);
 
     const posts = api.requests.filter(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation')
+      (r) => r.method === 'POST' && r.pathname.endsWith('/annotations')
     );
     expect(posts).toHaveLength(1);
     const body = posts[0].body;
@@ -206,7 +206,7 @@ test.describe('Creating annotations', () => {
     await Promise.all([waitForCreate(annotationPage), clickMapAt(annotationPage, 100, 0)]);
 
     const body = api.requests.find(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation')
+      (r) => r.method === 'POST' && r.pathname.endsWith('/annotations')
     )!.body;
     const wkt = parseWkt(body.geometry_wkt);
     expect(wkt.type).toBe('POINT');
@@ -224,7 +224,7 @@ test.describe('Creating annotations', () => {
       ]),
     ]);
     const body = api.requests.find(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation')
+      (r) => r.method === 'POST' && r.pathname.endsWith('/annotations')
     )!.body;
     expect(parseWkt(body.geometry_wkt).type).toBe('POLYGON');
     expect(body.label_id).toBe(2);
@@ -240,7 +240,7 @@ test.describe('Creating annotations', () => {
       ]),
     ]);
     const body = api.requests.find(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation')
+      (r) => r.method === 'POST' && r.pathname.endsWith('/annotations')
     )!.body;
     expect(parseWkt(body.geometry_wkt).type).toBe('LINESTRING');
     expect(body.label_id).toBe(3);
@@ -275,7 +275,7 @@ test.describe('Creating annotations', () => {
 // Load & display existing annotations
 // ---------------------------------------------------------------------------
 
-// NOTE: open-mode annotations now render as MVT vector tiles served by the
+// NOTE: Explore annotations now render as MVT vector tiles served by the
 // backend, not as features loaded into the client. The describe blocks below
 // require selecting an *existing* annotation by clicking its rendered tile,
 // which the mocked E2E backend cannot produce (no real tile data). These flows
@@ -288,7 +288,7 @@ test.describe('Creating annotations', () => {
 
 test.describe.skip('Editing annotations', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
+    await loadExplore(annotationPage, api);
   });
 
   test('select centre annotation, move it, save -> PUT with new geometry', async ({
@@ -298,7 +298,7 @@ test.describe.skip('Editing annotations', () => {
     await annotationPage.keyboard.press('e');
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText(
-      `Selected annotation #${OPEN_ANN_CENTER.id}`
+      `Selected annotation #${EXPLORE_ANN_CENTER.id}`
     );
 
     // Alt+drag translates the whole feature.
@@ -321,12 +321,12 @@ test.describe.skip('Editing annotations', () => {
     ]);
 
     const put = api.requests.find(
-      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`)
+      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${EXPLORE_ANN_CENTER.id}`)
     );
     expect(put).toBeTruthy();
     expect(put!.body.geometry_wkt).toBeTruthy();
     const moved = parseWkt(put!.body.geometry_wkt);
-    const original = parseWkt(OPEN_ANN_CENTER.geometry.geometry);
+    const original = parseWkt(EXPLORE_ANN_CENTER.geometry.geometry);
     expect(Math.abs(moved.lon - original.lon) + Math.abs(moved.lat - original.lat)).toBeGreaterThan(
       0
     );
@@ -370,7 +370,7 @@ test.describe.skip('Editing annotations', () => {
 
 test.describe.skip('Deleting annotations', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
+    await loadExplore(annotationPage, api);
   });
 
   test('select centre annotation and delete -> DELETE, count decrements', async ({
@@ -380,7 +380,7 @@ test.describe.skip('Deleting annotations', () => {
     await annotationPage.keyboard.press('e');
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText(
-      `Selected annotation #${OPEN_ANN_CENTER.id}`
+      `Selected annotation #${EXPLORE_ANN_CENTER.id}`
     );
 
     await Promise.all([
@@ -389,7 +389,7 @@ test.describe.skip('Deleting annotations', () => {
     ]);
 
     const del = api.requests.find(
-      (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}`)
+      (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${EXPLORE_ANN_CENTER.id}`)
     );
     expect(del).toBeTruthy();
     await expect(controls(annotationPage)).not.toContainText('Selected annotation #');
@@ -404,25 +404,25 @@ const editControls = (page: Page) => page.locator('[data-testid="edit-controls"]
 
 test.describe.skip('Multi-select and delete key', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
+    await loadExplore(annotationPage, api);
   });
 
   test('Shift+drag box-selects every annotation and shows the count', async ({
     annotationPage,
   }) => {
     await annotationPage.keyboard.press('e');
-    await fitAllAnnotations(annotationPage, OPEN_MODE_CENTER);
+    await fitAllAnnotations(annotationPage, EXPLORE_CENTER);
     await boxSelectWholeCanvas(annotationPage);
     await expect(editControls(annotationPage)).toHaveAttribute('data-selected-count', '3');
   });
 
   test('Ctrl+click removes a feature from a box selection', async ({ annotationPage }) => {
     await annotationPage.keyboard.press('e');
-    await fitAllAnnotations(annotationPage, OPEN_MODE_CENTER);
+    await fitAllAnnotations(annotationPage, EXPLORE_CENTER);
     await boxSelectWholeCanvas(annotationPage);
     await expect(editControls(annotationPage)).toHaveAttribute('data-selected-count', '3');
 
-    // The centre annotation (OPEN_ANN_CENTER) toggles out of the selection.
+    // The centre annotation (EXPLORE_ANN_CENTER) toggles out of the selection.
     await ctrlClickMapCenter(annotationPage);
     await expect(editControls(annotationPage)).toHaveAttribute('data-selected-count', '2');
   });
@@ -432,7 +432,7 @@ test.describe.skip('Multi-select and delete key', () => {
     api,
   }) => {
     await annotationPage.keyboard.press('e');
-    await fitAllAnnotations(annotationPage, OPEN_MODE_CENTER);
+    await fitAllAnnotations(annotationPage, EXPLORE_CENTER);
     await boxSelectWholeCanvas(annotationPage);
     await expect(editControls(annotationPage)).toHaveAttribute('data-selected-count', '3');
 
@@ -446,9 +446,9 @@ test.describe.skip('Multi-select and delete key', () => {
     );
     expect(post).toBeTruthy();
     expect([...(post!.body.annotation_ids as number[])].sort((a, b) => a - b)).toEqual([
-      OPEN_ANN_CENTER.id,
-      OPEN_ANN_NE_FLAGGED.id,
-      OPEN_ANN_SW_POLYGON.id,
+      EXPLORE_ANN_CENTER.id,
+      EXPLORE_ANN_NE_FLAGGED.id,
+      EXPLORE_ANN_SW_POLYGON.id,
     ]);
 
     // All annotations gone -> the edit controls are removed.
@@ -466,7 +466,7 @@ test.describe.skip('Multi-select and delete key', () => {
     await Promise.all([waitForDelete(annotationPage), annotationPage.keyboard.press('Delete')]);
 
     const del = api.requests.find(
-      (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}`)
+      (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${EXPLORE_ANN_CENTER.id}`)
     );
     expect(del).toBeTruthy();
     expect(api.requests.some((r) => r.pathname.endsWith('/annotations/batch-delete'))).toBe(false);
@@ -480,7 +480,7 @@ test.describe.skip('Multi-select and delete key', () => {
 
 test.describe.skip('Flag for review', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
+    await loadExplore(annotationPage, api);
   });
 
   test('F flags the selected annotation -> PUT flagged_for_review true', async ({
@@ -490,7 +490,7 @@ test.describe.skip('Flag for review', () => {
     await annotationPage.keyboard.press('e');
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText(
-      `Selected annotation #${OPEN_ANN_CENTER.id}`
+      `Selected annotation #${EXPLORE_ANN_CENTER.id}`
     );
     const checkbox = controls(annotationPage).locator('input[type="checkbox"]');
     await expect(checkbox).not.toBeChecked();
@@ -498,7 +498,7 @@ test.describe.skip('Flag for review', () => {
     await Promise.all([waitForUpdate(annotationPage), annotationPage.keyboard.press('f')]);
 
     const put = api.requests.find(
-      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`)
+      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${EXPLORE_ANN_CENTER.id}`)
     );
     expect(put).toBeTruthy();
     expect(put!.body.flagged_for_review).toBe(true);
@@ -515,15 +515,14 @@ test.describe.skip('Flag for review', () => {
     await annotationPage.keyboard.press('e');
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText(
-      `Selected annotation #${OPEN_ANN_NE_FLAGGED.id}`
+      `Selected annotation #${EXPLORE_ANN_NE_FLAGGED.id}`
     );
     const checkbox = controls(annotationPage).locator('input[type="checkbox"]');
     await expect(checkbox).toBeChecked();
 
     await Promise.all([waitForUpdate(annotationPage), annotationPage.keyboard.press('f')]);
     const put = api.requests.find(
-      (r) =>
-        r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_NE_FLAGGED.id}/update`)
+      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${EXPLORE_ANN_NE_FLAGGED.id}`)
     );
     expect(put!.body.flagged_for_review).toBe(false);
     await expect(checkbox).not.toBeChecked();
@@ -535,7 +534,7 @@ test.describe.skip('Flag for review', () => {
     const checkbox = controls(annotationPage).locator('input[type="checkbox"]');
     await Promise.all([waitForUpdate(annotationPage), checkbox.check()]);
     const put = api.requests.find(
-      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`)
+      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${EXPLORE_ANN_CENTER.id}`)
     );
     expect(put!.body.flagged_for_review).toBe(true);
   });
@@ -562,7 +561,7 @@ test.describe('Annotations page View deep link', () => {
     await page.goto('/projects/7/campaigns/42/annotations');
     const row = page
       .getByRole('row')
-      .filter({ has: page.getByText(String(OPEN_ANN_NE_FLAGGED.id), { exact: true }) });
+      .filter({ has: page.getByText(String(EXPLORE_ANN_NE_FLAGGED.id), { exact: true }) });
     await row.getByRole('button', { name: 'View' }).click();
 
     // Explore controls, not the task-mode panel (MOCK_CAMPAIGN.mode === 'tasks').
@@ -570,7 +569,7 @@ test.describe('Annotations page View deep link', () => {
     // Centred on the annotation, not the campaign bbox centre (50.5, 30.5).
     await waitForMinimapCenter(page, { lat: 50.8, lon: 30.8 }, 'view-deep-link');
     // And selected, so its details show in the controls panel.
-    await expect(controls(page)).toContainText(`Selected annotation #${OPEN_ANN_NE_FLAGGED.id}`);
+    await expect(controls(page)).toContainText(`Selected annotation #${EXPLORE_ANN_NE_FLAGGED.id}`);
     // Re-check after the map has rendered and published its own view: the OL
     // map itself must sit on the annotation, not just the store seed.
     const settled = await getMinimapCenter(page);
@@ -582,7 +581,7 @@ test.describe('Annotations page View deep link', () => {
     annotationPage,
   }) => {
     const page = annotationPage;
-    const taskBound = { ...OPEN_ANN_CENTER, id: 9050, annotation_task_id: TASK_3.id };
+    const taskBound = { ...EXPLORE_ANN_CENTER, id: 9050, annotation_task_id: TASK_3.id };
     await page.route(/\/api\/campaigns\/\d+\/annotations(\?|$)/, async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
       await route.fulfill({ json: { items: [taskBound], total: 1, limit: 50, offset: 0 } });

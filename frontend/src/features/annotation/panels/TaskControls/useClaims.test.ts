@@ -9,11 +9,11 @@ import {
   makeTaskAnnotation,
 } from '~/features/annotation/testing/fixtures';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { CLAIM_RENEW_MS, claimTask, useClaims } from './useClaims';
+import { CLAIM_RENEW_MS, requestClaim, useClaims } from './useClaims';
 
 vi.mock('~/api/client', async () => {
   const actual = await vi.importActual<typeof import('~/api/client')>('~/api/client');
-  return { ...actual, claimAnnotationTask: vi.fn() };
+  return { ...actual, claimTask: vi.fn() };
 });
 
 const UNCLAIMED_TASK: AnnotationTaskOut = makeTask({
@@ -24,18 +24,18 @@ const UNCLAIMED_TASK: AnnotationTaskOut = makeTask({
 
 const alerts: string[] = [];
 beforeEach(() => {
-  vi.mocked(api.claimAnnotationTask).mockReset();
+  vi.mocked(api.claimTask).mockReset();
   alerts.length = 0;
   useLayoutStore.setState({ showAlert: (message) => alerts.push(message) });
 });
 
-describe('claimTask', () => {
+describe('requestClaim', () => {
   it('claims a free task and records us as the holder', async () => {
-    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+    vi.mocked(api.claimTask).mockResolvedValue(
       apiSuccess(makeClaimTaskResponse({ task_id: 1, claimed_at: '2026-01-01T00:00:00Z' }))
     );
 
-    const result = await claimTask({
+    const result = await requestClaim({
       campaignId: 1,
       task: UNCLAIMED_TASK,
       currentUserId: 'u1',
@@ -47,7 +47,7 @@ describe('claimTask', () => {
   });
 
   it('records who is on it when the claim goes to somebody else', async () => {
-    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+    vi.mocked(api.claimTask).mockResolvedValue(
       apiSuccess(
         makeClaimTaskResponse({
           task_id: 1,
@@ -59,7 +59,7 @@ describe('claimTask', () => {
       )
     );
 
-    const result = await claimTask({
+    const result = await requestClaim({
       campaignId: 1,
       task: UNCLAIMED_TASK,
       currentUserId: 'u1',
@@ -77,7 +77,7 @@ describe('claimTask', () => {
       annotations: [makeTaskAnnotation({ id: 5, label_id: 2, created_by_user_id: 'someone-else' })],
     };
 
-    const result = await claimTask({
+    const result = await requestClaim({
       campaignId: 1,
       task: labeledTask,
       currentUserId: 'u1',
@@ -85,7 +85,7 @@ describe('claimTask', () => {
     });
 
     expect(result).toBeNull();
-    expect(api.claimAnnotationTask).not.toHaveBeenCalled();
+    expect(api.claimTask).not.toHaveBeenCalled();
   });
 
   it('does not re-request a claim we took moments ago', async () => {
@@ -95,7 +95,7 @@ describe('claimTask', () => {
       claimed_at: new Date(0).toISOString(),
     };
 
-    const result = await claimTask({
+    const result = await requestClaim({
       campaignId: 1,
       task: heldTask,
       currentUserId: 'u1',
@@ -103,7 +103,7 @@ describe('claimTask', () => {
     });
 
     expect(result).toBeNull();
-    expect(api.claimAnnotationTask).not.toHaveBeenCalled();
+    expect(api.claimTask).not.toHaveBeenCalled();
   });
 
   it('renews our own claim once it is old enough to be worth refreshing', async () => {
@@ -112,11 +112,11 @@ describe('claimTask', () => {
       claimed_by_user_id: 'u1',
       claimed_at: new Date(0).toISOString(),
     };
-    vi.mocked(api.claimAnnotationTask).mockResolvedValue(
+    vi.mocked(api.claimTask).mockResolvedValue(
       apiSuccess(makeClaimTaskResponse({ task_id: 1, claimed_at: '2026-01-01T00:10:00Z' }))
     );
 
-    const result = await claimTask({
+    const result = await requestClaim({
       campaignId: 1,
       task: heldTask,
       currentUserId: 'u1',
@@ -133,7 +133,7 @@ describe('claimTask', () => {
       claimed_at: new Date(0).toISOString(),
     };
 
-    const result = await claimTask({
+    const result = await requestClaim({
       campaignId: 1,
       task: heldByOther,
       currentUserId: 'u1',
@@ -141,7 +141,7 @@ describe('claimTask', () => {
     });
 
     expect(result).toBeNull();
-    expect(api.claimAnnotationTask).not.toHaveBeenCalled();
+    expect(api.claimTask).not.toHaveBeenCalled();
   });
 });
 
@@ -159,7 +159,7 @@ describe('useClaims failure handling', () => {
   // The rejection escaping instead of being handled is a failure of this test
   // too: vitest fails the run on an unhandled rejection.
   it('reports a failed claim rather than letting the rejection escape', async () => {
-    vi.mocked(api.claimAnnotationTask).mockRejectedValue(new Error('network down'));
+    vi.mocked(api.claimTask).mockRejectedValue(new Error('network down'));
     const opts = options();
 
     renderHook(() => useClaims(opts));
@@ -173,10 +173,10 @@ describe('useClaims failure handling', () => {
 
   it('says nothing about a claim that fails after we navigated away', async () => {
     let reject: (error: Error) => void = () => {};
-    vi.mocked(api.claimAnnotationTask).mockReturnValue(
+    vi.mocked(api.claimTask).mockReturnValue(
       new Promise((_, r) => {
         reject = r;
-      }) as ReturnType<typeof api.claimAnnotationTask>
+      }) as ReturnType<typeof api.claimTask>
     );
 
     const { unmount } = renderHook(() => useClaims(options()));

@@ -32,7 +32,7 @@ export function makeCampaign(overrides: Partial<CampaignOutFull> = {}): Campaign
     project_id: 1,
     name: 'Test campaign',
     created_at: '2024-01-01T00:00:00Z',
-    mode: 'open',
+    default_work_mode: 'explore',
     is_public: true,
     imagery_sources: [],
     imagery_views: [],

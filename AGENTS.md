@@ -42,7 +42,7 @@ The cost is lopsided: backend pytest (DB-free schema/model tests) and frontend v
 cd backend && uv run pytest tests/unit/test_campaign_schemas.py -v   # one backend test
 make test-backend                                                    # whole backend suite (still seconds)
 cd frontend && npm run test                                          # frontend unit (vitest)
-cd frontend && npx playwright test open-mode-imagery                 # one E2E spec by filename
+cd frontend && npx playwright test explore-imagery                   # one E2E spec by filename
 cd frontend && npx playwright test -g "submit annotation"            # E2E by test-name pattern
 ```
 
@@ -201,7 +201,7 @@ The heart of the app. Under `features/annotation/`, grouped by what a thing *is*
 - `keymap.ts` + `hotkeys.ts` - `keymap.ts` is the content (every shortcut and what it runs, assembled by `pageKeymap()`); `hotkeys.ts` is the mechanism (one keydown listener over a stack of tables, plus help text and tooltips). Within a table the first binding whose key matches and whose `when` passes wins, which is how Escape means "cancel the edit" while editing and "close the draft" otherwise, with no scope machinery. Locally-mounted tables shadow the page's.
 - `AnnotationPage.tsx` - the route entry, and the only module the rest of the app may import (`no-restricted-imports` in `eslint.config.js`).
 
-Both campaign modes (**Task Mode**, predefined locations; **Open Mode**, free-form) share one map composition path, so there is no forked map or controls implementation. Every binding declares its own help text, which is what drives the shortcut list and the tooltips.
+Both work modes (**Tasks**, predefined locations; **Explore**, free-form) share one map composition path, so there is no forked map or controls implementation. Every binding declares its own help text, which is what drives the shortcut list and the tooltips.
 
 ## Conventions & guardrails
 

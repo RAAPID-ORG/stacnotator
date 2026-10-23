@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { updateAnnotationOpenmode, type AnnotationOut } from '~/api/client';
+import { updateAnnotation, type AnnotationOut } from '~/api/client';
 import type { FormValues } from '../../campaign/annotation';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -40,7 +40,7 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
     }
     setSaving(true);
     try {
-      const result = await updateAnnotationOpenmode({
+      const result = await updateAnnotation({
         path: { campaign_id: campaign.id, annotation_id: annotation.id },
         body: {
           label_id: labelId,

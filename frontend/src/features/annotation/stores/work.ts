@@ -1,10 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import { create } from 'zustand';
 import {
-  createAnnotationOpenmode,
+  createAnnotation,
   getAnnotation,
   getAnnotationChanges,
-  updateAnnotationOpenmode,
+  updateAnnotation,
   type AnnotationCreate,
   type AnnotationOut,
 } from '~/api/client';
@@ -273,7 +273,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
   ): Promise<number | null> => {
     const { comment, confidence, flagged, flagComment, formValues, sliceNotes, draftLink } = get();
     try {
-      const result = await createAnnotationOpenmode({
+      const result = await createAnnotation({
         path: { campaign_id: campaignState().campaign.id },
         body: {
           label_id: labelId,
@@ -306,7 +306,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
   ): Promise<boolean> => {
     const { comment, formValues, sliceNotes } = get();
     try {
-      await updateAnnotationOpenmode({
+      await updateAnnotation({
         path: { campaign_id: campaignState().campaign.id, annotation_id: annotationId },
         body: {
           label_id: labelId,
@@ -596,7 +596,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
           ? 'saved'
           : 'save-failed';
       }
-      // An open-mode annotation cannot be stored incomplete, so an unanswered
+      // An Explore annotation cannot be stored incomplete, so an unanswered
       // draft is thrown away rather than left half-filled.
       if (!validateForm(formFields(), formValues).ok) {
         set({ draft: { phase: 'idle' }, formValues: {}, activeFieldIndex: null });
@@ -647,7 +647,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
       const next = listNotes(withNote(toNotes(annotation.slice_comments), comment));
       get().setEditAnnotation({ ...annotation, slice_comments: next });
       try {
-        const result = await updateAnnotationOpenmode({
+        const result = await updateAnnotation({
           path: { campaign_id: campaignState().campaign.id, annotation_id: annotation.id },
           body: {
             label_id: annotation.label_id,
@@ -676,7 +676,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         flag_comment: flagged ? comment : null,
       });
       try {
-        const result = await updateAnnotationOpenmode({
+        const result = await updateAnnotation({
           path: { campaign_id: campaignState().campaign.id, annotation_id: annotation.id },
           body: {
             label_id: annotation.label_id,

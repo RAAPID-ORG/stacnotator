@@ -1,4 +1,4 @@
-import { getAllAnnotationTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
+import { listTasks, getCampaignWithImageryWindows, listTaskSets } from '~/api/client';
 import { buildImageryCatalog } from './campaign/imagery';
 import { restoreSnapshot } from './campaign/imageryNav';
 import { layoutForView } from './canvas/grid';
@@ -35,7 +35,7 @@ export async function loadCampaign(
 ): Promise<{ annotationId: number | null }> {
   const [campaignRes, tasksRes, setsRes] = await Promise.all([
     getCampaignWithImageryWindows({ path: { campaign_id: campaignId } }),
-    getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
+    listTasks({ path: { campaign_id: campaignId } }),
     listTaskSets({ path: { campaign_id: campaignId } }),
   ]);
 
@@ -54,7 +54,8 @@ export async function loadCampaign(
   // A campaign with no tasks has nothing to claim, so it opens in Explore
   // unless a deep link asked for a mode.
   const workMode: WorkMode =
-    options.workMode ?? (campaign.mode === 'open' || tasks.length === 0 ? 'explore' : 'tasks');
+    options.workMode ??
+    (campaign.default_work_mode === 'explore' || tasks.length === 0 ? 'explore' : 'tasks');
 
   const layout = layoutForView(campaign, view);
   const startCollectionId = startCollectionFor(catalog, view, layout.windows);

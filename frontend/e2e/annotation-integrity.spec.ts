@@ -110,7 +110,7 @@ test.describe('Label always goes to the displayed task', () => {
     assertTilesFetchedForTask(api.requests, 0, TASK_1.id, 'initial tiles');
     const req = lastAnnotate(api.requests);
     expect(req).toBeDefined();
-    expect(req!.pathParams.annotation_task_id).toBe(String(TASK_1.id));
+    expect(req!.pathParams.task_id).toBe(String(TASK_1.id));
     expect(req!.body.label_id).toBe(1);
   });
 
@@ -127,7 +127,7 @@ test.describe('Label always goes to the displayed task', () => {
     await doSubmit(page);
 
     assertTilesFetchedForTask(api.requests, 0, TASK_2.id, 'after S tiles');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(String(TASK_2.id));
   });
 
   test('navigate W (wraps to TASK_2) then submit targets TASK_2', async ({
@@ -145,7 +145,7 @@ test.describe('Label always goes to the displayed task', () => {
     await doSubmit(page);
 
     assertTilesFetchedForTask(api.requests, 0, TASK_2.id, 'after W tiles');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(String(TASK_2.id));
   });
 
   test('GoTo 2 then submit targets TASK_2', async ({ annotationPage, api }) => {
@@ -159,7 +159,7 @@ test.describe('Label always goes to the displayed task', () => {
     await doSubmit(page);
 
     assertTilesFetchedForTask(api.requests, 0, TASK_2.id, 'GoTo 2 tiles');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(String(TASK_2.id));
   });
 
   test('S → W → S (ends at TASK_2) then submit targets TASK_2', async ({ annotationPage, api }) => {
@@ -178,7 +178,7 @@ test.describe('Label always goes to the displayed task', () => {
     await doSubmit(page);
 
     assertTilesFetchedForTask(api.requests, 0, TASK_2.id, 'S-W-S tiles');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(String(TASK_2.id));
   });
 
   test('rapid S-S-S only advances once, submit targets TASK_2', async ({ annotationPage, api }) => {
@@ -195,7 +195,7 @@ test.describe('Label always goes to the displayed task', () => {
     await doSubmit(page);
 
     assertTilesFetchedForTask(api.requests, 0, TASK_2.id, 'rapid S tiles');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(String(TASK_2.id));
   });
 
   test('GoTo annotated task, change label, submit targets that task', async ({
@@ -214,7 +214,7 @@ test.describe('Label always goes to the displayed task', () => {
 
     assertTilesFetchedForTask(api.requests, 0, TASK_3.id, 'TASK_3 tiles');
     const req = lastAnnotate(api.requests);
-    expect(req!.pathParams.annotation_task_id).toBe(String(TASK_3.id));
+    expect(req!.pathParams.task_id).toBe(String(TASK_3.id));
     expect(req!.body.label_id).toBe(2);
   });
 });
@@ -321,7 +321,7 @@ test.describe('Submission body reflects what the user set after navigation', () 
 
     const req = lastAnnotate(api.requests);
     expect(req).toBeDefined();
-    expect(req!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
+    expect(req!.pathParams.task_id).toBe(String(TASK_2.id));
     expect(req!.body.label_id).toBe(3);
     expect(req!.body.comment).toBe('nav comment');
     expect(req!.body.confidence).toBe(2);
@@ -339,7 +339,7 @@ test.describe('Submission body reflects what the user set after navigation', () 
     await doSubmit(page);
 
     const req = lastAnnotate(api.requests);
-    expect(req!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
+    expect(req!.pathParams.task_id).toBe(String(TASK_2.id));
     expect(req!.body.label_id).toBe(2);
     expect(req!.body.comment).toBe('goto comment');
     expect(req!.body.confidence).toBe(1);
@@ -382,7 +382,7 @@ test.describe('Submission body reflects what the user set after navigation', () 
     await doSubmit(page);
 
     const req = lastAnnotate(api.requests);
-    expect(req!.pathParams.annotation_task_id).toBe(String(TASK_3.id));
+    expect(req!.pathParams.task_id).toBe(String(TASK_3.id));
     expect(req!.body.comment).toBe('override comment');
     expect(req!.body.label_id).toBe(2);
   });
@@ -470,9 +470,9 @@ test.describe('Auto-advance: next task, correct imagery, clean form', () => {
       (r) => r.method === 'POST' && r.pathname.endsWith('/annotate')
     );
     expect(posts).toHaveLength(2);
-    expect(posts[0].pathParams.annotation_task_id).toBe(String(TASK_1.id));
+    expect(posts[0].pathParams.task_id).toBe(String(TASK_1.id));
     expect(posts[0].body.label_id).toBe(1);
-    expect(posts[1].pathParams.annotation_task_id).toBe(String(TASK_2.id));
+    expect(posts[1].pathParams.task_id).toBe(String(TASK_2.id));
     expect(posts[1].body.label_id).toBe(2);
   });
 });
@@ -513,7 +513,7 @@ test.describe('Real-world sequences', () => {
 
     assertTilesFetchedForTask(api.requests, 0, TASK_2.id, 'tiles');
     const req = lastAnnotate(api.requests);
-    expect(req!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
+    expect(req!.pathParams.task_id).toBe(String(TASK_2.id));
     expect(req!.body.comment).toBe('final');
   });
 
@@ -538,7 +538,7 @@ test.describe('Real-world sequences', () => {
     await doSubmit(page);
 
     const req = lastAnnotate(api.requests);
-    expect(req!.pathParams.annotation_task_id).toBe(String(TASK_1.id));
+    expect(req!.pathParams.task_id).toBe(String(TASK_1.id));
     expect(req!.body.comment).toBe('second');
   });
 
@@ -568,7 +568,7 @@ test.describe('Real-world sequences', () => {
     await doSubmit(page);
 
     const req = lastAnnotate(api.requests);
-    expect(req!.pathParams.annotation_task_id).toBe(String(TASK_3.id));
+    expect(req!.pathParams.task_id).toBe(String(TASK_3.id));
     expect(req!.body.label_id).toBe(2);
   });
 
@@ -611,6 +611,6 @@ test.describe('Real-world sequences', () => {
     await doSubmit(page);
 
     assertTilesFetchedForTask(api.requests, 0, TASK_1.id, 'tiles');
-    expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(String(TASK_1.id));
+    expect(lastAnnotate(api.requests)!.pathParams.task_id).toBe(String(TASK_1.id));
   });
 });

@@ -414,7 +414,7 @@ test.describe('Minimap center tracks current task', () => {
 
   test('a background click does not move away from the task', async ({ annotationPage }) => {
     // In task mode the overview marks the task with a pin and takes no input
-    // that moves the main map - see open-mode-imagery.spec.ts for explore.
+    // that moves the main map - see explore-imagery.spec.ts for explore.
     const before = await getMinimapCenter(annotationPage);
     const minimapBody = annotationPage.locator('[data-tour="minimap"] [data-minimap-zoom]');
     await minimapBody.scrollIntoViewIfNeeded();

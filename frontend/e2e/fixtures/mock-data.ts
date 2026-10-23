@@ -148,7 +148,7 @@ export const MOCK_CAMPAIGN = {
   project_id: 7,
   name: 'Test Campaign',
   created_at: '2024-01-01T00:00:00Z',
-  mode: 'tasks',
+  default_work_mode: 'tasks',
   // Viewer roles are stamped on the campaign response; the default user is a
   // plain project member. `elevateToAuthoritativeReviewer` overrides them.
   viewer_is_admin: false,
@@ -815,39 +815,39 @@ export const MOCK_CAMPAIGN_MULTI_VIEW = {
 };
 
 // ---------------------------------------------------------------------------
-// Open mode campaign fixtures
+// Explore campaign fixtures
 // ---------------------------------------------------------------------------
 
-// Open-mode labels carry an explicit geometry_type so the drawing tool picks the
+// Explore labels carry an explicit geometry_type so the drawing tool picks the
 // right OL interaction (point = single-click, polygon/line = multi-click).
-export const OPEN_LABELS = [
+export const EXPLORE_LABELS = [
   { id: 1, name: 'tree', geometry_type: 'point' },
   { id: 2, name: 'field', geometry_type: 'polygon' },
   { id: 3, name: 'road', geometry_type: 'line' },
 ];
 
 // Center of the campaign bbox (30..31 lon, 50..51 lat) - the initial map center
-// in open mode. A canvas-center click lands here, so position assertions compare
+// in Explore. A canvas-center click lands here, so position assertions compare
 // the POSTed WKT against this.
-export const OPEN_MODE_CENTER = { lat: 50.5, lon: 30.5 };
+export const EXPLORE_CENTER = { lat: 50.5, lon: 30.5 };
 
-export const MOCK_CAMPAIGN_OPEN_MODE = {
+export const MOCK_CAMPAIGN_EXPLORE = {
   ...MOCK_CAMPAIGN,
-  name: 'Test Campaign (Open Mode)',
-  mode: 'open',
-  settings: { ...MOCK_CAMPAIGN.settings, labels: OPEN_LABELS },
+  name: 'Test Campaign (Explore)',
+  default_work_mode: 'explore',
+  settings: { ...MOCK_CAMPAIGN.settings, labels: EXPLORE_LABELS },
   time_series: [MOCK_TIMESERIES_ENTRY],
 };
 
 /** Same campaign without timeseries, so the T tool is unavailable. */
-export const MOCK_CAMPAIGN_OPEN_MODE_NO_TS = {
-  ...MOCK_CAMPAIGN_OPEN_MODE,
+export const MOCK_CAMPAIGN_EXPLORE_NO_TS = {
+  ...MOCK_CAMPAIGN_EXPLORE,
   time_series: [],
 };
 
 // Custom form fields: one required category and one optional free-text field.
-// Drives the draw-then-answer catalog flow in open mode.
-export const OPEN_FORM_FIELDS = [
+// Drives the draw-then-answer catalog flow in Explore.
+export const EXPLORE_FORM_FIELDS = [
   {
     id: 100,
     title: 'Condition',
@@ -866,22 +866,22 @@ export const OPEN_FORM_FIELDS = [
   },
 ];
 
-/** Open-mode campaign that has custom form fields, so drawing opens the
+/** Explore campaign that has custom form fields, so drawing opens the
  *  questions catalog before the annotation is saved. */
-export const MOCK_CAMPAIGN_OPEN_MODE_FORMS = {
-  ...MOCK_CAMPAIGN_OPEN_MODE,
-  name: 'Test Campaign (Open Mode, forms)',
-  settings: { ...MOCK_CAMPAIGN.settings, labels: OPEN_LABELS, form_fields: OPEN_FORM_FIELDS },
+export const MOCK_CAMPAIGN_EXPLORE_FORMS = {
+  ...MOCK_CAMPAIGN_EXPLORE,
+  name: 'Test Campaign (Explore, forms)',
+  settings: { ...MOCK_CAMPAIGN.settings, labels: EXPLORE_LABELS, form_fields: EXPLORE_FORM_FIELDS },
 };
 
 /**
- * Open-mode campaign with two imagery sources (Sentinel-2 + VHR) so the I key
+ * Explore campaign with two imagery sources (Sentinel-2 + VHR) so the I key
  * can cycle sources, plus timeseries for the probe tool.
  */
-export const MOCK_CAMPAIGN_OPEN_MODE_MULTI = {
+export const MOCK_CAMPAIGN_EXPLORE_MULTI = {
   ...MOCK_CAMPAIGN_MULTI_SOURCE,
-  mode: 'open',
-  settings: { ...MOCK_CAMPAIGN.settings, labels: OPEN_LABELS },
+  default_work_mode: 'explore',
+  settings: { ...MOCK_CAMPAIGN.settings, labels: EXPLORE_LABELS },
   time_series: [MOCK_TIMESERIES_ENTRY],
   // Layout that gives the minimap a real on-screen size so it is clickable.
   default_main_canvas_layout: {
@@ -940,29 +940,33 @@ function wktCentroid(wkt: string): { centroid_lat: number | null; centroid_lon: 
 //   B (newest) is off-centre (NE) - pressing S navigates here and re-centres the map.
 //   A is exactly at the view centre - a canvas-centre click selects it (edit/delete/flag).
 //   C (oldest) is a polygon to the SW.
-export const OPEN_ANN_CENTER = makeOpenAnnotation(
+export const EXPLORE_ANN_CENTER = makeOpenAnnotation(
   9001,
   1,
   'POINT(30.5 50.5)',
   '2024-06-10T10:00:00Z'
 );
-export const OPEN_ANN_NE_FLAGGED = makeOpenAnnotation(
+export const EXPLORE_ANN_NE_FLAGGED = makeOpenAnnotation(
   9002,
   1,
   'POINT(30.8 50.8)',
   '2024-06-20T10:00:00Z',
   { flagged: true, flagComment: 'please double-check' }
 );
-export const OPEN_ANN_SW_POLYGON = makeOpenAnnotation(
+export const EXPLORE_ANN_SW_POLYGON = makeOpenAnnotation(
   9003,
   2,
   'POLYGON((30.18 50.18, 30.22 50.18, 30.22 50.22, 30.18 50.22, 30.18 50.18))',
   '2024-06-01T10:00:00Z'
 );
 
-export const MOCK_OPEN_ANNOTATIONS = [OPEN_ANN_CENTER, OPEN_ANN_NE_FLAGGED, OPEN_ANN_SW_POLYGON];
+export const MOCK_EXPLORE_ANNOTATIONS = [
+  EXPLORE_ANN_CENTER,
+  EXPLORE_ANN_NE_FLAGGED,
+  EXPLORE_ANN_SW_POLYGON,
+];
 
-/** Build an AnnotationOut echoing back a create-annotation POST body. */
+/** Build an AnnotationOut echoing back a create POST body. */
 export function makeCreateAnnotationResponse(body: any, id: number) {
   return {
     id,

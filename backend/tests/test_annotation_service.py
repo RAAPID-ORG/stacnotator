@@ -1011,7 +1011,7 @@ class TestExportAnnotatorCount:
         assert len(rows) == 2
         assert all(r["stacnotator_annotator_count"] == 1 for r in rows)
 
-    def test_standalone_open_mode_annotation_count_is_one(self):
+    def test_standalone_annotation_count_is_one(self):
         """Standalone (no task) annotations are emitted unchanged with count=1."""
         ann = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=None)
         rows = self._records([ann])
@@ -1174,7 +1174,7 @@ class TestExportMergeCorrectness:
         assert set(df["stacnotator_label_name"]) == {"Forest"}
 
     def test_standalone_annotation_exports_imagery_snapshot(self):
-        # Open-mode annotation (no task) carrying the imagery it was drawn on.
+        # Standalone annotation (no task) carrying the imagery it was drawn on.
         ann = self._ann(
             ann_id=1,
             label_id=1,
@@ -1821,10 +1821,10 @@ class TestCreateAnnotationsFromGeojson:
     ]
 
     @classmethod
-    def _campaign(cls, *, mode="open", labels=None, form_fields=None):
+    def _campaign(cls, *, mode="explore", labels=None, form_fields=None):
         return SimpleNamespace(
             id=1,
-            mode=mode,
+            default_work_mode=mode,
             settings=SimpleNamespace(
                 labels=cls.LABELS if labels is None else labels,
                 form_fields=form_fields or [],

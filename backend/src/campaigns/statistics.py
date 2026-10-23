@@ -162,7 +162,7 @@ def _scoped_to_set(query: Select[Any], task_set_id: int | None) -> Select[Any]:
 
     Agreement is only meaningful within a set: two sets are two different
     samples, and pooling them mixes tasks nobody was asked to label twice into
-    the denominator. The inner join also drops open-mode annotations, which
+    the denominator. The inner join also drops standalone annotations, which
     belong to no set and no task.
     """
     if task_set_id is None:

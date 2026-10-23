@@ -177,7 +177,7 @@ test(`campaign ${CAMPAIGN_ID} retries a transient foreground tile after cycling 
   await annotationPage.route('**/api/campaigns/*/detailed', (route) =>
     route.fulfill({ json: real.campaign })
   );
-  await annotationPage.route('**/api/campaigns/*/annotation-tasks', (route) =>
+  await annotationPage.route('**/api/campaigns/*/tasks', (route) =>
     route.fulfill({ json: { campaign_id: CAMPAIGN_ID, tasks } })
   );
   await annotationPage.evaluate(() => {
@@ -264,7 +264,7 @@ test(`campaign ${CAMPAIGN_ID} cold random-task benchmark`, async ({ annotationPa
   await annotationPage.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({ json: real.campaign });
   });
-  await annotationPage.route('**/api/campaigns/*/annotation-tasks', async (route) => {
+  await annotationPage.route('**/api/campaigns/*/tasks', async (route) => {
     await route.fulfill({ json: { campaign_id: CAMPAIGN_ID, tasks } });
   });
   await annotationPage.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 });

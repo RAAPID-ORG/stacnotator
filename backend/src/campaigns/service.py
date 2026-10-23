@@ -160,7 +160,7 @@ def create_campaign(
     db: Session,
     *,
     name: str,
-    mode: str,
+    default_work_mode: str,
     project_id: int,
     settings: CampaignSettingsCreate,
     user_id: UUID,
@@ -175,7 +175,7 @@ def create_campaign(
     Args:
         db: Database session
         name: Campaign name
-        mode: Campaign mode ('tasks' or 'open')
+        default_work_mode: The work mode the annotation page opens in
         project_id: Owning project; its is_public flag governs the default
             labelling policy and the 'anyone' audience check
         settings: Campaign configuration settings
@@ -195,7 +195,7 @@ def create_campaign(
     resolved_policy = labelling_policy or default_labelling_policy(is_public=is_public)
     _reject_anyone_kind_if_private(resolved_policy, is_public)
 
-    campaign = Campaign(name=name, mode=mode, project_id=project_id)
+    campaign = Campaign(name=name, default_work_mode=default_work_mode, project_id=project_id)
     db.add(campaign)
     db.flush()  # Get campaign.id
 
