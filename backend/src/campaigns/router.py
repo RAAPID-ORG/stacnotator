@@ -1,6 +1,5 @@
 import io
 import zipfile
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
@@ -25,6 +24,7 @@ from src.campaigns.schemas import (
     CampaignsListResponse,
     CampaignStatistics,
     CampaignSummaryOut,
+    CampaignUpdate,
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
     ImportTaskAssignmentsResult,
@@ -37,14 +37,9 @@ from src.campaigns.schemas import (
     UnassignTasksRequest,
     UpdateCampaignBBoxRequest,
     UpdateCampaignFormFieldsRequest,
-    UpdateCampaignGuideRequest,
     UpdateCampaignLabelsRequest,
-    UpdateCampaignNameRequest,
     UpdateEmbeddingYearRequest,
     UpdateLabellingPolicyRequest,
-    UpdateResearchSharingRequest,
-    UpdateSampleExtentRequest,
-    UpdateTaskOutputRequest,
 )
 from src.database import get_db, release
 from src.imagery.registration import REGISTRATION_RUN
@@ -221,58 +216,22 @@ def get_campaign_with_imagery_windows(
     # annotator looking at a stale map with nothing to show for it.
     response.headers["Cache-Control"] = "no-store"
     campaign_with_layouts = service.get_campaign_full(db, campaign_id)
-    out = CampaignOutFull.from_orm(campaign_with_layouts, user_id=user.id)
+    out = CampaignOutFull.model_validate(campaign_with_layouts, context={"user_id": user.id})
     return _with_viewer_roles(out, db, user, campaign_with_layouts.project_id)
 
 
-@router.patch("/{campaign_id}/name", response_model=CampaignOut)
-def update_campaign_name(
+@router.patch("/{campaign_id}", response_model=CampaignOut)
+def update_campaign(
     campaign_id: int,
-    req: UpdateCampaignNameRequest,
+    req: CampaignUpdate,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
     user: User = Depends(require_authenticated_user),
 ):
-    return _campaign_out(service.update_campaign_name(db, campaign_id, req.name), db, user)
-
-
-@router.patch("/{campaign_id}/research-sharing", response_model=CampaignOut)
-def update_research_sharing(
-    campaign_id: int,
-    req: UpdateResearchSharingRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
-):
-    """Whether this campaign's annotations may be published as open research data."""
-    return _campaign_out(
-        service.update_research_sharing(db, campaign_id, req.research_sharing), db, user
-    )
-
-
-@router.patch("/{campaign_id}/task-output", response_model=CampaignOut)
-def update_task_output(
-    campaign_id: int,
-    req: UpdateTaskOutputRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
-):
-    """Whether tasks are finished by labelling them or by drawing shapes around them."""
-    return _campaign_out(service.update_task_output(db, campaign_id, req.task_output), db, user)
-
-
-@router.patch("/{campaign_id}/guide", response_model=CampaignOut)
-def update_campaign_guide(
-    campaign_id: int,
-    req: UpdateCampaignGuideRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
-):
-    return _campaign_out(
-        service.update_campaign_guide(db, campaign_id, req.guide_markdown), db, user
-    )
+    """Change the campaign's name, guide, sample extent, research sharing or task
+    output. Only the fields sent change. The task output (labelling tasks or
+    drawing around them) is fixed once any task has been annotated."""
+    return _campaign_out(service.update_campaign(db, campaign, req), db, user)
 
 
 @router.patch("/{campaign_id}/bbox", response_model=CampaignOut)
@@ -284,7 +243,7 @@ def update_campaign_bbox(
     user: User = Depends(require_authenticated_user),
 ):
     updated = service.update_campaign_bbox(
-        db, campaign_id, req.bbox_west, req.bbox_south, req.bbox_east, req.bbox_north
+        db, campaign, req.bbox_west, req.bbox_south, req.bbox_east, req.bbox_north
     )
     return _campaign_out(updated, db, user)
 
@@ -300,7 +259,7 @@ def update_campaign_labels(
     """Replace the campaign's label set. Renames (same id, new name) and adds
     (new id) are accepted; removing an existing label is rejected since it
     would orphan annotations that reference it."""
-    return _campaign_out(service.update_campaign_labels(db, campaign_id, req.labels), db, user)
+    return _campaign_out(service.update_campaign_labels(db, campaign, req.labels), db, user)
 
 
 @router.patch("/{campaign_id}/form-fields", response_model=CampaignOut)
@@ -312,21 +271,9 @@ def update_campaign_form_fields(
     user: User = Depends(require_authenticated_user),
 ):
     """Replace the campaign's custom form fields. Edits (same id) and adds (new
-    id) are accepted; removing a field, or reshaping one that already has
-    stored answers, is rejected since answers key off the field id."""
-    updated = service.update_campaign_form_fields(db, campaign_id, req.form_fields)
-    return _campaign_out(updated, db, user)
-
-
-@router.patch("/{campaign_id}/sample-extent", response_model=CampaignOut)
-def update_sample_extent(
-    campaign_id: int,
-    req: UpdateSampleExtentRequest,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
-):
-    updated = service.update_sample_extent(db, campaign_id, req.sample_extent_meters)
+    id) are accepted. A removed field is deleted with its stored answers;
+    reshaping a field that already has answers is rejected."""
+    updated = service.update_campaign_form_fields(db, campaign, req.form_fields)
     return _campaign_out(updated, db, user)
 
 
@@ -343,7 +290,7 @@ def update_embedding_year(
     re-fetched for the new year.  This can take some time for large
     campaigns.
     """
-    return service.update_embedding_year(db, campaign_id, req.embedding_year)
+    return service.update_embedding_year(db, campaign, req.embedding_year)
 
 
 @router.patch("/{campaign_id}/labelling-policy", response_model=LabellingPolicy)
@@ -355,7 +302,7 @@ def update_labelling_policy(
 ):
     """Replace the campaign's labelling policy. Rejects 'anyone' audiences
     with 400 unless the campaign is public."""
-    return service.update_labelling_policy(db, campaign_id, req)
+    return service.update_labelling_policy(db, campaign, req)
 
 
 @router.post(
@@ -373,22 +320,6 @@ def assign_tasks_to_users(
     if req.task_set_id is not None:
         task_sets.require_task_set(db, campaign.id, req.task_set_id, status_code=400)
     return assignments.assign_tasks_to_users(db, campaign_id, req)
-
-
-@router.delete(
-    "/{campaign_id}/tasks/{task_id}/unassign-user/{user_id}",
-    status_code=200,
-)
-def unassign_user_from_task(
-    campaign_id: int,
-    task_id: int,
-    user_id: UUID,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Remove a user's assignment from a specific task."""
-    assignments.unassign_user_from_task(db, campaign_id, task_id, user_id)
-    return {"message": f"Successfully unassigned user from task {task_id}"}
 
 
 @router.post(
@@ -421,64 +352,11 @@ def assign_reviewers(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """
-    Assign reviewers to tasks using different patterns:
-    - 'percentage': Assign reviewers to X% of already-assigned tasks
-    - 'manual': Manually assign specific reviewers to specific tasks
-    - 'fixed': Assign reviewers to a fixed number of already-assigned tasks
-
-    Reviewers are only added to tasks that already have a primary (non-review)
-    assignment, and each task is topped up to the requested number of reviewers
-    rather than accumulating more on every call.
-    """
+    """Add reviewers to a percentage or a fixed number of already-assigned tasks."""
     if req.task_set_id is not None:
         task_sets.require_task_set(db, campaign.id, req.task_set_id, status_code=400)
-
-    if req.pattern == "percentage":
-        if req.percentage is None or req.num_reviewers is None or req.reviewer_ids is None:
-            raise HTTPException(
-                status_code=400,
-                detail="For 'percentage' pattern, percentage, num_reviewers, and reviewer_ids are required",
-            )
-        assignments.assign_reviewers_percentage(
-            db,
-            campaign_id,
-            req.percentage,
-            req.num_reviewers,
-            req.reviewer_ids,
-            task_set_id=req.task_set_id,
-        )
-        return {"message": f"Successfully assigned reviewers to {req.percentage}% of tasks"}
-
-    elif req.pattern == "manual":
-        if req.manual_assignments is None:
-            raise HTTPException(
-                status_code=400, detail="For 'manual' pattern, manual_assignments is required"
-            )
-        created = assignments.assign_reviewers_manual(db, campaign_id, req.manual_assignments)
-        return {"message": f"Successfully assigned {created} reviewer(s)"}
-
-    elif req.pattern == "fixed":
-        if req.num_tasks is None or req.fixed_num_reviewers is None or req.reviewer_ids is None:
-            raise HTTPException(
-                status_code=400,
-                detail="For 'fixed' pattern, num_tasks, fixed_num_reviewers, and reviewer_ids are required",
-            )
-        assignments.assign_reviewers_fixed(
-            db,
-            campaign_id,
-            req.num_tasks,
-            req.fixed_num_reviewers,
-            req.reviewer_ids,
-            task_set_id=req.task_set_id,
-        )
-        return {"message": f"Successfully assigned reviewers to {req.num_tasks} tasks"}
-
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid pattern '{req.pattern}'. Must be 'percentage', 'manual', or 'fixed'",
-        )
+    num_tasks = assignments.assign_reviewers(db, campaign_id, req)
+    return {"message": f"Assigned reviewers to {num_tasks} task(s)"}
 
 
 @router.delete(

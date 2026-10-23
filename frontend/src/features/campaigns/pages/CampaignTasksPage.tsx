@@ -280,14 +280,14 @@ export const CampaignTasksPage = () => {
         ? {
             pattern: 'percentage' as const,
             percentage: pattern.percentage,
-            num_reviewers: pattern.reviewersPerTask,
+            reviewers_per_task: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
             ...taskScopeBody,
           }
         : {
             pattern: 'fixed' as const,
             num_tasks: pattern.numTasks,
-            fixed_num_reviewers: pattern.reviewersPerTask,
+            reviewers_per_task: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
             ...taskScopeBody,
           };

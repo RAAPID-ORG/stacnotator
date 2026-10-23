@@ -18,7 +18,7 @@ from src.annotation.models import (
 from src.annotation.models import (
     Embedding as EmbeddingRow,
 )
-from src.annotation.schemas import KnnValidationStatusOut, ValidateLabelSubmissionsResponse
+from src.annotation.schemas import ValidateLabelSubmissionsResponse
 from src.campaigns.models import Campaign
 from src.earth_engine import ensure_earth_engine
 from src.imagery.registration import sanitize_error_message
@@ -263,64 +263,6 @@ def has_sufficient_validation_data(
     total = row.total or 0
     label_count = row.label_count or 0
     return total >= 2 * n_neighbours and label_count >= n_neighbours
-
-
-def get_validation_status(
-    db: Session,
-    campaign_id: int,
-    embedding_year: int | None,
-) -> KnnValidationStatusOut:
-    """Summarize what the KNN validator has available for this campaign.
-
-    Returns the thresholds and current counts (total + per-label) of
-    distinct tasks that are both embedded and carry a labeled annotation.
-    Counts are label-scoped the same way has_sufficient_validation_data is.
-    """
-    if embedding_year is None:
-        return KnnValidationStatusOut(
-            enabled=False,
-            required_per_label=EMBD_MIN_N_NEIGHBOURS,
-            required_total=2 * EMBD_MIN_N_NEIGHBOURS,
-            total_labeled_with_embedding=0,
-            per_label_counts={},
-        )
-
-    total_stmt = (
-        select(func.count(func.distinct(EmbeddingRow.id)))
-        .select_from(EmbeddingRow)
-        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
-        .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
-        .where(
-            AnnotationTask.campaign_id == campaign_id,
-            Annotation.label_id.isnot(None),
-        )
-    )
-    total = db.execute(total_stmt).scalar() or 0
-
-    per_label_stmt = (
-        select(
-            Annotation.label_id,
-            func.count(func.distinct(EmbeddingRow.id)).label("cnt"),
-        )
-        .select_from(EmbeddingRow)
-        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
-        .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
-        .where(
-            AnnotationTask.campaign_id == campaign_id,
-            Annotation.label_id.isnot(None),
-        )
-        .group_by(Annotation.label_id)
-    )
-    rows = db.execute(per_label_stmt).all()
-    per_label = {str(row.label_id): int(row.cnt) for row in rows}
-
-    return KnnValidationStatusOut(
-        enabled=True,
-        required_per_label=EMBD_MIN_N_NEIGHBOURS,
-        required_total=2 * EMBD_MIN_N_NEIGHBOURS,
-        total_labeled_with_embedding=int(total),
-        per_label_counts=per_label,
-    )
 
 
 def validate_label_submission(

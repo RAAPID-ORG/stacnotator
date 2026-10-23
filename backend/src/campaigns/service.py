@@ -10,6 +10,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from src import background
 from src.annotation import embeddings_service
 from src.annotation import service as annotation_service
+from src.annotation.forms import campaign_form_fields
 from src.annotation.geometries import (
     delete_orphan_geometries,
     delete_rows_and_orphan_geometries,
@@ -26,6 +27,7 @@ from src.campaigns.policy import _reject_anyone_kind_if_private
 from src.campaigns.schemas import (
     CampaignListItemOut,
     CampaignSettingsCreate,
+    CampaignUpdate,
     LabellingPolicy,
     default_labelling_policy,
 )
@@ -276,37 +278,41 @@ def create_campaign(
     return get_campaign_full(db, campaign.id)
 
 
-def update_campaign_name(db: Session, campaign_id: int, new_name: str) -> Campaign:
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    campaign.name = new_name
+def update_campaign(db: Session, campaign: Campaign, update: CampaignUpdate) -> Campaign:
+    changes = update.model_dump(exclude_unset=True)
+    if "task_output" in changes:
+        _check_task_output_change(db, campaign, changes["task_output"])
+    if "name" in changes:
+        campaign.name = changes.pop("name")
+    for field, value in changes.items():
+        setattr(campaign.settings, field, value)
     db.commit()
-    return get_campaign_full(db, campaign_id)
+    return get_campaign_full(db, campaign.id)
 
 
-def update_campaign_guide(db: Session, campaign_id: int, guide_markdown: str | None) -> Campaign:
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-    campaign.settings.guide_markdown = guide_markdown
-    db.commit()
-    return get_campaign_full(db, campaign_id)
+def _check_task_output_change(db: Session, campaign: Campaign, task_output: str) -> None:
+    """Labelling tasks and drawing around them are locked in once any task has
+    been worked: the outcomes stored so far would change meaning."""
+    if campaign.settings.task_output != task_output and db.scalar(
+        select(
+            exists().where(
+                Annotation.campaign_id == campaign.id, Annotation.annotation_task_id.isnot(None)
+            )
+        )
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="The task output cannot change once tasks have been annotated",
+        )
 
 
-def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campaign:
+def update_campaign_labels(db: Session, campaign: Campaign, labels: list) -> Campaign:
     """Replace the campaign's labels JSONB. Caller is expected to keep existing
     label IDs stable so annotations referencing them continue to resolve;
     rename = same id + new name, add = new id. Delete is not supported here."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-
-    existing_ids = set((campaign.settings.labels or {}).keys())
+    campaign_id = campaign.id
+    existing_labels = campaign.settings.labels
+    existing_ids = set(existing_labels)
     incoming_ids = {str(label.id) for label in labels}
     removed = existing_ids - incoming_ids
     if removed:
@@ -318,7 +324,6 @@ def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campa
             ),
         )
 
-    existing_labels = campaign.settings.labels or {}
     for label in labels:
         label_key = str(label.id)
         if label_key not in existing_labels:
@@ -375,7 +380,7 @@ def _answered_form_field_keys(db: Session, campaign_id: int) -> set[str]:
     )
 
 
-def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list) -> Campaign:
+def update_campaign_form_fields(db: Session, campaign: Campaign, form_fields: list) -> Campaign:
     """Replace the campaign's custom form fields. Field IDs are the stability
     anchor: stored annotation answers key off them, so edit = same id, add =
     new id. A field missing from the list is deleted along with every answer
@@ -383,13 +388,8 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
     (type, number_type, removed category options) are still rejected once a
     field has stored answers - they would make those answers unresolvable
     rather than deliberately discarded."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-
-    existing = {str(f.get("id")): f for f in (campaign.settings.form_fields or [])}
+    campaign_id = campaign.id
+    existing = {str(f.id): f for f in campaign_form_fields(campaign)}
     incoming_ids = {str(field.id) for field in form_fields}
     removed = set(existing) - incoming_ids
 
@@ -398,10 +398,10 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
         old = existing.get(str(field.id))
         if not old:
             continue
-        shape_changed = old.get("type") != field.type or old.get("number_type") != getattr(
+        shape_changed = old.type != field.type or getattr(old, "number_type", None) != getattr(
             field, "number_type", None
         )
-        old_option_ids = {option["id"] for option in old.get("options") or []}
+        old_option_ids = {option.id for option in getattr(old, "options", [])}
         new_option_ids = {option.id for option in getattr(field, "options", [])}
         removed_options = old_option_ids - new_option_ids
         if shape_changed or removed_options:
@@ -442,17 +442,13 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
 
 def update_campaign_bbox(
     db: Session,
-    campaign_id: int,
+    campaign: Campaign,
     bbox_west: float,
     bbox_south: float,
     bbox_east: float,
     bbox_north: float,
 ) -> Campaign:
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
+    campaign_id = campaign.id
     if campaign.registration_status == "registering":
         raise HTTPException(
             status_code=409,
@@ -468,38 +464,20 @@ def update_campaign_bbox(
         background.begin_status_run(campaign, REGISTRATION_RUN)
         campaign.registration_errors = None
     db.commit()
-    new_bbox = [bbox_west, bbox_south, bbox_east, bbox_north]
     if pending:
-        spawn_background_registration(LayerOwner(campaign_id=campaign_id), pending, new_bbox)
+        spawn_background_registration(
+            LayerOwner(campaign_id=campaign_id), pending, list(campaign.settings.bbox)
+        )
 
-    return get_campaign_full(db, campaign_id)
-
-
-def update_sample_extent(
-    db: Session, campaign_id: int, sample_extent_meters: float | None
-) -> Campaign:
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-    campaign.settings.sample_extent_meters = sample_extent_meters
-    db.commit()
     return get_campaign_full(db, campaign_id)
 
 
 def update_labelling_policy(
-    db: Session, campaign_id: int, policy: LabellingPolicy
+    db: Session, campaign: Campaign, policy: LabellingPolicy
 ) -> LabellingPolicy:
     """Persist a new labelling policy. 'anyone' kinds are rejected for
     non-public campaigns: an audience that lets any authenticated visitor
     label only makes sense once the campaign itself is public."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-
     _reject_anyone_kind_if_private(policy, campaign.is_public)
 
     campaign.settings.labelling_policy = policy.model_dump(mode="json")
@@ -510,7 +488,7 @@ def update_labelling_policy(
 
 def update_embedding_year(
     db: Session,
-    campaign_id: int,
+    campaign: Campaign,
     embedding_year: int | None,
 ) -> dict:
     """Set the embedding year on campaign settings and recompute embeddings if changed.
@@ -519,36 +497,14 @@ def update_embedding_year(
     If it changes from the current value, all existing embeddings for the
     campaign are deleted and re-fetched for the new year.
     """
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-
-    old_year = campaign.settings.embedding_year
+    recomputed = embedding_year is not None and embedding_year != campaign.settings.embedding_year
     campaign.settings.embedding_year = embedding_year
-    db.flush()
-
-    recomputed = False
-
-    if embedding_year is not None and embedding_year != old_year:
-        task_ids_subq = (
-            select(AnnotationTask.id)
-            .where(AnnotationTask.campaign_id == campaign_id)
-            .scalar_subquery()
-        )
-        db.execute(delete(Embedding).where(Embedding.annotation_task_id.in_(task_ids_subq)))
-        recomputed = True
-        # Off the request path: populate_campaign_embeddings makes slow external
-        # calls, so the caller marks "registering" now and the spawned thread
-        # flips it to ready/failed once the recomputation finishes.
-        background.begin_status_run(campaign, embeddings_service.EMBEDDING_RUN)
-
-    db.commit()
-    db.refresh(campaign)
-
-    if recomputed and embedding_year is not None:
-        embeddings_service.spawn_background_embedding_computation(campaign_id, embedding_year)
+    if recomputed:
+        task_ids = select(AnnotationTask.id).where(AnnotationTask.campaign_id == campaign.id)
+        db.execute(delete(Embedding).where(Embedding.annotation_task_id.in_(task_ids)))
+        embeddings_service.start_embedding_run(db, campaign)
+    else:
+        db.commit()
 
     return {
         "embedding_year": campaign.settings.embedding_year,
@@ -611,48 +567,8 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
     own ON DELETE CASCADE. It is issued as a Core statement on purpose: deleting
     the ORM object cascades in Python instead, loading every task and annotation
     into the session to delete them one statement at a time."""
-    if not db.get(Campaign, campaign_id):
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
     revoke_campaign_private_searches(db, campaign_id)
     db.execute(delete(Campaign).where(Campaign.id == campaign_id))
     # Geometries have no campaign FK, so the cascade above cannot reach them.
     delete_orphan_geometries(db)
     db.commit()
-
-
-def update_task_output(db: Session, campaign_id: int, task_output: str) -> Campaign:
-    """Switch between labelling tasks and drawing around them. Locked once any
-    task has been worked: the outcomes stored so far would change meaning."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-    if campaign.settings.task_output != task_output and db.scalar(
-        select(
-            exists().where(
-                Annotation.campaign_id == campaign_id, Annotation.annotation_task_id.isnot(None)
-            )
-        )
-    ):
-        raise HTTPException(
-            status_code=409,
-            detail="The task output cannot change once tasks have been annotated",
-        )
-    campaign.settings.task_output = task_output
-    db.commit()
-    return get_campaign_full(db, campaign_id)
-
-
-def update_research_sharing(db: Session, campaign_id: int, research_sharing: bool) -> Campaign:
-    """Turn open publication of this campaign's annotations on or off. Turning it
-    off stops future releases; anything already published cannot be recalled."""
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-    campaign.settings.research_sharing = research_sharing
-    db.commit()
-    return get_campaign_full(db, campaign_id)

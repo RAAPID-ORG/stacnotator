@@ -7,12 +7,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
 
 from src.campaigns.form_fields import FormField, validate_form_fields
-from src.canvas.schemas import CanvasLayoutOut
+from src.canvas.schemas import CanvasLayoutOut, viewer_layouts
 from src.custom_layers.schemas import CustomMapOut, VectorLayerOut
 from src.imagery.schemas import (
     BasemapOut,
@@ -66,11 +67,9 @@ class LabelBase(BaseModel):
     geometry_type: Literal["point", "polygon", "line"] | None = None
 
 
-def label_id_to_name(labels: dict | None) -> dict[int, str]:
+def label_id_to_name(labels: dict) -> dict[int, str]:
     """Decode a campaign's labels JSONB ({"1": {"name": "Forest", ...}}) into
     {label_id: display_name}."""
-    if not isinstance(labels, dict):
-        return {}
     return {int(label_id): data["name"] for label_id, data in labels.items()}
 
 
@@ -225,8 +224,6 @@ class CampaignSettingsOut(BaseModel):
     def convert_labels(cls, v):
         """Convert the labels JSONB dict from the DB into list[LabelBase]:
         {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, ...}]."""
-        if not isinstance(v, dict):
-            return v
         return [
             LabelBase(
                 id=int(k),
@@ -350,41 +347,22 @@ class CampaignListItemOut(BaseModel):
 
 
 class CampaignOutFull(CampaignOut):
-    """Campaign with canvas layout information extracted."""
+    """A campaign with its main canvas layouts, validated with the viewer's
+    user_id in the context so their personal layouts come along."""
 
-    default_main_canvas_layout: Annotated[
-        CanvasLayoutOut | None, Field(json_schema_extra={"readOnly": True})
-    ]
-    personal_main_canvas_layout: Annotated[
-        CanvasLayoutOut | None, Field(json_schema_extra={"readOnly": True})
-    ]
+    default_main_canvas_layout: CanvasLayoutOut | None = None
+    personal_main_canvas_layout: CanvasLayoutOut | None = None
 
+    @model_validator(mode="wrap")
     @classmethod
-    def from_orm(cls, obj, user_id: UUID | None = None):
-        default_layout = None
-        personal_layout = None
-
-        if hasattr(obj, "canvas_layouts"):
-            for layout in obj.canvas_layouts:
-                if layout.view_id is None:
-                    if layout.is_default and layout.user_id is None:
-                        default_layout = CanvasLayoutOut.model_validate(layout)
-                    elif user_id and layout.user_id == user_id:
-                        personal_layout = CanvasLayoutOut.model_validate(layout)
-
-        views_list = []
-        if hasattr(obj, "imagery_views"):
-            for view in obj.imagery_views:
-                views_list.append(ImageryViewOut.from_orm(view, user_id=user_id))
-
-        return cls.model_validate(
-            {
-                **CampaignOut.model_validate(obj).model_dump(),
-                "imagery_views": views_list,
-                "default_main_canvas_layout": default_layout,
-                "personal_main_canvas_layout": personal_layout,
-            }
-        )
+    def _main_layouts(cls, data: Any, handler, info: ValidationInfo) -> "CampaignOutFull":
+        out: CampaignOutFull = handler(data)
+        if hasattr(data, "canvas_layouts"):
+            main = [layout for layout in data.canvas_layouts if layout.view_id is None]
+            out.default_main_canvas_layout, out.personal_main_canvas_layout = viewer_layouts(
+                main, info
+            )
+        return out
 
 
 # ============================================================================
@@ -396,8 +374,22 @@ class CampaignsListResponse(BaseModel):
     items: list[CampaignListItemOut]
 
 
-class UpdateCampaignNameRequest(BaseModel):
-    name: str
+class CampaignUpdate(BaseModel):
+    """A partial update: only the fields sent are changed, and sending null
+    clears the nullable ones."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    guide_markdown: str | None = None
+    sample_extent_meters: float | None = None
+    research_sharing: bool | None = None
+    task_output: TaskOutput | None = None
+
+    @model_validator(mode="after")
+    def _required_fields_are_not_cleared(self) -> "CampaignUpdate":
+        for field in ("name", "research_sharing", "task_output"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
 
 
 class CampaignDuplicateRequest(BaseModel):
@@ -418,22 +410,6 @@ class CampaignDuplicateRequest(BaseModel):
     include_assignments: bool = True
     include_user_layouts: bool = True
     target_project_id: int | None = None
-
-
-class UpdateCampaignGuideRequest(BaseModel):
-    guide_markdown: str | None = None
-
-
-class UpdateSampleExtentRequest(BaseModel):
-    sample_extent_meters: float | None = None
-
-
-class UpdateResearchSharingRequest(BaseModel):
-    research_sharing: bool
-
-
-class UpdateTaskOutputRequest(BaseModel):
-    task_output: TaskOutput
 
 
 class UpdateCampaignBBoxRequest(BaseModel):
@@ -505,32 +481,29 @@ class ImportTaskAssignmentsResult(BaseModel):
     reviewers_created: int
 
 
-class AssignReviewersRequest(BaseModel):
-    """
-    Request to assign reviewers to tasks based on different patterns.
+class _ReviewerAssignment(BaseModel):
+    """Reviewers go only to tasks that already have a primary (non-review)
+    assignment, and each picked task is topped up to `reviewers_per_task`."""
 
-    Reviewers may only be assigned to tasks that already have a primary
-    (non-review) assignment. Each selected task is topped up to the requested
-    number of reviewers, so re-running does not stack additional reviewers on
-    tasks that already meet the target.
-    """
-
-    pattern: Literal["percentage", "manual", "fixed"]
-
-    # For 'percentage' pattern
-    percentage: float | None = None  # Percentage of already-assigned tasks to review (0-100)
-    num_reviewers: int | None = None  # Target reviewers per task (excluding the annotator)
-    reviewer_ids: list[UUID] | None = None  # Pool of reviewers to choose from
-
-    # For 'manual' pattern
-    manual_assignments: dict[int, list[UUID]] | None = None  # task_id -> list of reviewer user_ids
-
-    # For 'fixed' pattern
-    num_tasks: int | None = None  # Number of already-assigned tasks to review
-    fixed_num_reviewers: int | None = None  # Target reviewers per task (excluding the annotator)
-
-    # Optional scope: restrict the reviewable pool to one task set.
+    reviewer_ids: list[UUID]
+    reviewers_per_task: int = Field(ge=1)
+    # Restricts the reviewable pool to one task set.
     task_set_id: int | None = None
+
+
+class ReviewShareOfTasks(_ReviewerAssignment):
+    pattern: Literal["percentage"]
+    percentage: float = Field(gt=0, le=100)
+
+
+class ReviewNumberOfTasks(_ReviewerAssignment):
+    pattern: Literal["fixed"]
+    num_tasks: int = Field(ge=1)
+
+
+AssignReviewersRequest = Annotated[
+    ReviewShareOfTasks | ReviewNumberOfTasks, Field(discriminator="pattern")
+]
 
 
 class DeleteAnnotationTasksRequest(BaseModel):

@@ -1,17 +1,15 @@
-from typing import Literal
-from uuid import UUID
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
-    computed_field,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
 
-from src.canvas.schemas import CanvasLayoutOut
+from src.canvas.schemas import CanvasLayoutOut, viewer_layouts
 from src.planet.schemas import PlanetScenesGenerationConfigV1
 from src.storage_access import StorageAccessCreate, StorageAccessOut
 
@@ -194,31 +192,19 @@ class ImageryViewOut(BaseModel):
     display_order: int
     source_ids: list[int]
 
-    # Populated by from_orm; stay None on any other construction path (e.g. a
-    # plain ImageryViewOut(**kwargs) in a test). Read-only computed fields so
-    # they don't reappear as writable input fields on this output-only schema.
-    _default_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
-    _personal_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
+    # The view's default layout and the viewer's own (validation context user_id).
+    default_canvas_layout: CanvasLayoutOut | None = None
+    personal_canvas_layout: CanvasLayoutOut | None = None
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def default_canvas_layout(self) -> CanvasLayoutOut | None:
-        return self._default_canvas_layout
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def personal_canvas_layout(self) -> CanvasLayoutOut | None:
-        return self._personal_canvas_layout
-
+    @model_validator(mode="wrap")
     @classmethod
-    def from_orm(cls, obj, user_id: UUID | None = None) -> "ImageryViewOut":
-        instance = cls.model_validate(obj)
-        for layout in getattr(obj, "canvas_layouts", []):
-            if layout.is_default and layout.user_id is None:
-                instance._default_canvas_layout = CanvasLayoutOut.model_validate(layout)
-            elif user_id and layout.user_id == user_id:
-                instance._personal_canvas_layout = CanvasLayoutOut.model_validate(layout)
-        return instance
+    def _layouts(cls, data: Any, handler, info: ValidationInfo) -> "ImageryViewOut":
+        out: ImageryViewOut = handler(data)
+        if hasattr(data, "canvas_layouts"):
+            out.default_canvas_layout, out.personal_canvas_layout = viewer_layouts(
+                data.canvas_layouts, info
+            )
+        return out
 
     model_config = ConfigDict(from_attributes=True)
 

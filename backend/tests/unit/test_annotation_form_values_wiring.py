@@ -17,7 +17,7 @@ from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, A
 from src.annotation.service import (
     add_annotation_for_task,
     create_annotation,
-    create_annotations_bulk,
+    create_annotations,
     update_annotation,
     validate_annotation_form_values,
 )
@@ -112,12 +112,6 @@ class TestValidateAnnotationFormValuesHelper:
 
     def test_empty_field_list_allows_missing_values(self):
         campaign = _campaign([])
-
-        assert validate_annotation_form_values(campaign, None, enforce_required=True) is None
-
-    def test_none_form_fields_on_campaign_treated_as_empty(self):
-        campaign = _campaign()
-        campaign.settings.form_fields = None
 
         assert validate_annotation_form_values(campaign, None, enforce_required=True) is None
 
@@ -234,7 +228,7 @@ class TestCreateAnnotationsBulkFormValuesWiring:
             ),
         ]
 
-        created_count = create_annotations_bulk(db, campaign, payloads, uuid4())
+        created_count = len(create_annotations(db, campaign, payloads, uuid4()))
 
         assert created_count == 2
         (annotations,), _ = db.add_all.call_args_list[-1]
@@ -255,7 +249,7 @@ class TestCreateAnnotationsBulkFormValuesWiring:
         ]
 
         with pytest.raises(HTTPException) as exc:
-            create_annotations_bulk(db, campaign, payloads, uuid4())
+            create_annotations(db, campaign, payloads, uuid4())
 
         assert exc.value.status_code == 400
         db.add_all.assert_not_called()
@@ -275,7 +269,6 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=None,
             comment=None,
             geometry_wkt=None,
-            is_authoritative=None,
             form_values={"1": 2},
         )
 
@@ -296,7 +289,6 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=None,
             comment=None,
             geometry_wkt=None,
-            is_authoritative=None,
             form_values={},
         )
 
@@ -322,7 +314,6 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=None,
             comment=None,
             geometry_wkt=None,
-            is_authoritative=None,
             form_values={"1": 99},
         )
 
@@ -343,9 +334,7 @@ class TestUpdateAnnotationFormValuesWiring:
         existing.form_values = {"1": 1}
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=None, comment="a note", geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=None, comment="a note", geometry_wkt=None)
 
         annotation = update_annotation(db, 5, payload, author, campaign=campaign)
 
@@ -364,9 +353,7 @@ class TestUpdateAnnotationFormValuesWiring:
         existing.form_values = None
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         with pytest.raises(HTTPException) as exc:
             update_annotation(db, 5, payload, author, campaign=campaign)
@@ -384,9 +371,7 @@ class TestUpdateAnnotationFormValuesWiring:
         existing.form_values = {"1": 1}
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         annotation = update_annotation(db, 5, payload, author, campaign=campaign)
 
@@ -406,7 +391,6 @@ class TestUpdateAnnotationFormValuesWiring:
             label_id=None,
             comment=None,
             geometry_wkt=None,
-            is_authoritative=None,
             form_values={},
         )
 

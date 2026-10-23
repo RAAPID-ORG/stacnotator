@@ -117,13 +117,11 @@ def get_project_out(db: Session, project: Project, user: User) -> ProjectOut:
 def _strip_anyone_from_campaign_policies(db: Session, project: Project) -> None:
     """Leaving platform-public visibility (for 'organization' or 'private')
     invalidates the 'anyone' audience on every campaign policy inside the
-    project - same invariant update_campaign_visibility enforced per campaign
-    before projects existed."""
+    project."""
     for campaign in project.campaigns:
-        if campaign.settings and campaign.settings.labelling_policy:
-            policy = LabellingPolicy.model_validate(campaign.settings.labelling_policy)
-            campaign.settings.labelling_policy = strip_anyone_kind(policy).model_dump(mode="json")
-            flag_modified(campaign.settings, "labelling_policy")
+        policy = LabellingPolicy.model_validate(campaign.settings.labelling_policy)
+        campaign.settings.labelling_policy = strip_anyone_kind(policy).model_dump(mode="json")
+        flag_modified(campaign.settings, "labelling_policy")
 
 
 def update_project(

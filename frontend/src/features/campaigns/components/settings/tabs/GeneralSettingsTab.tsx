@@ -6,13 +6,10 @@ import type { CampaignOut, LabelBase, LabellingPolicy, ProjectUserOut } from '~/
 import {
   updateCampaignBboxMutation,
   updateCampaignFormFieldsMutation,
-  updateCampaignGuideMutation,
   updateCampaignLabelsMutation,
+  updateCampaignMutation,
   updateEmbeddingYearMutation,
   updateLabellingPolicyMutation,
-  updateResearchSharingMutation,
-  updateSampleExtentMutation,
-  updateTaskOutputMutation,
 } from '~/api/queries';
 import { useRefreshCampaign } from '~/features/campaigns/hooks/campaignQueries';
 import { projectPath } from '~/app/routes';
@@ -87,7 +84,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
   const [guideMarkdown, setGuideMarkdown] = useState(campaign.settings.guide_markdown ?? '');
   const saveGuide = useMutation({
-    ...updateCampaignGuideMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.guide'), t('generalTab.toasts.guideUpdated')),
   });
   const savingGuide = saveGuide.isPending;
@@ -225,18 +222,18 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       : ''
   );
   const saveExtent = useMutation({
-    ...updateSampleExtentMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.extent'), t('generalTab.toasts.extentUpdated')),
   });
   const savingExtent = saveExtent.isPending;
   const saveResearchSharing = useMutation({
-    ...updateResearchSharingMutation(),
+    ...updateCampaignMutation(),
     meta: { errorMessage: t('generalTab.errors.researchSharing') },
     onSuccess: refreshCampaign,
   });
   const savingResearchSharing = saveResearchSharing.isPending;
   const saveTaskOutput = useMutation({
-    ...updateTaskOutputMutation(),
+    ...updateCampaignMutation(),
     ...saved(t('generalTab.errors.taskOutput'), t('generalTab.toasts.taskOutputUpdated')),
   });
   const parsedExtent = sampleExtent.trim() === '' ? null : Number(sampleExtent);
@@ -371,7 +368,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         </div>
         <Field label={t('generalTab.taskOutput.label')} className="w-72">
           <Select
-            value={campaign.settings.task_output ?? 'classify'}
+            value={campaign.settings.task_output}
             onChange={(e) =>
               saveTaskOutput.mutate({
                 path,

@@ -258,7 +258,7 @@ def create_imagery_view(
 ):
     """Create a view with a default canvas layout showing every collection of
     its sources as a window (campaign admin only)."""
-    return ImageryViewOut.from_orm(service.create_view(db, campaign, payload))
+    return ImageryViewOut.model_validate(service.create_view(db, campaign, payload))
 
 
 # Declared before /views/{view_id} so "order" is not captured by the int param.
@@ -283,7 +283,7 @@ def update_imagery_view(
 ):
     """Rename a view and/or replace its source membership; its canvas layouts
     follow the new eligible collection set (campaign admin only)."""
-    return ImageryViewOut.from_orm(service.update_view(db, campaign, view_id, payload))
+    return ImageryViewOut.model_validate(service.update_view(db, campaign, view_id, payload))
 
 
 @router.delete("/{campaign_id}/imagery/views/{view_id}", status_code=204)

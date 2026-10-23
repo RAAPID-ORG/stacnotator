@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from src.agents import service
 from src.agents.schemas import (
-    AgentAnnotate,
     AgentOut,
     AgentRegister,
     AgentsOverviewOut,
@@ -14,7 +13,7 @@ from src.agents.schemas import (
     NextTasksOut,
     ReleasedTasksOut,
 )
-from src.annotation.schemas import AnnotationTaskSubmitResponse
+from src.annotation.schemas import AnnotationFromTaskCreate, AnnotationTaskSubmitResponse
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access
@@ -104,7 +103,7 @@ def next_agent_tasks(
 def annotate_agent_task(
     agent_id: UUID,
     task_id: int,
-    body: AgentAnnotate,
+    body: AnnotationFromTaskCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ) -> AnnotationTaskSubmitResponse:

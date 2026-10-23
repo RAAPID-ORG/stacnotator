@@ -301,9 +301,6 @@ def save_imagery_editor_state(
     the actual provider calls run off the request path so this transaction isn't
     held open across them.
     """
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-
     _resolve_tilers(campaign.project.organization, editor_state)
     _validate_organization_keys(campaign.project.organization, editor_state)
 

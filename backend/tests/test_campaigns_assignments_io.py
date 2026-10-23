@@ -10,7 +10,6 @@ from fastapi import HTTPException
 from src.annotation.models import AnnotationTaskAssignment
 from src.campaigns.assignments import (
     USERS_CSV_COLUMNS,
-    _label_id_to_name,
     _split_emails,
     _unique_users,
     build_task_assignments_export,
@@ -71,18 +70,6 @@ class TestUniqueUsers:
         lookup = {"a@x.com": ua, "b@x.com": ub}
         result = _unique_users(["A@x.com", "b@x.com", "a@x.com"], lookup)
         assert result == [ua, ub]
-
-
-class TestLabelIdToName:
-    def test_dict_labels(self):
-        campaign = MagicMock()
-        campaign.settings.labels = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
-        assert _label_id_to_name(campaign) == {1: "Forest", 2: "Water"}
-
-    def test_no_settings(self):
-        campaign = MagicMock()
-        campaign.settings = None
-        assert _label_id_to_name(campaign) == {}
 
 
 # ---------------------------------------------------------------------------

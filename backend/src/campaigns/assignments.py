@@ -14,8 +14,10 @@ from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.models import Campaign, TaskSet
 from src.campaigns.schemas import (
+    AssignReviewersRequest,
     AssignTasksToUsersRequest,
     AssignTasksToUsersResult,
+    ReviewShareOfTasks,
     label_id_to_name,
 )
 from src.projects.models import ProjectUser
@@ -197,39 +199,6 @@ def assign_tasks_to_users(
     return AssignTasksToUsersResult(total_assigned=len(new_pairs))
 
 
-def unassign_user_from_task(db: Session, campaign_id: int, task_id: int, user_id: UUID) -> None:
-    """
-    Remove a user's assignment from a specific task.
-    """
-    # Verify task belongs to the campaign
-    stmt = select(AnnotationTask).where(
-        AnnotationTask.id == task_id, AnnotationTask.campaign_id == campaign_id
-    )
-    task = db.scalar(stmt)
-
-    if not task:
-        raise HTTPException(
-            status_code=404, detail=f"Task {task_id} not found in campaign {campaign_id}"
-        )
-
-    # Delete the assignment
-    deleted = _deleted_rows(
-        db.execute(
-            delete(AnnotationTaskAssignment).where(
-                AnnotationTaskAssignment.task_id == task_id,
-                AnnotationTaskAssignment.user_id == user_id,
-            )
-        )
-    )
-
-    if deleted == 0:
-        raise HTTPException(
-            status_code=404, detail=f"User {user_id} is not assigned to task {task_id}"
-        )
-
-    db.commit()
-
-
 def unassign_users_from_tasks(
     db: Session,
     campaign_id: int,
@@ -337,166 +306,48 @@ def _top_up_review_assignments(
     db.commit()
 
 
-def assign_reviewers_percentage(
-    db: Session,
-    campaign_id: int,
-    percentage: float,
-    num_reviewers: int,
-    reviewer_ids: list[UUID],
-    task_set_id: int | None = None,
-) -> None:
+def assign_reviewers(db: Session, campaign_id: int, req: AssignReviewersRequest) -> int:
     """
-    Assign reviewers to a percentage of a campaign's already-assigned tasks.
+    Add reviewers to a share or a number of the campaign's already-assigned tasks.
 
-    Only tasks that already have a primary (non-review) assignment are eligible;
-    each selected task is topped up to `num_reviewers` review assignments
-    (reviewers held in addition to the original annotator). Re-running tops up
-    to the target rather than stacking more reviewers on top.
-
-    Args:
-        db: Database session
-        campaign_id: ID of the campaign
-        percentage: Percentage of eligible tasks to assign reviewers to (0-100)
-        num_reviewers: Target number of reviewers per task (excluding the annotator)
-        reviewer_ids: Pool of reviewer user IDs to choose from
+    Only tasks with a primary (non-review) assignment are eligible; each one
+    picked is topped up to `reviewers_per_task` review assignments, so running
+    it again tops up rather than stacking more reviewers. Returns the number of
+    tasks picked.
     """
-    if not 0 < percentage <= 100:
-        raise HTTPException(status_code=400, detail="Percentage must be between 0 and 100")
-
-    if num_reviewers < 1:
-        raise HTTPException(status_code=400, detail="Number of reviewers must be at least 1")
-
-    if len(reviewer_ids) < num_reviewers:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Not enough reviewers in pool. Need at least {num_reviewers}, got {len(reviewer_ids)}",
-        )
-
-    _verify_campaign_members(db, campaign_id, set(reviewer_ids), role="Reviewers")
-
-    reviewable_tasks = _reviewable_tasks(db, campaign_id, task_set_id)
-    if not reviewable_tasks:
-        raise HTTPException(
-            status_code=404,
-            detail="No assigned tasks available for review in campaign",
-        )
-
-    num_tasks_to_review = max(1, int(len(reviewable_tasks) * percentage / 100))
-    tasks_to_review = random.sample(reviewable_tasks, num_tasks_to_review)
-
-    _top_up_review_assignments(db, tasks_to_review, num_reviewers, reviewer_ids)
-
-
-def assign_reviewers_fixed(
-    db: Session,
-    campaign_id: int,
-    num_tasks: int,
-    num_reviewers: int,
-    reviewer_ids: list[UUID],
-    task_set_id: int | None = None,
-) -> None:
-    """
-    Assign reviewers to a fixed number of a campaign's already-assigned tasks.
-
-    Only tasks that already have a primary (non-review) assignment are eligible;
-    each selected task is topped up to `num_reviewers` review assignments
-    (reviewers held in addition to the original annotator). Re-running tops up
-    to the target rather than stacking more reviewers on top.
-
-    Args:
-        db: Database session
-        campaign_id: ID of the campaign
-        num_tasks: Number of eligible tasks to assign reviewers to
-        num_reviewers: Target number of reviewers per task (excluding the annotator)
-        reviewer_ids: Pool of reviewer user IDs to choose from
-    """
-    if num_tasks < 1:
-        raise HTTPException(status_code=400, detail="Number of tasks must be at least 1")
-
-    if num_reviewers < 1:
-        raise HTTPException(status_code=400, detail="Number of reviewers must be at least 1")
-
-    if len(reviewer_ids) < num_reviewers:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Not enough reviewers in pool. Need at least {num_reviewers}, got {len(reviewer_ids)}",
-        )
-
-    _verify_campaign_members(db, campaign_id, set(reviewer_ids), role="Reviewers")
-
-    reviewable_tasks = _reviewable_tasks(db, campaign_id, task_set_id)
-    if not reviewable_tasks:
-        raise HTTPException(
-            status_code=404,
-            detail="No assigned tasks available for review in campaign",
-        )
-
-    if num_tasks > len(reviewable_tasks):
+    if len(req.reviewer_ids) < req.reviewers_per_task:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Requested {num_tasks} tasks but only {len(reviewable_tasks)} "
-                "assigned task(s) are available for review"
+                f"Not enough reviewers in pool. Need at least {req.reviewers_per_task}, "
+                f"got {len(req.reviewer_ids)}"
             ),
         )
+    _verify_campaign_members(db, campaign_id, set(req.reviewer_ids), role="Reviewers")
 
-    tasks_to_review = random.sample(reviewable_tasks, num_tasks)
-
-    _top_up_review_assignments(db, tasks_to_review, num_reviewers, reviewer_ids)
-
-
-def assign_reviewers_manual(
-    db: Session, campaign_id: int, manual_assignments: dict[int, list[UUID]]
-) -> int:
-    """
-    Manually assign specific reviewers to specific tasks.
-
-    Like the percentage/fixed patterns, reviewers may only be added to tasks
-    that already have a primary (non-review) assignment, and each new assignment
-    is recorded as a review (is_review=True). Pairs that already exist are
-    skipped. Returns the number of new review assignments created.
-    """
-    if not manual_assignments:
-        return 0
-
-    task_ids = list(manual_assignments.keys())
-    reviewer_ids = {uid for uids in manual_assignments.values() for uid in uids}
-
-    _verify_campaign_members(db, campaign_id, reviewer_ids)
-    _verify_tasks_in_campaign(db, campaign_id, task_ids)
-
-    reviewable_ids = {task.id for task in _reviewable_tasks(db, campaign_id)}
-    not_reviewable = [tid for tid in task_ids if tid not in reviewable_ids]
-    if not_reviewable:
-        preview = ", ".join(str(tid) for tid in not_reviewable[:10])
+    reviewable_tasks = _reviewable_tasks(db, campaign_id, req.task_set_id)
+    if not reviewable_tasks:
         raise HTTPException(
-            status_code=400,
-            detail=(f"Task(s) {preview} have no primary assignment and cannot receive reviewers"),
+            status_code=404,
+            detail="No assigned tasks available for review in campaign",
         )
 
-    pairs = [
-        (task_id, user_id)
-        for task_id, user_ids in manual_assignments.items()
-        for user_id in user_ids
-    ]
-    new_pairs = _filter_new_pairs(db, pairs)
-
-    if new_pairs:
-        for task_id, user_id in new_pairs:
-            db.add(
-                AnnotationTaskAssignment(
-                    task_id=task_id,
-                    user_id=user_id,
-                    is_review=True,
-                )
+    if isinstance(req, ReviewShareOfTasks):
+        num_tasks = max(1, int(len(reviewable_tasks) * req.percentage / 100))
+    else:
+        num_tasks = req.num_tasks
+        if num_tasks > len(reviewable_tasks):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Requested {num_tasks} tasks but only {len(reviewable_tasks)} "
+                    "assigned task(s) are available for review"
+                ),
             )
-        db.commit()
 
-    return len(new_pairs)
-
-
-def _label_id_to_name(campaign: Campaign) -> dict[int, str]:
-    return label_id_to_name(campaign.settings.labels if campaign.settings else None)
+    tasks_to_review = random.sample(reviewable_tasks, num_tasks)
+    _top_up_review_assignments(db, tasks_to_review, req.reviewers_per_task, req.reviewer_ids)
+    return num_tasks
 
 
 def build_task_assignments_export(
@@ -516,7 +367,7 @@ def build_task_assignments_export(
     assignments needs the same list of valid emails.
     """
     campaign_id = campaign.id
-    label_names = _label_id_to_name(campaign)
+    label_names = label_id_to_name(campaign.settings.labels)
 
     task_query = select(AnnotationTask).where(AnnotationTask.campaign_id == campaign_id)
     if task_set_id is not None:

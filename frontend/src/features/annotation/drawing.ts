@@ -160,7 +160,6 @@ export async function commitEdit(): Promise<boolean> {
         label_id: edit.annotation.label_id,
         comment: edit.annotation.comment ?? null,
         geometry_wkt: geometryToWkt(edit.pending),
-        is_authoritative: null,
         ...(Object.keys(answers).length ? { form_values: answers } : {}),
       },
     });

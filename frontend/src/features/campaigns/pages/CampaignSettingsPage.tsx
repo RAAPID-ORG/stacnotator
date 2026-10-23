@@ -34,7 +34,7 @@ import {
   getProjectUsersOptions,
   listProjectCampaignsQueryKey,
   renameTimeseriesPanelMutation,
-  updateCampaignNameMutation,
+  updateCampaignMutation,
 } from '~/api/queries';
 import { useCampaign, useRefreshCampaign } from '../hooks/campaignQueries';
 
@@ -150,7 +150,7 @@ export const CampaignSettingsPage = () => {
   const projectUsers = projectUsersData?.users ?? NO_USERS;
 
   const renameCampaign = useMutation({
-    ...updateCampaignNameMutation(),
+    ...updateCampaignMutation(),
     meta: { errorMessage: t('settingsPage.errors.saveName') },
     onSuccess: () => {
       void refreshCampaign();

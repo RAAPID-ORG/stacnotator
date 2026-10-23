@@ -21,7 +21,7 @@ from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, A
 from src.annotation.service import (
     add_annotation_for_task,
     create_annotation,
-    create_annotations_bulk,
+    create_annotations,
     update_annotation,
 )
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience
@@ -77,7 +77,7 @@ class TestExploreAxisEnforcement:
 
         create_annotation(db, campaign, payload, uuid4())
 
-        db.add.assert_called()
+        db.add_all.assert_called()
 
     def test_create_annotation_denied_when_explore_is_no_one_even_for_admin(self):
         campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=[])))
@@ -91,7 +91,7 @@ class TestExploreAxisEnforcement:
 
         assert exc.value.status_code == 403
 
-    def test_create_annotations_bulk_denied_for_non_member(self):
+    def test_create_annotations_denied_for_non_member(self):
         campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
         db = _db(cu=None)
         payloads = [
@@ -99,16 +99,16 @@ class TestExploreAxisEnforcement:
         ]
 
         with pytest.raises(HTTPException) as exc:
-            create_annotations_bulk(db, campaign, payloads, uuid4())
+            create_annotations(db, campaign, payloads, uuid4())
 
         assert exc.value.status_code == 403
         db.add_all.assert_not_called()
 
-    def test_create_annotations_bulk_empty_list_skips_policy_check(self):
+    def test_create_annotations_empty_list_skips_policy_check(self):
         campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=[])))
         db = _db(cu=None)
 
-        assert create_annotations_bulk(db, campaign, [], uuid4()) == 0
+        assert create_annotations(db, campaign, [], uuid4()) == []
 
     def test_update_annotation_denied_for_non_member(self):
         campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
@@ -117,9 +117,7 @@ class TestExploreAxisEnforcement:
         existing.output_of_task_id = None
         existing.created_by_user_id = uuid4()
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         with pytest.raises(HTTPException) as exc:
             update_annotation(db, 5, payload, uuid4(), campaign=campaign)
@@ -135,9 +133,7 @@ class TestExploreAxisEnforcement:
         existing.created_by_user_id = user_id
         existing.form_values = None
         db.execute.return_value.scalar_one_or_none.return_value = existing
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         update_annotation(db, 5, payload, user_id, campaign=campaign)
 
@@ -152,9 +148,7 @@ class TestExploreAxisEnforcement:
         campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = None
-        payload = AnnotationUpdate(
-            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=1, comment=None, geometry_wkt=None)
 
         with pytest.raises(HTTPException) as exc:
             update_annotation(db, 5, payload, uuid4(), campaign=campaign)
@@ -173,9 +167,7 @@ class TestExploreAxisEnforcement:
         lookup query is always campaign-scoped (see
         test_update_annotation_wrong_campaign_returns_404)."""
         db = _db(cu=None)
-        payload = AnnotationUpdate(
-            label_id=2, comment=None, geometry_wkt=None, is_authoritative=None
-        )
+        payload = AnnotationUpdate(label_id=2, comment=None, geometry_wkt=None)
 
         with pytest.raises(TypeError):
             update_annotation(db, 5, payload, uuid4())

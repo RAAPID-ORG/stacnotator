@@ -304,15 +304,29 @@ class AnnotationTaskListOut(BaseModel):
     tasks: list[AnnotationTaskOut]
 
 
-class AnnotationFromTaskCreate(BaseModel):
-    label_id: int | None
-    comment: str | None = Field(max_length=5000)
+class _AnnotationFields(BaseModel):
+    """What every annotation write may carry besides its label and shape."""
+
+    comment: str | None = Field(default=None, max_length=5000)
     confidence: int | None = Field(default=None, ge=0, le=10)
-    is_authoritative: bool | None = None
     flagged_for_review: bool | None = None
     flag_comment: str | None = Field(default=None, max_length=5000)
     slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
     form_values: dict[str, FormValue] | None = None
+
+
+class _ImagerySnapshot(BaseModel):
+    """The imagery the annotator was looking at when drawing (see Annotation)."""
+
+    imagery_slice_id: int | None = None
+    imagery_source_name: str | None = None
+    imagery_start_date: str | None = None
+    imagery_end_date: str | None = None
+
+
+class AnnotationFromTaskCreate(_AnnotationFields):
+    label_id: int | None = None
+    is_authoritative: bool | None = None
     # Required for draw tasks; a classify submission's label already says it.
     outcome: TaskOutcome | None = None
     # Active time the client measured for this task since the last submit. Capped
@@ -362,19 +376,9 @@ class ClaimNextResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class AnnotationCreate(BaseModel):
+class AnnotationCreate(_AnnotationFields, _ImagerySnapshot):
     label_id: int
-    comment: str | None = Field(max_length=5000)
-    geometry_wkt: str  # Geometry in WKT format
-    confidence: int | None = Field(default=None, ge=0, le=10)
-    flagged_for_review: bool | None = None
-    flag_comment: str | None = Field(default=None, max_length=5000)
-    imagery_slice_id: int | None = None
-    imagery_source_name: str | None = None
-    imagery_start_date: str | None = None
-    imagery_end_date: str | None = None
-    slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
-    form_values: dict[str, FormValue] | None = None
+    geometry_wkt: str
     # The task the annotator was on when they drew this standalone annotation.
     origin_task_id: int | None = None
     # The draw task this shape answers. At most one of the two links is set.
@@ -467,20 +471,12 @@ class BatchCreateAnnotationsResponse(BaseModel):
     created_count: int
 
 
-class AnnotationUpdate(BaseModel):
-    label_id: int | None
-    comment: str | None = Field(max_length=5000)
-    geometry_wkt: str | None  # Geometry in WKT format
-    confidence: int | None = Field(default=None, ge=0, le=10)
-    is_authoritative: bool | None
-    flagged_for_review: bool | None = None
-    flag_comment: str | None = Field(default=None, max_length=5000)
-    imagery_slice_id: int | None = None
-    imagery_source_name: str | None = None
-    imagery_start_date: str | None = None
-    imagery_end_date: str | None = None
-    slice_comments: list[SliceComment] | None = Field(default=None, max_length=100)
-    form_values: dict[str, FormValue] | None = None
+class AnnotationUpdate(_AnnotationFields, _ImagerySnapshot):
+    """Fields left out stay as they are. The imagery snapshot only changes
+    together with the geometry."""
+
+    label_id: int | None = None
+    geometry_wkt: str | None = None
 
 
 class ValidateLabelSubmissionsResponse(BaseModel):
@@ -503,26 +499,3 @@ class ValidateLabelSubmissionsResponse(BaseModel):
         "disabled",
     ]
     agrees: bool | None = None
-
-
-class KnnValidationStatusOut(BaseModel):
-    """Summary of what the KNN label validator has available.
-
-    Used by the frontend to explain to annotators why validation may be
-    unavailable for a given task/label (e.g. not enough prior labels yet).
-    """
-
-    # True when an embedding year is set on the campaign. If false, nothing
-    # else in this response is meaningful.
-    enabled: bool
-    # Minimum number of embedded+labeled neighbours required for a specific
-    # label before validation runs for that label (k in kNN).
-    required_per_label: int
-    # Minimum total number of embedded+labeled tasks required in the campaign.
-    required_total: int
-    # Current total of distinct tasks that have both an embedding and at least
-    # one labeled annotation.
-    total_labeled_with_embedding: int
-    # Per-label count of distinct embedded tasks carrying that label. Key is
-    # label_id as a string (JSON object key convention).
-    per_label_counts: dict[str, int]

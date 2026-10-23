@@ -44,7 +44,6 @@ from src.annotation.schemas import (
     BatchDeleteAnnotationsResponse,
     ClaimNextResponse,
     ClaimTaskResponse,
-    KnnValidationStatusOut,
     TaskDensityCell,
     TaskStatusOut,
     ValidateLabelSubmissionsResponse,
@@ -202,7 +201,7 @@ def validate_task_label(
     - disabled - no embedding year configured for this campaign
     """
     # Short-circuit if no embedding year is configured
-    if not campaign.settings or campaign.settings.embedding_year is None:
+    if campaign.settings.embedding_year is None:
         return ValidateLabelSubmissionsResponse(status="disabled", agrees=None)
 
     return embeddings_service.validate_label_submission(
@@ -210,27 +209,6 @@ def validate_task_label(
         campaign_id=campaign_id,
         annotation_task_id=task_id,
         label_id=label_id,
-    )
-
-
-@router.get(
-    "/campaigns/{campaign_id}/knn-validation-status",
-    response_model=KnnValidationStatusOut,
-)
-def get_knn_validation_status(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    """Summarize how close the campaign is to having enough data for KNN
-    label validation. Used by the annotator UI to explain why validation
-    is unavailable on a given task/label.
-    """
-    embedding_year = campaign.settings.embedding_year if campaign.settings else None
-    return embeddings_service.get_validation_status(
-        db,
-        campaign_id=campaign_id,
-        embedding_year=embedding_year,
     )
 
 
@@ -333,13 +311,13 @@ def batch_create_annotations(
     Create many standalone annotations in one call (e.g. labelling many vector
     features at once), in a single transaction with one annotations-version bump.
     """
-    created = service.create_annotations_bulk(
+    created = service.create_annotations(
         db=db,
         campaign=campaign,
         annotations_create=req.annotations,
         user_id=user.id,
     )
-    return BatchCreateAnnotationsResponse(created_count=created)
+    return BatchCreateAnnotationsResponse(created_count=len(created))
 
 
 @router.put("/campaigns/{campaign_id}/annotations/{annotation_id}", response_model=AnnotationOut)
@@ -406,7 +384,7 @@ def batch_delete_annotations(
     Public campaigns: non-admins may only delete their own annotations.
     Task-linked annotations have their per-user assignment reset to 'pending'.
     """
-    deleted = service.delete_annotations_bulk(
+    deleted = service.delete_annotations(
         db=db,
         annotation_ids=req.annotation_ids,
         campaign=campaign,

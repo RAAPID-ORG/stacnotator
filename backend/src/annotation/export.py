@@ -40,7 +40,7 @@ def _resolve_label_name(campaign: Campaign, label_id: int | None) -> str | None:
     """Resolve a label ID to its name from campaign settings."""
     if label_id is None:
         return None
-    labels = campaign.settings.labels if campaign.settings else {}
+    labels = campaign.settings.labels
     label_id_str = str(label_id)
     if label_id_str in labels:
         name: str = labels[label_id_str]["name"]

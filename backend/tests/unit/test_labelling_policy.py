@@ -273,7 +273,7 @@ def test_update_labelling_policy_rejects_anyone_for_private_campaign():
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        service.update_labelling_policy(db, 1, req)
+        service.update_labelling_policy(db, campaign, req)
 
     assert exc_info.value.status_code == 400
     db.commit.assert_not_called()
@@ -289,7 +289,7 @@ def test_update_labelling_policy_allows_anyone_for_public_campaign():
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
 
-    result = service.update_labelling_policy(db, 1, req)
+    result = service.update_labelling_policy(db, campaign, req)
 
     assert result.explore.kinds == ["anyone"]
     db.commit.assert_called_once()
@@ -305,21 +305,11 @@ def test_update_labelling_policy_persists_without_anyone_on_private_campaign():
         complete_assigned=PolicyAudience(kinds=["admins"]),
     )
 
-    result = service.update_labelling_policy(db, 1, req)
+    result = service.update_labelling_policy(db, campaign, req)
 
     assert result.explore.kinds == ["members"]
     assert campaign.settings.labelling_policy["explore"]["kinds"] == ["members"]
     db.commit.assert_called_once()
-
-
-def test_update_labelling_policy_missing_campaign_raises_404():
-    db = MagicMock()
-    db.get.return_value = None
-
-    with pytest.raises(HTTPException) as exc_info:
-        service.update_labelling_policy(db, 1, default_labelling_policy())
-
-    assert exc_info.value.status_code == 404
 
 
 # ============================================================================

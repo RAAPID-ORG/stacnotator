@@ -470,14 +470,11 @@ class TestCommentLengthCaps:
             lambda text: AnnotationCreate(
                 label_id=1, comment=None, geometry_wkt="POINT (0 0)", flag_comment=text
             ),
-            lambda text: AnnotationUpdate(
-                label_id=1, comment=text, geometry_wkt=None, is_authoritative=None
-            ),
+            lambda text: AnnotationUpdate(label_id=1, comment=text, geometry_wkt=None),
             lambda text: AnnotationUpdate(
                 label_id=1,
                 comment=None,
                 geometry_wkt=None,
-                is_authoritative=None,
                 flag_comment=text,
             ),
         ],
@@ -485,16 +482,6 @@ class TestCommentLengthCaps:
     def test_comment_fields_reject_over_5000(self, build):
         with pytest.raises(ValidationError):
             build("x" * 5001)
-
-    def test_comment_stays_required_on_write_schemas(self):
-        # The 5000 cap must not silently turn comment optional (it is
-        # required-but-nullable); omitting it entirely still fails.
-        with pytest.raises(ValidationError):
-            AnnotationFromTaskCreate(label_id=1)
-        with pytest.raises(ValidationError):
-            AnnotationCreate(label_id=1, geometry_wkt="POINT (0 0)")
-        with pytest.raises(ValidationError):
-            AnnotationUpdate(label_id=1, geometry_wkt=None, is_authoritative=None)
 
 
 class TestSliceComments:

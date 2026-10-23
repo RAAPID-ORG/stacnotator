@@ -786,18 +786,6 @@ export const test = base.extend<AnnotatorFixtures>({
       await route.fulfill({ json: { status: 'ok' } });
     });
 
-    // GET /api/campaigns/:id/knn-validation-status (campaign-level KNN counts)
-    await page.route('**/api/campaigns/*/knn-validation-status', async (route) => {
-      await route.fulfill({
-        json: {
-          required_total: 5,
-          required_per_label: 3,
-          total_labeled_with_embedding: 0,
-          per_label_counts: {},
-        },
-      });
-    });
-
     // Navigate & wait for app to be ready
     await page.goto('/projects/7/campaigns/42/annotate');
 

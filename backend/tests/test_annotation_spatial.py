@@ -21,6 +21,7 @@ def _session(rows):
     result.scalars.return_value = rows
     result.all.return_value = rows
     result.first.return_value = rows[0] if rows else None
+    result.one.return_value = rows[0] if rows else None
     return db
 
 

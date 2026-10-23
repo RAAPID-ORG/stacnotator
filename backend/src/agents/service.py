@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session, aliased, joinedload
 
 from src.agents.models import LabellingAgent
 from src.agents.schemas import (
-    AgentAnnotate,
     AgentOut,
     AgentRegister,
     AgentsOverviewOut,
@@ -24,7 +23,7 @@ from src.annotation.models import (
     AnnotationTask,
     AnnotationTaskAssignment,
 )
-from src.annotation.schemas import AnnotationTaskSubmitResponse
+from src.annotation.schemas import AnnotationFromTaskCreate, AnnotationTaskSubmitResponse
 from src.auth.constants import AGENT_ISSUER
 from src.auth.models import User
 from src.campaigns.assignments import assign_tasks_to_users
@@ -378,7 +377,7 @@ def release_tasks(db: Session, owner: User, role: Role, agents: list[LabellingAg
 
 
 def submit_annotation(
-    db: Session, agent_id: UUID, owner: User, task_id: int, body: AgentAnnotate
+    db: Session, agent_id: UUID, owner: User, task_id: int, body: AnnotationFromTaskCreate
 ) -> AnnotationTaskSubmitResponse:
     agent, campaign, _ = get_agent(db, agent_id, owner)
     return annotation_service.submit_task_annotation(

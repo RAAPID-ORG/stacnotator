@@ -233,10 +233,10 @@ class AnnotationTaskAssignment(Base):
 
 class Annotation(Base):
     """
-    Represents a completed annotation with label and optional comment.
-    Can be created from a task or standalone. Multiple users can annotate
-    the same task for quality assurance purposes.
-    If no label is set, it indicates that the annotation was skipped with a comment.
+    A labelled shape. Either a task's row for one annotator (annotation_task_id,
+    which records the outcome, skips included), or standalone: drawn in Explore
+    (optionally remembering origin_task_id) or as a draw task's answer
+    (output_of_task_id).
     """
 
     if TYPE_CHECKING:

@@ -96,54 +96,6 @@ export type AddUsersByEmailResult = {
 };
 
 /**
- * AgentAnnotate
- */
-export type AgentAnnotate = {
-    /**
-     * Label Id
-     */
-    label_id: number | null;
-    /**
-     * Comment
-     */
-    comment?: string | null;
-    /**
-     * Confidence
-     */
-    confidence?: number | null;
-    /**
-     * Is Authoritative
-     */
-    is_authoritative?: boolean | null;
-    /**
-     * Flagged For Review
-     */
-    flagged_for_review?: boolean | null;
-    /**
-     * Flag Comment
-     */
-    flag_comment?: string | null;
-    /**
-     * Slice Comments
-     */
-    slice_comments?: Array<SliceComment> | null;
-    /**
-     * Form Values
-     */
-    form_values?: {
-        [key: string]: number | number | string | Array<number> | DateRangeValue;
-    } | null;
-    /**
-     * Outcome
-     */
-    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
-    /**
-     * Active Ms
-     */
-    active_ms?: number | null;
-};
-
-/**
  * AgentOut
  */
 export type AgentOut = {
@@ -342,30 +294,6 @@ export type AnnotationChangesOut = {
  */
 export type AnnotationCreate = {
     /**
-     * Label Id
-     */
-    label_id: number;
-    /**
-     * Comment
-     */
-    comment: string | null;
-    /**
-     * Geometry Wkt
-     */
-    geometry_wkt: string;
-    /**
-     * Confidence
-     */
-    confidence?: number | null;
-    /**
-     * Flagged For Review
-     */
-    flagged_for_review?: boolean | null;
-    /**
-     * Flag Comment
-     */
-    flag_comment?: string | null;
-    /**
      * Imagery Slice Id
      */
     imagery_slice_id?: number | null;
@@ -382,6 +310,22 @@ export type AnnotationCreate = {
      */
     imagery_end_date?: string | null;
     /**
+     * Comment
+     */
+    comment?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: number | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
+    /**
      * Slice Comments
      */
     slice_comments?: Array<SliceComment> | null;
@@ -391,6 +335,14 @@ export type AnnotationCreate = {
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
+    /**
+     * Label Id
+     */
+    label_id: number;
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt: string;
     /**
      * Origin Task Id
      */
@@ -464,21 +416,13 @@ export type AnnotationFacetsOut = {
  */
 export type AnnotationFromTaskCreate = {
     /**
-     * Label Id
-     */
-    label_id: number | null;
-    /**
      * Comment
      */
-    comment: string | null;
+    comment?: string | null;
     /**
      * Confidence
      */
     confidence?: number | null;
-    /**
-     * Is Authoritative
-     */
-    is_authoritative?: boolean | null;
     /**
      * Flagged For Review
      */
@@ -497,6 +441,14 @@ export type AnnotationFromTaskCreate = {
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
+    /**
+     * Label Id
+     */
+    label_id?: number | null;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative?: boolean | null;
     /**
      * Outcome
      */
@@ -935,36 +887,11 @@ export type AnnotationTaskSubmitResponse = {
 
 /**
  * AnnotationUpdate
+ *
+ * Fields left out stay as they are. The imagery snapshot only changes
+ * together with the geometry.
  */
 export type AnnotationUpdate = {
-    /**
-     * Label Id
-     */
-    label_id: number | null;
-    /**
-     * Comment
-     */
-    comment: string | null;
-    /**
-     * Geometry Wkt
-     */
-    geometry_wkt: string | null;
-    /**
-     * Confidence
-     */
-    confidence?: number | null;
-    /**
-     * Is Authoritative
-     */
-    is_authoritative: boolean | null;
-    /**
-     * Flagged For Review
-     */
-    flagged_for_review?: boolean | null;
-    /**
-     * Flag Comment
-     */
-    flag_comment?: string | null;
     /**
      * Imagery Slice Id
      */
@@ -982,6 +909,22 @@ export type AnnotationUpdate = {
      */
     imagery_end_date?: string | null;
     /**
+     * Comment
+     */
+    comment?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: number | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
+    /**
      * Slice Comments
      */
     slice_comments?: Array<SliceComment> | null;
@@ -991,6 +934,14 @@ export type AnnotationUpdate = {
     form_values?: {
         [key: string]: number | number | string | Array<number> | DateRangeValue;
     } | null;
+    /**
+     * Label Id
+     */
+    label_id?: number | null;
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt?: string | null;
 };
 
 /**
@@ -1120,53 +1071,6 @@ export type AssetInfo = {
      * Bands
      */
     bands?: Array<BandInfo>;
-};
-
-/**
- * AssignReviewersRequest
- *
- * Request to assign reviewers to tasks based on different patterns.
- *
- * Reviewers may only be assigned to tasks that already have a primary
- * (non-review) assignment. Each selected task is topped up to the requested
- * number of reviewers, so re-running does not stack additional reviewers on
- * tasks that already meet the target.
- */
-export type AssignReviewersRequest = {
-    /**
-     * Pattern
-     */
-    pattern: 'percentage' | 'manual' | 'fixed';
-    /**
-     * Percentage
-     */
-    percentage?: number | null;
-    /**
-     * Num Reviewers
-     */
-    num_reviewers?: number | null;
-    /**
-     * Reviewer Ids
-     */
-    reviewer_ids?: Array<string> | null;
-    /**
-     * Manual Assignments
-     */
-    manual_assignments?: {
-        [key: string]: Array<string>;
-    } | null;
-    /**
-     * Num Tasks
-     */
-    num_tasks?: number | null;
-    /**
-     * Fixed Num Reviewers
-     */
-    fixed_num_reviewers?: number | null;
-    /**
-     * Task Set Id
-     */
-    task_set_id?: number | null;
 };
 
 /**
@@ -1670,7 +1574,8 @@ export type CampaignOut = {
 /**
  * CampaignOutFull
  *
- * Campaign with canvas layout information extracted.
+ * A campaign with its main canvas layouts, validated with the viewer's
+ * user_id in the context so their personal layouts come along.
  */
 export type CampaignOutFull = {
     /**
@@ -1752,8 +1657,8 @@ export type CampaignOutFull = {
      * Time Series
      */
     time_series: Array<TimeSeriesOut>;
-    readonly default_main_canvas_layout: CanvasLayoutOut | null;
-    readonly personal_main_canvas_layout: CanvasLayoutOut | null;
+    default_main_canvas_layout?: CanvasLayoutOut | null;
+    personal_main_canvas_layout?: CanvasLayoutOut | null;
 };
 
 /**
@@ -1972,6 +1877,35 @@ export type CampaignSummaryOut = {
      */
     viewer_is_authoritative_reviewer?: boolean;
     settings: CampaignSettingsOut;
+};
+
+/**
+ * CampaignUpdate
+ *
+ * A partial update: only the fields sent are changed, and sending null
+ * clears the nullable ones.
+ */
+export type CampaignUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Guide Markdown
+     */
+    guide_markdown?: string | null;
+    /**
+     * Sample Extent Meters
+     */
+    sample_extent_meters?: number | null;
+    /**
+     * Research Sharing
+     */
+    research_sharing?: boolean | null;
+    /**
+     * Task Output
+     */
+    task_output?: 'classify' | 'draw' | null;
 };
 
 /**
@@ -3027,8 +2961,8 @@ export type ImageryViewOut = {
      * Source Ids
      */
     source_ids: Array<number>;
-    readonly default_canvas_layout: CanvasLayoutOut | null;
-    readonly personal_canvas_layout: CanvasLayoutOut | null;
+    default_canvas_layout?: CanvasLayoutOut | null;
+    personal_canvas_layout?: CanvasLayoutOut | null;
 };
 
 /**
@@ -3103,39 +3037,6 @@ export type InvitesListResponse = {
      * Items
      */
     items: Array<InviteOut>;
-};
-
-/**
- * KnnValidationStatusOut
- *
- * Summary of what the KNN label validator has available.
- *
- * Used by the frontend to explain to annotators why validation may be
- * unavailable for a given task/label (e.g. not enough prior labels yet).
- */
-export type KnnValidationStatusOut = {
-    /**
-     * Enabled
-     */
-    enabled: boolean;
-    /**
-     * Required Per Label
-     */
-    required_per_label: number;
-    /**
-     * Required Total
-     */
-    required_total: number;
-    /**
-     * Total Labeled With Embedding
-     */
-    total_labeled_with_embedding: number;
-    /**
-     * Per Label Counts
-     */
-    per_label_counts: {
-        [key: string]: number;
-    };
 };
 
 /**
@@ -4172,6 +4073,58 @@ export type RenderConfig = {
 };
 
 /**
+ * ReviewNumberOfTasks
+ */
+export type ReviewNumberOfTasks = {
+    /**
+     * Reviewer Ids
+     */
+    reviewer_ids: Array<string>;
+    /**
+     * Reviewers Per Task
+     */
+    reviewers_per_task: number;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
+    /**
+     * Pattern
+     */
+    pattern: 'fixed';
+    /**
+     * Num Tasks
+     */
+    num_tasks: number;
+};
+
+/**
+ * ReviewShareOfTasks
+ */
+export type ReviewShareOfTasks = {
+    /**
+     * Reviewer Ids
+     */
+    reviewer_ids: Array<string>;
+    /**
+     * Reviewers Per Task
+     */
+    reviewers_per_task: number;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
+    /**
+     * Pattern
+     */
+    pattern: 'percentage';
+    /**
+     * Percentage
+     */
+    percentage: number;
+};
+
+/**
  * SamplingStrategy
  *
  * The strategy a client sends as a JSON string in the multipart form.
@@ -4971,16 +4924,6 @@ export type UpdateCampaignFormFieldsRequest = {
 };
 
 /**
- * UpdateCampaignGuideRequest
- */
-export type UpdateCampaignGuideRequest = {
-    /**
-     * Guide Markdown
-     */
-    guide_markdown?: string | null;
-};
-
-/**
  * UpdateCampaignLabelsRequest
  *
  * Replace the campaign's label set. Existing label IDs are preserved (so
@@ -4991,16 +4934,6 @@ export type UpdateCampaignLabelsRequest = {
      * Labels
      */
     labels: Array<LabelBase>;
-};
-
-/**
- * UpdateCampaignNameRequest
- */
-export type UpdateCampaignNameRequest = {
-    /**
-     * Name
-     */
-    name: string;
 };
 
 /**
@@ -5037,36 +4970,6 @@ export type UpdateLabellingPolicyRequest = {
     assigned_tasks: PolicyAudience;
     complete_assigned: PolicyAudience;
     modify_others?: PolicyAudience;
-};
-
-/**
- * UpdateResearchSharingRequest
- */
-export type UpdateResearchSharingRequest = {
-    /**
-     * Research Sharing
-     */
-    research_sharing: boolean;
-};
-
-/**
- * UpdateSampleExtentRequest
- */
-export type UpdateSampleExtentRequest = {
-    /**
-     * Sample Extent Meters
-     */
-    sample_extent_meters?: number | null;
-};
-
-/**
- * UpdateTaskOutputRequest
- */
-export type UpdateTaskOutputRequest = {
-    /**
-     * Task Output
-     */
-    task_output: 'classify' | 'draw';
 };
 
 /**
@@ -5954,7 +5857,7 @@ export type CampaignOutWritable = {
     /**
      * Imagery Views
      */
-    imagery_views: Array<ImageryViewOutWritable>;
+    imagery_views: Array<ImageryViewOut>;
     /**
      * Basemaps
      */
@@ -5976,7 +5879,8 @@ export type CampaignOutWritable = {
 /**
  * CampaignOutFull
  *
- * Campaign with canvas layout information extracted.
+ * A campaign with its main canvas layouts, validated with the viewer's
+ * user_id in the context so their personal layouts come along.
  */
 export type CampaignOutFullWritable = {
     /**
@@ -6041,7 +5945,7 @@ export type CampaignOutFullWritable = {
     /**
      * Imagery Views
      */
-    imagery_views: Array<ImageryViewOutWritable>;
+    imagery_views: Array<ImageryViewOut>;
     /**
      * Basemaps
      */
@@ -6058,28 +5962,8 @@ export type CampaignOutFullWritable = {
      * Time Series
      */
     time_series: Array<TimeSeriesOutWritable>;
-};
-
-/**
- * ImageryViewOut
- */
-export type ImageryViewOutWritable = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Display Order
-     */
-    display_order: number;
-    /**
-     * Source Ids
-     */
-    source_ids: Array<number>;
+    default_main_canvas_layout?: CanvasLayoutOut | null;
+    personal_main_canvas_layout?: CanvasLayoutOut | null;
 };
 
 /**
@@ -7724,6 +7608,36 @@ export type GetCampaignResponses = {
 
 export type GetCampaignResponse = GetCampaignResponses[keyof GetCampaignResponses];
 
+export type UpdateCampaignData = {
+    body: CampaignUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}';
+};
+
+export type UpdateCampaignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCampaignError = UpdateCampaignErrors[keyof UpdateCampaignErrors];
+
+export type UpdateCampaignResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateCampaignResponse = UpdateCampaignResponses[keyof UpdateCampaignResponses];
+
 export type GetCampaignSummaryData = {
     body?: never;
     path: {
@@ -7813,126 +7727,6 @@ export type GetCampaignWithImageryWindowsResponses = {
 };
 
 export type GetCampaignWithImageryWindowsResponse = GetCampaignWithImageryWindowsResponses[keyof GetCampaignWithImageryWindowsResponses];
-
-export type UpdateCampaignNameData = {
-    body: UpdateCampaignNameRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/name';
-};
-
-export type UpdateCampaignNameErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignNameError = UpdateCampaignNameErrors[keyof UpdateCampaignNameErrors];
-
-export type UpdateCampaignNameResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignNameResponse = UpdateCampaignNameResponses[keyof UpdateCampaignNameResponses];
-
-export type UpdateResearchSharingData = {
-    body: UpdateResearchSharingRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/research-sharing';
-};
-
-export type UpdateResearchSharingErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateResearchSharingError = UpdateResearchSharingErrors[keyof UpdateResearchSharingErrors];
-
-export type UpdateResearchSharingResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateResearchSharingResponse = UpdateResearchSharingResponses[keyof UpdateResearchSharingResponses];
-
-export type UpdateTaskOutputData = {
-    body: UpdateTaskOutputRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-output';
-};
-
-export type UpdateTaskOutputErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateTaskOutputError = UpdateTaskOutputErrors[keyof UpdateTaskOutputErrors];
-
-export type UpdateTaskOutputResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateTaskOutputResponse = UpdateTaskOutputResponses[keyof UpdateTaskOutputResponses];
-
-export type UpdateCampaignGuideData = {
-    body: UpdateCampaignGuideRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/guide';
-};
-
-export type UpdateCampaignGuideErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignGuideError = UpdateCampaignGuideErrors[keyof UpdateCampaignGuideErrors];
-
-export type UpdateCampaignGuideResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignGuideResponse = UpdateCampaignGuideResponses[keyof UpdateCampaignGuideResponses];
 
 export type UpdateCampaignBboxData = {
     body: UpdateCampaignBBoxRequest;
@@ -8024,36 +7818,6 @@ export type UpdateCampaignFormFieldsResponses = {
 
 export type UpdateCampaignFormFieldsResponse = UpdateCampaignFormFieldsResponses[keyof UpdateCampaignFormFieldsResponses];
 
-export type UpdateSampleExtentData = {
-    body: UpdateSampleExtentRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/sample-extent';
-};
-
-export type UpdateSampleExtentErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateSampleExtentError = UpdateSampleExtentErrors[keyof UpdateSampleExtentErrors];
-
-export type UpdateSampleExtentResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateSampleExtentResponse = UpdateSampleExtentResponses[keyof UpdateSampleExtentResponses];
-
 export type UpdateEmbeddingYearData = {
     body: UpdateEmbeddingYearRequest;
     path: {
@@ -8144,42 +7908,6 @@ export type AssignTasksToUsersResponses = {
 
 export type AssignTasksToUsersResponse = AssignTasksToUsersResponses[keyof AssignTasksToUsersResponses];
 
-export type UnassignUserFromTaskData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Id
-         */
-        task_id: number;
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/unassign-user/{user_id}';
-};
-
-export type UnassignUserFromTaskErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UnassignUserFromTaskError = UnassignUserFromTaskErrors[keyof UnassignUserFromTaskErrors];
-
-export type UnassignUserFromTaskResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
 export type BatchUnassignTasksData = {
     body: UnassignTasksRequest;
     path: {
@@ -8209,7 +7937,14 @@ export type BatchUnassignTasksResponses = {
 };
 
 export type AssignReviewersData = {
-    body: AssignReviewersRequest;
+    /**
+     * Req
+     */
+    body: ({
+        pattern: 'percentage';
+    } & ReviewShareOfTasks) | ({
+        pattern: 'fixed';
+    } & ReviewNumberOfTasks);
     path: {
         /**
          * Campaign Id
@@ -8738,36 +8473,6 @@ export type ValidateTaskLabelResponses = {
 };
 
 export type ValidateTaskLabelResponse = ValidateTaskLabelResponses[keyof ValidateTaskLabelResponses];
-
-export type GetKnnValidationStatusData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/knn-validation-status';
-};
-
-export type GetKnnValidationStatusErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetKnnValidationStatusError = GetKnnValidationStatusErrors[keyof GetKnnValidationStatusErrors];
-
-export type GetKnnValidationStatusResponses = {
-    /**
-     * Successful Response
-     */
-    200: KnnValidationStatusOut;
-};
-
-export type GetKnnValidationStatusResponse = GetKnnValidationStatusResponses[keyof GetKnnValidationStatusResponses];
 
 export type IngestAnnotationTasksFromCsvData = {
     body: BodyIngestAnnotationTasksFromCsv;
@@ -11519,7 +11224,7 @@ export type NextAgentTasksResponses = {
 export type NextAgentTasksResponse = NextAgentTasksResponses[keyof NextAgentTasksResponses];
 
 export type AnnotateAgentTaskData = {
-    body: AgentAnnotate;
+    body: AnnotationFromTaskCreate;
     path: {
         /**
          * Agent Id

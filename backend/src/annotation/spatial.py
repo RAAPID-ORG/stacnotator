@@ -202,10 +202,8 @@ def _density_cell_size(
             CampaignSettings.bbox_east,
             CampaignSettings.bbox_north,
         ).where(CampaignSettings.campaign_id == campaign_id)
-    ).first()
-    if settings is None:
-        return 0.01
-    return density_grid((settings[0], settings[1], settings[2], settings[3]), target_cells)
+    ).one()
+    return density_grid(tuple(settings), target_cells)
 
 
 def get_annotation_density(
@@ -265,9 +263,9 @@ def get_annotation_changes(
     """Annotations created or edited since ``since``, newest cursor first.
 
     Backs the poll that lets one annotator see another's work without either of
-    them refetching tiles. Deletions are deliberately not reported: there is no
-    tombstone to read, so a deletion by someone else shows up when the tiles are
-    next fetched. Returns the rows and whether more were waiting than the limit.
+    them refetching tiles; deletions come from the tombstones
+    (service.get_deleted_annotation_ids). Returns the rows and whether more were
+    waiting than the limit.
     """
     # A cursor without an offset would be compared in whatever timezone the
     # database session happens to run in, which is hours of annotations either

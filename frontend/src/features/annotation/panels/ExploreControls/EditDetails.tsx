@@ -46,7 +46,6 @@ function DetailsForm({ annotation }: { annotation: AnnotationOut }) {
           label_id: labelId,
           comment: annotation.comment ?? null,
           geometry_wkt: null,
-          is_authoritative: null,
           // Always the full answer set: {} would clear the stored answers,
           // and the backend re-checks required fields against the new label.
           form_values: values,

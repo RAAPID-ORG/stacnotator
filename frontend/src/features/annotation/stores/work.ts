@@ -312,7 +312,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
           label_id: labelId,
           comment: comment || null,
           geometry_wkt: geometryToWkt(geometry),
-          is_authoritative: null,
           form_values: formValues,
           slice_comments: listNotes(sliceNotes),
         },
@@ -653,7 +652,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
             label_id: annotation.label_id,
             comment: annotation.comment ?? null,
             geometry_wkt: null,
-            is_authoritative: null,
             slice_comments: next,
           },
         });
@@ -682,7 +680,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
             label_id: annotation.label_id,
             comment: annotation.comment ?? null,
             geometry_wkt: null,
-            is_authoritative: null,
             flagged_for_review: flagged,
             flag_comment: flagged ? comment : null,
           },

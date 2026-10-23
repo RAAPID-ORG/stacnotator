@@ -628,10 +628,8 @@ def options(db: Session, project_id: int) -> VisualizerOptionsOut:
     )
 
 
-def _campaign_area(campaign: Campaign) -> VisualizerArea | None:
+def _campaign_area(campaign: Campaign) -> VisualizerArea:
     settings = campaign.settings
-    if settings is None:
-        return None
     return VisualizerArea(
         west=settings.bbox_west,
         south=settings.bbox_south,
