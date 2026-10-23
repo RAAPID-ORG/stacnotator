@@ -27,7 +27,6 @@
     "home": "Inicio",
     "projects": "Proyectos",
     "project": "Proyecto",
-    "settings": "Configuración",
     "openMenu": "Abrir menú",
     "expandSidebar": "Expandir barra lateral",
     "collapseSidebar": "Contraer barra lateral",
@@ -42,6 +41,7 @@
     "awaitingApproval": "organizaciones pendientes de aprobación",
     "accountMenu": "Cuenta y organización",
     "accountSettings": "Configuración de la cuenta",
+    "organizationSettings": "Configuración de la organización",
     "signOut": "Cerrar sesión",
     "signOutFailed": "No se pudo cerrar sesión",
     "projectSections": {

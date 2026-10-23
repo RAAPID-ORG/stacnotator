@@ -122,12 +122,6 @@ export const MenuItem = ({
   );
 };
 
-export const MenuLabel = ({ children }: { children: ReactNode }) => (
-  <div className="px-2 pt-1.5 pb-1 text-[11px] font-medium text-neutral-400 truncate">
-    {children}
-  </div>
-);
-
 export const MenuSeparator = () => (
   <div role="separator" className="my-1 border-t border-neutral-100" />
 );

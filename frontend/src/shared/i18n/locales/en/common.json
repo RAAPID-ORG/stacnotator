@@ -27,7 +27,6 @@
     "home": "Home",
     "projects": "Projects",
     "project": "Project",
-    "settings": "Settings",
     "openMenu": "Open menu",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
@@ -42,6 +41,7 @@
     "awaitingApproval": "organizations awaiting approval",
     "accountMenu": "Account and organization",
     "accountSettings": "Account settings",
+    "organizationSettings": "Organization settings",
     "signOut": "Sign out",
     "signOutFailed": "Sign out failed",
     "projectSections": {
