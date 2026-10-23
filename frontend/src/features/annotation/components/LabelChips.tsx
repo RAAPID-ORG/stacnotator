@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { chipGridStyle } from './chipGrid';
 
 export interface LabelChipItem {
   id: number;
@@ -53,11 +54,7 @@ export function LabelChips<L extends LabelChipItem>({
   return (
     <div
       className={minWidth != null ? 'grid gap-1' : 'flex flex-wrap gap-1.5'}
-      style={
-        minWidth != null
-          ? { gridTemplateColumns: `repeat(auto-fit, minmax(min(${minWidth}px, 100%), 1fr))` }
-          : undefined
-      }
+      style={minWidth != null ? chipGridStyle(minWidth) : undefined}
     >
       {visible.map((label, index) => {
         const selected = selectedId === label.id;

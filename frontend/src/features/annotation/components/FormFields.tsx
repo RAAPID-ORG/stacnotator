@@ -1,6 +1,7 @@
 import type { DateRangeValue } from '~/api/client';
 import { DateField } from '~/shared/ui/forms';
 import { scrollableParent } from '~/shared/utils/scroll';
+import { chipGridStyle } from './chipGrid';
 import type { FormField } from '../campaign/annotation';
 import {
   applyCategoryOption,
@@ -47,8 +48,9 @@ export interface FormFieldsProps {
  *  one custom field. Shared so every group in the panel reads the same. */
 export const activeGroupClass = 'ring-1 ring-inset ring-brand-500/50 rounded bg-brand-50/35';
 
+// Laid out and sized like the label chips, so every choice in the panel reads the same.
 const optionButtonClass = (selected: boolean, disabled: boolean) =>
-  `w-40 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex justify-between items-center ${
+  `min-w-0 text-left px-2.5 py-1 text-[11px] font-medium rounded transition-colors flex gap-2 justify-between items-center ${
     selected
       ? 'bg-brand-50 text-brand-700 border-brand-600 border font-semibold'
       : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border-neutral-200 border'
@@ -127,7 +129,7 @@ function CategoryField({
   const handleClick = (optionId: number) => onChange(applyCategoryOption(values, field, optionId));
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="grid gap-1" style={chipGridStyle()}>
       {field.options.map((option, index) => {
         const selected = isSelected(option.id);
         return (
@@ -138,11 +140,13 @@ function CategoryField({
             className={optionButtonClass(selected, disabled)}
             onClick={() => handleClick(option.id)}
           >
-            <span className="truncate">
+            <span className="min-w-0 break-words leading-tight">
               {selected ? '✓ ' : ''}
               {option.name}
             </span>
-            <span className="text-neutral-400 text-[10px] ml-1 tabular-nums">{index + 1}</span>
+            <span className="text-neutral-400 text-[10px] ml-1 shrink-0 tabular-nums">
+              {index + 1}
+            </span>
           </button>
         );
       })}
