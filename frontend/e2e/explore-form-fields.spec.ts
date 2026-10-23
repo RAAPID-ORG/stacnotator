@@ -155,6 +155,9 @@ test.describe('Explore custom-field catalog', () => {
     await drawPolygon(annotationPage, POLY);
     await expect(catalog(annotationPage)).toBeVisible();
 
+    // The first Escape leaves the active question, the second closes the draft.
+    await annotationPage.keyboard.press('Escape');
+    await expect(catalog(annotationPage)).toBeVisible();
     await annotationPage.keyboard.press('Escape');
     await expect(catalog(annotationPage)).toHaveCount(0);
     expect(createPosts(api)).toHaveLength(0);

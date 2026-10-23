@@ -120,9 +120,10 @@ test.describe('Chart options menu', () => {
 
   test('clicking outside closes the menu', async ({ annotationPage }) => {
     await openOptions(annotationPage);
-    await chart(annotationPage)
-      .locator('canvas')
-      .click({ position: { x: 5, y: 5 } });
+    // The menu opens over the chart's top corner, so click the far corner.
+    const canvas = chart(annotationPage).locator('canvas');
+    const box = (await canvas.boundingBox())!;
+    await canvas.click({ position: { x: box.width - 10, y: box.height - 10 } });
     await expect(smoothToggle(annotationPage)).toHaveCount(0);
   });
 });

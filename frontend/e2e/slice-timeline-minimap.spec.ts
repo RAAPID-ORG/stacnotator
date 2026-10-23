@@ -51,7 +51,7 @@ const windowSliceBtn = (page: Page, collectionId: number) =>
   windowPanel(page, collectionId).locator('button[title="Select time slice"]');
 
 // Exactly one imagery window header marks itself as the active collection.
-const activeWindowName = (page: Page) => page.locator('[data-window-active="true"]');
+const activeWindowName = (page: Page) => page.locator('[data-window-active="true"] > span').first();
 
 // Open a HeaderSelect dropdown and click an option by its label text.
 async function selectFromDropdown(page: Page, trigger: Locator, optionText: string) {
