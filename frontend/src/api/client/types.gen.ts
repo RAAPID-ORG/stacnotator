@@ -4263,9 +4263,9 @@ export type SliceTileUrlOut = {
      */
     tile_url: string;
     /**
-     * Tile Provider
+     * Tiler
      */
-    tile_provider?: string | null;
+    tiler?: string | null;
     /**
      * Mosaic Id
      */
@@ -5564,9 +5564,9 @@ export type VisualizerTileOut = {
      */
     url: string;
     /**
-     * Provider
+     * Tiler
      */
-    provider: string | null;
+    tiler: string | null;
 };
 
 /**

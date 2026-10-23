@@ -14,7 +14,7 @@ const step = (id: number, start: string, end: string, viz = 'True Color'): Visua
   label: start,
   start_date: start,
   end_date: end,
-  tiles: { [viz]: { url: `https://tiles/${id}/{z}/{x}/{y}`, provider: 'mpc' } },
+  tiles: { [viz]: { url: `https://tiles/${id}/{z}/{x}/{y}`, tiler: 'mpc' } },
 });
 
 const source = (over: Partial<VisualizerImageryOut> = {}): VisualizerImageryOut => ({
@@ -205,7 +205,7 @@ describe('composeLayers', () => {
             {
               ...step(3, '2024-01-01', '2024-01-31'),
               tiles: {
-                'True Color': { url: 'https://p/{z}/{x}/{y}?key={api_key}', provider: null },
+                'True Color': { url: 'https://p/{z}/{x}/{y}?key={api_key}', tiler: null },
               },
             },
           ],

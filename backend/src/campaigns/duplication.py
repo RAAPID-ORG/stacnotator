@@ -118,12 +118,12 @@ def unmet_org_requirements(
     # What the collections are pinned to, plus what registration actually
     # resolved them to: a campaign can be either side of a registration run.
     pinned = db.scalars(
-        select(CollectionStacConfig.tile_provider).where(
+        select(CollectionStacConfig.tiler).where(
             CollectionStacConfig.collection_id.in_(collections)
         )
     )
     registered = db.scalars(
-        select(SliceTileUrl.tile_provider)
+        select(SliceTileUrl.tiler)
         .join(ImagerySlice, ImagerySlice.id == SliceTileUrl.slice_id)
         .where(ImagerySlice.collection_id.in_(collections))
     )

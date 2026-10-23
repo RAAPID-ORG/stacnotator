@@ -100,7 +100,7 @@ def test_roi_reregistration_rebuilds_saved_slices_without_holding_a_transaction(
         stac_config=CollectionStacConfig(
             catalog_url=MPC_STAC_URL,
             stac_collection_id="sentinel-2-l2a",
-            tile_provider="test-tiler",
+            tiler="test-tiler",
             search_query={"collections": ["sentinel-2-l2a"], "limit": 10},
             cover_search_query={"collections": ["sentinel-2-l2a"], "limit": 20},
             internal_storage=True,

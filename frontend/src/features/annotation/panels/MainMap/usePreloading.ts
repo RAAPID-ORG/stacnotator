@@ -191,7 +191,7 @@ export function visibleSliceJobs({
       urlTemplate: spec.url,
       extent: extentAround(around, zoom, viewportPx),
       zoom,
-      tileProvider: slice.tile_urls[0]?.tile_provider ?? null,
+      tiler: slice.tile_urls[0]?.tiler ?? null,
     });
   }
 

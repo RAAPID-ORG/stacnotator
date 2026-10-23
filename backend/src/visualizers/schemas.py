@@ -76,7 +76,7 @@ class VisualizerTileOut(BaseModel):
     url: str
     # "mpc", a hosted tiler name, or null for a direct XYZ template. Decides
     # whether the browser must send its tiler cookie with the tile request.
-    provider: str | None
+    tiler: str | None
 
 
 class VisualizerStepOut(BaseModel):

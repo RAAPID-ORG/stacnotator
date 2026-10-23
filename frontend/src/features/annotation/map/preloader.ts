@@ -9,7 +9,7 @@ export interface PreloadJob {
   urlTemplate: string; // Fully-resolved XYZ tile URL template (contains {z}, {x}, {y}).
   extent: Bbox;
   zoom: number;
-  tileProvider?: string | null; // "mpc" / tiler name / null - drives crossOrigin + cookie.
+  tiler?: string | null; // "mpc" / tiler name / null - drives crossOrigin + cookie.
 }
 
 /** The slice of HTMLImageElement the preloader drives; injectable so tests stay headless. */
@@ -187,7 +187,7 @@ export class TilePreloader {
 
   private expandAndEnqueue(jobs: PreloadJob[]): void {
     for (const job of jobs) {
-      const crossOrigin = crossOriginForTile(job.urlTemplate, job.tileProvider);
+      const crossOrigin = crossOriginForTile(job.urlTemplate, job.tiler);
       const counts = this.countsFor(job.groupId);
       for (const url of tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom)) {
         counts.total++;

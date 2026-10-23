@@ -212,7 +212,7 @@ def _existing_config(
     max_cloud_cover=20.0,
     search_query=None,
     cover_search_query=None,
-    tile_provider=None,
+    tiler=None,
     internal_storage=False,
 ):
     return SimpleNamespace(
@@ -220,7 +220,7 @@ def _existing_config(
         max_cloud_cover=max_cloud_cover,
         search_query=search_query,
         cover_search_query=cover_search_query,
-        tile_provider=tile_provider,
+        tiler=tiler,
         internal_storage=internal_storage,
     )
 
@@ -269,7 +269,7 @@ def test_stac_config_changed_no_existing_config_always_changed():
 
 
 def test_stac_config_changed_identical_config_is_unchanged():
-    existing = _existing_config(viz_configs=[_existing_viz()], tile_provider="mpc")
+    existing = _existing_config(viz_configs=[_existing_viz()], tiler="mpc")
     incoming = _incoming_config(visualizations=[_incoming_viz()], tiler="mpc")
 
     assert _stac_config_changed(existing, incoming) is False
@@ -322,7 +322,7 @@ def test_stac_config_changed_cover_search_query_change_is_detected():
 
 
 def test_stac_config_changed_tiler_change_is_detected():
-    existing = _existing_config(viz_configs=[_existing_viz()], tile_provider="mpc")
+    existing = _existing_config(viz_configs=[_existing_viz()], tiler="mpc")
     incoming = _incoming_config(visualizations=[_incoming_viz()], tiler="planetary-tiler")
 
     assert _stac_config_changed(existing, incoming) is True

@@ -9,7 +9,7 @@ const step = (id: number, start: string, end: string, label: string) => ({
   label,
   start_date: start,
   end_date: end,
-  tiles: { 'True Color': { url: `https://tiles.test/${id}/{z}/{x}/{y}.png`, provider: 'mpc' } },
+  tiles: { 'True Color': { url: `https://tiles.test/${id}/{z}/{x}/{y}.png`, tiler: 'mpc' } },
 });
 
 const SHARED_VISUALIZER = {

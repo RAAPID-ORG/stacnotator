@@ -556,7 +556,6 @@ export const MOCK_TIMESERIES_ENTRY = {
   start_ym: '202401',
   end_ym: '202406',
   data_source: 'Sentinel-2',
-  provider: 'planetary',
   ts_type: 'NDVI',
   index: {
     key: 'NDVI',
@@ -760,7 +759,6 @@ export const MONTHS_TIMESERIES_ENTRY = {
   start_ym: '202201',
   end_ym: '202212',
   data_source: 'Imagery',
-  provider: 'planetary',
   ts_type: 'NDVI',
   index: {
     key: 'NDVI',

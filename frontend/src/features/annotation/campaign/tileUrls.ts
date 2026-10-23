@@ -1,9 +1,8 @@
 import {
   campaignProxyBase,
-  isProxiedTileUrl,
-  isSelfHostedTiler,
   needsKeyProxy,
   sliceProxyUrl,
+  tileAuth,
 } from '~/shared/imagery/tileUrls';
 import { stampLegendOverride, type LegendOverride } from '~/shared/imagery/tileColors';
 import type { ImageryCatalog } from './imagery';
@@ -122,7 +121,7 @@ export function sliceRaster(
   return {
     id: `slice-${slice.id}-${viz.id}`,
     url,
-    auth: isProxiedTileUrl(url) || isSelfHostedTiler(entry.tile_provider) ? 'cookie' : 'none',
+    auth: tileAuth(url, entry.tiler),
     maxZoom: source.max_native_zoom ?? undefined,
   };
 }

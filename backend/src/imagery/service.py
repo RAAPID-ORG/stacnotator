@@ -486,21 +486,21 @@ def _save_stac_config(
         )
         db.add(stac)
     before = (
-        stac.tile_provider,
+        stac.tiler,
         stac.max_cloud_cover,
         stac.search_query,
         stac.cover_search_query,
         stac.internal_storage,
         {vc.name: (vc.render_params, vc.cover_render_params) for vc in collection.viz_configs},
     )
-    stac.tile_provider = incoming.tiler
+    stac.tiler = incoming.tiler
     stac.max_cloud_cover = incoming.max_cloud_cover
     stac.search_query = incoming.search_query
     stac.cover_search_query = incoming.cover_search_query if has_cover else None
     stac.internal_storage = incoming.internal_storage
     _save_viz_configs(db, collection, incoming.visualizations)
     after = (
-        stac.tile_provider,
+        stac.tiler,
         stac.max_cloud_cover,
         stac.search_query,
         stac.cover_search_query,

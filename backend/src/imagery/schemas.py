@@ -22,7 +22,7 @@ class SliceTileUrlOut(BaseModel):
     id: int
     visualization_name: str
     tile_url: str
-    tile_provider: str | None = None
+    tiler: str | None = None
     mosaic_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -54,8 +54,8 @@ class CollectionVizConfigOut(BaseModel):
 class CollectionStacConfigOut(BaseModel):
     catalog_url: str | None = None
     stac_collection_id: str | None = None
-    # API name `tiler`, ORM column `tile_provider`. null => default tiler.
-    tiler: str | None = Field(default=None, validation_alias="tile_provider")
+    # null => default tiler.
+    tiler: str | None = None
     viz_configs: list[CollectionVizConfigOut] = []
     max_cloud_cover: float | None = None
     search_query: dict | None = None
@@ -64,7 +64,7 @@ class CollectionStacConfigOut(BaseModel):
     # The private catalog's access, as its kind and expiry only - never the secret.
     storage_access: StorageAccessOut | None = None
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ImageryCollectionOut(BaseModel):

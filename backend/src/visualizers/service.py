@@ -486,7 +486,7 @@ def _imagery_out(source: ImagerySource, visualizer: Visualizer) -> list[Visualiz
     """
     tiles_by_slice = {
         s.id: {
-            t.visualization_name: VisualizerTileOut(url=t.tile_url, provider=t.tile_provider)
+            t.visualization_name: VisualizerTileOut(url=t.tile_url, tiler=t.tiler)
             for t in s.tile_urls
         }
         for collection in source.collections

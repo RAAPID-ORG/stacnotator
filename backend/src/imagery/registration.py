@@ -336,7 +336,7 @@ def _register_all_stac_browser_collections(
                     slice_id=slice_id,
                     visualization_name=viz_name,
                     tile_url=tile_url,
-                    tile_provider=provider_name,
+                    tiler=provider_name,
                     mosaic_id=ref,
                 )
             )
@@ -574,7 +574,7 @@ def stored_spec(collection: ImageryCollection) -> StacRegistrationSpec | None:
         stac_config=CollectionStacConfigCreate(
             catalog_url=stac.catalog_url,
             stac_collection_id=stac.stac_collection_id,
-            tiler=stac.tile_provider,
+            tiler=stac.tiler,
             max_cloud_cover=stac.max_cloud_cover,
             search_query=copy.deepcopy(stac.search_query),
             cover_search_query=copy.deepcopy(stac.cover_search_query),
@@ -634,12 +634,12 @@ def _reingest_collection(collection: ImageryCollection, bbox: list[float]) -> No
     access = storage_access.stored(stac)
     for sl in collection.slices:
         hosted = next(
-            (tu for tu in sl.tile_urls if tu.tile_provider not in (None, "mpc") and tu.mosaic_id),
+            (tu for tu in sl.tile_urls if tu.tiler not in (None, "mpc") and tu.mosaic_id),
             None,
         )
         if hosted is None:
             continue
-        tiler = providers.resolve_tiler(hosted.tile_provider)
+        tiler = providers.resolve_tiler(hosted.tiler)
         if not tiler.allows_ingest:
             continue
         try:

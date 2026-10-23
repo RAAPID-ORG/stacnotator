@@ -10,10 +10,16 @@ export function isProxiedTileUrl(url: string): boolean {
 }
 
 /** True for one of our titiler-pgstac tilers, which need cookie auth.
- *  `provider` is "mpc" for MPC-direct, null for a direct URL, or a configured
+ *  `tiler` is "mpc" for MPC-direct, null for a direct URL, or a configured
  *  tiler name for ours. */
-export function isSelfHostedTiler(provider?: string | null): boolean {
-  return !!provider && provider !== 'mpc';
+export function isSelfHostedTiler(tiler?: string | null): boolean {
+  return !!tiler && tiler !== 'mpc';
+}
+
+/** Whether a tile request must carry the tiler cookie: our proxy routes and our
+ *  own tilers do; MPC and any direct third-party URL must not. */
+export function tileAuth(url: string, tiler?: string | null): 'cookie' | 'none' {
+  return isProxiedTileUrl(url) || isSelfHostedTiler(tiler) ? 'cookie' : 'none';
 }
 
 /** Where a key-protected basemap's tiles are fetched from: the provider

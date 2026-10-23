@@ -7,6 +7,7 @@ import {
   isProxiedTileUrl,
   needsKeyProxy,
   sliceProxyUrl,
+  tileAuth,
 } from '~/shared/imagery/tileUrls';
 import { DEFAULT_MAP_ZOOM } from '~/shared/map/Camera';
 import type { LayerSpec } from '~/shared/map/types';
@@ -210,7 +211,7 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
       kind: 'raster',
       id: `slice-${step.slice_id}-${state.visualization ?? 'default'}`,
       url,
-      auth: tile.provider === 'mpc' ? 'none' : 'cookie',
+      auth: tileAuth(url, tile.tiler),
       maxZoom: source.max_native_zoom ?? undefined,
       zIndex: 1,
       preload: 1,
@@ -291,7 +292,9 @@ export function zoomedPastArea(
 export function needsTilerSession(view: VisualizerViewOut): boolean {
   const imagery = view.imagery.some((source) =>
     source.steps.some((step) =>
-      Object.values(step.tiles).some((tile) => tile.provider !== 'mpc' || source.has_api_key)
+      Object.values(step.tiles).some(
+        (tile) => tileAuth(tile.url, tile.tiler) === 'cookie' || source.has_api_key
+      )
     )
   );
   return (

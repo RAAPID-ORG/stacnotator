@@ -223,7 +223,7 @@ describe('sliceRaster', () => {
 
   it('sends the tiler cookie to our self-hosted tiler', () => {
     const hosted = structuredClone(source);
-    hosted.collections[0].slices[0].tile_urls[0].tile_provider = 'default';
+    hosted.collections[0].slices[0].tile_urls[0].tiler = 'default';
     const spec = sliceRaster(buildImageryCatalog(makeCampaign({ imagery_sources: [hosted] })), {
       sourceId: 1,
       collectionId: 10,

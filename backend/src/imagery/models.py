@@ -285,7 +285,7 @@ class CollectionStacConfig(Base):
     catalog_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     stac_collection_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # Hosted tiler name (a Settings.TILERS key); null => DEFAULT_TILER.
-    tile_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tiler: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Max cloud cover percentage for STAC search filtering
     max_cloud_cover: Mapped[float | None] = mapped_column(nullable=True)
     # Custom CQL2-JSON search query (when set, used instead of auto-generated query)
@@ -360,7 +360,7 @@ class SliceTileUrl(Base):
     visualization_name: Mapped[str] = mapped_column(String, nullable=False)
     tile_url: Mapped[str] = mapped_column(Text, nullable=False)
     # "mpc" or a configured tiler name (Settings.TILERS); null = direct/manual URL.
-    tile_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tiler: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # The provider's id for the registered set of items this URL renders: an MPC
     # searchid or a titiler-pgstac id. What is stored to reconstruct it is the
     # generation config, never the item list.
