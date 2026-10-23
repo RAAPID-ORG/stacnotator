@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '~/shared/ui/Icons';
 import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.store';
 import { isRemovingLabel, maySubmitTask } from '../../campaign/annotation';
@@ -21,7 +22,7 @@ const textareaClass =
   'w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors';
 
 const navButtonClass =
-  'flex-1 min-w-7 h-8 flex items-center justify-center gap-1 px-2 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer';
+  'flex-1 min-w-7 h-7 flex items-center justify-center gap-1 px-2 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer';
 
 /** Form fields render one cell each, so they slot into whichever grid holds
  *  them rather than bringing a cell of their own. */
@@ -147,6 +148,9 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
   const goToAnnotationNumber = useTasksStore((s) => s.goToAnnotationNumber);
   const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const showAlert = useAppLayoutStore((s) => s.showAlert);
+  // Kept across tasks: a reviewer settling a batch of tasks settles them all.
+  const [authoritative, setAuthoritative] = useState(false);
+  const asAuthoritative = authoritative && campaign.viewer_is_authoritative_reviewer === true;
 
   const hasExistingLabel =
     task.annotations.find((a) => a.created_by_user_id === currentUserId)?.label_id != null;
@@ -159,14 +163,16 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
   const isSkipDisabled = isBusy || !mayLabel;
   const submitLabel = isBusy
     ? 'Submitting…'
-    : isRemovingLabel(readiness)
-      ? 'Remove Label'
-      : hasExistingLabel
-        ? 'Update'
-        : 'Submit';
+    : asAuthoritative
+      ? 'Submit authoritative'
+      : isRemovingLabel(readiness)
+        ? 'Remove Label'
+        : hasExistingLabel
+          ? 'Update'
+          : 'Submit';
 
   return (
-    <div className="shrink-0 flex flex-col gap-2 p-3 border-t border-neutral-200 bg-neutral-50/60">
+    <div className="shrink-0 flex flex-col gap-1.5 px-3 py-2 border-t border-neutral-200 bg-neutral-50/60">
       {!mayLabel && (
         <p
           data-testid="policy-not-allowed-notice"
@@ -181,13 +187,24 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div className="flex min-w-0 flex-[1_1_12rem] gap-1.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-1.5">
           <button
             type="button"
             disabled={isSubmitDisabled}
-            onClick={() => void submitAnnotation()}
-            className="flex-1 inline-flex items-center justify-center h-8 px-3 text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 rounded-md shadow-sm transition-colors disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed"
+            onClick={() => void (asAuthoritative ? submitAuthoritative() : submitAnnotation())}
+            title={
+              asAuthoritative
+                ? isAssignedToTask
+                  ? 'Submit as authoritative: overrides any other annotators on this task and marks it completed, even if their labels disagree.'
+                  : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
+                : undefined
+            }
+            className={`flex-1 min-w-0 inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-white rounded-md shadow-sm transition-colors whitespace-nowrap disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed ${
+              asAuthoritative
+                ? 'bg-amber-600 hover:bg-amber-700'
+                : 'bg-brand-600 hover:bg-brand-700'
+            }`}
           >
             {submitLabel}
           </button>
@@ -196,10 +213,29 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
             disabled={isSkipDisabled}
             title={!mayLabel ? 'You are not allowed to label this task' : undefined}
             onClick={() => void skipCurrent()}
-            className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center h-7 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Skip
           </button>
+          {campaign.viewer_is_authoritative_reviewer && (
+            <label
+              className="flex shrink-0 cursor-pointer select-none flex-col items-center gap-0.5"
+              title="Submit as authoritative: your label overrides other annotators and completes the task."
+            >
+              <span className="relative">
+                <input
+                  type="checkbox"
+                  aria-label="Submit as authoritative"
+                  checked={authoritative}
+                  onChange={(e) => setAuthoritative(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-amber-500 transition-colors" />
+                <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
+              </span>
+              <span className="text-[9px] leading-none text-neutral-500">Auth.</span>
+            </label>
+          )}
         </div>
         <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-1.5">
           <button
@@ -233,22 +269,6 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
           </button>
         </div>
       </div>
-
-      {campaign.viewer_is_authoritative_reviewer && (
-        <button
-          type="button"
-          disabled={isSubmitDisabled}
-          onClick={() => void submitAuthoritative()}
-          title={
-            isAssignedToTask
-              ? 'Submit as authoritative: overrides any other annotators on this task and marks it completed, even if their labels disagree.'
-              : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
-          }
-          className="w-full inline-flex items-center justify-center h-8 px-3 text-xs font-medium border border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {isBusy ? 'Submitting…' : 'Submit authoritative'}
-        </button>
-      )}
     </div>
   );
 }
