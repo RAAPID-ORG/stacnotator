@@ -10,7 +10,7 @@ export interface LabelGridProps {
 
 /** Labels fill the row evenly, a new column as soon as another fits: the
  *  panel's own size, set in Edit Layout, decides how many sit side by side. */
-const MIN_LABEL_WIDTH = 160;
+const MIN_LABEL_WIDTH = 128;
 
 export function LabelGrid({ labels, selectedId, onSelect, disabled }: LabelGridProps) {
   return (

@@ -346,51 +346,6 @@ test('long horizontal timeline labels stay between the endpoint dates', async ({
   }
 });
 
-test('task sections move into panels of their own, survive a reload and go back on hide', async ({
-  annotationPage: page,
-  api,
-}) => {
-  let saved: CanvasLayoutCreate | undefined;
-  await page.route('**/api/*/new-layout', async (route) => {
-    saved = route.request().postDataJSON().layout;
-    await route.fulfill({ status: 201, json: {} });
-  });
-  await page.route('**/api/campaigns/*/detailed', (route) =>
-    route.fulfill({
-      json: {
-        ...MOCK_CAMPAIGN,
-        personal_main_canvas_layout: saved
-          ? { id: 99, user_id: null, layout_data: saved.main_layout_data }
-          : null,
-      },
-    })
-  );
-  const controls = page.locator('[data-panel-id="controls"]');
-  const submitPanel = page.locator('[data-panel-id="task:submit"]');
-
-  await page.getByTestId('edit-layout-trigger').click();
-  await page.getByLabel('Confidence & submit', { exact: true }).check();
-  await page.getByTestId('save-menu-trigger').click();
-  await page.getByTestId('save-personal').click();
-  await expect.poll(() => saved?.main_layout_data.map((item) => item.i)).toContain('task:submit');
-
-  await page.reload();
-  await expect(submitPanel.getByRole('button', { name: 'Submit', exact: true })).toBeVisible();
-  await expect(controls.locator('[data-task-confidence]')).toHaveCount(0);
-
-  await controls.getByRole('button', { name: /Cropland/ }).click();
-  await submitPanel.getByRole('button', { name: 'Submit', exact: true }).click();
-  await expect
-    .poll(() => api.requests.some((r) => r.method === 'POST' && r.pathname.endsWith('/annotate')))
-    .toBe(true);
-
-  await page.getByTestId('edit-layout-trigger').click();
-  await page.getByTestId('hide-panel-task:submit').click();
-  await expect(submitPanel).toHaveCount(0);
-  await expect(controls.locator('[data-task-confidence]')).toBeVisible();
-  await expect(page.getByLabel('Confidence & submit', { exact: true })).not.toBeChecked();
-});
-
 test('detach, resize, save and reload navigation panels with one-click imagery choices', async ({
   annotationPage: page,
 }) => {

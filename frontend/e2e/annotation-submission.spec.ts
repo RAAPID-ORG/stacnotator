@@ -131,15 +131,16 @@ test.describe('Annotation Submission', () => {
     await annotationPage.reload();
     await annotationPage.waitForSelector('[data-tour="controls"]', { timeout: 10_000 });
 
-    const scroller = annotationPage.locator('[data-tour="controls"] .panel-body > div').first();
+    const scroller = annotationPage.locator('[data-tour="controls"] [data-task-scroll]');
     const lastField = annotationPage.locator('[data-form-field-id="711"]');
     const isFullyVisible = async (target: typeof lastField) => {
       const [viewport, element] = await Promise.all([scroller.boundingBox(), target.boundingBox()]);
       return (
         viewport !== null &&
         element !== null &&
-        element.y >= viewport.y &&
-        element.y + element.height <= viewport.y + viewport.height
+        // A pixel of slack for sub-pixel layout at a scroll area's very end.
+        element.y >= viewport.y - 1 &&
+        element.y + element.height <= viewport.y + viewport.height + 1
       );
     };
     await expect(lastField).toBeAttached();

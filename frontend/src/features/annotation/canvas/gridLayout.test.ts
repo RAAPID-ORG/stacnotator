@@ -24,15 +24,6 @@ describe('toGridLayout / fromGridLayout round-trip', () => {
     );
   });
 
-  it('keeps task sections moved into panels of their own with the page chrome', () => {
-    const original = sampleLayout();
-    const comment = { i: 'task:comment', x: 40, y: 20, w: 20, h: 8 };
-    const rebuilt = fromGridLayout([...toGridLayout(original), comment], original);
-    expect(rebuilt.main.taskSections).toEqual({ 'task:comment': comment });
-    expect(rebuilt.windows).toEqual(original.windows);
-    expect(toGridLayout({ main: rebuilt.main, windows: {} })).toContainEqual(comment);
-  });
-
   it('rebuilds an equivalent WorkspaceLayout from its flat form', () => {
     const original = sampleLayout();
     const rebuilt = fromGridLayout(toGridLayout(original), original);

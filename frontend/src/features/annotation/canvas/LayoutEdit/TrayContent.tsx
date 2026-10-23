@@ -3,9 +3,7 @@ import type { ImageryViewOut } from '~/api/client';
 import type { ImageryCatalog } from '../../campaign/imagery';
 import { collectionsInView } from '../../campaign/imagery';
 import { IconSliders } from '~/shared/ui/Icons';
-import { useCampaign, useCampaignStore } from '../../stores/campaign';
 import { useLayoutStore } from '../../stores/layout';
-import { taskSectionsFor } from '../../panels/TaskControls/sectionLayout';
 import { toGridLayout } from '../grid';
 import { HiddenTray, type HiddenTrayItem } from './HiddenTray';
 import { ViewAdmin } from './ViewAdmin';
@@ -185,12 +183,7 @@ export function TrayContent({
           </>
         )
       }
-      pinnedSection={
-        <>
-          <NavigationPanels />
-          <TaskSections />
-        </>
-      }
+      pinnedSection={<NavigationPanels />}
       listHeader={<HiddenPanelsHeader count={items.length} />}
       storageKey="annotation:layoutPanel"
       onAdd={(id) => showWindow(Number(id))}
@@ -247,39 +240,6 @@ function NavigationPanels() {
         />
         Slice navigation buttons
       </label>
-    </div>
-  );
-}
-
-/** Which parts of the task panel get panels of their own. */
-function TaskSections() {
-  const campaign = useCampaign();
-  const workMode = useCampaignStore((s) => s.workMode);
-  const separated = useLayoutStore((s) => s.currentLayout.main.taskSections);
-  const setTaskSection = useLayoutStore((s) => s.setTaskSection);
-  if (workMode !== 'tasks') return null;
-  const hasFields = (campaign.settings.form_fields ?? []).length > 0;
-
-  return (
-    <div className="mt-2.5 space-y-1 border-t border-neutral-100 pt-2.5 text-xs text-neutral-600">
-      <h3 className={`${sectionHeading} mb-1.5`}>Task panel</h3>
-      <p className="px-1 text-[11px] leading-snug text-neutral-500">
-        Give a section its own panel to move and size it freely.
-      </p>
-      {taskSectionsFor(hasFields).map((section) => (
-        <label
-          key={section.id}
-          className="flex cursor-pointer items-center gap-2 px-1 py-0.5 text-neutral-700"
-        >
-          <input
-            type="checkbox"
-            checked={!!separated?.[section.id]}
-            onChange={(e) => setTaskSection(section.id, e.target.checked ? section.size : null)}
-            className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-brand-600"
-          />
-          {section.title}
-        </label>
-      ))}
     </div>
   );
 }

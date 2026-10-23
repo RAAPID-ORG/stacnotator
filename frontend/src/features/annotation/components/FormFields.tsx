@@ -1,5 +1,6 @@
 import type { DateRangeValue } from '~/api/client';
 import { DateField } from '~/shared/ui/forms';
+import { scrollableParent } from '~/shared/utils/scroll';
 import type { FormField } from '../campaign/annotation';
 import {
   applyCategoryOption,
@@ -7,12 +8,6 @@ import {
   setFieldValue,
   type FormValues,
 } from '../campaign/annotation';
-
-const REVEAL_OPTIONS: ScrollIntoViewOptions = {
-  behavior: 'smooth',
-  block: 'center',
-  inline: 'nearest',
-};
 
 /** Keeps keyboard navigation legible inside scrollable panels. The focus call
  *  suppresses its own browser scroll so it cannot undo the centred reveal. */
@@ -25,9 +20,19 @@ export function revealAndFocus(
   (focusTarget ?? container).focus({ preventScroll: true });
 }
 
-/** Reveal a control group without turning it into a typing target. */
+/** Reveal a control group without turning it into a typing target: centred
+ *  in the panel's own scroll area as far as that can scroll. Only that area
+ *  moves - scrollIntoView would also scroll the canvas the panel sits in to
+ *  centre a group at the end of the list. */
 export function reveal(container: HTMLElement | null): void {
-  container?.scrollIntoView?.(REVEAL_OPTIONS);
+  const scroller = scrollableParent(container);
+  if (!container || !scroller) return;
+  const area = scroller.getBoundingClientRect();
+  const target = container.getBoundingClientRect();
+  scroller.scrollTo?.({
+    top: scroller.scrollTop + target.top - area.top - (area.height - target.height) / 2,
+    behavior: 'smooth',
+  });
 }
 
 export interface FormFieldsProps {

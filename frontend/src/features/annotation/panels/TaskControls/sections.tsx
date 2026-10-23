@@ -3,6 +3,7 @@ import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.stor
 import { isRemovingLabel, maySubmitTask } from '../../campaign/annotation';
 import { FormFields } from '../../components/FormFields';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
+import type { AnnotationTaskOut } from '~/api/client';
 import { useTasksStore } from '../../stores/tasks';
 import { useWorkStore } from '../../stores/work';
 import {
@@ -14,20 +15,13 @@ import {
   taskLabellingPolicy,
 } from '../../taskActions';
 import { PointJumper } from './PointJumper';
-import {
-  sectionCellClass,
-  sectionGridClass,
-  sectionHeaderClass,
-  type TaskSectionId,
-} from './sectionLayout';
+import { sectionCellClass, sectionHeaderClass } from './styles';
 
 const textareaClass =
   'w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors';
 
 const navButtonClass =
   'flex-1 min-w-7 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-600 border border-neutral-200 rounded hover:bg-neutral-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer';
-
-const useCurrentTask = () => useTasksStore((s) => s.visibleTasks[s.currentIndex] ?? null);
 
 /** Form fields render one cell each, so they slot into whichever grid holds
  *  them rather than bringing a cell of their own. */
@@ -68,36 +62,14 @@ export function CommentSection() {
   );
 }
 
-export function SubmitSection() {
-  const campaign = useCampaign();
-  const task = useCurrentTask();
-  const currentUserId = useCampaignStore((s) => s.currentUserId);
+export function ConfidenceSection() {
   const isBusy = useTasksStore((s) => s.isSubmitting);
-  const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
   const confidence = useWorkStore((s) => s.confidence);
   const flagged = useWorkStore((s) => s.flagged);
   const flagComment = useWorkStore((s) => s.flagComment);
   const setConfidence = useWorkStore((s) => s.setConfidence);
   const setFlagged = useWorkStore((s) => s.setFlagged);
   const setFlagComment = useWorkStore((s) => s.setFlagComment);
-  if (!task) return null;
-
-  const hasExistingLabel =
-    task.annotations.find((a) => a.created_by_user_id === currentUserId)?.label_id != null;
-  const { mayLabel, countsTowardCompletion, isAssignedToTask } = taskLabellingPolicy(task);
-  const taskHasAssignments = (task.assignments?.length ?? 0) > 0;
-  const readiness = { selectedLabelId, hasExistingLabel, mayLabel, isSubmitting: isBusy };
-  const isSubmitDisabled = !maySubmitTask(readiness);
-  // Skipping is labelling with no label, so it is gated the same way. Keying
-  // it on assignment would put it out of reach on the whole unassigned pool.
-  const isSkipDisabled = isBusy || !mayLabel;
-  const submitLabel = isBusy
-    ? 'Submitting…'
-    : isRemovingLabel(readiness)
-      ? 'Remove Label'
-      : hasExistingLabel
-        ? 'Update'
-        : 'Submit';
 
   return (
     <div data-task-confidence className={`${sectionCellClass} gap-2`}>
@@ -159,7 +131,42 @@ export function SubmitSection() {
           className={textareaClass}
         />
       )}
+    </div>
+  );
+}
 
+/** Pinned under the scrolling sections, so submitting and moving on stay in
+ *  reach however many fields a campaign asks for. The point navigation wraps
+ *  onto a line of its own when the panel is too narrow for one row. */
+export function ActionBar({ task }: { task: AnnotationTaskOut }) {
+  const campaign = useCampaign();
+  const catalog = useCatalog();
+  const currentUserId = useCampaignStore((s) => s.currentUserId);
+  const isBusy = useTasksStore((s) => s.isSubmitting);
+  const previous = useTasksStore((s) => s.previous);
+  const goToAnnotationNumber = useTasksStore((s) => s.goToAnnotationNumber);
+  const selectedLabelId = useWorkStore((s) => s.selectedLabelId);
+  const showAlert = useAppLayoutStore((s) => s.showAlert);
+
+  const hasExistingLabel =
+    task.annotations.find((a) => a.created_by_user_id === currentUserId)?.label_id != null;
+  const { mayLabel, countsTowardCompletion, isAssignedToTask } = taskLabellingPolicy(task);
+  const taskHasAssignments = (task.assignments?.length ?? 0) > 0;
+  const readiness = { selectedLabelId, hasExistingLabel, mayLabel, isSubmitting: isBusy };
+  const isSubmitDisabled = !maySubmitTask(readiness);
+  // Skipping is labelling with no label, so it is gated the same way. Keying
+  // it on assignment would put it out of reach on the whole unassigned pool.
+  const isSkipDisabled = isBusy || !mayLabel;
+  const submitLabel = isBusy
+    ? 'Submitting…'
+    : isRemovingLabel(readiness)
+      ? 'Remove Label'
+      : hasExistingLabel
+        ? 'Update'
+        : 'Submit';
+
+  return (
+    <div className="shrink-0 flex flex-col gap-2 p-3 border-t border-neutral-200 bg-neutral-50/60">
       {!mayLabel && (
         <p
           data-testid="policy-not-allowed-notice"
@@ -174,24 +181,57 @@ export function SubmitSection() {
         </p>
       )}
 
-      <div className="flex gap-1.5">
-        <button
-          type="button"
-          disabled={isSubmitDisabled}
-          onClick={() => void submitAnnotation()}
-          className="flex-1 inline-flex items-center justify-center h-8 px-3 text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 rounded-md shadow-sm transition-colors disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed"
-        >
-          {submitLabel}
-        </button>
-        <button
-          type="button"
-          disabled={isSkipDisabled}
-          title={!mayLabel ? 'You are not allowed to label this task' : undefined}
-          onClick={() => void skipCurrent()}
-          className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Skip
-        </button>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex min-w-0 flex-[1_1_12rem] gap-1.5">
+          <button
+            type="button"
+            disabled={isSubmitDisabled}
+            onClick={() => void submitAnnotation()}
+            className="flex-1 inline-flex items-center justify-center h-8 px-3 text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 rounded-md shadow-sm transition-colors disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed"
+          >
+            {submitLabel}
+          </button>
+          <button
+            type="button"
+            disabled={isSkipDisabled}
+            title={!mayLabel ? 'You are not allowed to label this task' : undefined}
+            onClick={() => void skipCurrent()}
+            className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Skip
+          </button>
+        </div>
+        <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-1.5">
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => previous(catalog)}
+            aria-label="Previous point"
+            title="Previous point"
+            className={navButtonClass}
+          >
+            <IconChevronLeft className="w-3 h-3" />
+            <span className="@max-[15rem]:hidden">Prev</span>
+          </button>
+          <PointJumper
+            key={task.annotation_number}
+            current={task.annotation_number}
+            disabled={isBusy}
+            onJump={(num) => goToAnnotationNumber(num, catalog)}
+            onNotFound={(num) => showAlert(`Point #${num} is not in the current filter`, 'error')}
+          />
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => void advance()}
+            aria-label="Next point"
+            title="Next point"
+            className={navButtonClass}
+          >
+            <span className="@max-[15rem]:hidden">Next</span>
+            <IconChevronRight className="w-3 h-3" />
+          </button>
+        </div>
       </div>
 
       {campaign.viewer_is_authoritative_reviewer && (
@@ -209,75 +249,6 @@ export function SubmitSection() {
           {isBusy ? 'Submitting…' : 'Submit authoritative'}
         </button>
       )}
-    </div>
-  );
-}
-
-export function PointsSection() {
-  const catalog = useCatalog();
-  const task = useCurrentTask();
-  const isBusy = useTasksStore((s) => s.isSubmitting);
-  const previous = useTasksStore((s) => s.previous);
-  const goToAnnotationNumber = useTasksStore((s) => s.goToAnnotationNumber);
-  const showAlert = useAppLayoutStore((s) => s.showAlert);
-  if (!task) return null;
-
-  return (
-    <div className={sectionCellClass}>
-      <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          disabled={isBusy}
-          onClick={() => previous(catalog)}
-          aria-label="Previous point"
-          title="Previous point"
-          className={navButtonClass}
-        >
-          <IconChevronLeft className="w-3 h-3" />
-          <span className="@max-[15rem]:hidden">Prev</span>
-        </button>
-        <PointJumper
-          key={task.annotation_number}
-          current={task.annotation_number}
-          disabled={isBusy}
-          onJump={(num) => goToAnnotationNumber(num, catalog)}
-          onNotFound={(num) => showAlert(`Point #${num} is not in the current filter`, 'error')}
-        />
-        <button
-          type="button"
-          disabled={isBusy}
-          onClick={() => void advance()}
-          aria-label="Next point"
-          title="Next point"
-          className={navButtonClass}
-        >
-          <span className="@max-[15rem]:hidden">Next</span>
-          <IconChevronRight className="w-3 h-3" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const SECTION_BODIES: Record<TaskSectionId, () => React.ReactNode> = {
-  'task:fields': FieldsSection,
-  'task:comment': CommentSection,
-  'task:submit': SubmitSection,
-  'task:points': PointsSection,
-};
-
-export function TaskSection({ id }: { id: TaskSectionId }) {
-  const Body = SECTION_BODIES[id];
-  return <Body />;
-}
-
-/** The body of a section moved into a panel of its own. */
-export function TaskSectionPanel({ id }: { id: TaskSectionId }) {
-  return (
-    <div className="@container h-full w-full overflow-y-auto overflow-x-hidden bg-white">
-      <div className={`${sectionGridClass} [&>:last-child]:border-b-0`}>
-        <TaskSection id={id} />
-      </div>
     </div>
   );
 }

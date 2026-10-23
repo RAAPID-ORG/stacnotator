@@ -30,7 +30,7 @@ export interface LabelChipsProps<L extends LabelChipItem> {
   renderUnder?: (label: L) => React.ReactNode;
   /** Let the chips stretch across the row instead of keeping a fixed width. */
   fill?: boolean;
-  /** Lay the chips on a grid, each at least this wide in px and all
+  /** Lay the chips on a compact grid, each at least this wide in px and all
    *  stretched evenly to fill the row, a new column as soon as one fits. */
   minWidth?: number;
 }
@@ -52,10 +52,10 @@ export function LabelChips<L extends LabelChipItem>({
 
   return (
     <div
-      className={minWidth != null ? 'grid gap-1.5' : 'flex flex-wrap gap-1.5'}
+      className={minWidth != null ? 'grid gap-1' : 'flex flex-wrap gap-1.5'}
       style={
         minWidth != null
-          ? { gridTemplateColumns: `repeat(auto-fill, minmax(min(${minWidth}px, 100%), 1fr))` }
+          ? { gridTemplateColumns: `repeat(auto-fit, minmax(min(${minWidth}px, 100%), 1fr))` }
           : undefined
       }
     >
@@ -75,7 +75,7 @@ export function LabelChips<L extends LabelChipItem>({
                 onClick={() => onSelect(label)}
                 className={`${
                   minWidth != null || fill ? 'grow shrink basis-0' : 'w-40'
-                } self-stretch min-w-0 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 justify-between ${
+                } self-stretch min-w-0 text-left px-2.5 ${minWidth != null ? 'py-1' : 'py-1.5'} text-[11px] font-medium rounded transition-colors flex items-center gap-2 justify-between ${
                   selected
                     ? 'bg-brand-50 text-brand-700 border-brand-600 border font-semibold'
                     : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border-neutral-200 border'
@@ -91,7 +91,9 @@ export function LabelChips<L extends LabelChipItem>({
                       }}
                     />
                   )}
-                  <span className="min-w-0 break-words">
+                  <span
+                    className={`min-w-0 break-words ${minWidth != null ? 'leading-tight' : ''}`}
+                  >
                     {selected ? '✓ ' : ''}
                     {capitalizeFirst(label.name)}
                   </span>

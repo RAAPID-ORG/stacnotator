@@ -10,8 +10,6 @@ import { Timeline } from './MainMap/TimelineSidebar';
 import { MinimapBody, MinimapHeader } from './Minimap/Minimap';
 import { TaskClaimBadge } from './TaskControls/ClaimBadge';
 import { TaskControls } from './TaskControls/TaskControls';
-import { taskSectionsFor } from './TaskControls/sectionLayout';
-import { TaskSectionPanel } from './TaskControls/sections';
 import { TimeseriesPanel } from './Timeseries/Timeseries';
 import { TimeseriesHeader } from './Timeseries/TimeseriesHeader';
 import type { WorkMode } from '../stores/campaign';
@@ -102,21 +100,6 @@ export function buildPanels({
           body: <ExploreControls />,
         },
   ];
-
-  if (mode === 'tasks') {
-    const hasFields = (campaign.settings.form_fields ?? []).length > 0;
-    for (const section of taskSectionsFor(hasFields)) {
-      if (!layout.main.taskSections?.[section.id]) continue;
-      panels.push({
-        id: section.id,
-        role: 'task-section',
-        title: section.title,
-        body: <TaskSectionPanel id={section.id} />,
-        // Hiding puts the section back into the task panel.
-        hidable: true,
-      });
-    }
-  }
 
   if (layout.main.timeline) {
     panels.push({
