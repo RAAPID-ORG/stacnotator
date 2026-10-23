@@ -28,7 +28,7 @@ export interface ProbeState {
   resolvedIndex: number | null;
 }
 
-export const IDLE_PROBE: ProbeState = {
+const IDLE_PROBE: ProbeState = {
   phase: 'idle',
   queue: [],
   emptyIndices: [],

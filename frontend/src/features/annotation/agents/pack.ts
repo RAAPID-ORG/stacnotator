@@ -17,7 +17,7 @@ export interface PackedView {
 const CHART_HEIGHT_RATIO = 0.75;
 const MIN_CHART_HEIGHT = 180;
 
-export const isChartCell = (cell: ViewCell): boolean => cell.timeseries_ids != null;
+const isChartCell = (cell: ViewCell): boolean => cell.timeseries_ids != null;
 
 /** Map cells fill the grid left to right; a chart takes a whole row of its own, so a
  *  half-filled row is closed before it. Mirrored in the agent skill, which tells agents

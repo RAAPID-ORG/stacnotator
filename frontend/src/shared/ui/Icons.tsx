@@ -308,14 +308,6 @@ export const IconCopy = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
-export const IconGauge = ({ className = 'w-4 h-4' }: IconProps) => (
-  <svg {...defaults} className={className}>
-    <path d="M3 16a7 7 0 1114 0" />
-    <path d="M10 13.5l4-5" />
-    <circle cx="10" cy="13.5" r="1" fill="currentColor" stroke="none" />
-  </svg>
-);
-
 export const IconExternalLink = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M9 5H6a2 2 0 00-2 2v7a2 2 0 002 2h7a2 2 0 002-2v-3" />
@@ -388,16 +380,6 @@ export const IconEyeFilled = ({ className = 'w-4 h-4' }: IconProps) => (
       fillRule="evenodd"
       clipRule="evenodd"
       d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"
-    />
-  </svg>
-);
-
-export const IconMenuFilled = ({ className = 'w-4 h-4' }: IconProps) => (
-  <svg {...filled} className={className}>
-    <path
-      fillRule="evenodd"
-      clipRule="evenodd"
-      d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"
     />
   </svg>
 );

@@ -134,7 +134,12 @@ export const CreateCampaignPage = () => {
           />
         );
       case 'StepAddTimeseries':
-        return <StepAddTimeseries form={form} setForm={setForm} />;
+        return (
+          <StepAddTimeseries
+            items={form.timeseries_configs ?? []}
+            onChange={(timeseries_configs) => setForm({ ...form, timeseries_configs })}
+          />
+        );
       case 'StepReview':
         return (
           <div className="space-y-6">

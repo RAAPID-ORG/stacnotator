@@ -1,7 +1,7 @@
 import { fromLonLat, toLonLat } from 'ol/proj';
 import type { Bbox, FeatureLayerSpec, LonLat, StyleSpec } from '../types';
 
-export const VIEWPORT_RECT_LAYER_ID = 'minimap-viewport';
+const VIEWPORT_RECT_LAYER_ID = 'minimap-viewport';
 
 const VIEWPORT_STYLE: StyleSpec = {
   stroke: { color: 'rgba(50,98,71,0.9)', width: 2 },
@@ -77,7 +77,7 @@ export function viewportRectLayer(
   };
 }
 
-export const PIN_LAYER_ID = 'minimap-pin';
+const PIN_LAYER_ID = 'minimap-pin';
 
 /** A fixed place the overview is about, drawn where the viewport rectangle
  *  would otherwise go - and as the same dot, since to the eye it means the

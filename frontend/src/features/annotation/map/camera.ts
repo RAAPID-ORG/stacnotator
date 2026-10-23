@@ -58,7 +58,7 @@ const FIT_MAX_ZOOM = 18;
 const PAN_DISTANCE_PX = 100;
 const ZOOM_ANIMATION_MS = 200;
 
-export function fitBbox(bbox: Bbox): void {
+function fitBbox(bbox: Bbox): void {
   mainCamera.fitBounds(bbox, { paddingPx: FIT_PADDING_PX, maxZoom: FIT_MAX_ZOOM, animateMs: 400 });
 }
 

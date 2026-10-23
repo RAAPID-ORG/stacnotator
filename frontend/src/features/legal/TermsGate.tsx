@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { acceptTerms } from 'src/api/client';
+import { acceptTerms } from '~/api/client';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { Button } from '~/shared/ui/forms';

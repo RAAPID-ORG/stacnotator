@@ -27,15 +27,6 @@ interface LayoutStore {
   // Breadcrumbs state
   breadcrumbs: BreadcrumbItem[];
 
-  // Keyboard help state
-  showKeyboardHelp: boolean;
-
-  // Campaign guide state
-  showGuide: boolean;
-
-  // Guided tour state
-  showGuidedTour: boolean;
-
   // Fullscreen state
   isFullscreen: boolean;
 
@@ -50,15 +41,8 @@ interface LayoutStore {
   showLoadingOverlay: (text?: string) => void;
   hideLoadingOverlay: () => void;
   setBreadcrumbs: (items: BreadcrumbItem[]) => void;
-  clearBreadcrumbs: () => void;
-  toggleKeyboardHelp: () => void;
-  setShowKeyboardHelp: (show: boolean) => void;
-  toggleGuide: () => void;
-  setShowGuidedTour: (show: boolean) => void;
   toggleFullscreen: () => void;
-  setIsFullscreen: (isFullscreen: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
-  toggleSidebar: () => void;
   showConfirmDialog: (options: ConfirmDialogOptions) => Promise<boolean>;
   resolveConfirmDialog: (value: boolean) => void;
   cancelConfirmDialog: () => void;
@@ -66,7 +50,7 @@ interface LayoutStore {
 
 /**
  * Global UI store for managing cross-cutting UI concerns
- * Handles alerts, loading overlays, and breadcrumbs across the entire app
+ * Handles alerts, loading overlays, breadcrumbs, fullscreen and the confirm dialog.
  */
 export const useLayoutStore = create<LayoutStore>((set) => {
   // Set up fullscreen change listener to sync state with browser
@@ -85,9 +69,6 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     loadingOverlayVisible: false,
     loadingOverlayText: 'Loading...',
     breadcrumbs: [],
-    showKeyboardHelp: false,
-    showGuide: false,
-    showGuidedTour: false,
     isFullscreen: false,
     sidebarCollapsed: false,
     confirmDialog: null,
@@ -109,17 +90,6 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     // Breadcrumb actions
     setBreadcrumbs: (items) => set({ breadcrumbs: items }),
 
-    clearBreadcrumbs: () => set({ breadcrumbs: [] }),
-
-    // Keyboard help actions
-    toggleKeyboardHelp: () => set((state) => ({ showKeyboardHelp: !state.showKeyboardHelp })),
-
-    setShowKeyboardHelp: (show) => set({ showKeyboardHelp: show }),
-
-    toggleGuide: () => set((state) => ({ showGuide: !state.showGuide })),
-
-    setShowGuidedTour: (show) => set({ showGuidedTour: show }),
-
     // Fullscreen actions
     toggleFullscreen: () => {
       set((state) => {
@@ -139,12 +109,8 @@ export const useLayoutStore = create<LayoutStore>((set) => {
       });
     },
 
-    setIsFullscreen: (isFullscreen) => set({ isFullscreen }),
-
     // Sidebar actions
     setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
-
-    toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
     // Confirm dialog actions
     showConfirmDialog: (options) =>

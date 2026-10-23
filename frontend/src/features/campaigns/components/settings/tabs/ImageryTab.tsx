@@ -8,7 +8,7 @@ interface Props {
   controller: ImageryController;
 }
 
-const ImageryTab = ({ controller }: Props) => {
+export const ImageryTab = ({ controller }: Props) => {
   const { t } = useTranslation(['campaigns', 'common']);
   const { isDirty, pending, save, discard } = controller;
 
@@ -52,5 +52,3 @@ const ImageryTab = ({ controller }: Props) => {
     </div>
   );
 };
-
-export default ImageryTab;

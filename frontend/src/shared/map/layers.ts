@@ -128,10 +128,7 @@ function cachedStyle(spec: StyleSpec, highlighted: boolean): Style {
  * the property is also read directly. Styling and hit-testing must agree here
  * or a feature ends up hideable but not clickable.
  */
-export function featureIdOf(
-  feature: FeatureLike,
-  idProperty?: string
-): string | number | undefined {
+function featureIdOf(feature: FeatureLike, idProperty?: string): string | number | undefined {
   const id = feature.getId();
   if (id !== undefined) return id;
   const prop = feature.get(idProperty ?? 'id');
@@ -152,7 +149,7 @@ export function featurePropsOf(feature: FeatureLike): Record<string, unknown> {
   return props;
 }
 
-export function geoFeatureOf(feature: FeatureLike): GeoFeature | undefined {
+function geoFeatureOf(feature: FeatureLike): GeoFeature | undefined {
   return feature.get(GEO_FEATURE_PROP) as GeoFeature | undefined;
 }
 

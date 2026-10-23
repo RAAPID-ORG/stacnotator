@@ -45,5 +45,3 @@ export function TabNavigator<T extends string = string>({
     </div>
   );
 }
-
-export default TabNavigator;

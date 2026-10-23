@@ -224,7 +224,7 @@ const alert = (message: string, kind: 'error' | 'success') =>
 
 /** The Submit button's own enabled state, read off the live stores so the
  *  keyboard path can never diverge from it. */
-export function currentSubmitReadiness(): SubmitReadiness {
+function currentSubmitReadiness(): SubmitReadiness {
   const task = currentTask();
   const { currentUserId } = useCampaignStore.getState();
   const mine = task?.annotations.find((a) => a.created_by_user_id === currentUserId);

@@ -89,7 +89,7 @@ export const parseEmailList = (raw: string): ParsedEmails => {
  * extractLatLonFromWKT('POINT(-122.4194 37.7749)')
  * // Returns { lat: 37.7749, lon: -122.4194 }
  */
-export const extractLatLonFromWKT = (wkt: string): LatLon | null => {
+const extractLatLonFromWKT = (wkt: string): LatLon | null => {
   if (!wkt) return null;
 
   const normalized = wkt.trim().toUpperCase();

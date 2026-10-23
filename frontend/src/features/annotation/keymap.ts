@@ -97,7 +97,7 @@ export function rememberLastAddress(addr: SliceAddress | null): void {
 export function resetNavMemory(): void {
   stopAutoNav();
   lastBySource = {};
-  resetDigitBuffer();
+  clearDigitBuffer();
 }
 
 // ---------------------------------------------------------------------------
@@ -112,8 +112,6 @@ function clearDigitBuffer(): void {
   digitTimer = null;
   digitBuffer = '';
 }
-
-export const resetDigitBuffer = clearDigitBuffer;
 
 function commitDigits(labels: LabelBase[]): void {
   const position = parseInt(digitBuffer, 10);
@@ -756,5 +754,3 @@ export function pageKeymap(): Binding[] {
     ...tag(mapBindings(), 'map'),
   ];
 }
-
-export { skipCurrent, submitAnnotation, submitAuthoritative };

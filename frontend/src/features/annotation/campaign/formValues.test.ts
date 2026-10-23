@@ -5,10 +5,8 @@ import {
   toggleMultiOption,
   applyCategoryOption,
   missingRequiredFields,
-  formatMissingFieldsTitle,
   isDateRangeValue,
   formValuesEqual,
-  patchFormValues,
   type FormValues,
 } from './annotation';
 
@@ -201,18 +199,6 @@ describe('missingRequiredFields', () => {
   });
 });
 
-describe('formatMissingFieldsTitle', () => {
-  it('lists a single missing field title', () => {
-    expect(formatMissingFieldsTitle([REQUIRED_TEXT])).toBe('Missing required: Notes');
-  });
-
-  it('joins multiple missing field titles with a comma', () => {
-    expect(formatMissingFieldsTitle([REQUIRED_TEXT, REQUIRED_MULTICATEGORY])).toBe(
-      'Missing required: Notes, Required Tags'
-    );
-  });
-});
-
 describe('isDateRangeValue', () => {
   it('accepts an object with string start and end', () => {
     expect(isDateRangeValue({ start: '2024-01-01', end: '2024-01-31' })).toBe(true);
@@ -266,27 +252,3 @@ describe('formValuesEqual', () => {
 // ---------------------------------------------------------------------------
 // patchFormValues - three-way PATCH contract (null keep, {} clear, dict replace)
 // ---------------------------------------------------------------------------
-
-describe('patchFormValues', () => {
-  it('keeps (null) when next is undefined - a geometry-only edit', () => {
-    expect(patchFormValues({ '1': 10 }, undefined)).toBeNull();
-    expect(patchFormValues({}, undefined)).toBeNull();
-  });
-
-  it('clears ({}) when next is an empty object and prev had answers', () => {
-    expect(patchFormValues({ '1': 10 }, {})).toEqual({});
-  });
-
-  it('replaces (dict) when next differs from prev', () => {
-    expect(patchFormValues({ '1': 10 }, { '1': 20 })).toEqual({ '1': 20 });
-    expect(patchFormValues({}, { '1': 20 })).toEqual({ '1': 20 });
-  });
-
-  it('keeps (null) when next is deep-equal to prev, key order aside', () => {
-    expect(patchFormValues({ '1': 10, '2': 'a' }, { '2': 'a', '1': 10 })).toBeNull();
-  });
-
-  it('keeps (null) when both prev and next are already empty', () => {
-    expect(patchFormValues({}, {})).toBeNull();
-  });
-});

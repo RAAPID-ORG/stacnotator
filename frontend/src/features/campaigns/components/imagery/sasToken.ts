@@ -38,9 +38,9 @@ export function readSasToken(raw: string, now = new Date()): SasReading {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** From this close to expiry on, admins are warned. */
-export const EXPIRY_WARNING_DAYS = 3;
+const EXPIRY_WARNING_DAYS = 3;
 
-export function daysUntil(expiresAt: Date | string, now = new Date()): number {
+function daysUntil(expiresAt: Date | string, now = new Date()): number {
   return Math.floor((new Date(expiresAt).getTime() - now.getTime()) / DAY_MS);
 }
 

@@ -138,7 +138,7 @@ export function selectStep(
 
 /** The step covering an instant, or failing that the one whose middle is
  *  nearest to it. Falls back to the newest when there is nothing to compare. */
-export function nearestStepIndex(steps: VisualizerStepOut[], anchor: number): number {
+function nearestStepIndex(steps: VisualizerStepOut[], anchor: number): number {
   if (steps.length === 0) return 0;
   if (!Number.isFinite(anchor)) return steps.length - 1;
 
@@ -161,7 +161,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const start = (step: VisualizerStepOut) => Date.parse(`${step.start_date}T00:00:00Z`);
 const end = (step: VisualizerStepOut) => Date.parse(`${step.end_date}T00:00:00Z`);
 
-export const midpointOf = (step: VisualizerStepOut | undefined): number =>
+const midpointOf = (step: VisualizerStepOut | undefined): number =>
   step ? (start(step) + end(step)) / 2 : NaN;
 
 /**

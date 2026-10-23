@@ -117,12 +117,6 @@ export function missingRequiredFields(fields: FormField[], values: FormValues): 
   return fields.filter((f) => f.required && isEmptyValue(values[String(f.id)] ?? null));
 }
 
-export function formatMissingFieldsTitle(missing: FormField[]): string {
-  return t('missingRequired', {
-    fields: missing.map((f) => f.title).join(', '),
-  });
-}
-
 export { isDateRangeValue };
 
 function valueEqual(a: FormValue, b: FormValue): boolean {
@@ -142,17 +136,6 @@ export function formValuesEqual(a: FormValues, b: FormValues): boolean {
   const keys = Object.keys(a);
   if (keys.length !== Object.keys(b).length) return false;
   return keys.every((key) => key in b && valueEqual(a[key], b[key]));
-}
-
-/**
- * Wire payload for a PATCH-style update. The backend reads `null` as "keep the
- * stored answers", `{}` as "clear them" and a dict as "replace". `undefined`
- * means the caller is not touching answers at all (a geometry-only edit), and
- * an unchanged set is not worth a needless server-side required-field recheck.
- */
-export function patchFormValues(prev: FormValues, next: FormValues | undefined): FormValues | null {
-  if (next === undefined || formValuesEqual(prev, next)) return null;
-  return next;
 }
 
 export interface FormValidation {

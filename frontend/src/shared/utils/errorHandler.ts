@@ -30,7 +30,7 @@ const extractRequestId = (err: unknown): string | null => {
  *   Firefox: "NetworkError when attempting to fetch resource."
  *   Safari:  "Load failed"
  */
-export const isNetworkError = (err: unknown): boolean => {
+const isNetworkError = (err: unknown): boolean => {
   if (!(err instanceof TypeError)) return false;
   const msg = err.message.toLowerCase();
   return msg.includes('fetch') || msg.includes('network') || msg.includes('load failed');

@@ -1,6 +1,6 @@
 import { useState, useMemo, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
+import { authManager, AUTH_PROVIDERS } from '~/features/auth/index';
 import { PasswordRequirementsList, passwordMeetsAllRequirements } from './PasswordRequirements';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { legalPath, type LegalKey } from '~/features/legal/docs';

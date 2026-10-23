@@ -47,7 +47,7 @@ const report = (error: unknown, meta: Record<string, unknown> | undefined) => {
  *  not restorm the API every time the window is touched. `staleTime` is what
  *  makes navigating back to a page instant while still re-asking once the data
  *  has had time to move. */
-export const createQueryClient = () =>
+const createQueryClient = () =>
   new QueryClient({
     queryCache: new QueryCache({ onError: (error, query) => report(error, query.meta) }),
     mutationCache: new MutationCache({

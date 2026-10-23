@@ -55,7 +55,7 @@ export const buildStacAutoQuery = (
 };
 
 /** The sort a stored query was built with, if it is one of ours. */
-export const itemSortOf = (query: unknown): ItemSortOption | undefined => {
+const itemSortOf = (query: unknown): ItemSortOption | undefined => {
   const sortby = (query as { sortby?: unknown } | null)?.sortby;
   return (Object.keys(SORTBY) as ItemSortOption[]).find((sort) => sameValue(SORTBY[sort], sortby));
 };

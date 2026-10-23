@@ -32,7 +32,7 @@ export const isAnnotationLayer = (layerId: LayerId | undefined): boolean =>
 export const EXTENT_LAYER_ID = 'task-extent';
 export const CROSSHAIR_LAYER_ID = 'crosshair';
 export const ORIGIN_TASK_LAYER_ID = 'origin-task';
-export const DRAFT_LAYER_ID = 'draft';
+const DRAFT_LAYER_ID = 'draft';
 export const PROBE_LAYER_ID = 'probe';
 
 /** One colour per probe, shared with the chart so a marker and its lines
@@ -41,7 +41,7 @@ const PROBE_COLORS = ['#f97316', '#0891b2', '#a855f7', '#16a34a', '#e11d48', '#c
 
 export const probeColor = (index: number): string => PROBE_COLORS[index % PROBE_COLORS.length];
 
-export const probeFeatureId = (index: number): string => `probe-${index}`;
+const probeFeatureId = (index: number): string => `probe-${index}`;
 
 /** Which probe a clicked marker is, or null when the id is not one. */
 export function probeIndexOf(featureId: string | number | undefined): number | null {
@@ -147,7 +147,7 @@ export interface ComposeState extends ImageryNavState {
  *  them again, through both the browser and OL caches. `include_tasks` is
  *  always spelled out so a filtered tile and an unfiltered one are different
  *  URLs - neither the HTTP cache nor a retained OL source can mix them. */
-export const annotationTilesUrl = (campaignId: number, version: number, includeTasks: boolean) =>
+const annotationTilesUrl = (campaignId: number, version: number, includeTasks: boolean) =>
   apiUrl(
     `/api/campaigns/${campaignId}/annotations/tiles/{z}/{x}/{y}.pbf` +
       `?v=${version}&include_tasks=${includeTasks}`

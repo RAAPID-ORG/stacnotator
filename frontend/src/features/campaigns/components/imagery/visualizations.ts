@@ -2,7 +2,7 @@ import type { ImagerySource, NamedVizParams, StacBrowserCollectionData, VizParam
 import { isPlanetSceneConfig } from './types';
 import { sameValue } from '~/shared/utils/equality';
 
-export function matchingRendering(a: VizParams, b: VizParams): boolean {
+function matchingRendering(a: VizParams, b: VizParams): boolean {
   const { compositing: _a, ...renderA } = a;
   const { compositing: _b, ...renderB } = b;
   return sameValue(renderA, renderB);

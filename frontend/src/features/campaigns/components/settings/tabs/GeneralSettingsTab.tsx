@@ -595,5 +595,3 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     </div>
   );
 };
-
-export default GeneralSettingsTab;

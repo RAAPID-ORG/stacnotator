@@ -51,7 +51,7 @@ export function sceneSourcesInView(
 
 /** How much wider than the screen a search reaches. Slack, so that nudging the map
  *  does not cost another search, and so imagery reaches the edges while panning. */
-export const SEARCH_MARGIN = 1.5;
+const SEARCH_MARGIN = 1.5;
 
 export function searchBox(view: Bbox, margin = SEARCH_MARGIN): Bbox {
   const halfWidth = ((view[2] - view[0]) * margin) / 2;

@@ -87,7 +87,7 @@ function withoutCollection(source: ImagerySource, collectionId: string): Partial
 // viz_params serialization (VizParams -> API payload) lives in draftSync.ts as
 // `toVizParamsPayload` - the single writer used by the save path. This module only
 // owns the inverse (API -> VizParams) below.
-export function vizParamsToFrontend(d: Record<string, unknown> | null | undefined): VizParams {
+function vizParamsToFrontend(d: Record<string, unknown> | null | undefined): VizParams {
   const p = d ?? {};
   return {
     assets: (p.assets as string[]) ?? [],

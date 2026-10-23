@@ -9,7 +9,7 @@ export interface ClaimBadgeProps {
   now: number;
 }
 
-export function ClaimBadge({ task, currentUserId, now }: ClaimBadgeProps) {
+function ClaimBadge({ task, currentUserId, now }: ClaimBadgeProps) {
   const label = claimedByLabel(task, currentUserId, now);
   if (!label) return null;
 

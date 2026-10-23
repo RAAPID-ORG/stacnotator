@@ -36,16 +36,17 @@ function availableIndices(
 }
 
 export const StepAddTimeseries = ({
-  form,
-  setForm,
+  items,
+  onChange,
   knownWindowNames = [],
   existingTimeseries = [],
   onRemoveExisting,
   onRenameExistingPanel,
   saving = false,
 }: {
-  form: CampaignCreate;
-  setForm: (f: CampaignCreate) => void;
+  /** The series being added. */
+  items: TimeseriesCreate[];
+  onChange: (items: TimeseriesCreate[]) => void;
   /** Additional existing panels to show even when they have no series. */
   knownWindowNames?: string[];
   existingTimeseries?: TimeseriesOut[];
@@ -65,7 +66,6 @@ export const StepAddTimeseries = ({
   const [editingGroup, setEditingGroup] = useState<{ original: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState('');
   const [renaming, setRenaming] = useState(false);
-  const items = form.timeseries_configs ?? [];
 
   const groupName = (name?: string | null) => name?.trim() || DEFAULT_TIMESERIES_WINDOW_NAME;
   const windowOptions = Array.from(
@@ -82,12 +82,7 @@ export const StepAddTimeseries = ({
     )
   );
 
-  const setItems = (next: TimeseriesCreate[]) => {
-    setForm({
-      ...form,
-      timeseries_configs: next.length > 0 ? next : [],
-    });
-  };
+  const setItems = onChange;
 
   const updateItem = (index: number, updates: Partial<TimeseriesCreate>, windowName: string) => {
     if (index === -1) {

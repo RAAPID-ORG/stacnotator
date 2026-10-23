@@ -15,7 +15,7 @@ export interface StepValidationResult {
   isValid: boolean;
 }
 
-export function validateCampaignStep(form: CampaignCreate): StepValidationResult {
+function validateCampaignStep(form: CampaignCreate): StepValidationResult {
   const errors: FieldErrors = {};
 
   if (!form.name.trim()) {

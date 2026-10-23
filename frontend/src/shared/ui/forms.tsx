@@ -36,10 +36,6 @@ const selectChevron =
 
 export const fieldClass = (size: FieldSize = 'md') => `${fieldBase} ${fieldSingleSize[size]}`;
 
-export const textareaClass = `${fieldBase} ${fieldAreaSize.md} resize-y min-h-[5rem]`;
-
-export const selectClass = `${fieldBase} ${fieldSingleSize.md} ${selectChevron}`;
-
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger' | 'dangerQuiet';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -96,9 +92,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   )
 );
 Button.displayName = 'Button';
-
-export const buttonClass = (variant: ButtonVariant = 'primary', extra?: string) =>
-  `${buttonBase} ${buttonSize.md} ${buttonVariants[variant]}${extra ? ' ' + extra : ''}`;
 
 export type IconButtonTone = 'neutral' | 'danger' | 'brand';
 

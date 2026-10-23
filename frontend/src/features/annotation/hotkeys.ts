@@ -66,7 +66,7 @@ function matchesBase(e: KeyboardEvent, base: string): boolean {
   return e.key.toLowerCase() === base || (DIGIT.test(base) && e.code === `Digit${base}`);
 }
 
-export function matchKey(e: KeyboardEvent, spec: string): boolean {
+function matchKey(e: KeyboardEvent, spec: string): boolean {
   const { base, modifiers } = parseKey(spec);
   if (!matchesBase(e, base)) return false;
   return MODIFIERS.every((name) => MODIFIER_HELD[name](e) === modifiers.includes(name));

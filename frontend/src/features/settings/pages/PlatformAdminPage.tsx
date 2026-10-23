@@ -4,9 +4,9 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
-import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
+import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { Button } from '~/shared/ui/forms';
-import { useLayoutStore } from 'src/shared/stores/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { getOrganizationTilers, type UserOut, type UserOutDetailed } from '~/api/client';
 import {
   approveOrganizationMutation,

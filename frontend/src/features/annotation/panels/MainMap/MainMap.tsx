@@ -317,7 +317,7 @@ function MainMapActions() {
  * moves the marker and refetches. Shift belongs to the box gestures, so a
  * click that carries it is not a click.
  */
-export function taskProbeClick(event: MapClickEvent): void {
+function taskProbeClick(event: MapClickEvent): void {
   if (event.shiftKey || useWorkStore.getState().tool !== 'timeseries') return;
   handleProbeClick(event);
 }

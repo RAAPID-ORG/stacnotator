@@ -39,7 +39,7 @@ export interface ImageLimits {
 }
 
 export const DEFAULT_COLUMNS = 4;
-export const DEFAULT_CELL_PX = 320;
+const DEFAULT_CELL_PX = 320;
 export const DEFAULT_ZOOM = 15;
 const MIN_CELL_PX = 96;
 const MAX_CELLS = 36;

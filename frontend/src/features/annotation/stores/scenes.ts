@@ -411,13 +411,6 @@ export function loadScenesHere(sources: ImagerySourceOut[], campaignId: number):
   for (const source of sources) wantScenes(source, campaignId, view, true);
 }
 
-/** Scene sources the page is browsing, scene ones only. */
-export function useSceneSourcesInView(): ImagerySourceOut[] {
-  const catalog = useCatalog();
-  const view = useCampaignStore((state) => state.view);
-  return useMemo(() => sceneSourcesInView(catalog, view), [catalog, view]);
-}
-
 /** The scene source the main map is showing, if that is what it is showing. */
 export function useShownSceneSource(): ImagerySourceOut | null {
   const catalog = useCatalog();

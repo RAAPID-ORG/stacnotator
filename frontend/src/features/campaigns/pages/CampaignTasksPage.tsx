@@ -20,7 +20,7 @@ import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
-import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
+import { TasksTab } from '~/features/campaigns/components/settings/tabs/TasksTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { FadeIn } from '~/shared/ui/motion';
@@ -61,7 +61,7 @@ export const CampaignTasksPage = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
+  const [taskFile, setTaskFile] = useState<File | null>(null);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [showReviewerModal, setShowReviewerModal] = useState(false);
   const [assignSelectedTaskIds, setAssignSelectedTaskIds] = useState<number[]>([]);
@@ -434,5 +434,3 @@ export const CampaignTasksPage = () => {
     </>
   );
 };
-
-export default CampaignTasksPage;

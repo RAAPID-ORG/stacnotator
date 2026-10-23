@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { me, type MeOut } from 'src/api/client';
+import { me, type MeOut } from '~/api/client';
 import i18n from '~/shared/i18n';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
 

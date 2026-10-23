@@ -15,9 +15,9 @@ export interface Emphasis {
   hovered?: boolean;
 }
 
-export const DEFAULT_FILL_OPACITY = 0.2;
-export const DEFAULT_STROKE_OPACITY = 1;
-export const defaultStrokeWidth = (geometryType: GeometryType) => (geometryType === 'line' ? 3 : 2);
+const DEFAULT_FILL_OPACITY = 0.2;
+const DEFAULT_STROKE_OPACITY = 1;
+const defaultStrokeWidth = (geometryType: GeometryType) => (geometryType === 'line' ? 3 : 2);
 
 /** Layers a partial user override over the label's assigned colour; anything
  *  unset keeps the default look. */

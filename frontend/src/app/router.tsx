@@ -8,8 +8,8 @@ import {
   Route,
   RouterProvider,
 } from 'react-router-dom';
-import { HomePage } from 'src/features/home/pages/HomePage';
-import { ProjectsPage } from 'src/features/projects/pages/ProjectsPage';
+import { HomePage } from '~/features/home/pages/HomePage';
+import { ProjectsPage } from '~/features/projects/pages/ProjectsPage';
 import { AppLayout } from '~/app/AppLayout';
 import { projectsPath } from '~/app/routes';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';

@@ -1,23 +1,23 @@
 import { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { App } from 'src/app/App';
-import 'src/styles/app.css';
-import 'src/shared/i18n';
-import { RootErrorFallback } from 'src/shared/ui/RootErrorFallback';
+import { App } from '~/app/App';
+import '~/styles/app.css';
+import '~/shared/i18n';
+import { RootErrorFallback } from '~/shared/ui/RootErrorFallback';
 import { ErrorBoundary } from 'react-error-boundary';
-import { client } from 'src/api/client/client.gen';
-import { setupClientInterceptors } from 'src/features/auth/core/interceptors';
-import { AuthProvider } from 'src/app/providers/AuthProvider';
-import { AuthGate } from 'src/features/auth/ui/AuthGate';
-import { legalKeyFromPath } from 'src/features/legal/docs';
-import { visualizerSlugFromPath } from 'src/features/visualizers/route';
-import { queryClient } from 'src/api/queryClient';
+import { client } from '~/api/client/client.gen';
+import { setupClientInterceptors } from '~/features/auth/core/interceptors';
+import { AuthProvider } from '~/app/providers/AuthProvider';
+import { AuthGate } from '~/features/auth/ui/AuthGate';
+import { legalKeyFromPath } from '~/features/legal/docs';
+import { visualizerSlugFromPath } from '~/features/visualizers/route';
+import { queryClient } from '~/api/queryClient';
 
-const LegalPage = lazy(() => import('src/features/legal/LegalPage'));
-const AgentRenderPage = lazy(() => import('src/features/annotation/AgentRenderPage'));
+const LegalPage = lazy(() => import('~/features/legal/LegalPage'));
+const AgentRenderPage = lazy(() => import('~/features/annotation/AgentRenderPage'));
 const VisualizerPage = lazy(() =>
-  import('src/features/visualizers/VisualizerPage').then((m) => ({ default: m.VisualizerPage }))
+  import('~/features/visualizers/VisualizerPage').then((m) => ({ default: m.VisualizerPage }))
 );
 
 // Configure API client with base URL

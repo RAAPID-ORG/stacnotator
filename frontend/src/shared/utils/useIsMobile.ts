@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 
 /** Touch-only devices (phones/tablets), regardless of orientation. Mirrors
  *  the `mobile:` Tailwind variant in app.css so JS and CSS stay in sync. */
-export const MOBILE_MEDIA_QUERY = '(hover: none) and (pointer: coarse)';
+const MOBILE_MEDIA_QUERY = '(hover: none) and (pointer: coarse)';
 
-export const isMobileNow = () => matchMedia(MOBILE_MEDIA_QUERY).matches;
+const isMobileNow = () => matchMedia(MOBILE_MEDIA_QUERY).matches;
 
 /** Reactive version of {@link isMobileNow} for use in components. */
 export const useIsMobile = (query = MOBILE_MEDIA_QUERY) => {

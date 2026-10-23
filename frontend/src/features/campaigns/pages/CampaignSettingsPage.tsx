@@ -6,17 +6,17 @@ import { Button } from '~/shared/ui/forms';
 import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
-import TabNavigator from '~/shared/ui/TabNavigator';
+import { TabNavigator } from '~/shared/ui/TabNavigator';
 import { DeleteCampaignDialog } from '~/features/campaigns/components/DeleteCampaignDialog';
-import GeneralSettingsTab from '~/features/campaigns/components/settings/tabs/GeneralSettingsTab';
-import ImageryTab from '~/features/campaigns/components/settings/tabs/ImageryTab';
+import { GeneralSettingsTab } from '~/features/campaigns/components/settings/tabs/GeneralSettingsTab';
+import { ImageryTab } from '~/features/campaigns/components/settings/tabs/ImageryTab';
 import { usePersistedController } from '~/features/campaigns/components/imagery/controller';
 import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath, projectPath } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
-import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
+import { TimeseriesTab } from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { FadeIn } from '~/shared/ui/motion';
@@ -468,10 +468,6 @@ export const CampaignSettingsPage = () => {
                       handleRenamePanel={handleRenamePanel}
                       setDeleteConfirm={setDeleteConfirm}
                       saving={saving}
-                      campaignName={campaignName}
-                      imagery={imagery}
-                      campaignMode={campaign.default_work_mode}
-                      campaignSettings={campaign.settings || {}}
                     />
                   )}
                 </>

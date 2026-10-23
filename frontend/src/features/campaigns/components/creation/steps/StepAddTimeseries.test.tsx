@@ -85,8 +85,9 @@ function Editor({ existingTimeseries = [] }: { existingTimeseries?: TimeseriesOu
   const [saved, setSaved] = useState(existingTimeseries);
   return (
     <StepAddTimeseries
-      form={form}
-      setForm={(next) => {
+      items={form.timeseries_configs ?? []}
+      onChange={(timeseries_configs) => {
+        const next = { ...form, timeseries_configs };
         onChange(next);
         setForm(next);
       }}

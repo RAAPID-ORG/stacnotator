@@ -693,10 +693,6 @@ export const useWorkStore = create<WorkState>((set, get) => {
   };
 });
 
-/** The annotation being edited, which is also the one drawn locally instead of
- *  from the tiles. */
-export const useEditingId = (): number | null => useWorkStore((s) => s.edit?.annotation.id ?? null);
-
 /** The slice notes on screen. An annotation opened for editing shows and
  *  saves its own; everything else is drafting them onto the next save. */
 export function useSliceNotes(): SliceNotes {

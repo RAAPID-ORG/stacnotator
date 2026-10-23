@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useLayoutStore } from 'src/shared/stores/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { projectsPath } from '~/app/routes';
 import { IconPlay } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';

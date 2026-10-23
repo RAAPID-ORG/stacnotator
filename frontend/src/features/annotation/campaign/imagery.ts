@@ -200,14 +200,6 @@ export function collectionStartDate(collection: { slices: { start_date?: string 
   return earliest || UNDATED;
 }
 
-export function byCollectionDate<
-  T extends { collection?: { slices: { start_date?: string | null }[] } | null },
->(a: T, b: T): number {
-  const first = a.collection ? collectionStartDate(a.collection) : UNDATED;
-  const second = b.collection ? collectionStartDate(b.collection) : UNDATED;
-  return first.localeCompare(second);
-}
-
 // ---------------------------------------------------------------------------
 // Naming a slice. Every surface that lists slices - the pickers, the window
 // headers, the comment dialog - reads them from here so one slice reads the
@@ -225,7 +217,7 @@ const dateFormat = () =>
   });
 
 /** '' for a missing or unparseable date rather than 'Invalid Date'. */
-export function formatSliceDate(value: string | null | undefined): string {
+function formatSliceDate(value: string | null | undefined): string {
   if (!value) return '';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '' : dateFormat().format(date);

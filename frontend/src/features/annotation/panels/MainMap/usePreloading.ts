@@ -75,7 +75,7 @@ export function resolvePreloadTier(tier: PreloadTier): ResolvedPreloadTier {
   return tier === 'auto' ? autoPreloadTier() : tier;
 }
 
-export function preloadConcurrency(tier: PreloadTier): number {
+function preloadConcurrency(tier: PreloadTier): number {
   return PRELOAD_TIER_CONCURRENCY[resolvePreloadTier(tier)];
 }
 

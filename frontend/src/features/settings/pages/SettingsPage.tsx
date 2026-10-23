@@ -1,22 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
-import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
+import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { Button, Field, Input, Select } from '~/shared/ui/forms';
 import { LANGUAGES } from '~/shared/i18n';
-import { useLayoutStore } from 'src/shared/stores/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { editUserInfoMutation } from '~/api/queries';
 import { useAccountStore } from '~/shared/stores/account.store';
-import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
-import { usernameError } from 'src/features/auth/utils/usernames';
-import {
-  authErrorMessage,
-  CHANGE_PASSWORD_ERRORS,
-} from 'src/features/auth/adapters/firebase/errors';
+import { authManager, AUTH_PROVIDERS } from '~/features/auth/index';
+import { usernameError } from '~/features/auth/utils/usernames';
+import { authErrorMessage, CHANGE_PASSWORD_ERRORS } from '~/features/auth/adapters/firebase/errors';
 import {
   PasswordRequirementsList,
   passwordMeetsAllRequirements,
-} from 'src/features/auth/ui/PasswordRequirements';
+} from '~/features/auth/ui/PasswordRequirements';
 import { FadeIn } from '~/shared/ui/motion';
 import { LEGAL_DOCS, legalPath } from '~/features/legal/docs';
 

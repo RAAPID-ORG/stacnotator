@@ -83,7 +83,7 @@ const generationConfigToBackend = (config: ImageryGenerationConfig): ImageryGene
   internal_storage: config.internalStorage ?? false,
 });
 
-export function collectionToBackend(
+function collectionToBackend(
   col: CollectionItem,
   sourceVizNames: string[] = []
 ): ImageryCollectionCreate {

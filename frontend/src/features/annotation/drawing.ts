@@ -59,7 +59,7 @@ type LabelOutcome =
 
 /** The task a new shape belongs to: in Tasks the draw task it answers, in
  *  Explore the task it was found near. */
-export function shapeTaskLink(): TaskLink {
+function shapeTaskLink(): TaskLink {
   if (campaignState().workMode === 'tasks') return { output_of_task_id: currentTask()?.id };
   return { origin_task_id: originTaskId() };
 }
