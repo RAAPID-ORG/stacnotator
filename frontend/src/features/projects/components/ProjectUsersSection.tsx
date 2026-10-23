@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Delayed } from '~/shared/ui/Delayed';
-import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
+import { Badge } from '~/shared/ui/Badge';
 import { extractErrorMessage } from '~/shared/utils/errorHandler';
-import { parseEmailList, searchUsers } from '~/shared/utils/utility';
-import { type AddUsersByEmailResult, type ProjectUserOut, type UserOut } from '~/api/client';
+import { type ProjectUserOut } from '~/api/client';
 import {
-  addProjectUsersByIdsMutation,
   addProjectUsersMutation,
   demoteProjectAdminMutation,
   demoteProjectAuthoritativeReviewerMutation,
@@ -15,18 +12,16 @@ import {
   getProjectUsersQueryKey,
   listProjectInvitesOptions,
   listProjectInvitesQueryKey,
-  listUsersOptions,
   makeProjectAdminMutation,
   makeProjectAuthoritativeReviewerMutation,
   removeProjectUserMutation,
   revokeProjectInviteMutation,
 } from '~/api/queries';
-import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import {
-  inviteSignupNote,
-  PendingInvites,
-} from '~/features/organizations/components/PendingInvites';
+import { AddByEmail } from '~/features/members/AddByEmail';
+import { MembersTable, RowAction } from '~/features/members/MembersTable';
+import { inviteSignupNote, PendingInvites } from '~/features/members/PendingInvites';
+import { AddPlatformUser } from './AddPlatformUser';
 
 interface ProjectUsersSectionProps {
   projectId: number;
@@ -34,30 +29,13 @@ interface ProjectUsersSectionProps {
 }
 
 const NO_MEMBERS: ProjectUserOut[] = [];
-const NO_USERS: UserOut[] = [];
-
-/** Emails only reach platform admins, so everyone else picks and reads
- *  members by name. */
-const pickerLabel = (user: UserOut) =>
-  user.email ? `${user.display_name} (${user.email})` : user.display_name;
 
 export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectionProps) => {
-  const { t } = useTranslation('projects');
+  const { t } = useTranslation(['projects', 'members']);
   const showAlert = useLayoutStore((state) => state.showAlert);
-  const showEmails = useAccountStore((state) => state.account?.is_platform_admin ?? false);
 
   const queryClient = useQueryClient();
   const path = { project_id: projectId };
-
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [userQuery, setUserQuery] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const pickerRef = useRef<HTMLDivElement>(null);
-
-  const [emailsText, setEmailsText] = useState('');
-  const [emailResult, setEmailResult] = useState<AddUsersByEmailResult | null>(null);
-  const [malformedEmails, setMalformedEmails] = useState<string[]>([]);
 
   const membersQuery = useQuery({
     ...getProjectUsersOptions({ path }),
@@ -71,63 +49,16 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     meta: { errorMessage: t('members.loadInvitesFailed') },
   });
 
-  const platformUsers = useQuery({
-    ...listUsersOptions({}),
-    enabled: canManage,
-    meta: { errorMessage: t('members.loadUsersFailed') },
-  });
-
-  // Platform admins get the raw records, where the username is null until the
-  // person has picked one; the picker needs something to show.
-  const allUsers = useMemo(
-    () =>
-      (platformUsers.data ?? NO_USERS).map((user) => ({
-        ...user,
-        display_name: user.display_name || (user.email ?? t('members.unnamedUser')),
-      })),
-    [platformUsers.data, t]
-  );
-
   const refetchMembers = () =>
     queryClient.invalidateQueries({ queryKey: getProjectUsersQueryKey({ path }) });
   const refetchInvites = () =>
     queryClient.invalidateQueries({ queryKey: listProjectInvitesQueryKey({ path }) });
 
-  useEffect(() => {
-    if (!pickerOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target;
-      if (target instanceof Node && pickerRef.current && !pickerRef.current.contains(target)) {
-        setPickerOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [pickerOpen]);
-
-  useEffect(() => {
-    if (!pickerOpen) return;
-    document
-      .getElementById(`project-user-option-${activeIndex}`)
-      ?.scrollIntoView({ block: 'nearest' });
-  }, [pickerOpen, activeIndex]);
-
-  const addById = useMutation({
-    ...addProjectUsersByIdsMutation(),
-    meta: { errorMessage: t('members.addFailed') },
-    onSuccess: () => {
-      void refetchMembers();
-      setSelectedUserId('');
-      setUserQuery('');
-    },
-  });
   // An added address either becomes a member or waits as an invite.
   const addByEmail = useMutation({
     ...addProjectUsersMutation(),
     meta: { errorMessage: t('members.addByEmailFailed') },
-    onSuccess: (result) => {
-      setEmailResult(result);
-      setEmailsText('');
+    onSuccess: () => {
       void refetchMembers();
       void refetchInvites();
     },
@@ -163,36 +94,12 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     onSuccess: refetchInvites,
   });
 
-  const addingUser = addById.isPending;
-  const addingEmails = addByEmail.isPending;
   const saving =
     promote.isPending ||
     demote.isPending ||
     addReviewer.isPending ||
     dropReviewer.isPending ||
     removeUser.isPending;
-
-  const handleAddUser = () => {
-    const selectedUser = allUsers.find((u) => u.id === selectedUserId);
-    if (!selectedUser) return;
-    addById.mutate(
-      { path, body: { user_ids: [selectedUser.id] } },
-      {
-        onSuccess: () =>
-          showAlert(t('members.addedToProject', { name: selectedUser.display_name }), 'success'),
-      }
-    );
-  };
-
-  const handleAddEmails = () => {
-    const { emails, invalid } = parseEmailList(emailsText);
-    setMalformedEmails(invalid);
-    if (emails.length === 0) {
-      setEmailResult(null);
-      return;
-    }
-    addByEmail.mutate({ path, body: { emails } });
-  };
 
   const handleToggleAdmin = (member: ProjectUserOut) => {
     const vars = { path: { ...path, user_id: member.user.id } };
@@ -225,7 +132,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
   const handleRemoveUser = async (member: ProjectUserOut) => {
     const confirmed = await useLayoutStore.getState().showConfirmDialog({
       title: t('members.confirmRemove', { name: member.user.display_name }),
-      confirmText: t('members.remove'),
+      confirmText: t('members:table.remove'),
       isDangerous: true,
     });
     if (!confirmed) return;
@@ -236,19 +143,6 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
           showAlert(t('members.removed', { name: member.user.display_name }), 'success'),
       }
     );
-  };
-
-  const availableUsers = allUsers.filter((u) => !users.some((pu) => pu.user.id === u.id));
-
-  // Once a user is picked the input holds their label; ignore it as a filter
-  // so reopening the picker shows the full list again.
-  const matchingUsers = searchUsers(availableUsers, (u) => u, selectedUserId ? '' : userQuery);
-  const activeUserIndex = Math.min(activeIndex, Math.max(matchingUsers.length - 1, 0));
-
-  const pickUser = (user: UserOut) => {
-    setSelectedUserId(user.id);
-    setUserQuery(pickerLabel(user));
-    setPickerOpen(false);
   };
 
   if (loading) {
@@ -271,8 +165,6 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
     );
   }
 
-  const rowActionCls =
-    'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
   const sectionCls =
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
 
@@ -285,162 +177,17 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
               <h2 className="section-heading">{t('members.addHeading')}</h2>
               <p className="section-description">{t('members.addDescription')}</p>
             </div>
-            <div className="flex gap-3 items-end">
-              <Field
-                label={t('members.selectUser')}
-                htmlFor="project-user-search"
-                className="flex-1"
-              >
-                <div className="relative" ref={pickerRef}>
-                  <Input
-                    id="project-user-search"
-                    role="combobox"
-                    aria-expanded={pickerOpen}
-                    aria-controls="project-user-listbox"
-                    aria-autocomplete="list"
-                    aria-activedescendant={
-                      pickerOpen && matchingUsers.length > 0
-                        ? `project-user-option-${activeUserIndex}`
-                        : undefined
-                    }
-                    value={userQuery}
-                    onChange={(e) => {
-                      setUserQuery(e.target.value);
-                      setSelectedUserId('');
-                      setActiveIndex(0);
-                      setPickerOpen(true);
-                    }}
-                    onFocus={() => setPickerOpen(true)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setPickerOpen(false);
-                      } else if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        if (pickerOpen) {
-                          setActiveIndex(Math.min(activeUserIndex + 1, matchingUsers.length - 1));
-                        } else {
-                          setPickerOpen(true);
-                        }
-                      } else if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        setActiveIndex(Math.max(activeUserIndex - 1, 0));
-                      } else if (
-                        e.key === 'Enter' &&
-                        pickerOpen &&
-                        matchingUsers[activeUserIndex]
-                      ) {
-                        e.preventDefault();
-                        pickUser(matchingUsers[activeUserIndex]);
-                      }
-                    }}
-                    placeholder={
-                      availableUsers.length === 0
-                        ? t('members.noUsersAvailable')
-                        : showEmails
-                          ? t('members.searchNameEmail')
-                          : t('members.searchName')
-                    }
-                    disabled={addingUser || availableUsers.length === 0}
-                  />
-                  {pickerOpen && availableUsers.length > 0 && (
-                    <div
-                      id="project-user-listbox"
-                      role="listbox"
-                      className="absolute z-20 mt-1 w-full bg-white border border-neutral-300 rounded-lg shadow-lg max-h-64 overflow-y-auto"
-                    >
-                      {matchingUsers.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-neutral-500">
-                          {t('members.noMatches')}
-                        </p>
-                      ) : (
-                        matchingUsers.map((user, index) => (
-                          <button
-                            key={user.id}
-                            id={`project-user-option-${index}`}
-                            role="option"
-                            aria-selected={user.id === selectedUserId}
-                            type="button"
-                            onClick={() => pickUser(user)}
-                            onMouseEnter={() => setActiveIndex(index)}
-                            className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                              index === activeUserIndex ? 'bg-brand-50' : ''
-                            } ${user.id === selectedUserId ? 'text-brand-800' : 'text-neutral-900'}`}
-                          >
-                            <div className="font-medium">{user.display_name}</div>
-                            {user.email && <div className="text-neutral-500">{user.email}</div>}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Field>
-              <Button onClick={handleAddUser} disabled={addingUser || !selectedUserId}>
-                {addingUser ? t('members.adding') : t('members.addMember')}
-              </Button>
-            </div>
+            <AddPlatformUser projectId={projectId} members={users} onAdded={refetchMembers} />
           </section>
 
           <section className={sectionCls}>
             <div>
               <h2 className="section-heading">{t('members.inviteHeading')}</h2>
               <p className="section-description">
-                {t('members.inviteDescription', { note: inviteSignupNote() })}
+                {t('members:byEmail.description', { note: inviteSignupNote() })}
               </p>
             </div>
-            <Field label={t('members.emailAddresses')} htmlFor="member-emails-input">
-              <Textarea
-                id="member-emails-input"
-                data-testid="member-emails-input"
-                value={emailsText}
-                onChange={(e) => setEmailsText(e.target.value)}
-                placeholder={t('members.emailsPlaceholder')}
-                disabled={addingEmails}
-              />
-            </Field>
-            <div>
-              <Button
-                data-testid="member-emails-submit"
-                onClick={handleAddEmails}
-                disabled={addingEmails || emailsText.trim() === ''}
-              >
-                {addingEmails ? t('members.adding') : t('members.addByEmail')}
-              </Button>
-            </div>
-            {(malformedEmails.length > 0 || emailResult) && (
-              <div className="space-y-2 text-xs">
-                {malformedEmails.length > 0 && (
-                  <div
-                    data-testid="add-result-malformed"
-                    className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700"
-                  >
-                    {t('members.malformed', { emails: malformedEmails.join(', ') })}
-                  </div>
-                )}
-                {emailResult && emailResult.added.length > 0 && (
-                  <div
-                    data-testid="add-result-added"
-                    className="px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-green-800"
-                  >
-                    {t('members.added', {
-                      count: emailResult.added.length,
-                      list: emailResult.added.map((u) => u.email ?? u.display_name).join(', '),
-                    })}
-                  </div>
-                )}
-                {emailResult && emailResult.invited_emails.length > 0 && (
-                  <div
-                    data-testid="add-result-invited"
-                    className="px-3 py-2 rounded-lg bg-brand-50 border border-brand-200 text-brand-800"
-                  >
-                    {t('members.invited', {
-                      emails: emailResult.invited_emails.join(', '),
-                      note: inviteSignupNote(),
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+            <AddByEmail onAdd={(emails) => addByEmail.mutateAsync({ path, body: { emails } })} />
             <PendingInvites
               invites={invitesQuery.data?.items ?? []}
               onRevoke={(invite) =>
@@ -465,101 +212,43 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
             />
           </h2>
         </div>
-
-        {users.length === 0 ? (
-          <div className="text-center py-10 text-sm text-neutral-500">{t('members.empty')}</div>
-        ) : (
-          <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-50/50 border-b border-neutral-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                    {t('members.name')}
-                  </th>
-                  {showEmails && (
-                    <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                      {t('members.email')}
-                    </th>
-                  )}
-                  <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                    {t('members.role')}
-                  </th>
-                  {canManage && (
-                    <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                      {t('members.actions')}
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {users.map((member) => (
-                  <tr
-                    key={member.user.id}
-                    data-testid="project-member-row"
-                    className="hover:bg-neutral-50/60 transition-colors"
-                  >
-                    <td className="px-4 py-3 text-sm font-medium text-neutral-900">
-                      {member.user.display_name}
-                    </td>
-                    {showEmails && (
-                      <td className="px-4 py-3 text-xs text-neutral-500">{member.user.email}</td>
-                    )}
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border ${
-                            member.is_admin
-                              ? 'bg-brand-50 text-brand-800 border-brand-200'
-                              : 'bg-neutral-50 text-neutral-700 border-neutral-200'
-                          }`}
-                        >
-                          {member.is_admin ? t('members.admin') : t('members.member')}
-                        </span>
-                        {member.is_authoritative_reviewer && (
-                          <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-accent-50 text-accent-800 border border-accent-200">
-                            {t('members.authoritativeReviewer')}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    {canManage && (
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1.5 flex-wrap">
-                          <button
-                            onClick={() => handleToggleAdmin(member)}
-                            disabled={saving}
-                            className={`${rowActionCls} text-neutral-700 hover:bg-neutral-100`}
-                            type="button"
-                          >
-                            {member.is_admin ? t('members.revokeAdmin') : t('members.makeAdmin')}
-                          </button>
-                          <button
-                            onClick={() => handleToggleReviewer(member)}
-                            disabled={saving}
-                            className={`${rowActionCls} text-accent-700 hover:bg-accent-50`}
-                            type="button"
-                          >
-                            {member.is_authoritative_reviewer
-                              ? t('members.removeReviewer')
-                              : t('members.makeReviewer')}
-                          </button>
-                          <button
-                            onClick={() => handleRemoveUser(member)}
-                            disabled={saving}
-                            className={`${rowActionCls} text-red-600 hover:bg-red-50`}
-                            type="button"
-                          >
-                            {t('members.remove')}
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <MembersTable
+          members={users}
+          emptyText={t('members.empty')}
+          rowTestId="project-member-row"
+          extraRoles={(member) =>
+            member.is_authoritative_reviewer && (
+              <Badge tone="accent">{t('members.authoritativeReviewer')}</Badge>
+            )
+          }
+          actions={
+            canManage
+              ? (member) => (
+                  <>
+                    <RowAction onClick={() => handleToggleAdmin(member)} disabled={saving}>
+                      {member.is_admin ? t('members.revokeAdmin') : t('members.makeAdmin')}
+                    </RowAction>
+                    <RowAction
+                      tone="accent"
+                      onClick={() => handleToggleReviewer(member)}
+                      disabled={saving}
+                    >
+                      {member.is_authoritative_reviewer
+                        ? t('members.removeReviewer')
+                        : t('members.makeReviewer')}
+                    </RowAction>
+                    <RowAction
+                      tone="danger"
+                      onClick={() => handleRemoveUser(member)}
+                      disabled={saving}
+                    >
+                      {t('members:table.remove')}
+                    </RowAction>
+                  </>
+                )
+              : undefined
+          }
+        />
       </section>
     </div>
   );

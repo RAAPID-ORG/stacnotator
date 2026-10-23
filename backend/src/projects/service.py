@@ -17,7 +17,7 @@ from src.organizations.models import (
 from src.organizations.service import (
     invite_emails,
     is_active_org_member,
-    normalize_emails,
+    split_by_account,
 )
 from src.projects.access import VISIBILITY_PUBLIC, ProjectFlags
 from src.projects.models import Project, ProjectUser
@@ -177,25 +177,8 @@ def add_users_by_email(
 ) -> tuple[list[User], list[str]]:
     """Add registered users (org-external allowed by design) as members;
     store invites for the rest so they join automatically at sign-up."""
-    normalized = normalize_emails(emails)
-    users = db.scalars(select(User).where(func.lower(User.email).in_(normalized))).all()
-    by_email = {u.email.lower(): u for u in users}
-    added: list[User] = []
-    for email in normalized:
-        found = by_email.get(email)
-        if found is None:
-            continue
-        if db.get(ProjectUser, (found.id, project_id)) is None:
-            db.add(
-                ProjectUser(
-                    user_id=found.id,
-                    project_id=project_id,
-                    is_admin=False,
-                    is_authoritative_reviewer=False,
-                )
-            )
-            added.append(found)
-    unknown = [e for e in normalized if e not in by_email]
+    users, unknown = split_by_account(db, emails)
+    added = _add_members(db, project_id, users)
     invited = invite_emails(db, unknown, invited_by=invited_by, project_id=project_id)
     db.commit()
     return added, invited
@@ -212,17 +195,23 @@ def add_users_by_ids(db: Session, project_id: int, user_ids: list[UUID]) -> None
             status_code=404,
             detail=f"Users not found with IDs: {', '.join(str(uid) for uid in missing)}",
         )
-    for user in users:
-        if db.get(ProjectUser, (user.id, project_id)) is None:
-            db.add(
-                ProjectUser(
-                    user_id=user.id,
-                    project_id=project_id,
-                    is_admin=False,
-                    is_authoritative_reviewer=False,
-                )
-            )
+    _add_members(db, project_id, list(users))
     db.commit()
+
+
+def _add_members(db: Session, project_id: int, users: list[User]) -> list[User]:
+    """Make ``users`` members; returns those who were not already."""
+    added = [u for u in users if db.get(ProjectUser, (u.id, project_id)) is None]
+    for user in added:
+        db.add(
+            ProjectUser(
+                user_id=user.id,
+                project_id=project_id,
+                is_admin=False,
+                is_authoritative_reviewer=False,
+            )
+        )
+    return added
 
 
 def _assert_not_last_project_admin(db: Session, project_id: int, user_id: UUID) -> None:

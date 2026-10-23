@@ -3,7 +3,7 @@ import i18n from '~/shared/i18n';
 import type { InviteOut } from '~/api/client';
 
 /** Shown next to both add-by-email flows and on invited results. */
-export const inviteSignupNote = () => i18n.t('organizations:invites.signupNote');
+export const inviteSignupNote = () => i18n.t('members:invites.signupNote');
 
 interface PendingInvitesProps {
   invites: InviteOut[];
@@ -22,7 +22,7 @@ export const PendingInvites = ({
   revokingId,
   className,
 }: PendingInvitesProps) => {
-  const { t } = useTranslation('organizations');
+  const { t } = useTranslation('members');
   if (invites.length === 0) return null;
 
   return (

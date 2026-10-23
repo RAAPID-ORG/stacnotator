@@ -152,27 +152,12 @@
     "adding": "Adding…",
     "addMember": "Add member",
     "inviteHeading": "Invite to STACNotator",
-    "inviteDescription": "Invite users that are not yet registered on STACNotator. Paste one or more email addresses, separated by commas, spaces or newlines. Addresses without an account yet, will be automatically added to the project when signing up to STACNotator. {{note}}",
-    "emailAddresses": "Email addresses",
-    "emailsPlaceholder": "ada@example.org, grace@example.org",
-    "addByEmail": "Add by email",
-    "malformed": "Not an email address: {{emails}}",
-    "added_one": "Added {{count}} member: {{list}}",
-    "added_other": "Added {{count}} members: {{list}}",
-    "invited": "Invited {{emails}}. {{note}}",
     "heading": "Project members <count>({{count}})</count>",
     "empty": "No members in this project yet.",
-    "name": "Name",
-    "email": "Email",
-    "role": "Role",
-    "actions": "Actions",
-    "admin": "Admin",
-    "member": "Member",
     "authoritativeReviewer": "Authoritative reviewer",
     "revokeAdmin": "Revoke admin",
     "makeAdmin": "Make admin",
     "removeReviewer": "Remove auth. reviewer",
-    "makeReviewer": "Make auth. reviewer",
-    "remove": "Remove"
+    "makeReviewer": "Make auth. reviewer"
   }
 }

@@ -25,6 +25,18 @@ from src.projects.models import Project, ProjectUser
 from src.tilers import registry
 
 
+def split_by_account(db: Session, emails: list[str]) -> tuple[list[User], list[str]]:
+    """The people behind ``emails`` who already have an account, and the
+    addresses nobody has signed up with yet, each in the order given."""
+    normalized = normalize_emails(emails)
+    users = db.scalars(select(User).where(func.lower(User.email).in_(normalized))).all()
+    by_email = {u.email.lower(): u for u in users}
+    return (
+        [by_email[e] for e in normalized if e in by_email],
+        [e for e in normalized if e not in by_email],
+    )
+
+
 def normalize_emails(emails: list[str]) -> list[str]:
     """Trim, lowercase, and dedupe (preserving order), dropping empties."""
     seen: set[str] = set()
@@ -430,25 +442,17 @@ def add_users_by_email(
 ) -> tuple[list[User], list[str]]:
     """Add registered users as active members; store invites for the rest so
     they join automatically when they sign up with that email."""
-    normalized = normalize_emails(emails)
-    users = db.scalars(select(User).where(func.lower(User.email).in_(normalized))).all()
-    by_email = {u.email.lower(): u for u in users}
-    added: list[User] = []
-    for email in normalized:
-        found = by_email.get(email)
-        if found is None:
-            continue
-        if db.get(OrganizationUser, (found.id, organization_id)) is None:
-            db.add(
-                OrganizationUser(
-                    user_id=found.id,
-                    organization_id=organization_id,
-                    is_admin=False,
-                    status=MEMBER_STATUS_ACTIVE,
-                )
+    users, unknown = split_by_account(db, emails)
+    added = [u for u in users if db.get(OrganizationUser, (u.id, organization_id)) is None]
+    for user in added:
+        db.add(
+            OrganizationUser(
+                user_id=user.id,
+                organization_id=organization_id,
+                is_admin=False,
+                status=MEMBER_STATUS_ACTIVE,
             )
-            added.append(found)
-    unknown = [e for e in normalized if e not in by_email]
+        )
     invited = invite_emails(db, unknown, invited_by=invited_by, organization_id=organization_id)
     db.commit()
     return added, invited

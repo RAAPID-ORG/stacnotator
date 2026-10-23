@@ -10,6 +10,7 @@ import annotation from './locales/en/annotation.json';
 import panels from './locales/en/panels.json';
 import areaEstimation from './locales/en/areaEstimation.json';
 import visualizers from './locales/en/visualizers.json';
+import members from './locales/en/members.json';
 import esCommon from './locales/es/common.json';
 import esAuth from './locales/es/auth.json';
 import esSettings from './locales/es/settings.json';
@@ -22,6 +23,7 @@ import esAnnotation from './locales/es/annotation.json';
 import esPanels from './locales/es/panels.json';
 import esAreaEstimation from './locales/es/areaEstimation.json';
 import esVisualizers from './locales/es/visualizers.json';
+import esMembers from './locales/es/members.json';
 
 export const resources = {
   en: {
@@ -37,6 +39,7 @@ export const resources = {
     panels,
     areaEstimation,
     visualizers,
+    members,
   },
   es: {
     common: esCommon,
@@ -51,5 +54,6 @@ export const resources = {
     panels: esPanels,
     areaEstimation: esAreaEstimation,
     visualizers: esVisualizers,
+    members: esMembers,
   },
 } as const;
