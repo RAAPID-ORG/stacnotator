@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import { addGlBasemap } from './leafletBasemap';
 import { COUNTRY_BBOXES } from '~/features/campaigns/utils/countryBboxes';
+import { BASEMAP_STYLE_URL } from '~/shared/imagery/tileUrls';
+import { Camera } from '~/shared/map/Camera';
+import { MapView } from '~/shared/map/MapView';
+import type { Bbox, LayerSpec, StyleSpec } from '~/shared/map/types';
 import { Input } from '~/shared/ui/forms';
+
+interface BboxValue {
+  bbox_west: number;
+  bbox_south: number;
+  bbox_east: number;
+  bbox_north: number;
+}
 
 interface BoundingBoxEditorProps {
   /** Replaces the default heading, or drops it when null - a caller that has
@@ -12,38 +20,45 @@ interface BoundingBoxEditorProps {
   heading?: { title: string; description: string } | null;
   /** The country picker. Off for callers bringing their own place search. */
   showCountrySearch?: boolean;
-  value: {
-    bbox_west: number;
-    bbox_south: number;
-    bbox_east: number;
-    bbox_north: number;
-  };
-  onChange: (updates: {
-    bbox_west?: number;
-    bbox_south?: number;
-    bbox_east?: number;
-    bbox_north?: number;
-  }) => void;
+  value: BboxValue;
+  onChange: (updates: Partial<BboxValue>) => void;
 }
+
+const BASEMAP: LayerSpec[] = [
+  { kind: 'gl-style', id: 'bbox-basemap', styleUrl: BASEMAP_STYLE_URL },
+];
+const BOX_STYLE: StyleSpec = {
+  stroke: { color: '#326247', width: 2, dash: [5, 5] },
+  fill: { color: 'rgba(50, 98, 71, 0.2)' },
+  circle: { radius: 7, stroke: { color: '#ffffff', width: 2 }, fill: { color: '#326247' } },
+};
+const FIT_PADDING_PX = 50;
 
 /**
  * A dragged rectangle as the campaign's area.
  *
- * Leaflet reports longitudes unwrapped, so dragging the box west past the
+ * The map reports longitudes unwrapped, so dragging the box west past the
  * antimeridian returns -196 rather than 164. Both edges shift by the same
  * multiple of 360 - the box keeps its shape and its place - which lands west
  * back in range. A box that genuinely straddles 180 comes out with east past
  * it, and validation reports that rather than this quietly moving it.
  */
-function boundsToBbox(bounds: L.LatLngBounds) {
-  const west = bounds.getWest();
+function toValue([west, south, east, north]: Bbox): BboxValue {
   const shift = -360 * Math.floor((west + 180) / 360);
+  // Five decimals is about a metre - finer than anyone drags.
+  const round = (n: number) => Math.round(n * 1e5) / 1e5;
   return {
-    bbox_west: west + shift,
-    bbox_south: bounds.getSouth(),
-    bbox_east: bounds.getEast() + shift,
-    bbox_north: bounds.getNorth(),
+    bbox_west: round(west + shift),
+    bbox_south: round(south),
+    bbox_east: round(east + shift),
+    bbox_north: round(north),
   };
+}
+
+function validBbox(value: BboxValue): Bbox | null {
+  const bbox: Bbox = [value.bbox_west, value.bbox_south, value.bbox_east, value.bbox_north];
+  if (!bbox.every(Number.isFinite) || bbox[0] >= bbox[2] || bbox[1] >= bbox[3]) return null;
+  return bbox;
 }
 
 export const BoundingBoxEditor = ({
@@ -57,12 +72,11 @@ export const BoundingBoxEditor = ({
     heading === undefined
       ? { title: t('bbox.title'), description: t('bbox.description') }
       : heading;
-  const mapRef = useRef<L.Map | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rectangleRef = useRef<L.Rectangle | null>(null);
-  const markersRef = useRef<{ nw: L.Marker | null; se: L.Marker | null }>({ nw: null, se: null });
-  const isUpdatingFromDragRef = useRef(false);
-  const prevBboxRef = useRef<string>('');
+  const camera = useRef<Camera>(null);
+  camera.current ??= new Camera({ center: [0, 0], zoom: 2 });
+  // The last box this map produced itself: the map is already showing it, so
+  // the value coming back for it must not refit the view mid-adjustment.
+  const fromMapRef = useRef<string | null>(null);
 
   // Country search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,209 +108,20 @@ export const BoundingBoxEditor = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Initialize map
+  const bbox = validBbox(value);
+  const bboxKey = bbox?.join() ?? null;
+
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!bbox || bboxKey === fromMapRef.current) return;
+    camera.current?.fitBounds(bbox, { paddingPx: FIT_PADDING_PX });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bboxKey is the bbox's identity
+  }, [bboxKey]);
 
-    const map = L.map(containerRef.current, {
-      center: [0, 0],
-      zoom: 2,
-      zoomControl: true,
-      attributionControl: true,
-    });
-
-    addGlBasemap(map);
-
-    mapRef.current = map;
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
-  }, []);
-
-  // Update rectangle when bbox changes
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    // Don't update if we're in the middle of dragging
-    if (isUpdatingFromDragRef.current) {
-      isUpdatingFromDragRef.current = false;
-      return;
-    }
-
-    const { bbox_west, bbox_south, bbox_east, bbox_north } = value;
-    const bboxKey = `${bbox_west},${bbox_south},${bbox_east},${bbox_north}`;
-
-    // Validate bbox
-    if (
-      isNaN(bbox_west) ||
-      isNaN(bbox_south) ||
-      isNaN(bbox_east) ||
-      isNaN(bbox_north) ||
-      bbox_west >= bbox_east ||
-      bbox_south >= bbox_north
-    ) {
-      // Remove rectangle if invalid
-      if (rectangleRef.current) {
-        rectangleRef.current.remove();
-        rectangleRef.current = null;
-      }
-      if (markersRef.current.nw) {
-        markersRef.current.nw.remove();
-        markersRef.current.nw = null;
-      }
-      if (markersRef.current.se) {
-        markersRef.current.se.remove();
-        markersRef.current.se = null;
-      }
-      prevBboxRef.current = '';
-      return;
-    }
-
-    const bounds = L.latLngBounds([bbox_south, bbox_west], [bbox_north, bbox_east]);
-    const bboxActuallyChanged = bboxKey !== prevBboxRef.current;
-    prevBboxRef.current = bboxKey;
-
-    if (rectangleRef.current) {
-      // Update existing rectangle and markers
-      rectangleRef.current.setBounds(bounds);
-      if (markersRef.current.nw) {
-        markersRef.current.nw.setLatLng([bbox_north, bbox_west]);
-      }
-      if (markersRef.current.se) {
-        markersRef.current.se.setLatLng([bbox_south, bbox_east]);
-      }
-    } else {
-      // Create new rectangle
-      const rectangle = L.rectangle(bounds, {
-        color: '#326247',
-        weight: 2,
-        fillOpacity: 0.2,
-        dashArray: '5, 5',
-      }).addTo(mapRef.current);
-
-      rectangleRef.current = rectangle;
-
-      // Make rectangle draggable to move entire bbox
-      let isDragging = false;
-      let dragStart: { lat: number; lng: number; bounds: L.LatLngBounds } | null = null;
-
-      rectangle.on('mousedown', (e: L.LeafletMouseEvent) => {
-        const originalEvent = e.originalEvent as MouseEvent;
-        // Only start drag if not clicking on a corner marker
-        if (!(originalEvent.target as HTMLElement).closest('.bbox-corner-marker')) {
-          isDragging = true;
-          dragStart = {
-            lat: e.latlng.lat,
-            lng: e.latlng.lng,
-            bounds: rectangle.getBounds(),
-          };
-          mapRef.current!.dragging.disable();
-          L.DomEvent.stopPropagation(e);
-        }
-      });
-
-      const handleMouseMove = (e: L.LeafletMouseEvent) => {
-        if (!isDragging || !dragStart) return;
-
-        const deltaLat = e.latlng.lat - dragStart.lat;
-        const deltaLng = e.latlng.lng - dragStart.lng;
-
-        const newBounds = L.latLngBounds(
-          [dragStart.bounds.getSouth() + deltaLat, dragStart.bounds.getWest() + deltaLng],
-          [dragStart.bounds.getNorth() + deltaLat, dragStart.bounds.getEast() + deltaLng]
-        );
-
-        rectangle.setBounds(newBounds);
-        if (markersRef.current.nw) {
-          markersRef.current.nw.setLatLng([newBounds.getNorth(), newBounds.getWest()]);
-        }
-        if (markersRef.current.se) {
-          markersRef.current.se.setLatLng([newBounds.getSouth(), newBounds.getEast()]);
-        }
-      };
-
-      const handleMouseUp = () => {
-        if (isDragging) {
-          const newBounds = rectangle.getBounds();
-          isUpdatingFromDragRef.current = true;
-          onChange(boundsToBbox(newBounds));
-          isDragging = false;
-          dragStart = null;
-          mapRef.current!.dragging.enable();
-        }
-      };
-
-      mapRef.current.on('mousemove', handleMouseMove);
-      mapRef.current.on('mouseup', handleMouseUp);
-      document.addEventListener('mouseup', handleMouseUp);
-
-      // Create corner markers - only NW (top-left) and SE (bottom-right)
-      const createMarker = (lat: number, lng: number, isNW: boolean) => {
-        const marker = L.marker([lat, lng], {
-          draggable: true,
-          icon: L.divIcon({
-            html: `<div style="width: 14px; height: 14px; background: #326247; border: 2px solid white; border-radius: 50%; cursor: move; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>`,
-            className: 'bbox-corner-marker',
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
-          }),
-        }).addTo(mapRef.current!);
-
-        marker.on('drag', () => {
-          const pos = marker.getLatLng();
-          const currentBounds = rectangle.getBounds();
-
-          let newWest = currentBounds.getWest();
-          let newEast = currentBounds.getEast();
-          let newSouth = currentBounds.getSouth();
-          let newNorth = currentBounds.getNorth();
-
-          if (isNW) {
-            // Northwest corner (top-left)
-            newNorth = pos.lat;
-            newWest = pos.lng;
-          } else {
-            // Southeast corner (bottom-right)
-            newSouth = pos.lat;
-            newEast = pos.lng;
-          }
-
-          // Ensure valid bounds
-          if (newWest < newEast && newSouth < newNorth) {
-            const newBounds = L.latLngBounds([newSouth, newWest], [newNorth, newEast]);
-            rectangle.setBounds(newBounds);
-
-            // Update the other marker
-            if (isNW && markersRef.current.se) {
-              markersRef.current.se.setLatLng([newSouth, newEast]);
-            } else if (!isNW && markersRef.current.nw) {
-              markersRef.current.nw.setLatLng([newNorth, newWest]);
-            }
-          }
-        });
-
-        marker.on('dragend', () => {
-          const newBounds = rectangle.getBounds();
-          isUpdatingFromDragRef.current = true;
-          onChange(boundsToBbox(newBounds));
-        });
-
-        return marker;
-      };
-
-      markersRef.current.nw = createMarker(bbox_north, bbox_west, true);
-      markersRef.current.se = createMarker(bbox_south, bbox_east, false);
-    }
-
-    // Only re-fit the map when coordinates actually changed (not on re-renders)
-    if (bboxActuallyChanged) {
-      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
-    }
-  }, [value, value.bbox_west, value.bbox_south, value.bbox_east, value.bbox_north, onChange]);
+  const onBoxChange = (drawn: Bbox) => {
+    const next = toValue(drawn);
+    fromMapRef.current = [next.bbox_west, next.bbox_south, next.bbox_east, next.bbox_north].join();
+    onChange(next);
+  };
 
   return (
     <div className="space-y-4">
@@ -427,16 +252,17 @@ export const BoundingBoxEditor = ({
 
         {/* Map */}
         <div className="lg:col-span-2">
-          <div ref={containerRef} className="w-full h-64 rounded-lg border border-neutral-200" />
+          <div className="w-full h-64 rounded-lg border border-neutral-200 overflow-hidden">
+            <MapView
+              camera={camera.current}
+              layers={BASEMAP}
+              interactions={
+                bbox ? { box: { bbox, onChange: onBoxChange, style: BOX_STYLE } } : undefined
+              }
+            />
+          </div>
         </div>
       </div>
-
-      <style>{`
-        .bbox-corner-marker {
-          background: transparent !important;
-          border: none !important;
-        }
-      `}</style>
     </div>
   );
 };

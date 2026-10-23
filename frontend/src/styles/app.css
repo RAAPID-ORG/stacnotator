@@ -1,6 +1,4 @@
 @import 'tailwindcss';
-@import 'leaflet/dist/leaflet.css';
-@import 'maplibre-gl/dist/maplibre-gl.css';
 
 /* `mobile:` matches touch devices regardless of orientation - phones in
    landscape still get the compact UI. `desktop:` is its inverse. Prefer these
@@ -249,12 +247,6 @@ h6 {
    text-decoration: dotted renders as tiny hairline ticks that read as a mistake at this
    size. This draws real round dots instead, sized and spaced deliberately, and wipes
    them in from the left on hover so the control announces itself as one. */
-/* Leaflet gives SVG paths focus on click, which paints a browser outline around a
-   shape that cannot be interacted with by keyboard anyway. Hover and tooltip stay. */
-.leaflet-interactive:focus {
-  outline: none;
-}
-
 .dotted-underline {
   position: relative;
 }
@@ -530,40 +522,6 @@ input[type='range'] {
   height: 8px;
   border-right: 2px solid var(--color-neutral-400);
   border-bottom: 2px solid var(--color-neutral-400);
-}
-
-/* Leaflet Draw Edit Markers - Ensure they're always on top and clickable */
-.leaflet-marker-pane {
-  z-index: 600 !important;
-}
-
-.leaflet-editing-icon,
-.leaflet-edit-marker-selected {
-  z-index: 1000 !important;
-  pointer-events: auto !important;
-}
-
-/* Ensure edit markers for vertices are visible and above everything */
-.leaflet-marker-icon.leaflet-editing-icon {
-  z-index: 1000 !important;
-  pointer-events: auto !important;
-  cursor: move !important;
-}
-
-/* Middle markers (for adding new vertices) */
-.leaflet-marker-icon.leaflet-div-icon.leaflet-editing-icon.leaflet-touch-icon {
-  z-index: 999 !important;
-  pointer-events: auto !important;
-}
-
-/* Ensure the overlay pane with polygons doesn't block edit markers */
-.leaflet-overlay-pane {
-  z-index: 400;
-}
-
-/* Ensure the shadow pane doesn't interfere */
-.leaflet-shadow-pane {
-  z-index: 500;
 }
 
 /* Modal animations */

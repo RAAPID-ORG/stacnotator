@@ -742,7 +742,7 @@
     "south": "South (Lat)",
     "east": "East (Long)",
     "north": "North (Lat)",
-    "dragHint": "Drag the corner handles to resize, or drag the box to move it"
+    "dragHint": "Drag the box to move it, or its corners and edges to resize it. Shift-drag draws a new box."
   },
   "customMaps": {
     "status": {

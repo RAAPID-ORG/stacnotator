@@ -266,7 +266,6 @@ export const TasksTab: React.FC<Props> = ({
           tasks={scopedTasks}
           taskSets={taskSets}
           hideSetFilter
-          embedded
           headerSlot={tasksTableHeading}
           headerActions={tasksTableActions}
           selectable={canManage}

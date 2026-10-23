@@ -48,10 +48,7 @@
     "countHere": "{{n}} aquí",
     "show": "Mostrar {{name}}",
     "hide": "Ocultar {{name}}",
-    "loadFailed": "No se pudo cargar la distribución de anotaciones",
-    "pending": "Pendiente",
-    "skipped": "Omitida",
-    "taskHeading": "Distribución de anotaciones ({{total}} en total)"
+    "loadFailed": "No se pudo cargar la distribución de anotaciones"
   },
   "userFilter": {
     "label": "Filtrar por usuario:",
@@ -161,7 +158,6 @@
     "confirmDeleteDescription_other": "Se eliminarán permanentemente {{count}} anotaciones. Esta acción no se puede deshacer."
   },
   "tasks": {
-    "subtitle": "Consulta y filtra todas las tareas de anotación de esta campaña.",
     "filterAndSort": "Filtrar y ordenar",
     "showingOf": "Mostrando {{shown}} de {{total}} tareas",
     "counts": {

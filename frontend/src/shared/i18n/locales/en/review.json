@@ -45,10 +45,7 @@
     "countHere": "{{n}} here",
     "show": "Show {{name}}",
     "hide": "Hide {{name}}",
-    "loadFailed": "Failed to load annotation distribution",
-    "pending": "Pending",
-    "skipped": "Skipped",
-    "taskHeading": "Annotation Distribution ({{total}} total)"
+    "loadFailed": "Failed to load annotation distribution"
   },
   "userFilter": {
     "label": "Filter by User:",
@@ -145,7 +142,6 @@
     "confirmDeleteDescription": "This will permanently delete {{count}} annotation(s). This action cannot be undone."
   },
   "tasks": {
-    "subtitle": "View and filter all annotation tasks for this campaign.",
     "filterAndSort": "Filter and sort",
     "showingOf": "Showing {{shown}} of {{total}} tasks",
     "counts": {

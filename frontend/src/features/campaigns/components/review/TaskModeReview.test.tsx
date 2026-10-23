@@ -26,7 +26,7 @@ const makeTasks = (count: number): AnnotationTaskOut[] =>
 const renderTable = (count: number) =>
   renderWithQuery(
     <MemoryRouter>
-      <TaskModeReview campaignId={1} tasks={makeTasks(count)} taskSets={[]} embedded selectable />
+      <TaskModeReview campaignId={1} tasks={makeTasks(count)} taskSets={[]} selectable />
     </MemoryRouter>
   );
 

@@ -781,7 +781,7 @@
     "south": "Sur (lat.)",
     "east": "Este (long.)",
     "north": "Norte (lat.)",
-    "dragHint": "Arrastra las esquinas para cambiar el tamaño, o arrastra el recuadro para moverlo"
+    "dragHint": "Arrastra el recuadro para moverlo, o sus esquinas y bordes para cambiar su tamaño. Mayús y arrastrar dibuja un recuadro nuevo."
   },
   "customMaps": {
     "status": {
