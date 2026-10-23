@@ -92,6 +92,7 @@ class AnnotationTask(Base):
         # looks each up in one query rather than per task.
         has_embedding: bool
         nearby_annotation_count: int
+        drawn_by_user_ids: list[UUID]
 
     __tablename__ = "annotation_tasks"
     __table_args__ = (

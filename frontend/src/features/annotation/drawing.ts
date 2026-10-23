@@ -103,17 +103,20 @@ export async function labelGeometries(geometries: GeoJSON.Geometry[]): Promise<L
   const campaignId = campaignState().campaign.id;
   const bodies = geometries.map((geometry) => annotationBody(geometry, labelId, work.formValues));
   try {
+    let count = 1;
     if (bodies.length === 1) {
       await createAnnotationOpenmode({ path: { campaign_id: campaignId }, body: bodies[0] });
-      return { kind: 'saved', count: 1 };
+    } else {
+      // One request and one transaction for the set: labelling hundreds of
+      // vector features must not be hundreds of round trips.
+      const result = await batchCreateAnnotations({
+        path: { campaign_id: campaignId },
+        body: { annotations: bodies },
+      });
+      count = result.data?.created_count ?? bodies.length;
     }
-    // One request and one transaction for the set: labelling hundreds of
-    // vector features must not be hundreds of round trips.
-    const result = await batchCreateAnnotations({
-      path: { campaign_id: campaignId },
-      body: { annotations: bodies },
-    });
-    return { kind: 'saved', count: result.data?.created_count ?? bodies.length };
+    work.noteDrawn(shapeTaskLink());
+    return { kind: 'saved', count };
   } catch (error) {
     return { kind: 'error', message: extractErrorMessage(error) };
   }

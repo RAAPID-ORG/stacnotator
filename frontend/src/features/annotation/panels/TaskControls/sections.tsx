@@ -164,6 +164,9 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
   // Skipping is labelling with no label, so it is gated the same way. Keying
   // it on assignment would put it out of reach on the whole unassigned pool.
   const isSkipDisabled = isBusy || !mayLabel;
+  const drewHere =
+    useWorkStore((s) => s.drawnTaskIds.includes(task.id)) ||
+    (task.drawn_by_user_ids ?? []).some((id) => id === currentUserId);
   const submitLabel = isBusy
     ? 'Submitting…'
     : drawTask
@@ -206,7 +209,8 @@ export function ActionBar({ task }: { task: AnnotationTaskOut }) {
           {drawTask && (
             <button
               type="button"
-              disabled={isSkipDisabled}
+              disabled={isSkipDisabled || drewHere}
+              title={drewHere ? 'You drew shapes for this task - press Done' : undefined}
               onClick={() => void finishDrawTask('none_found')}
               className="inline-flex items-center justify-center h-7 px-1.5 text-[11px] font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
             >

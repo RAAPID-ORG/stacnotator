@@ -412,6 +412,8 @@ class AnnotationTaskOut(BaseModel):
     has_embedding: bool = False
     # Standalone annotations drawn after leaving this task for Explore.
     nearby_annotation_count: int = 0
+    # Who has drawn shapes as this draw task's answer.
+    drawn_by_user_ids: list[UUID] = []
 
     @model_validator(mode="before")
     @classmethod

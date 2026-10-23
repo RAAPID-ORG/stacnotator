@@ -104,6 +104,9 @@ interface WorkState {
   draft: Draft;
   /** The task the shape being drawn is saved against. */
   draftLink: TaskLink;
+  /** Draw tasks this user saved shapes for in this session; the server's
+   *  `drawn_by_user_ids` covers the ones from before it. */
+  drawnTaskIds: number[];
   selection: number[];
   /** Where the selection's on-map controls sit: the top-right of the geometry
    *  being edited, or of the box that selected many. */
@@ -195,6 +198,7 @@ interface WorkState {
   toggleProbeTool: () => void;
 
   beginDraft: (labelId: number, link?: TaskLink) => void;
+  noteDrawn: (link: TaskLink) => void;
   /** A shape finished drawing. Only an unanswered required question holds it
    *  back as a draft; otherwise it is stored right away, with its optional
    *  questions still open for answers. */
@@ -281,7 +285,10 @@ export const useWorkStore = create<WorkState>((set, get) => {
         },
       });
       const id = result.data?.id ?? null;
-      if (id !== null) recordLocal(id, labelId, geometry);
+      if (id !== null) {
+        recordLocal(id, labelId, geometry);
+        get().noteDrawn(draftLink);
+      }
       return id;
     } catch {
       return null;
@@ -362,6 +369,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
     commenting: null,
     draft: { phase: 'idle' },
     draftLink: {},
+    drawnTaskIds: [],
     selection: [],
     selectionAnchor: null,
     edit: null,
@@ -482,6 +490,7 @@ export const useWorkStore = create<WorkState>((set, get) => {
         commenting: null,
         draft: { phase: 'idle' },
         draftLink: {},
+        drawnTaskIds: [],
         selection: [],
         selectionAnchor: null,
         edit: null,
@@ -531,6 +540,10 @@ export const useWorkStore = create<WorkState>((set, get) => {
     // Slice notes survive the reset: noticing something about an image and
     // then drawing what it is about is one gesture, and the note belongs to
     // the shape that follows it.
+    noteDrawn: ({ output_of_task_id: taskId }) => {
+      if (taskId != null) set((s) => ({ drawnTaskIds: [...s.drawnTaskIds, taskId] }));
+    },
+
     beginDraft: (labelId, link = {}) =>
       set((s) => ({
         ...emptyForm,

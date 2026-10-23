@@ -907,6 +907,10 @@ export type AnnotationTaskOut = {
      * Nearby Annotation Count
      */
     nearby_annotation_count?: number;
+    /**
+     * Drawn By User Ids
+     */
+    drawn_by_user_ids?: Array<string>;
 };
 
 /**

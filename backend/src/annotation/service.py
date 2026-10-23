@@ -288,7 +288,7 @@ def get_annotation_task_by_id(
     task = db.scalars(stmt).unique().first()
     if task is not None:
         _attach_has_embedding(db, [task])
-        _attach_nearby_annotation_counts(db, [task])
+        _attach_linked_annotations(db, [task])
         attach_counts_toward_completion_tree(db, campaign, [task])
     return task
 
@@ -329,7 +329,7 @@ def get_annotation_tasks_for_campaign(
 
     tasks = list(db.scalars(stmt).unique().all())
     _attach_has_embedding(db, tasks)
-    _attach_nearby_annotation_counts(db, tasks)
+    _attach_linked_annotations(db, tasks)
     attach_counts_toward_completion_tree(db, campaign, tasks)
     return tasks
 
@@ -450,19 +450,29 @@ def _attach_has_embedding(db: Session, tasks: list[AnnotationTask]) -> None:
         task.has_embedding = task.id in embedded_ids
 
 
-def _attach_nearby_annotation_counts(db: Session, tasks: list[AnnotationTask]) -> None:
-    """Set `nearby_annotation_count`: the standalone annotations drawn after
-    leaving this task for Explore."""
+def _attach_linked_annotations(db: Session, tasks: list[AnnotationTask]) -> None:
+    """Set `nearby_annotation_count`, the standalone annotations drawn after
+    leaving this task for Explore, and `drawn_by_user_ids`, who drew shapes as
+    this draw task's answer."""
     if not tasks:
         return
+    task_ids = [t.id for t in tasks]
     rows = db.execute(
         select(Annotation.origin_task_id, func.count())
-        .where(Annotation.origin_task_id.in_([t.id for t in tasks]))
+        .where(Annotation.origin_task_id.in_(task_ids))
         .group_by(Annotation.origin_task_id)
     )
     counts = {task_id: count for task_id, count in rows}
+    drawn_by: dict[int, list[UUID]] = {}
+    for task_id, user_id in db.execute(
+        select(Annotation.output_of_task_id, Annotation.created_by_user_id)
+        .where(Annotation.output_of_task_id.in_(task_ids))
+        .distinct()
+    ):
+        drawn_by.setdefault(task_id, []).append(user_id)
     for task in tasks:
         task.nearby_annotation_count = counts.get(task.id, 0)
+        task.drawn_by_user_ids = drawn_by.get(task.id, [])
 
 
 def get_annotation_task_id_for_annotation(
@@ -649,18 +659,25 @@ def add_annotation_for_task(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if outcome == "drawn" and not db.scalar(
-        select(
-            exists().where(
-                Annotation.output_of_task_id == annotation_task.id,
-                Annotation.created_by_user_id == user_id,
+    if outcome in ("drawn", "none_found"):
+        has_shapes = db.scalar(
+            select(
+                exists().where(
+                    Annotation.output_of_task_id == annotation_task.id,
+                    Annotation.created_by_user_id == user_id,
+                )
             )
         )
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Draw at least one shape for this task, or mark it as nothing here",
-        )
+        if outcome == "drawn" and not has_shapes:
+            raise HTTPException(
+                status_code=400,
+                detail="Draw at least one shape for this task, or mark it as nothing here",
+            )
+        if outcome == "none_found" and has_shapes:
+            raise HTTPException(
+                status_code=400,
+                detail="You drew shapes for this task: press Done, or delete them first",
+            )
 
     if annotation_create.label_id is not None:
         validate_label_id(campaign, annotation_create.label_id)

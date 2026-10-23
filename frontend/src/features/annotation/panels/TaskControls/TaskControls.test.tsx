@@ -187,4 +187,15 @@ describe('TaskControls draw task', () => {
       outcome: 'drawn',
     });
   });
+
+  it('turns Nothing here off once this user has drawn on the task', async () => {
+    seed(makeCampaign({ settings: { ...OPEN_POLICY.settings, task_output: 'draw' } }), [
+      { ...OPEN_TASK, drawn_by_user_ids: ['u1'] },
+    ]);
+
+    render(<TaskControls />);
+
+    const nothingHere = await screen.findByRole('button', { name: 'Nothing here' });
+    expect((nothingHere as HTMLButtonElement).disabled).toBe(true);
+  });
 });

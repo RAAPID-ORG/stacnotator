@@ -129,3 +129,18 @@ def test_shapes_cannot_answer_a_classify_task():
         create_annotation(_db(campaign), campaign, payload, uuid4())
 
     assert exc.value.status_code == 400
+
+
+def test_nothing_here_is_refused_once_you_drew():
+    campaign = _campaign("draw")
+    db = _db(campaign, has_shapes=True)
+
+    with pytest.raises(HTTPException) as exc:
+        add_annotation_for_task(
+            db,
+            _task(),
+            AnnotationFromTaskCreate(label_id=None, comment=None, outcome="none_found"),
+            uuid4(),
+        )
+
+    assert exc.value.status_code == 400
