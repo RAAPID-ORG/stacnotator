@@ -83,13 +83,14 @@ class Campaign(Base):
     embedding_heartbeat_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
-    # Errors from background registration (JSON array, null when no errors).
+    # Errors from the two background runs (JSON arrays, null when there are none).
     # none_as_null: without it SQLAlchemy stores a cleared value as the JSON
     # scalar 'null' rather than SQL NULL, and finish_status_run's jsonb `||`
     # then appends to it as if it were a one-element array, yielding [null].
     registration_errors: Mapped[list | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
+    embedding_errors: Mapped[list | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
 
     # Monotonic counter bumped on every annotation create/update/delete. Used as
     # a cache-busting key in annotation vector-tile URLs so edits invalidate the

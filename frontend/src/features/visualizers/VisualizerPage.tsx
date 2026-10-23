@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { getSharedVisualizerOptions } from '~/api/queries';
+import { RUN_POLL_MS } from '~/api/queryClient';
 import { Toaster } from 'sonner';
 import {
   deleteVisualizerFeedback,
@@ -67,6 +68,9 @@ export function VisualizerPage({ slug }: { slug: string }) {
   const { data: view = null, isError: loadFailed } = useQuery({
     ...getSharedVisualizerOptions({ path: { slug } }),
     meta: { errorMessage: t('viewer.notAvailable'), showUser: false },
+    // Imagery being registered arrives on its own; stops once it is there.
+    refetchInterval: (query) =>
+      query.state.data?.registration_status === 'registering' ? RUN_POLL_MS : false,
   });
   const [sessionFailed, setSessionFailed] = useState(false);
   const failed = loadFailed || sessionFailed;

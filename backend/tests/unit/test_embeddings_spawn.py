@@ -50,8 +50,12 @@ def test_work_fails_clearly_when_earth_engine_is_unavailable(spawn, monkeypatch)
         spawn.call_args.kwargs["work"](MagicMock())
 
 
-def test_sanitizer_prefixes_the_domain(spawn):
+def test_errors_are_kept_apart_from_imagery_registration(spawn):
+    """A new imagery registration clears its own errors, and must not take the
+    embedding run's with it."""
+    from src.imagery.registration import REGISTRATION_RUN
+
     embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
 
-    sanitized = spawn.call_args.kwargs["sanitize_error"](RuntimeError("GEE exploded"))
-    assert sanitized == "Embeddings: GEE exploded"
+    assert spawn.call_args.kwargs["sanitize_error"](RuntimeError("GEE exploded")) == "GEE exploded"
+    assert embeddings_service.EMBEDDING_RUN.errors_column != REGISTRATION_RUN.errors_column

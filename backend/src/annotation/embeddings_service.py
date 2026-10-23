@@ -415,7 +415,7 @@ EMBEDDING_RUN = background.StatusField(
     model=Campaign,
     status_column="embedding_status",
     heartbeat_column="embedding_heartbeat_at",
-    errors_column="registration_errors",
+    errors_column="embedding_errors",
     interrupted_error=(
         "Embedding computation was interrupted by a server restart. "
         "Trigger it again from the campaign settings to retry."
@@ -446,8 +446,8 @@ def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
         EMBEDDING_RUN,
         name="embedding computation",
         work=work,
-        sanitize_error=lambda exc: (
-            f"Embeddings: {sanitize_error_message(exc, fallback='Embedding computation failed')}"
+        sanitize_error=lambda exc: sanitize_error_message(
+            exc, fallback="Embedding computation failed"
         ),
     )
 
@@ -460,5 +460,6 @@ def start_embedding_run(db: Session, campaign: Campaign) -> None:
     if year is None:
         return
     background.begin_status_run(campaign, EMBEDDING_RUN)
+    campaign.embedding_errors = None
     db.commit()
     spawn_background_embedding_computation(campaign.id, year)

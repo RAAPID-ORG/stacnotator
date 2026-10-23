@@ -407,19 +407,11 @@ export const CampaignSettingsPage = () => {
                     components={{ strong: <strong /> }}
                   />
                 </p>
-                {campaign.registration_errors?.some((e) =>
-                  (e as { error?: string }).error?.startsWith('Embeddings:')
-                ) && (
-                  <p className="text-[11px] mt-1 text-red-700">
-                    {
-                      (
-                        campaign.registration_errors.find((e) =>
-                          (e as { error?: string }).error?.startsWith('Embeddings:')
-                        ) as { error?: string }
-                      )?.error
-                    }
+                {campaign.embedding_errors?.map((err, i) => (
+                  <p key={i} className="text-[11px] mt-1 text-red-700">
+                    {(err as { error?: string }).error}
                   </p>
-                )}
+                ))}
               </div>
             )}
           </div>

@@ -74,18 +74,22 @@ visualizer_router = APIRouter(
 )
 
 
-@visualizer_router.get("", response_model=VisualizerConfigOut)
-def get_visualizer(
-    visualizer: Visualizer = Depends(require_visualizer_admin),
-    db: Session = Depends(get_db),
-):
-    # The editor polls this while imagery registers; recover here if the run's
-    # worker died, so nobody is left watching "registering" forever.
+def _recover_stale_registration(db: Session, visualizer: Visualizer) -> None:
+    """The map polls while its imagery registers; a run whose worker died is failed
+    here, so nobody is left watching "registering" forever."""
     if visualizer.registration_status == "registering" and background.fail_stale_status_runs(
         db, (registration.VISUALIZER_REGISTRATION_RUN,), row_id=visualizer.id
     ):
         db.commit()
         db.refresh(visualizer)
+
+
+@visualizer_router.get("", response_model=VisualizerConfigOut)
+def get_visualizer(
+    visualizer: Visualizer = Depends(require_visualizer_admin),
+    db: Session = Depends(get_db),
+):
+    _recover_stale_registration(db, visualizer)
     return service.config_out(visualizer)
 
 
@@ -176,6 +180,7 @@ def get_shared_visualizer(
     viewer: Viewer = Depends(_require_viewer),
     db: Session = Depends(get_db),
 ):
+    _recover_stale_registration(db, viewer.visualizer)
     return service.build_view(
         db,
         viewer.visualizer,

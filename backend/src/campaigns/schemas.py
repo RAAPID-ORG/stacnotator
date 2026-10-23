@@ -243,6 +243,7 @@ class CampaignSummaryOut(BaseModel):
     registration_status: str = "ready"
     embedding_status: str = "ready"
     registration_errors: list[dict] | None = None
+    embedding_errors: list[dict] | None = None
     annotations_version: int = 0
 
     viewer_is_admin: bool = False

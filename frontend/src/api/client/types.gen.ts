@@ -1529,6 +1529,12 @@ export type CampaignOut = {
         [key: string]: unknown;
     }> | null;
     /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
      * Annotations Version
      */
     annotations_version?: number;
@@ -1614,6 +1620,12 @@ export type CampaignOutFull = {
      * Registration Errors
      */
     registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
         [key: string]: unknown;
     }> | null;
     /**
@@ -1858,6 +1870,12 @@ export type CampaignSummaryOut = {
      * Registration Errors
      */
     registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
         [key: string]: unknown;
     }> | null;
     /**
@@ -5698,6 +5716,12 @@ export type CampaignOutWritable = {
         [key: string]: unknown;
     }> | null;
     /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
      * Annotations Version
      */
     annotations_version?: number;
@@ -5783,6 +5807,12 @@ export type CampaignOutFullWritable = {
      * Registration Errors
      */
     registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
+    /**
+     * Embedding Errors
+     */
+    embedding_errors?: Array<{
         [key: string]: unknown;
     }> | null;
     /**

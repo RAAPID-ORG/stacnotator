@@ -19,7 +19,7 @@ import {
   listTaskSetsOptions,
   listTaskSetsQueryKey,
 } from '~/api/queries';
-import { SHARED_WORK } from '~/api/queryClient';
+import { SHARED_WORK, RUN_POLL_MS } from '~/api/queryClient';
 
 /**
  * How a campaign and the work inside it are read, in one place, because the
@@ -40,8 +40,6 @@ import { SHARED_WORK } from '~/api/queryClient';
 /** How often to re-ask while mosaic registration or embedding is still running.
  *  Long enough that a slow setup does not hammer the API, short enough that the
  *  page stops saying "initializing" soon after it finishes. */
-const REGISTRATION_POLL_MS = 5000;
-
 type MaybeRegistering = { registration_status?: string; embedding_status?: string } | undefined;
 
 export const isRegistering = (campaign: MaybeRegistering) =>
@@ -69,7 +67,7 @@ export const useCampaignSummary = (campaignId: number | null) => {
     meta: { errorMessage: t('errors.loadCampaign') },
     // These pages are reachable during setup, so what they say about it has to
     // stop being true on its own. Stops as soon as setup finishes.
-    refetchInterval: (query) => (isRegistering(query.state.data) ? REGISTRATION_POLL_MS : false),
+    refetchInterval: (query) => (isRegistering(query.state.data) ? RUN_POLL_MS : false),
   });
   return { campaign: data, loading: campaignId !== null && isPending };
 };
@@ -85,9 +83,7 @@ export const useCampaign = (campaignId: number, options?: { pollWhileRegistering
     ...getCampaignOptions({ path: { campaign_id: campaignId } }),
     meta: { errorMessage: t('errors.loadCampaign') },
     refetchInterval: (query) =>
-      options?.pollWhileRegistering && isRegistering(query.state.data)
-        ? REGISTRATION_POLL_MS
-        : false,
+      options?.pollWhileRegistering && isRegistering(query.state.data) ? RUN_POLL_MS : false,
   });
   return { campaign: data, loading: isPending };
 };

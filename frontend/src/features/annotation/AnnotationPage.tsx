@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createImageryView, getCampaignWithImageryWindows } from '~/api/client';
+import { RUN_POLL_MS } from '~/api/queryClient';
 import { ensureTilerSession } from '~/api/tilerToken';
 import { campaignPath, type CampaignSubpage } from '~/app/routes';
 import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
@@ -477,7 +478,7 @@ export function AnnotationPage() {
         .finally(() => {
           refreshing = false;
         });
-    }, 5000);
+    }, RUN_POLL_MS);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
