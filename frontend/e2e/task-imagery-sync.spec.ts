@@ -28,7 +28,7 @@ function lastAnnotate(requests: CapturedRequest[]): CapturedRequest | undefined 
 }
 
 async function readGoToValue(page: Page): Promise<string> {
-  return page.locator('input[type="number"][title="Press Enter to go"]').inputValue();
+  return page.locator('[data-testid="goto-point"]').inputValue();
 }
 
 async function selectAndSubmit(page: Page, digit = '1') {
@@ -47,7 +47,7 @@ async function waitNavSettled(page: Page) {
 }
 
 async function waitAutoAdvanceTo(page: Page, annotationNumber: string) {
-  const gotoInput = page.locator('input[type="number"][title="Press Enter to go"]');
+  const gotoInput = page.locator('[data-testid="goto-point"]');
   await expect(gotoInput).toHaveValue(annotationNumber, { timeout: 5000 });
   await waitForNavIdle(page);
 }
@@ -115,7 +115,7 @@ test.describe('Single navigation', () => {
   test('GoTo 2: crosshair + imagery at TASK_2', async ({ annotationPage, api }) => {
     const page = annotationPage;
     const snap = api.requests.length;
-    const gotoInput = page.locator('input[type="number"][title="Press Enter to go"]');
+    const gotoInput = page.locator('[data-testid="goto-point"]');
     await gotoInput.fill('2');
     await gotoInput.press('Enter');
     await waitNavSettled(page);
@@ -138,7 +138,7 @@ test.describe('Sequential navigation', () => {
 
   test('GoTo 1 then s: ends at TASK_2', async ({ annotationPage, api }) => {
     const page = annotationPage;
-    const gotoInput = page.locator('input[type="number"][title="Press Enter to go"]');
+    const gotoInput = page.locator('[data-testid="goto-point"]');
     await gotoInput.fill('1');
     await gotoInput.press('Enter');
     await waitNavSettled(page);
@@ -170,7 +170,7 @@ test.describe('Submit auto-advance', () => {
 
     await page.keyboard.press('1');
     await page.keyboard.press('Enter');
-    await expect(page.locator('input[type="number"][title="Press Enter to go"]')).toHaveValue('2', {
+    await expect(page.locator('[data-testid="goto-point"]')).toHaveValue('2', {
       timeout: 3000,
     });
 
@@ -391,7 +391,7 @@ test.describe('Chaos scenarios', () => {
     await assertCrosshairAt(page, TASK_1.id, 'after filter');
 
     const snap = api.requests.length;
-    const gotoInput = page.locator('input[type="number"][title="Press Enter to go"]');
+    const gotoInput = page.locator('[data-testid="goto-point"]');
     await gotoInput.fill('2');
     await gotoInput.press('Enter');
     await waitNavSettled(page);
@@ -461,7 +461,7 @@ test.describe('Chaos scenarios', () => {
     await assertCrosshairAt(page, TASK_1.id, 'after remove done');
 
     const snap = api.requests.length;
-    const gotoInput = page.locator('input[type="number"][title="Press Enter to go"]');
+    const gotoInput = page.locator('[data-testid="goto-point"]');
     await gotoInput.fill('2');
     await gotoInput.press('Enter');
     await waitNavSettled(page);

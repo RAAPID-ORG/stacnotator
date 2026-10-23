@@ -1,4 +1,5 @@
 import type { LabelBase } from '~/api/client';
+import { CHIP_MIN_WIDTH } from '../../components/chipGrid';
 import { LabelChips } from '../../components/LabelChips';
 
 export interface LabelGridProps {
@@ -12,6 +13,7 @@ export function LabelGrid({ labels, selectedId, onSelect, disabled }: LabelGridP
   return (
     <LabelChips
       fill
+      minWidth={CHIP_MIN_WIDTH}
       labels={labels}
       selectedId={selectedId}
       onSelect={(label) => onSelect(selectedId === label.id ? null : label.id)}

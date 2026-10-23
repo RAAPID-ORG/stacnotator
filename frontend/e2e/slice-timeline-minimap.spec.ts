@@ -481,9 +481,9 @@ test.describe('Minimap center tracks current task', () => {
 
   test('minimap center moves to TASK_2 after GoTo 2', async ({ annotationPage }) => {
     await annotationPage
-      .locator('input[type="number"][title="Press Enter to go"]')
+      .locator('[data-testid="goto-point"]')
       .fill(String(TASK_2.annotation_number));
-    await annotationPage.locator('input[type="number"][title="Press Enter to go"]').press('Enter');
+    await annotationPage.locator('[data-testid="goto-point"]').press('Enter');
     await waitForNavIdle(annotationPage);
     await assertMinimapCenterAt(annotationPage, TASK_2.id, 'minimap after GoTo 2');
   });

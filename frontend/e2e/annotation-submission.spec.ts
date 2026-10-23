@@ -131,15 +131,16 @@ test.describe('Annotation Submission', () => {
     await annotationPage.reload();
     await annotationPage.waitForSelector('[data-tour="controls"]', { timeout: 10_000 });
 
-    const scroller = annotationPage.locator('[data-tour="controls"] .panel-body > div').first();
+    const scroller = annotationPage.locator('[data-tour="controls"] [data-task-scroll]');
     const lastField = annotationPage.locator('[data-form-field-id="711"]');
     const isFullyVisible = async (target: typeof lastField) => {
       const [viewport, element] = await Promise.all([scroller.boundingBox(), target.boundingBox()]);
       return (
         viewport !== null &&
         element !== null &&
-        element.y >= viewport.y &&
-        element.y + element.height <= viewport.y + viewport.height
+        // A pixel of slack for sub-pixel layout at a scroll area's very end.
+        element.y >= viewport.y - 1 &&
+        element.y + element.height <= viewport.y + viewport.height + 1
       );
     };
     await expect(lastField).toBeAttached();
@@ -186,13 +187,26 @@ test.describe('Annotation Submission', () => {
     await annotationPage.keyboard.press('c');
     await expect(annotationPage.locator('[data-task-comment-input]')).toBeFocused();
 
-    // One more Tab wraps from the final field back to the label section.
+    // After the final field Tab stops at the comment, then wraps back to the
+    // label section.
     await annotationPage.keyboard.press('Escape');
     for (let index = 0; index <= formFields.length; index++) {
       await annotationPage.keyboard.press('Tab');
     }
+    await expect(annotationPage.locator('[data-task-comment-input]')).toBeFocused();
+    await annotationPage.keyboard.press('Tab');
     const labelSection = annotationPage.locator('[data-task-labels]');
     await expect(labelSection).toHaveClass(/ring-1/);
     await expect.poll(() => isFullyVisible(labelSection), { timeout: 5000 }).toBe(true);
+
+    // Picking a label by number brings it back into view from further down.
+    await annotationPage.keyboard.press('c');
+    await annotationPage.keyboard.press('Escape');
+    await annotationPage.keyboard.press('Shift+3');
+    await expect.poll(() => isFullyVisible(labelSection), { timeout: 5000 }).toBe(false);
+    await annotationPage.keyboard.press('2');
+    const picked = labelSection.locator('[data-label-id="2"]');
+    await expect(picked).toHaveText(/✓/);
+    await expect.poll(() => isFullyVisible(picked), { timeout: 5000 }).toBe(true);
   });
 });
