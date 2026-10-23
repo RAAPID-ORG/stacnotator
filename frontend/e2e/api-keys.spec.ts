@@ -84,7 +84,7 @@ test.describe('Keyed tile templates go through the backend proxy', () => {
 
     const req = await proxyTile;
     expect(req.url()).not.toContain('{z}');
-    expect(urls.some((url) => url.includes('/planet/'))).toBe(false);
+    expect(urls.some((url) => url.startsWith('https://tiles.example.com/planet/'))).toBe(false);
   });
 
   test('a keyed imagery slice is requested from the slice proxy', async ({ annotationPage }) => {

@@ -117,9 +117,11 @@ test.describe('Chart options menu', () => {
 
   test('clicking outside closes the menu', async ({ annotationPage }) => {
     await openOptions(annotationPage);
-    await chart(annotationPage)
-      .locator('canvas')
-      .click({ position: { x: 5, y: 5 } });
+    // Bottom-left: the popover hangs over the top of a small chart.
+    const canvas = chart(annotationPage).locator('canvas');
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('chart canvas has no bounding box');
+    await canvas.click({ position: { x: 5, y: box.height - 5 } });
     await expect(smoothToggle(annotationPage)).toHaveCount(0);
   });
 });

@@ -130,12 +130,12 @@ test.describe('Tools and label selection', () => {
   test('1 / 2 / 3 select the label, show ✓, and switch to Annotate', async ({ annotationPage }) => {
     await annotationPage.keyboard.press('1');
     await expect(tool(annotationPage, 'Annotate (R)')).toHaveClass(ACTIVE);
-    await expect(controls(annotationPage)).toContainText('Selected: Tree');
-    await expect(controls(annotationPage)).toContainText('Type: Point');
+    await expect(controls(annotationPage)).toContainText('✓ Tree');
+    await expect(controls(annotationPage)).toContainText('click the map to draw a point');
 
     await annotationPage.keyboard.press('2');
-    await expect(controls(annotationPage)).toContainText('Selected: Field');
-    await expect(controls(annotationPage)).toContainText('Type: Polygon');
+    await expect(controls(annotationPage)).toContainText('✓ Field');
+    await expect(controls(annotationPage)).toContainText('click the map to draw a polygon');
   });
 
   test('label rows show the geometry icon per type', async ({ annotationPage }) => {

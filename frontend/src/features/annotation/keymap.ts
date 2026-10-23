@@ -145,6 +145,9 @@ const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 const commentBox = () => document.querySelector<HTMLTextAreaElement>('[data-task-comment-input]');
 const commentIsFocused = () => commentBox() !== null && document.activeElement === commentBox();
+const typingInForm = () =>
+  document.activeElement instanceof HTMLElement &&
+  document.activeElement.closest(FORM_INPUT_SELECTOR) !== null;
 
 /**
  * Whether the form's Tab and Escape may claim this keystroke. They get past
@@ -257,8 +260,14 @@ function formFieldBindings(): Binding[] {
       allowInInput: true,
       // The comment box is focused by its own 'c' binding and has no other way
       // out, so Escape blurs it too - otherwise every key stays swallowed by
-      // the textarea until the user reaches for the mouse.
-      when: () => formKeysApply() && (formKeyContext().activeIndex !== null || commentIsFocused()),
+      // the textarea until the user reaches for the mouse. A draft opens with
+      // its first required field active, so there a field only claims Escape
+      // while it is being typed in; otherwise Escape closes the draft.
+      when: () =>
+        formKeysApply() &&
+        (typingInForm() ||
+          (formKeyContext().activeIndex !== null &&
+            useWorkStore.getState().draft.phase !== 'draft')),
       run: (e) => {
         if (commentIsFocused()) commentBox()?.blur();
         runFormKey(e);
