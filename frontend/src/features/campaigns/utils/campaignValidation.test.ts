@@ -4,7 +4,7 @@ import {
   emptySource,
   type ImageryGenerationSeries,
   type ImageryStepState,
-} from '~/features/campaigns/components/imagery/types';
+} from '~/features/layers/imagery/types';
 import { validateImageryStep, validateSettingsStep } from './campaignValidation';
 
 const form = (bbox: Partial<Record<string, number>>): CampaignCreate =>

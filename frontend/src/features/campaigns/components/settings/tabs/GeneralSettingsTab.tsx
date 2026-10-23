@@ -6,7 +6,7 @@ import type { CampaignOut, LabelBase, LabellingPolicy, ProjectUserOut } from '~/
 import { updateCampaignMutation } from '~/api/queries';
 import { useRefreshCampaign } from '~/features/campaigns/hooks/campaignQueries';
 import { projectPath } from '~/app/routes';
-import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
+import { BoundingBoxEditor } from '~/features/layers/BoundingBoxEditor';
 import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
 import {

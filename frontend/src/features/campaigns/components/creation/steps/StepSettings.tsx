@@ -1,6 +1,6 @@
 import { Trans, useTranslation } from 'react-i18next';
 import type { CampaignCreate, CampaignSettingsCreate } from '~/api/client';
-import { BoundingBoxEditor } from '../../BoundingBoxEditor';
+import { BoundingBoxEditor } from '~/features/layers/BoundingBoxEditor';
 import { FormFieldsEditor } from '../../FormFieldsEditor';
 import { LabelsEditor } from '../../LabelsEditor';
 import { Select } from '~/shared/ui/forms';

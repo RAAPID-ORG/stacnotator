@@ -22,14 +22,6 @@ export function tileAuth(url: string, tiler?: string | null): 'cookie' | 'none' 
   return isProxiedTileUrl(url) || isSelfHostedTiler(tiler) ? 'cookie' : 'none';
 }
 
-/** Where a key-protected basemap's tiles are fetched from: the provider
- *  directly, or our proxy when the template needs a key we hold. */
-export function resolveBasemapUrl(campaignId: number, basemap: { id: number; url: string }) {
-  return needsKeyProxy(basemap.url)
-    ? apiUrl(`/api/${campaignId}/imagery/basemaps/${basemap.id}/tiles/{z}/{x}/{y}`)
-    : basemap.url;
-}
-
 /** A Planet layer minted for one viewport, which no slice row knows about:
  *  the search that made it lives only in the page that ran it. */
 export function planetLayerProxyUrl(campaignId: number, sourceId: number, layerId: string): string {
@@ -44,8 +36,10 @@ export function sliceProxyUrl(base: string, sliceId: number, vizName: string): s
   return apiUrl(`${base}/${sliceId}/tiles/${encodeURIComponent(vizName)}/{z}/{x}/{y}`);
 }
 
-/** Where a campaign's key-proxied slice tiles are fetched from. */
+/** Where a campaign's key-proxied slice and basemap tiles are fetched from. */
 export const campaignProxyBase = (campaignId: number) => `/api/${campaignId}/imagery/slices`;
+export const campaignBasemapProxyBase = (campaignId: number) =>
+  `/api/${campaignId}/imagery/basemaps`;
 
 /** The backdrop the app draws where no basemap is configured: the minimap, the
  *  Leaflet admin maps, and a visualizer that ships none of its own. OpenFreeMap

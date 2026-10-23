@@ -10,7 +10,8 @@ import {
   makeViz,
 } from '../testing/fixtures';
 import { buildImageryCatalog } from './imagery';
-import { isProxiedTileUrl, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
+import { basemapLayer } from '~/shared/imagery/layerSpecs';
+import { isProxiedTileUrl } from '~/shared/imagery/tileUrls';
 import { awaitingImageryRegistration, sliceLegend, sliceRaster } from './tileUrls';
 
 const source = makeSource({
@@ -138,6 +139,8 @@ const campaign = makeCampaign({
   ],
 });
 
+const BASE = '/api/7/imagery/basemaps';
+
 describe('tile url resolution', () => {
   it('recognises our own proxy routes, which need the tiler cookie', () => {
     expect(isProxiedTileUrl('/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}')).toBe(true);
@@ -150,7 +153,7 @@ describe('tile url resolution', () => {
     // root-relative path reaches the dev server and returns index.html.
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
     try {
-      expect(resolveBasemapUrl(7, { id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' })).toBe(
+      expect(basemapLayer({ id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' }, BASE).url).toBe(
         'http://localhost:8000/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}'
       );
       expect(isProxiedTileUrl('http://localhost:8000/api/7/imagery/slices/9/tiles/V/{z}/{x}/{y}')) //
@@ -160,12 +163,13 @@ describe('tile url resolution', () => {
     }
   });
 
-  it('routes a basemap through the proxy only when its template needs a key', () => {
-    expect(resolveBasemapUrl(7, { id: 3, url: 'https://osm/{z}/{x}/{y}.png' })).toBe(
-      'https://osm/{z}/{x}/{y}.png'
-    );
-    expect(resolveBasemapUrl(7, { id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' })).toBe(
-      '/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}'
+  it('routes a basemap through the proxy, with the cookie, only when its template needs a key', () => {
+    expect(basemapLayer({ id: 3, url: 'https://osm/{z}/{x}/{y}.png' }, BASE)).toMatchObject({
+      url: 'https://osm/{z}/{x}/{y}.png',
+      auth: 'none',
+    });
+    expect(basemapLayer({ id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' }, BASE)).toMatchObject(
+      { url: '/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}', auth: 'cookie' }
     );
   });
 });

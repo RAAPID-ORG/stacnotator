@@ -119,7 +119,7 @@ For commonly used STAC collections, sensible defaults are pre-filled when select
 | **Sentinel-1 GRD** | VV and VH backscatter with grayscale colormap, rescale `0,250` | MPC stores VV/VH as uint16 amplitude DNs. No cloud cover filtering (radar penetrates clouds). |
 | **NAIP** | True color RGB from the `image` asset (`asset_bidx image|1,2,3`) | Pre-rendered 4-band aerial imagery. |
 
-Further presets exist (Sentinel-2 L1C, Landsat C2 L1, Copernicus DEM, MODIS NDVI, Planet Ethiopia biweekly); see `frontend/src/features/campaigns/components/imagery/collectionPresets.ts` for the authoritative list. For collections without presets, the user configures bands and rendering manually via the band picker and visualization panel.
+Further presets exist (Sentinel-2 L1C, Landsat C2 L1, Copernicus DEM, MODIS NDVI, Planet Ethiopia biweekly); see `frontend/src/features/layers/imagery/collectionPresets.ts` for the authoritative list. For collections without presets, the user configures bands and rendering manually via the band picker and visualization panel.
 
 ## STAC Search & Mosaic Registration
 

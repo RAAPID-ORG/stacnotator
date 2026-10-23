@@ -88,7 +88,7 @@ For MPC collections with first-valid compositing, the frontend fetches tiles **d
 
 Feature-sliced under `frontend/src/`:
 - `app/` - `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `sidebar/`). The sidebar follows the hierarchy: Home and Projects, then the project you are in and, inside it, the campaign - each with its own pages and its own settings (which sections a viewer sees comes from `projects/projectSections.ts` and `campaigns/utils/campaignSections.ts`, so the sidebar and the pages agree). At the bottom, Help, Platform admin (`/admin`, platform admins only) and one account row whose menu holds organization switching, organization and account settings, and sign-out (the legal documents are linked from the sign-in screen and the bottom of Settings)
-- `features/<name>/` - `annotation`, `campaigns`, `auth`, `settings`, `home`. Most have `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`; `annotation` is layered instead (below). Custom-layers UI follows the surface split: authoring editors under `campaigns/components/`, runtime controls under the annotation panels that own them
+- `features/<name>/` - `annotation`, `campaigns`, `layers`, `visualizers`, `projects`, `organizations`, `auth`, `settings`, `home`. Most have `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`; `annotation` is layered instead (below). `layers` is what a campaign or a visualizer shows on its map and over which area - imagery sources and their wizard (`layers/imagery/`), basemaps, custom maps, vector layers, the area editor - authored the same way for both owners; runtime controls live under the annotation panels that own them
 - `shared/` - cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`), `colormaps/` (tiler colormap definitions + select, used by the campaign editors and the annotation legend), `map/` (the OpenLayers engine: `MapView`, `layers.ts`, `Camera`, `tileLoading.ts`, `interactions.ts` - any page that draws a map mounts these), `imagery/` (pure tile URL and render-param mechanics, plus the editable `RenderLegend`)
 - `api/` - generated client (`client/`), `hey-api.ts` config, `queries.ts` (the generated react-query option factories), `queryClient.ts` (the shared cache), plus `tilerToken.ts`
 
@@ -144,7 +144,7 @@ generated key after a write.
   replaced; don't add one back.
 - Deliberately still imperative: file uploads and downloads that report through
   a callback and own no list, and `features/annotation` + the imagery wizard
-  (`campaigns/components/imagery/`), which have their own state machines.
+  (`layers/imagery/`), which have their own state machines.
 - A read shared by more than one surface gets a named hook returning domain
   values plus `loading`/`error`, not the query object - `useOrganizations`,
   `app/projectRoute.ts`, and `campaigns/hooks/campaignQueries.ts`, which is

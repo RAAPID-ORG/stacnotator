@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { COUNTRY_BBOXES } from '~/features/campaigns/utils/countryBboxes';
+import { COUNTRY_BBOXES } from '~/features/layers/countryBboxes';
 import { BASEMAP_STYLE_URL } from '~/shared/imagery/tileUrls';
 import { Camera } from '~/shared/map/Camera';
 import { MapView } from '~/shared/map/MapView';

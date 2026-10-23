@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import type { ImageryController } from './controller';
 import { SourcesTab } from './SourcesTab';
 import { BasemapList } from './BasemapList';
-import { CustomMapsEditor } from '../CustomMapsEditor';
-import { VectorLayersEditor } from '../VectorLayersEditor';
+import { CustomMapsEditor } from '~/features/layers/CustomMapsEditor';
+import { VectorLayersEditor } from '~/features/layers/VectorLayersEditor';
 import { SourceEditor } from './SourceEditor';
 
 interface ImagerySetupProps {

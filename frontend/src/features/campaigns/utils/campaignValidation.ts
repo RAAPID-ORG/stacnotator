@@ -1,9 +1,6 @@
 import type { CampaignCreate } from '~/api/client';
 import i18n from '~/shared/i18n';
-import {
-  isPlanetSceneConfig,
-  type ImageryStepState,
-} from '~/features/campaigns/components/imagery/types';
+import { isPlanetSceneConfig, type ImageryStepState } from '~/features/layers/imagery/types';
 import { validateFormFields } from './formFields';
 
 const t = i18n.getFixedT(null, 'campaigns');

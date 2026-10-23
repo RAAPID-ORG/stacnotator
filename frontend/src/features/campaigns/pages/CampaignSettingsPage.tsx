@@ -10,7 +10,7 @@ import { TabNavigator } from '~/shared/ui/TabNavigator';
 import { DeleteCampaignDialog } from '~/features/campaigns/components/DeleteCampaignDialog';
 import { GeneralSettingsTab } from '~/features/campaigns/components/settings/tabs/GeneralSettingsTab';
 import { ImageryTab } from '~/features/campaigns/components/settings/tabs/ImageryTab';
-import { usePersistedController } from '~/features/campaigns/components/imagery/controller';
+import { usePersistedController } from '~/features/layers/imagery/controller';
 import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';

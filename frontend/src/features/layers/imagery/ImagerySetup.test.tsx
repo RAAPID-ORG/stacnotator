@@ -6,12 +6,12 @@ import { ImagerySetup } from './ImagerySetup';
 
 vi.mock('./SourcesTab', () => ({ SourcesTab: () => null }));
 vi.mock('./BasemapList', () => ({ BasemapList: () => null }));
-vi.mock('../CustomMapsEditor', () => ({
+vi.mock('~/features/layers/CustomMapsEditor', () => ({
   CustomMapsEditor: ({ ownerId }: { ownerId: number }) => (
     <div data-testid="raster-editor" data-owner={ownerId} />
   ),
 }));
-vi.mock('../VectorLayersEditor', () => ({
+vi.mock('~/features/layers/VectorLayersEditor', () => ({
   VectorLayersEditor: ({ ownerId }: { ownerId: number }) => (
     <div data-testid="vector-editor" data-owner={ownerId} />
   ),

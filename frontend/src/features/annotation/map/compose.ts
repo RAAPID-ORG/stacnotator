@@ -2,9 +2,10 @@ import { type ImageryCatalog } from '../campaign/imagery';
 import { type ImageryNavState } from '../campaign/imageryNav';
 import { apiUrl } from '~/api/base';
 import i18n from '~/shared/i18n';
-import { basemapAttribution, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
+import { campaignBasemapProxyBase } from '~/shared/imagery/tileUrls';
+import { basemapLayer, customMapLayer, vectorLayer } from '~/shared/imagery/layerSpecs';
 import { sliceRaster } from '../campaign/tileUrls';
-import { applyRenderOverride, type RenderOverride } from '~/shared/imagery/tileColors';
+import type { RenderOverride } from '~/shared/imagery/tileColors';
 import {
   resolveLabelStyle,
   toDraftStyleSpec,
@@ -50,7 +51,7 @@ export function probeIndexOf(featureId: string | number | undefined): number | n
 }
 
 /** Exported because labelling a vector feature means recognising a click or a
- *  box hit on one of these. */
+ *  box hit on one of these; `vectorLayer` names them the same way. */
 export const vectorLayerId = (id: number): string => `vector-${id}`;
 
 const TILE_SKELETON_Z = -1;
@@ -269,16 +270,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
   // at all, so the map is never a blank canvas.
   if ((state.showBasemap || !state.address) && !isWindow) {
     const basemap = selectedBasemap(catalog, state.selectedBasemapId);
-    if (basemap) {
-      layers.push({
-        kind: 'raster',
-        id: `basemap-${basemap.id}`,
-        url: resolveBasemapUrl(catalog.campaignId, basemap),
-        auth: 'none',
-        maxZoom: basemap.max_native_zoom ?? undefined,
-        attribution: basemapAttribution(basemap.url),
-      });
-    }
+    if (basemap) layers.push(basemapLayer(basemap, campaignBasemapProxyBase(catalog.campaignId)));
     // No address means the view has nothing to navigate: the basemap is the
     // whole map, with nothing to overlay it with yet.
     if (!state.address) return layers;
@@ -293,22 +285,11 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
 
   if (!isWindow && state.overlay.id != null && state.overlay.visible) {
     const map = catalog.customMaps.get(state.overlay.id);
-    if (map?.tile_url && map.status === 'ready') {
-      layers.push({
-        kind: 'raster',
-        id: `custom-map-${map.id}`,
-        url: applyRenderOverride(
-          map.tile_url,
-          map.render_config,
-          state.customMapOverrides?.[map.id]
-        ),
-        auth: 'cookie',
-        opacity: state.overlayOpacity ?? 1,
-        maxZoom: map.max_native_zoom ?? undefined,
-        cacheScope: taskScope,
-        zIndex: OVERLAY_Z,
-      });
-    }
+    const layer =
+      map?.status === 'ready'
+        ? customMapLayer(map, state.customMapOverrides?.[map.id], state.overlayOpacity ?? 1)
+        : null;
+    if (layer) layers.push({ ...layer, cacheScope: taskScope, zIndex: OVERLAY_Z });
   }
 
   // Explore marks the task it was entered from with its own marker instead,
@@ -333,16 +314,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
   // them; selection belongs to the map.
   if (!isWindow && state.vector.id != null && state.vector.visible) {
     const vector = catalog.vectorLayers.get(state.vector.id);
-    if (vector) {
-      layers.push({
-        kind: 'vector-tiles',
-        id: vectorLayerId(vector.id),
-        url: vector.pmtiles_url,
-        sourceLayers: vector.source_layer ? [vector.source_layer] : undefined,
-        style: { stroke: { color: vector.color, width: 1.5 }, fill: { color: vector.color } },
-        zIndex: VECTOR_Z,
-      });
-    }
+    if (vector) layers.push({ ...vectorLayer(vector), zIndex: VECTOR_Z });
   }
 
   // Saved annotations are what Explore and draw tasks work on. A classify task

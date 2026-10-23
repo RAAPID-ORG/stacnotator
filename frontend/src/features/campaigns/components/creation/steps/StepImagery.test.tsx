@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CampaignCreate } from '~/api/client';
 import { StepImagery, createInitialImageryState } from './StepImagery';
 
-vi.mock('../../imagery/controller', async () => {
-  const actual = await vi.importActual<typeof import('../../imagery/controller')>(
+vi.mock('~/features/layers/imagery/controller', async () => {
+  const actual = await vi.importActual<typeof import('~/features/layers/imagery/controller')>(
     '../../imagery/controller'
   );
   return { ...actual, useDraftController: vi.fn(actual.useDraftController) };
 });
 
-import { useDraftController } from '../../imagery/controller';
+import { useDraftController } from '~/features/layers/imagery/controller';
 
 const form: CampaignCreate = {
   name: 'New campaign',

@@ -1,10 +1,8 @@
 import type { VisualizerImageryOut, VisualizerStepOut, VisualizerViewOut } from '~/api/client';
-import { applyRenderOverride, type RenderOverride } from '~/shared/imagery/tileColors';
-import { apiUrl } from '~/api/base';
+import type { RenderOverride } from '~/shared/imagery/tileColors';
+import { basemapLayer, customMapLayer, vectorLayer } from '~/shared/imagery/layerSpecs';
 import {
   BASEMAP_STYLE_URL,
-  basemapAttribution,
-  isProxiedTileUrl,
   needsKeyProxy,
   sliceProxyUrl,
   tileAuth,
@@ -182,18 +180,7 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
 
   const basemap = view.basemaps.find((entry) => entry.id === state.basemapId);
   if (basemap) {
-    const url = needsKeyProxy(basemap.url)
-      ? apiUrl(`${basemap.tile_proxy_base}/${basemap.id}/tiles/{z}/{x}/{y}`)
-      : basemap.url;
-    layers.push({
-      kind: 'raster',
-      id: `basemap-${basemap.id}`,
-      url,
-      auth: isProxiedTileUrl(url) ? 'cookie' : 'none',
-      maxZoom: basemap.max_native_zoom ?? undefined,
-      zIndex: 0,
-      attribution: basemapAttribution(basemap.url),
-    });
+    layers.push({ ...basemapLayer(basemap, basemap.tile_proxy_base), zIndex: 0 });
   } else if (view.basemaps.length === 0) {
     // A visualizer that configures no backdrop still gets coastlines and place
     // names, so imagery is never floating on an empty canvas.
@@ -221,36 +208,17 @@ export function composeLayers(view: VisualizerViewOut, state: ViewerState): Laye
   for (const overlay of view.overlays) {
     const chosen = state.overlays[overlay.id];
     if (!chosen?.visible) continue;
-    if (overlay.kind === 'raster') {
-      if (!overlay.tile_url) continue;
+    const layer =
+      overlay.kind === 'raster'
+        ? customMapLayer(overlay, state.renderOverrides[overlay.id], chosen.opacity)
+        : vectorLayer(overlay, chosen.opacity);
+    if (layer) {
       layers.push({
-        kind: 'raster',
+        ...layer,
         id: `overlay-${overlay.id}`,
-        url: applyRenderOverride(
-          overlay.tile_url,
-          overlay.render_config,
-          state.renderOverrides[overlay.id]
-        ),
-        auth: 'cookie',
-        opacity: chosen.opacity,
-        maxZoom: overlay.max_native_zoom ?? undefined,
-        zIndex: OVERLAY_Z,
+        zIndex: overlay.kind === 'raster' ? OVERLAY_Z : VECTOR_Z,
       });
-      continue;
     }
-    layers.push({
-      kind: 'vector-tiles',
-      id: `overlay-${overlay.id}`,
-      url: overlay.pmtiles_url,
-      auth: 'none',
-      opacity: chosen.opacity,
-      sourceLayers: overlay.source_layer ? [overlay.source_layer] : undefined,
-      style: {
-        stroke: { color: overlay.color, width: 1.5 },
-        fill: { color: `${overlay.color}33` },
-      },
-      zIndex: VECTOR_Z,
-    });
   }
 
   return layers;

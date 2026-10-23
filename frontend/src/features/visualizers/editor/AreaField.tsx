@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { VisualizerArea, VisualizerOptionsOut } from '~/api/client';
-import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
+import { BoundingBoxEditor } from '~/features/layers/BoundingBoxEditor';
 import { LocationSearch } from '~/shared/map/LocationSearch';
 import { Button, Select } from '~/shared/ui/forms';
 
