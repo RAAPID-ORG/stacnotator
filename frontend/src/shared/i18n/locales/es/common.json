@@ -132,7 +132,7 @@
   "taskOutcome": {
     "skipped": "Omitida",
     "drawn": "Formas dibujadas",
-    "none_found": "Aquí no hay nada"
+    "none_found": "Nada aquí"
   },
   "home": {
     "intro": "STACNotator es una plataforma colaborativa, gratuita y de código abierto, para anotar imágenes satelitales y aéreas. Es compatible con el estándar STAC para datos geoespaciales y permite visualizar y etiquetar elementos en equipo. STACNotator está diseñado en torno a imágenes temporales y ofrece funciones para navegar fácilmente a través del tiempo.",
