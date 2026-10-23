@@ -101,7 +101,7 @@ test.describe('Keyed tile templates go through the backend proxy', () => {
     });
 
     const req = await proxyTile;
-    expect(req.url()).toContain(encodeURIComponent('True Color'));
+    expect(req.url()).toContain(`/slices/${KEYED_COVER_SLICE_ID}/tiles/1/`);
     expect(urls.some((url) => url.includes('/keyed-imagery/'))).toBe(false);
   });
 
