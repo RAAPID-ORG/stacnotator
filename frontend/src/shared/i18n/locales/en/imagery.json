@@ -521,7 +521,6 @@
     "configureTitle": "Configure",
     "regenerate_one": "Regenerate {{count}} Collection",
     "regenerate_other": "Regenerate {{count}} Collections",
-    "addCollection": "Add Collection",
     "generate_one": "Generate {{count}} Collection",
     "generate_other": "Generate {{count}} Collections",
     "generateCollections": "Generate Collections",
@@ -592,7 +591,6 @@
     "groups": {
       "title": "Mosaic groups and time periods",
       "tooltip": "Groups are imagery collections, not the source STAC collection. Each group contains mosaics for smaller time periods, called slices.",
-      "descriptionSingle": "The whole date range forms one group (imagery collection). Choose the time periods for detailed imagery within it; each period becomes a mosaic slice.",
       "description": "Organize mosaics into time-based groups (imagery collections), with detailed imagery periods (slices) inside each group. For example: monthly groups with weekly mosaics. These periods organize available scenes; they do not change how often the satellite captures new images.",
       "pattern": "Grouping pattern",
       "patternTooltip": "Choose group and detailed imagery periods, or select Custom to set your own intervals.",
@@ -603,7 +601,6 @@
       "sliceEvery": "Detailed imagery every",
       "sliceEveryTooltip": "Each period becomes a mosaic slice within its group (collection). For example, 1 week creates weekly detailed imagery.",
       "sliceUnit": "Detailed imagery time unit",
-      "summarySingle": "One group (imagery collection) covers the full date range, with a detailed mosaic (slice) every {{slice}}.",
       "summary": "Each group (imagery collection) spans {{window}}, with a detailed mosaic (slice) every {{slice}}."
     },
     "units": {

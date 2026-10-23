@@ -1,12 +1,14 @@
+import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import type {
   CollectionItem,
+  GenerationRecipe,
   ImageryGenerationConfig,
   ImageryGenerationSeries,
   ImagerySlice,
   ImagerySource,
   StacBrowserCollectionData,
 } from './types';
-import { isPlanetSceneConfig } from './types';
+import { createId, isPlanetSceneConfig } from './types';
 
 export interface EditableGenerationSeries {
   id: string;
@@ -114,4 +116,124 @@ export function retainMatchingIds(
       }),
     };
   });
+}
+
+type PeriodUnit = 'days' | 'weeks' | 'months' | 'years';
+
+const toDateStr = (d: Date) =>
+  `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+
+function addPeriod(from: Date, interval: number, unit: PeriodUnit): Date {
+  const next = new Date(from);
+  if (unit === 'days') next.setUTCDate(next.getUTCDate() + interval);
+  else if (unit === 'weeks') next.setUTCDate(next.getUTCDate() + interval * 7);
+  else if (unit === 'years') next.setUTCFullYear(next.getUTCFullYear() + interval);
+  else next.setUTCMonth(next.getUTCMonth() + interval);
+  return next;
+}
+
+/** [start, end) periods of ``interval`` ``unit`` covering [from, to), the last cut short. */
+function periods(from: Date, to: Date, interval: number, unit: PeriodUnit): Array<[Date, Date]> {
+  const out: Array<[Date, Date]> = [];
+  for (let start = from; start < to; ) {
+    const next = addPeriod(start, interval, unit);
+    const end = next > to ? to : next;
+    out.push([start, end]);
+    start = end;
+  }
+  return out;
+}
+
+const lastDay = (end: Date) => toDateStr(new Date(end.getTime() - 86_400_000));
+
+/** The period a generator covers, cut into windows of slices, each window
+ *  searched and rendered the same way. Dates are whole months: ``startDate`` and
+ *  ``endDate`` are YYYY-MM, the range ending with the end date's month. */
+export function generateStacCollections(
+  config: ImageryGenerationConfig,
+  seriesId: string,
+  sasToken?: string | null
+): CollectionItem[] {
+  const [startY, startM] = config.startDate.split('-').map(Number);
+  const [endY, endM] = config.endDate.split('-').map(Number);
+  const start = new Date(Date.UTC(startY, startM - 1, 1));
+  const end = new Date(Date.UTC(endY, endM, 1));
+  const custom = config.coverMode === 'custom';
+  const cloudy = config.hasCloudCover;
+
+  return periods(start, end, config.collectionPeriodInterval, config.collectionPeriodUnit).map(
+    ([windowStart, windowEnd]) => {
+      const slices: ImagerySlice[] = periods(
+        windowStart,
+        windowEnd,
+        config.slicePeriodInterval,
+        config.slicePeriodUnit
+      ).map(([sliceStart, sliceEnd], index) => ({
+        id: createId(),
+        name: formatSliceLabel(
+          toDateStr(sliceStart),
+          lastDay(sliceEnd),
+          config.slicePeriodUnit,
+          index
+        ),
+        startDate: toDateStr(sliceStart),
+        endDate: lastDay(sliceEnd),
+      }));
+      const windowFirst = toDateStr(windowStart);
+      const windowLast = lastDay(windowEnd);
+      const cover: ImagerySlice = {
+        id: createId(),
+        name: formatSliceLabel(windowFirst, windowLast, config.slicePeriodUnit, 0),
+        startDate: windowFirst,
+        endDate: windowLast,
+      };
+      return {
+        id: createId(),
+        name: formatWindowLabel(windowFirst, windowLast, config.collectionPeriodUnit),
+        generationSeriesId: seriesId,
+        slices: custom ? [cover, ...slices] : slices,
+        coverSliceIndex: custom
+          ? 0
+          : Math.max(0, Math.min(config.coverSliceNth - 1, slices.length - 1)),
+        hasDedicatedCover: custom,
+        data: {
+          type: 'stac_browser' as const,
+          catalogUrl: config.catalogUrl,
+          stacCollectionId: config.stacCollectionId,
+          isMpc: config.isMpc,
+          tiler: config.tiler,
+          // Only meaningful when the items carry eo:cloud_cover. Persisting it
+          // otherwise makes the tiler ingest filter on a property the items lack,
+          // dropping every item; the search query is gated the same way.
+          maxCloudCover: cloudy ? config.maxCloudCover : undefined,
+          itemSort: config.itemSort,
+          visualizations: config.visualizations,
+          coverVisualizations: custom ? config.coverVisualizations : undefined,
+          coverMaxCloudCover: custom && cloudy ? config.coverMaxCloudCover : undefined,
+          coverItemSort: custom ? config.coverItemSort : undefined,
+          searchQuery: config.searchQuery,
+          coverSearchQuery: custom ? config.coverSearchQuery : undefined,
+          internalStorage: config.internalStorage,
+          sasToken: sasToken ?? undefined,
+          vizUrls: config.visualizations.map((v) => ({ vizName: v.name, url: '' })),
+        },
+      };
+    }
+  );
+}
+
+/** The part of a generator's input its series stores. */
+export function recipeOf(config: ImageryGenerationConfig): GenerationRecipe {
+  return {
+    collectionTitle: config.collectionTitle,
+    hasCloudCover: config.hasCloudCover,
+    startDate: config.startDate,
+    endDate: config.endDate,
+    collectionPeriodInterval: config.collectionPeriodInterval,
+    collectionPeriodUnit: config.collectionPeriodUnit,
+    slicePeriodInterval: config.slicePeriodInterval,
+    slicePeriodUnit: config.slicePeriodUnit,
+    coverMode: config.coverMode,
+    coverSliceNth: config.coverSliceNth,
+  };
 }

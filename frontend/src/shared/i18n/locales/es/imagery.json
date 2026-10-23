@@ -537,7 +537,6 @@
     "regenerate_one": "Regenerar {{count}} colección",
     "regenerate_many": "Regenerar {{count}} colecciones",
     "regenerate_other": "Regenerar {{count}} colecciones",
-    "addCollection": "Añadir colección",
     "generate_one": "Generar {{count}} colección",
     "generate_many": "Generar {{count}} colecciones",
     "generate_other": "Generar {{count}} colecciones",
@@ -609,7 +608,6 @@
     "groups": {
       "title": "Grupos de mosaicos y periodos de tiempo",
       "tooltip": "Los grupos son colecciones de imágenes, no la colección STAC de origen. Cada grupo contiene mosaicos de periodos más cortos, llamados cortes.",
-      "descriptionSingle": "Todo el rango de fechas forma un grupo (colección de imágenes). Elige los periodos de las imágenes detalladas dentro de él; cada periodo se convierte en un corte de mosaico.",
       "description": "Organiza los mosaicos en grupos por tiempo (colecciones de imágenes), con periodos de imágenes detalladas (cortes) dentro de cada grupo. Por ejemplo: grupos mensuales con mosaicos semanales. Estos periodos organizan las escenas disponibles; no cambian la frecuencia con la que el satélite capta nuevas imágenes.",
       "pattern": "Patrón de agrupación",
       "patternTooltip": "Elige los periodos de grupo y de imágenes detalladas, o selecciona Personalizado para definir tus propios intervalos.",
@@ -620,7 +618,6 @@
       "sliceEvery": "Imágenes detalladas cada",
       "sliceEveryTooltip": "Cada periodo se convierte en un corte de mosaico dentro de su grupo (colección). Por ejemplo, 1 semana crea imágenes detalladas semanales.",
       "sliceUnit": "Unidad de tiempo de las imágenes detalladas",
-      "summarySingle": "Un grupo (colección de imágenes) cubre todo el rango de fechas, con un mosaico detallado (corte) cada {{slice}}.",
       "summary": "Cada grupo (colección de imágenes) abarca {{window}}, con un mosaico detallado (corte) cada {{slice}}."
     },
     "units": {

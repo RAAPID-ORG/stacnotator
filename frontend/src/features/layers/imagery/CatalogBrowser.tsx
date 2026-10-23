@@ -28,9 +28,8 @@ import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
 import { SasTokenField } from './SasTokenField';
 import { readSasToken } from './sasToken';
-import type { PrivateCatalog } from './generation';
+import { generateStacCollections, recipeOf, type PrivateCatalog } from './generation';
 import { Button, DateField, Input, Select } from '~/shared/ui/forms';
-import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 
 type Step = 'catalog' | 'collection' | 'configure';
@@ -131,10 +130,6 @@ interface CatalogBrowserProps {
   onAdd: (result: CatalogBrowserResult) => void;
   onClose: () => void;
   campaignBbox?: number[] | null;
-  /** Initial mode: 'mosaic' for temporal series, 'single-item' for single item */
-  initialMode?: 'single-item' | 'mosaic';
-  /** When true, generates a single collection (no collection period UI) but still with slices */
-  singleCollection?: boolean;
   /** When set, auto-navigates to this MPC collection, skipping catalog/collection selection */
   preset?: CatalogBrowserPreset | null;
   /** Editing an existing collection defaults the advanced disclosure to expanded
@@ -214,8 +209,6 @@ export const CatalogBrowser = ({
   onAdd,
   onClose,
   campaignBbox,
-  initialMode = 'mosaic',
-  singleCollection = false,
   preset = null,
   initialAdvanced = false,
   initialGeneration,
@@ -279,7 +272,7 @@ export const CatalogBrowser = ({
   const availableCompositing = compositingMethods(
     selectedCatalog ? catalogTiler(selectedCatalog) : undefined
   );
-  const [mode, setMode] = useState<'single-item' | 'mosaic'>(initialMode);
+  const [mode, setMode] = useState<'single-item' | 'mosaic'>('mosaic');
 
   // Date range - default to 2024-01 through 2024-12
   const [startDate, setStartDateRaw] = useState(initialGeneration?.startDate ?? '2024-01');
@@ -744,140 +737,36 @@ export const CatalogBrowser = ({
     }
   };
 
-  // Generate collections (mosaic mode with temporal slicing)
-
-  /** Create a UTC date from YYYY-MM-DD string to avoid timezone issues */
-  const utcDate = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d));
-  const toDateStr = (d: Date) =>
-    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-
-  const generateMosaicCollections = (): CollectionItem[] => {
-    if (!selectedCatalog || !selectedCollection || !startDate || !endDate) return [];
-
-    const [startY, startM] = startDate.split('-').map(Number);
-    const [endY, endM] = endDate.split('-').map(Number);
-    const start = utcDate(startY, startM - 1, 1);
-    const endRaw = utcDate(endY, endM - 1, 1);
-    endRaw.setUTCMonth(endRaw.getUTCMonth() + 1);
-    const end = endRaw;
-    const result: CollectionItem[] = [];
-    const nextGenerationSeriesId = generationSeriesId ?? createId();
-
-    // For singleCollection mode, use the entire range as one collection period
-    const effectiveColInterval = singleCollection ? 999 : collectionPeriodInterval;
-    const effectiveColUnit = singleCollection ? ('years' as const) : collectionPeriodUnit;
-
-    let colCurrent = new Date(start);
-    while (colCurrent < end) {
-      const colStart = new Date(colCurrent);
-      let colEnd: Date;
-
-      if (effectiveColUnit === 'weeks') {
-        colEnd = new Date(colCurrent);
-        colEnd.setUTCDate(colEnd.getUTCDate() + effectiveColInterval * 7);
-      } else if (effectiveColUnit === 'years') {
-        colEnd = new Date(colCurrent);
-        colEnd.setUTCFullYear(colEnd.getUTCFullYear() + effectiveColInterval);
-      } else {
-        colEnd = new Date(colCurrent);
-        colEnd.setUTCMonth(colEnd.getUTCMonth() + effectiveColInterval);
-      }
-      if (colEnd > end) colEnd = new Date(end);
-      const colEndDate = new Date(colEnd);
-      colEndDate.setUTCDate(colEndDate.getUTCDate() - 1);
-
-      const slices: ImagerySlice[] = [];
-      let sliceCurrent = new Date(colStart);
-      while (sliceCurrent < colEnd) {
-        const sliceStart = new Date(sliceCurrent);
-        let sliceEnd: Date;
-
-        if (slicePeriodUnit === 'days') {
-          sliceEnd = new Date(sliceCurrent);
-          sliceEnd.setUTCDate(sliceEnd.getUTCDate() + slicePeriodInterval);
-        } else if (slicePeriodUnit === 'weeks') {
-          sliceEnd = new Date(sliceCurrent);
-          sliceEnd.setUTCDate(sliceEnd.getUTCDate() + slicePeriodInterval * 7);
-        } else if (slicePeriodUnit === 'years') {
-          sliceEnd = new Date(sliceCurrent);
-          sliceEnd.setUTCFullYear(sliceEnd.getUTCFullYear() + slicePeriodInterval);
-        } else {
-          sliceEnd = new Date(sliceCurrent);
-          sliceEnd.setUTCMonth(sliceEnd.getUTCMonth() + slicePeriodInterval);
-        }
-        if (sliceEnd > colEnd) sliceEnd = new Date(colEnd);
-        const sliceEndDate = new Date(sliceEnd);
-        sliceEndDate.setUTCDate(sliceEndDate.getUTCDate() - 1);
-
-        slices.push({
-          id: createId(),
-          name: formatSliceLabel(
-            toDateStr(sliceStart),
-            toDateStr(sliceEndDate),
-            slicePeriodUnit,
-            slices.length
-          ),
-          startDate: toDateStr(sliceStart),
-          endDate: toDateStr(sliceEndDate),
-        });
-        sliceCurrent = sliceEnd;
-      }
-
-      let finalSlices = slices;
-      let finalCoverIndex: number;
-
-      if (coverMode === 'custom') {
-        const coverSlice: ImagerySlice = {
-          id: createId(),
-          name: formatSliceLabel(toDateStr(colStart), toDateStr(colEndDate), slicePeriodUnit, 0),
-          startDate: toDateStr(colStart),
-          endDate: toDateStr(colEndDate),
-        };
-        finalSlices = [coverSlice, ...slices];
-        finalCoverIndex = 0;
-      } else {
-        finalCoverIndex = Math.max(0, Math.min(coverSliceNth - 1, slices.length - 1));
-      }
-
-      result.push({
-        id: createId(),
-        name: formatWindowLabel(toDateStr(colStart), toDateStr(colEndDate), collectionPeriodUnit),
-        generationSeriesId: nextGenerationSeriesId,
-        slices: finalSlices,
-        coverSliceIndex: finalCoverIndex,
-        hasDedicatedCover: coverMode === 'custom',
-        data: {
-          type: 'stac_browser' as const,
+  /** Everything the generator is asked for, from the wizard's state. */
+  const generationConfig = (): ImageryGenerationConfig | null =>
+    selectedCatalog && selectedCollection && startDate && endDate
+      ? {
           catalogUrl: selectedCatalog.url,
           stacCollectionId: selectedCollection.id,
+          collectionTitle: selectedCollection.title,
           isMpc: selectedCatalog.is_mpc,
+          hasCloudCover: selectedCollection.has_cloud_cover ?? false,
           // Only hosted tiler catalogs pin a tiler; MPC is auto-routed by catalog URL.
           tiler: selectedCatalog.is_mpc ? null : (selectedCatalog.tiler_name ?? null),
-          // Only meaningful when the collection's items carry eo:cloud_cover. Persisting
-          // it otherwise makes the tiler ingest filter on a property the items lack,
-          // dropping every item (0 items -> 204 tiles). buildQuery gates the search the
-          // same way; keep the two in sync.
-          maxCloudCover: selectedCollection.has_cloud_cover ? maxCloudCover : undefined,
+          startDate,
+          endDate,
+          collectionPeriodInterval,
+          collectionPeriodUnit,
+          slicePeriodInterval,
+          slicePeriodUnit,
+          coverMode,
+          coverSliceNth,
+          maxCloudCover,
           itemSort,
+          coverMaxCloudCover,
+          coverItemSort,
           visualizations,
-          coverVisualizations: coverMode === 'custom' ? coverVisualizations : undefined,
-          coverMaxCloudCover:
-            coverMode === 'custom' && selectedCollection.has_cloud_cover
-              ? coverMaxCloudCover
-              : undefined,
-          coverItemSort: coverMode === 'custom' ? coverItemSort : undefined,
+          coverVisualizations,
           searchQuery: searchQuery ?? undefined,
-          coverSearchQuery: coverMode === 'custom' ? (coverSearchQuery ?? undefined) : undefined,
+          coverSearchQuery: coverSearchQuery ?? undefined,
           internalStorage: initialGeneration?.internalStorage,
-          sasToken: catalogSas ?? undefined,
-          vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
-        },
-      });
-
-      colCurrent = colEnd;
-    }
-    return result;
-  };
+        }
+      : null;
 
   const selectItem = (item: StacItemOut) => {
     if (!selectedCatalog || !selectedCollection) return;
@@ -910,30 +799,12 @@ export const CatalogBrowser = ({
   };
 
   const handleGenerate = () => {
-    if (mode === 'mosaic') {
-      const cols = generateMosaicCollections();
-      if (cols.length > 0) {
-        const id = generationSeriesId ?? cols[0].generationSeriesId ?? createId();
-        onAdd({
-          collections: cols.map((collection) => ({ ...collection, generationSeriesId: id })),
-          generationSeries: {
-            id,
-            config: {
-              collectionTitle: selectedCollection!.title,
-              hasCloudCover: selectedCollection!.has_cloud_cover ?? false,
-              startDate,
-              endDate,
-              collectionPeriodInterval,
-              collectionPeriodUnit,
-              slicePeriodInterval,
-              slicePeriodUnit,
-              coverMode,
-              coverSliceNth,
-            },
-          },
-        });
-      }
-    }
+    const config = generationConfig();
+    if (mode !== 'mosaic' || !config) return;
+    const seriesId = generationSeriesId ?? createId();
+    const collections = generateStacCollections(config, seriesId, catalogSas);
+    if (collections.length === 0) return;
+    onAdd({ collections, generationSeries: { id: seriesId, config: recipeOf(config) } });
   };
 
   // Fuzzy filter + rank (title/id weighted heavily)
@@ -1085,8 +956,9 @@ export const CatalogBrowser = ({
   );
 
   const preview = (() => {
-    if (mode !== 'mosaic' || !startDate || !endDate) return null;
-    const cols = generateMosaicCollections();
+    const config = generationConfig();
+    if (mode !== 'mosaic' || !config) return null;
+    const cols = generateStacCollections(config, '');
     return {
       collections: cols.length,
       slicesPerCollection: cols[0]?.slices.length ?? 0,
@@ -1119,11 +991,9 @@ export const CatalogBrowser = ({
         <Button variant="primary" onClick={handleGenerate} disabled={!isValid}>
           {initialGeneration
             ? t('catalog.regenerate', { count: preview?.collections ?? 0 })
-            : singleCollection
-              ? t('catalog.addCollection')
-              : preview
-                ? t('catalog.generate', { count: preview.collections })
-                : t('catalog.generateCollections')}
+            : preview
+              ? t('catalog.generate', { count: preview.collections })
+              : t('catalog.generateCollections')}
         </Button>
       </div>
     ) : undefined;
@@ -1577,13 +1447,11 @@ export const CatalogBrowser = ({
                           <Tooltip text={t('catalog.groups.tooltip')} />
                         </h4>
                         <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
-                          {singleCollection
-                            ? t('catalog.groups.descriptionSingle')
-                            : t('catalog.groups.description')}
+                          {t('catalog.groups.description')}
                         </p>
                       </div>
                       <div className="p-3 space-y-3">
-                        {!showAdvanced && !singleCollection && (
+                        {!showAdvanced && (
                           <div className="space-y-1">
                             <label className="text-xs text-neutral-700 flex items-center gap-1">
                               {t('catalog.groups.pattern')}
@@ -1608,7 +1476,7 @@ export const CatalogBrowser = ({
                         )}
 
                         {/* Collection period - only for temporal series (multiple collections) */}
-                        {showAdvanced && !singleCollection && (
+                        {showAdvanced && (
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <label className="text-xs text-neutral-700 flex items-center gap-1">
@@ -1690,20 +1558,14 @@ export const CatalogBrowser = ({
                         )}
                         {showAdvanced && (
                           <p className="text-[11px] text-neutral-500">
-                            {singleCollection
-                              ? t('catalog.groups.summarySingle', {
-                                  slice: t(`catalog.durations.${slicePeriodUnit}`, {
-                                    count: slicePeriodInterval,
-                                  }),
-                                })
-                              : t('catalog.groups.summary', {
-                                  window: t(`catalog.durations.${collectionPeriodUnit}`, {
-                                    count: collectionPeriodInterval,
-                                  }),
-                                  slice: t(`catalog.durations.${slicePeriodUnit}`, {
-                                    count: slicePeriodInterval,
-                                  }),
-                                })}
+                            {t('catalog.groups.summary', {
+                              window: t(`catalog.durations.${collectionPeriodUnit}`, {
+                                count: collectionPeriodInterval,
+                              }),
+                              slice: t(`catalog.durations.${slicePeriodUnit}`, {
+                                count: slicePeriodInterval,
+                              }),
+                            })}
                           </p>
                         )}
                         <AdvancedToggle
@@ -1850,7 +1712,8 @@ export const CatalogBrowser = ({
                       coverSliceNth={coverSliceNth}
                       setCoverSliceNth={setCoverSliceNth}
                       examples={(() => {
-                        const cols = generateMosaicCollections();
+                        const config = generationConfig();
+                        const cols = config ? generateStacCollections(config, '') : [];
                         return cols.slice(0, 2).map((c) => ({
                           name: c.name,
                           slices: c.slices.map((s, i) => ({

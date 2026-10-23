@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { editableGenerationSeries, retainMatchingIds } from './generation';
+import { editableGenerationSeries, generateStacCollections, retainMatchingIds } from './generation';
 import type {
   CollectionItem,
   ImageryGenerationConfig,
@@ -105,5 +105,35 @@ describe('imagery generation series', () => {
 
   it('does not infer provenance for unassociated historical collections', () => {
     expect(editableGenerationSeries(source([collection('old', '2025-01-01')], []))).toEqual([]);
+  });
+});
+
+describe('generateStacCollections', () => {
+  const quarter = { ...generationConfig('S2'), startDate: '2025-01', endDate: '2025-03' };
+
+  it('cuts the months into windows of slices, the last slice of a window cut short', () => {
+    const windows = generateStacCollections(quarter, 'series');
+    expect(windows).toHaveLength(3);
+    const january = windows[0].slices;
+    expect(january[0]).toMatchObject({ startDate: '2025-01-01', endDate: '2025-01-07' });
+    expect(january.at(-1)).toMatchObject({ startDate: '2025-01-29', endDate: '2025-01-31' });
+    expect(windows[2].slices.at(-1)?.endDate).toBe('2025-03-31');
+    expect(windows.every((w) => w.generationSeriesId === 'series')).toBe(true);
+  });
+
+  it('lands on the nth slice, or puts a whole-window cover in front', () => {
+    const nth = generateStacCollections({ ...quarter, coverSliceNth: 2 }, 's');
+    expect(nth[0]).toMatchObject({ coverSliceIndex: 1, hasDedicatedCover: false });
+
+    const [window] = generateStacCollections({ ...quarter, coverMode: 'custom' }, 's');
+    expect(window).toMatchObject({ coverSliceIndex: 0, hasDedicatedCover: true });
+    expect(window.slices[0]).toMatchObject({ startDate: '2025-01-01', endDate: '2025-01-31' });
+  });
+
+  it('only filters on cloud cover when the items carry it', () => {
+    const [clear] = generateStacCollections(quarter, 's');
+    const [cloudy] = generateStacCollections({ ...quarter, hasCloudCover: true }, 's');
+    expect(clear.data).toMatchObject({ maxCloudCover: undefined });
+    expect(cloudy.data).toMatchObject({ maxCloudCover: 90 });
   });
 });

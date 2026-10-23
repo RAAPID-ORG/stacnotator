@@ -89,7 +89,6 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
       <CatalogBrowser
         projectId={controller.projectId}
         preset={step.preset}
-        initialMode="mosaic"
         campaignBbox={controller.campaignBbox}
         onAdd={(result) => finalizeFromCatalog(result, step.preset.label)}
         onClose={back}
@@ -101,7 +100,6 @@ export const AddSourceWizard = ({ controller, onClose, onCreated }: AddSourceWiz
     return (
       <CatalogBrowser
         projectId={controller.projectId}
-        initialMode="mosaic"
         campaignBbox={controller.campaignBbox}
         allowPrivateCatalogs={controller.allowsPrivateCatalogs}
         onAdd={(result) => {

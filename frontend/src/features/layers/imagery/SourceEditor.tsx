@@ -250,7 +250,6 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
       <CatalogBrowser
         projectId={controller.projectId}
         preset={addStep.preset}
-        initialMode="mosaic"
         campaignBbox={controller.campaignBbox}
         initialAdvanced={controller.mode === 'persisted'}
         allowPrivateCatalogs={controller.allowsPrivateCatalogs}
@@ -264,7 +263,6 @@ export const SourceEditor = ({ source, controller, onClose }: SourceEditorProps)
     return (
       <CatalogBrowser
         projectId={controller.projectId}
-        initialMode="mosaic"
         campaignBbox={controller.campaignBbox}
         initialAdvanced={controller.mode === 'persisted'}
         initialGeneration={activeGenerationSeries.config}
