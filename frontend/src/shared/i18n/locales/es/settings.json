@@ -20,6 +20,10 @@
     "role": "Rol",
     "administrator": "Administrador"
   },
+  "language": {
+    "title": "Idioma",
+    "description": "El idioma de la interfaz en este dispositivo."
+  },
   "password": {
     "title": "Cambiar contraseña",
     "description": "Actualiza la contraseña que usas para iniciar sesión.",

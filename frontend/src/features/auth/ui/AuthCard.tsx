@@ -30,7 +30,7 @@ export const AuthCard = ({ children, className, outerClassName }: AuthCardProps)
             <div className="text-[13px] font-semibold text-neutral-900">STACNotator</div>
             <div className="text-[11px] text-neutral-500">{t('card.byline')}</div>
           </div>
-          <LanguageSelect className="ml-auto self-start text-xs text-neutral-500" />
+          <LanguageSelect className="ml-auto self-start -mr-2" />
         </div>
 
         {children}

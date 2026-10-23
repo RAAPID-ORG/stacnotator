@@ -6,7 +6,6 @@ import { OrgSwitcher } from '~/features/organizations/components/OrgSwitcher';
 import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
 import { pendingAdminActions } from '~/features/organizations/utils/organizations';
 import { CountBadge } from '~/shared/ui/Badge';
-import { LanguageSelect } from '~/shared/ui/LanguageSelect';
 import { useAccountStore } from 'src/shared/stores/account.store';
 import { HarvestMark, HARVEST_SITE } from 'src/shared/ui/HarvestMark';
 
@@ -206,7 +205,7 @@ export const AppSidebar = ({
           </button>
 
           {!collapsed && (
-            <nav className="-mx-3 mt-3 border-t border-neutral-200 px-3 pt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 whitespace-nowrap text-[11px] text-neutral-400">
+            <nav className="-mx-3 mt-3 border-t border-neutral-200 px-3 pt-3 flex justify-center gap-x-3 whitespace-nowrap text-[11px] text-neutral-400">
               {LEGAL_DOCS.map((doc) => (
                 <a
                   key={doc}
@@ -218,7 +217,6 @@ export const AppSidebar = ({
                   {t(`legal.${doc}`)}
                 </a>
               ))}
-              <LanguageSelect />
             </nav>
           )}
         </div>

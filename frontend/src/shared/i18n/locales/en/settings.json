@@ -20,6 +20,10 @@
     "role": "Role",
     "administrator": "Administrator"
   },
+  "language": {
+    "title": "Language",
+    "description": "The language of the interface on this device."
+  },
   "password": {
     "title": "Change password",
     "description": "Update the password you use to sign in.",

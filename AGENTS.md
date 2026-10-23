@@ -158,8 +158,8 @@ generated key after a write.
 
 UI copy goes through **react-i18next** (`shared/i18n/`); English and Spanish ship today. Strings live in
 `shared/i18n/locales/<lng>/<namespace>.json`, one namespace per feature (`common` for `app/` + `shared/`).
-The language is detected from `localStorage`, then the browser, and switched with `LanguageSelect`
-(sidebar footer, login screen).
+The language is detected from `localStorage`, then the browser, and switched in Settings > Profile, or
+with `LanguageSelect` on the auth card before sign-in.
 
 - Components: `const { t } = useTranslation('campaigns')`. Outside React (stores, pure modules):
   `const t = i18n.getFixedT(null, 'campaigns')` once under the imports - it fixes the namespace, not the

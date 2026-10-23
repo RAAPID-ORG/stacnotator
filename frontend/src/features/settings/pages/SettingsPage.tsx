@@ -6,7 +6,8 @@ import { useAuth } from '~/app/providers/AuthProvider';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
-import { Button, Field, Input } from '~/shared/ui/forms';
+import { Button, Field, Input, Select } from '~/shared/ui/forms';
+import { LANGUAGES } from '~/shared/i18n';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
 import { getOrganizationTilers, type UserOut, type UserOutDetailed } from '~/api/client';
 import {
@@ -83,7 +84,7 @@ const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }
 };
 
 export const SettingsPage = () => {
-  const { t } = useTranslation(['settings', 'common']);
+  const { t, i18n } = useTranslation(['settings', 'common']);
   const navigate = useNavigate();
   const { auth } = useAuth();
   const queryClient = useQueryClient();
@@ -440,6 +441,28 @@ export const SettingsPage = () => {
                           </span>
                         </Field>
                       )}
+                    </div>
+                  </section>
+
+                  <section className={sectionCls}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h2 className="section-heading">{t('language.title')}</h2>
+                        <p className="section-description">{t('language.description')}</p>
+                      </div>
+                      <div className="w-40 shrink-0">
+                        <Select
+                          value={i18n.resolvedLanguage}
+                          onChange={(e) => i18n.changeLanguage(e.target.value)}
+                          aria-label={t('language.title')}
+                        >
+                          {LANGUAGES.map((language) => (
+                            <option key={language.code} value={language.code} lang={language.code}>
+                              {language.label}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
                     </div>
                   </section>
 
