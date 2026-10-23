@@ -168,21 +168,27 @@ export function validateForm(fields: FormField[], values: Record<string, unknown
 /** The primary label selector. Digits still pick labels while it is active. */
 export const LABEL_FIELD_INDEX = -1;
 
+/** Where the comment sits in the Tab cycle: one past the last custom field. */
+export const commentFieldIndex = (fieldCount: number): number => fieldCount;
+
 /** `null` and LABEL_FIELD_INDEX both route digits to labels, so entering the
- *  cycle forward skips to the first custom field. */
+ *  cycle forward skips to the first custom field. A comment box, when there
+ *  is one, is the last stop before the cycle returns to the labels. */
 export function cycleFieldIndex(
   current: number | null,
   fieldCount: number,
-  direction: 1 | -1
+  direction: 1 | -1,
+  hasComment = false
 ): number | null {
-  if (fieldCount === 0) return null;
+  const stops = fieldCount + (hasComment ? 1 : 0);
+  if (stops === 0) return null;
   if (direction === 1) {
     if (current === null || current === LABEL_FIELD_INDEX) return 0;
-    return current === fieldCount - 1 ? LABEL_FIELD_INDEX : current + 1;
+    return current === stops - 1 ? LABEL_FIELD_INDEX : current + 1;
   }
-  if (current === null) return fieldCount - 1;
+  if (current === null) return stops - 1;
   if (current === 0) return LABEL_FIELD_INDEX;
-  if (current === LABEL_FIELD_INDEX) return fieldCount - 1;
+  if (current === LABEL_FIELD_INDEX) return stops - 1;
   return current - 1;
 }
 
@@ -202,6 +208,8 @@ export interface FormKeyContext {
   values: FormValues;
   setValues: (next: FormValues) => void;
   setActiveIndex: (index: number | null) => void;
+  /** Tab also stops at the comment box, after the last custom field. */
+  hasComment?: boolean;
 }
 
 /** `handled` lets callers fall through to their own bindings for the same
@@ -229,9 +237,11 @@ export function handleFormFieldKey(e: KeyboardEvent, ctx: FormKeyContext): FormK
     return { handled: true, focusFieldId: active.id };
   }
 
-  if (e.key === 'Tab' && fields.length > 0) {
+  if (e.key === 'Tab' && (fields.length > 0 || ctx.hasComment)) {
     e.preventDefault();
-    ctx.setActiveIndex(cycleFieldIndex(activeIndex, fields.length, e.shiftKey ? -1 : 1));
+    ctx.setActiveIndex(
+      cycleFieldIndex(activeIndex, fields.length, e.shiftKey ? -1 : 1, ctx.hasComment)
+    );
     return { handled: true, focusFieldId: null };
   }
 

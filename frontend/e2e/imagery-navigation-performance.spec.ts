@@ -155,7 +155,7 @@ test('all visible imagery panels start loading a newly selected task together', 
   await waitForNavIdle(annotationPage);
   armed = true;
 
-  const gotoInput = annotationPage.locator('input[type="number"][title="Press Enter to go"]');
+  const gotoInput = annotationPage.locator('[data-testid="goto-point"]');
   await gotoInput.fill('5');
   navigationAt = Date.now();
   await gotoInput.press('Enter');

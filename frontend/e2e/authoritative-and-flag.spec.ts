@@ -26,9 +26,7 @@ test.describe('Authoritative submit', () => {
     annotationPage,
   }) => {
     // Default mock: current user has is_authoritative_reviewer=false.
-    await expect(annotationPage.locator('button', { hasText: 'Submit authoritative' })).toHaveCount(
-      0
-    );
+    await expect(annotationPage.getByLabel('Submit as authoritative')).toHaveCount(0);
   });
 
   test('authoritative submit POSTs is_authoritative=true after the confirm dialog', async ({
@@ -38,7 +36,9 @@ test.describe('Authoritative submit', () => {
     const page = annotationPage;
     await elevateToAuthoritativeReviewer(page);
 
-    // Button is visible only after elevation.
+    // The toggle is offered only after elevation; on, it turns Submit into
+    // the authoritative submit.
+    await page.getByText('Auth.', { exact: true }).click();
     const authBtn = page.locator('button', { hasText: 'Submit authoritative' });
     await expect(authBtn).toBeVisible();
 
@@ -66,6 +66,7 @@ test.describe('Authoritative submit', () => {
 
     await page.locator('button', { hasText: 'Forest' }).first().click();
     api.clear();
+    await page.getByText('Auth.', { exact: true }).click();
     await page.locator('button', { hasText: 'Submit authoritative' }).click();
 
     const dialog = page.locator('.fixed.inset-0');

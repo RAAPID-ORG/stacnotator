@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { IconClose, IconExternalLink } from '~/shared/ui/Icons';
 
 /** Where a card can be sent: a screen already open, the main window it came
@@ -28,18 +29,53 @@ export function SendToScreenButton({
   darkBg,
 }: SendToScreenButtonProps) {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
+  // The menu is portalled out of the card, which clips it, and placed against
+  // the button within the viewport - flipped above or pulled in from the edge
+  // when there is no room on its natural side. It follows the button when the
+  // canvas scrolls or the window resizes.
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+    const doc = wrapRef.current?.ownerDocument ?? document;
+    const view = doc.defaultView;
+    const place = () => {
+      const button = wrapRef.current?.getBoundingClientRect();
+      const menu = menuRef.current;
+      if (!button || !menu || !view) return;
+      const gap = 4;
+      const below = button.bottom + gap;
+      const top =
+        below + menu.offsetHeight > view.innerHeight
+          ? Math.max(gap, button.top - gap - menu.offsetHeight)
+          : below;
+      const left = Math.min(
+        Math.max(gap, button.right - menu.offsetWidth),
+        view.innerWidth - menu.offsetWidth - gap
+      );
+      setMenuPos({ top, left });
+    };
     // A card sitting on a screen renders in the popout's document, not the
     // opener's - listening on the wrong one leaves the menu stuck open.
-    const doc = wrapRef.current?.ownerDocument ?? document;
     const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
+    place();
     doc.addEventListener('mousedown', onDown);
-    return () => doc.removeEventListener('mousedown', onDown);
+    doc.addEventListener('scroll', place, true);
+    view?.addEventListener('resize', place);
+    return () => {
+      doc.removeEventListener('mousedown', onDown);
+      doc.removeEventListener('scroll', place, true);
+      view?.removeEventListener('resize', place);
+    };
   }, [open]);
 
   const send = (target: ScreenTarget) => {
@@ -76,48 +112,56 @@ export function SendToScreenButton({
       >
         <IconExternalLink className="h-3.5 w-3.5" />
       </button>
-      {open && (
-        <div className="absolute right-0 top-6 z-[1001] w-36 overflow-hidden rounded-md border border-neutral-200 bg-white py-1 shadow-lg">
-          {onScreen && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                send('main');
-              }}
-              data-testid={`send-to-screen-${panelId}-main`}
-              className="block w-full border-b border-neutral-100 px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
-            >
-              Main window
-            </button>
-          )}
-          {otherScreens.map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                send(id);
-              }}
-              data-testid={`send-to-screen-${panelId}-${id}`}
-              className="block w-full px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
-            >
-              Screen {id}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              send('new');
-            }}
-            data-testid={`send-to-screen-${panelId}-new`}
-            className="block w-full border-t border-neutral-100 px-3 py-1.5 text-left text-xs font-medium text-brand-700 hover:bg-brand-50"
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            data-testid={`send-to-screen-${panelId}-menu`}
+            onMouseDown={(e) => e.stopPropagation()}
+            style={menuPos ?? { top: 0, left: 0, visibility: 'hidden' }}
+            className="fixed z-[1001] w-36 overflow-hidden rounded-md border border-neutral-200 bg-white py-1 shadow-lg"
           >
-            New screen
-          </button>
-        </div>
-      )}
+            {onScreen && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  send('main');
+                }}
+                data-testid={`send-to-screen-${panelId}-main`}
+                className="block w-full border-b border-neutral-100 px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
+              >
+                Main window
+              </button>
+            )}
+            {otherScreens.map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  send(id);
+                }}
+                data-testid={`send-to-screen-${panelId}-${id}`}
+                className="block w-full px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
+              >
+                Screen {id}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                send('new');
+              }}
+              data-testid={`send-to-screen-${panelId}-new`}
+              className="block w-full border-t border-neutral-100 px-3 py-1.5 text-left text-xs font-medium text-brand-700 hover:bg-brand-50"
+            >
+              New screen
+            </button>
+          </div>,
+          wrapRef.current?.ownerDocument.body ?? document.body
+        )}
     </div>
   );
 }

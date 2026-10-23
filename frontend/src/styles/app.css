@@ -406,24 +406,130 @@ input[type='range'] {
   color: var(--color-amber-800) !important;
 }
 
+/* A taller bar to grab when the header is what moves the panel. */
+.card-header.editable {
+  min-height: 30px;
+}
+
 .react-resizable-handle {
   display: none !important;
 }
 
-.is-editing .react-resizable-handle {
-  display: block !important;
-  touch-action: none;
+/* In edit mode every edge is a grip along its whole length, and each corner is a
+   generous square, instead of the library's 20px arrows. They straddle the card
+   border, reaching half the grid gap outwards, so the card stops clipping in edit
+   mode and its header and body round their own corners instead. */
+.is-editing .grid-card {
+  overflow: visible;
 }
 
-.is-editing .react-resizable-handle::after {
+.is-editing .grid-card > .card-header {
+  border-top-left-radius: calc(var(--radius-lg) - 1px);
+  border-top-right-radius: calc(var(--radius-lg) - 1px);
+}
+
+.is-editing .grid-card > :not(.card-header, .react-resizable-handle) {
+  overflow: hidden;
+  border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+  border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+}
+
+/* One class deeper than react-grid-layout's own handle rules, which load after
+   this sheet and would otherwise keep their rotations and offsets. */
+.is-editing .react-grid-layout .react-grid-item > .react-resizable-handle {
+  display: block !important;
+  touch-action: none;
+  opacity: 1;
+  margin: 0;
+  transform: none;
+  background: none;
+  padding: 0;
+  z-index: 20;
+  --grip-out: 3px;
+  --grip-in: 9px;
+  --grip-corner: 18px;
+}
+
+.is-editing .react-grid-item > .react-resizable-handle::after {
+  content: none;
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-n,
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  left: var(--grip-corner);
+  right: var(--grip-corner);
+  width: auto;
+  height: calc(var(--grip-out) + var(--grip-in));
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-n {
+  top: calc(-1 * var(--grip-out));
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  bottom: calc(-1 * var(--grip-out));
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-w,
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  top: var(--grip-corner);
+  bottom: var(--grip-corner);
+  height: auto;
+  width: calc(var(--grip-out) + var(--grip-in));
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-w {
+  left: calc(-1 * var(--grip-out));
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  right: calc(-1 * var(--grip-out));
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-nw,
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-ne,
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-sw,
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  width: calc(var(--grip-out) + var(--grip-corner));
+  height: calc(var(--grip-out) + var(--grip-corner));
+  z-index: 21;
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-nw {
+  top: calc(-1 * var(--grip-out));
+  left: calc(-1 * var(--grip-out));
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
+  top: calc(-1 * var(--grip-out));
+  right: calc(-1 * var(--grip-out));
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-sw {
+  bottom: calc(-1 * var(--grip-out));
+  left: calc(-1 * var(--grip-out));
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  bottom: calc(-1 * var(--grip-out));
+  right: calc(-1 * var(--grip-out));
+}
+
+/* The grip under the pointer lights up as a bar along the card border, so it is
+   clear which edge a drag will move before it starts. */
+.is-editing .react-grid-item > .react-resizable-handle:hover {
+  background: rgb(251 191 36 / 0.35); /* amber-400 */
+}
+
+.is-editing .react-grid-item > .react-resizable-handle.react-resizable-handle-se::after {
   content: '';
   position: absolute;
-  right: 3px;
-  bottom: 3px;
+  right: 6px;
+  bottom: 6px;
   width: 8px;
   height: 8px;
-  border-right: 2px solid var(--color-neutral-300);
-  border-bottom: 2px solid var(--color-neutral-300);
+  border-right: 2px solid var(--color-neutral-400);
+  border-bottom: 2px solid var(--color-neutral-400);
 }
 
 /* Leaflet Draw Edit Markers - Ensure they're always on top and clickable */

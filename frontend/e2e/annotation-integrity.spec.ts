@@ -38,7 +38,7 @@ function lastAnnotate(requests: CapturedRequest[]): CapturedRequest | undefined 
 }
 
 async function readGoToValue(page: Page): Promise<string> {
-  return page.locator('input[type="number"][title="Press Enter to go"]').inputValue();
+  return page.locator('[data-testid="goto-point"]').inputValue();
 }
 
 async function enableDoneFilter(page: Page): Promise<void> {
@@ -50,7 +50,7 @@ async function enableDoneFilter(page: Page): Promise<void> {
 }
 
 async function goTo(page: Page, n: number): Promise<void> {
-  const input = page.locator('input[type="number"][title="Press Enter to go"]');
+  const input = page.locator('[data-testid="goto-point"]');
   await input.fill(String(n));
   await input.press('Enter');
   await waitForNavIdle(page);

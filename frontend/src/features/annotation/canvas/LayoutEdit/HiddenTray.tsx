@@ -62,6 +62,9 @@ export interface HiddenTrayProps {
   footerActions?: ReactNode;
   /** Sections shown above the hidden-panel section, in the same panel. */
   sections?: ReactNode;
+  /** A section that keeps its place between the scrolling sections and the
+   *  hidden-panel list, for controls reached for while arranging. */
+  pinnedSection?: ReactNode;
   /** Rendered directly above the item list, so whatever names the list sits
    *  next to it rather than above the other sections. */
   listHeader?: ReactNode;
@@ -80,6 +83,7 @@ export function HiddenTray({
   title = 'Hidden',
   footerActions,
   sections,
+  pinnedSection,
   listHeader,
   storageKey,
   onAdd,
@@ -255,6 +259,9 @@ export function HiddenTray({
         <div className="min-h-0 flex-1 overflow-y-auto">
           {sections && <div className="px-3 py-2.5">{sections}</div>}
         </div>
+        {pinnedSection && (
+          <div className="shrink-0 border-t border-neutral-100 px-3 py-2.5">{pinnedSection}</div>
+        )}
         {/* The list keeps its own region rather than trailing the settings in
             one scroll: sharing it, the list fell off the bottom of the panel
             and went unnoticed. The floor keeps restoration controls on screen
