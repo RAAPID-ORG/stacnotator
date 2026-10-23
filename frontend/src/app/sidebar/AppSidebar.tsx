@@ -57,8 +57,8 @@ const CAMPAIGN_SECTION: Record<string, { label: string; icon: ReactNode }> = {
   annotate: { label: 'Annotate', icon: <IconPencil /> },
   tasks: { label: 'Tasks', icon: <IconTaskListFilled /> },
   annotations: { label: 'Annotations', icon: <IconChart /> },
-  agents: { label: 'Labelling agents', icon: <IconRobot /> },
-  settings: { label: 'Campaign settings', icon: <IconGear /> },
+  agents: { label: 'Agents', icon: <IconRobot /> },
+  settings: { label: 'Settings', icon: <IconGear /> },
 };
 
 const projectSectionPath = (projectId: number, section: ProjectSection) =>
@@ -84,7 +84,7 @@ type NavItemProps = {
   onNavigate?: () => void;
 };
 
-const DEPTH_PADDING = ['pl-2', 'pl-6', 'pl-10'] as const;
+const DEPTH_PADDING = ['pl-2', 'pl-5', 'pl-8'] as const;
 
 const NavItem = ({
   to,
@@ -98,7 +98,9 @@ const NavItem = ({
   trailing,
   onNavigate,
 }: NavItemProps) => {
-  const className = `flex h-8 w-full items-center gap-2.5 rounded-md text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 ${
+  const className = `flex w-full gap-2.5 rounded-md ${
+    emphasis ? 'min-h-8 items-start py-1.5' : 'h-8 items-center'
+  } text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 ${
     collapsed ? 'justify-center' : `pr-2 ${DEPTH_PADDING[depth]}`
   } ${
     active
@@ -110,7 +112,11 @@ const NavItem = ({
       <span className="relative flex w-5 h-5 shrink-0 items-center justify-center [&>svg]:w-4 [&>svg]:h-4">
         {icon}
       </span>
-      {!collapsed && <span className="flex-1 min-w-0 truncate">{label}</span>}
+      {!collapsed && (
+        <span className={`flex-1 min-w-0 ${emphasis ? 'break-words leading-5' : 'truncate'}`}>
+          {label}
+        </span>
+      )}
       {!collapsed && trailing}
     </>
   );
