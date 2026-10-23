@@ -413,7 +413,11 @@ function adjustConfidence(delta: number): void {
 function taskStepBindings(): Binding[] {
   const { catalog } = campaignState();
   return [
-    { key: 'w', help: t('keymap.previousTask'), run: () => useTasksStore.getState().previous(catalog) },
+    {
+      key: 'w',
+      help: t('keymap.previousTask'),
+      run: () => useTasksStore.getState().previous(catalog),
+    },
     { key: 's', help: t('keymap.nextTask'), run: () => void advance() },
   ];
 }

@@ -423,16 +423,12 @@
       },
       "recenter": {
         "title": "Practice: Recenter Map",
-        "body": [
-          "Press {{ }} to recenter the map on the current task location."
-        ],
+        "body": ["Press {{ }} to recenter the map on the current task location."],
         "hint": "Try pressing Space now."
       },
       "crosshair": {
         "title": "Practice: Toggle Crosshair",
-        "body": [
-          "Press {{x}} to toggle the crosshair overlay on the map."
-        ],
+        "body": ["Press {{x}} to toggle the crosshair overlay on the map."],
         "hint": "Try pressing X now."
       },
       "timeseries": [
@@ -446,9 +442,7 @@
       ],
       "googleEarth": "Click the highlighted Open in Google Earth link to inspect the current task location in Google Earth. A new tab will open with the coordinates pre-filled - handy for high-resolution context when imagery alone isn't enough.",
       "controls": {
-        "body": [
-          "This panel is where you actually annotate:"
-        ],
+        "body": ["This panel is where you actually annotate:"],
         "selectLabel": "Select a label (or press the number keys 1-9)",
         "formFields": "Answer the campaign’s questions below the labels - {{tab}} moves between them, and required ones must be filled in before the task can be submitted",
         "comment": "Optionally add a comment (press {{c}} to focus it)",
@@ -457,16 +451,12 @@
       },
       "practiceTasks": {
         "title": "Practice: Navigate Tasks",
-        "body": [
-          "Press {{w}} for the previous task and {{s}} for the next task."
-        ],
+        "body": ["Press {{w}} for the previous task and {{s}} for the next task."],
         "hint": "Try pressing S and then W to move in both directions."
       },
       "review": {
         "title": "Review Mode",
-        "body": [
-          "STACNotator has two ways to review annotations:"
-        ],
+        "body": ["STACNotator has two ways to review annotations:"],
         "toggle": "Review toggle (eye icon) - enables review mode directly on this annotation page. You'll see all annotators' labels for each task in the controls panel. If multiple annotators disagree on a task, there are two ways to resolve this:",
         "toggleOptions": [
           "Update your label to match others if you think they are correct",
@@ -504,9 +494,7 @@
       ],
       "drawing": {
         "title": "Drawing an Annotation",
-        "body": [
-          "Pick a label first - the label decides the shape you draw."
-        ],
+        "body": ["Pick a label first - the label decides the shape you draw."],
         "bullets": [
           "Point labels: one click on the map and it is placed.",
           "Polygon and line labels: click each corner in turn. Close the shape with {{enter}}, a double-click, or by clicking the first corner again - whichever your hands are already near.",
@@ -739,7 +727,8 @@
       "title": "Skip annotation?",
       "description": "You can come back to it later.",
       "confirm": "Skip"
-    }
+    },
+    "finishDraftFirst": "Save or discard the shape you are drawing first."
   },
   "drawing": {
     "labelFailed": "Failed to label features: {{message}}",

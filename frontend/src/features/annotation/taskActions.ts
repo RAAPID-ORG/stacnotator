@@ -399,7 +399,7 @@ export async function skipCurrent(): Promise<void> {
 export async function finishDrawTask(outcome: 'drawn' | 'none_found'): Promise<void> {
   const { draft } = useWorkStore.getState();
   if ((draft.phase === 'draft' || draft.phase === 'committing') && draft.savedId === null) {
-    alert('Save or discard the shape you are drawing first.', 'error');
+    alert(t('taskActions.finishDraftFirst'), 'error');
     return;
   }
   await guarded(async () => {
