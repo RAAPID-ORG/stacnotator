@@ -247,6 +247,53 @@ export const IconLock = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconHome = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M3 9.5L10 3l7 6.5V16a1 1 0 01-1 1h-3.5v-4.5h-5V17H4a1 1 0 01-1-1V9.5z" />
+  </svg>
+);
+
+export const IconUsers = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <circle cx="7.5" cy="7" r="2.75" />
+    <path d="M2.5 16c.6-2.6 2.6-4 5-4s4.4 1.4 5 4M13 4.5a2.5 2.5 0 010 5M14.5 12c1.6.4 2.7 1.7 3 4" />
+  </svg>
+);
+
+export const IconOverview = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <rect x="3" y="3" width="6" height="6" rx="1" />
+    <rect x="11" y="3" width="6" height="6" rx="1" />
+    <rect x="3" y="11" width="6" height="6" rx="1" />
+    <rect x="11" y="11" width="6" height="6" rx="1" />
+  </svg>
+);
+
+export const IconShield = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M10 2.5L4 5v4.5c0 3.8 2.6 6.9 6 8 3.4-1.1 6-4.2 6-8V5l-6-2.5z" />
+  </svg>
+);
+
+export const IconRobot = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <rect x="4" y="6" width="12" height="10" rx="2" />
+    <path d="M10 3v3M7.5 10.5h.01M12.5 10.5h.01M8 13.5h4" />
+  </svg>
+);
+
+export const IconSignOut = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M8 4H5a1 1 0 00-1 1v10a1 1 0 001 1h3M12 6.5l3.5 3.5-3.5 3.5M15.5 10H8" />
+  </svg>
+);
+
+export const IconSelector = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M7 8l3-3 3 3M7 12l3 3 3-3" />
+  </svg>
+);
+
 export const IconBuilding = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M4 17V4a1 1 0 011-1h7a1 1 0 011 1v13M13 8h2a1 1 0 011 1v8M2.5 17h15" />

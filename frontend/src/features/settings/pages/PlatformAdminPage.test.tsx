@@ -4,9 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderWithQuery } from '~/shared/testing/renderWithQuery';
 
-vi.mock('~/app/providers/AuthProvider', () => ({
-  useAuth: () => ({ auth: { logout: vi.fn() } }),
-}));
 vi.mock('~/shared/stores/account.store', () => ({
   useAccountStore: (selector: (state: object) => unknown) =>
     selector({
@@ -22,17 +19,16 @@ vi.mock('~/api/client/sdk.gen', async () => ({
 }));
 
 import { listGrantableTilers, listUsers } from '~/api/client/sdk.gen';
-import { SettingsPage } from './SettingsPage';
+import { PlatformAdminPage } from './PlatformAdminPage';
 
 beforeEach(() => vi.clearAllMocks());
 
 it('separates platform organizations and users into tabs, loading only the active management data', async () => {
   renderWithQuery(
     <MemoryRouter>
-      <SettingsPage />
+      <PlatformAdminPage />
     </MemoryRouter>
   );
-  await userEvent.click(screen.getByRole('button', { name: 'Platform' }));
   await waitFor(() => expect(listGrantableTilers).toHaveBeenCalledTimes(1));
   expect(screen.getByRole('tab', { name: 'Organizations' }).getAttribute('aria-selected')).toBe(
     'true'

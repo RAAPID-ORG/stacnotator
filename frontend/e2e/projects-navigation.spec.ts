@@ -25,13 +25,13 @@ test.describe('Projects list', () => {
     await appPage.getByTestId('project-row').first().click();
     await expect(appPage).toHaveURL(new RegExp(`/projects/${MOCK_PROJECT.id}$`));
 
-    await appPage.getByTestId('org-switcher').click();
+    await appPage.getByTestId('account-menu').click();
     await appPage.getByRole('menuitemradio', { name: SECOND_ORG.name }).click();
 
     // The project belonged to the organization just left, so the workspace
     // lands on the new one's projects rather than staying put.
     await expect(appPage).toHaveURL(/\/projects$/);
-    await expect(appPage.getByTestId('org-switcher')).toContainText(SECOND_ORG.name);
+    await expect(appPage.getByTestId('account-menu')).toContainText(SECOND_ORG.name);
   });
 
   test('a first run auto-activates the approved organization and defaults to my projects', async ({
@@ -39,7 +39,7 @@ test.describe('Projects list', () => {
   }) => {
     await openProjects(appPage);
 
-    await expect(appPage.getByTestId('org-switcher')).toContainText(MOCK_ORG.name);
+    await expect(appPage.getByTestId('account-menu')).toContainText(MOCK_ORG.name);
     await expect(appPage.getByTestId('project-filter-mine')).toHaveAttribute(
       'aria-pressed',
       'true'
@@ -53,8 +53,8 @@ test.describe('Projects list', () => {
   }) => {
     await openProjects(appPage);
 
-    await expect(appPage.getByTestId('org-switcher')).toContainText(MOCK_ORG.name);
-    await appPage.getByTestId('org-switcher').click();
+    await expect(appPage.getByTestId('account-menu')).toContainText(MOCK_ORG.name);
+    await appPage.getByTestId('account-menu').click();
     await appPage.getByRole('menuitemradio', { name: 'No organization' }).click();
 
     await expect(appPage.getByTestId('project-filter-public')).toHaveAttribute(
@@ -110,7 +110,9 @@ test.describe('Projects list', () => {
     await expect(appPage).toHaveURL(/\/projects$/);
   });
 
-  test('opening a project lands on its campaigns tab', async ({ appPage }) => {
+  test('opening a project lands on its campaigns and lists its sections in the sidebar', async ({
+    appPage,
+  }) => {
     await openProjects(appPage);
 
     await Promise.all([
@@ -125,10 +127,15 @@ test.describe('Projects list', () => {
       MOCK_PROJECT_CAMPAIGNS.items[0].name
     );
 
-    // The viewer is a project admin, so the page offers every tab.
-    await expect(appPage.getByRole('tab', { name: 'Members' })).toBeVisible();
+    // The viewer is a project admin, so the sidebar offers every section.
+    const sections = appPage.getByTestId('sidebar-project');
+    await expect(sections.getByRole('link', { name: 'Members' })).toBeVisible();
 
-    await appPage.getByRole('tab', { name: 'Settings' }).click();
+    await sections.getByRole('link', { name: 'Project settings' }).click();
     await expect(appPage).toHaveURL(new RegExp(`/projects/${MOCK_PROJECT.id}\\?tab=settings$`));
+    await expect(sections.getByRole('link', { name: 'Project settings' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
   });
 });
