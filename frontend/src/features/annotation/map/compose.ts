@@ -4,7 +4,7 @@ import { apiUrl } from '~/api/base';
 import i18n from '~/shared/i18n';
 import { basemapAttribution, resolveBasemapUrl } from '~/shared/imagery/tileUrls';
 import { sliceRaster } from '../campaign/tileUrls';
-import { applyRenderOverride, type LegendOverride } from '~/shared/imagery/tileColors';
+import { applyRenderOverride, type RenderOverride } from '~/shared/imagery/tileColors';
 import {
   resolveLabelStyle,
   toDraftStyleSpec,
@@ -128,7 +128,8 @@ export interface ComposeState extends ImageryNavState {
   target?: 'main' | 'window';
   /** Draw the tile-grid backdrop under everything. */
   tileSkeleton?: boolean;
-  legendOverrides?: Record<number, LegendOverride>;
+  /** Colour overrides per custom map id. */
+  customMapOverrides?: Record<number, RenderOverride>;
   annotations?: SavedAnnotations;
   focusExtent?: GeoFeature | null;
   crosshairPoint?: LonLat | null;
@@ -283,11 +284,7 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
     if (!state.address) return layers;
   } else if (state.address) {
     try {
-      const raster = sliceRaster(
-        catalog,
-        state.address,
-        state.legendOverrides?.[Number(state.address.vizId)]
-      );
+      const raster = sliceRaster(catalog, state.address);
       layers.push({ kind: 'raster', ...raster, cacheScope: taskScope });
     } catch {
       // A stale address costs the imagery layer, not the page.
@@ -300,7 +297,11 @@ export function composeLayers(ctx: ComposeContext, state: ComposeState): LayerSp
       layers.push({
         kind: 'raster',
         id: `custom-map-${map.id}`,
-        url: applyRenderOverride(map.tile_url, map.render_config, state.legendOverrides?.[map.id]),
+        url: applyRenderOverride(
+          map.tile_url,
+          map.render_config,
+          state.customMapOverrides?.[map.id]
+        ),
         auth: 'cookie',
         opacity: state.overlayOpacity ?? 1,
         maxZoom: map.max_native_zoom ?? undefined,

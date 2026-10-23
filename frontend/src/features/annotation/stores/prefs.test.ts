@@ -9,7 +9,7 @@ beforeEach(() => {
     pinnedStart: {},
     toursSeen: [],
     labelStyles: {},
-    legendOverrides: {},
+    customMapOverrides: {},
     timeseriesChart: {
       removeCloudy: true,
       showDots: true,
@@ -71,9 +71,9 @@ describe('label styles', () => {
 
 describe('legend overrides', () => {
   it('sets and resets', () => {
-    usePrefsStore.getState().setLegendOverride(7, { colormap_name: 'viridis' });
-    expect(usePrefsStore.getState().legendOverrides[7]).toEqual({ colormap_name: 'viridis' });
-    usePrefsStore.getState().resetLegendOverride(7);
-    expect(usePrefsStore.getState().legendOverrides[7]).toBeUndefined();
+    usePrefsStore.getState().setCustomMapOverride(7, { colormap_name: 'viridis' });
+    expect(usePrefsStore.getState().customMapOverrides[7]).toEqual({ colormap_name: 'viridis' });
+    usePrefsStore.getState().resetCustomMapOverride(7);
+    expect(usePrefsStore.getState().customMapOverrides[7]).toBeUndefined();
   });
 });

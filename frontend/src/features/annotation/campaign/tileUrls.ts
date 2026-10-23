@@ -4,14 +4,12 @@ import {
   sliceProxyUrl,
   tileAuth,
 } from '~/shared/imagery/tileUrls';
-import { stampLegendOverride, type LegendOverride } from '~/shared/imagery/tileColors';
 import type { ImageryCatalog } from './imagery';
 import type { SliceAddress } from './imageryNav';
 
 export function sliceLegend(
   cat: ImageryCatalog,
-  address: SliceAddress | null,
-  override?: LegendOverride
+  address: SliceAddress | null
 ): { name: string; colormap: string; range: [number, number] | null } | null {
   if (!address) return null;
   const collection = cat.collections.get(address.collectionId);
@@ -53,11 +51,10 @@ export function sliceLegend(
           Array.isArray(assets) &&
           assets.length === 1);
   if (!singleBand) return null;
-  const effectiveRange = override?.rescale ?? rescale;
   const values =
-    typeof effectiveRange === 'string'
-      ? effectiveRange.split(',').map((value) => (value.trim() ? Number(value) : NaN))
-      : effectiveRange;
+    typeof rescale === 'string'
+      ? rescale.split(',').map((value) => (value.trim() ? Number(value) : NaN))
+      : rescale;
   const range: [number, number] | null =
     Array.isArray(values) &&
     values.length === 2 &&
@@ -66,7 +63,7 @@ export function sliceLegend(
       : null;
   return {
     name: viz.name,
-    colormap: override?.colormap_name ?? (typeof colormap === 'string' ? colormap : ''),
+    colormap: typeof colormap === 'string' ? colormap : '',
     range,
   };
 }
@@ -93,11 +90,7 @@ export interface SliceRaster {
 
 /** Throws when the address names something the catalog no longer has - a
  *  collection deleted while a saved view snapshot still points at it. */
-export function sliceRaster(
-  cat: ImageryCatalog,
-  addr: SliceAddress,
-  override?: LegendOverride
-): SliceRaster {
+export function sliceRaster(cat: ImageryCatalog, addr: SliceAddress): SliceRaster {
   const source = cat.sources.get(addr.sourceId);
   if (!source) throw new Error(`unknown source ${addr.sourceId}`);
 
@@ -113,10 +106,9 @@ export function sliceRaster(
   const entry = slice.tile_urls.find((e) => e.visualization_name === viz.name);
   if (!entry) throw new Error(`no tile url for "${viz.name}" on slice ${slice.id}`);
 
-  const raw = needsKeyProxy(entry.tile_url)
+  const url = needsKeyProxy(entry.tile_url)
     ? sliceProxyUrl(campaignProxyBase(cat.campaignId), slice.id, viz.name)
     : entry.tile_url;
-  const url = stampLegendOverride(raw, override);
 
   return {
     id: `slice-${slice.id}-${viz.id}`,

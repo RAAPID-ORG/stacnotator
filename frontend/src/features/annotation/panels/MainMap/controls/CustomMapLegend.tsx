@@ -16,9 +16,9 @@ export function CustomMapLegend({ catalog }: CustomMapLegendProps) {
   // opacity that view was left at.
   const opacity = useImageryStore((s) => s.overlayOpacity);
   const setOverlayOpacity = useImageryStore((s) => s.setOverlayOpacity);
-  const overrides = usePrefsStore((s) => s.legendOverrides);
-  const setLegendOverride = usePrefsStore((s) => s.setLegendOverride);
-  const resetLegendOverride = usePrefsStore((s) => s.resetLegendOverride);
+  const overrides = usePrefsStore((s) => s.customMapOverrides);
+  const setOverride = usePrefsStore((s) => s.setCustomMapOverride);
+  const resetOverride = usePrefsStore((s) => s.resetCustomMapOverride);
 
   const map = readyCustomMaps([...catalog.customMaps.values()]).find((m) => m.id === overlay.id);
   if (!map || !overlay.visible) return null;
@@ -36,14 +36,14 @@ export function CustomMapLegend({ catalog }: CustomMapLegendProps) {
       <div className="max-h-48 overflow-y-auto pr-1">
         <RenderLegend
           config={config}
-          onChange={(patch) => setLegendOverride(map.id, { ...override, ...patch })}
+          onChange={(patch) => setOverride(map.id, { ...override, ...patch })}
         />
       </div>
 
       {customized && (
         <button
           type="button"
-          onClick={() => resetLegendOverride(map.id)}
+          onClick={() => resetOverride(map.id)}
           data-testid="custom-map-legend-reset"
           title={t('overlay.resetColoursTitle')}
           className="mt-1.5 cursor-pointer text-[10px] text-neutral-500 underline hover:text-neutral-800"

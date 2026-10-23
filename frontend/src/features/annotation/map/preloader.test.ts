@@ -386,7 +386,7 @@ describe('TilePreloader credentials', () => {
       urlTemplate: 'https://osm/{z}/{x}/{y}.png',
       extent: WORLD,
       zoom: 0,
-      tiler: 'mpc',
+      auth: 'none',
     });
     await flush();
     expect(refreshToken).not.toHaveBeenCalled();
@@ -398,7 +398,7 @@ describe('TilePreloader credentials', () => {
       urlTemplate: 'https://tiler/{z}/{x}/{y}.png',
       extent: WORLD,
       zoom: 0,
-      tiler: 'planet',
+      auth: 'cookie',
     });
     await flush();
     expect(refreshToken).toHaveBeenCalledTimes(1);

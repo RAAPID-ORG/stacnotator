@@ -92,9 +92,6 @@ describe('single-band legends', () => {
     expect(
       sliceLegend(catalogFor(params, { ...params, rescale: '0,0.8' }), address)?.range
     ).toEqual([0, 0.8]);
-    expect(
-      sliceLegend(catalogFor(params), address, { rescale: [-0.5, 1], colormap_name: 'magma' })
-    ).toEqual({ name: 'True Color', colormap: 'magma', range: [-0.5, 1] });
   });
 
   it('shows grayscale ranges for single-band assets or selected bands, not RGB', () => {
@@ -237,29 +234,6 @@ describe('sliceRaster', () => {
     const spec = sliceRaster(cat, { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1001' });
     expect(spec.url).toBe('/api/7/imagery/slices/100/tiles/Needs%20Key/{z}/{x}/{y}');
     expect(spec.auth).toBe('cookie');
-  });
-
-  it('stamps legend overrides onto query params (continuous)', () => {
-    const spec = sliceRaster(
-      cat,
-      { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1000' },
-      { colormap_name: 'magma', rescale: [0.2, 0.8] }
-    );
-    const params = new URLSearchParams(spec.url.slice(spec.url.indexOf('?') + 1));
-    expect(params.get('colormap_name')).toBe('magma');
-    expect(params.get('rescale')).toBe('0.2,0.8');
-  });
-
-  it('stamps legend overrides onto a proxied {api_key} url as well', () => {
-    const spec = sliceRaster(
-      cat,
-      { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1001' },
-      { colormap_name: 'magma', rescale: [0, 1] }
-    );
-    expect(spec.url.startsWith('/api/7/imagery/slices/100/tiles/Needs%20Key/{z}/{x}/{y}?')).toBe(
-      true
-    );
-    expect(spec.url).toContain('colormap_name=magma');
   });
 
   it('throws for an unknown source/collection/slice/visualization', () => {

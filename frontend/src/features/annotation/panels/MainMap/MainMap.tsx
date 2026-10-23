@@ -400,7 +400,7 @@ export function MainMapBody() {
   const mode = useCampaignStore((s) => s.workMode);
   const drawsShapes = useDrawsShapes();
   const imagery = useImageryStore();
-  const legendOverrides = usePrefsStore((s) => s.legendOverrides);
+  const customMapOverrides = usePrefsStore((s) => s.customMapOverrides);
   const draft = useWorkStore((s) => s.draft);
   const formValues = useWorkStore((s) => s.formValues);
   const selection = useWorkStore((s) => s.selection);
@@ -454,7 +454,7 @@ export function MainMapBody() {
       ...imagery,
       tileSkeleton: true,
       annotations,
-      legendOverrides,
+      customMapOverrides,
       focusExtent: focus?.extent ?? null,
       crosshairPoint: focus?.center ?? null,
       crosshairColor: focus?.crosshairColor ?? null,
@@ -471,7 +471,7 @@ export function MainMapBody() {
     drawsShapes,
     imagery,
     annotations,
-    legendOverrides,
+    customMapOverrides,
     focus,
     draftFeatures,
     draft,

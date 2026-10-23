@@ -3,7 +3,6 @@ import { formatTick, gradientFor } from '~/shared/colormaps/colormaps';
 import type { ImageryCatalog } from '../campaign/imagery';
 import type { SliceAddress } from '../campaign/imageryNav';
 import { sliceLegend } from '../campaign/tileUrls';
-import { usePrefsStore } from '../stores/prefs';
 
 export function ImageryLegend({
   catalog,
@@ -13,10 +12,7 @@ export function ImageryLegend({
   address: SliceAddress | null;
 }) {
   const { t } = useTranslation('annotation');
-  const override = usePrefsStore((state) =>
-    address ? state.legendOverrides[Number(address.vizId)] : undefined
-  );
-  const legend = sliceLegend(catalog, address, override);
+  const legend = sliceLegend(catalog, address);
   if (!legend) return null;
 
   return (

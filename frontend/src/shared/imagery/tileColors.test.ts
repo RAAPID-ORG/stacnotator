@@ -4,7 +4,6 @@ import {
   applyRenderOverride,
   effectiveRenderConfig,
   isCustomized,
-  stampLegendOverride,
 } from '~/shared/imagery/tileColors';
 
 const TILES = 'https://tiler.test/searches/s1/tiles/WebMercatorQuad/{z}/{x}/{y}.png';
@@ -92,44 +91,6 @@ describe('applyRenderOverride', () => {
     ).toBe(catUrl);
     const noColormap: RenderConfig = { mode: 'continuous', rescale: [0, 1] };
     expect(applyRenderOverride(contUrl, noColormap, { rescale: [0, 2] })).toBe(contUrl);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// stampLegendOverride, the generalized (no server base config) path used by
-// sliceRaster for slice visualizations.
-// ---------------------------------------------------------------------------
-
-describe('stampLegendOverride', () => {
-  const raw = 'https://tiler/1/{z}/{x}/{y}.png';
-
-  it('returns the url unchanged when there is no override', () => {
-    expect(stampLegendOverride(raw, undefined)).toBe(raw);
-  });
-
-  it('stamps colormap_name + rescale for a continuous override', () => {
-    const out = stampLegendOverride(raw, { colormap_name: 'magma', rescale: [0, 2] });
-    expect(query(out).get('colormap_name')).toBe('magma');
-    expect(query(out).get('rescale')).toBe('0,2');
-  });
-
-  it('stamps a categorical colormap when entries are given', () => {
-    const out = stampLegendOverride(raw, { entries: [{ value: 1, color: '#ff0000', label: 'a' }] });
-    expect(JSON.parse(query(out).get('colormap') ?? '')).toEqual({ '1': [255, 0, 0, 255] });
-  });
-
-  it('prefers entries over colormap_name/rescale when both are present', () => {
-    const out = stampLegendOverride(raw, {
-      colormap_name: 'magma',
-      rescale: [0, 1],
-      entries: [{ value: 1, color: '#ff0000', label: 'a' }],
-    });
-    expect(query(out).get('colormap')).not.toBeNull();
-    expect(query(out).get('colormap_name')).toBeNull();
-  });
-
-  it('leaves the url unchanged for an empty override', () => {
-    expect(stampLegendOverride(raw, {})).toBe(raw);
   });
 });
 

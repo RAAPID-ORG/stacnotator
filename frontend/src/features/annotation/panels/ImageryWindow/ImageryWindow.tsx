@@ -106,7 +106,7 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
   const drawsShapes = useDrawsShapes();
   const originTask = useCampaignStore((s) => s.originTask);
   const imagery = useImageryStore();
-  const legendOverrides = usePrefsStore((s) => s.legendOverrides);
+  const customMapOverrides = usePrefsStore((s) => s.customMapOverrides);
   const camera = cameraFor(collection.id);
   const windowSlice = imagery.windowSlices[collection.id];
 
@@ -153,7 +153,7 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
       target: 'window',
       address,
       annotations,
-      legendOverrides,
+      customMapOverrides,
       // The task footprint and the crosshair belong to what the page is
       // pointed at, not to one map: a window showing another date of the same
       // place must show the same task outline and the same X-toggled crosshair
@@ -171,7 +171,7 @@ export function ImageryWindowBody({ collection }: ImageryWindowProps) {
     imagery,
     address,
     annotations,
-    legendOverrides,
+    customMapOverrides,
     focus,
     originTask,
   ]);

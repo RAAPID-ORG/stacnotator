@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { LabelStyle } from '../campaign/labelStyle';
-import type { LegendOverride } from '~/shared/imagery/tileColors';
+import type { RenderOverride } from '~/shared/imagery/tileColors';
 
 export type PreloadTier = 'auto' | 'off' | 'conservative' | 'balanced' | 'heavy';
 
@@ -38,7 +38,8 @@ interface PrefsState {
   /** Ids of guided tours already dismissed. */
   toursSeen: string[];
   labelStyles: Record<number, Partial<LabelStyle>>;
-  legendOverrides: Record<number, LegendOverride>;
+  /** The colours a user picked for a custom map, by map id. */
+  customMapOverrides: Record<number, RenderOverride>;
   timeseriesChart: TimeseriesChartOptions;
 
   setPreloadTier: (tier: PreloadTier) => void;
@@ -49,8 +50,8 @@ interface PrefsState {
   markTourSeen: (tourId: string) => void;
   setLabelStyle: (labelId: number, patch: Partial<LabelStyle>) => void;
   resetLabelStyle: (labelId: number) => void;
-  setLegendOverride: (id: number, override: LegendOverride) => void;
-  resetLegendOverride: (id: number) => void;
+  setCustomMapOverride: (mapId: number, override: RenderOverride) => void;
+  resetCustomMapOverride: (mapId: number) => void;
 }
 
 function omit<T>(record: Record<number, T>, key: number): Record<number, T> {
@@ -68,7 +69,7 @@ export const usePrefsStore = create<PrefsState>()(
       pinnedStart: {},
       toursSeen: [],
       labelStyles: {},
-      legendOverrides: {},
+      customMapOverrides: {},
       timeseriesChart: DEFAULT_TIMESERIES_CHART,
 
       setPreloadTier: (preloadTier) => set({ preloadTier }),
@@ -93,9 +94,10 @@ export const usePrefsStore = create<PrefsState>()(
         })),
 
       resetLabelStyle: (labelId) => set((s) => ({ labelStyles: omit(s.labelStyles, labelId) })),
-      setLegendOverride: (id, override) =>
-        set((s) => ({ legendOverrides: { ...s.legendOverrides, [id]: override } })),
-      resetLegendOverride: (id) => set((s) => ({ legendOverrides: omit(s.legendOverrides, id) })),
+      setCustomMapOverride: (mapId, override) =>
+        set((s) => ({ customMapOverrides: { ...s.customMapOverrides, [mapId]: override } })),
+      resetCustomMapOverride: (mapId) =>
+        set((s) => ({ customMapOverrides: omit(s.customMapOverrides, mapId) })),
     }),
     { name: 'annotation:prefs', storage: createJSONStorage(() => localStorage) }
   )
