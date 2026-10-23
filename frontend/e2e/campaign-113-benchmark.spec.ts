@@ -14,13 +14,13 @@ from src.main import app
 from src.database import SessionLocal
 from src.campaigns.service import get_campaign_full
 from src.campaigns.schemas import CampaignOutFull
-from src.annotation.service import get_annotation_tasks_for_campaign
-from src.annotation.schemas import AnnotationTaskOut
+from src.tasks.service import get_tasks
+from src.tasks.schemas import TaskOut
 
 db = SessionLocal()
 campaign = get_campaign_full(db, ${CAMPAIGN_ID})
 out = CampaignOutFull.from_orm(campaign).model_dump(mode='json')
-tasks = [AnnotationTaskOut.model_validate(task).model_dump(mode='json') for task in get_annotation_tasks_for_campaign(db, campaign)]
+tasks = [TaskOut.model_validate(task).model_dump(mode='json') for task in get_tasks(db, campaign)]
 print(json.dumps({'campaign': out, 'tasks': tasks}))
 db.close()
 `;

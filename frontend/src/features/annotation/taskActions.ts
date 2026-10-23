@@ -3,9 +3,9 @@ import {
   annotateTask,
   deleteAnnotation,
   validateTaskLabel,
-  type AnnotationTaskAssignmentOut,
-  type AnnotationTaskOut,
-  type AnnotationTaskSubmitResponse,
+  type TaskAssignmentOut,
+  type TaskOut,
+  type TaskSubmitResponse,
 } from '~/api/client';
 import i18n from '~/shared/i18n';
 import { useLayoutStore as useGlobalLayoutStore } from '~/shared/stores/layout.store';
@@ -46,7 +46,7 @@ export interface TaskPolicy {
  * one that may be given at all. Fails open before anything is loaded; the
  * server stays the authority regardless.
  */
-export function taskLabellingPolicy(task: AnnotationTaskOut | null): TaskPolicy {
+export function taskLabellingPolicy(task: TaskOut | null): TaskPolicy {
   const { campaign, currentUserId } = useCampaignStore.getState();
   const isAssignedToTask = task?.assignments.some((a) => a.user_id === currentUserId) ?? false;
   const policy = campaign?.settings.labelling_policy;
@@ -79,20 +79,20 @@ export function taskLabellingPolicy(task: AnnotationTaskOut | null): TaskPolicy 
 type SubmitOutcome =
   | { kind: 'blocked'; missing: string[] }
   | { kind: 'needsConfirm' }
-  | { kind: 'submitted'; task: AnnotationTaskOut }
-  | { kind: 'removed'; task: AnnotationTaskOut }
+  | { kind: 'submitted'; task: TaskOut }
+  | { kind: 'removed'; task: TaskOut }
   | { kind: 'error'; message: string };
 
 function withAssignmentStatus(
-  task: AnnotationTaskOut,
+  task: TaskOut,
   currentUserId: string,
-  status: AnnotationTaskAssignmentOut['status']
-): AnnotationTaskAssignmentOut[] {
+  status: TaskAssignmentOut['status']
+): TaskAssignmentOut[] {
   return task.assignments.map((a) => (a.user_id === currentUserId ? { ...a, status } : a));
 }
 
 export interface SubmitParams {
-  task: AnnotationTaskOut;
+  task: TaskOut;
   currentUserId: string;
   labelId: number | null;
   comment: string;
@@ -179,7 +179,7 @@ export async function submitCurrent(params: SubmitParams): Promise<SubmitOutcome
         active_ms: readTaskActiveMs(task.id),
       },
     });
-    const result: AnnotationTaskSubmitResponse | undefined = response.data;
+    const result: TaskSubmitResponse | undefined = response.data;
     if (!result) return { kind: 'error', message: t('taskActions.submitFailed') };
 
     // Only once the backend has it: a failed submit keeps the time for the retry.

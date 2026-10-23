@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Modal } from '~/shared/ui/Modal';
 import { Trans, useTranslation } from 'react-i18next';
-import type { AnnotationTaskOut, ProjectUserOut } from '~/api/client';
+import type { TaskOut, ProjectUserOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export type BulkAssignIntent =
@@ -11,7 +11,7 @@ export type BulkAssignIntent =
 interface TaskAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  tasks: AnnotationTaskOut[];
+  tasks: TaskOut[];
   projectUsers: ProjectUserOut[];
   onAssign: (intent: BulkAssignIntent) => Promise<void>;
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AnnotationTaskOut, TaskSetOut } from '~/api/client';
+import type { TaskOut, TaskSetOut } from '~/api/client';
 import {
   apiSuccess,
   makeCampaign,
@@ -42,7 +42,7 @@ const source = makeSource({
 });
 const view = makeView({ id: 100, name: 'V1', source_ids: [1] });
 
-const task = (overrides: Partial<AnnotationTaskOut> = {}): AnnotationTaskOut =>
+const task = (overrides: Partial<TaskOut> = {}): TaskOut =>
   makeTask({ id: 1, geometry_wkt: 'POINT(0 0)', ...overrides });
 
 function mockApi({
@@ -51,7 +51,7 @@ function mockApi({
   mode = 'tasks' as 'tasks' | 'explore',
   isPublic = false,
 }: {
-  tasks?: AnnotationTaskOut[];
+  tasks?: TaskOut[];
   taskSets?: TaskSetOut[];
   mode?: 'tasks' | 'explore';
   isPublic?: boolean;

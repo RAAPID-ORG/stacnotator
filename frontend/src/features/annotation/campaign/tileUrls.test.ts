@@ -128,12 +128,14 @@ const campaign = makeCampaign({
   ],
 });
 
-const BASE = '/api/7/imagery/basemaps';
+const BASE = '/api/campaigns/7/imagery/basemaps';
 
 describe('tile url resolution', () => {
   it('recognises our own proxy routes, which need the tiler cookie', () => {
-    expect(isProxiedTileUrl('/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}')).toBe(true);
-    expect(isProxiedTileUrl('/api/7/imagery/slices/9/tiles/True%20Color/{z}/{x}/{y}')).toBe(true);
+    expect(isProxiedTileUrl('/api/campaigns/7/imagery/basemaps/3/tiles/{z}/{x}/{y}')).toBe(true);
+    expect(
+      isProxiedTileUrl('/api/campaigns/7/imagery/slices/9/tiles/True%20Color/{z}/{x}/{y}')
+    ).toBe(true);
     expect(isProxiedTileUrl('https://osm/{z}/{x}/{y}.png')).toBe(false);
   });
 
@@ -143,9 +145,13 @@ describe('tile url resolution', () => {
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8000');
     try {
       expect(basemapLayer({ id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' }, BASE).url).toBe(
-        'http://localhost:8000/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}'
+        'http://localhost:8000/api/campaigns/7/imagery/basemaps/3/tiles/{z}/{x}/{y}'
       );
-      expect(isProxiedTileUrl('http://localhost:8000/api/7/imagery/slices/9/tiles/V/{z}/{x}/{y}')) //
+      expect(
+        isProxiedTileUrl(
+          'http://localhost:8000/api/campaigns/7/imagery/slices/9/tiles/V/{z}/{x}/{y}'
+        )
+      ) //
         .toBe(true);
     } finally {
       vi.unstubAllEnvs();
@@ -158,7 +164,7 @@ describe('tile url resolution', () => {
       auth: 'none',
     });
     expect(basemapLayer({ id: 3, url: 'https://p/{z}/{x}/{y}?key={api_key}' }, BASE)).toMatchObject(
-      { url: '/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}', auth: 'cookie' }
+      { url: '/api/campaigns/7/imagery/basemaps/3/tiles/{z}/{x}/{y}', auth: 'cookie' }
     );
   });
 });
@@ -225,7 +231,7 @@ describe('sliceRaster', () => {
 
   it('rewrites an {api_key} template to a proxy path', () => {
     const spec = sliceRaster(cat, { sourceId: 1, collectionId: 10, sliceIndex: 0, vizId: '1001' });
-    expect(spec.url).toBe('/api/7/imagery/slices/100/tiles/1001/{z}/{x}/{y}');
+    expect(spec.url).toBe('/api/campaigns/7/imagery/slices/100/tiles/1001/{z}/{x}/{y}');
     expect(spec.auth).toBe('cookie');
   });
 

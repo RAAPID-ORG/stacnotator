@@ -30,13 +30,13 @@ import { type GenerateTasksResponse, type ProjectUserOut } from '~/api/client';
 import {
   assignReviewersMutation,
   assignTasksToUsersMutation,
-  batchUnassignTasksMutation,
+  unassignTasksMutation,
   createTaskSetMutation,
-  deleteAnnotationTasksMutation,
+  deleteTasksMutation,
   deleteTaskSetMutation,
   getProjectUsersOptions,
-  ingestAnnotationTasksFromCsvMutation,
-  ingestAnnotationTasksFromGeojsonMutation,
+  importTasksFromCsvMutation,
+  importTasksFromGeojsonMutation,
   moveTasksToSetMutation,
   renameTaskSetMutation,
 } from '~/api/queries';
@@ -94,11 +94,11 @@ export const CampaignTasksPage = () => {
   const reloadTasksAndSets = useRefreshCampaignWork(campaignId);
 
   const uploadGeojson = useMutation({
-    ...ingestAnnotationTasksFromGeojsonMutation(),
+    ...importTasksFromGeojsonMutation(),
     meta: { errorMessage: t('tasksPage.errors.upload') },
   });
   const uploadCsv = useMutation({
-    ...ingestAnnotationTasksFromCsvMutation(),
+    ...importTasksFromCsvMutation(),
     meta: { errorMessage: t('tasksPage.errors.upload') },
   });
   const createSet = useMutation({
@@ -132,12 +132,12 @@ export const CampaignTasksPage = () => {
     onSuccess: reloadAnnotationTasks,
   });
   const unassignTasks = useMutation({
-    ...batchUnassignTasksMutation(),
+    ...unassignTasksMutation(),
     meta: reportedByCaller(t('tasksPage.errors.unassign')),
     onSuccess: reloadAnnotationTasks,
   });
   const deleteTasks = useMutation({
-    ...deleteAnnotationTasksMutation(),
+    ...deleteTasksMutation(),
     meta: reportedByCaller(t('tasksPage.errors.delete')),
     onSuccess: reloadTasksAndSets,
   });

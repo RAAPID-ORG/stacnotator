@@ -3,7 +3,7 @@ import { isDateRangeValue } from '~/shared/utils/formValues';
 import type {
   AnnotationCreate,
   AnnotationOut,
-  AnnotationTaskOut,
+  TaskOut,
   CampaignOutFull,
   CampaignSettingsOut,
   LabelBase,

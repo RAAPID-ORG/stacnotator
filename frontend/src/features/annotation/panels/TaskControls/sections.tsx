@@ -5,7 +5,7 @@ import { useLayoutStore as useAppLayoutStore } from '~/shared/stores/layout.stor
 import { isRemovingLabel, maySubmitTask } from '../../campaign/annotation';
 import { FormFields } from '../../components/FormFields';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { useTasksStore } from '../../stores/tasks';
 import { useWorkStore } from '../../stores/work';
 import {
@@ -139,7 +139,7 @@ export function ConfidenceSection() {
 /** Pinned under the scrolling sections, so submitting and moving on stay in
  *  reach however many fields a campaign asks for. The point navigation wraps
  *  onto a line of its own when the panel is too narrow for one row. */
-export function ActionBar({ task }: { task: AnnotationTaskOut }) {
+export function ActionBar({ task }: { task: TaskOut }) {
   const { t } = useTranslation(['panels', 'common']);
   const campaign = useCampaign();
   const catalog = useCatalog();

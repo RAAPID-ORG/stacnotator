@@ -26,7 +26,7 @@ export function tileAuth(url: string, tiler?: string | null): 'cookie' | 'none' 
  *  the search that made it lives only in the page that ran it. */
 export function planetLayerProxyUrl(campaignId: number, sourceId: number, layerId: string): string {
   return apiUrl(
-    `/api/${campaignId}/imagery/sources/${sourceId}/planet-layers/${encodeURIComponent(layerId)}/tiles/{z}/{x}/{y}`
+    `/api/campaigns/${campaignId}/imagery/sources/${sourceId}/planet-layers/${encodeURIComponent(layerId)}/tiles/{z}/{x}/{y}`
   );
 }
 
@@ -37,9 +37,10 @@ export function sliceProxyUrl(base: string, sliceId: number, visualizationId: nu
 }
 
 /** Where a campaign's key-proxied slice and basemap tiles are fetched from. */
-export const campaignProxyBase = (campaignId: number) => `/api/${campaignId}/imagery/slices`;
+export const campaignProxyBase = (campaignId: number) =>
+  `/api/campaigns/${campaignId}/imagery/slices`;
 export const campaignBasemapProxyBase = (campaignId: number) =>
-  `/api/${campaignId}/imagery/basemaps`;
+  `/api/campaigns/${campaignId}/imagery/basemaps`;
 
 /** The backdrop the app draws where no basemap is configured: the minimap, the
  *  Leaflet admin maps, and a visualizer that ships none of its own. OpenFreeMap

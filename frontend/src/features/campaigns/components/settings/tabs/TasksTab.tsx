@@ -11,12 +11,7 @@ import {
   TaskScopeBar,
   type TaskScope,
 } from '~/features/campaigns/components/settings/TaskScopeBar';
-import type {
-  AnnotationTaskOut,
-  CampaignSummaryOut,
-  GenerateTasksResponse,
-  TaskSetOut,
-} from '~/api/client';
+import type { TaskOut, CampaignSummaryOut, GenerateTasksResponse, TaskSetOut } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { FileInput } from '~/shared/ui/FileInput';
@@ -30,7 +25,7 @@ interface Props {
   /** Members may read the task list; changing what is in it is an admin's. */
   canManage: boolean;
   // Already filtered to the active scope by the page (single source of truth).
-  scopedTasks: AnnotationTaskOut[];
+  scopedTasks: TaskOut[];
   loadingTasks: boolean;
   totalTasks: number;
   taskFile: File | null;

@@ -1,4 +1,4 @@
-import { useCampaignStore } from '../../stores/campaign';
+import { useCampaign, useCampaignStore } from '../../stores/campaign';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TimeseriesWindow } from '../../campaign/timeseries';
@@ -53,6 +53,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const series = useMemo(() => tsWindow.series, [seriesKey]);
   const ids = useMemo(() => series.map((ts) => ts.id), [series]);
+  const campaignId = useCampaign().id;
   const isExplore = mode === 'explore';
 
   const focus = useMapFocus();
@@ -89,7 +90,7 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
 
     for (const point of points) {
       timeSeriesCache
-        .get(ids, point.latLon)
+        .get(campaignId, ids, point.latLon)
         .then((result) => {
           if (cancelled || !result) return;
           setData((prev) => ({ ...prev, [point.key]: result }));
@@ -108,12 +109,12 @@ export function TimeseriesPanel({ window: tsWindow }: TimeseriesPanelProps) {
     };
     // Only re-fetch when the points (or the series list) actually change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ids, pointsKey]);
+  }, [campaignId, ids, pointsKey]);
 
   useEffect(() => {
     if (ids.length === 0 || prefetchCoordinates.length === 0) return;
-    timeSeriesCache.prefetch(ids, prefetchCoordinates);
-  }, [ids, prefetchCoordinates]);
+    timeSeriesCache.prefetch(campaignId, ids, prefetchCoordinates);
+  }, [campaignId, ids, prefetchCoordinates]);
 
   // Only what the chart is currently asked to draw, so a removed probe's rows
   // leave with it rather than lingering in the cache-shaped state.

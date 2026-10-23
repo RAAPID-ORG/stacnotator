@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { type AnnotationTaskOut, type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
+import { type TaskOut, type CampaignSummaryOut, type TaskSetOut } from '~/api/client';
 import { answeredFields } from '~/shared/utils/formValues';
 import { FormAnswers } from './FormAnswers';
 import { campaignPath } from '~/app/routes';
@@ -27,7 +27,7 @@ import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 /** Median active seconds recorded across a task's annotators, or null when
  *  nobody's time was measured. Median rather than sum so that a task annotated
  *  three times is comparable with one annotated once. */
-const taskActiveSeconds = (task: AnnotationTaskOut): number | null => {
+const taskActiveSeconds = (task: TaskOut): number | null => {
   const measured = (task.annotations ?? [])
     .map((a) => a.active_seconds)
     .filter((s): s is number => s != null)
@@ -61,7 +61,7 @@ interface TaskModeReviewProps {
   campaign?: CampaignSummaryOut;
   campaignId: number;
   /** The tasks page's scoped list. */
-  tasks: AnnotationTaskOut[];
+  tasks: TaskOut[];
   taskSets: TaskSetOut[];
   /** Tasks page already provides set scoping via TaskScopeBar; hide this component's own set filter to avoid a redundant control. */
   hideSetFilter?: boolean;
@@ -187,7 +187,7 @@ export const TaskModeReview = ({
     if (sortOption === 'default') return filtered;
     return [...filtered].sort((a, b) => {
       if (sortOption === 'confidence-asc' || sortOption === 'confidence-desc') {
-        const getMinConf = (t: AnnotationTaskOut) => {
+        const getMinConf = (t: TaskOut) => {
           if (!t.annotations?.length) return Infinity;
           const vals = t.annotations.map((x) => x.confidence).filter((c): c is number => c != null);
           return vals.length ? Math.min(...vals) : Infinity;

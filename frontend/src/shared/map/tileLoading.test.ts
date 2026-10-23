@@ -19,12 +19,12 @@ describe('isSelfHostedTiler', () => {
 
 describe('crossOriginForTile', () => {
   it('is credentialed for the backend key-proxy routes', () => {
-    expect(crossOriginForTile('/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}', null)).toBe(
+    expect(crossOriginForTile('/api/campaigns/7/imagery/basemaps/3/tiles/{z}/{x}/{y}', null)).toBe(
       'use-credentials'
     );
-    expect(crossOriginForTile('/api/7/imagery/slices/9/tiles/True%20Color/{z}/{x}/{y}', null)).toBe(
-      'use-credentials'
-    );
+    expect(
+      crossOriginForTile('/api/campaigns/7/imagery/slices/9/tiles/True%20Color/{z}/{x}/{y}', null)
+    ).toBe('use-credentials');
   });
 
   it('is credentialed for self-hosted tilers and anonymous for MPC/public', () => {

@@ -14,7 +14,9 @@ for (const admin of [false, true]) {
     await page.route('**/api/campaigns/*/detailed', (route) =>
       route.fulfill({ json: { ...MOCK_CAMPAIGN, viewer_is_admin: admin } })
     );
-    await page.route('**/api/*/new-layout', (route) => route.fulfill({ status: 201, json: {} }));
+    await page.route('**/api/campaigns/*/layouts', (route) =>
+      route.fulfill({ status: 201, json: {} })
+    );
     await page.reload();
     await page.getByTestId('edit-layout-trigger').click();
     const tray = page.getByTestId('hidden-tray');
@@ -89,7 +91,7 @@ for (const admin of [false, true]) {
     expect(menuBounds.y + menuBounds.height).toBeLessThan(saveBounds.y);
     expect(menuBounds.x).toBeGreaterThanOrEqual(0);
     expect(menuBounds.x + menuBounds.width).toBeLessThanOrEqual(800);
-    const saving = page.waitForResponse('**/api/*/new-layout');
+    const saving = page.waitForResponse('**/api/campaigns/*/layouts');
     await actions.getByTestId('save-personal').click();
     expect((await saving).request().postDataJSON().should_be_default).toBe(false);
     await expect(page.getByTestId('edit-layout-trigger')).toBeVisible();
@@ -116,7 +118,7 @@ test('desktop slice navigation follows campaign defaults and preserves a persona
       },
     })
   );
-  await page.route('**/api/*/new-layout', async (route) => {
+  await page.route('**/api/campaigns/*/layouts', async (route) => {
     saved = route.request().postDataJSON().layout;
     await route.fulfill({ status: 201, json: {} });
   });
@@ -127,7 +129,7 @@ test('desktop slice navigation follows campaign defaults and preserves a persona
   await expect(checkbox).toBeChecked();
   await checkbox.uncheck();
   await page.getByTestId('save-menu-trigger').click();
-  const saving = page.waitForResponse('**/api/*/new-layout');
+  const saving = page.waitForResponse('**/api/campaigns/*/layouts');
   await page.getByTestId('save-personal').click();
   await saving;
   expect(saved?.main_layout_data?.find((item) => item.i === 'main')?.slice_navigation).toBe(false);
@@ -179,7 +181,7 @@ for (const mode of ['tasks', 'explore']) {
         },
       })
     );
-    await page.route('**/api/*/imagery/views/1', (route) => {
+    await page.route('**/api/campaigns/*/views/1', (route) => {
       const body: Pick<ImageryViewOut, 'source_ids'> = route.request().postDataJSON();
       view.source_ids = body.source_ids;
       return route.fulfill({ json: view });
@@ -201,7 +203,7 @@ for (const mode of ['tasks', 'explore']) {
     await page.getByRole('button', { name: view.name, exact: true }).click();
     await expect(firstSource).toContainText('Sentinel-2');
     await expect(sources.getByRole('button', { name: 'Move source Sentinel-2 up' })).toBeDisabled();
-    const saving = page.waitForResponse('**/api/*/imagery/views/1');
+    const saving = page.waitForResponse('**/api/campaigns/*/views/1');
     await sources
       .getByRole('button', {
         name: mode === 'tasks' ? 'Move source VHR up' : 'Move source Sentinel-2 down',
@@ -350,7 +352,7 @@ test('detach, resize, save and reload navigation panels with one-click imagery c
   annotationPage: page,
 }) => {
   let saved: CanvasLayoutCreate | undefined;
-  await page.route('**/api/*/new-layout', async (route) => {
+  await page.route('**/api/campaigns/*/layouts', async (route) => {
     saved = route.request().postDataJSON().layout;
     await route.fulfill({ status: 201, json: {} });
   });
@@ -451,7 +453,7 @@ test('detach, resize, save and reload navigation panels with one-click imagery c
   await imageryPanel.getByRole('button', { name: 'Expand Collections', exact: true }).click();
   await imageryPanel.getByRole('button', { name: 'Expand Dates', exact: true }).click();
   await page.getByTestId('save-menu-trigger').click();
-  const saving = page.waitForResponse('**/api/*/new-layout');
+  const saving = page.waitForResponse('**/api/campaigns/*/layouts');
   await page.getByTestId('save-personal').click();
   await saving;
   await expect(page.getByTestId('edit-layout-trigger')).toBeVisible();

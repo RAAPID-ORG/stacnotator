@@ -4,8 +4,8 @@ import { seedCampaign } from './testing/seed';
 import * as api from '~/api/client';
 import type {
   AnnotationFromTaskOut,
-  AnnotationTaskOut,
-  AnnotationTaskSubmitResponse,
+  TaskOut,
+  TaskSubmitResponse,
   TaskStatusOut,
   ValidateLabelSubmissionsResponse,
 } from '~/api/client';
@@ -42,8 +42,8 @@ const envelope = <T>(data: T) => ({
   response: new Response(),
 });
 
-const submitted = (overrides: Partial<AnnotationTaskSubmitResponse> = {}) =>
-  envelope<AnnotationTaskSubmitResponse>({
+const submitted = (overrides: Partial<TaskSubmitResponse> = {}) =>
+  envelope<TaskSubmitResponse>({
     annotation: annotation(),
     assignment_status: 'done',
     task_status: 'done',
@@ -58,7 +58,7 @@ const deleted = () =>
 const validated = (status: ValidateLabelSubmissionsResponse['status']) =>
   envelope<ValidateLabelSubmissionsResponse>({ status });
 
-const TASK: AnnotationTaskOut = {
+const TASK: TaskOut = {
   id: 1,
   annotation_number: 1,
   task_set_id: 1,
@@ -164,7 +164,7 @@ describe('submitCurrent', () => {
   });
 
   it('removes the label via deleteAnnotation when clearing an existing label with no comment', async () => {
-    const taskWithAnnotation: AnnotationTaskOut = {
+    const taskWithAnnotation: TaskOut = {
       ...TASK,
       annotations: [annotation({ id: 7 })],
     };
@@ -184,7 +184,7 @@ describe('submitCurrent', () => {
   });
 
   it('skipping a task you already labelled records the skip instead of deleting it', async () => {
-    const taskWithAnnotation: AnnotationTaskOut = {
+    const taskWithAnnotation: TaskOut = {
       ...TASK,
       annotations: [annotation({ id: 7 })],
     };

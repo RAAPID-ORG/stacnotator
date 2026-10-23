@@ -31,8 +31,8 @@ describe('TimeSeriesCache', () => {
   it('two windows at one point each get their own series without colliding', async () => {
     const cache = newCache();
     const [a, b] = await Promise.all([
-      cache.get([1, 2], POINT), // window A
-      cache.get([3], POINT), // window B
+      cache.get(7, [1, 2], POINT), // window A
+      cache.get(7, [3], POINT), // window B
     ]);
 
     expect(Object.keys(a!).map(Number).sort()).toEqual([1, 2]);
@@ -43,40 +43,40 @@ describe('TimeSeriesCache', () => {
 
   it('dedupes concurrent identical requests into one fetch per series', async () => {
     const cache = newCache();
-    await Promise.all([cache.get([1, 2], POINT), cache.get([1, 2], POINT)]);
+    await Promise.all([cache.get(7, [1, 2], POINT), cache.get(7, [1, 2], POINT)]);
     expect(getTimeseriesDataMock).toHaveBeenCalledTimes(2);
   });
 
   it('serves a repeated point+series from cache without refetching', async () => {
     const cache = newCache();
-    await cache.get([1, 2], POINT);
-    await cache.get([1, 2], POINT);
+    await cache.get(7, [1, 2], POINT);
+    await cache.get(7, [1, 2], POINT);
     expect(getTimeseriesDataMock).toHaveBeenCalledTimes(2);
   });
 
   it('returns null for no coordinate or no requested series', async () => {
     const cache = newCache();
-    expect(await cache.get([1, 2], null)).toBeNull();
-    expect(await cache.get([], POINT)).toBeNull();
+    expect(await cache.get(7, [1, 2], null)).toBeNull();
+    expect(await cache.get(7, [], POINT)).toBeNull();
     expect(getTimeseriesDataMock).not.toHaveBeenCalled();
   });
 
   it('refetches once a cached entry expires', async () => {
     let now = 0;
     const cache = new TimeSeriesCache(() => now);
-    await cache.get([1], POINT);
+    await cache.get(7, [1], POINT);
     now += 5 * 60 * 1000 + 1; // just past the 5-minute expiry window
-    await cache.get([1], POINT);
+    await cache.get(7, [1], POINT);
     expect(getTimeseriesDataMock).toHaveBeenCalledTimes(2);
   });
 
   it('prefetch fetches uncached coordinates and skips already-cached ones', async () => {
     const cache = newCache();
     const other = { lat: 9, lon: 9 };
-    await cache.get([1], POINT);
+    await cache.get(7, [1], POINT);
     getTimeseriesDataMock.mockClear();
 
-    cache.prefetch([1], [POINT, other]);
+    cache.prefetch(7, [1], [POINT, other]);
     // Fire-and-forget: give the microtask queue a turn to run the fetches.
     await Promise.resolve();
     await Promise.resolve();
@@ -86,9 +86,9 @@ describe('TimeSeriesCache', () => {
 
   it('clear() empties the cache so the next get refetches', async () => {
     const cache = newCache();
-    await cache.get([1], POINT);
+    await cache.get(7, [1], POINT);
     cache.clear();
-    await cache.get([1], POINT);
+    await cache.get(7, [1], POINT);
     expect(getTimeseriesDataMock).toHaveBeenCalledTimes(2);
   });
 });

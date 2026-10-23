@@ -1,10 +1,10 @@
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { claimedByLabel, getActiveClaim } from '../../campaign/tasks';
 import { useCurrentTask } from '../../stores/tasks';
 import { useCampaignStore } from '../../stores/campaign';
 
 export interface ClaimBadgeProps {
-  task: AnnotationTaskOut;
+  task: TaskOut;
   currentUserId: string | null | undefined;
   now: number;
 }

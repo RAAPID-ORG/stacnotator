@@ -1,9 +1,9 @@
-import type { AnnotationFromTaskOut, AnnotationTaskOut } from '~/api/client';
+import type { AnnotationFromTaskOut, TaskOut } from '~/api/client';
 import i18n from '~/shared/i18n';
 
 const t = i18n.getFixedT(null, 'common');
 
-export type TaskStatus = AnnotationTaskOut['task_status'];
+export type TaskStatus = TaskOut['task_status'];
 
 /** Every task status, in the order they are listed and filtered by. */
 export const TASK_STATUSES: readonly TaskStatus[] = [
@@ -58,9 +58,7 @@ export function formatTaskStatus(status: TaskStatus): string {
  * Count tasks by status. Returns a record keyed by every TaskStatus so
  * consumers can read `counts.done` directly without falling back to 0.
  */
-export function countTasksByStatus(
-  tasks: readonly AnnotationTaskOut[]
-): Record<TaskStatus, number> {
+export function countTasksByStatus(tasks: readonly TaskOut[]): Record<TaskStatus, number> {
   const counts: Record<TaskStatus, number> = {
     pending: 0,
     partial: 0,

@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as api from '~/api/client';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import {
   apiSuccess,
   makeClaimTaskResponse,
@@ -16,7 +16,7 @@ vi.mock('~/api/client', async () => {
   return { ...actual, claimTask: vi.fn() };
 });
 
-const UNCLAIMED_TASK: AnnotationTaskOut = makeTask({
+const UNCLAIMED_TASK: TaskOut = makeTask({
   id: 1,
   annotation_number: 1,
   task_status: 'pending',
@@ -72,7 +72,7 @@ describe('requestClaim', () => {
   });
 
   it('is a no-op for a task we neither hold nor can claim (already labeled)', async () => {
-    const labeledTask: AnnotationTaskOut = {
+    const labeledTask: TaskOut = {
       ...UNCLAIMED_TASK,
       annotations: [makeTaskAnnotation({ id: 5, label_id: 2, created_by_user_id: 'someone-else' })],
     };
@@ -89,7 +89,7 @@ describe('requestClaim', () => {
   });
 
   it('does not re-request a claim we took moments ago', async () => {
-    const heldTask: AnnotationTaskOut = {
+    const heldTask: TaskOut = {
       ...UNCLAIMED_TASK,
       claimed_by_user_id: 'u1',
       claimed_at: new Date(0).toISOString(),
@@ -107,7 +107,7 @@ describe('requestClaim', () => {
   });
 
   it('renews our own claim once it is old enough to be worth refreshing', async () => {
-    const heldTask: AnnotationTaskOut = {
+    const heldTask: TaskOut = {
       ...UNCLAIMED_TASK,
       claimed_by_user_id: 'u1',
       claimed_at: new Date(0).toISOString(),
@@ -127,7 +127,7 @@ describe('requestClaim', () => {
   });
 
   it('leaves a task somebody else holds alone', async () => {
-    const heldByOther: AnnotationTaskOut = {
+    const heldByOther: TaskOut = {
       ...UNCLAIMED_TASK,
       claimed_by_user_id: 'u2',
       claimed_at: new Date(0).toISOString(),

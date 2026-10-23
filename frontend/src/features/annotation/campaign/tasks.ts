@@ -1,10 +1,5 @@
 import i18n from '~/shared/i18n';
-import type {
-  AnnotationFromTaskOut,
-  AnnotationTaskAssignmentOut,
-  AnnotationTaskOut,
-  TaskSetOut,
-} from '~/api/client';
+import type { AnnotationFromTaskOut, TaskAssignmentOut, TaskOut, TaskSetOut } from '~/api/client';
 import { TASK_STATUSES, type TaskStatus } from '~/shared/utils/taskStatus';
 
 const t = i18n.getFixedT(null, 'annotation');
@@ -31,7 +26,7 @@ export interface Claim {
 
 /** Who is working on this task right now, if anyone. A claim is a lease and
  *  expires, which is why the caller passes the time. */
-export function getActiveClaim(task: AnnotationTaskOut, now: number): Claim | null {
+export function getActiveClaim(task: TaskOut, now: number): Claim | null {
   if (!task.claimed_by_user_id || !task.claimed_at) return null;
   const heldForMs = now - new Date(task.claimed_at).getTime();
   if (heldForMs > CLAIM_TTL_MS) return null;
@@ -43,14 +38,14 @@ export function getActiveClaim(task: AnnotationTaskOut, now: number): Claim | nu
 }
 
 /** Free work: nobody assigned to it, nobody has worked it, nobody holds it. */
-export function isClaimable(task: AnnotationTaskOut, now: number): boolean {
+export function isClaimable(task: TaskOut, now: number): boolean {
   if ((task.annotations || []).length > 0) return false;
   if (task.assignments.length > 0) return false;
   return getActiveClaim(task, now) === null;
 }
 
 export function claimedByLabel(
-  task: AnnotationTaskOut,
+  task: TaskOut,
   currentUserId: string | null | undefined,
   now: number
 ): string | null {
@@ -77,7 +72,7 @@ export interface TaskFilter {
 
 const RESOLVED: TaskStatus[] = ['done', 'skipped', 'conflicting'];
 
-type ProgressInput = Pick<AnnotationTaskOut, 'task_status' | 'assignments'>;
+type ProgressInput = Pick<TaskOut, 'task_status' | 'assignments'>;
 
 const isResolved = (task: ProgressInput): boolean => RESOLVED.includes(task.task_status);
 
@@ -125,7 +120,7 @@ export const reviewFilterPatch = (): Partial<TaskFilter> => ({
 
 /** Held by this user via their own live claim, so a task they just claimed
  *  does not drop out of their unassigned pool on re-entry. */
-const isHeldBy = (task: AnnotationTaskOut, userId: string | null | undefined, now: number) =>
+const isHeldBy = (task: TaskOut, userId: string | null | undefined, now: number) =>
   userId != null && getActiveClaim(task, now)?.userId === userId;
 
 /** Whether "next" means "ask the server for a free task".
@@ -138,12 +133,12 @@ export const usesClaimPool = (filter: TaskFilter): boolean =>
   filter.assignedTo.length === 1 && filter.assignedTo[0] === UNASSIGNED;
 
 export interface FilteredTasks {
-  visibleTasks: AnnotationTaskOut[];
+  visibleTasks: TaskOut[];
   suggestedIndex: number;
 }
 
 export function applyTaskFilter(
-  allTasks: AnnotationTaskOut[],
+  allTasks: TaskOut[],
   filter: TaskFilter,
   currentUserId: string | null | undefined,
   now: number,
@@ -204,7 +199,7 @@ export function applyTaskFilter(
  * cannot blank the filter.
  */
 export function widenFilterForTask(
-  allTasks: AnnotationTaskOut[],
+  allTasks: TaskOut[],
   filter: TaskFilter,
   currentUserId: string | null | undefined,
   now: number,
@@ -246,7 +241,7 @@ export function widenFilterForTask(
  * all-tasks-completed gate for that set.
  */
 export function seedFilter(
-  allTasks: AnnotationTaskOut[],
+  allTasks: TaskOut[],
   taskSets: TaskSetOut[],
   currentUserId: string | null | undefined,
   now: number,
@@ -302,12 +297,12 @@ export function seedFilter(
 // Navigation
 // ---------------------------------------------------------------------------
 
-export function nextIndex(visible: AnnotationTaskOut[], current: number): number {
+export function nextIndex(visible: TaskOut[], current: number): number {
   if (visible.length === 0) return current;
   return current >= visible.length - 1 ? 0 : current + 1;
 }
 
-export function prevIndex(visible: AnnotationTaskOut[], current: number): number {
+export function prevIndex(visible: TaskOut[], current: number): number {
   if (visible.length === 0) return current;
   return current === 0 ? visible.length - 1 : current - 1;
 }
@@ -324,17 +319,17 @@ export type ReviewRow =
       kind: 'annotation';
       userId: string;
       annotation: AnnotationFromTaskOut;
-      assignment: AnnotationTaskAssignmentOut | null;
+      assignment: TaskAssignmentOut | null;
       isConflict: boolean;
       isAuthoritative: boolean;
       isExtra: boolean;
       isSkipped: boolean;
     }
-  | { kind: 'pending'; userId: string; assignment: AnnotationTaskAssignmentOut };
+  | { kind: 'pending'; userId: string; assignment: TaskAssignmentOut };
 
 export function reviewRows(
   annotations: AnnotationFromTaskOut[],
-  assignments: AnnotationTaskAssignmentOut[],
+  assignments: TaskAssignmentOut[],
   taskStatus: TaskStatus | undefined
 ): ReviewRow[] {
   const annByUser = new Map(annotations.map((a) => [a.created_by_user_id, a]));

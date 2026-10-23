@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { buildImageryCatalog } from '../campaign/imagery';
 import { computeTaskProgress } from '../campaign/tasks';
 import {
@@ -38,7 +38,7 @@ const FILTER = {
   taskSetId: null,
 };
 
-function task(id: number, annotationNumber: number, lon: number, lat: number): AnnotationTaskOut {
+function task(id: number, annotationNumber: number, lon: number, lat: number): TaskOut {
   return makeTask({
     id,
     annotation_number: annotationNumber,
@@ -49,7 +49,7 @@ function task(id: number, annotationNumber: number, lon: number, lat: number): A
 const TASK_A = task(1, 1, 0, 0);
 const TASK_B = task(2, 2, 10, 10);
 
-function initialize(tasks: AnnotationTaskOut[], catalog = CATALOG): void {
+function initialize(tasks: TaskOut[], catalog = CATALOG): void {
   useTasksStore.getState().initialize({
     tasks,
     taskSets: [],

@@ -22,9 +22,12 @@ async function loadWithTimeseries(page: Page, api: ApiCapture): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({ json: MOCK_CAMPAIGN_WITH_TIMESERIES });
   });
-  await page.route(`**/api/timeseries/${MOCK_TIMESERIES_ENTRY.id}/**`, async (route) => {
-    await route.fulfill({ json: { data: MOCK_TIMESERIES_DATA } });
-  });
+  await page.route(
+    `**/api/campaigns/*/timeseries/${MOCK_TIMESERIES_ENTRY.id}/**`,
+    async (route) => {
+      await route.fulfill({ json: { data: MOCK_TIMESERIES_DATA } });
+    }
+  );
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.waitForSelector('[data-panel-role="timeseries"]', { timeout: 10_000 });
@@ -140,9 +143,12 @@ async function loadMonthsCampaign(page: Page, api: ApiCapture): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({ json: MOCK_CAMPAIGN_MONTHS });
   });
-  await page.route(`**/api/timeseries/${MONTHS_TIMESERIES_ENTRY.id}/**`, async (route) => {
-    await route.fulfill({ json: { data: MONTHS_TIMESERIES_DATA } });
-  });
+  await page.route(
+    `**/api/campaigns/*/timeseries/${MONTHS_TIMESERIES_ENTRY.id}/**`,
+    async (route) => {
+      await route.fulfill({ json: { data: MONTHS_TIMESERIES_DATA } });
+    }
+  );
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.waitForSelector('[data-panel-role="timeseries"]', { timeout: 10_000 });

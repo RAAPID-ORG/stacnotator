@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { listTaskChanges, type AnnotationTaskOut, type TaskSetOut } from '~/api/client';
+import { listTaskChanges, type TaskOut, type TaskSetOut } from '~/api/client';
 import { geometryCentroid, squareAround, wktToGeometry } from '../campaign/annotation';
 import type { ImageryCatalog } from '../campaign/imagery';
 import {
@@ -42,9 +42,9 @@ const EMPTY_FILTER: TaskFilter = {
 };
 
 export interface TasksState {
-  allTasks: AnnotationTaskOut[];
+  allTasks: TaskOut[];
   taskSets: TaskSetOut[];
-  visibleTasks: AnnotationTaskOut[];
+  visibleTasks: TaskOut[];
   currentIndex: number;
   filter: TaskFilter;
   loaded: boolean;
@@ -57,7 +57,7 @@ export interface TasksState {
   syncCursor: string | null;
 
   initialize: (options: {
-    tasks: AnnotationTaskOut[];
+    tasks: TaskOut[];
     taskSets: TaskSetOut[];
     filter: TaskFilter;
     catalog: ImageryCatalog;
@@ -68,22 +68,22 @@ export interface TasksState {
   goToAnnotationNumber: (annotationNumber: number, catalog: ImageryCatalog) => boolean;
   next: (catalog: ImageryCatalog) => void;
   previous: (catalog: ImageryCatalog) => void;
-  replaceTask: (updated: AnnotationTaskOut, catalog: ImageryCatalog) => void;
+  replaceTask: (updated: TaskOut, catalog: ImageryCatalog) => void;
   /** Swap in newer copies of tasks without re-filtering, so work others
    *  finished counts toward progress without pulling the current task away. */
-  mergeTasks: (updated: AnnotationTaskOut[], catalog: ImageryCatalog) => void;
+  mergeTasks: (updated: TaskOut[], catalog: ImageryCatalog) => void;
   /** Pick up tasks other annotators have worked since the last poll. */
   syncRemoteTasks: () => Promise<void>;
-  adoptTask: (claimed: AnnotationTaskOut, catalog: ImageryCatalog) => void;
+  adoptTask: (claimed: TaskOut, catalog: ImageryCatalog) => void;
   setSubmitting: (isSubmitting: boolean) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   reset: () => void;
 }
 
 const initialState = {
-  allTasks: [] as AnnotationTaskOut[],
+  allTasks: [] as TaskOut[],
   taskSets: [] as TaskSetOut[],
-  visibleTasks: [] as AnnotationTaskOut[],
+  visibleTasks: [] as TaskOut[],
   currentIndex: 0,
   filter: EMPTY_FILTER,
   loaded: false,
@@ -129,7 +129,7 @@ function focusExtent(
   return { geometry: squareAround(center, sampleExtentMeters) };
 }
 
-function deriveFocus(state: TasksState, task: AnnotationTaskOut | null, catalog: ImageryCatalog) {
+function deriveFocus(state: TasksState, task: TaskOut | null, catalog: ImageryCatalog) {
   if (!task) return null;
   const geometry = wktToGeometry(task.geometry_wkt);
   const sourceId = useImageryStore.getState().address?.sourceId ?? null;
@@ -235,7 +235,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
   mergeTasks: (updated, catalog) => {
     const byId = new Map(updated.map((task) => [task.id, task]));
-    const swap = (tasks: AnnotationTaskOut[]) => tasks.map((task) => byId.get(task.id) ?? task);
+    const swap = (tasks: TaskOut[]) => tasks.map((task) => byId.get(task.id) ?? task);
     set((s) => {
       const known = new Set(s.allTasks.map((task) => task.id));
       const added = updated.filter((task) => !known.has(task.id));
@@ -287,9 +287,9 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   reset: () => set(initialState),
 }));
 
-export const currentTask = (): AnnotationTaskOut | null => currentOf(useTasksStore.getState());
+export const currentTask = (): TaskOut | null => currentOf(useTasksStore.getState());
 
 export const useMapFocus = (): MapFocus | null => useTasksStore((s) => s.focus);
 
-export const useCurrentTask = (): AnnotationTaskOut | null =>
+export const useCurrentTask = (): TaskOut | null =>
   useTasksStore((s) => s.visibleTasks[s.currentIndex] ?? null);

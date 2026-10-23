@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcceptTermsData, AcceptTermsErrors, AcceptTermsResponses, AddOrganizationUsersData, AddOrganizationUsersErrors, AddOrganizationUsersResponses, AddProjectUsersByIdsData, AddProjectUsersByIdsErrors, AddProjectUsersByIdsResponses, AddProjectUsersData, AddProjectUsersErrors, AddProjectUsersResponses, AddVisualizerFeedbackData, AddVisualizerFeedbackErrors, AddVisualizerFeedbackResponses, AnnotateAgentTaskData, AnnotateAgentTaskErrors, AnnotateAgentTaskResponses, AnnotateTaskData, AnnotateTaskErrors, AnnotateTaskResponses, ApproveOrganizationAccessRequestData, ApproveOrganizationAccessRequestErrors, ApproveOrganizationAccessRequestResponses, ApproveOrganizationData, ApproveOrganizationErrors, ApproveOrganizationResponses, AssignReviewersData, AssignReviewersErrors, AssignReviewersResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, BatchCreateAnnotationsData, BatchCreateAnnotationsErrors, BatchCreateAnnotationsResponses, BatchDeleteAnnotationsData, BatchDeleteAnnotationsErrors, BatchDeleteAnnotationsResponses, BatchUnassignTasksData, BatchUnassignTasksErrors, BatchUnassignTasksResponses, ClaimNextTaskData, ClaimNextTaskErrors, ClaimNextTaskResponses, ClaimTaskData, ClaimTaskErrors, ClaimTaskResponses, CreateAnnotationData, CreateAnnotationErrors, CreateAnnotationResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateCustomMapData, CreateCustomMapErrors, CreateCustomMapResponses, CreateImageryViewData, CreateImageryViewErrors, CreateImageryViewResponses, CreateNewCanvasLayoutData, CreateNewCanvasLayoutErrors, CreateNewCanvasLayoutResponses, CreateOrganizationApiKeyData, CreateOrganizationApiKeyErrors, CreateOrganizationApiKeyResponses, CreateProjectData, CreateProjectErrors, CreateProjectResponses, CreateTaskSetData, CreateTaskSetErrors, CreateTaskSetResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, CreateVectorLayerData, CreateVectorLayerErrors, CreateVectorLayerResponses, CreateVisualizerCustomMapData, CreateVisualizerCustomMapErrors, CreateVisualizerCustomMapResponses, CreateVisualizerData, CreateVisualizerErrors, CreateVisualizerResponses, CreateVisualizerVectorLayerData, CreateVisualizerVectorLayerErrors, CreateVisualizerVectorLayerResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteAnnotationTasksData, DeleteAnnotationTasksErrors, DeleteAnnotationTasksResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteCustomMapData, DeleteCustomMapErrors, DeleteCustomMapResponses, DeleteImageryViewData, DeleteImageryViewErrors, DeleteImageryViewResponses, DeleteOrganizationApiKeyData, DeleteOrganizationApiKeyErrors, DeleteOrganizationApiKeyResponses, DeleteProjectData, DeleteProjectErrors, DeleteProjectResponses, DeleteTaskSetData, DeleteTaskSetErrors, DeleteTaskSetResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DeleteVectorLayerData, DeleteVectorLayerErrors, DeleteVectorLayerResponses, DeleteVisualizerCustomMapData, DeleteVisualizerCustomMapErrors, DeleteVisualizerCustomMapResponses, DeleteVisualizerData, DeleteVisualizerErrors, DeleteVisualizerFeedbackData, DeleteVisualizerFeedbackErrors, DeleteVisualizerFeedbackResponses, DeleteVisualizerResponses, DeleteVisualizerVectorLayerData, DeleteVisualizerVectorLayerErrors, DeleteVisualizerVectorLayerResponses, DemoteOrganizationAdminData, DemoteOrganizationAdminErrors, DemoteOrganizationAdminResponses, DemoteProjectAdminData, DemoteProjectAdminErrors, DemoteProjectAdminResponses, DemoteProjectAuthoritativeReviewerData, DemoteProjectAuthoritativeReviewerErrors, DemoteProjectAuthoritativeReviewerResponses, DuplicateCampaignData, DuplicateCampaignErrors, DuplicateCampaignResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsGeojsonData, ExportAnnotationsGeojsonErrors, ExportAnnotationsGeojsonResponses, ExportAnnotationsResponses, ExportTaskAssignmentsData, ExportTaskAssignmentsErrors, ExportTaskAssignmentsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAgentData, GetAgentErrors, GetAgentResponses, GetAnnotationChangesData, GetAnnotationChangesErrors, GetAnnotationChangesResponses, GetAnnotationData, GetAnnotationDensityByLabelData, GetAnnotationDensityByLabelErrors, GetAnnotationDensityByLabelResponses, GetAnnotationDensityData, GetAnnotationDensityErrors, GetAnnotationDensityResponses, GetAnnotationErrors, GetAnnotationFacetsData, GetAnnotationFacetsErrors, GetAnnotationFacetsResponses, GetAnnotationIdsInBboxData, GetAnnotationIdsInBboxErrors, GetAnnotationIdsInBboxResponses, GetAnnotationResponses, GetAnnotationsExtentData, GetAnnotationsExtentErrors, GetAnnotationsExtentResponses, GetAnnotationTileData, GetAnnotationTileErrors, GetAnnotationTileResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignStatisticsData, GetCampaignStatisticsErrors, GetCampaignStatisticsResponses, GetCampaignSummaryData, GetCampaignSummaryErrors, GetCampaignSummaryResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetCollectionsData, GetCollectionsErrors, GetCollectionsResponses, GetOrganizationTilersData, GetOrganizationTilersErrors, GetOrganizationTilersResponses, GetOrganizationUsersData, GetOrganizationUsersErrors, GetOrganizationUsersResponses, GetPrivateCollectionsData, GetPrivateCollectionsErrors, GetPrivateCollectionsResponses, GetProjectData, GetProjectErrors, GetProjectOrganizationKeysData, GetProjectOrganizationKeysErrors, GetProjectOrganizationKeysResponses, GetProjectResponses, GetProjectTilersData, GetProjectTilersErrors, GetProjectTilersResponses, GetProjectUsersData, GetProjectUsersErrors, GetProjectUsersResponses, GetSharedVisualizerData, GetSharedVisualizerErrors, GetSharedVisualizerResponses, GetTaskDensityData, GetTaskDensityErrors, GetTaskDensityResponses, GetTilerTokenData, GetTilerTokenResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetVisualizerData, GetVisualizerErrors, GetVisualizerResponses, GetVisualizerTilerTokenData, GetVisualizerTilerTokenErrors, GetVisualizerTilerTokenResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, ImportTaskAssignmentsData, ImportTaskAssignmentsErrors, ImportTaskAssignmentsResponses, IngestAnnotationsFromGeojsonData, IngestAnnotationsFromGeojsonErrors, IngestAnnotationsFromGeojsonResponses, IngestAnnotationTasksFromCsvData, IngestAnnotationTasksFromCsvErrors, IngestAnnotationTasksFromCsvResponses, IngestAnnotationTasksFromGeojsonData, IngestAnnotationTasksFromGeojsonErrors, IngestAnnotationTasksFromGeojsonResponses, ListAgentsData, ListAgentsErrors, ListAgentsResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListAnnotationsForCampaignData, ListAnnotationsForCampaignErrors, ListAnnotationsForCampaignResponses, ListCatalogsData, ListCatalogsErrors, ListCatalogsResponses, ListCustomMapsData, ListCustomMapsErrors, ListCustomMapsResponses, ListGrantableTilersData, ListGrantableTilersResponses, ListOrganizationAccessRequestsData, ListOrganizationAccessRequestsErrors, ListOrganizationAccessRequestsResponses, ListOrganizationApiKeysData, ListOrganizationApiKeysErrors, ListOrganizationApiKeysResponses, ListOrganizationDirectoryData, ListOrganizationDirectoryResponses, ListOrganizationInvitesData, ListOrganizationInvitesErrors, ListOrganizationInvitesResponses, ListOrganizationsData, ListOrganizationsResponses, ListPlanetSeriesData, ListPlanetSeriesErrors, ListPlanetSeriesMosaicsData, ListPlanetSeriesMosaicsErrors, ListPlanetSeriesMosaicsResponses, ListPlanetSeriesResponses, ListProjectCampaignsData, ListProjectCampaignsErrors, ListProjectCampaignsResponses, ListProjectInvitesData, ListProjectInvitesErrors, ListProjectInvitesResponses, ListProjectsData, ListProjectsResponses, ListTaskChangesData, ListTaskChangesErrors, ListTaskChangesResponses, ListTasksData, ListTasksErrors, ListTaskSetsData, ListTaskSetsErrors, ListTaskSetsResponses, ListTasksResponses, ListUsersData, ListUsersResponses, ListVectorLayersData, ListVectorLayersErrors, ListVectorLayersResponses, ListVisualizerCustomMapsData, ListVisualizerCustomMapsErrors, ListVisualizerCustomMapsResponses, ListVisualizerFeedbackData, ListVisualizerFeedbackErrors, ListVisualizerFeedbackResponses, ListVisualizerOptionsData, ListVisualizerOptionsErrors, ListVisualizerOptionsResponses, ListVisualizersData, ListVisualizersErrors, ListVisualizersResponses, ListVisualizerVectorLayersData, ListVisualizerVectorLayersErrors, ListVisualizerVectorLayersResponses, MakeOrganizationAdminData, MakeOrganizationAdminErrors, MakeOrganizationAdminResponses, MakeProjectAdminData, MakeProjectAdminErrors, MakeProjectAdminResponses, MakeProjectAuthoritativeReviewerData, MakeProjectAuthoritativeReviewerErrors, MakeProjectAuthoritativeReviewerResponses, MeData, MeResponses, MintPlanetSceneLayersData, MintPlanetSceneLayersErrors, MintPlanetSceneLayersResponses, MoveTasksToSetData, MoveTasksToSetErrors, MoveTasksToSetResponses, NextAgentTasksData, NextAgentTasksErrors, NextAgentTasksResponses, PlanPlanetScenesData, PlanPlanetScenesErrors, PlanPlanetScenesResponses, ProxyBasemapTileData, ProxyBasemapTileErrors, ProxyBasemapTileResponses, ProxyPlanetLayerTileData, ProxyPlanetLayerTileErrors, ProxyPlanetLayerTileResponses, ProxySliceTileData, ProxySliceTileErrors, ProxySliceTileResponses, ProxyVisualizerBasemapTileData, ProxyVisualizerBasemapTileErrors, ProxyVisualizerBasemapTileResponses, ProxyVisualizerSliceTileData, ProxyVisualizerSliceTileErrors, ProxyVisualizerSliceTileResponses, RefreshSourceImageryData, RefreshSourceImageryErrors, RefreshSourceImageryResponses, RegisterAgentData, RegisterAgentErrors, RegisterAgentResponses, RejectOrganizationAccessRequestData, RejectOrganizationAccessRequestErrors, RejectOrganizationAccessRequestResponses, RejectOrganizationData, RejectOrganizationErrors, RejectOrganizationResponses, ReleaseAgentTasksData, ReleaseAgentTasksErrors, ReleaseAgentTasksResponses, RemoveOrganizationMemberData, RemoveOrganizationMemberErrors, RemoveOrganizationMemberResponses, RemoveProjectUserData, RemoveProjectUserErrors, RemoveProjectUserResponses, RenameTaskSetData, RenameTaskSetErrors, RenameTaskSetResponses, RenameTimeseriesWindowData, RenameTimeseriesWindowErrors, RenameTimeseriesWindowResponses, ReorderImageryViewsData, ReorderImageryViewsErrors, ReorderImageryViewsResponses, RequestOrganizationAccessData, RequestOrganizationAccessErrors, RequestOrganizationAccessResponses, RequestOrganizationData, RequestOrganizationErrors, RequestOrganizationResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeOrganizationInviteData, RevokeOrganizationInviteErrors, RevokeOrganizationInviteResponses, RevokeProjectInviteData, RevokeProjectInviteErrors, RevokeProjectInviteResponses, RotateOrganizationApiKeyData, RotateOrganizationApiKeyErrors, RotateOrganizationApiKeyResponses, SaveImageryData, SaveImageryErrors, SaveImageryResponses, SearchData, SearchErrors, SearchPlanetScenesData, SearchPlanetScenesErrors, SearchPlanetScenesResponses, SearchResponses, SetOrganizationTilersData, SetOrganizationTilersErrors, SetOrganizationTilersResponses, UpdateAgentData, UpdateAgentErrors, UpdateAgentResponses, UpdateAnnotationData, UpdateAnnotationErrors, UpdateAnnotationResponses, UpdateCampaignData, UpdateCampaignErrors, UpdateCampaignResponses, UpdateCustomMapData, UpdateCustomMapErrors, UpdateCustomMapResponses, UpdateImageryViewData, UpdateImageryViewErrors, UpdateImageryViewResponses, UpdateInternalStorageData, UpdateInternalStorageErrors, UpdateInternalStorageResponses, UpdateOrganizationData, UpdateOrganizationErrors, UpdateOrganizationResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateVectorLayerData, UpdateVectorLayerErrors, UpdateVectorLayerResponses, UpdateVisualizerCustomMapData, UpdateVisualizerCustomMapErrors, UpdateVisualizerCustomMapResponses, UpdateVisualizerData, UpdateVisualizerErrors, UpdateVisualizerResponses, UpdateVisualizerVectorLayerData, UpdateVisualizerVectorLayerErrors, UpdateVisualizerVectorLayerResponses, ValidateTaskLabelData, ValidateTaskLabelErrors, ValidateTaskLabelResponses } from './types.gen';
+import type { AcceptTermsData, AcceptTermsErrors, AcceptTermsResponses, AddOrganizationUsersData, AddOrganizationUsersErrors, AddOrganizationUsersResponses, AddProjectUsersByIdsData, AddProjectUsersByIdsErrors, AddProjectUsersByIdsResponses, AddProjectUsersData, AddProjectUsersErrors, AddProjectUsersResponses, AddVisualizerFeedbackData, AddVisualizerFeedbackErrors, AddVisualizerFeedbackResponses, AnnotateAgentTaskData, AnnotateAgentTaskErrors, AnnotateAgentTaskResponses, AnnotateTaskData, AnnotateTaskErrors, AnnotateTaskResponses, ApproveOrganizationAccessRequestData, ApproveOrganizationAccessRequestErrors, ApproveOrganizationAccessRequestResponses, ApproveOrganizationData, ApproveOrganizationErrors, ApproveOrganizationResponses, AssignReviewersData, AssignReviewersErrors, AssignReviewersResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, BatchCreateAnnotationsData, BatchCreateAnnotationsErrors, BatchCreateAnnotationsResponses, BatchDeleteAnnotationsData, BatchDeleteAnnotationsErrors, BatchDeleteAnnotationsResponses, ClaimNextTaskData, ClaimNextTaskErrors, ClaimNextTaskResponses, ClaimTaskData, ClaimTaskErrors, ClaimTaskResponses, CreateAnnotationData, CreateAnnotationErrors, CreateAnnotationResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateCustomMapData, CreateCustomMapErrors, CreateCustomMapResponses, CreateImageryViewData, CreateImageryViewErrors, CreateImageryViewResponses, CreateOrganizationApiKeyData, CreateOrganizationApiKeyErrors, CreateOrganizationApiKeyResponses, CreateProjectData, CreateProjectErrors, CreateProjectResponses, CreateTaskSetData, CreateTaskSetErrors, CreateTaskSetResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, CreateVectorLayerData, CreateVectorLayerErrors, CreateVectorLayerResponses, CreateVisualizerCustomMapData, CreateVisualizerCustomMapErrors, CreateVisualizerCustomMapResponses, CreateVisualizerData, CreateVisualizerErrors, CreateVisualizerResponses, CreateVisualizerVectorLayerData, CreateVisualizerVectorLayerErrors, CreateVisualizerVectorLayerResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteCustomMapData, DeleteCustomMapErrors, DeleteCustomMapResponses, DeleteImageryViewData, DeleteImageryViewErrors, DeleteImageryViewResponses, DeleteOrganizationApiKeyData, DeleteOrganizationApiKeyErrors, DeleteOrganizationApiKeyResponses, DeleteProjectData, DeleteProjectErrors, DeleteProjectResponses, DeleteTasksData, DeleteTasksErrors, DeleteTaskSetData, DeleteTaskSetErrors, DeleteTaskSetResponses, DeleteTasksResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DeleteVectorLayerData, DeleteVectorLayerErrors, DeleteVectorLayerResponses, DeleteVisualizerCustomMapData, DeleteVisualizerCustomMapErrors, DeleteVisualizerCustomMapResponses, DeleteVisualizerData, DeleteVisualizerErrors, DeleteVisualizerFeedbackData, DeleteVisualizerFeedbackErrors, DeleteVisualizerFeedbackResponses, DeleteVisualizerResponses, DeleteVisualizerVectorLayerData, DeleteVisualizerVectorLayerErrors, DeleteVisualizerVectorLayerResponses, DemoteOrganizationAdminData, DemoteOrganizationAdminErrors, DemoteOrganizationAdminResponses, DemoteProjectAdminData, DemoteProjectAdminErrors, DemoteProjectAdminResponses, DemoteProjectAuthoritativeReviewerData, DemoteProjectAuthoritativeReviewerErrors, DemoteProjectAuthoritativeReviewerResponses, DuplicateCampaignData, DuplicateCampaignErrors, DuplicateCampaignResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsGeojsonData, ExportAnnotationsGeojsonErrors, ExportAnnotationsGeojsonResponses, ExportAnnotationsResponses, ExportTaskAssignmentsData, ExportTaskAssignmentsErrors, ExportTaskAssignmentsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAgentData, GetAgentErrors, GetAgentResponses, GetAnnotationChangesData, GetAnnotationChangesErrors, GetAnnotationChangesResponses, GetAnnotationData, GetAnnotationDensityByLabelData, GetAnnotationDensityByLabelErrors, GetAnnotationDensityByLabelResponses, GetAnnotationDensityData, GetAnnotationDensityErrors, GetAnnotationDensityResponses, GetAnnotationErrors, GetAnnotationFacetsData, GetAnnotationFacetsErrors, GetAnnotationFacetsResponses, GetAnnotationIdsInBboxData, GetAnnotationIdsInBboxErrors, GetAnnotationIdsInBboxResponses, GetAnnotationResponses, GetAnnotationsExtentData, GetAnnotationsExtentErrors, GetAnnotationsExtentResponses, GetAnnotationTileData, GetAnnotationTileErrors, GetAnnotationTileResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignStatisticsData, GetCampaignStatisticsErrors, GetCampaignStatisticsResponses, GetCampaignSummaryData, GetCampaignSummaryErrors, GetCampaignSummaryResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetCollectionsData, GetCollectionsErrors, GetCollectionsResponses, GetOrganizationTilersData, GetOrganizationTilersErrors, GetOrganizationTilersResponses, GetOrganizationUsersData, GetOrganizationUsersErrors, GetOrganizationUsersResponses, GetPrivateCollectionsData, GetPrivateCollectionsErrors, GetPrivateCollectionsResponses, GetProjectData, GetProjectErrors, GetProjectOrganizationKeysData, GetProjectOrganizationKeysErrors, GetProjectOrganizationKeysResponses, GetProjectResponses, GetProjectTilersData, GetProjectTilersErrors, GetProjectTilersResponses, GetProjectUsersData, GetProjectUsersErrors, GetProjectUsersResponses, GetSharedVisualizerData, GetSharedVisualizerErrors, GetSharedVisualizerResponses, GetTaskDensityData, GetTaskDensityErrors, GetTaskDensityResponses, GetTilerTokenData, GetTilerTokenResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetVisualizerData, GetVisualizerErrors, GetVisualizerResponses, GetVisualizerTilerTokenData, GetVisualizerTilerTokenErrors, GetVisualizerTilerTokenResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, ImportTaskAssignmentsData, ImportTaskAssignmentsErrors, ImportTaskAssignmentsResponses, ImportTasksFromCsvData, ImportTasksFromCsvErrors, ImportTasksFromCsvResponses, ImportTasksFromGeojsonData, ImportTasksFromGeojsonErrors, ImportTasksFromGeojsonResponses, IngestAnnotationsFromGeojsonData, IngestAnnotationsFromGeojsonErrors, IngestAnnotationsFromGeojsonResponses, ListAgentsData, ListAgentsErrors, ListAgentsResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListAnnotationsForCampaignData, ListAnnotationsForCampaignErrors, ListAnnotationsForCampaignResponses, ListCatalogsData, ListCatalogsErrors, ListCatalogsResponses, ListCustomMapsData, ListCustomMapsErrors, ListCustomMapsResponses, ListGrantableTilersData, ListGrantableTilersResponses, ListOrganizationAccessRequestsData, ListOrganizationAccessRequestsErrors, ListOrganizationAccessRequestsResponses, ListOrganizationApiKeysData, ListOrganizationApiKeysErrors, ListOrganizationApiKeysResponses, ListOrganizationDirectoryData, ListOrganizationDirectoryResponses, ListOrganizationInvitesData, ListOrganizationInvitesErrors, ListOrganizationInvitesResponses, ListOrganizationsData, ListOrganizationsResponses, ListPlanetSeriesData, ListPlanetSeriesErrors, ListPlanetSeriesMosaicsData, ListPlanetSeriesMosaicsErrors, ListPlanetSeriesMosaicsResponses, ListPlanetSeriesResponses, ListProjectCampaignsData, ListProjectCampaignsErrors, ListProjectCampaignsResponses, ListProjectInvitesData, ListProjectInvitesErrors, ListProjectInvitesResponses, ListProjectsData, ListProjectsResponses, ListTaskChangesData, ListTaskChangesErrors, ListTaskChangesResponses, ListTasksData, ListTasksErrors, ListTaskSetsData, ListTaskSetsErrors, ListTaskSetsResponses, ListTasksResponses, ListUsersData, ListUsersResponses, ListVectorLayersData, ListVectorLayersErrors, ListVectorLayersResponses, ListVisualizerCustomMapsData, ListVisualizerCustomMapsErrors, ListVisualizerCustomMapsResponses, ListVisualizerFeedbackData, ListVisualizerFeedbackErrors, ListVisualizerFeedbackResponses, ListVisualizerOptionsData, ListVisualizerOptionsErrors, ListVisualizerOptionsResponses, ListVisualizersData, ListVisualizersErrors, ListVisualizersResponses, ListVisualizerVectorLayersData, ListVisualizerVectorLayersErrors, ListVisualizerVectorLayersResponses, MakeOrganizationAdminData, MakeOrganizationAdminErrors, MakeOrganizationAdminResponses, MakeProjectAdminData, MakeProjectAdminErrors, MakeProjectAdminResponses, MakeProjectAuthoritativeReviewerData, MakeProjectAuthoritativeReviewerErrors, MakeProjectAuthoritativeReviewerResponses, MeData, MeResponses, MintPlanetSceneLayersData, MintPlanetSceneLayersErrors, MintPlanetSceneLayersResponses, MoveTasksToSetData, MoveTasksToSetErrors, MoveTasksToSetResponses, NextAgentTasksData, NextAgentTasksErrors, NextAgentTasksResponses, PlanPlanetScenesData, PlanPlanetScenesErrors, PlanPlanetScenesResponses, ProxyBasemapTileData, ProxyBasemapTileErrors, ProxyBasemapTileResponses, ProxyPlanetLayerTileData, ProxyPlanetLayerTileErrors, ProxyPlanetLayerTileResponses, ProxySliceTileData, ProxySliceTileErrors, ProxySliceTileResponses, ProxyVisualizerBasemapTileData, ProxyVisualizerBasemapTileErrors, ProxyVisualizerBasemapTileResponses, ProxyVisualizerSliceTileData, ProxyVisualizerSliceTileErrors, ProxyVisualizerSliceTileResponses, RefreshSourceImageryData, RefreshSourceImageryErrors, RefreshSourceImageryResponses, RegisterAgentData, RegisterAgentErrors, RegisterAgentResponses, RejectOrganizationAccessRequestData, RejectOrganizationAccessRequestErrors, RejectOrganizationAccessRequestResponses, RejectOrganizationData, RejectOrganizationErrors, RejectOrganizationResponses, ReleaseAgentTasksData, ReleaseAgentTasksErrors, ReleaseAgentTasksResponses, RemoveOrganizationMemberData, RemoveOrganizationMemberErrors, RemoveOrganizationMemberResponses, RemoveProjectUserData, RemoveProjectUserErrors, RemoveProjectUserResponses, RenameTaskSetData, RenameTaskSetErrors, RenameTaskSetResponses, RenameTimeseriesWindowData, RenameTimeseriesWindowErrors, RenameTimeseriesWindowResponses, ReorderImageryViewsData, ReorderImageryViewsErrors, ReorderImageryViewsResponses, RequestOrganizationAccessData, RequestOrganizationAccessErrors, RequestOrganizationAccessResponses, RequestOrganizationData, RequestOrganizationErrors, RequestOrganizationResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeOrganizationInviteData, RevokeOrganizationInviteErrors, RevokeOrganizationInviteResponses, RevokeProjectInviteData, RevokeProjectInviteErrors, RevokeProjectInviteResponses, RotateOrganizationApiKeyData, RotateOrganizationApiKeyErrors, RotateOrganizationApiKeyResponses, SaveCanvasLayoutData, SaveCanvasLayoutErrors, SaveCanvasLayoutResponses, SaveImageryData, SaveImageryErrors, SaveImageryResponses, SearchData, SearchErrors, SearchPlanetScenesData, SearchPlanetScenesErrors, SearchPlanetScenesResponses, SearchResponses, SetOrganizationTilersData, SetOrganizationTilersErrors, SetOrganizationTilersResponses, UnassignTasksData, UnassignTasksErrors, UnassignTasksResponses, UpdateAgentData, UpdateAgentErrors, UpdateAgentResponses, UpdateAnnotationData, UpdateAnnotationErrors, UpdateAnnotationResponses, UpdateCampaignData, UpdateCampaignErrors, UpdateCampaignResponses, UpdateCustomMapData, UpdateCustomMapErrors, UpdateCustomMapResponses, UpdateImageryViewData, UpdateImageryViewErrors, UpdateImageryViewResponses, UpdateInternalStorageData, UpdateInternalStorageErrors, UpdateInternalStorageResponses, UpdateOrganizationData, UpdateOrganizationErrors, UpdateOrganizationResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateVectorLayerData, UpdateVectorLayerErrors, UpdateVectorLayerResponses, UpdateVisualizerCustomMapData, UpdateVisualizerCustomMapErrors, UpdateVisualizerCustomMapResponses, UpdateVisualizerData, UpdateVisualizerErrors, UpdateVisualizerResponses, UpdateVisualizerVectorLayerData, UpdateVisualizerVectorLayerErrors, UpdateVisualizerVectorLayerResponses, ValidateTaskLabelData, ValidateTaskLabelErrors, ValidateTaskLabelResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -671,174 +671,6 @@ export const getCampaignWithImageryWindows = <ThrowOnError extends boolean = fal
 });
 
 /**
- * Assign Tasks To Users
- *
- * Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks.
- */
-export const assignTasksToUsers = <ThrowOnError extends boolean = false>(options: Options<AssignTasksToUsersData, ThrowOnError>) => (options.client ?? client).post<AssignTasksToUsersResponses, AssignTasksToUsersErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/assign-tasks',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Batch Unassign Tasks
- *
- * Batch-remove assignments from multiple tasks.
- *
- * If `user_ids` is provided, only those users are unassigned from each task.
- * Otherwise, all users are unassigned from each task in `task_ids`.
- */
-export const batchUnassignTasks = <ThrowOnError extends boolean = false>(options: Options<BatchUnassignTasksData, ThrowOnError>) => (options.client ?? client).post<BatchUnassignTasksResponses, BatchUnassignTasksErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/unassign-tasks',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Assign Reviewers
- *
- * Add reviewers to a percentage or a fixed number of already-assigned tasks.
- */
-export const assignReviewers = <ThrowOnError extends boolean = false>(options: Options<AssignReviewersData, ThrowOnError>) => (options.client ?? client).post<AssignReviewersResponses, AssignReviewersErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/assign-reviewers',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Delete Annotation Tasks
- *
- * Delete multiple annotation tasks from a campaign
- */
-export const deleteAnnotationTasks = <ThrowOnError extends boolean = false>(options: Options<DeleteAnnotationTasksData, ThrowOnError>) => (options.client ?? client).delete<DeleteAnnotationTasksResponses, DeleteAnnotationTasksErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/annotation-tasks',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * List Task Sets
- *
- * Task sets of a campaign with per-set task counts (member-accessible).
- */
-export const listTaskSets = <ThrowOnError extends boolean = false>(options: Options<ListTaskSetsData, ThrowOnError>) => (options.client ?? client).get<ListTaskSetsResponses, ListTaskSetsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/task-sets',
-    ...options
-});
-
-/**
- * Create Task Set
- */
-export const createTaskSet = <ThrowOnError extends boolean = false>(options: Options<CreateTaskSetData, ThrowOnError>) => (options.client ?? client).post<CreateTaskSetResponses, CreateTaskSetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/task-sets',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Delete Task Set
- */
-export const deleteTaskSet = <ThrowOnError extends boolean = false>(options: Options<DeleteTaskSetData, ThrowOnError>) => (options.client ?? client).delete<DeleteTaskSetResponses, DeleteTaskSetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}',
-    ...options
-});
-
-/**
- * Rename Task Set
- */
-export const renameTaskSet = <ThrowOnError extends boolean = false>(options: Options<RenameTaskSetData, ThrowOnError>) => (options.client ?? client).patch<RenameTaskSetResponses, RenameTaskSetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Move Tasks To Set
- *
- * Move tasks (batched) into the given task set. All ids must belong to the campaign.
- */
-export const moveTasksToSet = <ThrowOnError extends boolean = false>(options: Options<MoveTasksToSetData, ThrowOnError>) => (options.client ?? client).post<MoveTasksToSetResponses, MoveTasksToSetErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}/move-tasks',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Export Task Assignments
- *
- * Export task assignments as a ZIP for campaign admins.
- *
- * The archive contains two files:
- * - `assignments.csv`: one row per task with comma-separated assignee and
- * reviewer emails, plus a count and `email=label` listing of annotations
- * already on the task (informational, ignored on re-import).
- * - `users.csv`: the campaign's members with roles, so the admin knows which
- * emails are valid to use in the assignee/reviewer columns.
- *
- * ``task_set_id`` narrows the archive to one set, so an admin working on a single set
- * is not handed every task in the campaign. Import stays campaign-wide either way:
- * it matches on `annotation_number`, which is unique across the campaign.
- */
-export const exportTaskAssignments = <ThrowOnError extends boolean = false>(options: Options<ExportTaskAssignmentsData, ThrowOnError>) => (options.client ?? client).get<ExportTaskAssignmentsResponses, ExportTaskAssignmentsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/export-task-assignments',
-    ...options
-});
-
-/**
- * Import Task Assignments
- *
- * Import task assignments from a CSV (campaign admins only).
- *
- * Expects the `assignments.csv` layout from the export: `annotation_number`,
- * `assignees`, and `reviewers` columns (comma-separated emails). Every email
- * must belong to an existing member of this campaign or the whole import is
- * rejected. Listed tasks have their assignments replaced; other tasks are
- * left untouched.
- */
-export const importTaskAssignments = <ThrowOnError extends boolean = false>(options: Options<ImportTaskAssignmentsData, ThrowOnError>) => (options.client ?? client).post<ImportTaskAssignmentsResponses, ImportTaskAssignmentsErrors, ThrowOnError>({
-    ...formDataBodySerializer,
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/import-task-assignments',
-    ...options,
-    headers: {
-        'Content-Type': null,
-        ...options.headers
-    }
-});
-
-/**
  * Get Campaign Statistics
  *
  * Get comprehensive statistics for a campaign, or for one of its task sets.
@@ -857,28 +689,6 @@ export const getCampaignStatistics = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
- * List Tasks
- */
-export const listTasks = <ThrowOnError extends boolean = false>(options: Options<ListTasksData, ThrowOnError>) => (options.client ?? client).get<ListTasksResponses, ListTasksErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/tasks',
-    ...options
-});
-
-/**
- * List Task Changes
- *
- * Tasks annotated since ``since``, so one annotator's progress reflects
- * everyone's without reloading the whole task list. Without ``since`` it only
- * hands back the cursor, like the annotation changes poll.
- */
-export const listTaskChanges = <ThrowOnError extends boolean = false>(options: Options<ListTaskChangesData, ThrowOnError>) => (options.client ?? client).get<ListTaskChangesResponses, ListTaskChangesErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/tasks/changes',
-    ...options
-});
-
-/**
  * Annotate Task
  */
 export const annotateTask = <ThrowOnError extends boolean = false>(options: Options<AnnotateTaskData, ThrowOnError>) => (options.client ?? client).post<AnnotateTaskResponses, AnnotateTaskErrors, ThrowOnError>({
@@ -887,84 +697,6 @@ export const annotateTask = <ThrowOnError extends boolean = false>(options: Opti
     ...options,
     headers: {
         'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Claim Task
- */
-export const claimTask = <ThrowOnError extends boolean = false>(options: Options<ClaimTaskData, ThrowOnError>) => (options.client ?? client).post<ClaimTaskResponses, ClaimTaskErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/claim',
-    ...options
-});
-
-/**
- * Claim Next Task
- *
- * Hand out the next task nobody is working on, claimed in the same
- * transaction so simultaneous callers get different ones.
- *
- * `after_annotation_number` keeps the caller moving forward through the
- * campaign and wraps once nothing is left ahead of them.
- */
-export const claimNextTask = <ThrowOnError extends boolean = false>(options: Options<ClaimNextTaskData, ThrowOnError>) => (options.client ?? client).post<ClaimNextTaskResponses, ClaimNextTaskErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/tasks/claim-next',
-    ...options
-});
-
-/**
- * Validate Task Label
- *
- * Check whether a label_id agrees with the KNN-majority prediction
- * derived from the task's satellite embedding and its nearest neighbours
- * in the same campaign.
- *
- * Always returns 200 with a status field indicating the outcome:
- * - ok - label matches neighbours
- * - mismatch - label disagrees with neighbours
- * - skipped_no_embedding - no embedding for the task
- * - skipped_insufficient_data - not enough labeled data yet
- * - disabled - no embedding year configured for this campaign
- */
-export const validateTaskLabel = <ThrowOnError extends boolean = false>(options: Options<ValidateTaskLabelData, ThrowOnError>) => (options.client ?? client).get<ValidateTaskLabelResponses, ValidateTaskLabelErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/validate-label',
-    ...options
-});
-
-/**
- * Ingest Annotation Tasks From Csv
- */
-export const ingestAnnotationTasksFromCsv = <ThrowOnError extends boolean = false>(options: Options<IngestAnnotationTasksFromCsvData, ThrowOnError>) => (options.client ?? client).post<IngestAnnotationTasksFromCsvResponses, IngestAnnotationTasksFromCsvErrors, ThrowOnError>({
-    ...formDataBodySerializer,
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv',
-    ...options,
-    headers: {
-        'Content-Type': null,
-        ...options.headers
-    }
-});
-
-/**
- * Ingest Annotation Tasks From Geojson
- *
- * Ingest annotation tasks from a GeoJSON file.
- *
- * Each feature becomes one annotation task. Supported geometry types:
- * Point, Polygon, MultiPolygon. Polygon geometries are stored as-is and
- * displayed as the sample extent during annotation.
- */
-export const ingestAnnotationTasksFromGeojson = <ThrowOnError extends boolean = false>(options: Options<IngestAnnotationTasksFromGeojsonData, ThrowOnError>) => (options.client ?? client).post<IngestAnnotationTasksFromGeojsonResponses, IngestAnnotationTasksFromGeojsonErrors, ThrowOnError>({
-    ...formDataBodySerializer,
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-geojson',
-    ...options,
-    headers: {
-        'Content-Type': null,
         ...options.headers
     }
 });
@@ -1211,6 +943,132 @@ export const getAnnotationsExtent = <ThrowOnError extends boolean = false>(optio
 });
 
 /**
+ * Get Annotation Density
+ *
+ * Return a coarse grid of annotation counts for the minimap overview.
+ */
+export const getAnnotationDensity = <ThrowOnError extends boolean = false>(options: Options<GetAnnotationDensityData, ThrowOnError>) => (options.client ?? client).get<GetAnnotationDensityResponses, GetAnnotationDensityErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/annotations/density',
+    ...options
+});
+
+/**
+ * Delete Tasks
+ *
+ * Delete multiple annotation tasks from a campaign
+ */
+export const deleteTasks = <ThrowOnError extends boolean = false>(options: Options<DeleteTasksData, ThrowOnError>) => (options.client ?? client).delete<DeleteTasksResponses, DeleteTasksErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Tasks
+ */
+export const listTasks = <ThrowOnError extends boolean = false>(options: Options<ListTasksData, ThrowOnError>) => (options.client ?? client).get<ListTasksResponses, ListTasksErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks',
+    ...options
+});
+
+/**
+ * List Task Changes
+ *
+ * Tasks annotated since ``since``, so one annotator's progress reflects
+ * everyone's without reloading the whole task list. Without ``since`` it only
+ * hands back the cursor, like the annotation changes poll.
+ */
+export const listTaskChanges = <ThrowOnError extends boolean = false>(options: Options<ListTaskChangesData, ThrowOnError>) => (options.client ?? client).get<ListTaskChangesResponses, ListTaskChangesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/changes',
+    ...options
+});
+
+/**
+ * Claim Task
+ */
+export const claimTask = <ThrowOnError extends boolean = false>(options: Options<ClaimTaskData, ThrowOnError>) => (options.client ?? client).post<ClaimTaskResponses, ClaimTaskErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/claim',
+    ...options
+});
+
+/**
+ * Claim Next Task
+ *
+ * Hand out the next task nobody is working on, claimed in the same
+ * transaction so simultaneous callers get different ones.
+ *
+ * `after_annotation_number` keeps the caller moving forward through the
+ * campaign and wraps once nothing is left ahead of them.
+ */
+export const claimNextTask = <ThrowOnError extends boolean = false>(options: Options<ClaimNextTaskData, ThrowOnError>) => (options.client ?? client).post<ClaimNextTaskResponses, ClaimNextTaskErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/claim-next',
+    ...options
+});
+
+/**
+ * Validate Task Label
+ *
+ * Check whether a label_id agrees with the KNN-majority prediction
+ * derived from the task's satellite embedding and its nearest neighbours
+ * in the same campaign.
+ *
+ * Always returns 200 with a status field indicating the outcome:
+ * - ok - label matches neighbours
+ * - mismatch - label disagrees with neighbours
+ * - skipped_no_embedding - no embedding for the task
+ * - skipped_insufficient_data - not enough labeled data yet
+ * - disabled - no embedding year configured for this campaign
+ */
+export const validateTaskLabel = <ThrowOnError extends boolean = false>(options: Options<ValidateTaskLabelData, ThrowOnError>) => (options.client ?? client).get<ValidateTaskLabelResponses, ValidateTaskLabelErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/validate-label',
+    ...options
+});
+
+/**
+ * Import Tasks From Csv
+ */
+export const importTasksFromCsv = <ThrowOnError extends boolean = false>(options: Options<ImportTasksFromCsvData, ThrowOnError>) => (options.client ?? client).post<ImportTasksFromCsvResponses, ImportTasksFromCsvErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * Import Tasks From Geojson
+ *
+ * Ingest annotation tasks from a GeoJSON file.
+ *
+ * Each feature becomes one annotation task. Supported geometry types:
+ * Point, Polygon, MultiPolygon. Polygon geometries are stored as-is and
+ * displayed as the sample extent during annotation.
+ */
+export const importTasksFromGeojson = <ThrowOnError extends boolean = false>(options: Options<ImportTasksFromGeojsonData, ThrowOnError>) => (options.client ?? client).post<ImportTasksFromGeojsonResponses, ImportTasksFromGeojsonErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-geojson',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
  * Get Task Density
  *
  * A grid of task counts by status and label, for the campaign maps.
@@ -1225,14 +1083,156 @@ export const getTaskDensity = <ThrowOnError extends boolean = false>(options: Op
 });
 
 /**
- * Get Annotation Density
+ * Assign Tasks To Users
  *
- * Return a coarse grid of annotation counts for the minimap overview.
+ * Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks.
  */
-export const getAnnotationDensity = <ThrowOnError extends boolean = false>(options: Options<GetAnnotationDensityData, ThrowOnError>) => (options.client ?? client).get<GetAnnotationDensityResponses, GetAnnotationDensityErrors, ThrowOnError>({
+export const assignTasksToUsers = <ThrowOnError extends boolean = false>(options: Options<AssignTasksToUsersData, ThrowOnError>) => (options.client ?? client).post<AssignTasksToUsersResponses, AssignTasksToUsersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/annotations/density',
+    url: '/api/campaigns/{campaign_id}/tasks/assign',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Unassign Tasks
+ *
+ * Batch-remove assignments from multiple tasks.
+ *
+ * If `user_ids` is provided, only those users are unassigned from each task.
+ * Otherwise, all users are unassigned from each task in `task_ids`.
+ */
+export const unassignTasks = <ThrowOnError extends boolean = false>(options: Options<UnassignTasksData, ThrowOnError>) => (options.client ?? client).post<UnassignTasksResponses, UnassignTasksErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/unassign',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Assign Reviewers
+ *
+ * Add reviewers to a percentage or a fixed number of already-assigned tasks.
+ */
+export const assignReviewers = <ThrowOnError extends boolean = false>(options: Options<AssignReviewersData, ThrowOnError>) => (options.client ?? client).post<AssignReviewersResponses, AssignReviewersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/assign-reviewers',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Task Sets
+ *
+ * Task sets of a campaign with per-set task counts (member-accessible).
+ */
+export const listTaskSets = <ThrowOnError extends boolean = false>(options: Options<ListTaskSetsData, ThrowOnError>) => (options.client ?? client).get<ListTaskSetsResponses, ListTaskSetsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/task-sets',
     ...options
+});
+
+/**
+ * Create Task Set
+ */
+export const createTaskSet = <ThrowOnError extends boolean = false>(options: Options<CreateTaskSetData, ThrowOnError>) => (options.client ?? client).post<CreateTaskSetResponses, CreateTaskSetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/task-sets',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Task Set
+ */
+export const deleteTaskSet = <ThrowOnError extends boolean = false>(options: Options<DeleteTaskSetData, ThrowOnError>) => (options.client ?? client).delete<DeleteTaskSetResponses, DeleteTaskSetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}',
+    ...options
+});
+
+/**
+ * Rename Task Set
+ */
+export const renameTaskSet = <ThrowOnError extends boolean = false>(options: Options<RenameTaskSetData, ThrowOnError>) => (options.client ?? client).patch<RenameTaskSetResponses, RenameTaskSetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Move Tasks To Set
+ *
+ * Move tasks (batched) into the given task set. All ids must belong to the campaign.
+ */
+export const moveTasksToSet = <ThrowOnError extends boolean = false>(options: Options<MoveTasksToSetData, ThrowOnError>) => (options.client ?? client).post<MoveTasksToSetResponses, MoveTasksToSetErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}/move-tasks',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Export Task Assignments
+ *
+ * Export task assignments as a ZIP for campaign admins.
+ *
+ * The archive contains two files:
+ * - `assignments.csv`: one row per task with comma-separated assignee and
+ * reviewer emails, plus a count and `email=label` listing of annotations
+ * already on the task (informational, ignored on re-import).
+ * - `users.csv`: the campaign's members with roles, so the admin knows which
+ * emails are valid to use in the assignee/reviewer columns.
+ *
+ * ``task_set_id`` narrows the archive to one set, so an admin working on a single set
+ * is not handed every task in the campaign. Import stays campaign-wide either way:
+ * it matches on `annotation_number`, which is unique across the campaign.
+ */
+export const exportTaskAssignments = <ThrowOnError extends boolean = false>(options: Options<ExportTaskAssignmentsData, ThrowOnError>) => (options.client ?? client).get<ExportTaskAssignmentsResponses, ExportTaskAssignmentsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/assignments/export',
+    ...options
+});
+
+/**
+ * Import Task Assignments
+ *
+ * Import task assignments from a CSV (campaign admins only).
+ *
+ * Expects the `assignments.csv` layout from the export: `annotation_number`,
+ * `assignees`, and `reviewers` columns (comma-separated emails). Every email
+ * must belong to an existing member of this campaign or the whole import is
+ * rejected. Listed tasks have their assignments replaced; other tasks are
+ * left untouched.
+ */
+export const importTaskAssignments = <ThrowOnError extends boolean = false>(options: Options<ImportTaskAssignmentsData, ThrowOnError>) => (options.client ?? client).post<ImportTaskAssignmentsResponses, ImportTaskAssignmentsErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/assignments/import',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
 });
 
 /**
@@ -1278,11 +1278,11 @@ export const renameTimeseriesWindow = <ThrowOnError extends boolean = false>(opt
 /**
  * Get Timeseries Data
  *
- * Fetch the actual timeseries data from an external provider based on the timeseries config.
+ * A series' values at a point, fetched from its provider.
  */
 export const getTimeseriesData = <ThrowOnError extends boolean = false>(options: Options<GetTimeseriesDataData, ThrowOnError>) => (options.client ?? client).get<GetTimeseriesDataResponses, GetTimeseriesDataErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/timeseries/{timeseries_id}/{latitude}/{longitude}/data',
+    url: '/api/campaigns/{campaign_id}/timeseries/{timeseries_id}/data',
     ...options
 });
 
@@ -1338,7 +1338,7 @@ export const generateTasksFromSampling = <ThrowOnError extends boolean = false>(
  */
 export const saveImagery = <ThrowOnError extends boolean = false>(options: Options<SaveImageryData, ThrowOnError>) => (options.client ?? client).put<SaveImageryResponses, SaveImageryErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery',
+    url: '/api/campaigns/{campaign_id}/imagery',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1347,11 +1347,11 @@ export const saveImagery = <ThrowOnError extends boolean = false>(options: Optio
 });
 
 /**
- * Create New Canvas Layout
+ * Save Canvas Layout
  */
-export const createNewCanvasLayout = <ThrowOnError extends boolean = false>(options: Options<CreateNewCanvasLayoutData, ThrowOnError>) => (options.client ?? client).post<CreateNewCanvasLayoutResponses, CreateNewCanvasLayoutErrors, ThrowOnError>({
+export const saveCanvasLayout = <ThrowOnError extends boolean = false>(options: Options<SaveCanvasLayoutData, ThrowOnError>) => (options.client ?? client).post<SaveCanvasLayoutResponses, SaveCanvasLayoutErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/new-layout',
+    url: '/api/campaigns/{campaign_id}/layouts',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1370,7 +1370,7 @@ export const createNewCanvasLayout = <ThrowOnError extends boolean = false>(opti
  */
 export const refreshSourceImagery = <ThrowOnError extends boolean = false>(options: Options<RefreshSourceImageryData, ThrowOnError>) => (options.client ?? client).post<RefreshSourceImageryResponses, RefreshSourceImageryErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/refresh',
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/refresh',
     ...options
 });
 
@@ -1386,7 +1386,7 @@ export const refreshSourceImagery = <ThrowOnError extends boolean = false>(optio
  */
 export const searchPlanetScenes = <ThrowOnError extends boolean = false>(options: Options<SearchPlanetScenesData, ThrowOnError>) => (options.client ?? client).post<SearchPlanetScenesResponses, SearchPlanetScenesErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search',
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1405,7 +1405,7 @@ export const searchPlanetScenes = <ThrowOnError extends boolean = false>(options
  */
 export const mintPlanetSceneLayers = <ThrowOnError extends boolean = false>(options: Options<MintPlanetSceneLayersData, ThrowOnError>) => (options.client ?? client).post<MintPlanetSceneLayersResponses, MintPlanetSceneLayersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-scenes/layers',
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-scenes/layers',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1421,7 +1421,7 @@ export const mintPlanetSceneLayers = <ThrowOnError extends boolean = false>(opti
  */
 export const createImageryView = <ThrowOnError extends boolean = false>(options: Options<CreateImageryViewData, ThrowOnError>) => (options.client ?? client).post<CreateImageryViewResponses, CreateImageryViewErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery/views',
+    url: '/api/campaigns/{campaign_id}/views',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1436,7 +1436,7 @@ export const createImageryView = <ThrowOnError extends boolean = false>(options:
  */
 export const reorderImageryViews = <ThrowOnError extends boolean = false>(options: Options<ReorderImageryViewsData, ThrowOnError>) => (options.client ?? client).put<ReorderImageryViewsResponses, ReorderImageryViewsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery/views/order',
+    url: '/api/campaigns/{campaign_id}/views/order',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1451,7 +1451,7 @@ export const reorderImageryViews = <ThrowOnError extends boolean = false>(option
  */
 export const deleteImageryView = <ThrowOnError extends boolean = false>(options: Options<DeleteImageryViewData, ThrowOnError>) => (options.client ?? client).delete<DeleteImageryViewResponses, DeleteImageryViewErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery/views/{view_id}',
+    url: '/api/campaigns/{campaign_id}/views/{view_id}',
     ...options
 });
 
@@ -1463,7 +1463,7 @@ export const deleteImageryView = <ThrowOnError extends boolean = false>(options:
  */
 export const updateImageryView = <ThrowOnError extends boolean = false>(options: Options<UpdateImageryViewData, ThrowOnError>) => (options.client ?? client).put<UpdateImageryViewResponses, UpdateImageryViewErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery/views/{view_id}',
+    url: '/api/campaigns/{campaign_id}/views/{view_id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1474,17 +1474,17 @@ export const updateImageryView = <ThrowOnError extends boolean = false>(options:
 /**
  * Proxy Basemap Tile
  */
-export const proxyBasemapTile = <ThrowOnError extends boolean = false>(options: Options<ProxyBasemapTileData, ThrowOnError>) => (options.client ?? client).get<ProxyBasemapTileResponses, ProxyBasemapTileErrors, ThrowOnError>({ url: '/api/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}', ...options });
+export const proxyBasemapTile = <ThrowOnError extends boolean = false>(options: Options<ProxyBasemapTileData, ThrowOnError>) => (options.client ?? client).get<ProxyBasemapTileResponses, ProxyBasemapTileErrors, ThrowOnError>({ url: '/api/campaigns/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}', ...options });
 
 /**
  * Proxy Slice Tile
  */
-export const proxySliceTile = <ThrowOnError extends boolean = false>(options: Options<ProxySliceTileData, ThrowOnError>) => (options.client ?? client).get<ProxySliceTileResponses, ProxySliceTileErrors, ThrowOnError>({ url: '/api/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}', ...options });
+export const proxySliceTile = <ThrowOnError extends boolean = false>(options: Options<ProxySliceTileData, ThrowOnError>) => (options.client ?? client).get<ProxySliceTileResponses, ProxySliceTileErrors, ThrowOnError>({ url: '/api/campaigns/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}', ...options });
 
 /**
  * Proxy Planet Layer Tile
  */
-export const proxyPlanetLayerTile = <ThrowOnError extends boolean = false>(options: Options<ProxyPlanetLayerTileData, ThrowOnError>) => (options.client ?? client).get<ProxyPlanetLayerTileResponses, ProxyPlanetLayerTileErrors, ThrowOnError>({ url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}', ...options });
+export const proxyPlanetLayerTile = <ThrowOnError extends boolean = false>(options: Options<ProxyPlanetLayerTileData, ThrowOnError>) => (options.client ?? client).get<ProxyPlanetLayerTileResponses, ProxyPlanetLayerTileErrors, ThrowOnError>({ url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}', ...options });
 
 /**
  * Proxy Visualizer Basemap Tile

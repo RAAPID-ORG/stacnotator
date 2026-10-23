@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import * as api from '~/api/client';
-import type { AnnotationTaskOut, CampaignOutFull } from '~/api/client';
+import type { TaskOut, CampaignOutFull } from '~/api/client';
 import { buildImageryCatalog } from '../../campaign/imagery';
 import {
   apiSuccess,
@@ -32,7 +32,7 @@ const FILTER = {
 };
 
 /** Seeds the campaign store the way a load would, then the task session. */
-function seed(campaign: CampaignOutFull, tasks: AnnotationTaskOut[]): void {
+function seed(campaign: CampaignOutFull, tasks: TaskOut[]): void {
   const catalog = buildImageryCatalog(campaign);
   useCampaignStore.setState({
     campaign,
@@ -48,7 +48,7 @@ function seed(campaign: CampaignOutFull, tasks: AnnotationTaskOut[]): void {
 // No assignments (unassigned_tasks gates it) and someone else's annotation
 // already on it, so useClaims' requestClaim no-ops without hitting the network
 // stub (isClaimable is false once a task carries any annotation).
-const NOT_ALLOWED_TASK: AnnotationTaskOut = makeTask({
+const NOT_ALLOWED_TASK: TaskOut = makeTask({
   id: 1,
   annotation_number: 1,
   annotations: [makeTaskAnnotation({ id: 9, label_id: 5, created_by_user_id: 'someone-else' })],
@@ -111,7 +111,7 @@ describe('TaskControls labelling policy', () => {
   });
 });
 
-const OPEN_TASK: AnnotationTaskOut = makeTask({ id: 2, annotation_number: 2 });
+const OPEN_TASK: TaskOut = makeTask({ id: 2, annotation_number: 2 });
 
 const OPEN_POLICY = makeCampaign({
   settings: makeSettings({

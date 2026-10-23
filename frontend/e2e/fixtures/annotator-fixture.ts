@@ -499,11 +499,11 @@ export const test = base.extend<AnnotatorFixtures>({
     // used by the extent / navigation tile-metadata mocks.
     const annotationsBbox = (): [number, number, number, number] => [30.4, 50.4, 30.6, 50.6];
 
-    // GET /api/timeseries/:id/:lat/:lon/data
+    // GET /api/campaigns/:id/timeseries/:id/data?latitude=..&longitude=..
     // Default so any campaign with a timeseries widget gets real data instead
     // of hitting the catch-all. Timeseries-specific specs register their own
     // route (LIFO -> higher priority) to serve tailored datasets.
-    await page.route('**/api/timeseries/**', async (route) => {
+    await page.route('**/api/campaigns/*/timeseries/*/data*', async (route) => {
       const url = route.request().url();
       api.requests.push({
         method: route.request().method(),

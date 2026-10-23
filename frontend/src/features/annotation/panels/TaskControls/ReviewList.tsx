@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import type { AnnotationTaskOut, LabelBase } from '~/api/client';
+import type { TaskOut, LabelBase } from '~/api/client';
 import i18n from '~/shared/i18n';
 import { outcomeLabel } from '~/shared/utils/taskStatus';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -10,7 +10,7 @@ import { useCatalog } from '../../stores/campaign';
 import { useImageryStore } from '../../stores/imagery';
 
 export interface ReviewListProps {
-  task: AnnotationTaskOut;
+  task: TaskOut;
   currentUserId: string | null;
   labels: LabelBase[];
 }

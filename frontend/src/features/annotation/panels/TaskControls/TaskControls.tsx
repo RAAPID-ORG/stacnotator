@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import type { AnnotationTaskOut } from '~/api/client';
+import type { TaskOut } from '~/api/client';
 import { isLabelGroupActive } from '../../campaign/annotation';
 import { toNotes } from '../../campaign/sliceComments';
 import { useCampaign, useCampaignStore, useCatalog } from '../../stores/campaign';
@@ -18,7 +18,7 @@ import { useClaims } from './useClaims';
 
 /** Populates the work-store form from a task's existing annotation by the
  *  current user, or blanks it for a task with none yet. */
-function loadTaskIntoForm(task: AnnotationTaskOut | null, currentUserId: string | null): void {
+function loadTaskIntoForm(task: TaskOut | null, currentUserId: string | null): void {
   const work = useWorkStore.getState();
   const mine = task?.annotations.find((a) => a.created_by_user_id === currentUserId) ?? null;
   work.setSelectedLabelId(mine?.label_id ?? null);

@@ -16,9 +16,12 @@ async function loadExploreMulti(page: Page, api: ApiCapture): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({ json: MOCK_CAMPAIGN_EXPLORE_MULTI });
   });
-  await page.route(`**/api/timeseries/${MOCK_TIMESERIES_ENTRY.id}/**`, async (route) => {
-    await route.fulfill({ json: { data: MOCK_TIMESERIES_DATA } });
-  });
+  await page.route(
+    `**/api/campaigns/*/timeseries/${MOCK_TIMESERIES_ENTRY.id}/**`,
+    async (route) => {
+      await route.fulfill({ json: { data: MOCK_TIMESERIES_DATA } });
+    }
+  );
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
@@ -235,10 +238,10 @@ test.describe('Imagery in Explore', () => {
 // Timeseries probe (T tool)
 // ---------------------------------------------------------------------------
 
-// URL shape: /api/timeseries/{id}/{lat}/{lon}/data
+// URL shape: /api/campaigns/{id}/timeseries/{id}/data?latitude=..&longitude=..
 function tsLon(url: string): number | null {
-  const m = new URL(url).pathname.match(/\/timeseries\/\d+\/[-\d.]+\/([-\d.]+)\/data/);
-  return m ? parseFloat(m[1]) : null;
+  const lon = new URL(url).searchParams.get('longitude');
+  return lon === null ? null : parseFloat(lon);
 }
 
 test.describe('Timeseries probe in Explore', () => {
@@ -251,7 +254,7 @@ test.describe('Timeseries probe in Explore', () => {
   }) => {
     const tsUrls: string[] = [];
     annotationPage.on('request', (req) => {
-      if (/\/timeseries\/\d+\/[-\d.]+\/[-\d.]+\/data/.test(req.url())) tsUrls.push(req.url());
+      if (/\/timeseries\/\d+\/data\?/.test(req.url())) tsUrls.push(req.url());
     });
 
     await annotationPage.keyboard.press('t');
@@ -277,7 +280,7 @@ test.describe('Timeseries probe in Explore', () => {
   test('an off-centre click probes a different longitude', async ({ annotationPage }) => {
     const tsUrls: string[] = [];
     annotationPage.on('request', (req) => {
-      if (/\/timeseries\/\d+\/[-\d.]+\/[-\d.]+\/data/.test(req.url())) tsUrls.push(req.url());
+      if (/\/timeseries\/\d+\/data\?/.test(req.url())) tsUrls.push(req.url());
     });
 
     await annotationPage.keyboard.press('t');

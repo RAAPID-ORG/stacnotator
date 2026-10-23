@@ -3,8 +3,8 @@ export { apiSuccess } from '~/shared/testing/apiSuccess';
 import type {
   AnnotationFromTaskOut,
   AnnotationOut,
-  AnnotationTaskListOut,
-  AnnotationTaskOut,
+  TaskListOut,
+  TaskOut,
   CampaignOutFull,
   ClaimTaskResponse,
   CustomMapOut,
@@ -188,7 +188,7 @@ export function makeTaskAnnotation(
   return { ...annotationDefaults, ...overrides };
 }
 
-export function makeTask(overrides: Partial<AnnotationTaskOut> = {}): AnnotationTaskOut {
+export function makeTask(overrides: Partial<TaskOut> = {}): TaskOut {
   return {
     id: 1,
     annotation_number: 1,
@@ -254,8 +254,6 @@ export function makeTimeSeries(overrides: Partial<TimeseriesOut> = {}): Timeseri
   };
 }
 
-export function makeTaskList(
-  overrides: Partial<AnnotationTaskListOut> = {}
-): AnnotationTaskListOut {
+export function makeTaskList(overrides: Partial<TaskListOut> = {}): TaskListOut {
   return { campaign_id: 7, tasks: [], ...overrides };
 }

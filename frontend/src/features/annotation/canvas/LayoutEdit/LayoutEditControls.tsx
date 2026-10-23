@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { createNewCanvasLayout, type CampaignOutFull, type ImageryViewOut } from '~/api/client';
+import { saveCanvasLayout, type CampaignOutFull, type ImageryViewOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { Button } from '~/shared/ui/forms';
 import { IconLayoutGrid } from '~/shared/ui/Icons';
@@ -53,7 +53,7 @@ export function LayoutEditControls({
     // caller asks for a personal save, the initial layout must be shared.
     const saveAsDefault = mustSaveDefault || shouldBeDefault;
     try {
-      await createNewCanvasLayout({
+      await saveCanvasLayout({
         path: { campaign_id: campaign.id },
         body: {
           view_id: view.id,

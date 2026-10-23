@@ -115,11 +115,13 @@ for (const readyAtCreation of [false, true]) {
         },
       })
     );
-    await page.route('**/api/*/imagery/views', (route) => {
+    await page.route('**/api/campaigns/*/views', (route) => {
       created = true;
       return route.fulfill({ status: 201, json: view });
     });
-    await page.route('**/api/*/new-layout', (route) => route.fulfill({ status: 201, json: {} }));
+    await page.route('**/api/campaigns/*/layouts', (route) =>
+      route.fulfill({ status: 201, json: {} })
+    );
     await mockVisibleImagery(page);
 
     await page.reload();
@@ -210,7 +212,7 @@ test('dragging a panel body scrolls both canvas edges and saves its new position
       },
     })
   );
-  await page.route('**/api/*/new-layout', async (route) => {
+  await page.route('**/api/campaigns/*/layouts', async (route) => {
     saved = route.request().postDataJSON().layout;
     await route.fulfill({ status: 201, json: {} });
   });
@@ -262,7 +264,7 @@ test('dragging a panel body scrolls both canvas edges and saves its new position
 
   await page.getByRole('button', { name: 'Show edit layout', exact: true }).click();
   await page.getByTestId('save-menu-trigger').click();
-  const saving = page.waitForResponse('**/api/*/new-layout');
+  const saving = page.waitForResponse('**/api/campaigns/*/layouts');
   await page.getByTestId('save-personal').click();
   await saving;
   expect(saved?.main_layout_data?.find((item) => item.i === 'minimap')?.y).toBeGreaterThan(0);
@@ -402,11 +404,13 @@ test('a registration response started before first-view creation does not discar
     }
     await route.fulfill({ json: snapshot });
   });
-  await page.route('**/api/*/imagery/views', (route) => {
+  await page.route('**/api/campaigns/*/views', (route) => {
     created = true;
     return route.fulfill({ status: 201, json: view });
   });
-  await page.route('**/api/*/new-layout', (route) => route.fulfill({ status: 201, json: {} }));
+  await page.route('**/api/campaigns/*/layouts', (route) =>
+    route.fulfill({ status: 201, json: {} })
+  );
   await mockVisibleImagery(page);
 
   await page.reload();

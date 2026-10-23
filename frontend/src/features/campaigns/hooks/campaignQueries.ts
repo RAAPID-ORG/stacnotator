@@ -3,7 +3,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useTranslation } from 'react-i18next';
 import type {
   AnnotationListItemOut,
-  AnnotationTaskOut,
+  TaskOut,
   ListAnnotationsForCampaignData,
   TaskSetOut,
 } from '~/api/client';
@@ -45,7 +45,7 @@ type MaybeRegistering = { registration_status?: string; embedding_status?: strin
 export const isRegistering = (campaign: MaybeRegistering) =>
   campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
 
-const NO_TASKS: AnnotationTaskOut[] = [];
+const NO_TASKS: TaskOut[] = [];
 const NO_TASK_SETS: TaskSetOut[] = [];
 const NO_ANNOTATIONS: AnnotationListItemOut[] = [];
 

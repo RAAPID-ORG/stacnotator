@@ -412,54 +412,6 @@ export type AnnotationFacetsOut = {
 };
 
 /**
- * AnnotationFromTaskCreate
- */
-export type AnnotationFromTaskCreate = {
-    /**
-     * Comment
-     */
-    comment?: string | null;
-    /**
-     * Confidence
-     */
-    confidence?: number | null;
-    /**
-     * Flagged For Review
-     */
-    flagged_for_review?: boolean | null;
-    /**
-     * Flag Comment
-     */
-    flag_comment?: string | null;
-    /**
-     * Slice Comments
-     */
-    slice_comments?: Array<SliceComment> | null;
-    /**
-     * Form Values
-     */
-    form_values?: {
-        [key: string]: number | number | string | Array<number> | DateRangeValue;
-    } | null;
-    /**
-     * Label Id
-     */
-    label_id?: number | null;
-    /**
-     * Is Authoritative
-     */
-    is_authoritative?: boolean | null;
-    /**
-     * Outcome
-     */
-    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
-    /**
-     * Active Ms
-     */
-    active_ms?: number | null;
-};
-
-/**
  * AnnotationFromTaskOut
  */
 export type AnnotationFromTaskOut = {
@@ -754,141 +706,6 @@ export type AnnotationOut = {
      * Output Of Task Id
      */
     output_of_task_id?: number | null;
-};
-
-/**
- * AnnotationTaskAssignmentOut
- */
-export type AnnotationTaskAssignmentOut = {
-    /**
-     * User Id
-     */
-    user_id: string;
-    /**
-     * Status
-     */
-    status: 'pending' | 'done' | 'skipped';
-    /**
-     * Is Review
-     */
-    is_review?: boolean;
-    /**
-     * User Email
-     */
-    user_email?: string | null;
-    /**
-     * User Display Name
-     */
-    user_display_name?: string | null;
-};
-
-/**
- * AnnotationTaskChangesOut
- *
- * Tasks somebody annotated since a cursor, re-read whole, plus the cursor
- * for the next poll. Same clock as :class:`AnnotationChangesOut`.
- */
-export type AnnotationTaskChangesOut = {
-    /**
-     * Server Time
-     */
-    server_time: string;
-    /**
-     * Tasks
-     */
-    tasks: Array<AnnotationTaskOut>;
-};
-
-/**
- * AnnotationTaskListOut
- */
-export type AnnotationTaskListOut = {
-    /**
-     * Campaign Id
-     */
-    campaign_id: number;
-    /**
-     * Tasks
-     */
-    tasks: Array<AnnotationTaskOut>;
-};
-
-/**
- * AnnotationTaskOut
- */
-export type AnnotationTaskOut = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Annotation Number
-     */
-    annotation_number: number;
-    /**
-     * Task Set Id
-     */
-    task_set_id: number;
-    /**
-     * Task Status
-     */
-    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
-    /**
-     * Geometry Wkt
-     */
-    geometry_wkt: string;
-    /**
-     * Assignments
-     */
-    assignments: Array<AnnotationTaskAssignmentOut>;
-    /**
-     * Annotations
-     */
-    annotations: Array<AnnotationFromTaskOut>;
-    /**
-     * Claimed By User Id
-     */
-    claimed_by_user_id?: string | null;
-    /**
-     * Claimed At
-     */
-    claimed_at?: string | null;
-    /**
-     * Claimed By Display Name
-     */
-    claimed_by_display_name?: string | null;
-    /**
-     * Has Embedding
-     */
-    has_embedding?: boolean;
-    /**
-     * Nearby Annotation Count
-     */
-    nearby_annotation_count?: number;
-    /**
-     * Drawn By User Ids
-     */
-    drawn_by_user_ids?: Array<string>;
-};
-
-/**
- * AnnotationTaskSubmitResponse
- *
- * Response from submitting or skipping an annotation task.
- *
- * The annotation is always there: a skip is stored with the outcome `skipped`,
- * so every submission leaves a record behind.
- */
-export type AnnotationTaskSubmitResponse = {
-    /**
-     * Task Status
-     */
-    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
-    /**
-     * Assignment Status
-     */
-    assignment_status: 'pending' | 'done' | 'skipped';
-    annotation: AnnotationFromTaskOut;
 };
 
 /**
@@ -1292,9 +1109,9 @@ export type BodyImportTaskAssignments = {
 };
 
 /**
- * Body_ingestAnnotationTasksFromCsv
+ * Body_importTasksFromCsv
  */
-export type BodyIngestAnnotationTasksFromCsv = {
+export type BodyImportTasksFromCsv = {
     /**
      * File
      */
@@ -1306,9 +1123,9 @@ export type BodyIngestAnnotationTasksFromCsv = {
 };
 
 /**
- * Body_ingestAnnotationTasksFromGeojson
+ * Body_importTasksFromGeojson
  */
-export type BodyIngestAnnotationTasksFromGeojson = {
+export type BodyImportTasksFromGeojson = {
     /**
      * File
      */
@@ -2128,7 +1945,7 @@ export type CategoryFormField = {
  * The task the server picked and claimed, or null once the pool is dry.
  */
 export type ClaimNextResponse = {
-    task: AnnotationTaskOut | null;
+    task: TaskOut | null;
 };
 
 /**
@@ -2467,14 +2284,14 @@ export type DateRangeValue = {
 };
 
 /**
- * DeleteAnnotationTasksRequest
+ * DeleteTasksRequest
  *
  * Request to delete multiple annotation tasks.
  *
  * The tasks' annotations are kept, detached from their task, unless
  * ``delete_annotations`` asks for them to go too.
  */
-export type DeleteAnnotationTasksRequest = {
+export type DeleteTasksRequest = {
     /**
      * Task Ids
      */
@@ -4545,6 +4362,97 @@ export type StorageAccessOut = {
 };
 
 /**
+ * TaskAnswerCreate
+ */
+export type TaskAnswerCreate = {
+    /**
+     * Comment
+     */
+    comment?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: number | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
+    /**
+     * Slice Comments
+     */
+    slice_comments?: Array<SliceComment> | null;
+    /**
+     * Form Values
+     */
+    form_values?: {
+        [key: string]: number | number | string | Array<number> | DateRangeValue;
+    } | null;
+    /**
+     * Label Id
+     */
+    label_id?: number | null;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative?: boolean | null;
+    /**
+     * Outcome
+     */
+    outcome?: 'labelled' | 'skipped' | 'drawn' | 'none_found' | null;
+    /**
+     * Active Ms
+     */
+    active_ms?: number | null;
+};
+
+/**
+ * TaskAssignmentOut
+ */
+export type TaskAssignmentOut = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * Status
+     */
+    status: 'pending' | 'done' | 'skipped';
+    /**
+     * Is Review
+     */
+    is_review?: boolean;
+    /**
+     * User Email
+     */
+    user_email?: string | null;
+    /**
+     * User Display Name
+     */
+    user_display_name?: string | null;
+};
+
+/**
+ * TaskChangesOut
+ *
+ * Tasks somebody annotated since a cursor, re-read whole, plus the cursor
+ * for the next poll. Same clock as :class:`AnnotationChangesOut`.
+ */
+export type TaskChangesOut = {
+    /**
+     * Server Time
+     */
+    server_time: string;
+    /**
+     * Tasks
+     */
+    tasks: Array<TaskOut>;
+};
+
+/**
  * TaskDensityCell
  *
  * One grid cell's worth of tasks sharing a status and a label: where they sit and
@@ -4572,6 +4480,78 @@ export type TaskDensityCell = {
      * Count
      */
     count: number;
+};
+
+/**
+ * TaskListOut
+ */
+export type TaskListOut = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Tasks
+     */
+    tasks: Array<TaskOut>;
+};
+
+/**
+ * TaskOut
+ */
+export type TaskOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Annotation Number
+     */
+    annotation_number: number;
+    /**
+     * Task Set Id
+     */
+    task_set_id: number;
+    /**
+     * Task Status
+     */
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
+    /**
+     * Geometry Wkt
+     */
+    geometry_wkt: string;
+    /**
+     * Assignments
+     */
+    assignments: Array<TaskAssignmentOut>;
+    /**
+     * Annotations
+     */
+    annotations: Array<AnnotationFromTaskOut>;
+    /**
+     * Claimed By User Id
+     */
+    claimed_by_user_id?: string | null;
+    /**
+     * Claimed At
+     */
+    claimed_at?: string | null;
+    /**
+     * Claimed By Display Name
+     */
+    claimed_by_display_name?: string | null;
+    /**
+     * Has Embedding
+     */
+    has_embedding?: boolean;
+    /**
+     * Nearby Annotation Count
+     */
+    nearby_annotation_count?: number;
+    /**
+     * Drawn By User Ids
+     */
+    drawn_by_user_ids?: Array<string>;
 };
 
 /**
@@ -4634,6 +4614,26 @@ export type TaskStatusOut = {
      * Assignment Status
      */
     assignment_status: 'pending' | 'done' | 'skipped';
+};
+
+/**
+ * TaskSubmitResponse
+ *
+ * Response from submitting or skipping an annotation task.
+ *
+ * The annotation is always there: a skip is stored with the outcome `skipped`,
+ * so every submission leaves a record behind.
+ */
+export type TaskSubmitResponse = {
+    /**
+     * Task Status
+     */
+    task_status: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
+    /**
+     * Assignment Status
+     */
+    assignment_status: 'pending' | 'done' | 'skipped';
+    annotation: AnnotationFromTaskOut;
 };
 
 /**
@@ -7583,354 +7583,6 @@ export type GetCampaignWithImageryWindowsResponses = {
 
 export type GetCampaignWithImageryWindowsResponse = GetCampaignWithImageryWindowsResponses[keyof GetCampaignWithImageryWindowsResponses];
 
-export type AssignTasksToUsersData = {
-    body: AssignTasksToUsersRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/assign-tasks';
-};
-
-export type AssignTasksToUsersErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AssignTasksToUsersError = AssignTasksToUsersErrors[keyof AssignTasksToUsersErrors];
-
-export type AssignTasksToUsersResponses = {
-    /**
-     * Successful Response
-     */
-    200: AssignTasksToUsersResult;
-};
-
-export type AssignTasksToUsersResponse = AssignTasksToUsersResponses[keyof AssignTasksToUsersResponses];
-
-export type BatchUnassignTasksData = {
-    body: UnassignTasksRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/unassign-tasks';
-};
-
-export type BatchUnassignTasksErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type BatchUnassignTasksError = BatchUnassignTasksErrors[keyof BatchUnassignTasksErrors];
-
-export type BatchUnassignTasksResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type AssignReviewersData = {
-    /**
-     * Req
-     */
-    body: ({
-        pattern: 'percentage';
-    } & ReviewShareOfTasks) | ({
-        pattern: 'fixed';
-    } & ReviewNumberOfTasks);
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/assign-reviewers';
-};
-
-export type AssignReviewersErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AssignReviewersError = AssignReviewersErrors[keyof AssignReviewersErrors];
-
-export type AssignReviewersResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type DeleteAnnotationTasksData = {
-    body: DeleteAnnotationTasksRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/annotation-tasks';
-};
-
-export type DeleteAnnotationTasksErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteAnnotationTasksError = DeleteAnnotationTasksErrors[keyof DeleteAnnotationTasksErrors];
-
-export type DeleteAnnotationTasksResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type ListTaskSetsData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets';
-};
-
-export type ListTaskSetsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListTaskSetsError = ListTaskSetsErrors[keyof ListTaskSetsErrors];
-
-export type ListTaskSetsResponses = {
-    /**
-     * Response Listtasksets
-     *
-     * Successful Response
-     */
-    200: Array<TaskSetOut>;
-};
-
-export type ListTaskSetsResponse = ListTaskSetsResponses[keyof ListTaskSetsResponses];
-
-export type CreateTaskSetData = {
-    body: TaskSetCreate;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets';
-};
-
-export type CreateTaskSetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateTaskSetError = CreateTaskSetErrors[keyof CreateTaskSetErrors];
-
-export type CreateTaskSetResponses = {
-    /**
-     * Successful Response
-     */
-    201: TaskSetOut;
-};
-
-export type CreateTaskSetResponse = CreateTaskSetResponses[keyof CreateTaskSetResponses];
-
-export type DeleteTaskSetData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Set Id
-         */
-        task_set_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}';
-};
-
-export type DeleteTaskSetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteTaskSetError = DeleteTaskSetErrors[keyof DeleteTaskSetErrors];
-
-export type DeleteTaskSetResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteTaskSetResponse = DeleteTaskSetResponses[keyof DeleteTaskSetResponses];
-
-export type RenameTaskSetData = {
-    body: TaskSetRename;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Set Id
-         */
-        task_set_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}';
-};
-
-export type RenameTaskSetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RenameTaskSetError = RenameTaskSetErrors[keyof RenameTaskSetErrors];
-
-export type RenameTaskSetResponses = {
-    /**
-     * Successful Response
-     */
-    200: TaskSetOut;
-};
-
-export type RenameTaskSetResponse = RenameTaskSetResponses[keyof RenameTaskSetResponses];
-
-export type MoveTasksToSetData = {
-    body: MoveTasksToSetRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Set Id
-         */
-        task_set_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}/move-tasks';
-};
-
-export type MoveTasksToSetErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type MoveTasksToSetError = MoveTasksToSetErrors[keyof MoveTasksToSetErrors];
-
-export type MoveTasksToSetResponses = {
-    /**
-     * Successful Response
-     */
-    200: MoveTasksToSetResult;
-};
-
-export type MoveTasksToSetResponse = MoveTasksToSetResponses[keyof MoveTasksToSetResponses];
-
-export type ExportTaskAssignmentsData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: {
-        /**
-         * Task Set Id
-         */
-        task_set_id?: number | null;
-    };
-    url: '/api/campaigns/{campaign_id}/export-task-assignments';
-};
-
-export type ExportTaskAssignmentsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ExportTaskAssignmentsError = ExportTaskAssignmentsErrors[keyof ExportTaskAssignmentsErrors];
-
-export type ExportTaskAssignmentsResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type ImportTaskAssignmentsData = {
-    body: BodyImportTaskAssignments;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/import-task-assignments';
-};
-
-export type ImportTaskAssignmentsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ImportTaskAssignmentsError = ImportTaskAssignmentsErrors[keyof ImportTaskAssignmentsErrors];
-
-export type ImportTaskAssignmentsResponses = {
-    /**
-     * Successful Response
-     */
-    200: ImportTaskAssignmentsResult;
-};
-
-export type ImportTaskAssignmentsResponse = ImportTaskAssignmentsResponses[keyof ImportTaskAssignmentsResponses];
-
 export type GetCampaignStatisticsData = {
     body?: never;
     path: {
@@ -7968,73 +7620,8 @@ export type GetCampaignStatisticsResponses = {
 
 export type GetCampaignStatisticsResponse = GetCampaignStatisticsResponses[keyof GetCampaignStatisticsResponses];
 
-export type ListTasksData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/tasks';
-};
-
-export type ListTasksErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListTasksError = ListTasksErrors[keyof ListTasksErrors];
-
-export type ListTasksResponses = {
-    /**
-     * Successful Response
-     */
-    200: AnnotationTaskListOut;
-};
-
-export type ListTasksResponse = ListTasksResponses[keyof ListTasksResponses];
-
-export type ListTaskChangesData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: {
-        /**
-         * Since
-         */
-        since?: string | null;
-    };
-    url: '/api/campaigns/{campaign_id}/tasks/changes';
-};
-
-export type ListTaskChangesErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListTaskChangesError = ListTaskChangesErrors[keyof ListTaskChangesErrors];
-
-export type ListTaskChangesResponses = {
-    /**
-     * Successful Response
-     */
-    200: AnnotationTaskChangesOut;
-};
-
-export type ListTaskChangesResponse = ListTaskChangesResponses[keyof ListTaskChangesResponses];
-
 export type AnnotateTaskData = {
-    body: AnnotationFromTaskCreate;
+    body: TaskAnswerCreate;
     path: {
         /**
          * Campaign Id
@@ -8062,178 +7649,10 @@ export type AnnotateTaskResponses = {
     /**
      * Successful Response
      */
-    200: AnnotationTaskSubmitResponse;
+    200: TaskSubmitResponse;
 };
 
 export type AnnotateTaskResponse = AnnotateTaskResponses[keyof AnnotateTaskResponses];
-
-export type ClaimTaskData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Id
-         */
-        task_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/claim';
-};
-
-export type ClaimTaskErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ClaimTaskError = ClaimTaskErrors[keyof ClaimTaskErrors];
-
-export type ClaimTaskResponses = {
-    /**
-     * Successful Response
-     */
-    200: ClaimTaskResponse;
-};
-
-export type ClaimTaskResponse2 = ClaimTaskResponses[keyof ClaimTaskResponses];
-
-export type ClaimNextTaskData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: {
-        /**
-         * Task Set Id
-         */
-        task_set_id?: number | null;
-        /**
-         * After Annotation Number
-         */
-        after_annotation_number?: number | null;
-    };
-    url: '/api/campaigns/{campaign_id}/tasks/claim-next';
-};
-
-export type ClaimNextTaskErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ClaimNextTaskError = ClaimNextTaskErrors[keyof ClaimNextTaskErrors];
-
-export type ClaimNextTaskResponses = {
-    /**
-     * Successful Response
-     */
-    200: ClaimNextResponse;
-};
-
-export type ClaimNextTaskResponse = ClaimNextTaskResponses[keyof ClaimNextTaskResponses];
-
-export type ValidateTaskLabelData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Id
-         */
-        task_id: number;
-    };
-    query: {
-        /**
-         * Label Id
-         */
-        label_id: number;
-    };
-    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/validate-label';
-};
-
-export type ValidateTaskLabelErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ValidateTaskLabelError = ValidateTaskLabelErrors[keyof ValidateTaskLabelErrors];
-
-export type ValidateTaskLabelResponses = {
-    /**
-     * Successful Response
-     */
-    200: ValidateLabelSubmissionsResponse;
-};
-
-export type ValidateTaskLabelResponse = ValidateTaskLabelResponses[keyof ValidateTaskLabelResponses];
-
-export type IngestAnnotationTasksFromCsvData = {
-    body: BodyIngestAnnotationTasksFromCsv;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv';
-};
-
-export type IngestAnnotationTasksFromCsvErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type IngestAnnotationTasksFromCsvError = IngestAnnotationTasksFromCsvErrors[keyof IngestAnnotationTasksFromCsvErrors];
-
-export type IngestAnnotationTasksFromCsvResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type IngestAnnotationTasksFromGeojsonData = {
-    body: BodyIngestAnnotationTasksFromGeojson;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-geojson';
-};
-
-export type IngestAnnotationTasksFromGeojsonErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type IngestAnnotationTasksFromGeojsonError = IngestAnnotationTasksFromGeojsonErrors[keyof IngestAnnotationTasksFromGeojsonErrors];
-
-export type IngestAnnotationTasksFromGeojsonResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
 
 export type IngestAnnotationsFromGeojsonData = {
     body: BodyIngestAnnotationsFromGeojson;
@@ -8821,6 +8240,304 @@ export type GetAnnotationsExtentResponses = {
 
 export type GetAnnotationsExtentResponse = GetAnnotationsExtentResponses[keyof GetAnnotationsExtentResponses];
 
+export type GetAnnotationDensityData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Include Tasks
+         */
+        include_tasks?: boolean;
+    };
+    url: '/api/campaigns/{campaign_id}/annotations/density';
+};
+
+export type GetAnnotationDensityErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationDensityError = GetAnnotationDensityErrors[keyof GetAnnotationDensityErrors];
+
+export type GetAnnotationDensityResponses = {
+    /**
+     * Response Getannotationdensity
+     *
+     * Successful Response
+     */
+    200: Array<AnnotationDensityCell>;
+};
+
+export type GetAnnotationDensityResponse = GetAnnotationDensityResponses[keyof GetAnnotationDensityResponses];
+
+export type DeleteTasksData = {
+    body: DeleteTasksRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks';
+};
+
+export type DeleteTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTasksError = DeleteTasksErrors[keyof DeleteTasksErrors];
+
+export type DeleteTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks';
+};
+
+export type ListTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTasksError = ListTasksErrors[keyof ListTasksErrors];
+
+export type ListTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskListOut;
+};
+
+export type ListTasksResponse = ListTasksResponses[keyof ListTasksResponses];
+
+export type ListTaskChangesData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Since
+         */
+        since?: string | null;
+    };
+    url: '/api/campaigns/{campaign_id}/tasks/changes';
+};
+
+export type ListTaskChangesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTaskChangesError = ListTaskChangesErrors[keyof ListTaskChangesErrors];
+
+export type ListTaskChangesResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskChangesOut;
+};
+
+export type ListTaskChangesResponse = ListTaskChangesResponses[keyof ListTaskChangesResponses];
+
+export type ClaimTaskData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/claim';
+};
+
+export type ClaimTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimTaskError = ClaimTaskErrors[keyof ClaimTaskErrors];
+
+export type ClaimTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClaimTaskResponse;
+};
+
+export type ClaimTaskResponse2 = ClaimTaskResponses[keyof ClaimTaskResponses];
+
+export type ClaimNextTaskData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Task Set Id
+         */
+        task_set_id?: number | null;
+        /**
+         * After Annotation Number
+         */
+        after_annotation_number?: number | null;
+    };
+    url: '/api/campaigns/{campaign_id}/tasks/claim-next';
+};
+
+export type ClaimNextTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimNextTaskError = ClaimNextTaskErrors[keyof ClaimNextTaskErrors];
+
+export type ClaimNextTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClaimNextResponse;
+};
+
+export type ClaimNextTaskResponse = ClaimNextTaskResponses[keyof ClaimNextTaskResponses];
+
+export type ValidateTaskLabelData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query: {
+        /**
+         * Label Id
+         */
+        label_id: number;
+    };
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/validate-label';
+};
+
+export type ValidateTaskLabelErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ValidateTaskLabelError = ValidateTaskLabelErrors[keyof ValidateTaskLabelErrors];
+
+export type ValidateTaskLabelResponses = {
+    /**
+     * Successful Response
+     */
+    200: ValidateLabelSubmissionsResponse;
+};
+
+export type ValidateTaskLabelResponse = ValidateTaskLabelResponses[keyof ValidateTaskLabelResponses];
+
+export type ImportTasksFromCsvData = {
+    body: BodyImportTasksFromCsv;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv';
+};
+
+export type ImportTasksFromCsvErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportTasksFromCsvError = ImportTasksFromCsvErrors[keyof ImportTasksFromCsvErrors];
+
+export type ImportTasksFromCsvResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ImportTasksFromGeojsonData = {
+    body: BodyImportTasksFromGeojson;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-geojson';
+};
+
+export type ImportTasksFromGeojsonErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportTasksFromGeojsonError = ImportTasksFromGeojsonErrors[keyof ImportTasksFromGeojsonErrors];
+
+export type ImportTasksFromGeojsonResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type GetTaskDensityData = {
     body?: never;
     path: {
@@ -8868,7 +8585,264 @@ export type GetTaskDensityResponses = {
 
 export type GetTaskDensityResponse = GetTaskDensityResponses[keyof GetTaskDensityResponses];
 
-export type GetAnnotationDensityData = {
+export type AssignTasksToUsersData = {
+    body: AssignTasksToUsersRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/assign';
+};
+
+export type AssignTasksToUsersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AssignTasksToUsersError = AssignTasksToUsersErrors[keyof AssignTasksToUsersErrors];
+
+export type AssignTasksToUsersResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssignTasksToUsersResult;
+};
+
+export type AssignTasksToUsersResponse = AssignTasksToUsersResponses[keyof AssignTasksToUsersResponses];
+
+export type UnassignTasksData = {
+    body: UnassignTasksRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/unassign';
+};
+
+export type UnassignTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnassignTasksError = UnassignTasksErrors[keyof UnassignTasksErrors];
+
+export type UnassignTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type AssignReviewersData = {
+    /**
+     * Req
+     */
+    body: ({
+        pattern: 'percentage';
+    } & ReviewShareOfTasks) | ({
+        pattern: 'fixed';
+    } & ReviewNumberOfTasks);
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/assign-reviewers';
+};
+
+export type AssignReviewersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AssignReviewersError = AssignReviewersErrors[keyof AssignReviewersErrors];
+
+export type AssignReviewersResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListTaskSetsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets';
+};
+
+export type ListTaskSetsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTaskSetsError = ListTaskSetsErrors[keyof ListTaskSetsErrors];
+
+export type ListTaskSetsResponses = {
+    /**
+     * Response Listtasksets
+     *
+     * Successful Response
+     */
+    200: Array<TaskSetOut>;
+};
+
+export type ListTaskSetsResponse = ListTaskSetsResponses[keyof ListTaskSetsResponses];
+
+export type CreateTaskSetData = {
+    body: TaskSetCreate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets';
+};
+
+export type CreateTaskSetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTaskSetError = CreateTaskSetErrors[keyof CreateTaskSetErrors];
+
+export type CreateTaskSetResponses = {
+    /**
+     * Successful Response
+     */
+    201: TaskSetOut;
+};
+
+export type CreateTaskSetResponse = CreateTaskSetResponses[keyof CreateTaskSetResponses];
+
+export type DeleteTaskSetData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Set Id
+         */
+        task_set_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}';
+};
+
+export type DeleteTaskSetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTaskSetError = DeleteTaskSetErrors[keyof DeleteTaskSetErrors];
+
+export type DeleteTaskSetResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTaskSetResponse = DeleteTaskSetResponses[keyof DeleteTaskSetResponses];
+
+export type RenameTaskSetData = {
+    body: TaskSetRename;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Set Id
+         */
+        task_set_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}';
+};
+
+export type RenameTaskSetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenameTaskSetError = RenameTaskSetErrors[keyof RenameTaskSetErrors];
+
+export type RenameTaskSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskSetOut;
+};
+
+export type RenameTaskSetResponse = RenameTaskSetResponses[keyof RenameTaskSetResponses];
+
+export type MoveTasksToSetData = {
+    body: MoveTasksToSetRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Set Id
+         */
+        task_set_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/task-sets/{task_set_id}/move-tasks';
+};
+
+export type MoveTasksToSetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MoveTasksToSetError = MoveTasksToSetErrors[keyof MoveTasksToSetErrors];
+
+export type MoveTasksToSetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MoveTasksToSetResult;
+};
+
+export type MoveTasksToSetResponse = MoveTasksToSetResponses[keyof MoveTasksToSetResponses];
+
+export type ExportTaskAssignmentsData = {
     body?: never;
     path: {
         /**
@@ -8878,32 +8852,58 @@ export type GetAnnotationDensityData = {
     };
     query?: {
         /**
-         * Include Tasks
+         * Task Set Id
          */
-        include_tasks?: boolean;
+        task_set_id?: number | null;
     };
-    url: '/api/campaigns/{campaign_id}/annotations/density';
+    url: '/api/campaigns/{campaign_id}/tasks/assignments/export';
 };
 
-export type GetAnnotationDensityErrors = {
+export type ExportTaskAssignmentsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type GetAnnotationDensityError = GetAnnotationDensityErrors[keyof GetAnnotationDensityErrors];
+export type ExportTaskAssignmentsError = ExportTaskAssignmentsErrors[keyof ExportTaskAssignmentsErrors];
 
-export type GetAnnotationDensityResponses = {
+export type ExportTaskAssignmentsResponses = {
     /**
-     * Response Getannotationdensity
-     *
      * Successful Response
      */
-    200: Array<AnnotationDensityCell>;
+    200: unknown;
 };
 
-export type GetAnnotationDensityResponse = GetAnnotationDensityResponses[keyof GetAnnotationDensityResponses];
+export type ImportTaskAssignmentsData = {
+    body: BodyImportTaskAssignments;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/assignments/import';
+};
+
+export type ImportTaskAssignmentsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportTaskAssignmentsError = ImportTaskAssignmentsErrors[keyof ImportTaskAssignmentsErrors];
+
+export type ImportTaskAssignmentsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportTaskAssignmentsResult;
+};
+
+export type ImportTaskAssignmentsResponse = ImportTaskAssignmentsResponses[keyof ImportTaskAssignmentsResponses];
 
 export type CreateTimeseriesForCampaignData = {
     body: TimeseriesBulkCreateRequest;
@@ -8989,9 +8989,15 @@ export type GetTimeseriesDataData = {
     body?: never;
     path: {
         /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
          * Timeseries Id
          */
         timeseries_id: number;
+    };
+    query: {
         /**
          * Latitude
          */
@@ -9001,8 +9007,7 @@ export type GetTimeseriesDataData = {
          */
         longitude: number;
     };
-    query?: never;
-    url: '/api/timeseries/{timeseries_id}/{latitude}/{longitude}/data';
+    url: '/api/campaigns/{campaign_id}/timeseries/{timeseries_id}/data';
 };
 
 export type GetTimeseriesDataErrors = {
@@ -9096,7 +9101,7 @@ export type SaveImageryData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery';
+    url: '/api/campaigns/{campaign_id}/imagery';
 };
 
 export type SaveImageryErrors = {
@@ -9117,7 +9122,7 @@ export type SaveImageryResponses = {
 
 export type SaveImageryResponse = SaveImageryResponses[keyof SaveImageryResponses];
 
-export type CreateNewCanvasLayoutData = {
+export type SaveCanvasLayoutData = {
     body: CanvasLayoutCreateRequest;
     path: {
         /**
@@ -9126,19 +9131,19 @@ export type CreateNewCanvasLayoutData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/new-layout';
+    url: '/api/campaigns/{campaign_id}/layouts';
 };
 
-export type CreateNewCanvasLayoutErrors = {
+export type SaveCanvasLayoutErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CreateNewCanvasLayoutError = CreateNewCanvasLayoutErrors[keyof CreateNewCanvasLayoutErrors];
+export type SaveCanvasLayoutError = SaveCanvasLayoutErrors[keyof SaveCanvasLayoutErrors];
 
-export type CreateNewCanvasLayoutResponses = {
+export type SaveCanvasLayoutResponses = {
     /**
      * Successful Response
      */
@@ -9158,7 +9163,7 @@ export type RefreshSourceImageryData = {
         source_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/refresh';
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/refresh';
 };
 
 export type RefreshSourceImageryErrors = {
@@ -9192,7 +9197,7 @@ export type SearchPlanetScenesData = {
         source_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search';
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-scenes/search';
 };
 
 export type SearchPlanetScenesErrors = {
@@ -9226,7 +9231,7 @@ export type MintPlanetSceneLayersData = {
         source_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-scenes/layers';
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-scenes/layers';
 };
 
 export type MintPlanetSceneLayersErrors = {
@@ -9256,7 +9261,7 @@ export type CreateImageryViewData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/views';
+    url: '/api/campaigns/{campaign_id}/views';
 };
 
 export type CreateImageryViewErrors = {
@@ -9286,7 +9291,7 @@ export type ReorderImageryViewsData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/views/order';
+    url: '/api/campaigns/{campaign_id}/views/order';
 };
 
 export type ReorderImageryViewsErrors = {
@@ -9320,7 +9325,7 @@ export type DeleteImageryViewData = {
         view_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/views/{view_id}';
+    url: '/api/campaigns/{campaign_id}/views/{view_id}';
 };
 
 export type DeleteImageryViewErrors = {
@@ -9354,7 +9359,7 @@ export type UpdateImageryViewData = {
         view_id: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/views/{view_id}';
+    url: '/api/campaigns/{campaign_id}/views/{view_id}';
 };
 
 export type UpdateImageryViewErrors = {
@@ -9400,7 +9405,7 @@ export type ProxyBasemapTileData = {
         y: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}';
+    url: '/api/campaigns/{campaign_id}/imagery/basemaps/{basemap_id}/tiles/{z}/{x}/{y}';
 };
 
 export type ProxyBasemapTileErrors = {
@@ -9448,7 +9453,7 @@ export type ProxySliceTileData = {
         y: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}';
+    url: '/api/campaigns/{campaign_id}/imagery/slices/{slice_id}/tiles/{visualization_id}/{z}/{x}/{y}';
 };
 
 export type ProxySliceTileErrors = {
@@ -9496,7 +9501,7 @@ export type ProxyPlanetLayerTileData = {
         y: number;
     };
     query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}';
+    url: '/api/campaigns/{campaign_id}/imagery/sources/{source_id}/planet-layers/{layer_id}/tiles/{z}/{x}/{y}';
 };
 
 export type ProxyPlanetLayerTileErrors = {
@@ -10875,7 +10880,7 @@ export type NextAgentTasksResponses = {
 export type NextAgentTasksResponse = NextAgentTasksResponses[keyof NextAgentTasksResponses];
 
 export type AnnotateAgentTaskData = {
-    body: AnnotationFromTaskCreate;
+    body: TaskAnswerCreate;
     path: {
         /**
          * Agent Id
@@ -10903,7 +10908,7 @@ export type AnnotateAgentTaskResponses = {
     /**
      * Successful Response
      */
-    200: AnnotationTaskSubmitResponse;
+    200: TaskSubmitResponse;
 };
 
 export type AnnotateAgentTaskResponse = AnnotateAgentTaskResponses[keyof AnnotateAgentTaskResponses];

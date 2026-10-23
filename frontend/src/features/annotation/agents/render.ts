@@ -431,7 +431,7 @@ async function drawChart(
   { task, campaign, stage }: RenderInput
 ): Promise<DrawnCell> {
   const { lat, lon } = task;
-  const data = (await timeSeriesCache.get(ids, { lat, lon })) ?? {};
+  const data = (await timeSeriesCache.get(campaign.id, ids, { lat, lon })) ?? {};
   const series = ids.map((id) => campaign.time_series.find((t) => t.id === id));
   const times = collectSeriesLabels(ids, data);
   const { smoothing } = DEFAULT_TIMESERIES_CHART;
