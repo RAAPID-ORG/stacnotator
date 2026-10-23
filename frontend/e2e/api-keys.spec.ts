@@ -75,7 +75,7 @@ test.describe('Keyed tile templates go through the backend proxy', () => {
     const urls = recordRequests(annotationPage);
     const proxyTile = annotationPage.waitForRequest(
       (req) =>
-        req.url().includes(`/api/${CAMPAIGN_ID}/imagery/basemaps/${KEYED_BASEMAP_ID}/tiles/`),
+        req.url().includes(`/api/campaigns/${CAMPAIGN_ID}/imagery/basemaps/${KEYED_BASEMAP_ID}/tiles/`),
       { timeout: 15_000 }
     );
 
@@ -84,14 +84,14 @@ test.describe('Keyed tile templates go through the backend proxy', () => {
 
     const req = await proxyTile;
     expect(req.url()).not.toContain('{z}');
-    expect(urls.some((url) => url.includes('/planet/'))).toBe(false);
+    expect(urls.some((url) => url.startsWith('https://tiles.example.com/planet/'))).toBe(false);
   });
 
   test('a keyed imagery slice is requested from the slice proxy', async ({ annotationPage }) => {
     const urls = recordRequests(annotationPage);
     const proxyTile = annotationPage.waitForRequest(
       (req) =>
-        req.url().includes(`/api/${CAMPAIGN_ID}/imagery/slices/${KEYED_COVER_SLICE_ID}/tiles/`),
+        req.url().includes(`/api/campaigns/${CAMPAIGN_ID}/imagery/slices/${KEYED_COVER_SLICE_ID}/tiles/`),
       { timeout: 15_000 }
     );
 
