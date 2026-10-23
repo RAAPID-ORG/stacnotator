@@ -58,7 +58,7 @@ const CAMPAIGN_SECTION: Record<string, { label: string; icon: ReactNode }> = {
   tasks: { label: 'Tasks', icon: <IconTaskListFilled /> },
   annotations: { label: 'Annotations', icon: <IconChart /> },
   agents: { label: 'Agents', icon: <IconRobot /> },
-  settings: { label: 'Settings', icon: <IconGear /> },
+  settings: { label: 'Campaign settings', icon: <IconGear /> },
 };
 
 const projectSectionPath = (projectId: number, section: ProjectSection) =>
@@ -99,7 +99,7 @@ const NavItem = ({
   onNavigate,
 }: NavItemProps) => {
   const className = `flex w-full gap-2.5 rounded-md ${
-    emphasis ? 'min-h-8 items-start py-1.5' : 'h-8 items-center'
+    emphasis ? 'min-h-8 items-start py-[7px]' : 'h-8 items-center'
   } text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 ${
     collapsed ? 'justify-center' : `pr-2 ${DEPTH_PADDING[depth]}`
   } ${
@@ -113,7 +113,7 @@ const NavItem = ({
         {icon}
       </span>
       {!collapsed && (
-        <span className={`flex-1 min-w-0 ${emphasis ? 'break-words leading-5' : 'truncate'}`}>
+        <span className={`flex-1 min-w-0 ${emphasis ? 'break-words leading-[1.3]' : 'truncate'}`}>
           {label}
         </span>
       )}

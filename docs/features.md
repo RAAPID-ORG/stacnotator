@@ -219,7 +219,7 @@ See [annotation-tiles.md](annotation-tiles.md) for details.
 
 - Authentication: Firebase (multi-user) or local mode (single-user, no setup required)
 - Platform roles: `user` and `admin`; access control otherwise runs through organizations and projects (see above)
-- Navigation: the sidebar lists the current project's sections (Campaigns, Visualizers, Members, Project settings) and, inside a campaign, its pages (Overview, Annotate, Tasks, Annotations, Agents, Settings), showing only what the viewer's role allows. The account menu at the bottom switches organization and opens Account settings or Organization settings; platform admins get a separate Platform admin page
+- Navigation: the sidebar lists the current project's sections (Campaigns, Visualizers, Members, Project settings) and, inside a campaign, its pages (Overview, Annotate, Tasks, Annotations, Agents, Campaign settings), showing only what the viewer's role allows. The account menu at the bottom switches organization and opens Account settings or Organization settings; platform admins get a separate Platform admin page
 - Project-scoped membership with per-member admin and authoritative-reviewer flags, applying to every campaign in the project
 - Organization approval by platform admins; email invites pre-authorize signups
 - Firebase mode: signup with email+pw (requires email validation) or via GoogleAuth
