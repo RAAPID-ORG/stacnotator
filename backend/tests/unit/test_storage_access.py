@@ -131,7 +131,7 @@ def test_private_catalog_slice_ingests_with_access_and_searches_its_own_collecti
 
     def ingest(*args, **kwargs):
         calls["ingest"] = kwargs
-        return SimpleNamespace(collection="c-0123abcd", count=3)
+        return "c-0123abcd"
 
     def register(tiler, body, scope, **kwargs):
         calls["register"] = (body, kwargs)
@@ -257,9 +257,7 @@ def test_a_visualizer_cannot_register_a_private_catalog_of_its_own():
         }
     )
     with pytest.raises(HTTPException) as exc:
-        imagery_service.save_visualizer_imagery(
-            None, visualizer=None, sources=[source], bbox=[0, 0, 1, 1]
-        )
+        imagery_service.save_visualizer_imagery(None, None, [source])
     assert exc.value.status_code == 400
 
 

@@ -33,7 +33,6 @@ const controllerWith = (sources: ImagerySource[], campaignId?: number) =>
     addCollection: vi.fn(),
     updateCollection: vi.fn(),
     removeCollection: vi.fn(),
-    refreshCollection: vi.fn(),
     refreshSource: vi.fn(),
     setBasemaps: vi.fn(),
   }) satisfies ImageryController;

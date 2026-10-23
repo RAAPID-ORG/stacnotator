@@ -19,7 +19,7 @@ from src.campaigns.assignments import (
     assign_tasks_to_users,
 )
 from src.campaigns.form_fields import CategoryFormField, TextFormField
-from src.campaigns.models import CampaignSettings
+from src.campaigns.models import Campaign, CampaignSettings
 from src.campaigns.schemas import (
     AssignTasksToUsersRequest,
     CampaignUpdate,
@@ -263,7 +263,7 @@ class TestUpdateCampaignBbox:
     def test_commits_registration_status_before_spawning_for_new_roi(self):
         db = _mock_db()
         campaign = MagicMock(
-            id=1, registration_status="ready", registration_errors=[{"error": "old"}]
+            spec=Campaign, id=1, registration_status="ready", registration_errors=[{"error": "old"}]
         )
         campaign.settings = CampaignSettings()
         pending = [MagicMock()]
@@ -280,16 +280,14 @@ class TestUpdateCampaignBbox:
             db.commit.assert_called_once()
 
         with (
+            patch("src.campaigns.service.prepare_reregistration", return_value=pending) as prepare,
             patch(
-                "src.campaigns.service.prepare_stac_reregistration", return_value=pending
-            ) as prepare,
-            patch(
-                "src.campaigns.service.spawn_background_registration", side_effect=spawned
+                "src.imagery.registration.spawn_background_registration", side_effect=spawned
             ) as spawn,
         ):
             update_campaign_bbox(db, campaign, -10, -20, 10, 20)
 
-        prepare.assert_called_once_with(db, 1)
+        prepare.assert_called_once_with(campaign.imagery_sources)
         spawn.assert_called_once_with(LayerOwner(campaign_id=1), pending, [-10, -20, 10, 20])
 
     def test_without_stac_imagery_does_not_start_registration(self):
@@ -297,8 +295,8 @@ class TestUpdateCampaignBbox:
         campaign = MagicMock(registration_status="ready")
         db.get.return_value = campaign
         with (
-            patch("src.campaigns.service.prepare_stac_reregistration", return_value=[]),
-            patch("src.campaigns.service.spawn_background_registration") as spawn,
+            patch("src.campaigns.service.prepare_reregistration", return_value=[]),
+            patch("src.imagery.registration.spawn_background_registration") as spawn,
         ):
             update_campaign_bbox(db, campaign, -10, -20, 10, 20)
 

@@ -104,7 +104,7 @@ def test_ingest_on_tiler_posts_aoi(monkeypatch):
         max_cloud=20,
         limit=100,
     )
-    assert n == providers.Ingested(collection="sentinel-2-l2a", count=7)
+    assert n == "sentinel-2-l2a"
     assert captured["url"] == "https://tiler-one.example.com/ingest"
     assert captured["json"]["collection"] == "sentinel-2-l2a"
     assert "storage_access" not in captured["json"]
@@ -121,7 +121,7 @@ def test_private_catalog_ingest_carries_its_access_and_reports_where_it_landed(m
         None,
         storage_access=access,
     )
-    assert out.collection == "imagery-0123abcd"
+    assert out == "imagery-0123abcd"
     assert captured["json"]["storage_access"] == access
 
 

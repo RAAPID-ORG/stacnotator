@@ -10,7 +10,6 @@ Two providers:
                  can ingest come from config only.
 """
 
-from dataclasses import dataclass
 from urllib.parse import quote, urlencode
 
 import httpx
@@ -186,14 +185,6 @@ def _register_base(tiler: TilerCfg) -> str:
     return (tiler.internal_url or tiler.url).rstrip("/")
 
 
-@dataclass(frozen=True)
-class Ingested:
-    # The tiler's pgstac collection the items went into; a private catalog's differs from
-    # the catalog's own id, and searches have to name this one.
-    collection: str
-    count: int
-
-
 def ingest_on_tiler(
     tiler: TilerCfg,
     catalog_url: str,
@@ -203,7 +194,7 @@ def ingest_on_tiler(
     max_cloud: float | None = None,
     limit: int = 500,
     storage_access: dict | None = None,
-) -> Ingested:
+) -> str:
     """Trigger an AOI ingest on a hosted tiler (its decoupled `POST /ingest`).
 
     The tiler runs the STAC-API search and upserts into its own pgstac; the backend never
@@ -233,7 +224,9 @@ def ingest_on_tiler(
     )
     resp.raise_for_status()
     result = resp.json()
-    return Ingested(collection=result.get("collection", collection), count=result["ingested"])
+    # The tiler's pgstac collection the items went into: a private catalog's differs
+    # from the catalog's own id, and searches have to name this one.
+    return str(result.get("collection", collection))
 
 
 def register_cog_on_tiler(

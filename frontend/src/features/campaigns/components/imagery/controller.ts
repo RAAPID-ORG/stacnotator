@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   saveImagery as apiSaveImagery,
-  refreshCollectionImagery as apiRefreshCollection,
   refreshSourceImagery as apiRefreshSource,
 } from '~/api/client';
 import type {
@@ -65,7 +64,6 @@ export interface ImageryController {
     patch: Partial<CollectionItem>
   ): Promise<void>;
   removeCollection(sourceId: string, collectionId: string): Promise<void>;
-  refreshCollection(sourceId: string, collectionId: string): Promise<void>;
   /** Re-run every STAC search behind a source and re-ingest what comes back. */
   refreshSource(sourceId: string): Promise<void>;
 
@@ -219,10 +217,6 @@ export function useDraftController({
         const src = stateRef.current.sources.find((s) => s.id === sourceId);
         if (!src) return;
         patchSource(sourceId, withoutCollection(src, collectionId));
-      },
-
-      refreshCollection: async () => {
-        // No-op in draft - collections resolve at campaign-create time.
       },
 
       refreshSource: async () => {
@@ -568,8 +562,8 @@ export function usePersistedController({
       },
 
       refreshSource: async (sourceId) => {
-        // Same rule as refreshCollection: this re-runs the saved search
-        // server-side, so unsaved edits would be ignored and confuse the result.
+        // This re-runs the saved search server-side, so unsaved edits would be
+        // ignored and confuse the result.
         if (isDirty) {
           handleError(
             new Error(t('controller.saveBeforeReregister')),
@@ -585,27 +579,6 @@ export function usePersistedController({
           refetch?.();
         } catch (e) {
           handleError(e, t('controller.reregisterFailed'));
-        } finally {
-          setPending(false);
-        }
-      },
-
-      refreshCollection: async (_sourceId, collectionId) => {
-        // Refresh is a server-side side-effect (re-fetch STAC items, re-register
-        // mosaic) and operates against persisted state. Block when dirty so it
-        // doesn't run against a stale config - user must Save first.
-        if (isDirty) {
-          handleError(new Error(t('controller.saveBeforeRefresh')), t('controller.cannotRefresh'));
-          return;
-        }
-        setPending(true);
-        try {
-          await apiRefreshCollection({
-            path: { campaign_id: campaignId, collection_id: Number(collectionId) },
-          });
-          refetch?.();
-        } catch (e) {
-          handleError(e, t('controller.refreshFailed'));
         } finally {
           setPending(false);
         }

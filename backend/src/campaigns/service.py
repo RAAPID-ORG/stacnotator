@@ -7,7 +7,6 @@ from sqlalchemy import ARRAY, Text, and_, cast, delete, exists, func, or_, selec
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
-from src import background
 from src.annotation import embeddings_service
 from src.annotation import service as annotation_service
 from src.annotation.forms import campaign_form_fields
@@ -40,14 +39,8 @@ from src.imagery.models import (
     ImagerySource,
     ImageryView,
 )
-from src.imagery.registration import (
-    REGISTRATION_RUN,
-    StacRegistrationSpec,
-    prepare_stac_reregistration,
-    spawn_background_registration,
-)
-from src.imagery.service import create_imagery_from_editor_state
-from src.layers import LayerOwner
+from src.imagery.registration import commit_and_register, prepare_reregistration
+from src.imagery.service import save_imagery_editor_state
 from src.organizations.service import active_organization_ids
 from src.projects.access import VISIBILITY_ORGANIZATION, VISIBILITY_PUBLIC
 from src.projects.models import Project, ProjectUser
@@ -221,43 +214,15 @@ def create_campaign(
         add_timeseries(db, campaign.id, timeseries_configs)
         db.refresh(campaign)
 
-    # Create imagery structure (sources, collections, slices, views - no STAC calls yet)
-    pending_registrations: list[StacRegistrationSpec] = []
-    registration_bbox: list[float] = []
-    if imagery_editor_state:
-        imagery_result = create_imagery_from_editor_state(
-            db,
-            campaign=campaign,
-            editor_state=imagery_editor_state,
-        )
-        pending_registrations = imagery_result["registrations"]
-        registration_bbox = imagery_result["bbox"]
-
-    # Set initial statuses based on what background work is needed
-    embedding_year = campaign.settings.embedding_year
+    pending = (
+        save_imagery_editor_state(db, campaign, imagery_editor_state)
+        if imagery_editor_state
+        else []
+    )
     campaign.registration_status = "ready"
     campaign.embedding_status = "ready"
-    if pending_registrations:
-        background.begin_status_run(campaign, REGISTRATION_RUN)
-    if embedding_year is not None:
-        background.begin_status_run(campaign, embeddings_service.EMBEDDING_RUN)
-
-    db.commit()
-    db.refresh(campaign)
-
-    campaign_id = campaign.id
-
-    # Background thread: imagery registration (off the request path so the
-    # commit above isn't blocked on the slow parallel STAC calls).
-    if pending_registrations:
-        spawn_background_registration(
-            LayerOwner(campaign_id=campaign_id), pending_registrations, registration_bbox
-        )
-
-    # Background thread: embeddings
-    if embedding_year is not None:
-        embeddings_service.spawn_background_embedding_computation(campaign_id, embedding_year)
-
+    commit_and_register(db, campaign, pending, campaign.settings.bbox)
+    embeddings_service.start_embedding_run(db, campaign)
     return get_campaign_full(db, campaign.id)
 
 
@@ -442,15 +407,8 @@ def update_campaign_bbox(
     campaign.settings.bbox_east = bbox_east
     campaign.settings.bbox_north = bbox_north
 
-    pending = prepare_stac_reregistration(db, campaign_id)
-    if pending:
-        background.begin_status_run(campaign, REGISTRATION_RUN)
-        campaign.registration_errors = None
-    db.commit()
-    if pending:
-        spawn_background_registration(
-            LayerOwner(campaign_id=campaign_id), pending, list(campaign.settings.bbox)
-        )
+    pending = prepare_reregistration(campaign.imagery_sources)
+    commit_and_register(db, campaign, pending, campaign.settings.bbox)
 
     return get_campaign_full(db, campaign_id)
 

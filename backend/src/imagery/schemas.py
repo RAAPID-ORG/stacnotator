@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -91,9 +91,7 @@ class VisualizationTemplateOut(BaseModel):
 class ImageryGenerationConfigV1(BaseModel):
     """Lossless, versioned input for the temporal imagery generator."""
 
-    # Defaulted rather than required: series saved before Planet scenes existed carry
-    # no tag, and they are all STAC ones.
-    kind: Literal["stac"] = "stac"
+    kind: Literal["stac"]
     version: Literal[1] = 1
     catalog_url: str
     stac_collection_id: str
@@ -122,9 +120,9 @@ class ImageryGenerationConfigV1(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-# Deliberately not a discriminated union: the STAC tag is a default, so stored configs
-# written before it existed still parse.
-GenerationConfig = ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1
+GenerationConfig = Annotated[
+    ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1, Field(discriminator="kind")
+]
 
 
 class ImageryGenerationSeriesOut(BaseModel):
@@ -379,41 +377,3 @@ class ImageryViewOrderUpdate(BaseModel):
     """Full campaign view ordering; must list every view id exactly once."""
 
     view_ids: list[int]
-
-
-# ============================================================================
-# Planet scene search (at annotation time, not at setup)
-# ============================================================================
-
-
-class PlanetSceneSearchIn(BaseModel):
-    """The extent to search, west/south/east/north: whatever is on screen."""
-
-    bbox: list[float] = Field(min_length=4, max_length=4)
-
-
-class PlanetSceneLayersIn(BaseModel):
-    """The dates to mint tile layers for, over the extent they were found on."""
-
-    bbox: list[float] = Field(min_length=4, max_length=4)
-    slice_ids: list[int] = Field(min_length=1, max_length=64)
-
-
-class PlanetSceneSliceOut(BaseModel):
-    """One of the source's slices, and what this extent has for it.
-
-    ``layer_id`` is null for a date that holds imagery but has no tile layer yet: a
-    search mints the covers only, and the rest are minted when they are opened."""
-
-    slice_id: int
-    scene_count: int
-    layer_id: str | None = None
-
-
-class PlanetSceneSearchOut(BaseModel):
-    """What this extent has. Slices missing from ``slices`` hold no imagery here, which
-    is the answer the search exists to give - a date with nothing over you is a date
-    not worth stepping to."""
-
-    slices: list[PlanetSceneSliceOut]
-    errors: list[str] = []

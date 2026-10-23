@@ -3,7 +3,7 @@
 Owns everything that talks to the outside world for that: parallel slice
 registration against STAC providers (MPC direct or hosted tilers) with retries,
 the background thread that runs it off the request path, bbox-change
-re-registration, and the manual refresh endpoint's re-ingest. Editor-state
+re-registration, and a source refresh's re-ingest. Editor-state
 persistence lives in ``service.py``; it only hands over plain snapshots.
 
 Planet scene sources register nothing: a search is bounded by an area, and theirs
@@ -16,7 +16,6 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import datetime
 
 import httpx
 from fastapi import HTTPException
@@ -345,7 +344,7 @@ def _register_all_stac_browser_collections(
     return registration_errors
 
 
-# The imagery domain's background run: registration and collection
+# The imagery domain's background run: registration and source
 # refresh both report through this status/heartbeat pair on the campaign.
 REGISTRATION_RUN = background.StatusField(
     model=Campaign,
@@ -354,7 +353,7 @@ REGISTRATION_RUN = background.StatusField(
     errors_column="registration_errors",
     interrupted_error=(
         "Imagery registration was interrupted by a server restart. "
-        "Save the imagery again or refresh the affected collection to retry."
+        "Save the imagery again or refresh the affected source to retry."
     ),
 )
 
@@ -406,51 +405,38 @@ def spawn_background_registration(
     )
 
 
-def spawn_background_collection_refresh(
-    campaign_id: int,
-    collection_id: int,
-    bbox: list[float],
+def commit_and_register(
+    db: Session, owner: Campaign | Visualizer, pending: list[StacRegistrationSpec], bbox
 ) -> None:
-    """Run a manual collection re-ingest off the request path (see src/background.py).
+    """Commit the caller's writes and, when there is anything to register, start the run.
 
-    Refresh re-ingests every slice's AOI into the hosted tiler's pgstac, one HTTP
-    call per slice, which can take minutes across a whole collection; doing it
-    inline holds the request's transaction open across those calls and trips the
-    idle-in-transaction backstop.
+    The run's start is committed with the writes that made it necessary, before the
+    thread spawns, and clears the errors a past run left so they don't sit under the
+    new one.
     """
-
-    def work(db: Session) -> None:
-        refresh_collection_imagery(db, collection_id, campaign_id, bbox)
-
-    background.spawn_status_run(
-        campaign_id,
-        REGISTRATION_RUN,
-        name=f"collection {collection_id} refresh",
-        work=work,
-        sanitize_error=lambda exc: f"Collection refresh: {_sanitize_stac_error(exc)}",
+    if not pending:
+        db.commit()
+        return
+    layer_owner = (
+        LayerOwner(campaign_id=owner.id)
+        if isinstance(owner, Campaign)
+        else LayerOwner(visualizer_id=owner.id)
     )
+    _, field = status_run_for(layer_owner)
+    background.begin_status_run(owner, field)
+    owner.registration_errors = None
+    db.commit()
+    spawn_background_registration(layer_owner, pending, list(bbox))
 
 
 def refreshable_collection_ids(db: Session, source_id: int, campaign_id: int) -> list[int]:
-    """Every collection of this source whose STAC search can be re-run, in
-    display order. 404s for a source outside the caller's campaign, and 400s
-    when the source holds nothing re-searchable (a manual-URL source has no
-    catalog to ask again)."""
-    source = db.execute(
-        select(ImagerySource).where(
-            ImagerySource.id == source_id, ImagerySource.campaign_id == campaign_id
-        )
-    ).scalar_one_or_none()
-    if source is None:
+    """Every collection of this campaign source whose STAC search can be re-run, in
+    display order. 404s for a source outside the campaign, 400s when the source holds
+    nothing re-searchable (a manual-URL source has no catalog to ask again)."""
+    source = db.get(ImagerySource, source_id)
+    if source is None or source.campaign_id != campaign_id:
         raise HTTPException(status_code=404, detail="Source not found")
-
-    ids = [
-        collection.id
-        for collection in source.collections
-        if collection.stac_config
-        and collection.stac_config.catalog_url
-        and collection.stac_config.stac_collection_id
-    ]
+    ids = [c.id for c in source.collections if stored_spec(c) is not None]
     if not ids:
         raise HTTPException(
             status_code=400, detail="This source has no STAC collections to re-register"
@@ -469,7 +455,9 @@ def spawn_background_source_refresh(
 
     def work(db: Session) -> None:
         for collection_id in collection_ids:
-            refresh_collection_imagery(db, collection_id, campaign_id, bbox)
+            collection = db.get(ImageryCollection, collection_id)
+            if collection is not None:
+                _reingest_collection(collection, bbox)
 
     background.spawn_status_run(
         campaign_id,
@@ -533,7 +521,7 @@ def _register_hosted_slice(
     if access is not None:
         if not tiler.allows_ingest:
             raise ValueError("A private catalog needs a tiler that can ingest it")
-        ingested = providers.ingest_on_tiler(
+        pgstac_collection = providers.ingest_on_tiler(
             tiler,
             stac.catalog_url,
             stac.stac_collection_id,
@@ -542,7 +530,7 @@ def _register_hosted_slice(
             stac.max_cloud_cover,
             storage_access=access.tiler_body(),
         )
-        body["collections"] = [ingested.collection]
+        body["collections"] = [pgstac_collection]
         return providers.register_on_tiler(
             tiler,
             body,
@@ -579,156 +567,95 @@ def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:
         body["datetime"] = f"{start}/{end}"
 
 
-def prepare_stac_reregistration(db: Session, campaign_id: int) -> list[StacRegistrationSpec]:
-    """Snapshot stored STAC collections and discard tile URLs for the old ROI.
-
-    The caller commits these changes with the new bbox and registration status,
-    then passes the work orders to spawn_background_registration.
-    """
-    sources = (
-        db.execute(select(ImagerySource).where(ImagerySource.campaign_id == campaign_id))
-        .scalars()
-        .all()
-    )
-
-    pending = []
-    for source in sources:
-        for collection in source.collections:
-            stac = collection.stac_config
-            if not (stac and stac.catalog_url and stac.stac_collection_id and collection.slices):
-                continue
-            pending.append(
-                StacRegistrationSpec(
-                    collection_id=collection.id,
-                    collection_name=collection.name,
-                    stac_config=CollectionStacConfigCreate(
-                        catalog_url=stac.catalog_url,
-                        stac_collection_id=stac.stac_collection_id,
-                        tiler=stac.tile_provider,
-                        max_cloud_cover=stac.max_cloud_cover,
-                        search_query=copy.deepcopy(stac.search_query),
-                        cover_search_query=copy.deepcopy(stac.cover_search_query),
-                        internal_storage=stac.internal_storage,
-                        visualizations=[
-                            NamedVizParamsCreate(
-                                name=vc.name,
-                                viz_params=VizParamsCreate.model_validate(vc.render_params),
-                                cover_viz_params=(
-                                    VizParamsCreate.model_validate(vc.cover_render_params)
-                                    if vc.cover_render_params is not None
-                                    else None
-                                ),
-                            )
-                            for vc in collection.viz_configs
-                        ],
+def stored_spec(collection: ImageryCollection) -> StacRegistrationSpec | None:
+    """The work order to register this collection as it is stored, or None when it
+    holds no STAC search to register (a manual-URL collection, or one with no slices)."""
+    stac = collection.stac_config
+    if not (stac and stac.catalog_url and stac.stac_collection_id and collection.slices):
+        return None
+    return StacRegistrationSpec(
+        collection_id=collection.id,
+        collection_name=collection.name,
+        stac_config=CollectionStacConfigCreate(
+            catalog_url=stac.catalog_url,
+            stac_collection_id=stac.stac_collection_id,
+            tiler=stac.tile_provider,
+            max_cloud_cover=stac.max_cloud_cover,
+            search_query=copy.deepcopy(stac.search_query),
+            cover_search_query=copy.deepcopy(stac.cover_search_query),
+            internal_storage=stac.internal_storage,
+            visualizations=[
+                NamedVizParamsCreate(
+                    name=vc.name,
+                    viz_params=VizParamsCreate.model_validate(vc.render_params),
+                    cover_viz_params=(
+                        VizParamsCreate.model_validate(vc.cover_render_params)
+                        if vc.cover_render_params is not None
+                        else None
                     ),
-                    has_dedicated_cover=collection.has_dedicated_cover,
-                    cover_slice_index=collection.cover_slice_index,
-                    source_viz_names=[v.name for v in source.visualizations],
-                    storage_access=storage_access.stored(stac),
                 )
-            )
-            for sl in collection.slices:
-                for tu in sl.tile_urls:
-                    db.delete(tu)
-    return pending
-
-
-def load_refreshable_collection(
-    db: Session, collection_id: int, campaign_id: int
-) -> ImageryCollection:
-    """Look up a collection scoped to its owning campaign and validate it's
-    refreshable, raising the 404/400 this has always raised for a bad id or a
-    non-STAC-browser collection.
-
-    The join through ImagerySource.campaign_id keeps this scoped to the caller's
-    authorized campaign, so an admin of one campaign can't refresh (and
-    re-ingest with their own bbox) a collection belonging to another.
-
-    Shared by the request handler's synchronous pre-spawn check and
-    refresh_collection_imagery's own use below, so there is one source of truth
-    for what "refreshable" means rather than two copies that could drift.
-    """
-    collection = db.execute(
-        select(ImageryCollection)
-        .join(ImagerySource, ImageryCollection.source_id == ImagerySource.id)
-        .where(
-            ImageryCollection.id == collection_id,
-            ImagerySource.campaign_id == campaign_id,
-        )
-    ).scalar_one_or_none()
-    if not collection or not collection.stac_config:
-        raise HTTPException(status_code=404, detail="Collection not found or no STAC config")
-
-    stac = collection.stac_config
-    if not stac.catalog_url or not stac.stac_collection_id:
-        raise HTTPException(status_code=400, detail="Collection is not a STAC browser collection")
-    return collection
-
-
-def refresh_collection_imagery(
-    db: Session,
-    collection_id: int,
-    campaign_id: int,
-    bbox: list[float],
-) -> dict:
-    """Re-search STAC catalog with stored params, update mosaic items.
-
-    Returns dict with status and registered_at.
-    """
-    collection = load_refreshable_collection(db, collection_id, campaign_id)
-    stac = collection.stac_config
-    # load_refreshable_collection already raised if any of this were falsy.
-    assert stac is not None  # noqa: S101
-    assert stac.catalog_url and stac.stac_collection_id  # noqa: S101
-    slices = (
-        db.execute(
-            select(ImagerySlice)
-            .where(ImagerySlice.collection_id == collection.id)
-            .order_by(ImagerySlice.display_order)
-        )
-        .scalars()
-        .all()
+                for vc in collection.viz_configs
+            ],
+        ),
+        has_dedicated_cover=collection.has_dedicated_cover,
+        cover_slice_index=collection.cover_slice_index,
+        source_viz_names=[v.name for v in collection.source.visualizations],
+        storage_access=storage_access.stored(stac),
     )
 
-    refreshed_count = 0
-    for sl in slices:
-        # Re-ingest the slice's AOI into the hosted tiler's pgstac; the registered search
-        # auto-picks-up new items, so the tile URL is unchanged. MPC manages its own; direct
-        # URLs and ingest-incapable tilers (pre-loaded data) have nothing to refresh.
-        hosted_tu = next(
-            (
-                tu
-                for tu in sl.tile_urls
-                if tu.tile_provider and tu.tile_provider != "mpc" and tu.mosaic_id
-            ),
+
+def discard_for_registration(collection: ImageryCollection) -> StacRegistrationSpec | None:
+    """Drop the collection's tile URLs and return the work order that rebuilds them.
+
+    Does not flush or commit: the caller commits the deletes together with whatever
+    made them stale, then hands the work orders to ``spawn_background_registration``.
+    """
+    spec = stored_spec(collection)
+    if spec is not None:
+        for sl in collection.slices:
+            sl.tile_urls.clear()
+    return spec
+
+
+def prepare_reregistration(sources: list[ImagerySource]) -> list[StacRegistrationSpec]:
+    """Every STAC collection of these sources, set to be registered again - for when the
+    area they are searched over has moved."""
+    return [
+        spec
+        for source in sources
+        for collection in source.collections
+        if (spec := discard_for_registration(collection)) is not None
+    ]
+
+
+def _reingest_collection(collection: ImageryCollection, bbox: list[float]) -> None:
+    """Re-ingest each hosted slice's area so its registered search picks up newer items.
+
+    The tile URL stays the same. MPC manages its own catalog, and direct URLs and
+    ingest-incapable tilers (pre-loaded data) have nothing to re-ingest.
+    """
+    stac = collection.stac_config
+    assert stac is not None and stac.catalog_url and stac.stac_collection_id  # noqa: S101
+    access = storage_access.stored(stac)
+    for sl in collection.slices:
+        hosted = next(
+            (tu for tu in sl.tile_urls if tu.tile_provider not in (None, "mpc") and tu.mosaic_id),
             None,
         )
-        if not hosted_tu:
+        if hosted is None:
             continue
-        tiler = providers.resolve_tiler(hosted_tu.tile_provider)
+        tiler = providers.resolve_tiler(hosted.tile_provider)
         if not tiler.allows_ingest:
             continue
-
-        dt_range = f"{sl.start_date}T00:00:00Z/{sl.end_date}T23:59:59Z"
-        access = storage_access.stored(stac)
         try:
             providers.ingest_on_tiler(
                 tiler,
                 stac.catalog_url,
                 stac.stac_collection_id,
                 bbox,
-                dt_range,
+                f"{sl.start_date}T00:00:00Z/{sl.end_date}T23:59:59Z",
                 stac.max_cloud_cover,
                 storage_access=access.tiler_body() if access else None,
             )
-            refreshed_count += 1
         except Exception:
             logger.warning("Refresh failed for slice %s", sl.name, exc_info=True)
-
-    db.flush()
-    return {
-        "status": "refreshed",
-        "slices_updated": refreshed_count,
-        "registered_at": datetime.utcnow().isoformat(),
-    }

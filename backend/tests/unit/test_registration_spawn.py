@@ -1,6 +1,6 @@
 """Tests for the registration work orders and spawn_background_registration's
 wiring into the background-run protocol (src/background.py, covered in
-test_background_runs.py). Mirrors test_collection_refresh_spawn.py.
+test_background_runs.py).
 """
 
 from unittest.mock import MagicMock
@@ -146,12 +146,11 @@ def test_roi_reregistration_rebuilds_saved_slices_without_holding_a_transaction(
             ImageryCollection(slices=[ImagerySlice(tile_urls=[manual_url])]),
         ],
     )
-    db = MagicMock()
-    db.execute.return_value.scalars.return_value.all.return_value = [source]
-    specs = registration.prepare_stac_reregistration(db, 1)
-    db.delete.assert_called_once_with(collection.slices[0].tile_urls[0])
-    db.commit.assert_not_called()
+    specs = registration.prepare_reregistration([source])
+    assert collection.slices[0].tile_urls == []
+    assert source.collections[1].slices[0].tile_urls == [manual_url]
     assert len(specs) == 1
+    db = MagicMock()
 
     # Emulate the request commit before the worker uses a separate session.
     db.reset_mock()

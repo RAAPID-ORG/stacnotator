@@ -13,7 +13,6 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from src import background
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.custom_layers.models import CustomMap, VectorLayer
@@ -31,7 +30,6 @@ from src.imagery.schemas import (
     ImagerySourceCreate,
     ImagerySourceOut,
 )
-from src.layers import LayerOwner
 from src.projects.models import Project
 from src.visualizers import timeline
 from src.visualizers.models import (
@@ -159,9 +157,8 @@ def create(db: Session, project: Project, payload: VisualizerCreate, user_id) ->
     db.flush()
     _replace_layers(db, visualizer, payload.imagery, payload.overlays)
     pending = _save_own_imagery(db, visualizer, payload.own_imagery)
-    imagery_service.save_visualizer_basemaps(db, visualizer=visualizer, basemaps=payload.basemaps)
-    db.commit()
-    _spawn_registration(visualizer.id, pending, area_out(visualizer))
+    imagery_service.save_visualizer_basemaps(db, visualizer, payload.basemaps)
+    registration.commit_and_register(db, visualizer, pending, _bbox(visualizer))
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -172,8 +169,13 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
         visualizer.description = payload.description
     if payload.is_public is not None:
         visualizer.is_public = payload.is_public
-    if payload.area is not None:
-        _apply_area(visualizer, payload.area)
+    area_moved = payload.area is not None and payload.area != area_out(visualizer)
+    if area_moved and visualizer.registration_status == "registering":
+        raise HTTPException(
+            status_code=409,
+            detail="Wait for imagery registration to finish before moving the area",
+        )
+    _apply_area(visualizer, payload.area)
     if payload.imagery is not None or payload.overlays is not None:
         _replace_layers(
             db,
@@ -186,12 +188,20 @@ def update(db: Session, visualizer: Visualizer, payload: VisualizerUpdate) -> Vi
         if payload.own_imagery is not None
         else []
     )
+    if area_moved:
+        # Every search was registered over the old area. Collections the save just
+        # queued are already in ``pending``; the rest are queued here.
+        queued = {spec.collection_id for spec in pending}
+        db.flush()
+        db.expire(visualizer, ["imagery_sources"])
+        pending += [
+            spec
+            for spec in registration.prepare_reregistration(visualizer.imagery_sources)
+            if spec.collection_id not in queued
+        ]
     if payload.basemaps is not None:
-        imagery_service.save_visualizer_basemaps(
-            db, visualizer=visualizer, basemaps=payload.basemaps
-        )
-    db.commit()
-    _spawn_registration(visualizer.id, pending, area_out(visualizer))
+        imagery_service.save_visualizer_basemaps(db, visualizer, payload.basemaps)
+    registration.commit_and_register(db, visualizer, pending, _bbox(visualizer))
     return load(db, visualizer_id=visualizer.id)
 
 
@@ -214,32 +224,12 @@ def _save_own_imagery(
             status_code=400,
             detail="Choose the area this visualizer covers before adding imagery to it",
         )
-    pending = imagery_service.save_visualizer_imagery(
-        db, visualizer=visualizer, sources=sources, bbox=_bbox(visualizer)
-    )
-    if pending:
-        background.begin_status_run(visualizer, registration.VISUALIZER_REGISTRATION_RUN)
-        visualizer.registration_errors = None
-    return pending
+    return imagery_service.save_visualizer_imagery(db, visualizer, sources)
 
 
 def _bbox(visualizer: Visualizer) -> list[float]:
     area = area_out(visualizer)
     return [area.west, area.south, area.east, area.north] if area else []
-
-
-def _spawn_registration(
-    visualizer_id: int, pending: list[StacRegistrationSpec], area: VisualizerArea | None
-) -> None:
-    """Off the request path, after the commit - the provider calls are slow enough
-    that holding the write transaction across them trips the idle backstop."""
-    if not pending or area is None:
-        return
-    registration.spawn_background_registration(
-        LayerOwner(visualizer_id=visualizer_id),
-        pending,
-        [area.west, area.south, area.east, area.north],
-    )
 
 
 def _apply_area(visualizer: Visualizer, area: VisualizerArea | None) -> None:

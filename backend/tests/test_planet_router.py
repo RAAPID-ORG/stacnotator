@@ -161,7 +161,6 @@ def test_the_connection_is_handed_back_before_planet_is_called(client, monkeypat
 
 SCENE_CONFIG = {
     "kind": "planet_scenes",
-    "aoi": {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]},
     "start_date": "2024-01-01",
     "end_date": "2024-01-31",
     "collection_period_interval": 1,

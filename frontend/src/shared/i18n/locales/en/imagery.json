@@ -247,10 +247,7 @@
     "saveFailed": "Failed to save imagery changes",
     "saveBeforeReregister": "Save your changes before re-registering this source.",
     "cannotReregister": "Cannot re-register",
-    "reregisterFailed": "Failed to re-register source",
-    "saveBeforeRefresh": "Save your changes before refreshing this collection.",
-    "cannotRefresh": "Cannot refresh",
-    "refreshFailed": "Failed to refresh collection"
+    "reregisterFailed": "Failed to re-register source"
   },
   "tiler": {
     "methods": {

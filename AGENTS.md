@@ -68,7 +68,7 @@ Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` -FastAPI endpoints, dependency wiring
 - `service.py` -orchestration: DB I/O + external calls (STAC, Earth Engine, tiler)
 - `models.py` -SQLAlchemy models; `schemas.py` -Pydantic request/response models
-- **functional-core modules** -pure logic extracted out of `service.py` so it can be unit-tested without a DB: `campaigns/assignments.py` + `campaigns/statistics.py`, `imagery/tile_urls.py`, `annotation/io.py`, `canvas/layout.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
+- **functional-core modules** -pure logic extracted out of `service.py` so it can be unit-tested without a DB: `campaigns/assignments.py` + `campaigns/statistics.py`, `annotation/status.py`, `annotation/spatial.py`, `planet/scenes.py`, `canvas/layout.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
 
 `canvas/` is a routerless domain module that owns all canvas-layout state (the `CanvasLayout` model, the react-grid-layout item schema, bin-packing/reconciliation in `layout.py`, DB writes in `service.py`). Other domains contribute window keys (timeseries window names, imagery collection ids) and must never mutate `layout_data` themselves; the save endpoint stays at `imagery/router.py`'s `new-layout` for API stability.
 

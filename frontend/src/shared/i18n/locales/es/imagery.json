@@ -258,10 +258,7 @@
     "saveFailed": "No se pudieron guardar los cambios de imágenes",
     "saveBeforeReregister": "Guarda tus cambios antes de volver a registrar esta fuente.",
     "cannotReregister": "No se puede volver a registrar",
-    "reregisterFailed": "No se pudo volver a registrar la fuente",
-    "saveBeforeRefresh": "Guarda tus cambios antes de actualizar esta colección.",
-    "cannotRefresh": "No se puede actualizar",
-    "refreshFailed": "No se pudo actualizar la colección"
+    "reregisterFailed": "No se pudo volver a registrar la fuente"
   },
   "tiler": {
     "methods": {

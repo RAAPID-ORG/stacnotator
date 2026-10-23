@@ -49,6 +49,7 @@ const toVizParamsPayload = (v: VizParams): VizParamsCreate => ({
 });
 
 const generationConfigToBackend = (config: ImageryGenerationConfig): ImageryGenerationConfigV1 => ({
+  kind: 'stac',
   version: 1,
   catalog_url: config.catalogUrl,
   stac_collection_id: config.stacCollectionId,

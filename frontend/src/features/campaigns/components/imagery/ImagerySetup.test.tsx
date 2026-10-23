@@ -34,7 +34,6 @@ const controller = (campaignId?: number): ImageryController => ({
   addCollection: vi.fn(),
   updateCollection: vi.fn(),
   removeCollection: vi.fn(),
-  refreshCollection: vi.fn(),
   refreshSource: vi.fn(),
   setBasemaps: vi.fn(),
 });

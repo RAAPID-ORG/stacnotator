@@ -200,7 +200,6 @@ def test_an_empty_layer_is_refused_rather_than_posted(planet):
 def scene_config(**overrides) -> PlanetScenesGenerationConfigV1:
     defaults = dict(
         kind="planet_scenes",
-        aoi=AOI,
         start_date="2026-08-01",
         end_date="2026-08-29",
         collection_period_interval=1,

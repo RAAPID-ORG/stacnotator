@@ -2611,7 +2611,7 @@ export type ImageryGenerationConfigV1 = {
     /**
      * Kind
      */
-    kind?: 'stac';
+    kind: 'stac';
     /**
      * Version
      */
@@ -2734,7 +2734,11 @@ export type ImageryGenerationSeriesCreate = {
     /**
      * Config
      */
-    config: ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1;
+    config: ({
+        kind: 'stac';
+    } & ImageryGenerationConfigV1) | ({
+        kind: 'planet_scenes';
+    } & PlanetScenesGenerationConfigV1);
 };
 
 /**
@@ -2748,7 +2752,11 @@ export type ImageryGenerationSeriesOut = {
     /**
      * Config
      */
-    config: ImageryGenerationConfigV1 | PlanetScenesGenerationConfigV1;
+    config: ({
+        kind: 'stac';
+    } & ImageryGenerationConfigV1) | ({
+        kind: 'planet_scenes';
+    } & PlanetScenesGenerationConfigV1);
 };
 
 /**
@@ -3691,12 +3699,6 @@ export type PlanetScenesGenerationConfigV1 = {
      * Version
      */
     version?: 1;
-    /**
-     * Aoi
-     */
-    aoi?: {
-        [key: string]: unknown;
-    } | null;
     /**
      * Item Types
      */
@@ -9339,8 +9341,10 @@ export type SaveImageryResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    204: void;
 };
+
+export type SaveImageryResponse = SaveImageryResponses[keyof SaveImageryResponses];
 
 export type CreateNewCanvasLayoutData = {
     body: CanvasLayoutCreateRequest;
@@ -9368,38 +9372,6 @@ export type CreateNewCanvasLayoutResponses = {
      * Successful Response
      */
     201: unknown;
-};
-
-export type RefreshCollectionImageryData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Collection Id
-         */
-        collection_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/collections/{collection_id}/refresh';
-};
-
-export type RefreshCollectionImageryErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RefreshCollectionImageryError = RefreshCollectionImageryErrors[keyof RefreshCollectionImageryErrors];
-
-export type RefreshCollectionImageryResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
 };
 
 export type RefreshSourceImageryData = {
@@ -9431,8 +9403,10 @@ export type RefreshSourceImageryResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    204: void;
 };
+
+export type RefreshSourceImageryResponse = RefreshSourceImageryResponses[keyof RefreshSourceImageryResponses];
 
 export type SearchPlanetScenesData = {
     body: PlanetSceneSearchIn;
